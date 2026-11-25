@@ -566,38 +566,172 @@ export function drawPump(g: G, w: number, h: number): void {
   outline(g, cx, cy, cw, ch, 1.2);
 }
 
-export function drawBarrier(g: G, w: number, h: number): void {
-  g.fillStyle = "#2f3032";
-  for (const fx of [2, w / 2 - 3, w - 8]) g.fillRect(fx, 0, 6, h);
-  const py = 3;
-  const ph = h - 6;
+/** Asset fixes round 1 (designer, 2026-11-24): the two police barrier looks, mixed per line (`barrierStyle`). */
+export type BarrierStyle = "sawhorse" | "concrete";
+
+/** Drawing units across a barrier (its 0.5 m depth): the looks are drawn on a 32-unit-deep strip and scaled to fit. */
+const BARRIER_UNITS = 32;
+/** Where the end lamps sit, in units from each end (the view's blinkers sit 5 map px = 10 units in: `blinkerSpots`). */
+const BARRIER_LAMP_U = 10;
+
+/**
+ * A police barrier seen from above, `w` long × `h` deep (px, +x along it), drawn at its real length: the
+ * sawhorses or concrete blocks repeat along the line instead of one picture being stretched.
+ * - `sawhorse` (B1): a row of striped boards on splayed A-frame legs with rubber feet;
+ * - `concrete` (B3): heavy concrete blocks with yellow POLICE LINE tape strung between them.
+ * Amber lamp housings sit at both ends (the view animates their glow). Asset review: "it's just a line,
+ * it could even be a crosswalk".
+ */
+export function drawBarrier(g: G, w: number, h: number, style: BarrierStyle = "sawhorse"): void {
+  const k = h / BARRIER_UNITS;
   g.save();
-  g.beginPath();
-  g.rect(1, py, w - 2, ph);
-  g.clip();
-  g.fillStyle = "#b5b1a5";
-  g.fillRect(0, py, w, ph);
-  g.fillStyle = "#2c4e7c";
-  for (let sx = -10; sx < w; sx += 20) {
-    g.beginPath();
-    g.moveTo(sx, py + ph);
-    g.lineTo(sx + 10, py + ph);
-    g.lineTo(sx + 10 + ph, py);
-    g.lineTo(sx + ph, py);
-    g.closePath();
-    g.fill();
-  }
+  g.scale(k, k);
+  if (style === "concrete") drawConcreteLine(g, w / k);
+  else drawSawhorseLine(g, w / k);
   g.restore();
-  g.fillStyle = "rgba(255,255,255,0.25)";
-  g.fillRect(1, py, w - 2, 1);
-  g.strokeStyle = "#08080a";
-  g.lineWidth = 1.3;
-  g.strokeRect(1, py, w - 2, ph);
-  g.fillStyle = "#d08a2a";
-  circle(g, 5, h / 2, 2.6);
+}
+
+/** Small seeded random for wear marks (the same marks every bake). */
+function wearRng(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+function lampHousing(g: G, x: number, y: number, box: boolean): void {
+  if (box) {
+    g.fillStyle = "#2a2a2a";
+    g.fillRect(x - 4, y - 3, 8, 6);
+  }
+  g.fillStyle = "#e39a2c";
+  circle(g, x, y, 2.6);
   g.fill();
-  circle(g, w - 5, h / 2, 2.6);
-  g.fill();
+}
+
+function drawSawhorseLine(g: G, L: number): void {
+  const H = BARRIER_UNITS;
+  const n = Math.max(1, Math.round(L / 64));
+  const unit = L / n;
+  const cy = H / 2;
+  for (let u = 0; u < n; u++) {
+    const x0 = u * unit;
+    // the lower cross rails beside the board, then the splayed legs and rubber feet
+    g.strokeStyle = "#3a3d42";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x0 + 9, 6);
+    g.lineTo(x0 + unit - 9, 6);
+    g.moveTo(x0 + 9, H - 6);
+    g.lineTo(x0 + unit - 9, H - 6);
+    g.stroke();
+    for (const lx of [x0 + 9, x0 + unit - 9]) {
+      g.strokeStyle = "#55595f";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(lx, cy);
+      g.lineTo(lx - 1, 3);
+      g.moveTo(lx, cy);
+      g.lineTo(lx - 1, H - 3);
+      g.stroke();
+      g.fillStyle = "#16171a";
+      g.fillRect(lx - 4, 1, 6, 3);
+      g.fillRect(lx - 4, H - 4, 6, 3);
+    }
+    // the board: its dark underside (thickness), then the striped top face
+    const bx = x0 + 2;
+    const bw = unit - 4;
+    g.fillStyle = "#0d0e10";
+    g.fillRect(bx, cy - 4, bw, 10);
+    g.save();
+    g.beginPath();
+    g.rect(bx, cy - 6, bw, 9);
+    g.clip();
+    g.fillStyle = "#e6e2d6";
+    g.fillRect(bx, cy - 6, bw, 9);
+    g.fillStyle = "#24497e";
+    for (let sx = bx - 12; sx < bx + bw; sx += 14) {
+      g.beginPath();
+      g.moveTo(sx, cy + 3);
+      g.lineTo(sx + 7, cy + 3);
+      g.lineTo(sx + 16, cy - 6);
+      g.lineTo(sx + 9, cy - 6);
+      g.closePath();
+      g.fill();
+    }
+    const r = wearRng(11 + u);
+    g.fillStyle = "rgba(40,30,20,0.35)";
+    for (let i = 0; i < 6; i++) g.fillRect(bx + r() * bw, cy - 6 + r() * 9, 2 + r() * 4, 1);
+    g.restore();
+    g.fillStyle = "rgba(255,255,255,0.35)";
+    g.fillRect(bx, cy - 6, bw, 1);
+    g.strokeStyle = "#08080a";
+    g.lineWidth = 1;
+    g.strokeRect(bx + 0.5, cy - 5.5, bw - 1, 11);
+  }
+  lampHousing(g, BARRIER_LAMP_U, cy - 5, true);
+  lampHousing(g, L - BARRIER_LAMP_U, cy - 5, true);
+}
+
+function drawConcreteLine(g: G, L: number): void {
+  const H = BARRIER_UNITS;
+  const BW = 40; // block length (units)
+  const end = BW / 2 + 4;
+  const n = Math.max(2, Math.round((L - 2 * end) / 112) + 1);
+  const centres = Array.from({ length: n }, (_, i) => end + ((L - 2 * end) * i) / (n - 1));
+  // the tape first (under the blocks), two strands with a slight sag
+  for (const [y0, sag] of [
+    [11, 2.5],
+    [21, -2],
+  ] as const) {
+    for (let b = 0; b < n - 1; b++) {
+      const a = centres[b] as number;
+      const c = centres[b + 1] as number;
+      g.save();
+      g.strokeStyle = "#e8c228";
+      g.lineWidth = 3.4;
+      g.beginPath();
+      g.moveTo(a, y0);
+      g.quadraticCurveTo((a + c) / 2, y0 + sag, c, y0);
+      g.stroke();
+      g.setLineDash([5, 7]);
+      g.strokeStyle = "#141414";
+      g.lineWidth = 1.4;
+      g.stroke();
+      g.restore();
+    }
+  }
+  for (const [i, cx] of centres.entries()) {
+    const x0 = cx - BW / 2;
+    const gr = g.createLinearGradient(0, 1, 0, H - 1);
+    gr.addColorStop(0, "#9b978e");
+    gr.addColorStop(0.5, "#7d7a73");
+    gr.addColorStop(1, "#4e4c48");
+    g.fillStyle = gr;
+    g.fillRect(x0, 1, BW, H - 2);
+    g.fillStyle = "#a9a59c"; // the narrow top
+    g.fillRect(x0 + 2, 12, BW - 4, 8);
+    g.fillStyle = "rgba(255,255,255,0.3)";
+    g.fillRect(x0 + 2, 12, BW - 4, 1);
+    const r = wearRng(51 + i);
+    for (let q = 0; q < 14; q++) {
+      g.fillStyle = r() < 0.5 ? "rgba(0,0,0,0.22)" : "rgba(255,255,255,0.12)";
+      g.fillRect(x0 + r() * BW, 1 + r() * (H - 2), 1 + r() * 3, 1 + r() * 2);
+    }
+    g.fillStyle = "rgba(0,0,0,0.4)"; // a chipped corner
+    g.beginPath();
+    g.moveTo(x0 + BW, H - 1);
+    g.lineTo(x0 + BW - 6, H - 1);
+    g.lineTo(x0 + BW, H - 7);
+    g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.7)";
+    g.lineWidth = 1;
+    g.strokeRect(x0 + 0.5, 1.5, BW - 1, H - 3);
+  }
+  // lamps on the end blocks, where the view's blinkers sit
+  lampHousing(g, BARRIER_LAMP_U, H / 2, false);
+  lampHousing(g, L - BARRIER_LAMP_U, H / 2, false);
 }
 
 /** A dumpster seen from above (a `block` mutation): green steel, two lids, corner caps. */

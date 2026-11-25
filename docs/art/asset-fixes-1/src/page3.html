@@ -1,0 +1,65 @@
+<title>Asset Fixes Round 3</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one chapter per asset; each option is a labelled plate: the frame itself, then the frame in a night street scene. Dark by design: the art is judged on the night street. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 60px; }
+header, section { max-width: 1180px; margin-inline: auto; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; }
+h1 span { color: var(--accent); }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin: 40px 0 4px; }
+p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
+p b { color: var(--fg); }
+.opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 16px; margin-top: 12px; }
+.opts.small { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.opt { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.opt.now { border-style: dashed; }
+.opt h3 { margin: 0; font: 600 15px var(--font-body); display: flex; gap: 8px; align-items: baseline; }
+.opt h3 .tag { font: 600 12px var(--font-display); letter-spacing: .08em; background: var(--accent); color: #241703; padding: 1px 7px; border-radius: 3px; }
+.opt.now h3 .tag { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.opt p { font-size: 13px; margin: 0; }
+.opt canvas { max-width: 100%; height: auto; display: block; border-radius: 4px; image-rendering: auto; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row canvas { max-width: 160px; }
+#street-H canvas, #street-I canvas, #street-J canvas { max-width: 100%; }
+.pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 40px; }
+.pick p { margin: 0; color: var(--fg); }
+</style>
+
+<header>
+  <h1>Asset fixes <span>round 3</span></h1>
+  <p>Boss effects built like the ground damage you liked: real surfaces lit by the street light, with texture, grime, wear and stains, instead of flat drawings. Pictures are at twice the game's size (the game will use these sizes too). <b>Pick a set</b>, or mix pieces, and tell Claude in the chat.</p>
+  <p>Already decided and going into the game: <b>slam warning = S1's glow + S1a's sparks + S1c's countdown ticks</b>, and the ground damage below (all three combined in one).</p>
+</header>
+
+<section>
+  <h2>1 · Boss effects</h2>
+  <p>In each row: the skull over the boss's target, the screen-edge marker, then the slam, charge and throw icons. On the right, the skull and marker on the night street at game size.</p>
+  <div class="opts">
+    <div class="opt"><h3><span class="tag">H</span> Weathered bone</h3><p>A real old skull, yellowed and cracked, with dirt and dried blood, lit red from behind. The marker is a rusted steel plate. Icons: the Behemoth's fist on cracked asphalt, gouges ploughed through the street, a flying chunk of concrete with rebar.</p><div class="row" id="fx-H"></div><div id="street-H"></div></div>
+    <div class="opt"><h3><span class="tag">I</span> Blood</h3><p>Painted by hand in wet, glossy blood on the street, with drips and splatter. A blood burst for the slam, drag smears for the charge, a bloodied chunk for the throw.</p><div class="row" id="fx-I"></div><div id="street-I"></div></div>
+    <div class="opt"><h3><span class="tag">J</span> Rusted sign</h3><p>Real old enamel signs: embossed rim, chipped paint, rust bleeding down from the chips, bolts, a red glow behind.</p><div class="row" id="fx-J"></div><div id="street-J"></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>2 · Ground damage: R1 + R2 + R3 combined</h2>
+  <p>One decal with R1's shattered dish and debris, R2's scorched centre and R3's long fine fractures. Lit (left) and at night as in the game (right). Say if it's right, or if one part should be stronger.</p>
+  <div class="opts small"><div class="opt"><div class="row" id="dmg-all"></div></div></div>
+  <div class="pick"><p>Reply with your pick for the boss effects, for example <b>set H</b>, or a mix ("H's skull and marker, J's icons").</p></div>
+</section>
+
+<script>
+/*@JS@*/
+</script>

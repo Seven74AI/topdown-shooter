@@ -88,6 +88,8 @@ export interface UrlOptions {
   stressLights: boolean;
   /** `?stressbuild=bear` (Story 5.14, only with `?stress`): 24 bear traps round the survivor (they catch the crowd). */
   stressBear: boolean;
+  /** Photoreal group 3: `?stressbuild=fort` lays a closed fort of standing barricades round the player (look checks). */
+  stressFort: boolean;
   /**
    * `?stressbuild=molotov` (Story 5.12, release-safe, only with `?stress`): molotov fire zones kept
    * burning round the survivor (relit as they end) for the phone benchmark — 8 (the cap, the worst
@@ -179,6 +181,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
+    stressFort: q.get("stressbuild")?.trim().toLowerCase() === "fort",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3

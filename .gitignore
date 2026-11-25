@@ -15,3 +15,6 @@ deploy/.env
 # Story 7.1: the dev PGlite database (apps/server/.data/pglite) and the VPS backup settings
 apps/server/.data/
 deploy/backup.env
+
+# Asset review export (tools/gallery/export.ts): regenerated, ~6 MB
+tools/gallery/out/
