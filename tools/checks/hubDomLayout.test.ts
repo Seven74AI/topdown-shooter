@@ -37,6 +37,7 @@ interface Measure {
   pick: string;
   supplies: string;
   gearShown: boolean;
+  districts: { text: string; cut: boolean; font: number; overTabs: boolean; inTablist: boolean };
 }
 
 let pw: Pw | null = null;
@@ -49,11 +50,13 @@ try {
 const ALL_BUT_WEAPONS = ["spike_trap", "bear_trap", "mine", "floodlight", "barricade_upgrades", "med_station", "tactical_flashlight", "body_armor_2", "molotovs", "assault_rifle", "chainsaw", "gas_torch", "flamethrower"];
 const CASES = [
   { name: "new player, 340", progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] as string[] }, pick: "Spike trap" },
+  // review M4: District 2 owned (the "unlocked · coming soon" line)
+  { name: "review M4: District 2 unlocked", progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] as string[], districts: ["downtown", "district_2"] }, pick: "Spike trap" },
   { name: "worst: 0 Supplies, pick on Grenade Launcher (need 500 more)", progress: { supplies: 0, lifetimeSupplies: 9000, unlocks: ALL_BUT_WEAPONS }, pick: "Grenade Launcher" },
   { name: "worst: 7-digit total, pick on Tactical flashlight", progress: { supplies: 1_234_567, lifetimeSupplies: 1_234_567, unlocks: ["spike_trap", "bear_trap", "mine", "floodlight", "barricade_upgrades", "med_station", "molotovs"] }, pick: "Tactical flashlight" },
   // review F8: a 42-character name (longer than the column even alone, a future item) on the tagged row ends in "…" and keeps the tag in its column
   { name: "review F8: a 42-char name on the Good next pick row", progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] as string[] }, pick: "Reinforced metal barricade kit with spikes", longName: "Reinforced metal barricade kit with spikes" },
-] as { name: string; progress: { supplies: number; lifetimeSupplies: number; unlocks: readonly string[] }; pick: string; longName?: string }[];
+] as { name: string; progress: { supplies: number; lifetimeSupplies: number; unlocks: readonly string[]; districts?: readonly string[] }; pick: string; longName?: string }[];
 
 let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: { local: string[] } | null } | null = null;
 let browser: Browser | null = null;
@@ -132,7 +135,11 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
           const minFont = Math.min(...texts.map((e) => parseFloat(getComputedStyle(e).fontSize)));
           const smallButtons = [...document.querySelectorAll(".ph button")].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).map((b) => b.textContent);
           const pickRow = document.querySelector(".ph-pick")?.closest(".ph-row");
-          return { out, minFont, smallButtons, frame: { x: frame.left, y: frame.top, right: frame.right, bottom: frame.bottom }, gearShown, pick: pickRow ? pickRow.querySelector(".ph-name__text").textContent : "", supplies: document.querySelector("[data-testid=hub-supplies]").textContent };
+          const dl = document.querySelector("[data-testid=hub-districts]");
+          const dr = dl ? dl.getBoundingClientRect() : null;
+          const tabTop = document.querySelector(".ph-tabs").getBoundingClientRect().top;
+          const districts = dl ? { text: dl.textContent, cut: dl.scrollWidth > dl.clientWidth + 0.5 || dl.scrollHeight > dl.clientHeight + 0.5, font: parseFloat(getComputedStyle(dl).fontSize), overTabs: dr.bottom > tabTop + 0.5, inTablist: !!dl.closest("[role=tablist]") } : { text: "", cut: false, font: 0, overTabs: false, inTablist: false };
+          return { districts, out, minFont, smallButtons, frame: { x: frame.left, y: frame.top, right: frame.right, bottom: frame.bottom }, gearShown, pick: pickRow ? pickRow.querySelector(".ph-name__text").textContent : "", supplies: document.querySelector("[data-testid=hub-supplies]").textContent };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.out, m.out.join("\n")).toEqual([]);
         expect(m.minFont).toBeGreaterThanOrEqual(11);
@@ -144,6 +151,10 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
         expect(m.pick).toBe(c.pick); // liveness: the tag is really drawn on the expected row
         expect(m.gearShown).toBe(false); // review F11: no dev gear over the hub header
         expect(m.supplies).toContain(c.progress.supplies.toLocaleString("en-US"));
+        // review M4: the Districts line, in full (never cut), at ≥ 12 px, under the rule and outside the tablist
+        expect(m.districts.text).toBe(c.progress.districts?.includes("district_2") ? "District 2: unlocked · coming soon" : "District 2: extract from Downtown to unlock");
+        expect(m.districts).toMatchObject({ cut: false, overTabs: false, inTablist: false });
+        expect(m.districts.font).toBeGreaterThanOrEqual(12);
       }, 30_000);
     }
   }

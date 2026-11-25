@@ -2470,18 +2470,15 @@ button.lobby__district {
   color: var(--lumen-accent, #ff9a3c);
 }
 
-/* Story 7.7 (AC 7, D2): the hub's Districts line beside the tabs: one line, ellipsis, never wider than the tab bar. */
+/* Story 7.7 (AC 7, D2; review M4): the hub's Districts line under the rule line: its own block, wraps, never cut. */
 .ph-districts {
-  flex: 1 1 0;
-  min-width: 0;
-  margin-left: 12px;
-  align-self: center;
-  font-size: 11px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding-left: 4px;
   color: #c9ced6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: right;
+  font: 600 12px/16px system-ui, sans-serif; /* PH_TEXT_PX.line */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Story 7.4 (K7): group 3 of the Run rewards panel (brief 26): the supply-drop / borrowed-card unlock hint. */
