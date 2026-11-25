@@ -95,7 +95,7 @@ One full gate on story-6-14-tidy (origin/master 62dd2ef already contained; fix-b
 ## Senior Developer Review (AI)
 
 Reviewer: fresh-agent light review (one checker, time-boxed), 2026-11-25. Commit reviewed: `34dde4b` (diff `62dd2ef...34dde4b`).
-**Outcome: Approve. No high findings; 1 medium (a test that doesn't catch a mutation), 5 low.**
+**Outcome: Approve. No high findings; 1 medium (a test that doesn't catch a mutation), 6 low.**
 
 ### Run
 
