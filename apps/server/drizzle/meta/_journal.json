@@ -15,6 +15,13 @@
       "when": 1795586996317,
       "tag": "0001_run_rewards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795601285302,
+      "tag": "0002_accounts_devices",
+      "breakpoints": true
     }
   ]
 }

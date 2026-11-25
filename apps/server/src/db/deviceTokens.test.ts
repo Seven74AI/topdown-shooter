@@ -196,10 +196,13 @@ describe("Story 7.6: accounts and devices (PGlite)", () => {
           { token_hash: H("d"), account_id: made[0]?.id },
           { token_hash: H("e"), account_id: made[1]?.id },
         ]);
-        const cols = await rows<{ column_name: string }>(db as unknown as Db, sql`select column_name from information_schema.columns where table_name = 'accounts' order by column_name`);
-        expect(cols.map((c) => c.column_name)).not.toContain("guest_token_hash");
+        const cols = await rows<{ column_name: string; is_nullable: string }>(db as unknown as Db, sql`select column_name, is_nullable from information_schema.columns where table_name = 'accounts' order by column_name`);
+        // review ops item: kept (nullable, unused) for one release so a rollback to a 7.1–7.3 build still finds its guests
+        expect(cols.find((c) => c.column_name === "guest_token_hash")?.is_nullable).toBe("YES");
         expect(cols.map((c) => c.column_name)).toEqual(expect.arrayContaining(["username_lower", "merged_into", "save_nudged"]));
         expect(await rows(db as unknown as Db, sql`select supplies from progress`)).toEqual([{ supplies: 33 }]);
+        // a guest made after 7.6 has no guest_token_hash (nothing writes it); a rollback build simply doesn't find it
+        await db.execute(sql`insert into accounts (display_name) values ('New')`);
       } finally {
         await client.close();
       }

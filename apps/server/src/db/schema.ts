@@ -9,7 +9,7 @@ import { type AnyPgColumn, boolean, check, index, integer, jsonb, pgTable, prima
 /**
  * One row per player. A guest account has no `username`; Story 7.6 fills `username` (as typed), `username_lower` (the
  * unique, case-blind key), `password_hash` and `recovery_code_hash` (both argon2id; never the clear text). The devices
- * that are this account live in `device_tokens` (7.6 moved `guest_token_hash` there: one account, several phones).
+ * that are this account live in `device_tokens` (7.6 copied `guest_token_hash` there: one account, several phones).
  * `merged_into`: a guest whose progress was merged into this account at a login (D11; the guest is retired, its
  * `run_rewards` rows stay as history and a late bank of it pays the account). No email, no IP (privacy, brief 28).
  */
@@ -19,6 +19,11 @@ export const accounts = pgTable("accounts", {
   usernameLower: text("username_lower").unique(),
   passwordHash: text("password_hash"),
   recoveryCodeHash: text("recovery_code_hash"),
+  /**
+   * UNUSED since Story 7.6 (devices live in `device_tokens`; review ops item): kept nullable for one release so a
+   * rollback to a 7.1–7.3 build still finds the guests it made; dropped by a later migration. Nothing writes it.
+   */
+  guestTokenHash: text("guest_token_hash").unique(),
   displayName: text("display_name").notNull().default(""),
   mergedInto: uuid("merged_into").references((): AnyPgColumn => accounts.id),
   /** Story 7.6 (AC 10, D9): the one-time Results "Save my progress" line was sent. */
