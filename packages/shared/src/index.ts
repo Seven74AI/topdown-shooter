@@ -176,7 +176,24 @@ export {
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,
+  HORDE_CHG_FAR,
+  HORDE_CHG_HEADING,
+  HORDE_CHG_MASK,
+  HORDE_CHG_POS_FULL,
+  HORDE_CHG_POS_SMALL,
+  HORDE_CHG_POS_TINY,
+  HORDE_CHG_TYPE_STATE,
+  HORDE_DELTA_HEADER_BYTES,
   HORDE_HEADER_BYTES,
+  HORDE_HEADING_TOLERANCE,
+  HORDE_KEY_INTERVAL_TICKS,
+  HORDE_KIND_DELTA,
+  HORDE_KIND_KEY,
+  HORDE_FAR_RULE_RADIUS_M,
+  HORDE_NEAR_M,
+  HORDE_SMALL_MOVE_CM,
+  HORDE_TINY_MOVE_MAX_CM,
+  HORDE_TINY_MOVE_MIN_CM,
   HORDE_MAX_FRAME_BYTES,
   HORDE_MAX_RECORDS,
   HORDE_MISSING_TICKS,
@@ -185,6 +202,7 @@ export {
   MAX_POS_CM,
   POS_SCALE,
   hordeFrameBytes,
+  hordeFrameKind,
   hordeFrameTick,
   isHordeFrameValid,
   packTypeState,
@@ -198,10 +216,12 @@ export {
   typeOfTypeState,
   writeHordeHeader,
   writeHordeRecord,
+  writeHordeRecordCm,
   zombieGenerationOfNetId,
   zombieNetId,
   type HordeSink,
 } from "./net/hordeFormat";
+export { HordeStreamDecoder, isFarRefreshTick } from "./net/hordeStream";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
 export { fuelTicksOf, hasMagazine, isFlame, isGun, isLauncher, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
@@ -277,6 +297,7 @@ export {
 export { endlessEventCandidates, isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./run/endlessEvents";
 export {
   BYTES,
+  NET_PROTOCOL_VERSION,
   C2S,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_START,

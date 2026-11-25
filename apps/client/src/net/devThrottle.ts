@@ -171,7 +171,7 @@ type MessageHandler = (message: unknown) => void;
  * - outgoing `send` (inputs, pongs) is held `lag/2 ± jitter/2`;
  * - incoming state patches, messages (event batches, pings) and binary frames (Story 2.5 horde)
  *   are held the same way. Patches are copied into pooled plain copies (`state` is the copy last
- *   handed on, so HP and positions are delayed alike), byte frames into pooled 2054-byte buffers;
+ *   handed on, so HP and positions are delayed alike), byte frames into pooled THROTTLE_BYTES_MAX (2055-byte, Story 8.10: one horde keyframe of 256) buffers;
  *   message objects are fresh per message from the SDK and are held by reference.
  * - Order is kept per direction (TCP never reorders): `due = max(lastDue, now + lag/2 + u)`.
  * - Story 8.8 (`&loss=<pct>&stall=<ms>`): a message drawn as "lost" adds `stallMs` to its due; the

@@ -3,6 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
+  NET_PROTOCOL_VERSION,
   DOWNTOWN_MAP,
   BYTES,
   C2S,
@@ -18,7 +19,9 @@ import {
   endWave,
   startWave,
   hordeFrameTick,
-  readHordeFrame,
+  HORDE_KIND_DELTA,
+  HORDE_KIND_KEY,
+  HordeStreamDecoder,
   spawnZombie,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
@@ -45,6 +48,7 @@ const options = (intent: "create" | "join", name: string) => ({
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken: randomBytes(16).toString("hex"),
 });
 
@@ -277,10 +281,13 @@ describe("RunRoom fight (Story 2.4)", () => {
     for (const got of [hostGot, guestGot]) {
       const ticks = got.horde.map(hordeFrameTick);
       for (let i = 1; i < ticks.length; i++) expect(ticks[i]).toBe((ticks[i - 1] as number) + 1); // one per tick
-      const last = got.horde[got.horde.length - 1] as Uint8Array;
-      const ids: number[] = [];
-      expect(readHordeFrame(last, { begin: () => {}, record: (_i, netId) => ids.push(netId & 0xff), end: () => {} })).toBe(true);
+      // Story 8.10: the stream from the join, through the phone's decoder: a keyframe first, then deltas.
+      expect(got.horde[0]?.[4]).toBe(HORDE_KIND_KEY);
+      const phone = new HordeStreamDecoder();
+      let ids: number[] = [];
+      for (const f of got.horde) expect(phone.decode(f, { begin: () => (ids = []), record: (_i, netId) => void ids.push(netId & 0xff), end: () => {} })).toBe(true);
       expect(ids).toContain(id);
+      expect(got.horde.some((f) => f[4] === HORDE_KIND_DELTA)).toBe(true);
     }
     expect(room.hordeStats.get("p0")?.framesSent).toBeGreaterThan(3);
 
@@ -292,6 +299,8 @@ describe("RunRoom fight (Story 2.4)", () => {
     await vi.waitFor(() => expect(info.mock.calls.some((c) => c[1] === "horde_stats")).toBe(true));
     const line = info.mock.calls.find((c) => c[1] === "horde_stats")?.[0] as Record<string, unknown>;
     expect(line).toMatchObject({ playerId: expect.stringMatching(/^p[01]$/), framesSkipped: 0 });
+    expect(line.keyframes).toBeGreaterThanOrEqual(0); // Story 8.10: logged per wave (≈ 1/s)
+    expect(Object.keys(line)).toContain("keyframes");
     expect(line.framesSent).toBeGreaterThan(3);
     expect(line.avgBytes).toBeGreaterThanOrEqual(8);
   });

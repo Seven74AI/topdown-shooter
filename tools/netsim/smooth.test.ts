@@ -19,12 +19,12 @@ interface Sum {
   drained: number;
 }
 
-const sum = (name: string, o: Omit<Options, "seed" | "oneWayMs" | "jitterHalfMs" | "weapon">): Sum => {
-  const runs = SEEDS.map((seed) => simulate({ ...LINE, ...o, seed }));
+const sum = (name: string, o: Omit<Options, "seed" | "oneWayMs" | "jitterHalfMs" | "weapon">, seeds: readonly number[] = SEEDS): Sum => {
+  const runs = seeds.map((seed) => simulate({ ...LINE, ...o, seed }));
   const n = (f: (r: Result) => number): number => runs.reduce((a, r) => a + f(r), 0);
   const s: Sum = {
     runs,
-    freezesPer30s: n((r) => r.smooth.freezes) / ((SEEDS.length * (o.seconds - 2)) / 30),
+    freezesPer30s: n((r) => r.smooth.freezes) / ((seeds.length * (o.seconds - 2)) / 30),
     neverFiredPct: (100 * n((r) => r.smooth.neverFired)) / Math.max(1, n((r) => r.smooth.localShots)),
     reversedPct: (100 * n((r) => r.reversed)) / Math.max(1, n((r) => r.apparentHits)),
     starved: n((r) => r.smooth.starvedTicks),
@@ -102,14 +102,19 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
   }, 60_000);
 
   it("beat the rule 3: a modified client that never slows only keeps its own backlog (the server's 2 s drain skips it)", () => {
-    const on = sum("lossy 1 % pacing ON, 150 Walkers standing", { seconds: 60, walkers: 150, kite: false, loss: LOSSY });
-    const off = sum("lossy 1 % pacing OFF (modified client)", { seconds: 60, walkers: 150, kite: false, loss: LOSSY, pacing: false });
+    // Story 8.10 (brief R5): since the harness draws the horde through the real stream, the seeded stalls land
+    // elsewhere and the starved on/off ratio over seeds 1–3 alone reads 1.85 (seeds 4–6: 1.40, 7–9: 1.19, the
+    // far rule on: 1.69); over seeds 1–9 it is 1.42. Nine seeds keep the 8.9 B7 bound about the rule, not the draw.
+    const SEEDS_9 = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+    const on = sum("lossy 1 % pacing ON, 150 Walkers standing", { seconds: 60, walkers: 150, kite: false, loss: LOSSY }, SEEDS_9);
+    const off = sum("lossy 1 % pacing OFF (modified client)", { seconds: 60, walkers: 150, kite: false, loss: LOSSY, pacing: false }, SEEDS_9);
     expect(off.drained).toBeGreaterThan(20); // the safety net did the draining
     expect(on.drained).toBeLessThan(off.drained);
     expect(on.neverFiredPct).toBeLessThanOrEqual(off.neverFiredPct);
     // Starved ticks: the backlog no longer sits 2 s as cover for the next stall (Story 2.4's trade-off): recorded,
     // bounded so a regression shows (measured +41–61 %, AC "± 10 %" not met, accepted as 8.9 B7: docs/network-pass-decisions.md).
     expect(on.starved).toBeLessThanOrEqual(off.starved * 1.7);
+    expect(on.starved).toBeLessThanOrEqual(300); // re-review RR2: an absolute pin over seeds 1–9 (measured 277)
   }, 60_000);
 
   it("beat the rule 4: a client that slows to 0.5× on purpose only starves its own survivor: no speed-up, no extra shots", () => {

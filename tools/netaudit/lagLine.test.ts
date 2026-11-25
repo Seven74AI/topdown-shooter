@@ -185,6 +185,30 @@ describe("lagLine (Story 8.8: ordered delay + head-of-line stalls, both directio
     s.destroy();
   });
 
+  it("Story 8.10 (T8): --kbps caps the server→client rate, in order, and pushes back on the server's socket", async () => {
+    const t = await target();
+    cleanups.push(t.close);
+    const line = await startLagLine({ listen: 0, target: t.port, rttMs: 0, jitterMs: 0, kbps: 800 }); // 100 KB/s
+    cleanups.push(line.close);
+    const c = await open(line.port);
+    cleanups.push(() => void c.destroy());
+    const got: Buffer[] = [];
+    c.on("data", (b: Buffer) => got.push(b));
+    await until(() => t.peer() !== null);
+    const peer = t.peer() as Socket;
+    const chunk = Buffer.alloc(10_000, 7);
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) peer.write(Buffer.from(chunk.map(() => i))); // 200 KB at once
+    await until(() => got.reduce((n, b) => n + b.length, 0) >= 200_000, 6000);
+    const ms = performance.now() - t0;
+    const all = Buffer.concat(got);
+    expect(all.length).toBe(200_000);
+    for (let i = 0; i < 20; i++) expect(all[i * 10_000]).toBe(i); // in order
+    expect(ms).toBeGreaterThanOrEqual(1800); // 200 KB at 100 KB/s ≈ 2 s
+    expect(line.stats().maxDownQueueMs).toBeGreaterThan(1000);
+    expect(line.stats().pausesDown).toBeGreaterThan(0); // the server's socket was held back
+  });
+
   it("close frees the port and drops the connections", async () => {
     const t = await target();
     cleanups.push(t.close);
