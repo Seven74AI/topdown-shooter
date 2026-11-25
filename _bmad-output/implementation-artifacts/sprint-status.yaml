@@ -197,7 +197,7 @@ development_status:
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio
-  epic-9: backlog
+  epic-9: in-progress  # 2026-11-25: photoreal pass (9.11–9.14), see docs/art/photoreal-decisions.md
   9-1-art-and-audio-asset-spec: backlog  # human: playtest/spec, not a dev-agent story
   9-2-downtown-in-five-decay-states: backlog
   9-3-survivor-animations: backlog
@@ -208,6 +208,10 @@ development_status:
   9-8-ambience-and-audio-buses: backlog
   9-9-adaptive-music: backlog
   9-10-weapon-and-zombie-sounds: backlog
+  9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
+  9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
+  9-13-photoreal-characters-in-game: backlog  # next: the art orchestrator session runs it (approved take 4, docs/art/photoreal-2/take4-grey.html)
+  9-14-photoreal-street-props-in-game: backlog  # after 9.13 (approved docs/art/photoreal-1/compare.html)
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
