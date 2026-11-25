@@ -618,6 +618,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     syncState(this.state, controller); // the seat's fields in the first patch
     this.sendOffer(client, seat.playerId);
     this.log.info({ playerId: seat.playerId, slot: seat.slot, wallet: seat.player.wallet }, "seat_restored");
+    void this.loadMemberProgress(member, undefined, false); // review round 2 L2: its districts count again (finalLeave dropped them); the look stays
   }
 
   /**

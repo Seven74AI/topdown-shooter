@@ -91,7 +91,7 @@ export function downPlayer(world: World, p: PlayerState, by: string | null = nul
   p.reviveTicks = 0;
   p.reviverId = null;
   p.reviveNeedTicks = 0;
-  world.events.emit({ type: "player.downed", playerId: p.id });
+  world.events.emit({ type: "player.downed", playerId: p.id, inWave: world.run.phase === "wave" });
   checkTeamWipe(world); // solo: going down ends the run on the same tick
 }
 
@@ -207,7 +207,7 @@ export function updateDowned(world: World): void {
         p.reviveTicks = 0;
         p.reviverId = null;
         p.reviveNeedTicks = 0;
-        world.events.emit({ type: "player.revived", playerId: p.id, reviverId: reviver.id });
+        world.events.emit({ type: "player.revived", playerId: p.id, reviverId: reviver.id, inWave: world.run.phase === "wave" });
       }
       continue; // the countdown pauses while a revive is in progress
     }

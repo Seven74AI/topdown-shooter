@@ -56,7 +56,7 @@ describe("Story 7.11: milestone counters", () => {
     expect(p(w, "p1").downs10).toBe(1);
   });
 
-  it("review M2 (B31): a revive counts in phase wave only, and not of a down the reviver caused (friendly fire)", () => {
+  it("review M2 (B31 amended, round 2 L3): a revive counts in phase wave only, and only of a down no player caused", () => {
     const w = setup();
     addPlayer(w, "p2", 14, 10);
     const revive = (by: string) => run(w, { type: "player.revived", playerId: "p1", reviverId: by });
@@ -67,7 +67,7 @@ describe("Story 7.11: milestone counters", () => {
     downPlayer(w, p(w, "p1"));
     revive("p0");
     expect(p(w, "p0").revives).toBe(0);
-    // wave, the reviver's own grenade did it → nothing; a teammate reviving that down → counts
+    // wave, p0's grenade did it → nothing for p0, and nothing for p2 either (no rotation farm: A downs, C revives)
     w.run.phase = "wave";
     standUp();
     expect(damagePlayerBy(w, p(w, "p1"), 100_000, "explosion", "p0")).toBeGreaterThan(0);
@@ -76,13 +76,32 @@ describe("Story 7.11: milestone counters", () => {
     revive("p0");
     expect(p(w, "p0").revives).toBe(0);
     revive("p2");
-    expect(p(w, "p2").revives).toBe(1);
+    expect(p(w, "p2").revives).toBe(0);
     // wave, a zombie's down: counts
     standUp();
     downPlayer(w, p(w, "p1"));
     expect(p(w, "p1").downedBy).toBeNull();
     revive("p0");
     expect(p(w, "p0").revives).toBe(1);
+  });
+
+  it("review N1: the phase at the revive / down counts (carried on the event), not the phase at the economy pass", () => {
+    const w = setup();
+    w.run.phase = "build"; // the wave cleared later in the same tick
+    run(w, { type: "player.revived", playerId: "p1", reviverId: "p0", inWave: true });
+    expect(p(w, "p0").revives).toBe(1);
+    run(w, { type: "player.downed", playerId: "p1", inWave: true });
+    expect(p(w, "p1").downs10).toBe(1);
+    w.run.phase = "wave";
+    run(w, { type: "player.revived", playerId: "p1", reviverId: "p0", inWave: false });
+    expect(p(w, "p0").revives).toBe(1);
+  });
+
+  it("review N1: downPlayer and a finished revive put the phase on their events", () => {
+    const w = setup();
+    downPlayer(w, p(w, "p1"));
+    const pending = Array.from({ length: w.events.pendingCount }, (_, i) => w.events.pendingAt(i));
+    expect(pending.find((e) => e?.type === "player.downed")).toMatchObject({ inWave: true });
   });
 
   it("review L2: a down in the build phase is no down for M9 (friendly fire between waves)", () => {

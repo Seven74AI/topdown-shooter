@@ -385,8 +385,17 @@ For the narrow re-review: M1 (`lootBag.ts` `lootTaker`, `banking.ts` `bankRunEnd
 
 Changes M1's fallback; listed separately from the round 1 fixes.
 
-- `meta/banking.ts › teamLootOf`: no find in the finder's result, or a `failed` result → `undefined` (no team line). The `{key: null, wave: 0}` "found the bag" fallback is gone (client: `rewardsModel.ts` no longer special-cases wave 0).
+- `meta/banking.ts › teamLootOf`: no find in the finder's result, or a result that isn't `saved` → `undefined` (no team line; folded with round 2 L1). The `{key: null, wave: 0}` "found the bag" fallback is gone (client: `rewardsModel.ts` no longer special-cases wave 0).
 - `meta/banking.ts › run`: after the second failed attempt, a finder's seat logs `loot_bank_failed {playerId, accountId, runId, wave, err}` once (`err` = `dbErrText`, cut at `\nparams:`).
-- `ui/rewardsModel.ts › metaRows`: a `failed` bank with a find → the row `{kind: "lost"}` "Couldn't save the bag's item" / "(found in wave N)" (`LOOT_FAILED_TEXT`, worded like `REWARDS_TEXT.failed`); `overlay.css` reuses `.rw-status--failed`'s red for `.rw-item--lost .rw-item__line` (one rule, no second error style). `not_saved` is unchanged (B23).
+- `ui/rewardsModel.ts › metaRows`: a `failed` bank with a find → the row `{kind: "lost"}` "Couldn't save the bag's item" / "(found in wave N)" (`LOOT_FAILED_TEXT`, worded like `REWARDS_TEXT.failed`); `overlay.css` reuses `.rw-status--failed`'s red for `.rw-item--lost .rw-item__line` (one rule, no second error style). `not_saved` keeps the finder's own "Found in…" row (B23); its teammates get no line (L1).
 - Tests (each mutated once, all killed): `bankingMeta.test.ts › B33 (designer override …)` (no teamLoot, finder `failed` with its loot, one log line equal to the cut `err`, no params anywhere in the logs), `› review M1 …` (never banked → no team line), `rewardsMeta.test.ts › B33 …` (the lost row; `not_saved` still "Found in…").
 - Decision B33 in `docs/epic-7-story-decisions-looks.md` marked "designer override 2026-11-25" with the new rule.
+
+## Re-review round 1 (APPROVED, 0 H/M) — lows folded in (for round 2)
+
+| # | Fix | Test(s) (each mutated once, killed) |
+|---|-----|---------|
+| L1 | `teamLootOf` names a find only when the finder's result is `saved` (failed and `not_saved` → no team line; one change with the B33 override) | `bankingMeta.test.ts › B33 …` (failing finder repo → teammates' `teamLoot` undefined), `› 7.12: an unsaved finder …` (no line) |
+| L2 | `restoreRemembered` reloads the seat's progress (`loadMemberProgress(member, undefined, false)`): its districts count again at `lobby.return` | `RunRoom.districts.test.ts › review round 2 L2` (leave mid-run, rejoin, lobby.return → no reset, District 2 still open) |
+| L3 | B31 amended: a revive counts only of a down with no player source (`downedBy === null`) — closes the 3-player rotation farm | `milestoneRecord.test.ts › review M2 (B31 amended …)` (A downs B, C revives → 0) |
+| N1 | Confirmed: revives finish in `player` and the wave can clear in `waves`, both before `economy` counts the event, so a revive on the clearing tick saw "build". `player.revived` and `player.downed` now carry `inWave` (server bookkeeping, not on the wire; absent → the current phase) | `milestoneRecord.test.ts › review N1` ×2 |

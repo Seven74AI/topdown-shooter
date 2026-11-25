@@ -40,8 +40,7 @@ async function newAccount(districts: string[] = [], cosmetics: string[] = []): P
   await setProgressListsForTest(database, id, districts, cosmetics);
   return id;
 }
-const options = (intent: "create" | "join", name: string, accountId: string | null, look?: unknown) => {
-  const guestToken = hex();
+const options = (intent: "create" | "join", name: string, accountId: string | null, look?: unknown, guestToken = hex()) => {
   return {
     intent,
     name,
@@ -140,6 +139,42 @@ describe("Story 7.7: the lobby district picker (server)", () => {
     room.state.phase = "results";
     host.send(C2S.LOBBY_RETURN, {});
     await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
+  });
+});
+
+describe("review round 2 L2: a remembered seat that comes back keeps its districts", () => {
+  it("the holder leaves mid-run and rejoins (same build phase); after lobby.return the pick stays (no reset)", async () => {
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Host", await newAccount()));
+    const resets = quiet(host);
+    await host.waitForInitialState();
+    const vetAcct = await newAccount(["district_2"]);
+    const vetToken = hex();
+    const vet = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Vet", vetAcct, undefined, vetToken));
+    quiet(vet);
+    await vet.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
+    room.state.district = "district_2"; // as a playable progression's pick would set it
+    for (const c of [host, vet]) c.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    host.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const w = room.controller!.world;
+    await vet.leave();
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    const back = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Vet", vetAcct, undefined, vetToken));
+    quiet(back);
+    await back.waitForInitialState();
+    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    await new Promise((r) => setTimeout(r, 100)); // its progress load (never awaited by the join)
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    host.send(C2S.LOBBY_RETURN, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("lobby"));
+    await new Promise((r) => setTimeout(r, 150));
+    expect(resets).toEqual([]);
+    expect(room.state.district).toBe("district_2");
+    expect(room.state.districtsOpen).toBe(0b11);
   });
 });
 

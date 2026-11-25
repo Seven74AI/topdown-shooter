@@ -225,7 +225,7 @@ describe("contact damage (FR9)", () => {
     run(world, 21);
     expect(p.hp).toBe(0);
     expect(p.status).toBe("downed");
-    expect(events.filter((e) => e.type === "player.downed")).toEqual([{ type: "player.downed", playerId: "local" }]);
+    expect(events.filter((e) => e.type === "player.downed")).toMatchObject([{ type: "player.downed", playerId: "local" }]); // + inWave (review N1)
     const hitsAfter = events.filter((e) => e.type === "player.damaged").length;
     run(world, 40);
     expect(events.filter((e) => e.type === "player.damaged").length).toBe(hitsAfter);

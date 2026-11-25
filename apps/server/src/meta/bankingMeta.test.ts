@@ -141,14 +141,14 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     expect(JSON.stringify(error.mock.calls)).not.toContain("secret-hash");
   });
 
-  it("7.12: an unsaved finder (no account) still sees the find; nothing else is granted without a saved bank", async () => {
+  it("7.12: an unsaved finder (no account) still sees the find (B23), teammates get no line (round 2 L1); nothing else is granted without a saved bank", async () => {
     const bank = new RunBank(1, { repo: () => null, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
     const w = team(2, "extracted");
     w.loot.foundBy = "p1";
     w.loot.foundWave = 4;
     const [a, b] = await bank.bankRunEnd(w, [{ playerId: "p0", accountId: null }, { playerId: "p1", accountId: null }], []);
     expect(b?.loot?.key).toBe(lootPartKeys()[0]);
-    expect(a?.teamLoot?.playerId).toBe("p1");
+    expect(a?.teamLoot).toBeUndefined(); // review round 2 L1: only a saved find is named to teammates
     expect(a?.newItems).toBeUndefined();
     expect(a?.newDistricts).toBeUndefined();
   });

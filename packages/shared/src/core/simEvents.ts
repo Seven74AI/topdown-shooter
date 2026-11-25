@@ -68,8 +68,9 @@ export type SimEvent =
    * meaning (the biting zombie, or −1 fire / −2 blast / −3 acid).
    */
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number; tag: DamageTag; sourcePlayerId: string | null }
-  | { type: "player.downed"; playerId: string }
-  | { type: "player.revived"; playerId: string; reviverId: string }
+  /** `inWave` (server bookkeeping, not on the wire): the phase was "wave" when it happened (review N1: a later system may flip it this tick). */
+  | { type: "player.downed"; playerId: string; inWave?: boolean }
+  | { type: "player.revived"; playerId: string; reviverId: string; inWave?: boolean }
   | { type: "player.out"; playerId: string }
   | { type: "player.returned"; playerId: string; x: number; y: number }
   | { type: "team.wiped"; wave: number }

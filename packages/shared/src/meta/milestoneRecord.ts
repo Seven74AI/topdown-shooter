@@ -11,8 +11,8 @@ import type { PlayerState } from "../player/player";
  * - `waveMask` — bit (n − 1) for every wave n ≤ 31 that ended while the seat was in the run (set in `runRecord`'s
  *   `countWaveEnded`, which also covers held seats and the wave a team wipe falls in);
  * - `kills` — own `zombie.killed` (not a turret's or a mine's: `buildingId` set) + 1 for finishing the Behemoth (D6);
- * - `revives` — `player.revived` by the reviver, in phase `wave` only, and not of a down the reviver caused
- *   (review M2, merged-story B31: no risk-free revive farm with friendly fire in the build phase);
+ * - `revives` — `player.revived` by the reviver, in phase `wave` only (the phase at the revive, review N1), and only of
+ *   a down no player caused (B31 amended: `downedBy === null`; no friendly-fire revive farm, in pairs or rotations);
  * - `downs10` — `player.downed` in phase `wave` of waves 1 … `runWaves` (D7: endless downs don't matter; review L2: a
  *   friendly-fire down in the build phase doesn't either);
  * - `barricades` — barricades this player PLACED that still stand when the next wave starts (D3: a take-back in the
@@ -58,12 +58,13 @@ export function countMilestoneEvent(world: World, e: SimEvent): void {
     case "player.revived": {
       const p = seat(world, e.reviverId);
       const downed = seat(world, e.playerId);
-      if (p && world.run.phase === "wave" && downed?.downedBy !== e.reviverId) p.revives = Math.min(0xffff, p.revives + 1);
+      // B31 amended (review round 2 L3): only a down with no player source (a teammate rotation can't farm it); N1: the phase at the revive
+      if (p && (e.inWave ?? world.run.phase === "wave") && downed !== undefined && downed.downedBy === null) p.revives = Math.min(0xffff, p.revives + 1);
       return;
     }
     case "player.downed": {
       const p = seat(world, e.playerId);
-      if (p && world.run.phase === "wave" && world.waves.number <= world.balance.waves.runWaves) p.downs10 = Math.min(0xff, p.downs10 + 1);
+      if (p && (e.inWave ?? world.run.phase === "wave") && world.waves.number <= world.balance.waves.runWaves) p.downs10 = Math.min(0xff, p.downs10 + 1);
       return;
     }
     case "building.placed": {

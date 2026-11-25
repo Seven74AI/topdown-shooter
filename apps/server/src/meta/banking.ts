@@ -326,10 +326,10 @@ function lootOnly(m: MetaLines): MetaLines {
 /**
  * 7.12 D1: the teammates' line from the finder's result. B33 (designer override 2026-11-25): when the finder's item
  * isn't known — its bank failed (or timed out), or it never banked here — there is NO team line (no item is guessed,
- * no nameless "found the bag"). An unsaved guest finder (`not_saved`) still names its find (B23).
+ * no nameless "found the bag"). Review round 2 L1: only a SAVED find is named to teammates (`not_saved` too: no line).
  */
 function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot | undefined {
   const l = (r as { loot?: LootFind } | undefined)?.loot;
-  if (!l || r?.status === "failed") return undefined;
+  if (!l || r?.status !== "saved") return undefined; // review round 2 L1: only a saved find names an item
   return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
 }
