@@ -537,3 +537,15 @@ Designer decisions taken for this pass: **Q2** a saved Random city run from an o
 | Epic 10 NFR line | NFR3, NFR9 added |
 
 **Designer follow-ups:** the 10.10 BU-1 lines (story file opening line, task checkbox, sprint-status comment) were updated to B with the designer's go-ahead. The recommended `gds-ux` pass is a separate workflow and was not run.
+
+## 8. Re-check after merging master (2026-11-25, end of session)
+
+Master had built 8.11 ([PR #19](https://github.com/Seven74AI/topdown-shooter/pull/19)), 9.13 ([PR #16](https://github.com/Seven74AI/topdown-shooter/pull/16)) and 10.10 ([PR #20](https://github.com/Seven74AI/topdown-shooter/pull/20)) during this session, plus two fixes ([PR #18](https://github.com/Seven74AI/topdown-shooter/pull/18), [PR #21](https://github.com/Seven74AI/topdown-shooter/pull/21)). Checked against the planning docs:
+
+- **Balance JSON** unchanged: solo 0.35, wave bonus 15 × N, start 200, armor II 300, revive 2 m. Matches the fixed FRs.
+- **8.11** built with strict binary decoding and a protocol version check; the architecture already describes it. Consistent.
+- **10.10** built as B; its B9 rule ("last confirmed `building.placed`, reset per run, unlocked fallback") matches the epics AC. New: 5.16 and 5.20 got "Current rule" notes (grid replaced; ↶ moved to one fixed spot, 10.10-B2/B15).
+- **9.13** done; memory was measured (`docs/perf/epic-9-characters.md` › Memory, 83–111 MB JS heap headless). Heading and AC updated; the real-iPhone NFR2 check stays with 10.3. The follow-up AC 9 in the story file was re-ordered after AC 8 and marked as a post-build check.
+- **9.14 story file** (written on master) differs from what this report assumed: props ship as a **pre-rendered image atlas** (B1), and only the sawhorse police lines stand; cars and the bus stay flat. The epics 9.14 ACs from §7 were rewritten to match, and the art rule in the GDD (*Production*), FR82 and *Additional Requirements › Assets* now names this exception. The architecture's asset-loading row is left to the 9.14 builder (its AC 2 updates it).
+
+No other new inconsistencies found.

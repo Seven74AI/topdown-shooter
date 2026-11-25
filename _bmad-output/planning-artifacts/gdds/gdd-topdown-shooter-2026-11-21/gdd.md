@@ -321,7 +321,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **UI:** HUD, shop cards, lobby, evacuation vote, pings, unlock screen.
 - **Audio:** ~30 weapon sounds, ~20 zombie sounds, 5 ambience loops (one per decay stage), 3 music tracks (wave, build, boss).
 - **Budget:** total download for first play under 15 MB; music streams after the game starts.
-**Production:** all art is drawn in game code (Canvas 2D, baked into atlases with `category_name_variant` frames, each texture registered through `addGeneratedTexture`); AI and vector images are references only. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is a polish pass of the code-drawn art and of the audio, done without a hired artist or sound designer.
+**Production:** all art is drawn in game code (Canvas 2D, baked into atlases with `category_name_variant` frames, each texture registered through `addGeneratedTexture`); AI and vector images are references only. Street props and vehicles (Story 9.14) are rendered offline from that approved code by a committed script and shipped as an image atlas, because baking them on a phone would take 6–10 s. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is a polish pass of the code-drawn art and of the audio, done without a hired artist or sound designer.
 
 ## Development Epics
 ### Epic Structure

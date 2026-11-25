@@ -144,7 +144,7 @@ FR81: District 2 unlocks for a player after their first extraction from Downtown
 
 **Presentation, audio and settings**
 
-FR82: Dead City art, drawn in game code: gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
+FR82: Dead City art, drawn in game code (street props and vehicles pre-rendered offline from that code, Story 9.14): gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
 FR83: Gore: heavy hits (axe, chainsaw, shotgun, explosions) dismember zombies, explosive kills burst them apart, and blood stays on the ground for the wave; a gore toggle switches to blood only.
 FR84: Every special attack has a readable visual and audio warning; each special zombie has a signature sound (Spitter gurgle, Bloater swelling, Brute roar, Runner shriek).
 FR85: Ambience follows the decay stage (5 loops); music intensity follows the number of zombies alive; a calmer build-phase track and a dedicated Behemoth track.
@@ -208,7 +208,7 @@ From the architecture document:
 - **Debug tools:** performance overlay (FPS, ping, bandwidth, zombies alive/in view, tick time) also in release via Settings → Show performance; dev-only cheats (spawn, skip wave, give currency, set decay stage, trigger event, force blackout, set seed, god mode); release-safe switches: `?debug`, `?loadout`, `?lag`, and `?wallet` (solo only); collision/grid view; headless replay from seed + input log.
 - **Testing:** Vitest unit tests with fixed seeds for every GDD mechanic in `shared`; headless bot clients in `tools/bots` for load tests.
 - **Client platform budgets:** devicePixelRatio capped at 2; texture atlases ≤ 2048 × 2048; no per-frame allocation in render loops (Phaser object pools); stop rendering and audio on `visibilitychange`; web app manifest (fullscreen, landscape), `viewport-fit=cover`.
-- **Assets:** art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture`; AI/vector images are references only. SFX audio sprites, streamed music and ambience (procedural or licensed/free libraries).
+- **Assets:** art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture`; AI/vector images are references only. Exception from Story 9.14: street props and vehicles are rendered offline from the approved code by a committed script and shipped as an image atlas (same frame names, repainted through `addGeneratedTexture`). SFX audio sprites, streamed music and ambience (procedural or licensed/free libraries).
 - **Audio:** three buses (music, SFX, ambience); positional volume/pan for zombie cues.
 - **Tooling:** Context7 MCP for current Phaser/Colyseus/Vite docs.
 
@@ -1861,6 +1861,8 @@ As a player, I want to keep walking while I hold a building, so that I can put i
 
 ### Story 5.16: Build bar replaces the shop for buildings
 
+> **Current rule (readiness check 2026-11-25):** Story 10.10 (done, PR #20) replaced this 4 × 2 grid with the quick tile + Build button + Shop chip and a 3 × 3 panel (layout B); the money, cap and refusal rules below are unchanged.
+
 (BX-2 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
 As a player, I want my buildings under my right thumb, so that I don't open a menu for every barricade.
@@ -1936,6 +1938,8 @@ As a player, I want to nudge the ghost with my right thumb without covering it, 
 ---
 
 ### Story 5.20: Take back, sell and undo
+
+> **Current rule (readiness check 2026-11-25):** since Story 10.10 the undo chip ↶ has one spot in both modes, centre (164, 146) from the bottom-right safe-area corner (10.10-B2/B15), not "above the build bar's top-left".
 
 (BX-6 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
@@ -3259,7 +3263,7 @@ So that a barricade never hides a threat or a friend.
 **When** the wall covers it
 **Then** the covered part shows through as a soft pulsing silhouette, zombies red (red = danger in play), survivors in their slot colour, cropped to the wall's solid part (never over open street), capped and pooled, off in a blackout, at no measurable FPS cost
 
-### Story 9.13: Photoreal characters in the game (in progress)
+### Story 9.13: Photoreal characters in the game (done)
 
 As a player,
 I want the approved photoreal survivors and zombies in the game, animated,
@@ -3274,10 +3278,10 @@ So that the characters match the premium look of the rest.
 **Given** the cases the game already has (readiness check 2026-11-25, Q6)
 **When** the relit sprites are in
 **Then** blackout zombie eyes within 14 m (6.3, `EyesView`), downed / slowed tints, burning and acid cues (4.11), the bear-trap hold (5.14), Brute and Spitter windups and the 9.12 silhouettes all still read on the new sprites (screenshots in `docs/art/9-13/`, incl. a blackout wave)
-**And** the baked frames' texture memory is measured and recorded (`docs/perf/`), and the tab stays inside NFR2's 300 MB on the stress scene
+**And** the baked frames' memory is measured and recorded (done: `docs/perf/epic-9-characters.md` › Memory, headless; the real iPhone 12 check stays with Story 10.3)
 **And** out of scope, owned elsewhere: the Behemoth's look (Story 9.4), per-weapon holding poses (9.3), dismemberment pieces (9.5), lobby / results / editor portraits (stay plain)
 
-### Story 9.14: Photoreal street props and vehicles in the game (backlog)
+### Story 9.14: Photoreal street props and vehicles in the game (ready for dev)
 
 As a player,
 I want the approved photoreal cars, bus and street props in the city,
@@ -3289,16 +3293,18 @@ So that the whole street matches.
 **When** the city is drawn
 **Then** cars, burnt cars, the bus, dumpster, gas pump, rubble and sandbags use that look, and the police sawhorse barriers stand (approved police set in `barricadeArt.ts`, traffic-drum corners), sorted with the bodies like the barricades
 
-**Given** a body or a floor object behind a standing prop (readiness check 2026-11-25, Q4)
-**When** the prop's picture covers it
-**Then** 9.12's see-through silhouette rule covers every standing prop (cars, burnt cars, the bus, dumpster, pump, rubble, police barriers), not only barricades: zombies red, survivors (incl. downed) in slot colour; bear traps, mines, acid puddles and fire edges behind a prop stay visible
-**And** the part of a prop drawn above its collision box never suggests cover it doesn't have: a still and a test show bullets that fly over the drawn top where the box ends
+(Story file `9-14-photoreal-street-props-in-game.md`: the props ship as a **pre-rendered image atlas** made offline by a committed script from the approved pilot code (B1); cars, the bus, dumpster, pump, rubble, sandbags and the concrete barrier stay **flat**, baked into the ground; only the sawhorse police lines stand (B3, B4).)
+
+**Given** a body behind a standing sawhorse police line (readiness check 2026-11-25, Q4)
+**When** the line's picture covers it
+**Then** 9.12's see-through silhouette shows it (zombies red, survivors incl. downed in slot colour), cropped to the solid part; bear traps, mines, acid puddles and fire edges behind it stay visible
+**And** the part of a standing line drawn above its collision box never suggests cover it doesn't have (bullets pass over police barriers, FR56)
 
 **Given** the props' decay and event states (Q7)
 **When** the run moves through stages and events
-**Then** the new look covers cars in 3 conditions (9.2), the 4 cars moved into the road at stage 2 at their map angles (any angle, not only 4 rotations), stage-3 burning cars with the fire edge exactly at the damage radius (4.11), the car-alarm "armed" blink (6.8), the gas-leak ring on the pump (6.9) and the Behemoth's burnt-car chunks (6.6)
-**And** the pictures are drawn by kind so Story 11.6 can reuse them in a Random city
-**And** FPS on the 150-zombie stress scene stays within 2 FPS of master and memory within NFR2, measured like Story 9.13
+**Then** the new look covers curb cars (stage 1), the cars moved into the road (stage 2), burning cars swapping to their burnt frame with the fire edge exactly at the damage radius (stage 3, 4.11), the buried dumpster (stage 4), the car-alarm "armed" blink (6.8), the gas-leak ring on the pump (6.9) and the Behemoth's burnt-car chunks (6.6)
+**And** frames keep their names and sizes (B2), so Story 11.6 can place them by kind in a Random city
+**And** the added download is ≤ 2 MB and the first load stays inside NFR6; city bake time and `?stress=150` FPS stay within 2 FPS / +1 ms of master
 
 ## Epic 10: Performance and polish
 
