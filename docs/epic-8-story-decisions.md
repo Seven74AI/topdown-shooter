@@ -72,3 +72,8 @@ The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, acce
 
 1. **8.2+8.3 ∥ 8.7**, both on master now. The only overlap is message names and `RunRoom.onCreate` lines. 8.2+8.3 task T9 (Supplies top-up) waits for 7.2 on master.
 2. **8.4–8.6** after 7.1 and 7.2 are on master **and** after 8.2+8.3 (it reuses late-join money, bans and the top-up). Preferably also after the Epic 7 stories that add run state, so the coverage test sorts their fields in one pass.
+
+## Designer answers (2026-11-25, ~12:00)
+
+- **All 33 decisions accepted as recommended**, except where noted below.
+- **Spitter deadlock:** keep today's rules. Spitter acid passes barricades; bullets stop on barricades (the 2026-11-23 rule stays). Add fix **A**: when every remaining zombie is a Spitter holding a spot, the Spitter rush starts at once instead of waiting for ≤ 5 left (`packages/shared/src/zombies/spit.ts`). The designer's reasoning: "bullets and acid are pretty much the same thing", so acid going through matters more to them than symmetry. Ride-along task on the first Epic 8 story touching the sim (8.2+8.3), with a headless test: 6 Spitters holding behind a barricade end the wave.
