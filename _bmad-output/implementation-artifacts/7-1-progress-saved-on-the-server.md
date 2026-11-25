@@ -217,3 +217,84 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: early part (T1–T5, T8) built on `story-7-1`; T6, T7, T9 held until 8.1 is on master.
 - 2026-11-25: merged origin/story-8-1; T6 (room), T7 (client), T9 done; full gate green; status review.
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer cloud session (`gds-code-review`, three layers + beat the rule; brief R10 full review), 2026-11-25. **Tree:** `review-7-1` = `origin/story-7-1` 827ea45 merged with `origin/master` d8d44d0 (already contained, no conflicts). 7.1's own diff = `git diff origin/story-8-1...origin/story-7-1` (8.1's code not reviewed). **Checks run:** `npm ci`; `npm run typecheck` ✅; the 12 touched test files (82 tests) ✅ plus `RunRoom.reconnect.test.ts` ✅; live probes on a dev server (port 2761, PGlite; 2762 with an unreachable `DATABASE_URL`; 2765 on a real **PostgreSQL 16** cluster at port 2764: no PG 18 here); load ≈ 0.1–1. Full gate not run (reviewer rule).
+
+**Verdict: changes requested — 1 medium, 6 low, 3 nits.** The core is sound: HMAC tickets with a constant-time compare and an expiry, strict join and body schemas, HttpOnly/Secure/SameSite=Lax cookie, only SHA-256 of a 128-bit token stored, a lazy database with a 2 s timeout that never reaches the tick, honest `saved:false`, a production start that refuses without `DATABASE_URL` / `SESSION_SECRET`, clean logs. The one medium is B8 combined with a ticket that is not tied to the guest token.
+
+### Findings
+
+- **M1 (medium) — the ticket is not bound to the guest token it was issued for, and B8's `sameSeat` matches by that token, so a seat can be re-labelled to another account.** `apps/server/src/rooms/RunRoom.ts:308` (`ticketAccountId(parsed.data.ticket)` ignores `parsed.data.guestToken`), `apps/server/src/rooms/RunRoom.ts:447` (`takeOver`: `old.accountId ?? client.auth?.accountId`), `apps/server/src/run/lobby.ts:74` (`sameSeat` token branch), `apps/server/src/auth/ticket.ts:21` (payload has no token). Scenario (probed with a temporary room test, then removed): Bo's seat joined unsaved (save server down, or over the new-guest limit) with token T; someone holding a copy of T joins the started run with T **and a valid ticket for their own account B** → takeover, the seat's `accountId` becomes B (`seatKey` stays `guest:…`): from 7.2 on, Bo's run earnings bank into B, not into the account T resolves to. 7.1 D5 says "a copied token = THAT account", not "any account". Also: a ticket of account A paired with Bo's token took over **Ana's** (host) seat in the started run (first seat by `seatKey`, PROBE E), and a leaked ticket alone (it is in the response body, readable by page JS, valid 10 min) plus any token takes over the account's seat. **Minimal fix:** put the guest-token hash (e.g. its first 32 hex) in the signed payload (`signTicket(accountId, tokenHash, …)`; ≈ 200 chars still fits — check the 200 limit) and in `checkAuth` return `accountId` only when it equals `hashGuestToken(parsed.data.guestToken)`, else `null` (no refusal, P3). The server already knows which token the ticket was issued for (`resolveGuestSession` signs right after resolving it). Test: "a valid ticket with another guest token names no account / doesn't re-label an unsaved seat".
+- **L1 (low) — a seat that gains an account in `takeOver` keeps its `guest:` `seatKey`.** `apps/server/src/rooms/RunRoom.ts:447-448`. Scenario (PROBE G): unsaved seat (token T) → same phone rejoins with a ticket for A (seat now `accountId A`, `seatKey guest:…`) → the same account from its other device (new token, ticket A) gets `run_started` instead of the 8.1 D5 takeover the test "same account from another device" promises. **Fix:** set `seatKey: seatKey({ guestTokenHash: old.guestTokenHash, accountId })` in `takeOver` / `restoreRemembered` when the account was gained (and re-key `rememberedSeats` on drop, which already uses `member.seatKey`).
+- **L2 (low) — ticket signatures are malleable.** `apps/server/src/auth/ticket.ts:38` (`Buffer.from(sigPart, "base64url")` ignores the 2 spare bits of the 43rd char). Probe: for a real ticket, 3 other last characters (`J`,`K`,`L` in the probe) verify too, so a ticket string is not unique. Harmless today; it bites the moment 7.2+ uses the ticket string as a replay/idempotency key. **Fix:** require `sigPart.length === 43` and `given.toString("base64url") === sigPart` (canonical form) before the compare.
+- **L3 (low) — the server can take ~6 s while the client gives up at 3 s.** `apps/server/src/auth/guestSession.ts:52-69`: up to three sequential repository calls (cookie lookup, device lookup, `createGuest`) each get their own 2 s timeout. Probe (fake repo answering in 1.9 s): `saved:true` after **5 708 ms**; the client aborted at 3 000 ms, joined unsaved, and the `Set-Cookie` was dropped. No progress is lost (the presented token got the account, a later call finds it), but on a slow database every Create/Join waits 3 s and plays unsaved. **Fix:** one 2 s deadline for the whole resolution (or a single `WHERE guest_token_hash IN (cookie, device)` query), so the server always answers before the client's 3 s.
+- **L4 (low) — `/account/session` has no per-request limit; only NEW guests are limited, and the lookups run before the limiter.** `apps/server/src/auth/guestSession.ts:55-66`. Probe: 6 000 POSTs with random tokens from one `X-Real-IP` → 20 accounts, then 5 980 × (two DB lookups + one `new_guest_rate_limited` warn line). Legit requests stayed fast at curl's rate (PK lookups are cheap), so not an outage, but brief 15 ("anything new a client sends is guarded, rate-limited") and the 10 MB × 5 json-file log rotation (a flood pushes real logs out). **Fix:** a per-IP `SlidingWindowLimiter` for the route (e.g. 30/min, checked before any DB call, over it → `saved:false` without DB work) and log `new_guest_rate_limited` once per IP per window.
+- **L5 (low) — the guest cookie can be planted from a sibling subdomain, and the cookie wins (D3).** `apps/server/src/auth/accountRoutes.ts:38` (cookie name `tdg`). Any `*.sevend.io` host that serves attacker-influenced content can set `tdg=<attacker token>; Domain=.sevend.io; Path=/api`; the game then resolves the victim's phone to the attacker's account (session fixation: the victim's progress lands in an account the attacker holds the key to; with 7.6 the attacker can later lock it with a password). **Fix:** name the cookie `__Host-tdg` (browser refuses Domain= and non-Secure sets; requires `Path=/`, so drop `Path=/api` — the cookie is then also sent with static file requests, ~50 bytes), or document the accepted risk in decisions.
+- **L6 (low) — `cache-control: no-store` is untested.** `apps/server/src/auth/accountRoutes.ts:46`: deleting the line keeps `accountRoutes.test.ts` green (mutation survived). The response carries the ticket and the token; a cached copy in a shared proxy would leak them. **Fix:** assert the header in the P1 test.
+- **N1 (nit) — off-VPS copies keep 15 days, local 14.** `deploy/backup.sh:51` `find -mtime +13` keeps 14 dumps (checked with 21 dated files: 14 left), `rclone delete --min-age 14d` keeps the 15th. Use `--min-age 13d` or say "14–15 days" in docs.
+- **N2 (nit) — `restore.sh` leaves `topdown_restore_test` behind when `pg_restore` fails** (`set -e` exits before the final DROP). A `trap` that drops it on exit. Harmless (the next run drops it first).
+- **N3 (nit) — the `Secure` cookie isn't stored on a phone testing over `http://<LAN-IP>:5173` in dev** (only `localhost` counts as secure), so P2's cookie half can't be tried on a real phone in dev. Docs line only.
+
+### Beat the rule (every attempt and its result)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Forge a ticket: other account id with the real signature | `null` (probe script) ✅ |
+| 2 | Extend expiry (re-encode payload, keep signature) | `null` ✅ |
+| 3 | Replay an expired ticket (`now = exp`) | `null` ✅ |
+| 4 | Another secret's ticket; empty/truncated sig; `=` padding; standard base64 `+/`; 201 chars; a number | all `null` ✅ |
+| 5 | Signature last-char variants | **3 variants verify** → L2 |
+| 6 | HMAC compare | `timingSafeEqual` after a length check ✅ |
+| 7 | `accountId` in join options / over-long ticket | `invalid_options` (existing test) ✅ |
+| 8 | Ticket for MY account + someone's copied token, unsaved seat in a started run | **seat becomes my account** → M1 |
+| 9 | Ticket of account A + Bo's token in a started run | **takes over Ana's (A's) seat** → M1 |
+| 10 | Lobby: ticket A + T1, then ticket B + T1 | `already_joined` ✅ |
+| 11 | Same token with and without ticket in the lobby (B8) | one seat, `already_joined` ✅ |
+| 12 | Held/seated account seat, different account's ticket, no token copy | `run_started` ✅ |
+| 13 | Seat gains an account, then same account from another device | `run_started` (not takeover) → L1 |
+| 14 | Guess a guest token | 128 bits from `crypto.getRandomValues` (client and server); only unsalted SHA-256 stored ✅ (fine at 128-bit entropy) |
+| 15 | Read the cookie from page JS | `HttpOnly` (Set-Cookie seen: `Max-Age=31536000; Path=/api; HttpOnly; Secure; SameSite=Lax`) ✅ |
+| 16 | CSRF: no Origin / foreign Origin with `PUBLIC_ORIGIN` set | 403 / 403 ✅; `text/plain` form-style body → 400 (body arrives as a string) ✅ |
+| 17 | `PUBLIC_ORIGIN` unset in production | compose defaults it to `https://hordes.sevend.io`; without it a cross-site non-credentialed fetch could only mint a guest (limited) and read its own ticket — acceptable ✅ |
+| 18 | Plant the cookie from a sibling subdomain | possible (not run in a browser) → L5 |
+| 19 | 23 new guests from one `X-Real-IP` | 20 `saved:true`, 3 `saved:false` ✅; existing account from that IP still `saved:true` ✅; `X-Real-IP` with a comma list / `::ffff:` form → same key ✅ |
+| 20 | Spoof `X-Real-IP` / `X-Forwarded-For` | direct to Node: bypass (expected); in production Caddy overwrites `X-Real-IP` from `Cf-Connecting-Ip` and Node isn't published ✅ |
+| 21 | Limiter reset | per process, reset only by restart / `bootTestServer` ✅ |
+| 22 | Flood 6 000 random tokens | no outage; 2 lookups + 1 warn line each → L4 |
+| 23 | Body 3 KB / malformed JSON / `[]` / `null` / extra field / uppercase token / garbage cookies | 413 / 400 / 400 / 200 (treated as `{}`) / 400 / 400 / ignored, new guest ✅ |
+| 24 | Database unreachable | 200 `saved:false`, presented token kept, `db_error {op, reason}` logged, no token in the log; `/health` fine ✅ |
+| 25 | Database slow (1.9 s per call) | 5.7 s server vs 3 s client → L3 |
+| 26 | Tick awaits the database | no (`onTick` grep test; `saveDisplayName` fire-and-forget) ✅ |
+| 27 | Real PostgreSQL (16) vs PGlite | `db:migrate` twice → 1 recorded migration, 2 tables ✅; 10 parallel `createGuest` same hash → one account ✅; empty progress row ✅; SQL-ish display name stored as text ✅ |
+| 28 | Backup prune + restore | `find -mtime +13` keeps 14 ✅; `pg_dump -Fc` → restore.sh's exact `psql`/`pg_restore --no-owner --exit-on-error` into a scratch DB → counts 1/1/1, scratch dropped ✅ (PG 16 tools; PG 18 container not run: no Docker daemon) |
+| 29 | Repositories-only import rule | the grep test is real (mutation: `drizzle-orm` import in RunRoom.ts → fails) ✅ |
+| 30 | Tokens/tickets/cookies in logs | 0 hits for 32-hex tokens, `ticket`, `tdg` in the server logs after all probes ✅ |
+| 31 | Display name injection | join name goes through `playerNameSchema` (length + filter); prefill re-validates ✅ |
+| 32 | Production without `DATABASE_URL` / `SESSION_SECRET` / short / 40 spaces | `database_url_missing` / `session_secret_missing` ×3, exit 1 ✅ |
+| 33 | Secrets in git | none committed; `.env*`, `backup.env`, `.data` ignored in git and Docker; `openssl rand -hex`, `mktemp` (0600), `chmod 600 deploy/.env` ✅ |
+
+### Mutations (one per new test file)
+
+| Mutation | Test | Result |
+| --- | --- | --- |
+| ticket: drop the expiry check | `ticket.test.ts` | 1 failed ✅ |
+| guestSession: unsaved path mints instead of keeping the presented token | `guestSession.test.ts` | 1 failed ✅ |
+| routes: cookie `Path=/` | `accountRoutes.test.ts` | 1 failed ✅ |
+| routes: no `cache-control: no-store` | `accountRoutes.test.ts` | **0 failed** → L6 |
+| db: `createGuest` without `onConflictDoNothing` | `db.test.ts` | 1 failed ✅ |
+| `drizzle-orm` import in RunRoom.ts | `noDbImports.test.ts` | 1 failed ✅ |
+| `sameSeat` by key only | `RunRoom.account.test.ts` | 2 failed ✅ |
+| progression.json without `grenades` | `progression.test.ts` | 2 failed ✅ |
+| client `credentials: "omit"` | `account.test.ts` | 1 failed ✅ |
+| `rejoinGame` without the ticket | `connection.account.test.ts` | 1 failed ✅ |
+| `guestTokens.set` without the format check | `guestToken.test.ts` | 1 failed ✅ |
+| account URL hard-coded (not `serverUrl()`) | `accountWiring.test.ts` | 1 failed ✅ |
+
+### Brief checks
+
+- **R1:** every named test in "Test evidence per task" exists (grepped); T8 honestly has none (no Docker). ✅ **R6:** Gate line present (commit, master + 8.1 merged, 426 files / 3861 tests, load). ✅
+- **15** server truth: only the ticket names an account ✅, but see M1 (ticket not tied to the identity it was issued for); rate limit only on new guests (L4). **17** remembered seats keep `accountId` ✅. **18** concurrent `createGuest` → one account (PGlite and PG) ✅. **19** 128 bits, SHA-256 only, constant-time, nothing logged ✅. **20** 2 s timeout per call, tick never waits, `saved:false` honest ✅ (L3 on the total). **21** repositories only (real grep test), committed Drizzle migration, PGlite dev / PG 18 compose ✅. **28** no email/IP in the DB, names filtered ✅. **31** refuses to start without secrets, clear lines ✅; VPS steps are Hermes's.
+- **B8 judged:** matching a seat by the same guest token is right for its purpose (a phone whose ticket comes and goes never sits twice and finds its own seat), and it adds no power D5 didn't already give a copied token **once the ticket is bound to the token (M1)**. Without that binding it lets a ticket re-label a seat. Keep B8, fix M1 and L1.
+- Not verified here: PostgreSQL 18 and the compose stack (no Docker daemon; PG 16 tools used), real phones / iOS Safari, cookie planting in a browser (L5 is by spec), the VPS.
