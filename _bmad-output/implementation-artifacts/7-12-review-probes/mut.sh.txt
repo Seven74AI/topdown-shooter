@@ -1,0 +1,8 @@
+#!/bin/bash
+# usage: mut.sh name file 'perl-subst' tests...
+name=$1; f=$2; sub=$3; shift 3
+cp "$f" "$f.orig"
+perl -0pi -e "$sub" "$f"
+if cmp -s "$f" "$f.orig"; then echo "$name: NO-APPLY"; mv "$f.orig" "$f"; exit; fi
+if timeout 300 npx vitest run "$@" > /tmp/claude-0/-home-user-topdown-shooter/036fe77d-e4b7-5c28-843c-643c515b93ec/scratchpad/mut-$name.log 2>&1; then echo "$name: SURVIVED"; else echo "$name: KILLED ($(grep -c '✗\|×\|FAIL' /tmp/claude-0/-home-user-topdown-shooter/036fe77d-e4b7-5c28-843c-643c515b93ec/scratchpad/mut-$name.log) fail lines)"; fi
+mv "$f.orig" "$f"

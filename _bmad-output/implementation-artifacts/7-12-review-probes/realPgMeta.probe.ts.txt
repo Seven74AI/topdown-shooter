@@ -1,0 +1,39 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { lootPartKeys } from "@topdown/shared";
+import { log } from "../ops/logger";
+import { accountsRepo } from "./accountsRepo";
+import { openPostgres, type Database } from "./client";
+import { migrateDb } from "./migrate";
+import { progressRepo } from "./progressRepo";
+import { seatMeta, type RunFacts } from "../meta/runMeta";
+import type { MetaPlayer } from "../meta/banking";
+const URL = process.env.TEST_DATABASE_URL;
+log.level = "silent";
+let database: Database;
+const player = (over: Partial<MetaPlayer> = {}): MetaPlayer => ({ waveMask: 0b11111, kills: 30, revives: 2, downs10: 1, barricades: 3, bossesIn: 0, ...over });
+const facts = (over: Partial<RunFacts> = {}): RunFacts => ({ district: "downtown", extractedAllFour: false, lootFoundBy: null, lootWave: 0, lootItemRoll: 0, ...over });
+describe.skipIf(!URL)("review 7.12 probe: real PG", () => {
+  beforeAll(async () => { database = openPostgres(URL as string); await migrateDb({ kind: "postgres", db: await database.db() }); });
+  afterAll(async () => database?.close());
+  const acct = () => accountsRepo(database).createGuest(randomUUID().replace(/-/g, "").padEnd(64, "b"), "Ana");
+  it("20 runs ending at once: stats add exactly, M1 granted once, loot items all distinct", async () => {
+    const a = await acct();
+    const repo = progressRepo(database);
+    const rs = await Promise.all(Array.from({ length: 12 }, (_, i) => repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 1, breakdown: {} }), seatMeta("p0", player() as never, true, facts({ lootFoundBy: "p0", lootWave: 3, lootItemRoll: 0.5 })))));
+    const row = await repo.get(a.id);
+    expect(row?.stats).toEqual({ revives: 24, kills: 360, barricades: 36, runs: 12 });
+    const loot = rs.map((r) => (r.breakdown.loot as { key: string | null }).key);
+    const keys = loot.filter((k) => k !== null);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.length).toBe(Math.min(12, lootPartKeys().length));
+    expect(row?.cosmetics.filter((k) => k === "head:fire").length).toBe(1);
+    expect(row?.districts.length).toBe(new Set(row?.districts).size);
+    // retry replays
+    const again = await repo.addSupplies("00000000-0000-4000-8000-000000000001", a.id, () => ({ supplies: 1, breakdown: {} }), seatMeta("p0", player() as never, true, facts()));
+    const again2 = await repo.addSupplies("00000000-0000-4000-8000-000000000001", a.id, () => ({ supplies: 1, breakdown: {} }), seatMeta("p0", player() as never, true, facts()));
+    expect(again2.banked).toBe(false);
+    expect(again2.breakdown).toEqual(again.breakdown);
+    expect((await repo.get(a.id))?.stats.runs).toBe(13);
+  });
+});
