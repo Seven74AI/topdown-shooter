@@ -6,6 +6,7 @@ import {
   BYTES,
   C2S,
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   NEUTRAL_INPUT,
   RUN_ROOM_NAME,
   S2C,
@@ -44,7 +45,7 @@ const options = (intent: "create" | "join", name: string, guestToken: string) =>
   intent,
   name,
   balanceVersion: serverBalance.version,
-  mapVersion: DOWNTOWN_MAP.version,
+  mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken,
 });
 

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
+import { BYTES, C2S, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -45,7 +45,7 @@ const options = (intent: "create" | "join", name: string, accountId: string | nu
     intent,
     name,
     balanceVersion: serverBalance.version,
-    mapVersion: DOWNTOWN_MAP.version,
+    mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
     guestToken,
     ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
   };
