@@ -88,7 +88,9 @@ import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { streakScales } from "../render/weaponLook";
 import { DownedView } from "../render/DownedView";
-import { WallSilhouetteView } from "../render/WallSilhouetteView";
+import { WallSilhouetteView, type SilhouetteBody } from "../render/WallSilhouetteView";
+import { SILHOUETTE_ZOMBIE } from "../render/wallSilhouette";
+import { SLOT_COLORS } from "../render/playerColors";
 import { BuildingView } from "../render/BuildingView";
 import { BlockReasonView } from "../render/BlockReasonView";
 import { PendingView } from "../render/PendingView";
@@ -322,36 +324,41 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.delete(id);
     this.lookTextures?.remove(id); // Story 7.9: a player who left takes their body texture along
   };
-  /** Designer pick C: collects the drawn bodies (no allocation once warm) and lets the silhouette view pick the hidden ones. */
-  private updateWallSilhouettes(): void {
+  /**
+   * Designer pick C: hands the drawn bodies to the silhouette view. Review N1: no closure or allocation per frame once
+   * warm (the zombie images are copied into a reused array, the entries are reused and never dropped; `silCount` is
+   * how many are live this frame).
+   */
+  private updateWallSilhouettes(world: Readonly<World>): void {
     const sv = this.wallSilhouettes;
     const bv = this.buildingView;
     if (!sv || !bv) return;
     const walls = bv.standingSprites();
     let n = 0;
-    const put = (img: Phaser.GameObjects.Image, zombie: boolean): void => {
-      let e = this.silBodies[n];
-      if (!e) {
-        e = { img, zombie, r: 0 };
-        this.silBodies.push(e);
-      }
-      e.img = img;
-      e.zombie = zombie;
-      e.r = img.displayWidth * 0.25; // the sprite is about twice the body's width
-      n++;
-    };
     if (walls.length > 0) {
-      this.zombieView?.forEachShown((img) => put(img, true));
-      for (const v of this.playerViews.values()) put(v.bodyImage, false);
+      const zn = this.zombieView?.shownImages(this.silZombieImgs) ?? 0;
+      for (let i = 0; i < zn; i++) n = this.putSilBody(n, this.silZombieImgs[i] as Phaser.GameObjects.Image, SILHOUETTE_ZOMBIE);
+      for (const [id, v] of this.playerViews) n = this.putSilBody(n, v.bodyImage, SLOT_COLORS[(this.host?.playerInfo(id).slot ?? 0) % SLOT_COLORS.length] as number);
     }
-    this.silBodies.length = n;
-    sv.update(walls, this.silBodies, this.time.now);
+    sv.update(walls, this.silBodies, n, this.time.now, darknessAlpha(world as World) > 0);
+  }
+  private putSilBody(n: number, img: Phaser.GameObjects.Image, color: number): number {
+    let e = this.silBodies[n];
+    if (!e) {
+      e = { img, color, r: 0 };
+      this.silBodies.push(e);
+    }
+    e.img = img;
+    e.color = color;
+    e.r = img.displayWidth * 0.25; // the sprite is about twice the body's width
+    return n + 1;
   }
 
   private zombieView: ZombieView | null = null;
   /** Designer pick C: bodies behind standing walls glow through them (red zombies, blue survivors). */
   private wallSilhouettes: WallSilhouetteView | null = null;
-  private readonly silBodies: { img: Phaser.GameObjects.Image; zombie: boolean; r: number }[] = [];
+  private readonly silBodies: SilhouetteBody[] = [];
+  private readonly silZombieImgs: Phaser.GameObjects.Image[] = [];
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
@@ -739,7 +746,7 @@ export class GameScene extends Phaser.Scene {
     this.fxView.world = host.world;
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
-    this.wallSilhouettes = new WallSilhouetteView(this);
+    this.wallSilhouettes = new WallSilhouetteView(this, balance.controls.fx.maxWallSilhouettes);
     this.blockReasonView = new BlockReasonView(this);
     this.pendingView = new PendingView(this, this.pending.entries.length);
     this.moveView = new MoveView(this, this.pendingMoves.entries.length); // Story 5.22
@@ -2186,7 +2193,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.placeFxView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000, this.time.now);
     this.buildingView?.update(host.world, this.placement, this.placeFxView, this.time.now, pickPopScale(this.time.now - this.pickAtMs));
-    this.updateWallSilhouettes();
+    this.updateWallSilhouettes(host.world);
     this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
     this.pendingView?.update(this.pending, this.time.now); // Story 5.18
     this.moveView?.update(host.world, this.placement, this.pendingMoves, this.time.now); // Story 5.22
