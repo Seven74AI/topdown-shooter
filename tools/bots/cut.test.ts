@@ -101,7 +101,9 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
       expect(await until(() => (room.controller?.ackSeq(id) ?? 0) > ack, 15_000)).toBe(true);
       // The run goes on to the next build phase.
       const wave = world.waves.number;
-      expect(await until(() => room.state.phase === "build" || room.state.phase === "results", 150_000, 250)).toBe(true);
+      const ended = await until(() => room.state.phase === "build" || room.state.phase === "results", 150_000, 250);
+      if (!ended) console.log(JSON.stringify({ msg: "cut_test_stuck", phase: room.state.phase, frozen: room.state.frozen, wave: world.waves.number, tick: world.tick, players: [...world.players.values()].map((q) => ({ id: q.id, x: Math.round(q.x), y: Math.round(q.y), status: q.status, protect: q.protectTicks })), zombies: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => ({ x: Math.round(world.zombies.x[z] ?? 0), y: Math.round(world.zombies.y[z] ?? 0), t: world.zombies.type[z], s: world.zombies.state[z], hp: Math.round(world.zombies.hp[z] ?? 0), w: world.zombies.waveZombie[z] })), held: [...world.heldPlayers.keys()], holds: [...room.holds.keys()], remaining: world.waves.remaining, queued: world.waves.queued, bots: bots.map((b) => b.link) }));
+      expect(ended).toBe(true);
       expect(room.state.phase).toBe("build");
       expect(world.waves.number).toBe(wave);
       const st = lossy.stats();
