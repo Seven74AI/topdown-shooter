@@ -55,6 +55,17 @@ so that my progress is kept from my very first run.
 - [x] **T8 Deploy + backups** (AC 1, 11): compose service, `deploy.sh` (password + secret generation, migrate step), `backup.sh`, `restore.sh`, `docs/deploy.md` section, `docs/hermes-go-live.md` "Every later release" gains "first Epic 7 deploy" steps.
 - [x] **T9 Tests** (below) + full gate + hand-back.
 
+#### Review Follow-ups (AI)
+
+- [x] [AI-Review][Medium] M1 ticket bound to its guest token (`auth/ticket.ts` payload `<accountId>.<tokenHash32>.<exp>`, `verifyTicket(…, guestTokenHash)`, `checkAuth`) — `RunRoom.account.test.ts` > "review M1: my OWN valid ticket + someone's copied token … never re-labels it"; > "review M1: account A's ticket + Bo's token never takes Ana's (A's) seat"; > "review M1: a leaked ticket with any other token can't take the account's seat"; `ticket.test.ts` > "review M1: a valid ticket with ANOTHER guest token names no account".
+- [x] [AI-Review][Low] L1 seat re-keyed to `acct:` when it gains an account (`takeOver`, `restoreRemembered`) — `RunRoom.account.test.ts` > "review L1: a seat that gained an account is re-keyed …".
+- [x] [AI-Review][Low] L2 canonical 43-char signature — `ticket.test.ts` > "review L2: only the canonical signature verifies".
+- [x] [AI-Review][Low] L3 one 2 s deadline per call — `guestSession.test.ts` > "review L3: one 2 s deadline for the whole call …"; > "the default deadline is the 2 s repository timeout".
+- [x] [AI-Review][Low] L4 30 calls/min/IP before any DB work, warnings once per window — `guestSession.test.ts` > "review L4: over 30 calls a minute …"; > "review L4: new_guest_rate_limited is logged once per IP per window".
+- [x] [AI-Review][Low] L5 cookie `__Host-tdg`, Path=/, no Domain — `accountRoutes.test.ts` > "P1 …" (name, Path=/, no Domain); > "review L5: a cookie under the old name `tdg` … is not read".
+- [x] [AI-Review][Low] L6 `cache-control: no-store` asserted — `accountRoutes.test.ts` > "P1 …".
+- [x] [AI-Review][Nit] N1 off-VPS retention 14 dumps, N2 restore.sh trap (globals), N3 docs line — `tools/checks/backupScripts.test.ts` > "N1 …", "N2 …"; `docs/deploy.md` › Database (N3).
+
 ## Dev Notes
 
 ### Current state (read before changing)
@@ -94,6 +105,8 @@ Create / Join / Ready / Start / Leave / Back to lobby; solo practice (never touc
 4. **Two devices:** phone and tablet are two guests until 7.6 (expected); copying the token to the tablet = the same account (D5) — check both can't sit in one room twice (`already_joined` / 8.1 takeover).
 5. **Offline:** no network at start → the start screen still works, Practice solo plays, Create shows the existing error path.
 6. Mutate: drop the cookie read → P2 cookie-only test fails; accept expired tickets → P4 test fails; await the database inside `onTick`… (there should be nothing to mutate: assert by a test that `onTick` has no `await`/repository import).
+
+- **Review fixes (2026-11-25):** M1, L1–L6, N1–N3 (Review Follow-ups above). AC 4/5 text is superseded where the review changed it (brief R8): the cookie is `__Host-tdg` with `Path=/` (not `tdg`, `Path=/api`), and the ticket payload is `<accountId>.<tokenHash32>.<expiresAtMs>` (bound to the guest token). Mutations: M1 binding off → 5 failed; L2 canonical check off → 1; L1 re-key off → 1; L3 race off → 1; L4 limiter off → 1; L4 log gate off → 1; L6 header off → 1; L5 `Path=/api` → 0 failed (equivalent: better-call forces Path=/, Secure, no Domain on any `__Host-` cookie, `cookies.mjs resolveCookie`). Flake note: "copied guest token" failed once right after a container restart (vi.waitFor's 1 s default); takeover waits now use 5 s.
 
 ### Notes for the merge
 
@@ -217,6 +230,7 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: early part (T1–T5, T8) built on `story-7-1`; T6, T7, T9 held until 8.1 is on master.
 - 2026-11-25: merged origin/story-8-1; T6 (room), T7 (client), T9 done; full gate green; status review.
+- 2026-11-25: Senior Developer Review (AI) changes requested; addressed code review findings - 10 items resolved (M1, L1–L6, N1–N3).
 
 ## Senior Developer Review (AI)
 
