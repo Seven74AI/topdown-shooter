@@ -802,7 +802,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * `MAX_LOBBY_LOOKS_PER_S` per second per member, extra ones are dropped silently (never a kick).
    */
   onSetLook(client: RunClient, code: string): void {
-    if (this.state.phase !== "lobby") return;
+    // Review L1: after `run.start` the phase reads "lobby" while the members' progress loads (7.4/7.5 `starting`) and
+    // until the first tick (`controller` built): the run has started, its look is the one it started with.
+    if (this.state.phase !== "lobby" || this.starting || this.controller !== null) return;
     const member = this.members.get(client.sessionId);
     const player = member && this.state.players.get(member.playerId);
     if (!member || !player) return;

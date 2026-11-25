@@ -256,7 +256,22 @@ describe("Story 7.10 D3: lobby.set_look — my card changes for everyone before 
     expect([...room.members.values()].find((m) => m.playerId === "p0")?.look).toBe(STARTER);
   });
 
-  it("spam: 20 looks at once → at most 2 per second applied, no kick, the client stays joined", async () => {
+  it("review L1: a look sent right after Start (same tick, before the phase changes) is ignored: the run keeps the look it started with", async () => {
+    vi.stubEnv("DEV_NO_WAVES", "1");
+    const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), STARTER)));
+    const room = roomOf(host);
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    host.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.ready).toBe(true));
+    const seen = vi.spyOn(room, "onSetLook");
+    host.send(C2S.RUN_START, {});
+    host.send(C2S.LOBBY_SET_LOOK, { look: OTHER }); // handled before the next tick: phase still "lobby", controller built
+    await vi.waitFor(() => expect(host.state.phase).toBe("build"));
+    expect(seen).toHaveBeenCalled(); // liveness: the message did reach the handler
+    expect(room.state.players.get("p0")?.look).toBe(STARTER);
+  });
+
+  it("spam: 8 looks at once → at most 2 per second applied, no kick, the client stays joined", async () => {
     const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token())));
     const room = roomOf(host);
     await vi.waitFor(() => expect(room.members.size).toBe(1));

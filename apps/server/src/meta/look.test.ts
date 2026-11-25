@@ -150,6 +150,23 @@ describe("POST /account/look (Story 7.10 AC 8, 11; E2)", () => {
     expect(await stored(a.id)).toBe(STARTER); // the extra field is dropped by the decoder
   });
 
+  it("review L2 (two phones): a save with a base is stored only while the account still has that base; else the newer look is kept and answered stale", async () => {
+    const a = await account();
+    // phone A saves STARTER; phone B (offline earlier, edited from the default look = base null) retries OTHER
+    const OTHER = "v1|top:puffer|head:hood|hair:curly|pack:duffel|skin:2|c:112233,445566,778899";
+    expect((await post(port, { token: a.token, look: STARTER })).body.look).toBe(STARTER);
+    const stale = await post(port, { token: a.token, raw: JSON.stringify({ look: OTHER, base: null }) });
+    expect(stale.status).toBe(200);
+    expect(stale.body).toEqual({ ok: true, look: STARTER, stale: true });
+    expect(await stored(a.id)).toBe(STARTER); // A's newer look is kept
+    // with the right base it is stored (B edited from A's look)
+    const ok = await post(port, { token: a.token, raw: JSON.stringify({ look: OTHER, base: STARTER }) });
+    expect(ok.body).toEqual({ ok: true, look: OTHER });
+    expect(await stored(a.id)).toBe(OTHER);
+    // a base that is not a plausible look is refused by the schema
+    expect((await post(port, { token: a.token, raw: JSON.stringify({ look: OTHER, base: "x".repeat(100) }) })).status).toBe(400);
+  });
+
   it("403 for a foreign Origin when origins are set (CSRF), like the other account calls", async () => {
     const booted = await bootTestServer({ database, sessionSecret: SECRET, allowedOrigins: ["https://game.example"] });
     try {
@@ -171,7 +188,7 @@ describe("saveLook (unit): owned set from the locked row, 503 when the save serv
     expect(ownedFor(row).has("head:riot")).toBe(false);
     expect(ownedFor({ ...row, cosmetics: ["head:riot"] } as Progress).has("head:riot")).toBe(true);
     let written: string | null | undefined;
-    const progress = { saveLook: async (_id: string, f: (r: Progress) => string | null) => (written = f({ ...row, cosmetics: ["head:riot"] } as Progress)) } as unknown as ProgressRepo;
+    const progress = { saveLook: async (_id: string, f: (r: Progress) => string | null) => ({ look: (written = f({ ...row, cosmetics: ["head:riot"] } as Progress)), written: true }) } as unknown as ProgressRepo;
     const out = await saveLook({ cookieToken: "ab".repeat(16), look: STARTER.replace("head:beanie", "head:riot") }, { accounts, progress, ipLimiter: limiter(), accountLimiter: limiter(), logGate: limiter() });
     expect(out).toEqual({ status: 200, body: { ok: true, look: STARTER.replace("head:beanie", "head:riot") } });
     expect(written).toContain("head:riot");

@@ -136,7 +136,7 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (bodyBytes(headers, ctx.body) > LOOK_SAVE_MAX_BODY_BYTES) throw ctx.error(413, { message: "too_large" });
     const body = lookSaveRequestSchema.safeParse(ctx.body ?? {});
     if (!body.success) throw ctx.error(400, { message: "invalid_body" });
-    const out = await saveLook({ cookieToken: ctx.getCookie(GUEST_COOKIE), look: body.data.look }, { ...deps.look, accounts: deps.accounts, logGate: deps.logGate });
+    const out = await saveLook({ cookieToken: ctx.getCookie(GUEST_COOKIE), look: body.data.look, base: body.data.base }, { ...deps.look, accounts: deps.accounts, logGate: deps.logGate });
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
   });

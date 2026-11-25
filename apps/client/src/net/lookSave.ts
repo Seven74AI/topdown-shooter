@@ -16,10 +16,16 @@ import { progressStore } from "./progressStore";
 
 export const DEFAULT_LOOK_CODE = encodeLook(DEFAULT_LOOK);
 
-export type DoneResult = { kind: "saved"; look: string | null } | { kind: "rateLimited" } | { kind: "offline" };
+export type DoneResult = { kind: "saved"; look: string | null } | { kind: "rateLimited" } | { kind: "offline" } | { kind: "refused" };
+
+/**
+ * Review L4: the failures worth keeping a look on the phone for and retrying later — no answer (0), no account yet
+ * (401), a busy or down save server (408, 5xx). A deterministic refusal (400, 403, 413…) would fail again every start.
+ */
+export const retryable = (status: number): boolean => status === 0 || status === 401 || status === 408 || status >= 500;
 
 export interface LookSaveDeps {
-  call: (code: string) => Promise<LookSaveCall>;
+  call: (code: string, base?: string | null) => Promise<LookSaveCall>;
   session: (over?: Partial<AccountDeps>) => ReturnType<typeof accountSession>;
   looks: DeviceLookStore;
   /** The hub's copy of my progress: the stored look replaces its `look` (when it has one). */
@@ -27,7 +33,7 @@ export interface LookSaveDeps {
   now: () => number;
 }
 
-const defaults = (): LookSaveDeps => ({ call: (code) => saveLookCall(code), session: accountSession, looks: deviceLook, progress: progressStore, now: Date.now });
+const defaults = (): LookSaveDeps => ({ call: (code, base) => saveLookCall(code, {}, base), session: accountSession, looks: deviceLook, progress: progressStore, now: Date.now });
 
 function stored(look: string | null, deps: LookSaveDeps): void {
   deps.looks.markSynced(look);
@@ -44,6 +50,7 @@ export async function saveFromEditor(code: string, over: Partial<LookSaveDeps> =
     return { kind: "saved", look: r.look };
   }
   if (r.status === 429) return { kind: "rateLimited" };
+  if (!retryable(r.status)) return { kind: "refused" };
   deps.looks.savePending(code === DEFAULT_LOOK_CODE ? null : code, deps.now());
   return { kind: "offline" };
 }
@@ -62,10 +69,14 @@ export async function syncPendingLook(over: Partial<LookSaveDeps> = {}): Promise
     deps.looks.markSynced(serverLook); // another phone saved since: its newer look wins
     return "server_won";
   }
-  const r = await deps.call(p.code ?? DEFAULT_LOOK_CODE);
-  if (r.kind !== "saved") return "offline";
+  // Review L2: the server re-checks the base inside its save transaction (another phone may save in between).
+  const r = await deps.call(p.code ?? DEFAULT_LOOK_CODE, p.base);
+  if (r.kind !== "saved") {
+    if (!retryable(r.status) && r.status !== 429) deps.looks.markSynced(serverLook); // review L4: it can never be stored
+    return "offline";
+  }
   stored(r.look, deps);
-  return "synced";
+  return r.stale ? "server_won" : "synced";
 }
 
 let startSync: Promise<SyncResult> | null = null;

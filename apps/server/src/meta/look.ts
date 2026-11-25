@@ -11,7 +11,7 @@
  */
 import { DEFAULT_LOOK, decodeLook, encodeLook, guestTokenSchema, ownedParts } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
-import type { Progress, ProgressRepo } from "../db/progressRepo";
+import { KEEP_LOOK, type Progress, type ProgressRepo } from "../db/progressRepo";
 import { ipKey, type SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
@@ -25,7 +25,7 @@ export interface LookDeps {
 }
 
 export type LookOutcome =
-  | { status: 200; body: { ok: true; look: string | null } }
+  | { status: 200; body: { ok: true; look: string | null; stale?: true } }
   | { status: 401 | 429 | 503; error: "no_account" | "rate_limited" | "save_unavailable" };
 
 const DEFAULT_CODE = encodeLook(DEFAULT_LOOK);
@@ -53,7 +53,11 @@ export function lookIpAllowed(ip: string, deps: Pick<LookDeps, "ipLimiter" | "lo
   return false;
 }
 
-export async function saveLook(input: { cookieToken: string | null | undefined; look: string }, deps: LookDeps): Promise<LookOutcome> {
+/**
+ * `base` (review L2): the stored look the save was edited from (undefined = none sent: the last Done wins). When given,
+ * the look is stored only if the locked row still holds `base`; else the newer stored look is kept and answered `stale`.
+ */
+export async function saveLook(input: { cookieToken: string | null | undefined; look: string; base?: string | null | undefined }, deps: LookDeps): Promise<LookOutcome> {
   const token = guestTokenSchema.safeParse(input.cookieToken);
   if (!token.success) return { status: 401, error: "no_account" };
   let accountId: string;
@@ -70,13 +74,18 @@ export async function saveLook(input: { cookieToken: string | null | undefined; 
   }
   try {
     let replaced = 0;
-    const stored = await deps.progress.saveLook(accountId, (row) => {
+    const out = await deps.progress.saveLook(accountId, (row) => {
+      if (input.base !== undefined && row.look !== input.base) return KEEP_LOOK;
       const c = canonicalLook(input.look, ownedFor(row));
       replaced = c.replaced;
       return c.look;
     });
+    if (!out.written) {
+      log.info({ accountId }, "look_save_stale");
+      return { status: 200, body: { ok: true, look: out.look, stale: true } };
+    }
     log.info({ accountId, replaced }, "look_saved");
-    return { status: 200, body: { ok: true, look: stored } };
+    return { status: 200, body: { ok: true, look: out.look } };
   } catch {
     return { status: 503, error: "save_unavailable" }; // logged as db_error by the repository
   }

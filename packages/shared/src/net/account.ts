@@ -122,9 +122,15 @@ export const ACCOUNT_LOOK_PATH = "/account/look";
 /** Story 7.10 (AC 11): the largest look-save body the route reads (bytes); a larger one is refused with 413. */
 export const LOOK_SAVE_MAX_BODY_BYTES = 256;
 
-export const lookSaveRequestSchema = z.object({ look: z.string().max(LOOK_SAVE_MAX_BODY_BYTES) }).strict();
+/**
+ * `base` (review L2, optional): the stored look this save was edited from (null = the default look). Sent by the start-up
+ * retry of a look saved only on the phone: the server stores the look only while the account's look is still `base`
+ * (checked inside the save transaction), else it keeps the newer look and answers it with `stale: true`. An editor
+ * Done sends no base (the last Done wins).
+ */
+export const lookSaveRequestSchema = z.object({ look: z.string().max(LOOK_SAVE_MAX_BODY_BYTES), base: z.string().max(LOOK_CODE_MAX).nullable().optional() }).strict();
 export type LookSaveRequest = z.infer<typeof lookSaveRequestSchema>;
 
 /** The answer: the code the server stored (canonical; unowned or unknown parts became the default parts), or null (the default look). */
-export const lookSaveResponseSchema = z.object({ ok: z.literal(true), look: z.string().max(LOOK_CODE_MAX).nullable() });
+export const lookSaveResponseSchema = z.object({ ok: z.literal(true), look: z.string().max(LOOK_CODE_MAX).nullable(), stale: z.boolean().optional() });
 export type LookSaveResponse = z.infer<typeof lookSaveResponseSchema>;

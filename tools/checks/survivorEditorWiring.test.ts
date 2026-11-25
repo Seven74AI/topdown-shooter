@@ -11,7 +11,7 @@ describe("Story 7.10 wiring", () => {
   it("App renders the editor; the hub's Survivor tab and MY lobby card open it (AC 1, O4)", () => {
     expect(read(`${UI}App.tsx`)).toMatch(/<SurvivorEditor \/>/);
     const hub = read(`${UI}ProgressScreen.tsx`);
-    expect(hub).toMatch(/t\.id === SURVIVOR_TAB_ID \? \(\) => uiStore\.set\(openSurvivor\(\{ kind: "progress", back: screen\.back \}\)\)/);
+    expect(hub).toMatch(/if \(t\.id === SURVIVOR_TAB_ID\) return uiStore\.set\(openSurvivor\(\{ kind: "progress", back: screen\.back \}\)\);/);
     const lobby = read(`${UI}LobbyScreen.tsx`);
     expect(lobby).toMatch(/\{\.\.\.\(you\s*\?\s*\{[\s\S]*?onClick: \(\) => uiStore\.set\(openSurvivor\(\{ kind: "lobby", code \}\)\)/);
     expect((lobby.match(/openSurvivor\(/g) ?? []).length).toBe(2); // click + Enter, both inside the `you` branch only
@@ -47,7 +47,7 @@ describe("Story 7.10 wiring", () => {
 
   it("server: the look route is on the router and the lobby message under net.guard", () => {
     const app = read("apps/server/src/app.ts");
-    expect(app).toMatch(/routes: createRouter\(\{ health, accountSession, accountUnlock, accountLook \}\)/);
+    expect(app).toMatch(/routes: createRouter\(\{ health, accountSession, accountUnlock, accountTraining, accountLook \}\)/);
     expect(app).toMatch(/look: \{ progress, ipLimiter: lookIpLimiter, accountLimiter: lookAccountLimiter \}/);
     expect(read("apps/server/src/rooms/RunRoom.ts")).toMatch(/this\.onMessage\(C2S\.LOBBY_SET_LOOK, this\.net\.guard\(lobbySetLookSchema, \(c, m\) => this\.onSetLook\(c, m\.look\)\)\)/);
     expect(read("apps/client/src/net/lobbyStore.ts")).toMatch(/this\.room\?\.send\(C2S\.LOBBY_SET_LOOK, \{ look \}\)/);

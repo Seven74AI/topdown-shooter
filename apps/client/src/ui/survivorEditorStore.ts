@@ -37,6 +37,8 @@ export const EDITOR_TEXT = {
   offline: "Saved on this phone. It will sync next time.",
   /** AC 11. */
   rateLimited: "Too many saves, try again in a minute",
+  /** Review L4: the server refused this look for good (never kept for a retry). */
+  refused: "Couldn't save this look",
   edit: "Edit my survivor",
 } as const;
 

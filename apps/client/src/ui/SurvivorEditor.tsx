@@ -212,7 +212,7 @@ export function SurvivorEditor() {
     } else if (r.kind === "offline") {
       if (inLobby) lobbyStore.setLook(code); // the room checks it against what I own
       setStatus({ kind: "note", text: EDITOR_TEXT.offline, closeAtMs: performance.now() + OFFLINE_NOTE_MS });
-    } else setStatus({ kind: "note", text: EDITOR_TEXT.rateLimited, closeAtMs: null });
+    } else setStatus({ kind: "note", text: r.kind === "refused" ? EDITOR_TEXT.refused : EDITOR_TEXT.rateLimited, closeAtMs: null });
   };
 
   const onDown = (e: PointerEvent): void => {

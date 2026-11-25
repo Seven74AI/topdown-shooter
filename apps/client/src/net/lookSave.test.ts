@@ -53,7 +53,9 @@ describe("Done (AC 8, 9, 11; E4)", () => {
     expect(url).toBe("/api/account/look");
     expect(init.method).toBe("POST");
     expect(init.credentials).toBe("same-origin");
-    expect(JSON.parse(init.body as string)).toEqual({ look: A });
+    expect(JSON.parse(init.body as string)).toEqual({ look: A }); // a Done sends no base (last Done wins)
+    await saveLookCall(B, { fetch: f as unknown as typeof fetch, url: () => "/api/account/look" }, null);
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string)).toEqual({ look: B, base: null });
     expect((await saveLookCall(A, { fetch: (async () => new Response("", { status: 429 })) as unknown as typeof fetch })).kind).toBe("failed");
     expect(await saveLookCall(A, { fetch: (async () => Promise.reject(new Error("offline"))) as unknown as typeof fetch })).toEqual({ kind: "failed", status: 0 });
   });
@@ -92,6 +94,22 @@ describe("Done (AC 8, 9, 11; E4)", () => {
     expect(looks.pending()).toBeNull();
   });
 
+  it("review L4: a deterministic refusal (400, 403, 413) is never kept for a retry; 0 / 401 / 408 / 5xx are", async () => {
+    for (const status of [400, 403, 413]) {
+      const s = mem();
+      const looks = deviceLookStore(() => s);
+      looks.set(A);
+      expect(await saveFromEditor(B, deps(s, async () => ({ kind: "failed", status })))).toEqual({ kind: "refused" });
+      expect(looks.pending()).toBeNull();
+      expect(looks.get()).toBe(A);
+    }
+    for (const status of [0, 401, 408, 500, 503]) {
+      const s = mem();
+      expect(await saveFromEditor(B, deps(s, async () => ({ kind: "failed", status })))).toEqual({ kind: "offline" });
+      expect(deviceLookStore(() => s).pending()?.code).toBe(B);
+    }
+  });
+
   it("storage throws (private mode) → Done still saves to the server and still reports an offline save honestly; nothing throws", async () => {
     await expect(saveFromEditor(B, deps(blocked, async () => ({ kind: "saved", look: B })))).resolves.toEqual({ kind: "saved", look: B });
     await expect(saveFromEditor(B, deps(blocked, async () => ({ kind: "failed", status: 0 })))).resolves.toEqual({ kind: "offline" });
@@ -109,7 +127,7 @@ describe("the retry at the next start (AC 9; beat the rule 3, 4)", () => {
     looks.savePending(B, 1);
     const call = vi.fn(async () => ({ kind: "saved", look: B }) as LookSaveCall);
     expect(await syncPendingLook(deps(s, call, { session: session(A) }))).toBe("synced");
-    expect(call).toHaveBeenCalledWith(B);
+    expect(call).toHaveBeenCalledWith(B, A); // review L2: the base travels, the server re-checks it
     expect(looks.pending()).toBeNull();
     expect(s.map.get(DEVICE_LOOK_KEY)).toBe(B);
     expect(await syncPendingLook(deps(s, call, { session: session(B) }))).toBe("none");
@@ -126,6 +144,26 @@ describe("the retry at the next start (AC 9; beat the rule 3, 4)", () => {
     expect(call).not.toHaveBeenCalled();
     expect(looks.get()).toBe(C);
     expect(looks.pending()).toBeNull();
+  });
+
+  it("review L2: the server answers stale (another phone saved between the session read and the send) → its look wins", async () => {
+    const s = mem();
+    const looks = deviceLookStore(() => s);
+    looks.set(A);
+    looks.savePending(B, 1);
+    expect(await syncPendingLook(deps(s, async () => ({ kind: "saved", look: C, stale: true }), { session: session(A) }))).toBe("server_won");
+    expect(looks.get()).toBe(C);
+    expect(looks.pending()).toBeNull();
+  });
+
+  it("review L4: a pending look the server refuses for good (400) is dropped, not retried at every start", async () => {
+    const s = mem();
+    const looks = deviceLookStore(() => s);
+    looks.set(A);
+    looks.savePending(B, 1);
+    expect(await syncPendingLook(deps(s, async () => ({ kind: "failed", status: 400 }), { session: session(A) }))).toBe("offline");
+    expect(looks.pending()).toBeNull();
+    expect(looks.get()).toBe(A);
   });
 
   it("a session answer while pending: kept if the server still has the base, replaced if it moved (deviceLook.set)", () => {
@@ -150,7 +188,7 @@ describe("the retry at the next start (AC 9; beat the rule 3, 4)", () => {
     expect(await syncPendingLook(deps(s, call, { session: session(undefined) }))).toBe("offline");
     expect(call).not.toHaveBeenCalled();
     expect(await syncPendingLook(deps(s, call, { session: session(null) }))).toBe("offline");
-    expect(call).toHaveBeenCalledWith(B);
+    expect(call).toHaveBeenCalledWith(B, null);
     expect(looks.pending()?.code).toBe(B);
   });
 

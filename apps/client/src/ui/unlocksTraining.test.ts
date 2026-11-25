@@ -109,7 +109,7 @@ describe("Story 7.4 K7: the Results unlock line (group 3)", () => {
 
 describe("Story 7.5 AC 8 (TR1): the Training tab", () => {
   it("the hub's second tab is Training", () => {
-    expect(HUB_TABS.map((t) => t.id)).toEqual(["unlocks", "training"]);
+    expect(HUB_TABS.map((t) => t.id).slice(0, 2)).toEqual(["unlocks", "training"]); // Story 7.10 appends Survivor
   });
 
   it("rows: Now / Next with the price, short with need, MAXED at 5 — all from the server's progress", () => {

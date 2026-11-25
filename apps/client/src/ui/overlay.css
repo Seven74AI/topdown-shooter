@@ -2393,6 +2393,8 @@ body:has(.menu.ph) .dev-gear {
 .tr-maxed {
   background: #f59a2c;
   color: #17191c;
+}
+
 /*
  * Story 7.10 (AC 2; ED1 + LK2 + LS1, Lumen LF5; docs/art/epic-7/lumen/editor.jpg): the survivor editor. Left: Back,
  * the Chosen / In game swatches, the big turning preview and the game-size preview. Right: the five tabs, the part
@@ -2490,7 +2492,8 @@ body:has(.menu.ph) .dev-gear {
 .se-sw__chip {
   width: 18px;
   height: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid #c8ccd2; /* review L3: a light frame, so a dark colour (the default hat & bag) still shows */
+  box-shadow: 0 0 0 1px #0b0c0e;
 }
 
 .se-big,

@@ -9,6 +9,9 @@ import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
 import { boundedTransaction, type BoundedOptions } from "./boundedTx";
 
+/** Story 7.10 (review L2): what `saveLook`'s decider returns to leave the stored look as it is. */
+export const KEEP_LOOK: unique symbol = Symbol("keep_look");
+
 /** Story 7.2 (review M1 / RR-M1): the bank's bounds live in `db/boundedTx.ts` (re-exported for older imports). */
 export { BANK_LOCK_TIMEOUT_MS, BANK_TX_BUDGET_MS, BANK_TX_TIMEOUT_MS } from "./boundedTx";
 
@@ -84,7 +87,7 @@ export interface ProgressRepo {
    * there: 7.11's `cosmetics` joins the row), and `look` is replaced by its result (null = the default look). Returns
    * what was stored. The raw request never reaches this method, only the decoder's output.
    */
-  saveLook(accountId: string, canonical: (row: Progress) => string | null): Promise<string | null>;
+  saveLook(accountId: string, canonical: (row: Progress) => string | null | typeof KEEP_LOOK): Promise<{ look: string | null; written: boolean }>;
   /**
    * Story 7.5 (AC 3, T3; brief 18): buys Training level `level` of `boost` for `cost` (both from the SERVER's
    * progression.json) in ONE conditional update: `supplies >= cost AND COALESCE((training->>boost)::int, 0) = level − 1`
@@ -179,8 +182,9 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           const row = locked[0];
           if (!row) throw new Error("progress row missing");
           const look = canonical(row);
+          if (look === KEEP_LOOK) return { look: row.look, written: false }; // review L2: a newer look is stored: keep it
           const updated = await tx.update(progress).set({ look, updatedAt: sql`now()` }).where(eq(progress.accountId, accountId)).returning({ look: progress.look });
-          return updated[0]?.look ?? null;
+          return { look: updated[0]?.look ?? null, written: true };
         },
         bankOptions,
       ),

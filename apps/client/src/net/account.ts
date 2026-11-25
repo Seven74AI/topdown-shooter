@@ -203,9 +203,10 @@ export async function trainBoost(boost: TrainingBoostId, level: number, requestI
  * default look), or `failed` with the status (0 = no answer: offline, timeout; 429 = too many saves; 401 no account;
  * 5xx save server down). Never throws. The cookie names the account (`credentials: "same-origin"`).
  */
-export type LookSaveCall = { kind: "saved"; look: string | null } | { kind: "failed"; status: number };
+export type LookSaveCall = { kind: "saved"; look: string | null; stale?: boolean } | { kind: "failed"; status: number };
 
-export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}): Promise<LookSaveCall> {
+/** `base` (review L2): only the start-up retry sends it (the look it was edited from); the server then refuses to overwrite a newer look. */
+export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}, base?: string | null): Promise<LookSaveCall> {
   const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_LOOK_PATH}`, ...over };
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
@@ -214,12 +215,12 @@ export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ look: code }),
+      body: JSON.stringify(base === undefined ? { look: code } : { look: code, base }),
       signal: abort.signal,
     });
     if (!res.ok) return { kind: "failed", status: res.status };
     const parsed = lookSaveResponseSchema.safeParse(await res.json());
-    return parsed.success ? { kind: "saved", look: parsed.data.look } : { kind: "failed", status: res.status };
+    return parsed.success ? { kind: "saved", look: parsed.data.look, ...(parsed.data.stale ? { stale: true } : {}) } : { kind: "failed", status: res.status };
   } catch {
     return { kind: "failed", status: 0 };
   } finally {
