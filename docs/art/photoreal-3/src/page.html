@@ -1,0 +1,47 @@
+<title>Photoreal Buildables</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a before/after ledger, one card per buildable, "Now" and "Photoreal" side by side on the same night street. Dark by design: the art lives on the street. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 60px; margin: 0; }
+header, section, #list, #loading { max-width: 1200px; margin-inline: auto; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; }
+h1 span { color: var(--accent); }
+p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
+#list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 14px; margin-top: 18px; }
+.pair { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.pair.wide { grid-column: 1 / -1; }
+.pair.wide .sides { grid-template-columns: 1fr; }
+.pair h3 { margin: 0 0 8px; font: 600 15px var(--font-body); }
+.pair p { margin: 8px 0 0; font-size: 14px; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sides figure { margin: 0; min-width: 0; }
+figure canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
+figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.sides figure:last-child figcaption { color: var(--accent); }
+#loading { color: var(--muted); margin-top: 16px; }
+.pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 36px; }
+.pick p { margin: 0; color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+<header>
+  <h1>Things you build <span>photoreal</span></h1>
+  <p>The same recipe as the accepted characters: today's drawings are kept exactly (every plank, bolt and spike), then rendered with real volume and the cool street light, with materials read from the drawing: wood grain along the planks, brushed and pitted steel, rough rust, woven sandbags. Then details come alive: floodlights hum and flicker, the med cross beats and scans, the mine's LED blinks with a sensor ping, and glints run over steel jaws, spikes and wire. Game code; both sides drawn at twice the game's resolution.</p>
+</header>
+<p id="loading">Drawing…</p>
+<div id="list"></div>
+<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, or "go" to put them in the game.</p></div></section>
+<script>
+/*@JS@*/
+</script>
