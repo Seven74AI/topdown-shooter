@@ -9,6 +9,8 @@ import { survivorPortraitUrl } from "../render/city/survivorPortrait";
 import { lobbyLayout, type Insets, type Rect } from "./lobbyLayout";
 import { districtCards, districtResetText } from "./districtModel";
 import { districtName } from "@topdown/shared";
+import { MENU_TEXT, removeConfirmText } from "./menuItems";
+import { HOST_TOAST_TEXT, HostToastWatch } from "./hostToast";
 
 /** How long "Link copied" stays visible. */
 const NOTICE_MS = 2000;
@@ -58,6 +60,8 @@ export function LobbyScreen() {
   const [sheet, setSheet] = useState(false); // Story 7.7: the DP2 district sheet
   const vp = useViewport();
   const [startTap, setStartTap] = useState<number | null>(null); // Stories 7.4/7.5: "Starting…" while the server reads progress
+  const [confirmRemove, setConfirmRemove] = useState<{ playerId: string; name: string } | null>(null); // Story 8.3 (H2)
+  const [hostWatch] = useState(() => new HostToastWatch()); // Story 8.3 (H1): "You are now the host", once
   useEffect(() => {
     if (startTap === null) return;
     const id = setTimeout(() => setStartTap(null), STARTING_MS);
@@ -69,6 +73,15 @@ export function LobbyScreen() {
   useEffect(() => {
     if (lobby.districtResetSeq > 0 && lobby.districtReset) setNotice(districtResetText(lobby.districtReset));
   }, [lobby.districtResetSeq]);
+  // Story 8.3 (H1, AC 9): the role moved to me (the host left): once, never on the first patch (the creator never sees it).
+  useEffect(() => {
+    const mine = lobby.players.find((p) => p.playerId === lobby.localPlayerId)?.slot;
+    if (hostWatch.observe(lobby.hostSlot, mine)) setNotice(HOST_TOAST_TEXT);
+  }, [lobby.hostSlot, lobby.localPlayerId, lobby.players]);
+  // Story 8.3: a confirm for someone who has left meanwhile closes.
+  useEffect(() => {
+    if (confirmRemove && !lobby.players.some((p) => p.playerId === confirmRemove.playerId)) setConfirmRemove(null);
+  }, [lobby.players, confirmRemove]);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(""), NOTICE_MS);
@@ -192,6 +205,19 @@ export function LobbyScreen() {
                 {you && <span class="lobby__tag lobby__tag--you">You</span>}
               </span>
               <span class="lobby-card__bar" style={{ ...at(c.bar), background: SLOT_COLOR_CSS[slot] }} />
+              {/* Story 8.3 (H2, AC 11): the host removes another player (never themselves), with a confirm. */}
+              {view.isHost && !you && (
+                <button
+                  type="button"
+                  class="lobby-card__remove"
+                  style={at(c.remove)}
+                  aria-label={`${MENU_TEXT.remove} ${p.name}`}
+                  data-testid="lobby-remove"
+                  onClick={() => setConfirmRemove({ playerId: p.playerId, name: p.name })}
+                >
+                  ✕
+                </button>
+              )}
               <span class="lobby-card__name" style={at(c.name)}>
                 <span class="lobby-card__who">
                   <span class="lobby-card__chip" style={{ background: SLOT_COLOR_CSS[slot] }}>
@@ -246,6 +272,28 @@ export function LobbyScreen() {
       <p class="lobby__notice" aria-live="polite">
         {notice}
       </p>
+      {confirmRemove && (
+        <div class="in-run-menu" role="dialog" aria-modal="true" aria-labelledby="lobby-remove-title" data-testid="lobby-remove-confirm">
+          <p id="lobby-remove-title" class="in-run-menu__title">
+            {removeConfirmText(confirmRemove.name)}
+          </p>
+          <div class="in-run-menu__items">
+            <button
+              type="button"
+              class="btn btn--danger"
+              onClick={() => {
+                lobbyStore.remove(confirmRemove.playerId);
+                setConfirmRemove(null);
+              }}
+            >
+              {MENU_TEXT.remove}
+            </button>
+            <button type="button" class="btn btn--secondary" autofocus onClick={() => setConfirmRemove(null)}>
+              {MENU_TEXT.cancel}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

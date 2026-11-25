@@ -1,16 +1,20 @@
 import { useEffect, useState } from "preact/hooks";
 import { uiStore, type UiScreen } from "./uiState";
-import { MENU_TEXT, visibleMenuItems } from "./menuItems";
-import { lobbyStore } from "../net/lobbyStore";
+import { MENU_TEXT, canRemoveIn, menuRemoveTarget, removeConfirmText, visibleMenuItems } from "./menuItems";
+import { lobbyStore, type LobbySnapshot } from "../net/lobbyStore";
 
 /**
  * The in-run menu (Story 2.11) over the live game: a light backdrop so the danger stays visible,
  * the items of `MENU_ITEMS`, and the confirm step for Leave game. Every button goes through the
- * `menu` request; the Game scene runs the state machine and the leave (once).
+ * `menu` request; the Game scene runs the state machine and the leave (once). Story 8.3 (H2, AC 11):
+ * the host's Players list (the other seats in the room state: connected, reconnecting, waiting) with
+ * Remove + its confirm; Remove is greyed outside a build phase.
  */
 export function InRunMenu() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
+  const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   useEffect(() => uiStore.subscribe(setScreen), []);
+  useEffect(() => lobbyStore.subscribe(setLobby), []);
   if (screen.kind !== "playing" || screen.menu === "closed") return null;
   const online = screen.online;
   if (screen.menu === "confirmLeave") {
@@ -30,9 +34,74 @@ export function InRunMenu() {
       </div>
     );
   }
-  const s = lobbyStore.get();
-  const me = s.players.find((p) => p.playerId === s.localPlayerId);
-  const isHost = !online || (me !== undefined && me.slot === s.hostSlot);
+  if (screen.menu === "confirmRemove") {
+    const target = menuRemoveTarget.get();
+    return (
+      <div class="in-run-menu" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="remove-confirm">
+        <p id="in-run-menu-title" class="in-run-menu__title">
+          {removeConfirmText(target?.name ?? "")}
+        </p>
+        <div class="in-run-menu__items">
+          <button
+            type="button"
+            class="btn btn--danger"
+            disabled={!target || !canRemoveIn(lobby.phase)}
+            onClick={() => {
+              if (target && canRemoveIn(lobby.phase)) lobbyStore.remove(target.playerId);
+              menuRemoveTarget.set(null);
+              uiStore.request("menu", "confirm");
+            }}
+          >
+            {MENU_TEXT.remove}
+          </button>
+          <button type="button" class="btn btn--secondary" autofocus onClick={() => uiStore.request("menu", "cancel")}>
+            {MENU_TEXT.cancel}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (screen.menu === "players") {
+    const others = lobby.players.filter((p) => p.playerId !== lobby.localPlayerId);
+    const allowed = canRemoveIn(lobby.phase);
+    return (
+      <div class="in-run-menu in-run-menu--list" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="players-menu">
+        <h2 id="in-run-menu-title" class="in-run-menu__title">
+          {MENU_TEXT.players}
+        </h2>
+        {!allowed && <p class="in-run-menu__note">{MENU_TEXT.removeOnlyInBuild}</p>}
+        {others.length === 0 && <p class="in-run-menu__note">{MENU_TEXT.noOthers}</p>}
+        <ul class="in-run-menu__players">
+          {others.map((p) => (
+            <li key={p.playerId} class="in-run-menu__player">
+              <span class="in-run-menu__player-name">
+                {p.name}
+                {p.held ? ` · ${MENU_TEXT.reconnecting}` : p.waiting ? ` · ${MENU_TEXT.waiting}` : ""}
+              </span>
+              <button
+                type="button"
+                class="btn btn--danger in-run-menu__remove"
+                disabled={!allowed}
+                onClick={() => {
+                  menuRemoveTarget.set({ playerId: p.playerId, name: p.name });
+                  uiStore.request("menu", "remove");
+                }}
+              >
+                {MENU_TEXT.remove}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div class="in-run-menu__items">
+          <button type="button" class="btn btn--secondary in-run-menu__back" autofocus onClick={() => uiStore.request("menu", "back")}>
+            {MENU_TEXT.back}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  const me = lobby.players.find((p) => p.playerId === lobby.localPlayerId);
+  const isHost = !online || (me !== undefined && me.slot === lobby.hostSlot);
   return (
     <div class="in-run-menu" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title">
       <h2 id="in-run-menu-title" class="in-run-menu__title">

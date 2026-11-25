@@ -2,6 +2,7 @@ import {
   districtName,
   BYTES,
   C2S,
+  CLOSE_REMOVED,
   CLOSE_TAKEN_OVER,
   MAX_PLAYERS,
   RECONNECT,
@@ -40,6 +41,10 @@ export interface LobbyPlayer {
   readonly ready: boolean;
   /** Story 7.9: the look code from the room state (the lobby card's survivor picture). */
   readonly look: string;
+  /** Story 8.2 (J4): a late joiner watching the wave (not in the World yet). Absent = false. */
+  readonly waiting?: boolean;
+  /** Story 8.1/8.3: the seat is held (reconnecting). Absent = false. */
+  readonly held?: boolean;
 }
 
 /** Plain data for the lobby screen (never schema instances in Preact state). */
@@ -63,7 +68,7 @@ const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
-  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look }));
+  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look, waiting: p.waiting === true, held: (p.heldUntilTick ?? 0) > 0 }));
   players.sort((a, b) => a.slot - b.slot);
   return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0 };
 }
@@ -273,6 +278,11 @@ class LobbyStore {
     // Story 2.2: a stop or redeploy announces itself before the room closes.
     let shuttingDown = false;
     let shutdownText: string | undefined;
+    // Story 8.3 (H3): the host removed me; the server closes with 4022 right after. Terminal either way.
+    let removed = false;
+    room.onMessage(S2C.PLAYER_REMOVED, () => {
+      removed = true;
+    });
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, (m: { message?: unknown }) => {
       shuttingDown = true;
       // The server says why ("Server restarting", or a room error): show its words.
@@ -282,6 +292,13 @@ class LobbyStore {
     schedule();
     room.onLeave((code) => {
       if (this.room !== room) return; // we left on purpose
+      // Story 8.3 (AC 12): removed by the host: never a reconnect or a takeover (4022 is terminal, never like 4000).
+      if (removed || code === CLOSE_REMOVED) {
+        this.detach();
+        this.set(EMPTY);
+        seatStore.clear();
+        return onLost("removed");
+      }
       // Story 8.1 (brief 21): mid-run, an end that isn't a Leave or a shutdown is a drop the SDK
       // couldn't repair (it gave up, or the token was refused): take the seat over by guest token.
       const link = this.link;
@@ -317,6 +334,11 @@ class LobbyStore {
   /** Story 7.7: the host picks the run's district (the server checks host, lobby and the open rule). */
   pickDistrict(id: string): void {
     this.room?.send(C2S.LOBBY_DISTRICT, { id });
+  }
+
+  /** Story 8.3 (H2): the host removes a player (the server checks host, phase and target; a refusal is only logged). */
+  remove(playerId: string): void {
+    this.room?.send(C2S.HOST_REMOVE, { playerId });
   }
 
   /** Results (Story 2.8): Back to lobby, for the whole room (the server takes it from any member). */

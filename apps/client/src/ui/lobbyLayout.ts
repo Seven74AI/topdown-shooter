@@ -38,6 +38,8 @@ const LEAVE_W = 92;
 /** Story 7.3 (D2): the Progress button, left of Leave in the header. */
 export const LOBBY_PROGRESS_W = 104;
 const SIDE_BUTTON_SHARE = 0.18;
+/** Story 8.3: the card's Remove button (a 44 px square: the minimum tap size). */
+const REMOVE_SIZE = 44;
 const MAIN_BUTTON_SHARE = 0.24;
 
 export interface LobbyCardLayout {
@@ -46,6 +48,8 @@ export interface LobbyCardLayout {
   readonly picture: Rect;
   readonly bar: Rect;
   readonly name: Rect;
+  /** Story 8.3 (H2): the host's Remove button on another player's card (top right, over the picture). */
+  readonly remove: Rect;
 }
 
 export interface LobbyLayout {
@@ -100,7 +104,8 @@ export function lobbyLayout(width: number, height: number, inset: Insets): Lobby
     const picture = r(card.x + (card.w - side) / 2, card.y + (picH - side) / 2, side, side);
     const bar = r(card.x + 4, card.y + picH, card.w - 8, CARD_BAR_H);
     const name = r(card.x, card.y + picH + CARD_BAR_H, card.w, CARD_NAME_H);
-    cards.push({ card, picture, bar, name });
+    const remove = r(card.x + card.w - REMOVE_SIZE - 4, card.y + 4, REMOVE_SIZE, REMOVE_SIZE); // Story 8.3
+    cards.push({ card, picture, bar, name, remove });
   }
   return { content, code, district, leave, progress, cards, copy, share, ready, start, sheet: districtSheet(r(x0, cy, cw, cardH)) };
 }

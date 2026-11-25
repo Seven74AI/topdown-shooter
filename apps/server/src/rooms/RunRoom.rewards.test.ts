@@ -183,7 +183,7 @@ describe("Story 7.2: banking in the room", () => {
     expect(await rewardRows(b)).toBe(1);
   });
 
-  it("re-review N-R3 (B5): Leave mid-wave (banked quit) → come back in the build phase → run end: one row, and Results shows the earlier quit bank", async () => {
+  it("Story 8.2 (AC 13, E8-J6; replaces 7.2 B5): Leave mid-wave (banked quit) → come back in the build phase → run end: one row, raised to the whole run (top-up)", async () => {
     const [a, b] = [await newAccount(), await newAccount()];
     const toks = [hex(), hex()];
     const { clients, inbox, room, w } = await toWave([a, b], toks);
@@ -202,13 +202,15 @@ describe("Story 7.2: banking in the room", () => {
     await back.waitForInitialState();
     await vi.waitFor(() => expect(w.players.has(bId)).toBe(true));
     await vi.waitFor(() => expect(got.runIds).toEqual([room.bank?.runId])); // the run id on the rejoin
-    w.players.get(bId)!.wavesIn = 9; // plays on: not paid again
+    w.players.get(bId)!.wavesIn = 9; // plays on: the waves after the rejoin are paid by the top-up
     for (const p of w.players.values()) downPlayer(w, p);
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));
     await vi.waitFor(() => expect(got.length).toBe(1));
-    expect(got[0]).toMatchObject({ status: "saved", ending: "quit", leftWave: 1, total: 60 }); // "Banked when you left (wave 1)"
-    expect(await rewardRows(b)).toBe(1);
-    expect(await supplies(b)).toBe(60);
+    expect(got[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 9 });
+    const total = (got[0] as { total: number }).total;
+    expect(total).toBeGreaterThan(60);
+    expect(await rewardRows(b)).toBe(1); // one row, raised
+    expect(await supplies(b)).toBe(total); // 60 at the Leave + (total − 60) now: the whole run, once
   });
 
   it("review M1 (B): run.leave keeps the socket, but the banked seat can't take the bag; a teammate still can", async () => {

@@ -105,8 +105,12 @@ export interface ProgressRepo {
    * payout from the locked value, the `run_rewards` row is inserted (primary key (run_id, account_id): a duplicate
    * means "already banked" and nothing else is written), then Supplies and lifetime Supplies grow by the amount.
    * Later writers (7.7 district, 7.11 milestones, 7.12 loot) join this transaction.
+   * Story 8.2 (AC 13, decision E8-J6) `topUp`: the seat banked this run before (a Leave) and came back. An existing
+   * row is then RAISED to the new total and only `new − already` (≥ 0) is added to Supplies and lifetime Supplies; new
+   * items and districts are granted (a set union, so nothing twice); lifetime stats are not added again (they were
+   * counted with the first bank: decision 8.2 B5). Two concurrent top-ups serialize on the progress row lock.
    */
-  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout, meta?: RunMetaWrites): Promise<BankResult>;
+  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout, meta?: RunMetaWrites, topUp?: boolean): Promise<BankResult>;
   /**
    * Story 7.3 (AC 5, brief 18): buys `unlockId` for `price` (from the SERVER's progression.json, never the request) in
    * ONE conditional update: `supplies >= price AND NOT unlocks ? id`. Two concurrent buys for one account serialize on
@@ -262,7 +266,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
       ),
     // Review RR-M1: NOT under withDbTimeout (which stops waiting while the work goes on): the result is the
     // transaction's own final outcome, bounded inside the database (`boundedTransaction`).
-    addSupplies: (runId, accountId, pay, meta) =>
+    addSupplies: (runId, accountId, pay, meta, topUp = false) =>
       boundedTransaction(
         database,
         "progress.addSupplies",
@@ -304,7 +308,23 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               .where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)))
               .limit(1);
             const row = earlier[0];
-            return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
+            const diff = topUp && row ? supplies - row.supplies : 0;
+            if (!topUp || !row || diff <= 0) return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
+            // Story 8.2 (E8-J6): the top-up — the row is raised to the new total, only the difference is paid.
+            await tx.update(runRewards).set({ supplies, breakdown }).where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)));
+            const topExtra: Partial<typeof progress.$inferInsert> = {};
+            if (grant) {
+              const newKeys = grant.cosmetics.filter((k) => !owned.has(k));
+              if (newKeys.length > 0) topExtra.cosmetics = [...owned, ...new Set(newKeys)];
+              const newDistricts = grant.districts.filter((d) => !districtsBefore.includes(d));
+              if (newDistricts.length > 0) topExtra.districts = [...districtsBefore, ...new Set(newDistricts)];
+            }
+            const raised = await tx
+              .update(progress)
+              .set({ supplies: sql`${progress.supplies} + ${diff}`, lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${diff}`, ...topExtra, updatedAt: sql`now()` })
+              .where(eq(progress.accountId, payee))
+              .returning({ supplies: progress.supplies });
+            return { banked: true, supplies, newTotal: raised[0]?.supplies ?? before.supplies + diff, breakdown, nudge: false };
           }
           const extra: Partial<typeof progress.$inferInsert> = {};
           if (grant && statsAfter) {

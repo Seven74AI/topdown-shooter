@@ -39,8 +39,8 @@ describe("snapshotLobby", () => {
       hostSlot: 0,
       localPlayerId: "p2",
       players: [
-        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" },
-        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" },
+        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "", waiting: false, held: false },
+        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie", waiting: false, held: false }, // Story 8.2/8.3: waiting, held
       ],
       district: "downtown", // Story 7.7
       districtsOpen: 1,
@@ -48,6 +48,18 @@ describe("snapshotLobby", () => {
       districtResetSeq: 0,
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
+  });
+
+  it("Story 8.2/8.3: copies waiting and held (the in-run Players list)", () => {
+    const players = new Map<string, PlayerStateView>([
+      ["p1", fakePlayer(1, { name: "Bo", waiting: true })],
+      ["p3", fakePlayer(3, { name: "Dee", heldUntilTick: 4000 })],
+    ]);
+    const s = snapshotLobby("ABCD", { phase: "wave", hostSlot: 0, players } as unknown as RunStateView, "p0");
+    expect(s.players.map((p) => [p.playerId, p.waiting, p.held])).toEqual([
+      ["p1", true, false],
+      ["p3", false, true],
+    ]);
   });
 });
 
@@ -181,6 +193,26 @@ describe("lobbyStore", () => {
     expect(lobbyStore.current()).toBeNull();
     expect(lobbyStore.inbox()).toBeNull();
     off();
+  });
+
+  it("Story 8.2 (AC 7): a NEW seat joining a started run reports the build phase once run.joined is here (straight to the Game scene), and remove() sends host.remove", async () => {
+    const f = fakeRoom();
+    f.state.phase = "build"; // the run is going: this phone is a late joiner (no seat of its own before)
+    f.state.players.set("p1", player(1, "Late"));
+    let changed: () => void = () => {};
+    const onPhase = vi.fn();
+    lobbyStore.attach(f.room, { watch: (_r, on) => ((changed = on), () => {}), onLost: vi.fn(), onPhase });
+    await tick();
+    expect(onPhase).not.toHaveBeenCalled(); // no player id yet: the session can't be built
+    f.message(S2C.RUN_JOINED, { playerId: "p1", slot: 1, tickRateHz: 20 });
+    await tick();
+    expect(onPhase).toHaveBeenCalledExactlyOnceWith("build");
+    changed();
+    await tick();
+    expect(onPhase).toHaveBeenCalledOnce();
+    lobbyStore.remove("p0");
+    expect(f.raw.send).toHaveBeenCalledWith(C2S.HOST_REMOVE, { playerId: "p0" });
+    lobbyStore.leave();
   });
 
   it("waits for the first full state and reports a lost connection", async () => {

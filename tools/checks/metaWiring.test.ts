@@ -17,7 +17,7 @@ describe("Stories 7.7 / 7.11 / 7.12 are wired in", () => {
 
   it("the bank passes the meta writes into the transaction; the room passes a leaver's meta and the run's district", () => {
     const bank = read("apps", "server", "src", "meta", "banking.ts");
-    expect(bank).toContain("repo.addSupplies(this.runId, accountId, pay, writes)");
+    expect(bank).toContain("repo.addSupplies(this.runId, accountId, pay, writes, this.topUps.has(seat.playerId))"); // Story 8.2: + the top-up flag (E8-J6)
     expect(bank).toContain("meta: { player: metaPlayer(p), facts }");
     const room = read("apps", "server", "src", "rooms", "RunRoom.ts");
     expect(room).toContain("meta: this.bank.seatMetaNow(world, p)");

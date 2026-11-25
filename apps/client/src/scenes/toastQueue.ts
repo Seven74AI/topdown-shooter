@@ -5,8 +5,9 @@ export const TOAST_SHOW_MS = 3000;
 /** Toasts kept waiting; more are dropped (at most the other players can leave at once). */
 export const TOAST_QUEUE_MAX = MAX_PLAYERS;
 
-/** "<name> left" or "<name> lost connection" (Story 2.11). */
-export function playerLeftText(name: string, reason: "left" | "disconnected"): string {
+/** "<name> left" or "<name> lost connection" (Story 2.11); Story 8.3: "<name> was removed" (the host removed them). */
+export function playerLeftText(name: string, reason: "left" | "disconnected" | "removed"): string {
+  if (reason === "removed") return `${name} was removed`;
   return reason === "left" ? `${name} left` : `${name} lost connection`;
 }
 

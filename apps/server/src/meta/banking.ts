@@ -175,6 +175,8 @@ export class RunBank {
   private readonly banks = new Map<string, Promise<RunRewards>>();
   /** By player id: the settled result (re-sent to a seat that comes back on Results). */
   private readonly done = new Map<string, RunRewards>();
+  /** Story 8.2 (AC 13, E8-J6): seats that came back after a bank: their next bank is a top-up (pays only the difference). */
+  private readonly topUps = new Set<string>();
 
   constructor(
     readonly seed: number,
@@ -189,6 +191,19 @@ export class RunBank {
   /** Whether this seat has started banking this run. */
   has(playerId: string): boolean {
     return this.banks.has(playerId);
+  }
+
+  /**
+   * Story 8.2 (AC 13, decision E8-J6): a seat that banked (its consented Leave) rejoined (a remembered seat, 8.1 F8)
+   * and plays on: its next bank runs again as a TOP-UP — the database raises the run's `run_rewards` row to the new
+   * total and adds only `new − already` (never negative), in the same transaction. A no-op for a seat that never banked.
+   */
+  reopen(playerId: string): void {
+    const earlier = this.banks.get(playerId);
+    if (!earlier) return;
+    this.banks.delete(playerId);
+    this.done.delete(playerId);
+    this.topUps.add(playerId);
   }
 
   /** Banks one seat (once per run; a repeat delivers the first result again). Never rejects. */
@@ -286,7 +301,7 @@ export class RunBank {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const t0 = now();
       try {
-        const r = await repo.addSupplies(this.runId, accountId, pay, writes);
+        const r = await repo.addSupplies(this.runId, accountId, pay, writes, this.topUps.has(seat.playerId));
         const b = storedBreakdown(r.breakdown, r.supplies);
         const meta = storedMeta(r.breakdown);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");

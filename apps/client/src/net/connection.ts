@@ -93,7 +93,8 @@ export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
   const message = String((e as { message?: unknown }).message ?? "");
   if (typeof code !== "number") return "network";
   if (message === "seat_kept") return "seat_kept";
-  if (message === "run_started" || message === "balance_mismatch" || message === "invalid_options" || message === "already_joined") return "gone";
+  // Story 8.2/8.3: `run_full` (no slot for me) and `removed` (the host removed me) never change by retrying.
+  if (message === "run_started" || message === "balance_mismatch" || message === "invalid_options" || message === "already_joined" || message === "run_full" || message === "removed") return "gone";
   if (code === 522 && /not found/i.test(message)) return "gone";
   return "network";
 }
@@ -136,7 +137,8 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
     $.listen("districtsOpen", onChange),
     $.onAdd("players", (player: PlayerStateView) => {
       // Story 7.9: + look (set with the name at join; 7.10 D3 changes it in the lobby).
-      perPlayer.set(player, [$.listen(player, "ready", onChange), $.listen(player, "name", onChange), $.listen(player, "look", onChange)]);
+      // Story 8.2/8.3: + waiting and heldUntilTick (the in-run Players list; both change rarely, on change only).
+      perPlayer.set(player, [$.listen(player, "ready", onChange), $.listen(player, "name", onChange), $.listen(player, "look", onChange), $.listen(player, "waiting", onChange), $.listen(player, "heldUntilTick", onChange)]);
       onChange();
     }),
     $.onRemove("players", (player: PlayerStateView) => {
@@ -155,7 +157,7 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
 /** The slice of the schema `StateCallbackStrategy` API `watchLobby` uses. */
 interface LobbyCallbacks {
   listen(property: "phase" | "hostSlot" | "district" | "districtsOpen", handler: () => void): () => void;
-  listen(instance: PlayerStateView, property: "ready" | "name" | "look", handler: () => void): () => void;
+  listen(instance: PlayerStateView, property: "ready" | "name" | "look" | "waiting" | "heldUntilTick", handler: () => void): () => void;
   onAdd(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
   onRemove(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
 }

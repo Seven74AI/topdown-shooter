@@ -117,6 +117,13 @@ function enterRoom(room: RunConnection, c: Connection): void {
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.alreadyJoined);
           return;
         }
+        if (reason === "removed") {
+          // Story 8.3 (AC 12): "You were removed from this run" with Back to start (the notice dialog); no reconnect.
+          uiStore.set({ kind: "start" });
+          uiStore.request("leaveRun");
+          serverNotice.show(JOIN_ERROR_TEXT.removed);
+          return;
+        }
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too

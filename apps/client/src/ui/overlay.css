@@ -391,6 +391,54 @@ p.in-run-menu__title {
   min-width: 200px;
 }
 
+/* Story 8.3 (H2, AC 11): the host's Players list — one row per other seat, name and a 44 px Remove (fits 568×320). */
+.in-run-menu--list {
+  gap: 8px;
+}
+
+.btn.in-run-menu__back {
+  min-height: 44px;
+}
+
+.in-run-menu__players {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(420px, calc(100vw - 2 * max(16px, env(safe-area-inset-left), env(safe-area-inset-right))));
+}
+
+.in-run-menu__player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.in-run-menu__player-name {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.btn.in-run-menu__remove {
+  flex: none;
+  min-width: 110px;
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 16px;
+}
+
+.btn.in-run-menu__remove:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .btn--danger {
   background: #e05252;
   color: #fff;
@@ -1361,6 +1409,21 @@ p.in-run-menu__title {
 .lobby__ready--on {
   color: #fff; /* Ready is white, not green (green is a slot colour) */
 }
+/* Story 8.3 (H2): the host's Remove on another player's card (44 px square, top right; never on Host / You cards). */
+.lobby-card__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(14, 16, 19, 0.78);
+  color: #fff;
+  font: 700 18px/1 system-ui, sans-serif;
+  cursor: pointer;
+  z-index: 1;
+}
+
 .lobby-card--open {
   background: rgba(14, 16, 19, 0.55);
   border: 2px dashed #4b525c;

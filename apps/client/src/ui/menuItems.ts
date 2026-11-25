@@ -27,6 +27,8 @@ const always = (): boolean => true;
  */
 export const MENU_ITEMS: readonly MenuItem[] = Object.freeze([
   { id: "resume", label: "Resume", action: "resume", visible: always },
+  // Story 8.3 (H2): the host's Players list (Remove a seat); online only.
+  { id: "players", label: "Players", action: "players", secondary: true, visible: (c) => c.online && c.isHost },
   { id: "leave", label: "Leave game", action: "leave", secondary: true, visible: always },
 ]);
 
@@ -46,4 +48,27 @@ export const MENU_TEXT = {
   confirmSolo: "Leave the game?",
   leave: "Leave",
   cancel: "Cancel",
+  /** Story 8.3 (H2, AC 11). */
+  players: "Players",
+  back: "Back",
+  remove: "Remove",
+  removeOnlyInBuild: "You can remove players in the build phase",
+  noOthers: "Nobody else is here",
+  reconnecting: "reconnecting",
+  waiting: "joins at the build phase",
 } as const;
+
+/** Story 8.3 (H2, AC 11): the confirm line, in the lobby and the in-run menu alike. */
+export const removeConfirmText = (name: string): string => `Remove ${name} from this run? They can't come back.`;
+
+/** Story 8.3: Remove only in the lobby and build phases (D9: never while anyone is fighting or voting). */
+export const canRemoveIn = (phase: string): boolean => phase === "lobby" || phase === "build";
+
+/** Story 8.3: who the in-run confirm step is about (set by the Players list's Remove, read by the confirm). */
+let removeTarget: { readonly playerId: string; readonly name: string } | null = null;
+export const menuRemoveTarget = {
+  get: () => removeTarget,
+  set: (t: { readonly playerId: string; readonly name: string } | null): void => {
+    removeTarget = t;
+  },
+};
