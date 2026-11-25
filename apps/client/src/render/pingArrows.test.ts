@@ -205,12 +205,12 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     const r = pingIconRect(w / 2 - 120, h / 2 + 40, 1, { x: 0, y: 0, w: 0, h: 0 });
     expect(r.y).toBeGreaterThan(0);
     expect(frame(m, w, h, controls, newPingArrows()).shown[0]).toBe(false);
-    // an arrow never lands on a seen icon: my own ping at the centre + a teammate's far off, swept all round
+    // an arrow never lands on a seen icon's disc: my own ping at the centre + a teammate's far off, swept all round
     for (const [sw, sh] of SIZES) {
       const ctl = waveControlRects(sw, sh, INSET, 1, newWaveControlRects());
       const both = new PingModel();
       const arrows = newPingArrows();
-      const icon = pingIconRect(sw / 2, sh / 2, 1, { x: 0, y: 0, w: 0, h: 0 });
+      const icon = { x: sw / 2 - 17, y: sh / 2 - 76 - 17, w: 34, h: 34 }; // the icon's disc
       for (let deg = 0; deg < 360; deg += 0.05) {
         const b = (deg * Math.PI) / 180;
         both.show(0, 0, 0, 0, 0);

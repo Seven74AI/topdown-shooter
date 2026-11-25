@@ -242,8 +242,8 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     ev.x = ev.y = OFF;
     ev.w = ev.h = 0;
   }
-  // Review M1: first, which pings are seen as icons (their icon + word rect, grown by the pair gap, is a keep-off for the
-  // arrows: an arrow never lands on a teammate's icon); then the arrows of the others.
+  // Review M1: first, which pings are seen as icons (the icon's disc, grown by the pair gap, is a keep-off for the
+  // arrows: an arrow never lands on a seen icon); then the arrows of the others.
   let placed = 0;
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = model.live(i);
@@ -253,7 +253,13 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     const sy = (p.y - vy) * pxPerM;
     if (!iconVisible(sx, sy, sw, sh, insets, k, out.controls)) continue;
     out.icon[i] = true;
-    growRect(pingIconRect(sx, sy, k, out.drawn[placed] as ScreenRect), PAIR_GAP_CSS_PX * k);
+    // the icon's disc (not its word box: a wide word at the screen centre would block every bearing straight up)
+    const d = out.drawn[placed] as ScreenRect;
+    const half = (PING_ICON_CSS_PX / 2) * k;
+    d.x = sx - half;
+    d.y = sy - PING_LIFT_CSS_PX * k - half;
+    d.w = d.h = 2 * half;
+    growRect(d, PAIR_GAP_CSS_PX * k);
     placed++;
   }
   for (let i = 0; i < MAX_PLAYERS; i++) {
