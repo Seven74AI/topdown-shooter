@@ -166,7 +166,7 @@ development_status:
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
   7-1-progress-saved-on-the-server: review  # built on story-7-1 (gated with story-8-1 + master d8d44d0); story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-2-earn-and-bank-supplies: review  # builder story-7-2 2026-11-25, full gate green 9c451d5; story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
-  7-3-unlock-screen: review  # 2026-11-25 overnight: unlock list (14, 3,120), pool/mask/Good next pick, POST /account/unlock (one conditional update, request-id memo, 20/min/account), Progress hub PH1 Lumen LF5; gate green on b9511c0b (branch story-7-3)
+  7-3-unlock-screen: review  # 2026-11-25 overnight: unlock list (14, 3,120), pool/mask/Good next pick, POST /account/unlock (one conditional update, request-id memo, 20/min/account), Progress hub PH1 Lumen LF5; review fixes F1-F11, gate green on fed5cc51 (branch story-7-3)
   7-4-shop-deck-from-my-unlocks: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-5-training-boosts: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
