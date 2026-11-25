@@ -1,4 +1,6 @@
 import { Client, type Room } from "@colyseus/sdk";
+import type { Box } from "@topdown/shared";
+import { bulletBoxes, fillWireShot, type WireBuilding } from "./wireCover";
 import {
   DOWNTOWN_MAP,
   MUZZLE_OFFSET_M,
@@ -177,6 +179,10 @@ export class BotClient {
   closed: { code: number; reason: string } | null = null;
   private readonly cfg: BotConfig;
   private readonly view: BotView = createBotView();
+  /** Investigation cut-test-stall-2026-11-25: the bullet-stopping buildings from the state (`wireCover.ts`). */
+  private readonly wireBuildings: WireBuilding[] = [];
+  private readonly coverBoxes: Box[] = [];
+  private readonly pushWireBuilding = (b: WireBuilding): void => void this.wireBuildings.push(b);
   private readonly input: PlayerInput = { ...NEUTRAL_INPUT };
   private readonly horde = new HordeView();
   private seq = 0;
@@ -503,6 +509,10 @@ export class BotClient {
     } else {
       v.nearestZombie = null;
     }
+    // A Spitter behind a barricade spits over it but stops my bullets: aim at a clear one, or strafe (rule 2c).
+    this.wireBuildings.length = 0;
+    state.buildings?.forEach(this.pushWireBuilding);
+    fillWireShot(v, h.xs, h.ys, h.count, this.coverBoxes, bulletBoxes(balance, this.wireBuildings, this.coverBoxes));
     botInput(v, this.cfg, ++this.seq, this.input);
     if (this.swapPending && state.phase === "wave") {
       this.input.swap = true; // to the weapon bought into the slot not in hands

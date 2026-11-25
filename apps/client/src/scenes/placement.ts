@@ -101,6 +101,9 @@ export function chainOffset(w: number, h: number, fx: number, fy: number, minSte
 /** Story 5.20 (5.11 R2): every building action is refused while downed or out. */
 export const NOT_ALIVE_TEXT = "Not while you're down";
 
+/** Story 7.4 (K5): the 5.17 "why it's red" text for an item that isn't in my unlocks. */
+export const LOCKED_TEXT = "Locked: unlock it in Progress";
+
 /** Player text for a refused placement (Story 3.4; Story 3.3's contract). */
 export function placeRefusalText(e: PlaceError, balance: Balance): string {
   switch (e) {
@@ -116,6 +119,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
       return NOT_ALIVE_TEXT; // Story 5.20
     case "not_for_sale":
       return "Not for sale yet";
+    case "not_unlocked":
+      return LOCKED_TEXT; // Story 7.4
     case "unknown_type":
     case "unknown_player":
       return "Can't build that";

@@ -1,6 +1,6 @@
 # Story 7.5: Training boosts
 
-Status: ready-for-dev
+Status: done
 
 <!-- Epic 7 progression story 5 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D6 (Training keeps its caps and its GDD cost 50 × level; always applies in full, solo too; never scaled to the team) is a rule here. FR80 base number fixed by the readiness pass (200 → 250). -->
 
@@ -42,11 +42,11 @@ so that I get a bit stronger without leaving new friends behind.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Data + helpers** (AC 1): `progression.json › training`, zod, version fold-in (D3), `meta/training.ts` (`trainedMaxHp`, `trainedStartMoney`, `damageMul`, `reloadSecondsFor`), tests.
-- [ ] **T2 Sim** (AC 4): `PlayerState.training*`, `addPlayer` options, `effectiveMaxHp`, `playerWeaponDamage` at every damage site (grep `weaponDamage(` — every player-weapon call goes through the new function; add a test that greps for stray calls), `reloadSecondsFor` at the five reload sites.
-- [ ] **T3 Wire + server** (AC 3, 5, 6): route, schema fields + every copy, run-start load.
-- [ ] **T4 Client** (AC 7–9): Training tab, `account.train()`, practice solo, `?training`, Results line, Predictor reload.
-- [ ] **T5 Tests + gate + hand-back.**
+- [x] **T1 Data + helpers** (AC 1): `progression.json › training`, zod, version fold-in (D3), `meta/training.ts` (`trainedMaxHp`, `trainedStartMoney`, `damageMul`, `reloadSecondsFor`), tests.
+- [x] **T2 Sim** (AC 4): `PlayerState.training*`, `addPlayer` options, `effectiveMaxHp`, `playerWeaponDamage` at every damage site (grep `weaponDamage(` — every player-weapon call goes through the new function; add a test that greps for stray calls), `reloadSecondsFor` at the five reload sites.
+- [x] **T3 Wire + server** (AC 3, 5, 6): route, schema fields + every copy, run-start load.
+- [x] **T4 Client** (AC 7–9): Training tab, `account.train()`, practice solo, `?training`, Results line, Predictor reload.
+- [x] **T5 Tests + gate + hand-back.**
 
 ## Dev Notes
 
@@ -117,16 +117,9 @@ Armor I/II HP (5.11), heal at build start (`buildHealFrac × maxHp`), the 5.1 up
 
 ## Dev Agent Record
 
-### Agent Model Used
-
-### Debug Log References
-
-### Completion Notes List
-
-- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.5 D1–D5 pending.
-
-### File List
+**Merged story 7.4+7.5** (designer 2026-11-25, `docs/story-merges-2026-11-25.md`): the one Dev Agent Record (Gate, tasks → tests for T1–T5 of this file, Notes for the merge, Not verified, File List) is in `7-4-shop-deck-from-my-unlocks.md`. Build-time choices 7.5 B1–B8: `docs/epic-7-decisions.md › Story 7.4+7.5 build-time choices`.
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+- 2026-11-25: built inside the merged story 7.4+7.5 on `story-7-4-5`; status review.

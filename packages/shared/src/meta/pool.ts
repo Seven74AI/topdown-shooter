@@ -5,7 +5,7 @@
  * Unlocks change CHOICE, never power (brief 22): these helpers only say which items a player may see in the shop.
  */
 import type { Balance } from "../config/balance";
-import { MAX_UNLOCKS, UNLOCK_CATEGORIES, type Progression, type UnlockCategory } from "../config/progression";
+import { MAX_UNLOCKS, PROGRESSION, UNLOCK_CATEGORIES, type Progression, type UnlockCategory } from "../config/progression";
 
 type Prog = Pick<Readonly<Progression>, "starterPool" | "unlocks">;
 
@@ -81,4 +81,57 @@ export function goodNextPick(progression: Prog, unlockIds: readonly string[], ca
     }
   }
   return best?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Story 7.4: the unlock mask in a run (`PlayerState.unlocks`, bit i = `progression.json › unlocks[i]`)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Story 7.4 (AC 1): every bit set: tests, bots and sims default to it (bots keep buying their shopping list). */
+export const ALL_UNLOCKED = 0xffffffff >>> 0;
+/** Story 7.4: the starter pool only (a new player, a failed read at Start: decision 7.4 D3). */
+export const STARTER_ONLY = 0;
+
+const needCache = new WeakMap<object, ReadonlyMap<string, number>>();
+
+/**
+ * Story 7.4 (AC 3): the unlock bit an item needs (0 = starter item, or an item no unlock lists: always available).
+ * Cached per progression object; read at build start, on a buy and on a placement only.
+ */
+export function itemNeedBits(progression: Prog = PROGRESSION): ReadonlyMap<string, number> {
+  let m = needCache.get(progression);
+  if (!m) {
+    const built = new Map<string, number>();
+    progression.unlocks.forEach((u, i) => {
+      if (i >= MAX_UNLOCKS) return;
+      for (const item of u.items) built.set(item, ((built.get(item) ?? 0) | (1 << i)) >>> 0);
+    });
+    for (const item of progression.starterPool) built.set(item, 0);
+    m = built;
+    needCache.set(progression, m);
+  }
+  return m;
+}
+
+/** Story 7.4: `item` is in the pool of a player with `mask` (allocation-free once cached). */
+export function inPool(mask: number, item: string, progression: Prog = PROGRESSION): boolean {
+  const need = itemNeedBits(progression).get(item) ?? 0;
+  return need === 0 || (mask & need) !== 0;
+}
+
+/** Story 7.4 (AC 9): the index of the unlock that holds `item` (255 = a starter item or none): `PlayerState.lockedUsed`. */
+export function unlockIndexOf(item: string, progression: Prog = PROGRESSION): number {
+  const i = progression.unlocks.findIndex((u) => u.items.includes(item));
+  return i < 0 ? NO_UNLOCK : i;
+}
+
+/** Story 7.4: "no unlock" in a u8 (`PlayerState.lockedUsed`). */
+export const NO_UNLOCK = 255;
+
+/**
+ * Story 7.4 (K5): the items of `list` (the build bar's buildings, the always-available consumables) in the pool of a
+ * player with `mask`, in list order. Unlocked buildings and consumables are never borrowed. Allocates (UI, on change).
+ */
+export function inPoolOnly<T extends { readonly id: string }>(list: readonly T[], mask: number, progression: Prog = PROGRESSION): T[] {
+  return list.filter((x) => inPool(mask, x.id, progression));
 }

@@ -1,6 +1,7 @@
 import type { Balance } from "../config/balance";
 import type { FlameStats, GunStats, LauncherStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
 import { TICK_RATE_HZ } from "../config/constants";
+import { damageMul, trainedReloadS } from "../meta/training";
 
 /** A balance weapon id ("pistol", "smg", …). Validated against balance at use. */
 export type WeaponId = string;
@@ -56,6 +57,26 @@ export const hasMagazine = (w: WeaponStats): w is GunStats | LauncherStats => w.
  */
 export function weaponDamage(balance: Balance, weapon: WeaponId, level: number): number {
   return weaponStats(balance, weapon).damage * (1 + balance.shop.upgrades.damagePerLevel * (level - 1));
+}
+
+/**
+ * Story 7.5 (AC 4, decision 7.5 D2): the damage of a PLAYER's own weapon: `weaponDamage` × (1 + 1 % × the owner's
+ * Training damage level). Every player-weapon damage read goes through here (melee, bullets, flames, the launcher;
+ * `weaponDamage.grep.test.ts` refuses a stray call); turrets, traps, mines, hand grenades and molotovs are not trained.
+ * `owner` null (a round whose owner left) = Training 0. At level 0 the number is exactly `weaponDamage`.
+ */
+export function playerWeaponDamage(balance: Balance, owner: { readonly trainDmg: number } | null, weapon: WeaponId, level: number): number {
+  const base = weaponDamage(balance, weapon, level);
+  const t = owner === null ? 0 : owner.trainDmg;
+  return t === 0 ? base : base * damageMul(t);
+}
+
+/**
+ * Story 7.5 (AC 4, decision 7.5 D4): the reload seconds of `p` for a weapon with `reloadS` (Training reload level
+ * applied). The five reload starts in `firing.ts` and the client's predicted reload all use it, so they can't drift.
+ */
+export function reloadSecondsFor(p: { readonly trainReload: number }, stats: { readonly reloadS: number }): number {
+  return p.trainReload === 0 ? stats.reloadS : trainedReloadS(stats.reloadS, p.trainReload);
 }
 
 /**

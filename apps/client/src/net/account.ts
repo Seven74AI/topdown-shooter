@@ -10,12 +10,16 @@
 import {
   ACCOUNT_LOOK_PATH,
   ACCOUNT_SESSION_PATH,
+  ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
   accountSessionResponseSchema,
   lookSaveResponseSchema,
   playerNameSchema,
+  trainResponseSchema,
   unlockResponseSchema,
   type AccountSessionResponse,
+  type TrainResponse,
+  type TrainingBoostId,
   type UnlockResponse,
 } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
@@ -157,6 +161,35 @@ export async function unlockItem(unlockId: string, requestId: string, over: Part
     });
     if (!res.ok) return { kind: "failed", status: res.status };
     const parsed = unlockResponseSchema.safeParse(await res.json());
+    return parsed.success ? { kind: "answer", body: parsed.data } : { kind: "failed", status: res.status };
+  } catch {
+    return { kind: "failed", status: 0 };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Story 7.5: what a Training call came back with (same shape as an unlock call). */
+export type TrainCall = { kind: "answer"; body: TrainResponse } | { kind: "failed"; status: number };
+
+/**
+ * Story 7.5 (AC 3, 8): `POST /api/account/training` `{ boost, level, requestId }`; the cookie names the account. The
+ * same timeout as an unlock (past the route's worst case); any failure → `failed` (the hub shows it, never a guess).
+ */
+export async function trainBoost(boost: TrainingBoostId, level: number, requestId: string, over: Partial<AccountDeps> = {}): Promise<TrainCall> {
+  const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_TRAINING_PATH}`, timeoutMs: UNLOCK_TIMEOUT_MS, ...over };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
+  try {
+    const res = await deps.fetch(deps.url(), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ boost, level, requestId }),
+      signal: abort.signal,
+    });
+    if (!res.ok) return { kind: "failed", status: res.status };
+    const parsed = trainResponseSchema.safeParse(await res.json());
     return parsed.success ? { kind: "answer", body: parsed.data } : { kind: "failed", status: res.status };
   } catch {
     return { kind: "failed", status: 0 };

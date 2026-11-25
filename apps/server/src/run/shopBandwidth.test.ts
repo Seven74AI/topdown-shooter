@@ -25,7 +25,7 @@ describe("shop bandwidth (Story 5.13)", () => {
     const send = () => {
       const o = c.offerFor("p0");
       if (!o) throw new Error("no offer");
-      const msg: ShopOffered = { build: o.build, rev: o.rev, cards: [...o.cards], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll };
+      const msg: ShopOffered = { build: o.build, rev: o.rev, cards: [...o.cards], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll, borrowed: o.borrowed, lender: o.lender, lenderName: "Mo" };
       const n = pack(msg).length + FRAMING_B;
       messages++;
       bytes += n;

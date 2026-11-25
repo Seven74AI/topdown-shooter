@@ -11,6 +11,8 @@ import {
   MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN,
   MAX_LOOK_CALLS_PER_IP_PER_MIN,
   LOOK_WINDOW_MS,
+  MAX_TRAIN_CALLS_PER_IP_PER_MIN,
+  MAX_TRAINS_PER_ACCOUNT_PER_MIN,
   UNLOCK_WINDOW_MS,
 } from "./limits";
 
@@ -126,6 +128,12 @@ export const accountSessionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_SESSIO
 
 /** Story 7.3: `/account/unlock` calls per client IP per minute (before any database work). */
 export const unlockIpLimiter = new SlidingWindowLimiter(MAX_UNLOCK_CALLS_PER_IP_PER_MIN, UNLOCK_WINDOW_MS, Date.now, ipKey);
+
+/** Story 7.5: `/account/training` calls per client IP per minute (before any database work). */
+export const trainIpLimiter = new SlidingWindowLimiter(MAX_TRAIN_CALLS_PER_IP_PER_MIN, UNLOCK_WINDOW_MS, Date.now, ipKey);
+
+/** Story 7.5 (AC 3): `/account/training` calls per account (id) per minute. */
+export const trainAccountLimiter = new SlidingWindowLimiter(MAX_TRAINS_PER_ACCOUNT_PER_MIN, UNLOCK_WINDOW_MS, Date.now, (key) => key);
 
 /** Story 7.3 (AC 5): `/account/unlock` calls per account (id) per minute. */
 export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACCOUNT_PER_MIN, UNLOCK_WINDOW_MS, Date.now, (key) => key);

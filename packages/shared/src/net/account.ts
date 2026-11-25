@@ -31,6 +31,8 @@ export const progressViewSchema = z.object({
   unlocks: z.array(z.string().max(32)).max(64),
   /** Story 7.9: the survivor look code (canonical; null = the default look). Optional: unlock answers don't carry it. */
   look: z.string().max(LOOK_CODE_MAX).nullable().optional(),
+  /** Story 7.5 (AC 3): Training levels by boost id (`max_hp`, `damage`, `start_money`, `reload`; absent = 0). */
+  training: z.record(z.string().max(32), z.number().int().min(0).max(10)).optional(),
 });
 export type ProgressView = z.infer<typeof progressViewSchema>;
 
@@ -84,6 +86,32 @@ export const unlockResponseSchema = z.discriminatedUnion("ok", [
 ]);
 export type UnlockResponse = z.infer<typeof unlockResponseSchema>;
 
+/** Story 7.5 (AC 3): train one boost one level with Supplies. The server sees `/account/training`. */
+export const ACCOUNT_TRAINING_PATH = "/account/training";
+
+/** `level` = the level being bought (current + 1); a client UUID per tap, same rules as an unlock (T3). */
+export const trainRequestSchema = z
+  .object({
+    boost: z.enum(["max_hp", "damage", "start_money", "reload"]),
+    level: z.number().int().min(1).max(10),
+    requestId: z.string().uuid(),
+  })
+  .strict();
+export type TrainRequest = z.infer<typeof trainRequestSchema>;
+
+/** The answer: `ok` with the server's progress after the purchase, or why not; both carry the server's progress. */
+export const trainResponseSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), boost: z.string(), level: z.number().int(), progress: progressViewSchema }),
+  z.object({
+    ok: z.literal(false),
+    boost: z.string(),
+    reason: z.enum(["already_trained", "not_enough", "maxed"]),
+    /** `not_enough` only: Supplies still missing (> 0). */
+    need: z.number().int().positive().optional(),
+    progress: progressViewSchema,
+  }),
+]);
+export type TrainResponse = z.infer<typeof trainResponseSchema>;
 /**
  * Story 7.10 (AC 8, 11; E2): save my survivor look from the editor. The server sees `/account/look` (the browser calls
  * `/api/account/look`; 7.1's route naming, POST like the other account calls). The cookie names the account (never an

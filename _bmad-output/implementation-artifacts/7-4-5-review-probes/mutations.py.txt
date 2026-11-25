@@ -1,0 +1,42 @@
+import subprocess,sys
+S="packages/shared/src/"
+muts=[
+("M1 borrow from MY pool",S+"economy/shopCards.ts","if (need === 0 || (p.unlocks & need) !== 0 || others === 0) continue;","if (others === 0) continue;",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M2 reroll reads the live room",S+"economy/shopCards.ts","  const borrowN = fillBorrow(world, c, n, slot, p);","  snapshotTeam(world);\n  const borrowN = fillBorrow(world, c, n, slot, p);",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M3 canReroll ignores the borrow list",S+"economy/shopCards.ts","  if (fillBorrow(world, c, n, slot, p) > 0) {","  if (false && fillBorrow(world, c, n, slot, p) > 0) {",["packages/shared/src/economy/review745.probe.test.ts"]),
+("M4 placement skips not_unlocked",S+"buildings/buildings.ts",'if (!inPool(p.unlocks, req.type)) return "not_unlocked";',"",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M5 upgrade skips not_unlocked",S+"buildings/upgrade.ts",'if (!inPool(p.unlocks, step.type)) return "not_unlocked";',"",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M6 consumable skips not_unlocked",S+"economy/consumables.ts",'if (!inPool(p.unlocks, item)) return err("not_unlocked");',"",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M7 crate never sets lockedUsed",S+"economy/shop.ts","if (!inPool(p.unlocks, weapon)) p.lockedUsed = unlockIndexOf(weapon);","",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M8 borrowed buy never sets lockedUsed",S+"economy/shopCards.ts","!== 0) p.lockedUsed = unlockIndexOf(item);","!== 0) void 0;",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M9 snapshot skips held players",S+"economy/shopCards.ts","for (const h of world.heldPlayers.values()) noteTeam(o, h.player);","",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M10 two borrowed cards (borrow on draw 0 and 1)",S+"economy/shopCards.ts","if (d === forcedCount && borrowN > 0) {","if (d <= forcedCount + 1 && borrowN > 0) {",["packages/shared/src/economy/shopUnlocks.test.ts"]),
+("M11 damage ignores Training",S+"combat/weapons.ts","return t === 0 ? base : base * damageMul(t);","return base;",["packages/shared/src/meta/training.test.ts"]),
+("M12 swap reload site untrained",S+"combat/firing.ts","        slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5","        slot.reloadTicks = ticksFor(stats.reloadS); // Story 7.5",["packages/shared/src/meta/training.test.ts","tools/checks/progressionWiring.test.ts"]),
+("M13 armor buy drops trained base",S+"economy/gear.ts","p.maxHp = effectiveMaxHp(world.balance, mask, p.trainHp);","p.maxHp = effectiveMaxHp(world.balance, mask);",["packages/shared/src/meta/training.test.ts"]),
+("M14 team-lowest Training",S+"combat/weapons.ts","const t = owner === null ? 0 : owner.trainDmg;","const t = owner === null ? 0 : Math.min(owner.trainDmg, 0);",["packages/shared/src/meta/training.test.ts","tools/checks/progressionWiring.test.ts"]),
+("M15 start money ignores level",S+"meta/training.ts","return balance.economy.startingWallet + (boost(\"start_money\").perLevel as number) * clampLevel(level);","return balance.economy.startingWallet;",["packages/shared/src/meta/training.test.ts"]),
+("M16 train SQL drops the level guard","apps/server/src/db/progressRepo.ts","                  sql`COALESCE((${progress.training} ->> ${boost})::int, 0) = ${level - 1}`,\n","",["apps/server/src/auth/trainRoute.test.ts"]),
+("M17 train SQL drops the supplies guard","apps/server/src/db/progressRepo.ts","                  sql`${progress.supplies} >= ${cost}`,\n                  sql`COALESCE","                  sql`COALESCE",["apps/server/src/auth/trainRoute.test.ts"]),
+("M18 train memo by requestId only (no account)","apps/server/src/auth/train.ts","const key = `${accountId}:${input.requestId}`;","const key = input.requestId;",["apps/server/src/auth/trainRoute.test.ts"]),
+("M19 client predicted reload untrained","apps/client/src/net/localFire.ts","ticksFor(reloadSecondsFor({ trainReload: me.trainReload ?? 0 }, stats))","ticksFor(stats.reloadS)",["apps/client/src/net/localFire.test.ts"]),
+("M20 replay ignores inits",S+"replay/inputLog.ts","const { world } = createHeadlessWorld(balance, log.seed, log.players, DOWNTOWN_MAP, log.inits);","const { world } = createHeadlessWorld(balance, log.seed, log.players, DOWNTOWN_MAP);",["packages/shared/src/replay/replay.test.ts","packages/shared/src/economy/starterBotsSim.test.ts","packages/shared/src/economy/review745.probe.test.ts"]),
+("M21 failed read → all unlocked","apps/server/src/meta/runStart.ts",'const starter = (m: RunStartMember, source: RunPlayerInit["source"]): RunPlayerInit => ({ playerId: m.playerId, slot: m.slot, unlocks: STARTER_ONLY,','const starter = (m: RunStartMember, source: RunPlayerInit["source"]): RunPlayerInit => ({ playerId: m.playerId, slot: m.slot, unlocks: 0xffffffff,',["apps/server/src/rooms/RunRoom.progress.test.ts"]),
+("M22 lenderName empty","apps/server/src/rooms/RunRoom.ts",'(this.runNames.get(o.lender) ?? "")','""',["apps/server/src/rooms/RunRoom.progress.test.ts"]),
+("M23 DEV wallet keeps Training money","apps/server/src/rooms/RunRoom.ts","training: devStartingWallet !== null ? { ...training, startMoney: 0 } : training,","training,",["apps/server/src/rooms/RunRoom.progress.test.ts","apps/client/src/ui/unlocksTraining.test.ts","tools/checks/progressionWiring.test.ts"]),
+("M24 action bar shows Upgrade without the unlock","apps/client/src/scenes/repairPanel.ts",'this.upgradeShown = pending || (step !== null && this.upgradeErrorNow !== "not_unlocked");',"this.upgradeShown = pending || step !== null;",["tools/checks/progressionWiring.test.ts","apps/client/src/ui/unlocksTraining.test.ts"]),
+("M25 build bar ignores my mask","apps/client/src/scenes/buildBar.ts","for (const b of inPoolOnly(shopBuildings(balance), mask)) {","for (const b of shopBuildings(balance)) {",["apps/client/src/ui/unlocksTraining.test.ts","packages/shared/src/economy/shopUnlocks.test.ts"]),
+]
+only=sys.argv[1:] 
+for name,f,a,b,tests in muts:
+    if only and name.split()[0] not in only: continue
+    s=open(f).read()
+    if s.count(a)!=1:
+        print(name,"PATTERN COUNT",s.count(a)); continue
+    open(f,"w").write(s.replace(a,b))
+    r=subprocess.run(["npx","vitest","run",*tests],capture_output=True,text=True,timeout=600)
+    out=r.stdout+r.stderr
+    import re
+    m=re.search(r"Tests\s+(.*)",out)
+    print(name,"=>","KILLED" if r.returncode!=0 else "SURVIVED","|",m.group(1).strip() if m else "?", flush=True)
+    subprocess.run(["git","checkout","--",f])

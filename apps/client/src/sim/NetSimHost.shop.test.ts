@@ -15,7 +15,7 @@ function setup() {
   return { room, host, session };
 }
 
-const OFFER = { build: 0, rev: 0, cards: ["smg", "machete", "shotgun", "body_armor_1", "running_shoes", "revive_kit"], sold: 0, rerollPrice: 20, canReroll: true };
+const OFFER = { build: 0, rev: 0, cards: ["smg", "machete", "shotgun", "body_armor_1", "running_shoes", "revive_kit"], sold: 0, rerollPrice: 20, canReroll: true, borrowed: 0, lender: 255, lenderName: "" };
 
 describe("NetSimHost card shop (Story 5.13; 3.3's shop tests moved to cards)", () => {
   it("buyCard sends one shop.buy with build, rev, card, item (slot only when given) and changes nothing locally", () => {

@@ -2,6 +2,8 @@ import type { World } from "../core/world";
 import { createLoadout, type Loadout } from "../combat/loadout";
 import { bossSlotOf, clearBossThreatSlot } from "../boss/target";
 import { claimFlameSlot, releaseFlameSlot } from "../combat/flame";
+import { ALL_UNLOCKED, NO_UNLOCK } from "../meta/pool";
+import { NO_TRAINING, clampLevel, trainedMaxHp, trainedStartMoney, type TrainingLevels } from "../meta/training";
 
 /**
  * Story 2.8: at 0 HP a player is "downed" (can't move or fire; a teammate can revive them), and
@@ -144,12 +146,44 @@ export interface PlayerState {
   endlessWavesIn: number;
   bossesIn: number;
   endlessBossesIn: number;
+  /**
+   * Story 7.4 (AC 1): this player's unlock mask (bit i = `progression.json › unlocks[i]`), set once at run start from
+   * the server's progress (decision 7.4 D3: 0 = starter only when the read failed). On the wire (u32, never changes).
+   */
+  unlocks: number;
+  /**
+   * Story 7.4 (AC 9, decision 7.4 D4): the last unlock this player used without owning it (a supply-drop weapon or a
+   * bought borrowed card), as its index in `progression.json › unlocks`; 255 none. Server bookkeeping only (Results).
+   */
+  lockedUsed: number;
+  /**
+   * Story 7.5 (AC 4, designer D6): Training levels (0..5 each), set once at creation, applied in full and only to
+   * this player. On the wire (4 × u8, never change): max HP, damage, start money, reload.
+   */
+  trainHp: number;
+  trainDmg: number;
+  trainMoney: number;
+  trainReload: number;
 }
 
-/** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
-export function addPlayer(world: World, id: string, x: number, y: number): PlayerState {
+/** Story 7.4 + 7.5 (one type, Notes for the merge): what a survivor starts a run with, beyond the balance. */
+export interface PlayerInit {
+  /** Unlock mask (default `ALL_UNLOCKED`: tests, bots and sims; the server always passes the real one). */
+  readonly unlocks?: number;
+  /** Training levels (default all 0). */
+  readonly training?: TrainingLevels;
+}
+
+/**
+ * Adds a player at (x, y) with stats from `balance.player`. Returns the new state. Story 7.4/7.5: `init` carries the
+ * unlock mask and Training levels (max HP and start money are trained here; damage and reload where they are read).
+ */
+export function addPlayer(world: World, id: string, x: number, y: number, init: PlayerInit = {}): PlayerState {
   if (world.players.has(id)) throw new Error(`addPlayer: player ${id} already exists`);
   const stats = world.balance.player;
+  const t = init.training ?? NO_TRAINING;
+  const trainHp = clampLevel(t.maxHp);
+  const maxHp = trainedMaxHp(world.balance, trainHp);
   const player: PlayerState = {
     id,
     x,
@@ -158,8 +192,8 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     prevY: y,
     facingX: 1,
     facingY: 0,
-    hp: stats.maxHp,
-    maxHp: stats.maxHp,
+    hp: maxHp, // Story 7.5: trained base (decision 7.5 D1)
+    maxHp,
     radiusM: stats.radiusM,
     status: "alive",
     loadout: createLoadout(world.balance),
@@ -171,7 +205,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     reviverId: null,
     reviveNeedTicks: 0, // Story 5.11
     buildReady: false,
-    wallet: world.balance.economy.startingWallet,
+    wallet: trainedStartMoney(world.balance, t.startMoney), // Story 7.5
     earned: 0,
     vote: 0, // Story 6.11
     earnedAtEvac: 0, // Story 6.12
@@ -200,6 +234,12 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     endlessWavesIn: 0,
     bossesIn: 0,
     endlessBossesIn: 0,
+    unlocks: (init.unlocks ?? ALL_UNLOCKED) >>> 0, // Story 7.4
+    lockedUsed: NO_UNLOCK,
+    trainHp, // Story 7.5
+    trainDmg: clampLevel(t.damage),
+    trainMoney: clampLevel(t.startMoney),
+    trainReload: clampLevel(t.reload),
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

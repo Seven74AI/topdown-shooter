@@ -1,0 +1,81 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { log } from "../ops/logger";
+import { accountsRepo } from "./accountsRepo";
+import { openPostgres, type Database } from "./client";
+import { migrateDb } from "./migrate";
+import { progressRepo } from "./progressRepo";
+
+const URL = process.env.TEST_DATABASE_URL;
+log.level = "silent";
+let database: Database;
+describe.skipIf(!URL)("review 7.4+7.5: Training on real PostgreSQL", () => {
+  beforeAll(async () => {
+    database = openPostgres(URL as string);
+    await migrateDb({ kind: "postgres", db: await database.db() });
+  });
+  afterAll(async () => database?.close());
+  const acct = async (supplies: number) => {
+    const a = await accountsRepo(database).createGuest(randomUUID().replace(/-/g, "").padEnd(64, "a"), "Ana");
+    if (supplies > 0) await progressRepo(database).addSupplies(randomUUID(), a.id, () => ({ supplies, breakdown: {} }));
+    return a;
+  };
+  it("R1 ×10: ten concurrent trains of the same level → exactly one charged", async () => {
+    for (let k = 0; k < 10; k++) {
+      const a = await acct(1000);
+      const repo = progressRepo(database);
+      const rs = await Promise.all(Array.from({ length: 10 }, () => repo.train(a.id, "damage", 1, 50, 5)));
+      expect(rs.filter((r) => r.outcome === "trained").length).toBe(1);
+      expect(rs.filter((r) => r.outcome === "already_trained").length).toBe(9);
+      expect(await repo.get(a.id)).toMatchObject({ supplies: 950, training: { damage: 1 } });
+    }
+  });
+  it("R2 ×10: four boosts at once with Supplies for one → one wins, never below 0", async () => {
+    for (let k = 0; k < 10; k++) {
+      const a = await acct(60);
+      const repo = progressRepo(database);
+      const rs = await Promise.all(["max_hp", "damage", "start_money", "reload"].map((b) => repo.train(a.id, b, 1, 50, 5)));
+      expect(rs.filter((r) => r.outcome === "trained").length).toBe(1);
+      expect((await repo.get(a.id))?.supplies).toBe(10);
+    }
+  });
+  it("R3 ×10: four boosts at once with Supplies for all → all four levels kept (jsonb_set re-evaluated on the new row)", async () => {
+    for (let k = 0; k < 10; k++) {
+      const a = await acct(1000);
+      const repo = progressRepo(database);
+      const rs = await Promise.all(["max_hp", "damage", "start_money", "reload"].map((b) => repo.train(a.id, b, 1, 50, 5)));
+      expect(rs.every((r) => r.outcome === "trained")).toBe(true);
+      expect(await repo.get(a.id)).toMatchObject({ supplies: 800, training: { max_hp: 1, damage: 1, start_money: 1, reload: 1 } });
+    }
+  });
+  it("R4: train + unlock at once with Supplies for one → one wins", async () => {
+    for (let k = 0; k < 10; k++) {
+      const a = await acct(200);
+      const repo = progressRepo(database);
+      const [t, u] = await Promise.all([repo.train(a.id, "damage", 1, 50, 5).catch((e) => e), repo.unlock(a.id, "assault_rifle", 200).catch((e) => e)]);
+      const p = await repo.get(a.id);
+      expect(p!.supplies).toBeGreaterThanOrEqual(0);
+      expect([t.outcome === "trained", u.outcome === "unlocked"].filter(Boolean).length).toBe(1);
+    }
+  });
+  it("R5: levels 1..5 sent at once → each charged at most once, total = cost of the levels bought", async () => {
+    const a = await acct(10_000);
+    const repo = progressRepo(database);
+    const rs = await Promise.all([1, 2, 3, 4, 5].map((l) => repo.train(a.id, "reload", l, 50 * l, 5)));
+    const won = rs.map((r, i) => (r.outcome === "trained" ? i + 1 : 0)).filter(Boolean);
+    const p = await repo.get(a.id);
+    console.log("R5 won", won, p?.training, p?.supplies);
+    expect(p!.supplies).toBe(10_000 - won.reduce((s, l) => s + 50 * l, 0));
+    expect(p!.training.reload).toBe(Math.max(...won));
+    expect(won[0]).toBe(1);
+  });
+  it("R6: level 6 / maxed at 5 never charges", async () => {
+    const a = await acct(10_000);
+    const repo = progressRepo(database);
+    expect((await repo.train(a.id, "reload", 6, 250, 5)).outcome).toBe("maxed");
+    for (let l = 1; l <= 5; l++) expect((await repo.train(a.id, "reload", l, 50 * l, 5)).outcome).toBe("trained");
+    expect((await repo.train(a.id, "reload", 6, 250, 5)).outcome).toBe("maxed");
+    expect((await repo.train(a.id, "reload", 5, 250, 5)).outcome).toBe("maxed");
+    expect((await repo.get(a.id))?.supplies).toBe(10_000 - 750);
+  });
+});

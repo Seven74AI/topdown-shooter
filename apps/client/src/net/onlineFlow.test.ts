@@ -298,8 +298,8 @@ describe("online run cycle in one room (Story 2.8)", () => {
       seed: 3141592653,
       dawnEndsAtMs: clock, // a wipe: no dawn
       rows: [
-        { slot: 0, name: "Ana", kills: 7, earned: 245 },
-        { slot: 2, name: "Cid", kills: 3, earned: 120 },
+        { slot: 0, name: "Ana", kills: 7, earned: 245, training: { maxHp: 0, damage: 0, startMoney: 0, reload: 0 } },
+        { slot: 2, name: "Cid", kills: 3, earned: 120, training: { maxHp: 0, damage: 0, startMoney: 0, reload: 0 } },
       ],
     });
 
@@ -375,7 +375,7 @@ describe("online run cycle in one room (Story 2.8)", () => {
 describe("resultsFromState", () => {
   it("shows at least wave 1, rows by slot", () => {
     const s = fakeState([fakePlayer(1, { kills: 2 })]);
-    expect(resultsFromState(s)).toEqual({ wave: 1, ending: "wiped", endless: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
+    expect(resultsFromState(s)).toEqual({ wave: 1, ending: "wiped", endless: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0, training: { maxHp: 0, damage: 0, startMoney: 0, reload: 0 } }], seed: 0 });
   });
 
   it("Story 6.11: an extract → ending \"extracted\", the wave reached and each player's earnings", () => {
@@ -390,8 +390,8 @@ describe("resultsFromState", () => {
       endless: false,
       seed: 99,
       rows: [
-        { slot: 0, name: "P0", kills: 52, earned: 655 },
-        { slot: 3, name: "P3", kills: 40, earned: 610 },
+        { slot: 0, name: "P0", kills: 52, earned: 655, training: { maxHp: 0, damage: 0, startMoney: 0, reload: 0 } },
+        { slot: 3, name: "P3", kills: 40, earned: 610, training: { maxHp: 0, damage: 0, startMoney: 0, reload: 0 } },
       ],
     });
   });
