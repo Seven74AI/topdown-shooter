@@ -486,3 +486,326 @@ export function drawMT2(g: Ctx): void {
 export function drawPB1(g: Ctx): void {
   units((a, b, u) => wall(g, a, b, { kind: "steel", legs: [a + 0.06, b - 0.06], face: policeFace, edge: "#f1eee6", lamps: u === 0 ? [a + 0.06] : u === UNITS - 1 ? [b - 0.06] : [] }, 950 + u * 11));
 }
+
+// ─────────────────────────────── round 3: from the references ───────────────────────────────
+// Designer: "still not good, find some references". Meshy references (refs/): real barricades are TALLER than they
+// are deep, and read from a raised camera: a big front face, legs and props splayed, junk at the base, and above all
+// a long shadow on the street that repeats the slats. So: a 2 × 1 m frame, the ground line low in it, the face
+// rising up the frame (heights × 0.6 for the camera tilt), and the shadow cast from the real silhouette.
+
+const TILT = 0.6; // screen metres per metre of height
+const YB = 0.24; // the ground line (base of the face)
+const sy = (h: number, base = YB): number => base - h * TILT;
+
+/** Draws `paint` with its own cast shadow: the silhouette, sheared down-right onto the ground from the base line. */
+function withShadow(g: Ctx, wM: number, hM: number, base: number, paint: (c: Ctx) => void): void {
+  const m = g.getTransform();
+  const k = Math.hypot(m.a, m.b);
+  const W = Math.ceil(wM * k);
+  const H = Math.ceil(hM * k);
+  const off = document.createElement("canvas");
+  off.width = W;
+  off.height = H;
+  const oc = off.getContext("2d") as Ctx;
+  oc.setTransform(k, 0, 0, k, W / 2, H / 2);
+  paint(oc);
+  const sil = document.createElement("canvas");
+  sil.width = W;
+  sil.height = H;
+  const sc = sil.getContext("2d") as Ctx;
+  sc.drawImage(off, 0, 0);
+  sc.globalCompositeOperation = "source-in";
+  sc.fillStyle = "#000";
+  sc.fillRect(0, 0, W, H);
+  const sx = 0.55;
+  const sY = 0.32;
+  g.save();
+  // a point at screen height (base − y) lands on the ground at (x + h·sx, base + h·sY)
+  g.transform(1, 0, -sx, -sY, sx * base, base * (1 + sY));
+  g.globalAlpha = 0.62;
+  g.filter = "blur(1.5px)";
+  g.drawImage(sil, -wM / 2, -hM / 2, wM, hM);
+  g.restore();
+  g.drawImage(off, -wM / 2, -hM / 2, wM, hM);
+}
+
+/** A vertical plank standing from the ground (yb) up to height h (m). */
+function stake(g: Ctx, x: number, w: number, h: number, col: string, seed: number, yb = YB, lean = 0): void {
+  bar(g, x, yb, x + lean, sy(h, yb), w, "wood", col, seed);
+}
+
+/** A painted door, scavenged: panels, peeling paint, a knob. */
+function door(g: Ctx, x0: number, x1: number, h: number, seed: number): void {
+  const yt = sy(h);
+  const r = rng(seed);
+  g.fillStyle = "#77786c";
+  g.fillRect(x0, yt, x1 - x0, YB - yt);
+  g.strokeStyle = "rgba(0,0,0,0.45)";
+  g.lineWidth = 1.5 * P;
+  const iw = (x1 - x0) * 0.32;
+  for (const [cx, a, b] of [[x0 + (x1 - x0) * 0.27, 0.08, 0.45], [x0 + (x1 - x0) * 0.73, 0.08, 0.45], [x0 + (x1 - x0) * 0.27, 0.55, 0.92], [x0 + (x1 - x0) * 0.73, 0.55, 0.92]] as const) {
+    g.strokeRect(cx - iw / 2, yt + (YB - yt) * a, iw, (YB - yt) * (b - a));
+  }
+  // peeling paint: bare wood showing
+  for (let i = 0; i < 14; i++) {
+    g.fillStyle = r() < 0.6 ? "rgba(120,88,55,0.85)" : "rgba(40,36,30,0.6)";
+    g.beginPath();
+    g.ellipse(x0 + r() * (x1 - x0), yt + r() * (YB - yt), 0.006 + r() * 0.02, 0.004 + r() * 0.012, r() * 3, 0, TAU);
+    g.fill();
+  }
+  g.fillStyle = "#c9a65a";
+  g.beginPath();
+  g.arc(x1 - 0.05, yt + (YB - yt) * 0.52, 0.012, 0, TAU);
+  g.fill();
+  g.strokeStyle = "#0a0806";
+  g.lineWidth = 1.4 * P;
+  g.strokeRect(x0, yt, x1 - x0, YB - yt);
+}
+
+/** A pallet stood on its end: vertical slats with gaps, three cross boards. */
+function pallet(g: Ctx, x0: number, x1: number, h: number, seed: number): void {
+  const yt = sy(h);
+  const n = 6;
+  const sw = (x1 - x0) / n;
+  for (let i = 0; i < n; i++) stake(g, x0 + sw * (i + 0.5), sw * 0.72, h * (0.97 + (i % 2) * 0.03), i % 3 === 0 ? "#9a8c70" : "#a08a62", seed + i);
+  for (const t of [0.12, 0.5, 0.88]) plank(g, x0 - 0.01, yt + (YB - yt) * t - 0.022, x1 + 0.01, yt + (YB - yt) * t + 0.022, "#8a7552", seed + 20 + Math.round(t * 10));
+  for (let i = 0; i < n; i++) for (const t of [0.12, 0.5, 0.88]) nail(g, x0 + sw * (i + 0.5), yt + (YB - yt) * t);
+}
+
+/** A corrugated steel sheet: ribs, rust bleeding from the bolts. */
+function corrugated(g: Ctx, x0: number, x1: number, yTop: number, yBot: number, seed: number): void {
+  const r = rng(seed);
+  g.save();
+  g.beginPath();
+  g.rect(x0, yTop, x1 - x0, yBot - yTop);
+  g.clip();
+  const gr = g.createLinearGradient(x0, 0, x0 + 0.04, 0);
+  gr.addColorStop(0, "#6f7377");
+  gr.addColorStop(0.5, "#a3a8ad");
+  gr.addColorStop(1, "#6f7377");
+  for (let x = x0; x < x1; x += 0.04) {
+    g.save();
+    g.translate(x - x0, 0);
+    g.fillStyle = gr;
+    g.fillRect(x0, yTop, 0.04, yBot - yTop);
+    g.restore();
+  }
+  for (let i = 0; i < 7; i++) {
+    const rx = x0 + r() * (x1 - x0);
+    const rg = g.createLinearGradient(0, yTop, 0, yBot);
+    rg.addColorStop(0, "rgba(140,62,20,0.75)");
+    rg.addColorStop(1, "rgba(140,62,20,0)");
+    g.fillStyle = rg;
+    g.fillRect(rx, yTop + r() * 0.1, 0.02 + r() * 0.05, (yBot - yTop) * (0.4 + r() * 0.6));
+  }
+  g.restore();
+  g.strokeStyle = "#0a0b0d";
+  g.lineWidth = 1.4 * P;
+  g.strokeRect(x0, yTop, x1 - x0, yBot - yTop);
+  for (const y of [yTop + 0.02, yBot - 0.02]) for (let x = x0 + 0.03; x < x1; x += 0.12) bolt(g, x, y, 0.007);
+}
+
+/** A cinder block and a tyre: junk at the base. */
+function cinder(g: Ctx, x: number, y: number): void {
+  g.fillStyle = "#77746d";
+  g.fillRect(x - 0.06, y - 0.05, 0.12, 0.07);
+  g.fillStyle = "#9a978f";
+  g.fillRect(x - 0.06, y - 0.07, 0.12, 0.025);
+  g.fillStyle = "#1a1a1a";
+  g.fillRect(x - 0.045, y - 0.065, 0.035, 0.015);
+  g.fillRect(x + 0.01, y - 0.065, 0.035, 0.015);
+  g.strokeStyle = "#0a0a0a";
+  g.lineWidth = 1.2 * P;
+  g.strokeRect(x - 0.06, y - 0.07, 0.12, 0.09);
+}
+function tyre(g: Ctx, x: number, y: number, r: number): void {
+  g.fillStyle = "#18191b";
+  g.beginPath();
+  g.ellipse(x, y, r, r * 0.55, 0, 0, TAU);
+  g.fill();
+  g.fillStyle = "#050506";
+  g.beginPath();
+  g.ellipse(x, y, r * 0.5, r * 0.27, 0, 0, TAU);
+  g.fill();
+  g.strokeStyle = "#3a3c40";
+  g.lineWidth = 1.2 * P;
+  g.beginPath();
+  g.ellipse(x, y - r * 0.05, r * 0.85, r * 0.45, 0, Math.PI, TAU);
+  g.stroke();
+}
+function sandbag(g: Ctx, x: number, y: number, w: number, seed: number): void {
+  const r = rng(seed);
+  g.fillStyle = ["#a28d63", "#968259", "#ab9669"][Math.floor(r() * 3)] as string;
+  g.beginPath();
+  g.ellipse(x, y, w / 2, w * 0.3, (r() - 0.5) * 0.15, 0, TAU);
+  g.fill();
+  g.strokeStyle = "rgba(60,48,30,0.7)";
+  g.lineWidth = P;
+  for (let i = -2; i <= 2; i++) {
+    g.beginPath();
+    g.moveTo(x + i * w * 0.15, y - w * 0.15);
+    g.lineTo(x + i * w * 0.15 + 0.005, y + w * 0.15);
+    g.stroke();
+  }
+  g.strokeStyle = "#0b0906";
+  g.lineWidth = 1.3 * P;
+  g.beginPath();
+  g.ellipse(x, y, w / 2, w * 0.3, 0, 0, TAU);
+  g.stroke();
+  // the bag's lit top and its tied end
+  g.fillStyle = "rgba(255,240,210,0.22)";
+  g.beginPath();
+  g.ellipse(x - w * 0.05, y - w * 0.13, w * 0.36, w * 0.1, 0, 0, TAU);
+  g.fill();
+}
+function chain(g: Ctx, x0: number, y0: number, x1: number, y1: number, sag: number): void {
+  const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / 0.018);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = x0 + (x1 - x0) * t;
+    const y = y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * sag;
+    g.strokeStyle = "#1a1b1d";
+    g.lineWidth = 2.6 * P;
+    g.beginPath();
+    g.ellipse(x, y, 0.011, i % 2 ? 0.005 : 0.008, 0, 0, TAU);
+    g.stroke();
+    g.strokeStyle = "#8e959c";
+    g.lineWidth = 1.2 * P;
+    g.stroke();
+  }
+}
+function lamp(g: Ctx, x: number, y: number): void {
+  g.fillStyle = "#1a1b1e";
+  g.fillRect(x - 0.02, y, 0.04, 0.04);
+  g.fillStyle = "#ffb52e";
+  g.beginPath();
+  g.ellipse(x, y - 0.012, 0.034, 0.04, 0, 0, TAU);
+  g.fill();
+  g.fillStyle = "#fff0b0";
+  g.beginPath();
+  g.ellipse(x - 0.01, y - 0.022, 0.012, 0.015, 0, 0, TAU);
+  g.fill();
+  g.strokeStyle = "#2a1a05";
+  g.lineWidth = 1.2 * P;
+  g.beginPath();
+  g.ellipse(x, y - 0.012, 0.034, 0.04, 0, 0, TAU);
+  g.stroke();
+}
+
+/** A striped police board (front face) between x0 and x1 at heights h0 < h1 on the front plane `base`. */
+function policeBoard(g: Ctx, x0: number, x1: number, h0: number, h1: number, base: number): void {
+  const y0 = sy(h1, base);
+  const y1 = sy(h0, base);
+  policeFace(g, x0, x1, y0, y1);
+  g.fillStyle = "rgba(255,255,255,0.5)";
+  g.fillRect(x0, y0 - 0.012, x1 - x0, 0.012); // the board's top edge, lit
+  g.strokeStyle = "#08080a";
+  g.lineWidth = 1.4 * P;
+  g.strokeRect(x0, y0 - 0.012, x1 - x0, y1 - y0 + 0.012);
+}
+
+/** PB3: three police sawhorses as in the references, two striped boards on A-frame legs, amber lamps. */
+export function drawPB3(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    for (let u = 0; u < 3; u++) {
+      const cx = -0.64 + u * 0.64;
+      const back = YB - 0.08;
+      const front = YB + 0.05;
+      const top = sy(1.0, YB - 0.015);
+      for (const s of [-1, 1]) {
+        bar(c, cx + s * 0.24, top, cx + s * 0.27, back, 0.026, "steel", "#cfd2d4", 3000 + u * 4 + s); // back legs
+      }
+      for (const s of [-1, 1]) {
+        bar(c, cx + s * 0.24, top, cx + s * 0.27, front, 0.028, "steel", "#e2e4e5", 3010 + u * 4 + s); // front legs
+        c.fillStyle = "#121315";
+        c.fillRect(cx + s * 0.27 - 0.022, front - 0.01, 0.044, 0.02);
+        c.fillRect(cx + s * 0.27 - 0.022, back - 0.01, 0.044, 0.02);
+      }
+      policeBoard(c, cx - 0.3, cx + 0.3, 0.78, 0.97, YB + 0.01);
+      policeBoard(c, cx - 0.29, cx + 0.29, 0.32, 0.48, YB + 0.03);
+      for (const x of [cx - 0.24, cx + 0.24]) {
+        bolt(c, x, sy(0.875, YB + 0.01), 0.008);
+        bolt(c, x, sy(0.4, YB + 0.03), 0.008);
+      }
+      if (u !== 1) lamp(c, cx + (u === 0 ? -0.22 : 0.22), sy(1.0, YB + 0.01) - 0.05);
+    }
+  });
+}
+
+/** WD3: a scavenged survivor wall: stakes of uneven height, a door, a stood-up pallet, cross planks, front props, junk. */
+export function drawWD3(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    const r = rng(4100);
+    for (let i = 0; i < 6; i++) stake(c, -0.94 + i * 0.075, 0.07, 0.86 + r() * 0.22, WOODS[i % 6] as string, 4110 + i, YB, (r() - 0.5) * 0.02);
+    door(c, -0.5, -0.12, 1.02, 4130);
+    pallet(c, -0.1, 0.32, 0.95, 4140);
+    for (let i = 0; i < 5; i++) stake(c, 0.37 + i * 0.075, 0.07, 0.8 + r() * 0.25, i % 2 ? "#8a8577" : (WOODS[(i + 2) % 6] as string), 4150 + i, YB, (r() - 0.5) * 0.02);
+    pallet(c, 0.74, 0.97, 0.85, 4160);
+    // the long cross planks nailed across everything
+    plank(c, -0.97, sy(0.66) - 0.025, 0.2, sy(0.66) + 0.022, "#7a5c3c", 4170);
+    plank(c, 0.25, sy(0.36) - 0.025, 0.97, sy(0.36) + 0.022, "#6f5235", 4171);
+    for (let x = -0.92; x < 0.2; x += 0.075) nail(c, x, sy(0.66));
+    for (let x = 0.3; x < 0.97; x += 0.075) nail(c, x, sy(0.36));
+    // props leaning on the front, down to the ground towards the camera
+    for (const x of [-0.75, 0.1, 0.62]) bar(c, x, sy(0.72), x + 0.08, YB + 0.17, 0.05, "wood", "#6a4e33", 4180 + Math.round(x * 10));
+    for (const x of [-0.75, 0.1, 0.62]) {
+      nail(c, x + 0.005, sy(0.72) + 0.012);
+      c.fillStyle = "#3a3d42";
+      c.fillRect(x + 0.05, YB + 0.155, 0.06, 0.03);
+    }
+    cinder(c, -0.3, YB + 0.13);
+    cinder(c, -0.18, YB + 0.15);
+    tyre(c, 0.42, YB + 0.13, 0.08);
+  });
+}
+
+/** RF3: the scavenged wall reinforced: corrugated steel sheets bolted on, chains, razor wire coiled along the top. */
+export function drawRF3(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    const r = rng(5100);
+    for (let i = 0; i < 26; i++) stake(c, -0.95 + i * 0.075, 0.07, 0.95 + r() * 0.1, WOODS[i % 6] as string, 5110 + i, YB, (r() - 0.5) * 0.015);
+    corrugated(c, -0.82, -0.3, sy(0.85), sy(0.12), 5140);
+    corrugated(c, 0.05, 0.62, sy(0.9), sy(0.18), 5141);
+    pallet(c, -0.28, 0.04, 0.8, 5150);
+    plank(c, -0.97, sy(0.95) - 0.02, 0.97, sy(0.95) + 0.025, "#6f5235", 5160);
+    for (let x = -0.92; x < 0.97; x += 0.15) bolt(c, x, sy(0.95) + 0.003, 0.008);
+    chain(c, -0.9, sy(0.5), -0.3, sy(0.55), 0.06);
+    chain(c, 0.1, sy(0.6), 0.9, sy(0.52), 0.07);
+    razorCoil(c, -0.97, 0.97, sy(1.06), 0.085, 5170);
+    for (const x of [-0.6, 0.35, 0.85]) bar(c, x, sy(0.7), x + 0.08, YB + 0.17, 0.055, "wood", "#5f452c", 5180 + Math.round(x * 10));
+    cinder(c, -0.05, YB + 0.14);
+    tyre(c, 0.7, YB + 0.14, 0.075);
+  });
+}
+
+/** MT3: welded steel panels with hazard stripes, steel beam props in front, sandbags along the base. */
+export function drawMT3(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    const panels: [number, number, number][] = [[-0.96, -0.34, 0.95], [-0.36, 0.3, 1.02], [0.28, 0.96, 0.92]];
+    for (const [i, [x0, x1, h]] of panels.entries()) {
+      steelPlate(c, x0, sy(h), x1, YB, ["#5d636a", "#666c73", "#596067"][i] as string, 6100 + i);
+      hazard(c, x0 + 0.04, sy(h * 0.62), x1 - 0.04, sy(h * 0.3), 6110 + i);
+      c.strokeStyle = "#0a0b0d";
+      c.lineWidth = 1.3 * P;
+      c.strokeRect(x0 + 0.04, sy(h * 0.62), x1 - x0 - 0.08, sy(h * 0.3) - sy(h * 0.62));
+      c.fillStyle = "rgba(255,255,255,0.35)";
+      c.fillRect(x0, sy(h) - 0.014, x1 - x0, 0.014); // the plate's top edge
+    }
+    // weld seams
+    for (const x of [-0.35, 0.29]) {
+      c.strokeStyle = "rgba(30,24,18,0.9)";
+      c.lineWidth = 3 * P;
+      c.beginPath();
+      c.moveTo(x, sy(0.9));
+      c.lineTo(x, YB);
+      c.stroke();
+    }
+    for (const x of [-0.72, -0.02, 0.65]) {
+      bar(c, x, sy(0.72), x + 0.09, YB + 0.17, 0.045, "steel", "#4c5157", 6120 + Math.round(x * 10));
+      bolt(c, x, sy(0.72) + 0.01, 0.01);
+    }
+    // two courses of sandbags against the base: the upper course behind, the lower in front
+    for (let i = 0; i < 8; i++) sandbag(c, -0.82 + i * 0.235, YB + 0.03, 0.24, 6140 + i);
+    for (let i = 0; i < 9; i++) sandbag(c, -0.93 + i * 0.235, YB + 0.1, 0.25, 6130 + i);
+  });
+}

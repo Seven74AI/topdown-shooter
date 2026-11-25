@@ -8,6 +8,7 @@ const r = await build({ entryPoints: [D + "build3.ts"], bundle: true, format: "i
 const js = r.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const all = JSON.parse(readFileSync("tools/gallery/out/assets.json", "utf8"));
 const current = Object.fromEntries(all.filter((a) => (a.group === "atlas_buildings" || a.name === "prop_barrier_a" || a.name === "prop_barrier_b")).map((a) => [a.name, a.url]));
-const page = readFileSync(D + "page.html", "utf8").replace("/*@JS@*/", () => `var CURRENT=${JSON.stringify(current)};\n${js}`);
+const refs = Object.fromEntries(["police", "police_drone", "wood", "wood_drone", "reinforced", "metal"].map((k) => [k, "data:image/jpeg;base64," + readFileSync(`docs/art/photoreal-3/refs/${k}.jpg`).toString("base64")]));
+const page = readFileSync(D + "page.html", "utf8").replace("/*@JS@*/", () => `var CURRENT=${JSON.stringify(current)};\nvar REFS=${JSON.stringify(refs)};\n${js}`);
 writeFileSync("docs/art/photoreal-3/compare.html", page);
 console.log("compare.html", (page.length / 1024).toFixed(0), "KB");

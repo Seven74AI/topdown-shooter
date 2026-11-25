@@ -34,6 +34,9 @@ h2 { font-family: var(--font-display); font-weight: 500; font-size: 20px; text-t
 h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
 .takes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 12px; }
 #takes .pair.wide figure + figure { margin-top: 8px; }
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.refs figure { margin: 0; }
+.refs img { width: 100%; height: auto; display: block; border-radius: 4px; }
 #loading { color: var(--muted); margin-top: 16px; }
 .pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 36px; }
 .pick p { margin: 0; color: var(--fg); }
@@ -45,13 +48,14 @@ h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
 </header>
 <p id="loading">Drawing…</p>
 <section id="new">
-  <h2 class="big">New: barricades that stand up (round 2)</h2>
-  <p>Round 1 looked like benches, and so does today's police sawhorse: a wide flat top on legs reads as a seat. Now the boards stand up. You see a thin, lit top edge, the front face under it, and a long shadow on the street that shows the height. Thin A-frame legs splay to the back and the front, with the front legs crossing over the face, and there are no rails between them. On top of that, barricade details: X-bracing, posts sticking up, razor wire on top, hazard plates, warning lamps. Today's version comes first in each row.</p>
+  <h2 class="big">New: barricades from real references (round 3)</h2>
+  <p>Rounds 1 and 2 still looked like benches, and so does today's police sawhorse. The references below show why. Real barricades are taller than they are deep, and they read from a raised camera: you see the front face, legs and props splayed out, junk piled at the base, and above all a long shadow on the street that repeats the slats. So these are drawn standing up the way the references are, with the shadow cast from each one's real outline. Built from scavenged parts: an old door, pallets, corrugated sheets, chains, razor wire, welded plates, sandbags. One direction per type for now. If this is the right way to go, I'll make variations.</p>
+  <p><b>Note for the game:</b> standing up, they need a taller picture (2 × 1 m instead of 2 × 0.5 m). The space they block on the ground stays the same.</p>
   <div id="takes"></div>
 </section>
 <section><h2 class="big">All 10 things you build</h2><p>Approved ("All OK"). The three barricades will change to whichever new option you pick above.</p></section>
 <div id="list"></div>
-<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, and whether PB1 should replace the police sawhorse, which barricade option to keep (WD1/WD2, RF1/RF2, MT1/MT2), or "go" to put them in the game.</p></div></section>
+<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, and whether this round-3 direction is right (PB3, WD3, RF3, MT3), or "go" to put them in the game.</p></div></section>
 <script>
 /*@JS@*/
 </script>

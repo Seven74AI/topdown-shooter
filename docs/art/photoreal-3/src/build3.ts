@@ -10,9 +10,10 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { drawMT1, drawMT2, drawPB1, drawRF1, drawRF2, drawWD1, drawWD2, inFrameM } from "./barricadeTakes";
+import { drawMT3, drawPB3, drawRF3, drawWD3, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
+declare const REFS: Record<string, string>; // the Meshy references (round 3)
 declare const CURRENT: Record<string, string>; // today's frames (data URLs), injected by build.mjs
 
 const PXM = 192; // 2× the game's 96 px per metre
@@ -74,26 +75,23 @@ const ITEMS: Item[] = [
 ];
 
 /** New orientation for the barricades, like the police sawhorse (designer 2026-11-25). */
-const take = (id: string, name: string, draw: (g: Ctx) => void, dir: "x" | "y", glints: number, note: string): Item => ({ id, name, wM: 2, hM: 0.5, draw: (g) => draw(g), inFrame: inFrameM, dir, glow: "none", glints, note });
+const take = (id: string, name: string, draw: (g: Ctx) => void, dir: "x" | "y", glints: number, note: string): Item => ({ id, name, wM: 2, hM: 1, draw: (g) => draw(g), inFrame: inFrameM, dir, glow: "none", glints, note });
 const amber = (r: number, g: number, b: number): boolean => {
   const h = hueOf(r, g, b);
   return h > 25 && h < 55 && satOf(r, g, b) > 0.55 && r > 200;
 };
 const TAKES: { title: string; now: string; items: Item[] }[] = [
   { title: "Police barricade (in the game today)", now: "", items: [
-    { ...take("PB1", "PB1 · Police sawhorse, upright", drawPB1, "x", 8, "The striped board now stands up: lit top edge, front face, long shadow, A-frame legs, amber lamps blinking at the ends."), emissive: amber, glow: "strobe" },
+    { ...take("PB3", "PB3 · Police sawhorses", drawPB3, "x", 8, "Two striped boards on splayed A-frame legs, amber lamps blinking on the end ones, and the long slatted shadow."), emissive: amber, glow: "strobe" },
   ] },
   { title: "Wood barricade", now: "building_barricade_wood", items: [
-    take("WD1", "WD1 · Wooden sawhorses, X-braced", drawWD1, "x", 6, "Three upright sawhorse barricades: two planks with an X brace nailed across, A-frame legs."),
-    take("WD2", "WD2 · Boarded wall on posts", drawWD2, "x", 6, "One long boarded wall: posts sticking up above the boards, diagonal braces, A-frame legs."),
+    take("WD3", "WD3 · Scavenged survivor wall", drawWD3, "x", 6, "Stakes of uneven height, an old door, a stood-up pallet, long planks nailed across, props leaning on the front, cinder blocks and a tyre."),
   ] },
   { title: "Reinforced barricade", now: "building_barricade_reinforced", items: [
-    take("RF1", "RF1 · Boarded wall + razor wire", drawRF1, "x", 16, "The boarded wall with steel straps bolted across and razor wire coiled along the top."),
-    take("RF2", "RF2 · X-braced sawhorses + razor wire", drawRF2, "x", 16, "X-braced sawhorses with steel corner plates and razor wire along the top."),
+    take("RF3", "RF3 · Steel-sheeted wall + razor wire", drawRF3, "x", 18, "The wall faced with rusty corrugated sheets, chains slung across, a coil of razor wire along the top."),
   ] },
   { title: "Metal barricade", now: "building_barricade_metal", items: [
-    take("MT1", "MT1 · Steel sawhorses", drawMT1, "x", 10, "Three upright steel barricades: hazard-striped plates on tube A-frames."),
-    take("MT2", "MT2 · Steel plate wall on posts", drawMT2, "x", 10, "One long riveted plate wall on steel posts, hazard chevrons at both ends."),
+    take("MT3", "MT3 · Welded steel panels", drawMT3, "x", 12, "Welded steel plates with hazard bands, steel beam props, sandbags along the base."),
   ] },
 ];
 
@@ -513,6 +511,26 @@ const nowItem0 = (id: string): boolean => ITEMS.some((x) => x.id === id);
 
 async function takes(): Promise<void> {
   const box = document.getElementById("takes") as HTMLElement;
+  const ref = document.createElement("article");
+  ref.className = "pair wide";
+  const rh = document.createElement("h3");
+  rh.textContent = "References (Meshy): what real barricades look like from a raised camera";
+  ref.appendChild(rh);
+  const rg = document.createElement("div");
+  rg.className = "refs";
+  for (const [k, cap] of [["police", "Police sawhorses"], ["police_drone", "Police, from higher"], ["wood", "Scavenged wood"], ["wood_drone", "Wood, from higher"], ["reinforced", "Reinforced + razor wire"], ["metal", "Welded metal"]] as const) {
+    const f = document.createElement("figure");
+    const im = document.createElement("img");
+    im.src = REFS[k] ?? "";
+    im.alt = cap;
+    f.appendChild(im);
+    const fc = document.createElement("figcaption");
+    fc.textContent = cap;
+    f.appendChild(fc);
+    rg.appendChild(f);
+  }
+  ref.appendChild(rg);
+  box.appendChild(ref);
   let n = 0;
   for (const grp of TAKES) {
     const h = document.createElement("h2");
