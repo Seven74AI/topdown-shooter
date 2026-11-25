@@ -115,7 +115,7 @@ Measured 2026-11-25, `npx tsx tools/netaudit/runHits.ts 60 3`; before on master 
 | | 1 % × 400 ms | 6.3 % | 8.9 % (record) |
 | Shots over the cap | 1 % × 200 ms Runners | 50 % (cap 6) | **0 %** (cap 10); 2 %: 73.3 → 0 %; 1 % × 400: 64.3 → 4.7 % |
 | tickCostRewind added work p99 (`PERF_ASSERT=1`) | — | 0.054 ms (load 0.01) | **0.060 ms** (load 0.01); rewind ON p99 0.674 → 0.771 ms vs OFF 0.681 → 0.719 ms (noise ±0.1) |
-| Bots, 4 × net150 waves 4–5, lossy line | — | master `lagProxy.ts` 1 % × 200 ms server→client only: 299 stalls; 0 `spread_cancel_suspect`, 0 `seq_gap_suspect`, `framesSkipped` 0 | `--lag 150 --jitter 20 --loss 1`: 97 up / 236 down stalls; 0 / 0 suspect logs, `framesSkipped` 0 |
+| Bots, 4 × net150 waves 4–5, lossy line — **liveness only, different lines** (review N3: before = master proxy, stalls down only; after = new line, both ways) | — | master `lagProxy.ts` 1 % × 200 ms server→client only: 299 stalls; 0 `spread_cancel_suspect`, 0 `seq_gap_suspect`, `framesSkipped` 0 | `--lag 150 --jitter 20 --loss 1`: 97 up / 236 down stalls; 0 / 0 suspect logs, `framesSkipped` 0 |
 | History memory | — | 8 rows ≈ 16 KB / room | 12 rows ≈ 24 KB / room (256 × 12 × 2 × 4 B) + 12 boss rows |
 
 ### Files (expected)
