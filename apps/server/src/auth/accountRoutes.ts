@@ -1,8 +1,8 @@
 /**
  * Story 7.1 AC 4, 10: `POST /account/session` on the Colyseus router (the browser calls `/api/account/session`).
- * Body `{ deviceToken? }` (the `localStorage` copy, ≤ 2 KB by the HTTP guard); the `tdg` cookie is read first.
- * Responds `{ saved, deviceToken, ticket, account }` and renews the cookie (HttpOnly, Secure, SameSite=Lax,
- * Path=/api, 1 year). With `PUBLIC_ORIGIN` set, a foreign or missing `Origin` is refused with 403 (CSRF).
+ * Body `{ deviceToken? }` (the `localStorage` copy, ≤ 2 KB by the HTTP guard); the `__Host-tdg` cookie is read first.
+ * Responds `{ saved, deviceToken, ticket, account }` and renews the `__Host-tdg` cookie (HttpOnly, Secure,
+ * SameSite=Lax, Path=/, no Domain, 1 year). With `PUBLIC_ORIGIN` set, a foreign or missing `Origin` is refused with 403 (CSRF).
  */
 import { createEndpoint } from "@colyseus/core";
 import { ACCOUNT_SESSION_PATH, GUEST_COOKIE, accountSessionRequestSchema } from "@topdown/shared";
@@ -39,7 +39,7 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
       httpOnly: true,
       secure: true,
       sameSite: "Lax",
-      path: "/api",
+      path: "/", // `__Host-` requires Path=/ and no Domain (review L5)
       maxAge: GUEST_COOKIE_MAX_AGE_S,
     });
     ctx.setHeader("cache-control", "no-store");

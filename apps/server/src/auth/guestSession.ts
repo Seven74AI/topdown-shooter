@@ -1,5 +1,5 @@
 /**
- * Story 7.1 AC 4 (designer D9, decision 7.1 D3): which account a device is. The `tdg` cookie is read first, then the
+ * Story 7.1 AC 4 (designer D9, decision 7.1 D3): which account a device is. The `__Host-tdg` cookie is read first, then the
  * `localStorage` copy (`deviceToken`); the first that matches an account wins, and the response writes that token
  * back to both. If neither matches, the device keeps the valid token it presented (a phone keeps the identity it
  * has had since Story 2.3) or gets a new one, and a guest account + empty progress row are made (P1).
