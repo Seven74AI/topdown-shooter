@@ -43,6 +43,9 @@ interface Measure {
   nCards: number;
   trains: number;
   unlock: string;
+  items: string[];
+  districts: string[];
+  cut: string[];
 }
 
 let pw: Pw | null = null;
@@ -61,10 +64,14 @@ interface Case {
   readonly newTotal: number;
   readonly endless: boolean;
   readonly ending: "extracted" | "wiped" | "lost";
+  /** Review M5: the 7.11 / 7.12 / 7.7 rows (group 2 items, group 3 unlocks) on top of 7.4's unlock line. */
+  readonly meta?: boolean;
 }
 const CASES: readonly Case[] = [
   { name: "short names", names: ["Mo", "Ana", "Kit", "Lu"], kills: 212, earned: 1840, total: 500, newTotal: 1240, endless: false, ending: "extracted" },
   { name: "worst case (16 × W names, 7-digit money and totals, endless)", names: ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénic", "QQQQQQQQQQQQQQQQ"], kills: 99999, earned: 9_999_999, total: 1_311_900, newTotal: 1_234_567, endless: true, ending: "lost" },
+  // review M5: the worst meta case: two new items (the longest reasons), my find, District 2, plus the long names
+  { name: "meta rows (2 new items, a find, District 2) with the worst names", names: ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénic", "QQQQQQQQQQQQQQQQ"], kills: 99999, earned: 9_999_999, total: 1_311_900, newTotal: 1_234_567, endless: false, ending: "extracted", meta: true },
 ];
 
 let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: { local: string[] } | null } | null = null;
@@ -124,6 +131,11 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             leftWave: k.endless ? 47 : 0,
             // Story 7.4 (K7): the unlock line in group 3 (the longest weapon name)
             lockedUsed: { unlockId: "grenade_launcher", name: "Grenade Launcher", price: 500 },
+            ...(k.meta ? {
+              newItems: [{ key: "head:fire", name: "Firefighter helmet", reason: "survived wave 5" }, { key: "head:laurel", name: "Laurel wreath", reason: "extracted with all four standing" }],
+              loot: { wave: 9, key: "pack:cat", name: "Cat in the backpack" },
+              newDistricts: [{ id: "district_2", name: "District 2" }],
+            } : {}),
           });
           for (let i = 0; i < 40 && !document.querySelector(".rw-btn"); i++) await new Promise((r) => setTimeout(r, 50));
           await new Promise((r) => setTimeout(r, 150));
@@ -156,7 +168,11 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             }
           }
           const unlock = document.querySelector("[data-testid=unlock-line]")?.textContent || "";
-          return { out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, trains: trains.length, unlock };
+          const items = [...document.querySelectorAll("[data-testid=rewards-items] .rw-item__line")].map((e) => e.textContent);
+          const districts = [...document.querySelectorAll(".rw-unlock--district")].map((e) => e.textContent);
+          // review M5: no meta row's text is cut (wider than its box) unless it ends in an ellipsis
+          const cut = [...document.querySelectorAll(".rw-item *, .rw-unlock *")].filter((e) => e.scrollWidth > e.clientWidth + 0.5 && getComputedStyle(e).textOverflow !== "ellipsis").map((e) => e.textContent);
+          return { items, districts, cut, out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, trains: trains.length, unlock };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.nCards).toBe(2);
         expect(m.out, m.out.join("\n")).toEqual([]);
@@ -172,6 +188,11 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
         expect(m.you.toUpperCase()).toBe("YOU"); // N1: my own row is marked
         expect(m.trains).toBe(c.names.length); // Story 7.5 liveness: the Train column is drawn on every row
         expect(m.unlock).toBe("You used the Grenade Launcher: unlock it for 500"); // Story 7.4 K7
+        if (c.meta) {
+          expect(m.items).toEqual(["New item: Firefighter helmet", "New item: Laurel wreath", "Found in wave 9: Cat in the backpack"]);
+          expect(m.districts).toEqual(["Unlocked: District 2coming soon"]);
+          expect(m.cut).toEqual([]);
+        }
         if (c.endless) expect(m.note).toBe("Banked when you left (wave 47)"); // L4
       }, 30_000);
     }
