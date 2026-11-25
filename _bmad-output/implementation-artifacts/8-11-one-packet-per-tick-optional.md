@@ -186,3 +186,4 @@ Autonomous builder (gds-dev-story), 2026-11-25, branch `story-8-11` from master 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built (autonomous, gds-dev-story): patch from the tick, one write per tick, 14-byte binary input (`NET_PROTOCOL_VERSION` 3); before/after measured; decisions 8.11 B1–B8 auto-accepted; status → review.
 - 2026-11-25: PR #19 review fixes (L ping stamp after the patch; patch error logged alone; rate-drop swap test; test titles; B9).
+- 2026-11-25: PR #19 CI fix: `saveResume.test.ts` holds the bots' Ready in the save build (B10: a test race the prompter patch exposed).
