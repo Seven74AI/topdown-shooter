@@ -5,6 +5,10 @@ import { DEFAULT_PGLITE_DIR } from "./db/paths";
 import { parseAllowedOrigins } from "./net/origin";
 import { log } from "./ops/logger";
 import { serverBalance } from "./rooms/RunRoom";
+import { DOWNTOWN_MAP, migrateRunSave } from "@topdown/shared";
+import { bankSavedRun } from "./meta/saveBank";
+import { progressRepo } from "./db/progressRepo";
+import { releaseSavesOnBoot } from "./run/roomSaves";
 
 // Environment, read once (Story 2.2 sets these in deploy/docker-compose.yml).
 const port = Number(process.env.PORT ?? 2567);
@@ -39,6 +43,14 @@ const server = createGameServer({
   allowTestScenarios,
   database,
   sessionSecret: sessionSecret || randomSessionSecret(),
+});
+// Story 8.4 (AC 8, E8-S6): a process that died without a clean stop left its runs 'open': they become resumable now
+// (their last autosave is the save) and top up their seats' Supplies (E8-S4). Before listening: no room exists yet.
+const progress = progressRepo(database);
+await releaseSavesOnBoot(server.saves, log, async (id, snapshot) => {
+  const m = migrateRunSave(snapshot);
+  if (!m.ok) return log.error({ runId: id, why: m.reason }, "save_unreadable");
+  return bankSavedRun(m.save, { balance: serverBalance, map: DOWNTOWN_MAP, repo: () => progress, log });
 });
 await server.listen(port, host);
 log.info(

@@ -4,7 +4,7 @@
  * and committed under `apps/server/drizzle/`; never edit a committed migration, add a new one.
  */
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, bigint, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * One row per player. A guest account has no `username`; Story 7.6 fills `username` (as typed), `username_lower` (the
@@ -91,6 +91,38 @@ export const runRewards = pgTable("run_rewards", {
   primaryKey({ name: "run_rewards_pk", columns: [t.runId, t.accountId] }),
   check("run_rewards_supplies_nonneg", sql`${t.supplies} >= 0`),
 ]);
+
+/**
+ * Stories 8.4–8.6 (AC 1, decision E8-S5): one row per saved run. `id` IS the run id (Story 7.2's `runId`, kept across
+ * resumes: E8-S3). `snapshot` is the versioned `RunSave` JSON (opaque to SQL: never queried by field); `wave` and
+ * `names` feed the Saved games list without loading it. `status`: 'open' = a room is playing it (autosaves land here;
+ * nobody can resume it), 'saved' = resumable until `expires_at`. Only `savedRunsRepo` touches it.
+ */
+export const savedRuns = pgTable("saved_runs", {
+  id: uuid("id").primaryKey(),
+  district: text("district").notNull(),
+  seed: bigint("seed", { mode: "number" }).notNull(),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+  schemaVersion: integer("schema_version").notNull(),
+  wave: integer("wave").notNull(),
+  names: jsonb("names").$type<{ name: string; slot: number }[]>().notNull(),
+  status: text("status").notNull(),
+  roomCode: text("room_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+}, (t) => [check("saved_runs_status", sql`${t.status} in ('open', 'saved')`)]);
+
+/** Stories 8.4–8.6 (AC 1, 6): the accounts that may resume a saved run (seats with an account; guests can't). */
+export const savedRunPlayers = pgTable("saved_run_players", {
+  savedRunId: uuid("saved_run_id")
+    .notNull()
+    .references(() => savedRuns.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  seatKey: text("seat_key").notNull(),
+}, (t) => [primaryKey({ name: "saved_run_players_pk", columns: [t.savedRunId, t.accountId] }), index("saved_run_players_account_idx").on(t.accountId)]);
 
 /** Story 7.11: `progress.stats`. */
 export interface LifetimeStatsRow {

@@ -10,6 +10,7 @@ import {
   MAX_UNLOCK_CALLS_PER_IP_PER_MIN,
   MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN,
   MAX_LOOK_CALLS_PER_IP_PER_MIN,
+  MAX_SAVED_RUNS_CALLS_PER_IP_PER_MIN,
   LOOK_WINDOW_MS,
   MAX_TRAIN_CALLS_PER_IP_PER_MIN,
   MAX_TRAINS_PER_ACCOUNT_PER_MIN,
@@ -146,6 +147,9 @@ export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACC
 
 /** Story 7.10 (brief 15): `/account/look` calls per client IP per minute (before the body or the database). */
 export const lookIpLimiter = new SlidingWindowLimiter(MAX_LOOK_CALLS_PER_IP_PER_MIN, LOOK_WINDOW_MS, Date.now, ipKey);
+
+/** Story 8.6: `GET /saved-runs` calls per client IP per minute. */
+export const savedRunsIpLimiter = new SlidingWindowLimiter(MAX_SAVED_RUNS_CALLS_PER_IP_PER_MIN, LOOK_WINDOW_MS, Date.now, ipKey);
 
 /** Story 7.10 (AC 11): `/account/look` saves per account (id) per minute. */
 export const lookAccountLimiter = new SlidingWindowLimiter(MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN, LOOK_WINDOW_MS, Date.now, (key) => key);

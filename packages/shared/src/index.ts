@@ -783,6 +783,7 @@ export { CLOSE_REMOVED } from "./net/reconnect";
 // ── Stories 8.4–8.6 (save and resume) ──
 export { buildEndsThisTick } from "./run/runStateMachine";
 export { CLOSE_RUN_SAVED } from "./net/reconnect";
+export { runSaveQuitSchema, type RunSaveFailed, type RunSaved, type SavedRunSummary } from "./net/messages";
 export { toPlain, hydrate, clonePlain, type Plain } from "./save/plain";
 export {
   DIGEST_EXCLUDED_KEYS,
