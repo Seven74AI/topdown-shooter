@@ -16,6 +16,10 @@
     "floodLightMergeM": 4,
     "maxPlaceDust": 64,
     "maxWallSilhouettes": 24,
+    "maxCharacterAnim": 12,
+    "maxCharacterSheen": 6,
+    "maxBloaterFx": 6,
+    "maxSpitterDrips": 8,
     "maxOwnerTabs": 12
   },
   "build": {
