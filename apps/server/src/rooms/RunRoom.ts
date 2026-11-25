@@ -403,7 +403,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private attachClient(client: RunClient, member: Member): void {
     // Review L2: a reconnect (same sessionId) keeps its guard: buckets and drop counters carry over.
     this.net.add(client, member.playerId, true);
-    // Story 8.10 hook: request a horde keyframe for this client here (first join, reconnect, takeover, restored seat).
+    // Story 8.10 hook: every caller passes a NEW Colyseus client object (Colyseus 0.18 builds a new client on a
+    // reconnect, `_onJoin` › `reconnection.resolve(client)`), so 8.10's WeakMap-per-client encoder starts with a
+    // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
