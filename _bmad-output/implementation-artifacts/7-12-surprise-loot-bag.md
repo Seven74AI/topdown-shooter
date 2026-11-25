@@ -239,7 +239,7 @@ Early part only (no full gate yet, per dispatch), on `story-7-12` from master f6
 
 ### Not verified
 
-- Merged part: the Results rows and the lobby district sheet in a real browser (model + layout tests only); "Wear it" (7.11 D8) not built; 7.10's look route and 7.6's merge rules (not on master); PostgreSQL 18 itself (PGlite only; the real-PG tests are skipped without a server here); the VPS migration (Hermes).
+- Merged part: (review M5: the Results rows and the lobby district sheet are now measured in a real browser at four sizes); "Wear it" (7.11 D8) not built; 7.10's look route and 7.6's merge rules (not on master); PostgreSQL 18 itself (the review fixes ran the real-PG tests on a local PostgreSQL 16); the VPS migration (Hermes).
 
 - Real phones (Mi 11i, iOS Safari): the bake cost (≈ 0.3 s in node for the five looks) and FPS with a bag out; `?stress=150` before/after not run yet (T6).
 - Online two-tab check under `?lag=150&jitter=20` / `&loss=1`, a hidden tab across the drop, a reconnect during the 20 s — covered by unit tests only so far (T6 with T5).
@@ -351,3 +351,31 @@ Script: `7-12-review-probes/mut.sh.txt`. Real-PG probe: `7-12-review-probes/real
 ### R1 / R6
 - **R1 (claims vs code):** 39 B is true. The row order is true. "Never twice in a row" is overstated (M6). The hub line's placement contradicts B29 (M4). The repository function names are wrong (L9). M-F2's quit test does not exist (L5).
 - **R6 (mutate each new test once):** done (23). Four gaps (L4–L7).
+
+## Review fixes (round 1, after CHANGES REQUESTED on review-7-12 @ a4af0617)
+
+Each was fixed minimally, with a test; each new test was mutated once (the old code fails it) unless noted.
+
+| # | Fix | Test(s) |
+|---|-----|---------|
+| M1 | `world.loot.banked` (set in the room's `bankLeaver`): `lootTaker` skips a seat already banked (Leave / `run.leave`). `bankRunEnd` awaits `banks.get(finder)` (a bank still in flight) instead of `done`. Without a find in the finder's result, teammates get `teamLoot {key: null, wave: 0}`, which reads "<name> found the bag", with no Collector line and no guessed item (B33) | `lootBag.test.ts › review M1`, `RunRoom.rewards.test.ts › review M1 (A) / (B)`, `bankingMeta.test.ts › review M1`, `rewardsMeta.test.ts` (wave 0 → no sub) |
+| M2 | A revive counts toward M5 only in phase `wave`, and not when the reviver caused that down. `PlayerState.downedBy` is set by `downPlayer(world, p, by)` from `damagePlayerBy`'s source. **B31, auto-accepted overnight (designer: follow the GDS recommendation); the designer may override** | `milestoneRecord.test.ts › review M2 (B31)`; `hold.test.ts` (new field "kept") |
+| M3 | `memberProgress` is deleted on every final leave. `lobby.return` recomputes the districts at once, then reloads every member's progress once the run's banks settle (`runBanked`). The look is not re-checked on that reload | `RunRoom.districts.test.ts › review M3` (mutant: no reload → fails) |
+| M4 | The hub Districts line leaves the tablist: its own `<p>` under the rule line, wrapping, 12 px | `hubDomLayout.test.ts` now requires the full text, ≥ 12 px, outside the tablist and above the tabs at 568×320 … 844×390 (+ a District 2 owned case) |
+| M5 | Results meta-rows fixture (2 new items, a find, District 2, the worst names) at 4 sizes, and a DP2 sheet DOM check (4 sizes, host view) that includes 7.3's Progress button. **They caught a real bug:** one of my merges dropped the `}` that closes 7.3's `@keyframes ph-spin`, so the browser swallowed every 7.7 / 7.11 / 7.12 rule after it (the Results item pictures drew 256 px wide; the sheet cards had 21 px buttons). Fixed, and `tools/checks/cssBraces.test.ts` now guards brace balance (no CSS linter runs in the gate) | `resultsDomLayout.test.ts` (meta case), `districtSheetDomLayout.test.ts`, `cssBraces.test.ts` (both DOM checks fail on the old CSS) |
+| M6 | `lastLootVariant` is set on `loot.dropped` (a bag players saw), never from the plan; per process (B32) | `lootBagWiring.test.ts` (one assignment, on the drop) |
+| L1 | A mine's blast finishing the Behemoth passes no killer to `applyBossDamage`, like a turret does in `firing.ts` | `death.test.ts › review L1` (mine → null, own grenade → owner) |
+| L2 | `downs10` counts only in phase `wave` | `milestoneRecord.test.ts › review L2` |
+| L3 | Documented in B22: teammates already bank in parallel with each other; worst case ≈ 6 s for their line (the finder's two attempts) while Results shows "Saving…" | — |
+| L4 | — | `lootBag.test.ts › review L4` (exactly `pickRadiusM` takes it; + 1e-6 doesn't) |
+| L5 | — | `bankingMeta.test.ts › review L5` (20 quits in build 1 → 0 runs, no M9; with wave 1 → 20) |
+| L6 | — | `bankingMeta.test.ts › review L6` (four at the extract, one held → no M8). Its mutant (dropping `heldPlayers.size === 0`) is equivalent: a held seat leaves `world.players`, so the size check already fails it |
+| L7 | `seatMeta(…, lootList?)` (tests only) | `bankingMeta.test.ts › review L7` (a catalogue where M1's part is also a loot part: the bag gives the next part; mutant without `after.add` fails) |
+| L8 | M10's waves come from `milestones.json` (`wave10_never_downed.n: 10`, = `runWaves`, checked in tests); M8 uses `MAX_PLAYERS` | `milestones.test.ts` (n = runWaves) |
+| L9 | Story wording: `grantCosmetics` / `addStats` are inline in `progressRepo.addSupplies` (7.11 T2 + notes, 7.12 AC 9 / T5) | M-F6: `RunRoom.districts.test.ts › review L9` (two rooms, same dev seed, one wearing all ten milestone parts that it owns, one with the default look; the loot salt aligned; 1,600 ticks into wave 1 → the same `worldDigest`) |
+
+Real PostgreSQL 16 (a throwaway local cluster): `apps/server/src/db` + `apps/server/src/meta` with `TEST_DATABASE_URL`, plus the review's `realPgMeta` probe: 14 files, 85 tests, all pass, none skipped.
+
+GATE_LINE_PLACEHOLDER
+
+For the narrow re-review: M1 (`lootBag.ts` `lootTaker`, `banking.ts` `bankRunEnd` / `teamLootOf`, `RunRoom.ts` `bankLeaver`), M2 (`milestoneRecord.ts`, `downed.ts`, `damage.ts`), M3 (`RunRoom.ts` `finalLeave` / `onLobbyReturn` / `loadMemberProgress`), and the `banking.ts` / `RunRoom.ts` merge resolutions.
