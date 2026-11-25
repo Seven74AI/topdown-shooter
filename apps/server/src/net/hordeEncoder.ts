@@ -118,7 +118,9 @@ export const headingSteps = (a: number, b: number): number => {
  * the zombies inside the client's view rectangle plus HORDE_VIEW_MARGIN_M, plus every rusher
  * (the rush markers and edge arrows need off-screen ones), each once. Against what that client
  * holds: new = full record, changed = slot + mask + what changed, left = slot. Zombies farther than
- * HORDE_NEAR_M from the view centre are refreshed every 2nd tick (by slot parity). A keyframe goes
+ * `nearM` from the view centre are refreshed every 2nd tick (by slot parity); in the game `nearM` is
+ * HORDE_NEAR_M = Infinity (B7: every zombie every tick), the far rule only with an explicit radius
+ * (HORDE_FAR_RULE_RADIUS_M, tests and a later story). A keyframe goes
  * out on a client's first frame (join, a reconnect = a new client object, a late scene start: the
  * phone decodes from the join), after a skipped frame, every HORDE_KEY_INTERVAL_TICKS (staggered
  * per client), and whenever the delta would not be smaller.
@@ -158,7 +160,10 @@ export class HordeEncoder {
 
   private readonly nearSq: number;
 
-  /** `nearM`: HORDE_NEAR_M (tools pass Infinity for an all-20 Hz control run). */
+  /**
+   * `nearM`: the far rule's radius. Default HORDE_NEAR_M = Infinity (B7: off, every zombie at 20 Hz);
+   * tests and tools pass HORDE_FAR_RULE_RADIUS_M (8 m) to run the far rule.
+   */
   constructor(
     private readonly capacity = ZOMBIE_POOL_CAPACITY,
     nearM = HORDE_NEAR_M,

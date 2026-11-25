@@ -389,6 +389,14 @@ All three match the builder's figures.
 
 `b1100d3` (8.1 hooks) read: `resetHordeStream` clears `hasBase` / `inSet` and forces a key, and `forgetClient` deletes from the WeakMap. The test covers a re-attach on the same object, a new phone decoding with 0 errors, and forget. No finding.
 
+### Re-review 1 follow-ups (builder, 2026-11-25)
+
+| Id | Fix | Test |
+| --- | --- | --- |
+| RR1 | Source check that `RunRoom` builds `new HordeEncoder()` with no radius (B7 in the game); mutation `new HordeEncoder(undefined, 8)` fails it. | `tools/checks/hordeNearRadiusWiring.test.ts > RunRoom builds the horde encoder with the game default (B7) > \`new HordeEncoder()\` with no arguments, and no other construction` |
+| RR2 | Absolute pin `on.starved ≤ 300` over seeds 1–9 (measured 277) beside the 1.7× ratio. | `tools/netsim/smooth.test.ts > netsim: smooth through hiccups (Story 8.9) > beat the rule 3: …` |
+| RR3 | Stale D1-default comments fixed (`hordeEncoder.ts` class + constructor, `hitsSim.ts` `hordeNearM`, `smoothRun.ts` header). | comments only |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
@@ -396,3 +404,4 @@ All three match the builder's figures.
 - 2026-11-25: senior developer review (AI): changes requested — RM1, RM2 (medium), RL1–RL3 (low); B2 judged pre-existing client behaviour (accept as logged); status in-progress.
 - 2026-11-25: review fixes RM1, RM2 (→ B7), RL1–RL3; master 02e7d8c merged; status review (RM1/RM2 to a narrow re-review).
 - 2026-11-25: narrow re-review 1 (fresh reviewer): RM1/RM2 fixed; RR1 low (room encoder unpinned; mutation survives), RR2 low (absolute starved pin), RR3/RR4 nits; seed change judged honest.
+- 2026-11-25: re-review 1 approved; RR1–RR3 (tests/comments only); master ad9388f merged.

@@ -108,8 +108,8 @@ export interface Options {
   /** Story 8.9 (beat the rule 4): a fixed step rate instead of the pacing rule (e.g. 0.5 = a client slowing on purpose). */
   stepRate?: number;
   /**
-   * Story 8.10: the near radius of the real horde stream (default HORDE_NEAR_M; Infinity = every
-   * zombie at 20 Hz, the control run that isolates the 10 Hz far rule from the harness switch).
+   * Story 8.10: the near radius of the real horde stream (default HORDE_NEAR_M = Infinity since B7:
+   * every zombie at 20 Hz, as in the game; HORDE_FAR_RULE_RADIUS_M = 8 runs the 10 Hz far rule).
    */
   hordeNearM?: number;
 }

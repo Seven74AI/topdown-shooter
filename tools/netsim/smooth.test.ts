@@ -114,6 +114,7 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
     // Starved ticks: the backlog no longer sits 2 s as cover for the next stall (Story 2.4's trade-off): recorded,
     // bounded so a regression shows (measured +41–61 %, AC "± 10 %" not met, accepted as 8.9 B7: docs/network-pass-decisions.md).
     expect(on.starved).toBeLessThanOrEqual(off.starved * 1.7);
+    expect(on.starved).toBeLessThanOrEqual(300); // re-review RR2: an absolute pin over seeds 1–9 (measured 277)
   }, 60_000);
 
   it("beat the rule 4: a client that slows to 0.5× on purpose only starves its own survivor: no speed-up, no extra shots", () => {

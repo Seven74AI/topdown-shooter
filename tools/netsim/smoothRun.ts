@@ -5,7 +5,7 @@
  *   npx tsx tools/netsim/smoothRun.ts [seconds=60] [seeds=3]
  *
  * One JSON line per row (case × line), summed over the seeds. Story 8.10: the horde is drawn through the real
- * stream (encoder → stream decoder → HordeBuffer); `HORDE_NEAR_M=Infinity` in the env runs the all-20 Hz control.
+ * stream (encoder → stream decoder → HordeBuffer); every zombie at 20 Hz as in the game (B7); `HORDE_NEAR_M=8` in the env runs the 10 Hz far rule.
  */
 import { simulate, type Options } from "./hitsSim";
 
