@@ -6,6 +6,9 @@ import {
   MAX_ROOM_CREATES_PER_MIN,
   NEW_GUEST_WINDOW_MS,
   ROOM_CREATE_WINDOW_MS,
+  MAX_UNLOCKS_PER_ACCOUNT_PER_MIN,
+  MAX_UNLOCK_CALLS_PER_IP_PER_MIN,
+  UNLOCK_WINDOW_MS,
 } from "./limits";
 
 /**
@@ -117,6 +120,12 @@ export const newGuestLimiter = new SlidingWindowLimiter(MAX_NEW_GUESTS_PER_HOUR,
 
 /** Story 7.1 review L4: every `/account/session` call per client IP per minute (before any database work). */
 export const accountSessionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_SESSIONS_PER_MIN, ACCOUNT_SESSION_WINDOW_MS, Date.now, ipKey);
+
+/** Story 7.3: `/account/unlock` calls per client IP per minute (before any database work). */
+export const unlockIpLimiter = new SlidingWindowLimiter(MAX_UNLOCK_CALLS_PER_IP_PER_MIN, UNLOCK_WINDOW_MS, Date.now, ipKey);
+
+/** Story 7.3 (AC 5): `/account/unlock` calls per account (id) per minute. */
+export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACCOUNT_PER_MIN, UNLOCK_WINDOW_MS, Date.now, (key) => key);
 
 /** Story 7.1 review L4: a rate-limit warning is logged at most once per IP and kind per minute (a flood can't push real logs out). */
 export const rateLimitLogGate = new SlidingWindowLimiter(1, ACCOUNT_SESSION_WINDOW_MS, Date.now, (key) => key);

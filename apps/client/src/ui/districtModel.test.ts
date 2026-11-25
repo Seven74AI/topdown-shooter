@@ -57,3 +57,12 @@ describe("Story 7.7: district cards", () => {
     }
   });
 });
+
+describe("Story 7.7 AC 7 (D2): the hub's Districts line", () => {
+  it("unlocked · coming soon, or how to unlock it; nothing before progress is known", async () => {
+    const { districtsLine } = await import("./hubModel");
+    expect(districtsLine(null)).toBe("");
+    expect(districtsLine({ supplies: 0, lifetimeSupplies: 0, unlocks: [] })).toBe("District 2: extract from Downtown to unlock");
+    expect(districtsLine({ supplies: 0, lifetimeSupplies: 0, unlocks: [], districts: ["district_2"] })).toBe("District 2: unlocked · coming soon");
+  });
+});

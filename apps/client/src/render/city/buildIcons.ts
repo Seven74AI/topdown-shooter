@@ -711,3 +711,27 @@ export function ensureBuildIcons(scene: Phaser.Scene, makeCanvas: () => HTMLCanv
     },
   );
 }
+
+const iconUrls = new Map<string, string>();
+
+/**
+ * Story 7.3 (AC 7): building `type`'s build-bar icon as a PNG data URL for the DOM Progress hub (drawn once, cached;
+ * a DOM image, not a Phaser texture, like the shop's weapon icons), or null (no icon for the type, or no canvas).
+ */
+export function buildingIconUrl(type: string, makeCanvas: () => HTMLCanvasElement = () => document.createElement("canvas")): string | null {
+  const frame = buildIconFrame(type);
+  const icon = frame === null ? undefined : BUILD_ICONS.find((i) => i.frame === frame);
+  if (!icon || typeof document === "undefined") return null;
+  const hit = iconUrls.get(type);
+  if (hit) return hit;
+  const r = { frame: icon.frame, x: 0, y: 0, w: BUILD_ICON_FRAME_W * BUILD_ICON_BAKE_SCALE, h: BUILD_ICON_FRAME_H * BUILD_ICON_BAKE_SCALE };
+  const cv = makeCanvas();
+  cv.width = r.w;
+  cv.height = r.h;
+  const g = cv.getContext("2d");
+  if (!g) return null;
+  paintBuildIcon(g, icon.draw, r);
+  const url = cv.toDataURL("image/png");
+  iconUrls.set(type, url);
+  return url;
+}

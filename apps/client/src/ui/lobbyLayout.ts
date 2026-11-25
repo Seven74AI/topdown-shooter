@@ -35,6 +35,8 @@ export const CARD_PICTURE_MAX = 168;
 /** Header and button widths as a share of the content width (min widths keep labels readable). */
 const CODE_SHARE = 0.27;
 const LEAVE_W = 92;
+/** Story 7.3 (D2): the Progress button, left of Leave in the header. */
+export const LOBBY_PROGRESS_W = 104;
 const SIDE_BUTTON_SHARE = 0.18;
 const MAIN_BUTTON_SHARE = 0.24;
 
@@ -51,6 +53,8 @@ export interface LobbyLayout {
   readonly code: Rect;
   readonly district: Rect;
   readonly leave: Rect;
+  /** Story 7.3: Progress (opens the hub), left of Leave. */
+  readonly progress: Rect;
   readonly cards: readonly LobbyCardLayout[];
   readonly copy: Rect;
   readonly share: Rect;
@@ -74,7 +78,8 @@ export function lobbyLayout(width: number, height: number, inset: Insets): Lobby
   const codeW = Math.max(112, cw * CODE_SHARE);
   const code = r(x0, y0, codeW, LOBBY_HEADER_H);
   const leave = r(x0 + cw - LEAVE_W, y0, LEAVE_W, LOBBY_HEADER_H);
-  const district = r(code.x + code.w + LOBBY_GAP, y0, leave.x - LOBBY_GAP - (code.x + code.w + LOBBY_GAP), LOBBY_HEADER_H);
+  const progress = r(leave.x - LOBBY_GAP - LOBBY_PROGRESS_W, y0, LOBBY_PROGRESS_W, LOBBY_HEADER_H);
+  const district = r(code.x + code.w + LOBBY_GAP, y0, progress.x - LOBBY_GAP - (code.x + code.w + LOBBY_GAP), LOBBY_HEADER_H);
 
   const by = y0 + ch - LOBBY_BUTTONS_H;
   const sideW = Math.max(84, cw * SIDE_BUTTON_SHARE);
@@ -97,7 +102,7 @@ export function lobbyLayout(width: number, height: number, inset: Insets): Lobby
     const name = r(card.x, card.y + picH + CARD_BAR_H, card.w, CARD_NAME_H);
     cards.push({ card, picture, bar, name });
   }
-  return { content, code, district, leave, cards, copy, share, ready, start, sheet: districtSheet(r(x0, cy, cw, cardH)) };
+  return { content, code, district, leave, progress, cards, copy, share, ready, start, sheet: districtSheet(r(x0, cy, cw, cardH)) };
 }
 
 /** Story 7.7 (DP2 sheet): district cards a row can hold (Downtown, District 2, Epic 11's Random city). */
@@ -114,6 +119,6 @@ export function districtSheet(area: Rect): { panel: Rect; cards: Rect[] } {
 }
 
 /** Every tap target of the layout (the R9 test checks each is ≥ 44 px). */
-export const lobbyButtons = (l: LobbyLayout): Rect[] => [l.leave, l.copy, l.share, l.ready, l.start, l.district]; // Story 7.7: the district line opens the sheet
+export const lobbyButtons = (l: LobbyLayout): Rect[] => [l.leave, l.progress, l.copy, l.share, l.ready, l.start, l.district]; // Story 7.7: the district line opens the sheet
 
 export const MIN_LOBBY_BUTTON = MIN_BUTTON_CSS_PX;

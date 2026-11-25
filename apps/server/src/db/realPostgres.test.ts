@@ -11,6 +11,9 @@ import { PG_QUERY_TIMEOUT_MS, openPostgres, type Database } from "./client";
 import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { countRunRewards } from "./testQueries";
+import { RequestMemo, buyUnlock } from "../auth/unlock";
+import { SlidingWindowLimiter } from "../net/rateLimit";
+import { hashGuestToken } from "../run/lobby";
 
 /**
  * Story 7.2 review L1 + M1 (brief 18, 20): banking on a REAL PostgreSQL (the PGlite tests run on one connection, so
@@ -270,4 +273,83 @@ describe.skipIf(!URL)("Story 7.2: banking on real PostgreSQL (TEST_DATABASE_URL)
       await db2.close().catch(() => {});
     }
   }, 40_000);
+});
+
+describe.skipIf(!URL)("Story 7.3: unlocks on real PostgreSQL (TEST_DATABASE_URL)", () => {
+  let db7: Database;
+  beforeAll(async () => {
+    db7 = openPostgres(URL as string);
+    await migrateDb({ kind: "postgres", db: await db7.db() });
+  });
+  afterAll(async () => db7?.close());
+  const acct = async (supplies: number) => {
+    const a = await accountsRepo(db7).createGuest(randomUUID().replace(/-/g, "").padEnd(64, "b"), "Bo");
+    if (supplies > 0) await progressRepo(db7).addSupplies(randomUUID(), a.id, () => ({ supplies, breakdown: {} }));
+    return a;
+  };
+
+  it("brief 18: two different items at once with Supplies for one → exactly one unlocked + one not_enough, ×10", async () => {
+    for (let k = 0; k < 10; k++) {
+      const a = await acct(350);
+      const repo = progressRepo(db7);
+      const rs = await Promise.all([repo.unlock(a.id, "gas_torch", 350), repo.unlock(a.id, "med_station", 300)]);
+      expect(rs.map((r) => r.outcome).sort()).toEqual(["not_enough", "unlocked"]);
+      const row = await repo.get(a.id);
+      expect(row?.unlocks.length).toBe(1);
+      expect(row?.supplies).toBe(row?.unlocks[0] === "gas_torch" ? 0 : 50);
+    }
+  });
+
+  it("the same item ×10 at once → one unlocked, nine already_unlocked, charged once", async () => {
+    const a = await acct(1000);
+    const repo = progressRepo(db7);
+    const rs = await Promise.all(Array.from({ length: 10 }, () => repo.unlock(a.id, "mine", 100)));
+    expect(rs.filter((r) => r.outcome === "unlocked").length).toBe(1);
+    expect(rs.filter((r) => r.outcome === "already_unlocked").length).toBe(9);
+    expect(await repo.get(a.id)).toMatchObject({ supplies: 900, unlocks: ["mine"] });
+  });
+
+  it("a bank and an unlock at once both land (Supplies add up exactly)", async () => {
+    const a = await acct(100);
+    const repo = progressRepo(db7);
+    await Promise.all([repo.unlock(a.id, "spike_trap", 100), repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 40, breakdown: {} }))]);
+    const row = await repo.get(a.id);
+    // either order: the unlock saw 100 or 140 → bought; 100 + 40 − 100 = 40
+    expect(row).toMatchObject({ supplies: 40, unlocks: ["spike_trap"] });
+  });
+
+  it("the 7.2 M1 bound: a row locked 3 s → the unlock fails inside 2 s and never commits later", async () => {
+    const a = await acct(500);
+    const repo = progressRepo(db7);
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [a.id]);
+    await expect(repo.unlock(a.id, "bear_trap", 100)).rejects.toThrow();
+    await new Promise((res) => setTimeout(res, 1500));
+    await c.query("commit");
+    await c.end();
+    await new Promise((res) => setTimeout(res, 500));
+    expect(await repo.get(a.id)).toMatchObject({ supplies: 500, unlocks: [] });
+  }, 15_000);
+
+  it("review F1 (route level): DB slower than 2 s — row locked 2.5 s by another session → 503 AND the row unchanged afterwards", async () => {
+    const token = randomUUID().replace(/-/g, "");
+    const a = await accountsRepo(db7).createGuest(hashGuestToken(token), "Cy");
+    const repo = progressRepo(db7);
+    await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 300, breakdown: {} }));
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [a.id]);
+    const release = new Promise<void>((res) => setTimeout(() => void c.query("commit").then(() => c.end()).then(() => res()), 2500));
+    const out = await buyUnlock(
+      { cookieToken: token, unlockId: "chainsaw", requestId: randomUUID(), ip: "10.0.0.1" },
+      { accounts: accountsRepo(db7), progress: repo, ipLimiter: new SlidingWindowLimiter(99, 60_000), accountLimiter: new SlidingWindowLimiter(99, 60_000), logGate: new SlidingWindowLimiter(1, 60_000), requests: new RequestMemo() },
+    );
+    expect(out).toEqual({ status: 503, error: "save_unavailable" });
+    await release;
+    await new Promise((res) => setTimeout(res, 500)); // any late commit would have landed by now
+    expect(await repo.get(a.id)).toMatchObject({ supplies: 300, unlocks: [] });
+  }, 15_000);
 });

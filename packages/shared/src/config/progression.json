@@ -25,6 +25,150 @@
       "multiplier": 2
     }
   },
+  "unlocks": [
+    {
+      "id": "assault_rifle",
+      "category": "weapon",
+      "price": 200,
+      "items": [
+        "assault_rifle"
+      ],
+      "line": "Fast-firing rifle, good at any range"
+    },
+    {
+      "id": "chainsaw",
+      "category": "weapon",
+      "price": 300,
+      "items": [
+        "chainsaw"
+      ],
+      "line": "Close-range shredder for crowds"
+    },
+    {
+      "id": "gas_torch",
+      "category": "weapon",
+      "price": 350,
+      "items": [
+        "gas_torch"
+      ],
+      "line": "Short, wide cone of fire"
+    },
+    {
+      "id": "flamethrower",
+      "category": "weapon",
+      "price": 400,
+      "items": [
+        "flamethrower"
+      ],
+      "line": "Long, narrow jet of burning fuel"
+    },
+    {
+      "id": "grenade_launcher",
+      "category": "weapon",
+      "price": 500,
+      "items": [
+        "grenade_launcher"
+      ],
+      "line": "Lobs explosive rounds over cover"
+    },
+    {
+      "id": "spike_trap",
+      "category": "building",
+      "price": 100,
+      "items": [
+        "spike_trap"
+      ],
+      "line": "Hurts every zombie that walks over it"
+    },
+    {
+      "id": "bear_trap",
+      "category": "building",
+      "price": 100,
+      "items": [
+        "bear_trap"
+      ],
+      "line": "Catches a zombie and holds it"
+    },
+    {
+      "id": "mine",
+      "category": "building",
+      "price": 100,
+      "items": [
+        "mine"
+      ],
+      "line": "Blows up under the first zombie"
+    },
+    {
+      "id": "floodlight",
+      "category": "building",
+      "price": 120,
+      "items": [
+        "floodlight"
+      ],
+      "line": "Lights up a corner in the dark"
+    },
+    {
+      "id": "barricade_upgrades",
+      "category": "building",
+      "price": 150,
+      "items": [
+        "reinforced_barricade",
+        "metal_barricade"
+      ],
+      "line": "Make wood barricades reinforced, then metal"
+    },
+    {
+      "id": "med_station",
+      "category": "building",
+      "price": 300,
+      "items": [
+        "med_station"
+      ],
+      "line": "Heals survivors standing next to it"
+    },
+    {
+      "id": "tactical_flashlight",
+      "category": "gear",
+      "price": 100,
+      "items": [
+        "tactical_flashlight"
+      ],
+      "line": "Wider, longer light in the dark"
+    },
+    {
+      "id": "body_armor_2",
+      "category": "gear",
+      "price": 250,
+      "items": [
+        "body_armor_2"
+      ],
+      "line": "+50 max HP (Body armor I gives +25)"
+    },
+    {
+      "id": "molotovs",
+      "category": "consumable",
+      "price": 150,
+      "items": [
+        "molotovs"
+      ],
+      "line": "Throw fire that burns for a few seconds"
+    }
+  ],
+  "starterLines": {
+    "pistol": "Your sidearm: never runs dry",
+    "machete": "Quick blade for close calls",
+    "fire_axe": "Slow, heavy swing that knocks zombies back",
+    "shotgun": "Wide blast up close",
+    "smg": "Sprays fast at short range",
+    "hunting_rifle": "Long-range shot that goes through a line",
+    "body_armor_1": "+25 max HP",
+    "running_shoes": "Run 10% faster",
+    "revive_kit": "Revive a downed friend faster",
+    "wood_barricade": "Blocks zombies and bullets",
+    "auto_turret": "Shoots the nearest zombie on its own",
+    "medkit": "Heals 50 HP",
+    "grenades": "Throw a blast at a crowd"
+  },
   "districts": [
     {
       "id": "downtown",
