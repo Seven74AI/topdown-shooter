@@ -134,6 +134,8 @@ Claude (gds-dev-story, autonomous overnight run, 2026-11-25). The client part (T
 
 Gate 2026-11-25: tree `48316a9` (branch story-8-2-3 with master `06e8356` merged in `ecc022f`): `npm run typecheck` ✓, `npm run lint` ✓, `npm test` ✓ (529 files passed / 4 skipped; 4,772 tests passed / 31 skipped), `npm run build` ✓, `REQUIRE_DIST=1 npx vitest run tools/checks/noCheatsInRelease.test.ts` ✓ (3/3). Load 2.1 → 4.4 (4 cores) over the 9.5 min gate. The first gate run at `ecc022f` failed 17 tests in 3 files (run-state shape, the Players layout harness, wireCover seed 3); fixed in `48316a9` and the whole gate rerun.
 
+Review-fix gate 2026-11-25 (new process, PR #10): head `f5f45977` (master `9bbc612f`+ merged): `npm run gate:fast` ✓ (typecheck, lint, test:fast 462 files / 4,484 tests passed, release:check incl. noCheatsInRelease ✓); the slow files touched: RunRoom latejoin/host/rewards/reconnect/test/account + tools/bots + playersMenuDomLayout ✓ (11 files, 140 tests). PR #9 CI on `f5f45977`: all 8 checks green (gate, static, release, docker, test shards 1–4).
+
 ### Debug Log References
 
 - Spitter fix test first failed for a test reason (the build-start heal reset the camper's HP to 100 → a wipe); fixed by setting HP after the wave starts.
