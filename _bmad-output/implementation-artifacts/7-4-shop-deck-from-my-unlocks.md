@@ -139,6 +139,8 @@ Claude (cloud builder session, story-7-4-5).
 
 **Gate (R6):** commit `1d7a1c18` (branch `story-7-4-5` = story-7-3 `18a328ad` + this story, merged with master `c26d1bcf`: 7.1 + 7.2 + 8.1) — `npm run typecheck && npm run lint && npm test && npm run build` all green: **466 test files / 4,238 tests passed, 3 files / 23 tests skipped** (opt-in real-PostgreSQL and the other env-gated files), build ok; 8 min 14 s wall, load average 1.9 → 3.1 on 4 cores (no other job). The commit after it only fills this line (docs).
 
+**Gate after the 7.3+7.9 merge (landing gate):** commit `62c817f8` (review fixes c345d13e + master `99ac898f`: 7.3 merged with 7.9) — typecheck, lint, test, build all green: **480 test files / 4,361 tests passed, 3 files / 23 tests skipped**, build ok; 8 min 23 s, load average 1.9 → 4.3 on 4 cores (no other job). Merge notes: `look` (7.9) first, then `unlocks` + the four Training fields in RunState / stateView / fakeRoom; the session's one `progress` object carries `training` next to `look`; the lobby keeps 7.9's SC3 layout with "Starting…" folded into its Start button.
+
 ### Tasks → tests (R1: "file > test name")
 
 7.4
