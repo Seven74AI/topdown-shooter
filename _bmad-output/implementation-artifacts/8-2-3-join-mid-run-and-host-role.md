@@ -252,6 +252,28 @@ Gate 2026-11-25: tree `48316a9` (branch story-8-2-3 with master `06e8356` merged
 - `tools/checks/playersMenuDomLayout.test.ts`
 - `tools/netaudit/smokeLateJoin.cjs`
 
+### Review fixes (PR #9, review of f4d4120: 3 H / 6 M / 6 L + nits)
+
+- **H1** reused player id after a Remove: seats have a generation (`Member.seatGen`, kept across takeover/hold/remembered); `RunBank` keys banks, results, deliveries, top-ups and the loot finder by `playerId#seatGen` (`seatIdOf`); a new occupant resets its slot's card offer (`shop.build[slot] = −1`) and its loot "banked" mark (shared `addLatePlayer`). Tests: `RunRoom.rewards.test.ts` > "H1: Di is removed, Eve joins into Di's player id → … Eve banks on HER account and sees HER rewards"; `banking.test.ts` > "H1: two seats with the same player id … bank and deliver separately".
+- **H2** top-up: grants against the stored stats (no second delta) and keeps the first bank's loot (never a second item). Test: `runRewards.test.ts` > "review H2: a top-up never grants a second loot item and never adds the stats twice".
+- **H3** waiting-only Results → lobby with a host (`onLobbyReturn` → `moveHostIfGone`). Test: `RunRoom.latejoin.test.ts` > "the waiting joiner goes back to the lobby as host and can Start".
+- **M1** top-up rookie sees the lifetime before this run; with no Supplies difference new items/districts are still granted. Test: `runRewards.test.ts` > "review M1: …".
+- **M2** a still-waiting member gets a zero `not_saved` result at the run end (`RunBank.nothingFor`). Test: `RunRoom.rewards.test.ts` > "M2: …".
+- **M3** a held/remembered seat that was removed: recovery answer `removed` → `onLost("removed")`; a reload shows the removed notice. Tests: `reconnect.test.ts` > "Story 8.3 review M3: removed stops at once and says so", `lobbyStore.reconnect.test.ts` > "Story 8.3 review M3: a held seat the host removed …", `recoveryFailure.test.ts`, wiring `lateJoinHostWiring.test.ts` (resumeSavedSeat).
+- **M4** the late-join average is computed once before the enter loop. Test: `RunRoom.latejoin.test.ts` > "both get the money from the team's average before either entered (avg 900 → 640 each), and one offer each".
+- **M5** the host is a seat (`hostKeyOf`: playerId + joinOrder); `restoreRemembered` ends with `moveHostIfGone("returned")` + `updateFreeze()`; the Remove check uses the host seat. Test: `RunRoom.host.test.ts` > "review M5: the old host leaves while the only teammate is held, then comes back into the same slot: host_changed, never silently".
+- **M6** accepted risk → decision 8.3-B14 (no code).
+- **L1** bank generation per seat (a stale in-flight Leave result after `reopen` is never delivered). Test: `banking.test.ts` > "L1: …".
+- **L2** the replay `join` carries unlocks/Training. Test: `player/lateJoin.test.ts` > "a join command with unlocks + Training replays a survivor with them".
+- **L3** `run.joinPending` holds the all-Ready early start while a build-phase join loads (timer runs; out of `snapshotWorld` while false). Tests: `player/lateJoin.test.ts` > "everyone Ready + joinPending → …", `RunRoom.latejoin.test.ts` > "Ana Ready while Bo's start data loads → …" (mutated: fails).
+- **L4** kept (decision 8.2-B16).
+- **L5** fix A after an 8 s stand-off, sampled every 10 ticks (decision 8.2-B15; `waves.json › spitterStall`; `WaveState.spitterStallSinceTick`, out of `snapshotWorld` while −1). Tests: `spitterDeadlock.test.ts` > "review L5: the rush waits for the stand-off to last … not after 7 s, yes by 9 s", "… a brief all-holding moment broken by a walker starts the 8 s over" (mutated: both fail).
+- **L6** `playersMenuDomLayout` fails (never skips) with `REQUIRE_BROWSER=1`; new case "Players list with a seat that left".
+- **Nits:** queued > 0 never rushes (test "nit: zombies still queued …"); the build-start offer is sent once (the M4 test checks one offer each); `enterWaiting` no longer moves the host (no `host_changed` there); stale comments fixed (`startRun` maxClients, `recoveryFailure`); `player.left` goes to everyone except the removed phone; a late joiner's look is checked against its owned parts once they load.
+- Test leak (pre-existing, found by H1's test): `RunRoom.rewards.test.ts` "database down" restored the room accounts without `checkTicketRows: false`, so later ticketed joins lost their account.
+- Mutations of the fixes: H1, H2 (×2), M1, H3, M2, M5, L1, L3, L5: each fails its test.
+
 ### Change Log
 
+- 2026-11-25: PR #9 review fixes (H1–H3, M1–M5, L1–L6, nits; decisions 8.3-B14, 8.2-B15, 8.2-B16).
 - 2026-11-25: Story 8.2+8.3 built (join mid-run, waiting, late money, +15 s, host move, Remove, bans, disown, top-up, client UI, bots, smoke) + Spitter deadlock fix A; designer accepted all 33 Epic 8 decisions; builder decisions 8.2-B1…8.3-B13 auto-accepted overnight. Status → review.
