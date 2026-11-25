@@ -184,6 +184,7 @@ Claude (claude-code-remote builder session, gds-dev-story), 2026-11-25 overnight
 - Full gate on `2981875` (master `b0e491a` merged): `npm run typecheck && npm run lint && npm test && npm run build` green: 400 test files passed (1 skipped), 3681 tests passed (3 skipped), build ok; load 0.43 at start, 4.52 at the end (one builder plus the parallel 8.8 session's container is separate).
 - After cherry-picking 8.8's harness `loss` (`3d430fc`) and the docs update: `npm run typecheck` ok, `npm run lint` ok, tests in `tools/netsim`, `tools/netaudit`, `tools/checks`, `apps/client/src/net`, `apps/client/src/sim`: 70 files / 427 tests passed (3 skipped); load 0.5–2.4. No full gate re-run (harness-only change).
 - After merging story-8-8 (c1c5ef1) and the T10 constants: `npm run typecheck` ok, `npm run lint` ok; tests in `tools`, `packages/shared/src/combat`, `apps/server/src/{run,rooms,net}`, `apps/client/src/{net,sim,debug}`: 173 files / 1172 tests passed (3 skipped); load 1.8–2.8. Full gate left to the main session (as asked).
+- After the review fixes (5cbcfd6, story-8-8 008df68 and master b0e491a merged): full gate `npm run typecheck && npm run lint && npm test && npm run build` green: 403 test files passed (1 skipped), 3715 tests passed (3 skipped), build ok; load 0.57 at start, 3.95 at the end.
 
 ### Completion Notes List
 
