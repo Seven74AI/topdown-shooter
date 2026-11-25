@@ -3,6 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
+  NET_PROTOCOL_VERSION,
   DOWNTOWN_MAP,
   C2S,
   NEUTRAL_INPUT,
@@ -38,6 +39,7 @@ const createOptions = (over: Record<string, unknown> = {}) => ({
   name: "Ana",
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken: newToken(),
   ...over,
 });
@@ -134,6 +136,21 @@ describe("RunRoom", () => {
       expect(bad.message).toBe("invalid_options");
     }
     const ok = await colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: DOWNTOWN_MAP.version }));
+    expect(ok.roomId).toBeTruthy();
+    await ok.leave();
+  });
+
+  it("Story 8.10 (F5, brief 19): a client with another wire format, or a pre-8.10 tab without one, is refused at join as update_required; the right one joins", async () => {
+    for (const netProtocolVersion of [undefined, NET_PROTOCOL_VERSION - 1, NET_PROTOCOL_VERSION + 1, 0]) {
+      const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion })));
+      expect(e.code).toBe(JOIN_REFUSED_CODE);
+      expect(e.message).toBe("update_required");
+    }
+    for (const netProtocolVersion of ["2", 2.5, -1, 70_000]) {
+      const bad = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion })));
+      expect(bad.message).toBe("invalid_options");
+    }
+    const ok = await colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion: NET_PROTOCOL_VERSION }));
     expect(ok.roomId).toBeTruthy();
     await ok.leave();
   });

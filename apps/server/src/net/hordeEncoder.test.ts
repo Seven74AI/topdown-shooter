@@ -14,7 +14,8 @@ import {
   createWorld,
   killZombie,
   loadBalance,
-  readHordeFrame,
+  HORDE_KIND_KEY,
+  HordeStreamDecoder,
   setInput,
   snapshotWorld,
   spawnZombie,
@@ -34,11 +35,23 @@ class FakeClient {
   readonly ref = { bufferedAmount: 0 };
   state: number = ClientState.JOINED;
   readonly frames: Uint8Array[] = [];
+  /** Story 8.10: each frame through the phone's stream decoder (keys and deltas), as full frames. */
+  readonly stream = new HordeStreamDecoder();
+  readonly decoded: { tick: number; recs: Rec[] }[] = [];
   sendBytes(type: number, bytes: Uint8Array): void {
     expect(type).toBe(BYTES.HORDE_FRAME);
     this.frames.push(bytes.slice()); // the encoder reuses its buffer
+    const out = { tick: -1, recs: [] as Rec[] };
+    expect(this.stream.decode(bytes, collect(out))).toBe(true);
+    this.decoded.push(out);
   }
 }
+
+const collect = (out: { tick: number; recs: Rec[] }): HordeSink => ({
+  begin: (tick) => (out.tick = tick),
+  record: (_i, netId, x, y, heading, typeState) => out.recs.push({ netId, x, y, heading, typeState }),
+  end: () => {},
+});
 
 interface Rec {
   netId: number;
@@ -46,16 +59,6 @@ interface Rec {
   y: number;
   heading: number;
   typeState: number;
-}
-function decode(bytes: Uint8Array): { tick: number; recs: Rec[] } {
-  const out = { tick: -1, recs: [] as Rec[] };
-  const sink: HordeSink = {
-    begin: (tick) => (out.tick = tick),
-    record: (_i, netId, x, y, heading, typeState) => out.recs.push({ netId, x, y, heading, typeState }),
-    end: () => {},
-  };
-  expect(readHordeFrame(bytes, sink)).toBe(true);
-  return out;
 }
 
 function setup(px = 24, py = 16): { world: World; enc: HordeEncoder; client: FakeClient } {
@@ -76,7 +79,7 @@ describe("HordeEncoder", () => {
     const stats = newHordeStats();
     enc.prepare(world);
     enc.send(world, client, stats, 24, 16);
-    expect(slots(decode(client.frames[0] as Uint8Array).recs)).toEqual([inside, inMargin]);
+    expect(slots((client.decoded[0] as { tick: number; recs: Rec[] }).recs)).toEqual([inside, inMargin]);
     expect(outside).toBeGreaterThan(0);
 
     // Player near the left wall: the view is clamped (x ∈ [-4, 28]); a rusher at x = 45 still comes, once.
@@ -89,7 +92,7 @@ describe("HordeEncoder", () => {
     spawnZombie(w2.world, "walker", 40, 16); // plain walker far away: not sent
     w2.enc.prepare(w2.world);
     w2.enc.send(w2.world, w2.client, newHordeStats(), 2, 16);
-    const recs = decode(w2.client.frames[0] as Uint8Array).recs;
+    const recs = (w2.client.decoded[0] as { tick: number; recs: Rec[] }).recs;
     expect(slots(recs)).toEqual([near, rusher, rushInside].sort((a, b) => a - b));
     const r = recs.find((x) => (x.netId & 0xff) === rusher) as Rec;
     expect(stateOfTypeState(r.typeState)).toBe(ZOMBIE_STATE.RUSH);
@@ -104,7 +107,7 @@ describe("HordeEncoder", () => {
     world.zombies.state[far] = ZOMBIE_STATE.RUSH_WINDUP;
     enc.prepare(world);
     enc.send(world, client, newHordeStats(), 2, 16);
-    const recs = decode(client.frames[0] as Uint8Array).recs;
+    const recs = (client.decoded[0] as { tick: number; recs: Rec[] }).recs;
     expect(slots(recs)).toEqual([near, far].sort((a, b) => a - b));
     for (const [id, st] of [
       [near, ZOMBIE_STATE.WINDUP],
@@ -125,11 +128,11 @@ describe("HordeEncoder", () => {
     expect(enc.send(world, client, stats, 24, 16)).toBe(0);
     expect(enc.send(world, client, stats, 24, 16)).toBe(0);
     expect(client.frames).toHaveLength(0);
-    expect(stats).toEqual({ framesSent: 0, framesSkipped: 2, bytesSent: 0 });
+    expect(stats).toEqual({ framesSent: 0, framesSkipped: 2, bytesSent: 0, keyframes: 0 });
     client.ref.bufferedAmount = 0;
-    expect(enc.send(world, client, stats, 24, 16)).toBe(14);
+    expect(enc.send(world, client, stats, 24, 16)).toBe(15);
     expect(client.frames).toHaveLength(1);
-    expect(stats).toEqual({ framesSent: 1, framesSkipped: 2, bytesSent: 14 + COLYSEUS_BYTES_HEADER });
+    expect(stats).toEqual({ framesSent: 1, framesSkipped: 2, bytesSent: 15 + COLYSEUS_BYTES_HEADER, keyframes: 1 });
   });
 
   it("skips frames for a client that isn't JOINED (Colyseus would queue them)", () => {
@@ -162,13 +165,19 @@ describe("HordeEncoder", () => {
     expect(run(true)).toEqual(run(false));
   });
 
-  it("sends empty frames (6 bytes) with the tick", () => {
+  it("sends empty frames with the tick (Story 8.10: a 7-byte keyframe, as an empty 9-byte delta would not be smaller)", () => {
     const { world, enc, client } = setup();
     step(world, TICK_DT_S);
     enc.prepare(world);
     enc.send(world, client, newHordeStats(), 24, 16);
-    expect(client.frames[0]?.length).toBe(6);
-    expect(decode(client.frames[0] as Uint8Array).tick).toBe(world.tick);
+    expect(client.frames[0]?.length).toBe(7);
+    expect((client.decoded[0] as { tick: number; recs: Rec[] }).tick).toBe(world.tick);
+    step(world, TICK_DT_S);
+    enc.prepare(world);
+    enc.send(world, client, newHordeStats(), 24, 16);
+    expect(client.frames[1]?.length).toBe(7);
+    expect(client.frames[1]?.[4]).toBe(HORDE_KIND_KEY);
+    expect(client.decoded[1]?.tick).toBe(world.tick);
   });
 
   it("headings follow movement, hold when still, and reset with a new generation", () => {
@@ -184,7 +193,7 @@ describe("HordeEncoder", () => {
     z.prevY[id] = 16.1; // standing still: keeps 64
     enc.prepare(world);
     enc.send(world, client, newHordeStats(), 24, 16);
-    expect(client.frames.map((f) => decode(f).recs[0]?.heading)).toEqual([64, 64]);
+    expect(client.decoded.map((f) => f.recs[0]?.heading)).toEqual([64, 64]);
 
     // Kill, wait out the hold, reuse the slot: new generation, heading not inherited.
     const gen0 = z.generation[id] as number;
@@ -194,12 +203,12 @@ describe("HordeEncoder", () => {
     expect(again).toBe(id);
     enc.prepare(world);
     enc.send(world, client, newHordeStats(), 24, 16);
-    const rec = decode(client.frames[2] as Uint8Array).recs[0] as Rec;
+    const rec = (client.decoded[2]?.recs[0] as Rec);
     expect(zombieGenerationOfNetId(rec.netId)).toBe((gen0 + 1) & 0xff);
     expect(rec.heading).toBe(0);
   });
 
-  it("150 Walkers in view cost at most 24 KB/s per client at 20 Hz", () => {
+  it("150 Walkers in view: keyframes alone (today's frame) were 24.2 KB/s; Story 8.10's stream (all near, all moving: the jam worst case) is ≤ 12 KB/s and decodes to the full frame", () => {
     const { world, enc, client } = setup(24, 16);
     world.debug.godMode = true;
     const rng = createRng(150);
@@ -213,11 +222,12 @@ describe("HordeEncoder", () => {
       wire += COLYSEUS_BYTES_HEADER + enc.send(world, client, stats, p?.x ?? 24, p?.y ?? 16);
     }
     expect(world.zombies.aliveCount).toBe(150);
-    expect(decode(client.frames[19] as Uint8Array).recs).toHaveLength(150);
-    console.log(`[horde bandwidth] 150 Walkers in view, 20 frames: ${wire} B/s per client`);
+    expect(client.decoded[19]?.recs).toHaveLength(150);
+    console.log(`[horde bandwidth] 150 Walkers in view, 20 frames: ${wire} B/s per client (keyframes ${stats.keyframes})`);
     expect(wire).toBe(stats.bytesSent);
-    expect(wire).toBe((2 + 6 + 150 * 8) * 20); // 24,160 B/s
-    expect(wire).toBeLessThanOrEqual(24 * 1024);
+    expect((2 + 7 + 150 * 8) * 20).toBe(24_180); // every frame a keyframe: today's 24.2 KB/s
+    expect(stats.keyframes).toBe(1); // the join key; the 1 s key is the 21st frame
+    expect(wire).toBeLessThanOrEqual(12 * 1024); // measured 11,835 B/s: ~3 B per moving near zombie (TINY moves)
   });
 
   it("one tick for 4 clients and 150 zombies costs well under 1 ms", () => {
@@ -255,14 +265,16 @@ describe("Story 5.7: the Brute on the wire (brief line 11)", () => {
     spawnZombie(world, "walker", 28, 16);
     enc.prepare(world);
     enc.send(world, client, stats, 24, 16);
-    const one = (client.frames[0] as Uint8Array).length;
+    const one = enc.encode(world, 24, 16).length;
     const b = spawnZombie(world, "brute", 22, 16);
     world.zombies.state[b] = ZOMBIE_STATE.WINDUP;
+    world.tick++; // the next tick (a frame per tick)
     enc.prepare(world);
     enc.send(world, client, stats, 24, 16);
-    const frame = client.frames[1] as Uint8Array;
+    expect((client.frames[1] as Uint8Array).length).toBe(9 + 8); // Story 8.10: a delta: the new Brute is one full record
+    const frame = enc.encode(world, 24, 16);
     expect(frame.length - one).toBe(8);
-    const rec = decode(frame).recs.find((r) => (r.netId & 0xff) === b);
+    const rec = client.decoded[1]?.recs.find((r) => (r.netId & 0xff) === b);
     expect(rec && rec.typeState & 0x0f).toBe(4); // ZOMBIE_TYPES index 4 = brute
     expect(rec && stateOfTypeState(rec.typeState)).toBe(ZOMBIE_STATE.WINDUP);
     console.info(`[bandwidth 5.7] a Brute in view: +${(frame.length - one) * TICK_RATE_HZ} B/s per phone (one horde record)`);

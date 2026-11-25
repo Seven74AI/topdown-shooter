@@ -103,3 +103,23 @@ Bots on the lossy line (`npm run bots -- --count 4 --scenario net150 --until-wav
 - M1/M2: the server estimate catches up forward at ≤ 1.5× (`CLOCK_SLEW_FORWARD_FRACTION` 0.5; back stays 0.9×); horde ring 8 → 16 frames. `adaptiveDelay.test.ts` › "review M1/M2…" (1 ms frames): estimate back within 25 ms of the server after 548 ms (−200 ms fall; was ~1.9 s), 564 ms lossy, 1448 ms for −500 ms (was ~5.2 s); real delay = the old delay + the fall at most, back within the target + 25 ms after 1.9 / 2.0 / 5.2 s (the 1.1× limit, D2: the picture never jumps forward); the render tick at most 5.8 / 8.7 / 11.6 ticks behind the newest frame (ring 16).
 - L2: rate held at 1× at the stretch cap while overdue; rate slew ≤ 4/s; `FRAME_OVERDUE_MS` 15 → 10 to keep F1 (2/s with 15 ms: 1.03 freezes/30 s; 4/s with 10 ms: 0.86).
 - Re-review RL1: the render clock's max(estimate, measurement) reference was an equivalent mutant once the 50 % catch-up was in, and is removed (numbers unchanged: same tests and bounds pass). RM1 → B9: F1 is ≤ 1.2 freezes per 30 s on every 1 % row.
+
+## 8.10 Half-size horde stream
+
+Branched from master `d8d44d0` (8.8 + 8.9 on it). Change: the horde stream becomes per-client keyframes + deltas (wire format `NET_PROTOCOL_VERSION` 2, refused at join as `update_required` otherwise), heading worked out on the phone (sent only when it would be > 4 steps off, B1), zombies > 8 m from the view centre refreshed every 2nd tick by slot parity and glided between their own refreshes on the phone, a keyframe on the first frame / after a skip / every 20 ticks (staggered) / whenever a delta is not smaller; decoded per connection from the join (`RunInbox`). Full table: the story file (`_bmad-output/implementation-artifacts/8-10-half-size-horde-stream.md` › Measurements).
+
+**Method.** Before = a clean worktree of `d8d44d0`, after = `story-8-10`, same seeds and lines, same machine. Replay: `npx tsx tools/netaudit/hordeEncodings.ts 600` (now runs the real encoder → decoder and checks every tick against the full frame). Stampede: `apps/server/src/run/eventBandwidth.test.ts` (real stream, worst 1 s window). Bots: `npm run bots -- --count 4 --scenario net150 --until-wave 5 --hold-fire 45` (+ `--lag 150 --jitter 20 --loss 1`), horde KB/s from the server's `net_stats.hordeKBps`. Freezes: `npx tsx tools/netsim/smoothRun.ts 60 3` (the harness now draws through the real stream + `HordeBuffer`; `HORDE_NEAR_M=Infinity` = the all-20 Hz control).
+
+| Case | Before | After |
+| --- | --- | --- |
+| Audit replay, ~118 in view | 18.6 KB/s | **6.7 KB/s** (0 mismatches / 600 ticks, keyframes 1.0/s) |
+| 150 near + moving (packed round the player) | 24.2 KB/s | 11.6 KB/s |
+| Stampede, 180 in one view (decision 6.8 B1) | 28.2 KB/s | **13.4 KB/s** worst 1 s (avg 12.1) |
+| Bots clean, horde per phone (waves 4–5) | 9.2–11.0 KB/s | 3.4–4.3 KB/s |
+| Bots lossy, horde per phone | 8.6–12.6 KB/s | 3.6–5.2 KB/s |
+| Bots, total down per phone (clean / lossy) | 11.7–11.8 / 11.1–13.4 KB/s | 5.6–5.9 / 5.8–6.9 KB/s |
+| Keyframes / decode errors (bots) | 20/s / 0 | 1.0–1.3/s / 0 |
+| Encoder, 4 clients × 150 (mean / p99) | 0.055–0.062 / 0.154–0.199 ms | 0.120–0.126 / 0.206–0.276 ms |
+| Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 (control 1.0 / 0.9 / 0.7) |
+
+New horde budget (brief line 8): the measured worst case 13.4 KB/s + 20 % → **≤ 16 KB/s**. The 10 Hz rule adds no freeze (every row within ±0.2 of its all-20 Hz control) and no blink (`tools/netsim/hordeGlide.test.ts`). Clean 20 Runners kiting reads 0.9 % reversed on the real-buffer harness with or without the far rule (B2). Backpressure on a capped line: see the story file (B6: F12 confirmed for 64 kbit/s, threshold unchanged).

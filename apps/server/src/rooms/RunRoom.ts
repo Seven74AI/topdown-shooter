@@ -19,6 +19,7 @@ import {
   buildSetReadySchema,
   evacVoteSchema,
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
@@ -175,6 +176,14 @@ export function randomUint32(): number {
 const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
+/**
+ * Story 8.10 (brief 19, D5): a client built for another wire format (or a pre-8.10 tab: none) would
+ * decode garbage; it is refused at join as `update_required` ("A new version is out. Please reload.").
+ * One small function so Story 8.1's onAuth/onJoin changes merge around it.
+ */
+export function checkNetProtocol(version: number | undefined): void {
+  if (version !== NET_PROTOCOL_VERSION) throw refuse("update_required");
+}
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
 const authLog = roomLog("auth");
 
@@ -256,6 +265,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       if (absent && parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
       throw refuse("invalid_options");
     }
+    checkNetProtocol(parsed.data.netProtocolVersion); // Story 8.10
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
     // Story 4.1: a client built with another map would predict against other walls.
     if (parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
@@ -898,6 +908,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (const s of this.hordeStats.values()) {
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
     this.slowTicks?.takeWindow();
@@ -948,9 +959,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private logHordeStats(wave: number): void {
     for (const [playerId, s] of this.hordeStats) {
       const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
-      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, avgBytes }, "horde_stats");
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes }, "horde_stats");
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
   }

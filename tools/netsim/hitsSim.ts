@@ -20,11 +20,11 @@
  * the real clock / delay / step pacing (brief 20), and the smoothness counters in `Result.smooth`.
  */
 import {
+  HordeStreamDecoder,
   MUZZLE_OFFSET_M,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
   TICK_DT_S,
-  ZOMBIE_STATE,
   assistAim,
   boxBlocked,
   createRng,
@@ -34,7 +34,6 @@ import {
   loadBalance,
   NO_SYSTEMS,
   PLACEHOLDER_MAP,
-  packTypeState,
   pelletDirection,
   rotateBySeqSpread,
   seqPelletRoll,
@@ -48,7 +47,6 @@ import {
   type PlayerInput,
   type WeaponId,
   type ZombieTypeId,
-  zombieTypeIndex,
 } from "@topdown/shared";
 import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
@@ -57,7 +55,9 @@ import { CosmeticProjectiles } from "../../apps/client/src/net/cosmeticProjectil
 import { EARLY_HIT_SLACK_MS, ReversedHits, REVERSED_HIT_SLACK_MS } from "../../apps/client/src/debug/reversedHits";
 import { ServerClock } from "../../apps/client/src/net/serverClock";
 import { AdaptiveDelay } from "../../apps/client/src/net/adaptiveDelay";
-import { HordeSample } from "../../apps/client/src/net/hordeBuffer";
+import { HordeBuffer, HordeSample } from "../../apps/client/src/net/hordeBuffer";
+import { HordeDecoder } from "../../apps/client/src/net/hordeDecoder";
+import { HordeEncoder, newHordeStats } from "../../apps/server/src/net/hordeEncoder";
 import { StepPacing } from "../../apps/client/src/net/stepPacing";
 import { mirrorZombies } from "../../apps/client/src/net/mirrorZombies";
 import { viewTickOf } from "../../apps/client/src/net/viewTick";
@@ -70,7 +70,6 @@ const ID = "p0";
 const WALKERS = 20;
 const KITE_RADIUS_M = 10;
 const SPAWN_MARGIN_M = 1;
-const WALKER_TYPE_STATE = packTypeState(0, ZOMBIE_STATE.CHASE);
 
 export interface Options {
   seconds: number;
@@ -108,6 +107,11 @@ export interface Options {
   pacing?: boolean;
   /** Story 8.9 (beat the rule 4): a fixed step rate instead of the pacing rule (e.g. 0.5 = a client slowing on purpose). */
   stepRate?: number;
+  /**
+   * Story 8.10: the near radius of the real horde stream (default HORDE_NEAR_M; Infinity = every
+   * zombie at 20 Hz, the control run that isolates the 10 Hz far rule from the harness switch).
+   */
+  hordeNearM?: number;
 }
 
 /** Story 8.9: smoothness counters (brief 13 before/after). */
@@ -168,6 +172,8 @@ export interface Result {
   stalls: { up: number; down: number };
   /** Story 8.9. */
   smooth: Smooth;
+  /** Story 8.10: the real horde stream (server encoder → client stream decoder → HordeBuffer). */
+  horde: { bytes: number; frames: number; keyframes: number; decodeErrors: number; decoded: number };
 }
 
 /** Story 8.9: zeroed smoothness counters. */
@@ -208,7 +214,8 @@ interface Down {
   /** Story 8.9: `PlayerState.inputQueued` (my inputs queued when this tick started). */
   queued: number;
   me: FireGateView & { x: number; y: number };
-  zombies: { netId: number; x: number; y: number }[];
+  /** Story 8.10: the real horde frame of this tick (key or delta, view + margin + rushers). */
+  horde: Uint8Array;
   events: NetEvent[];
 }
 
@@ -249,7 +256,11 @@ export function simulate(o: Options): Result {
     spawnZombie(ctrl.world, o.zombieType ?? "walker", x, y);
   };
   const walkers = o.walkers ?? WALKERS;
-  const typeState = o.zombieType ? packTypeState(zombieTypeIndex(o.zombieType), ZOMBIE_STATE.CHASE) : WALKER_TYPE_STATE;
+  // Story 8.10 (brief 20): the real horde stream, as RunRoom sends it to this one client.
+  const hordeEnc = new HordeEncoder(undefined, o.hordeNearM);
+  const hordeStats = newHordeStats();
+  let hordeOut = new Uint8Array(0);
+  const hordeClient = { state: 1 /* ClientState.JOINED */, ref: { bufferedAmount: 0 }, sendBytes: (_t: number, b: Uint8Array) => void (hordeOut = b.slice()) };
   for (let i = 0; i < walkers; i++) spawnRingWalker();
 
   const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep);
@@ -264,6 +275,9 @@ export function simulate(o: Options): Result {
   const delay = new AdaptiveDelay();
   const pacing = new StepPacing();
   const sample = new HordeSample();
+  const hordeBuffer = new HordeBuffer();
+  const hordeStream = new HordeStreamDecoder();
+  const hordeSink = new HordeDecoder(hordeBuffer, hordeStream);
   // Story 8.9: smoothness counters.
   const sm = emptySmooth();
   sm.rateMin = Infinity;
@@ -272,9 +286,6 @@ export function simulate(o: Options): Result {
   let lastQueued = 0;
   let prevRt = Number.NaN;
   let prevEst = Number.NaN;
-  const snaps: Down[] = [];
-  const kills: { tick: number; netId: number }[] = [];
-  const hidden = new Set<number>();
   let latest: Down | null = null;
   let viewTick = -1;
   const viewOffsets: number[] = [];
@@ -299,33 +310,8 @@ export function simulate(o: Options): Result {
   const serverFan = new Map<number, { x: number; y: number; seq: number }>();
   const clientFan = new Map<number, { x: number; y: number }>();
 
-  const sampleHorde = (rt: number): void => {
-    let a: Down | null = null;
-    let b: Down | null = null;
-    for (const s of snaps) {
-      if (s.tick <= rt) a = s;
-      else {
-        b = s;
-        break;
-      }
-    }
-    while (kills.length > 0 && (kills[0] as { tick: number }).tick <= rt) hidden.add((kills.shift() as { netId: number }).netId);
-    sample.count = 0;
-    const base = a ?? b;
-    if (!base) return;
-    const f = a && b ? (rt - a.tick) / (b.tick - a.tick) : 0;
-    for (const zb of (b ?? base).zombies) {
-      if (hidden.has(zb.netId)) continue;
-      const za = a?.zombies.find((q) => q.netId === zb.netId);
-      const k = sample.count++;
-      sample.netId[k] = zb.netId;
-      sample.x[k] = za ? za.x + (zb.x - za.x) * f : zb.x;
-      sample.y[k] = za ? za.y + (zb.y - za.y) * f : zb.y;
-      sample.typeState[k] = typeState;
-      sample.heading[k] = 0;
-    }
-    while (snaps.length > 2 && (snaps[1] as Down).tick <= rt) snaps.shift();
-  };
+  /** Story 8.10: the real client path (HordeBuffer.sample: own-refresh lerp, kills at the render tick). */
+  const sampleHorde = (rt: number): void => hordeBuffer.sample(rt, sample);
 
   const phaseMs = Math.floor(rng.range(0, TICK_MS));
   const endMs = o.seconds * 1000;
@@ -371,11 +357,8 @@ export function simulate(o: Options): Result {
       }
       while (z.aliveCount < walkers) spawnRingWalker();
       const [s0] = sp.loadout.slots;
-      const zombies: Down["zombies"] = [];
-      for (let i = 0; i < z.aliveCount; i++) {
-        const id = z.aliveIds[i] as number;
-        zombies.push({ netId: ctx.zombieNetId(id), x: Math.fround(z.x[id] as number), y: Math.fround(z.y[id] as number) });
-      }
+      hordeEnc.prepare(ctrl.world);
+      hordeEnc.send(ctrl.world, hordeClient, hordeStats, sp.x, sp.y);
       if (ctrl.queuedAtTick(ID) !== lastQueued) {
         lastQueued = ctrl.queuedAtTick(ID);
         sm.queuedChanges++;
@@ -397,7 +380,7 @@ export function simulate(o: Options): Result {
           reloadTicks0: s0.reloadTicks,
           reloadTicks1: 0,
         },
-        zombies,
+        horde: hordeOut,
         events,
       });
     }
@@ -409,7 +392,7 @@ export function simulate(o: Options): Result {
     down.take(t, arrivedDown);
     for (const d of arrivedDown) {
       latest = d;
-      snaps.push(d);
+      hordeStream.decode(d.horde, hordeSink); // Story 8.10: in arrival order, like RunInbox
       // Story 8.9: one sample per arrival (patch and horde frame are one message here).
       serverClock.sample(t, d.tick);
       delay.sample(t, d.tick, serverClock.rawOffsetMs);
@@ -419,7 +402,7 @@ export function simulate(o: Options): Result {
         if (e[0] === NET_EVENT_KIND.ZOMBIE_HIT && e[7] === 0) hits.serverHit(e[1] as number, t, o.oneWayMs + delay.delayMs + EARLY_HIT_SLACK_MS);
         if (e[0] === NET_EVENT_KIND.ZOMBIE_KILLED) {
           hits.serverKilled(e[1] as number);
-          kills.push({ tick: d.tick, netId: e[1] as number });
+          hordeBuffer.killAt(d.tick, e[1] as number);
         }
       }
     }
@@ -571,6 +554,7 @@ export function simulate(o: Options): Result {
     fanMismatches,
     fanMaxDiffRad,
     stalls: { up: up.stalls, down: down.stalls },
+    horde: { bytes: hordeStats.bytesSent, frames: hordeStats.framesSent, keyframes: hordeStats.keyframes, decodeErrors: hordeStream.decodeErrors + hordeStream.brokenChain, decoded: hordeSink.framesReceived },
   };
 }
 

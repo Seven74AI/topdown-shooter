@@ -34,6 +34,13 @@ export interface LagLineOptions {
   lossPct?: number;
   /** The extra wait of a stalled chunk (ms; default 200, decision 8.8 D2). */
   stallMs?: number;
+  /**
+   * Story 8.10 (AC 8, T8): a bandwidth cap on the server→client direction (kbit/s; 0/absent = none).
+   * Chunks are serialised at this rate before their one-way delay (a bottleneck queue), and while
+   * more than `LAG_LINE_QUEUE_HIGH_BYTES` wait the server's socket is not read (`pause`), so the
+   * server's own buffers fill like on a real slow line (its `bufferedAmount`, the skip rule).
+   */
+  kbps?: number;
   /** Tests inject it (default Math.random). */
   random?: () => number;
   /**
@@ -65,6 +72,10 @@ export interface LagLineStats {
   chunksDown: number;
   bytesUp: number;
   bytesDown: number;
+  /** Story 8.10: the longest a server→client chunk waited in the capped queue beyond its delay (ms). */
+  maxDownQueueMs: number;
+  /** Story 8.10: times the server's socket was paused by the cap. */
+  pausesDown: number;
 }
 
 export interface LagLine {
@@ -73,6 +84,9 @@ export interface LagLine {
   /** Stops listening, drops every connection; resolves once the port is free. */
   close(): Promise<void>;
 }
+
+/** Story 8.10: the capped queue pauses reading from the server above this many bytes, resumes below a quarter. */
+export const LAG_LINE_QUEUE_HIGH_BYTES = 64 * 1024;
 
 /** Decision 8.8 D2: one lost packet costs a 200 ms stall (about one 4G retransmit). */
 export const LAG_LINE_DEFAULT_STALL_MS = 200;
@@ -85,9 +99,16 @@ export class OrderedDelay {
   private stopped = false;
   private readonly queue: { at: number; buf: Buffer | null }[] = [];
   private timer: NodeJS.Timeout | null = null;
+  /** Story 8.10: the cap's wire (bytes per ms; 0 = none), when it is free again, and the bytes waiting. */
+  private wireFreeAt = 0;
+  queuedBytes = 0;
+  /** Longest extra wait the cap added (ms). */
+  maxQueueMs = 0;
   constructor(
     private readonly dest: Socket,
     private readonly onDeliver: (buf: Buffer) => void,
+    private readonly bytesPerMs = 0,
+    private readonly onDrained: () => void = () => {},
   ) {}
   push(buf: Buffer, delayMs: number): void {
     if (this.ended || this.stopped) return;
@@ -100,7 +121,15 @@ export class OrderedDelay {
     this.enqueue(null, delayMs);
   }
   private enqueue(buf: Buffer | null, delayMs: number): void {
-    const at = Math.max(this.lastAt, performance.now() + delayMs);
+    const now = performance.now();
+    let wire = now;
+    if (buf && this.bytesPerMs > 0) {
+      this.wireFreeAt = Math.max(this.wireFreeAt, now) + buf.length / this.bytesPerMs;
+      wire = this.wireFreeAt;
+      this.queuedBytes += buf.length;
+      this.maxQueueMs = Math.max(this.maxQueueMs, wire - now);
+    }
+    const at = Math.max(this.lastAt, wire + delayMs);
     this.lastAt = at;
     this.queue.push({ at, buf });
     this.schedule();
@@ -129,6 +158,10 @@ export class OrderedDelay {
             continue;
           }
           if (!this.dest.destroyed) this.dest.write(item.buf);
+          if (this.bytesPerMs > 0) {
+            this.queuedBytes -= item.buf.length;
+            if (this.queuedBytes < LAG_LINE_QUEUE_HIGH_BYTES / 4) this.onDrained();
+          }
           this.onDeliver(item.buf);
         }
         this.schedule();
@@ -143,7 +176,8 @@ export function startLagLine(o: LagLineOptions): Promise<LagLine> {
   const lossPct = Math.max(0, o.lossPct ?? 0);
   const stallMs = Math.max(0, o.stallMs ?? LAG_LINE_DEFAULT_STALL_MS);
   const oneWay = (): number => Math.max(0, o.rttMs) / 2 + (rand() - 0.5) * Math.max(0, o.jitterMs);
-  const stats: LagLineStats = { connections: 0, stallsUp: 0, stallsDown: 0, chunksUp: 0, chunksDown: 0, bytesUp: 0, bytesDown: 0 };
+  const stats: LagLineStats = { connections: 0, stallsUp: 0, stallsDown: 0, chunksUp: 0, chunksDown: 0, bytesUp: 0, bytesDown: 0, maxDownQueueMs: 0, pausesDown: 0 };
+  const bytesPerMs = Math.max(0, o.kbps ?? 0) / 8; // kbit/s → bytes per ms
   const sockets = new Set<Socket>();
   const delays = new Set<OrderedDelay>();
   let nextId = 1;
@@ -165,7 +199,21 @@ export function startLagLine(o: LagLineOptions): Promise<LagLine> {
       hooks.onStall?.(dir);
       return true;
     };
-    const down = new OrderedDelay(client, (buf) => hooks.onDown?.(buf));
+    let paused = false;
+    const down: OrderedDelay = new OrderedDelay(
+      client,
+      (buf) => {
+        hooks.onDown?.(buf);
+        stats.maxDownQueueMs = Math.max(stats.maxDownQueueMs, down.maxQueueMs);
+      },
+      bytesPerMs,
+      () => {
+        if (paused && !upstream.destroyed) {
+          paused = false;
+          upstream.resume();
+        }
+      },
+    );
     const up = new OrderedDelay(upstream, (buf) => hooks.onUp?.(buf));
     delays.add(down);
     delays.add(up);
@@ -178,6 +226,11 @@ export function startLagLine(o: LagLineOptions): Promise<LagLine> {
       stats.chunksDown++;
       stats.bytesDown += buf.length;
       down.push(buf, oneWay() + (stalled("down") ? stallMs : 0));
+      if (bytesPerMs > 0 && !paused && down.queuedBytes > LAG_LINE_QUEUE_HIGH_BYTES) {
+        paused = true; // Story 8.10: the slow line pushes back on the server's socket
+        stats.pausesDown++;
+        upstream.pause();
+      }
     });
     // Review R2: a FIN travels like data (after everything sent before it); a close without one
     // (the socket is gone) ends the other side the same way; an error resets both at once.

@@ -106,6 +106,13 @@ export const S2C = {
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
+/**
+ * Story 8.10 (brief 19, decision 8.10 D5): the version of the binary wire formats (2 = the delta horde
+ * stream). Sent in the join options; a client with another (or none: a tab from before 8.10) is
+ * refused at join as `update_required` ("A new version is out. Please reload.").
+ */
+export const NET_PROTOCOL_VERSION = 2;
+
 /** Binary messages use numeric types (1 byte on the wire instead of a string). */
 export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 
@@ -113,7 +120,7 @@ export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 export type { RunPhase } from "../run/runStateMachine";
 
 /** Why the server refused a join (sent as the `ServerError` message). */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined";
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "update_required";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -159,6 +166,11 @@ export const joinOptionsSchema = z
      * refresh"; review M1: a pre-4.1 tab would predict on the open street).
      */
     mapVersion: z.string().min(1).max(16),
+    /**
+     * Story 8.10: `NET_PROTOCOL_VERSION` of the client. Optional in the schema so that a pre-8.10 tab
+     * (none) is told `update_required`, not `invalid_options`; the room checks the value.
+     */
+    netProtocolVersion: z.number().int().min(0).max(0xffff).optional(),
     /** Tells this device's player apart (Story 2.3); the server keeps only its SHA-256. */
     guestToken: guestTokenSchema,
     /**
