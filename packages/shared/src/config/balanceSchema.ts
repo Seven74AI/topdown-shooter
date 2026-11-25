@@ -321,6 +321,16 @@ export const pathingSchema = z
     wideSeedRings: z.number().int().min(1).max(12).default(6),
     /** Story 5.7 (review L4): rings searched for a reached cell round a wide body standing in a grown wall cell. */
     wideSteerRings: z.number().int().min(1).max(6).default(2),
+    /**
+     * Story 6.13 (6.8 review M1): the wide-body stall net. A wide body whose wide field gives it no
+     * next cell (it stands at the field's end, a seed cell at the mouth of a slot too narrow for it,
+     * or in a grown wall cell) while its line to the player is blocked, and that moves less than
+     * `wideStuckProgressM` for `wideStuckS`, is stuck: it goes for the wall building within
+     * `wideStuckReachM` nearest its target and attacks it (a Bloater swells on it).
+     */
+    wideStuckS: z.number().positive().refine(wholeTickS, "pathing.wideStuckS must be whole ticks").default(2),
+    wideStuckProgressM: z.number().positive().default(0.25),
+    wideStuckReachM: z.number().positive().max(8).default(2.5),
   })
   .strict();
 

@@ -172,8 +172,10 @@ export interface FlowField {
 
 /**
  * Per zombie slot. `anchorX/anchorY/ticks/stuck/gen` held the 3.5 review's "no progress" record,
- * whose trigger was dropped in the re-review (crowds looked stuck and broke walkable walls); they
- * stay zero. The flank fields are 3.8's time limit.
+ * whose trigger was dropped in the re-review (crowds looked stuck and broke walkable walls). Story
+ * 6.13 reuses them for wide bodies only, and only while the wide field gives them no next cell
+ * (`zombieAi.ts › wideStall`; zero for every other zombie), plus `stuckBuilding`: the wall building a
+ * stuck wide body goes for. The flank fields are 3.8's time limit.
  */
 export interface ZombieProgress {
   readonly anchorX: Float32Array;
@@ -182,6 +184,8 @@ export interface ZombieProgress {
   readonly stuck: Uint8Array;
   /** Pool generation the record belongs to (a reused slot starts over). */
   readonly gen: Uint8Array;
+  /** Story 6.13: the building a stuck wide body attacks (0: not stuck). */
+  readonly stuckBuilding: Int32Array;
   /**
    * 3.8 review H1: per flanker, ticks spent not closing in (up to `flank.maxFlankS`, then it goes
    * straight in until it bites), its distance to its target last tick, and the generation they belong to.
@@ -320,6 +324,7 @@ function createProgress(capacity: number): ZombieProgress {
     ticks: new Uint16Array(capacity),
     stuck: new Uint8Array(capacity),
     gen: new Uint8Array(capacity),
+    stuckBuilding: new Int32Array(capacity),
     flankTicks: new Uint16Array(capacity),
     flankLastD: new Float32Array(capacity),
     flankGen: new Int16Array(capacity).fill(-1),
@@ -1224,7 +1229,7 @@ export function snapshotPathing(p: PathingState) {
   return {
     navVersion: p.nav.version,
     navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS) ^ hashBytes(p.nav.closedE) ^ hashBytes(p.nav.closedS),
-    progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen),
+    progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen) ^ hashInts(pr.stuckBuilding), // Story 6.13: the wide-body stall net
     // 3.8 review H1: the flank timers
     flankHash: hashInts(new Int32Array(pr.flankLastD.buffer)) ^ hashInts(Int32Array.from(pr.flankTicks)) ^ hashInts(Int32Array.from(pr.flankGen)),
     chase: snapshotField(p.chase),
