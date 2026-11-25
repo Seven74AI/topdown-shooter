@@ -19,6 +19,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPXg8R2HjRX5uJVEZTR | Re-review 8.9 | rereview-8-9 |
 | session_01CgLgPWCdv2qWvJYtk8xk4F | Builder 8.10 | story-8-10 |
 | session_01CgLgPVuhvoUCGWv6MWJvbS | Re-review asset art | rereview-asset-art |
+| session_01CgLgPV9Purq8QkvbmAAZbE | Review 8.1 | review-8-1 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -32,6 +33,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-8: 8.9 merges 8.8's gated branch (not master) for T10/T11 while 8.8 is in review; 8.9's reviewer starts in parallel on 8.9 + 8.8 + master.
 - OR-11: asset-art review L2 (standing walls always above bodies; corner pictures can hide a zombie in normal light) left as built and flagged for the designer (blackout eyes still show; alternative: fade/silhouette walls in front of bodies).
 - OR-12 (= 8.9 B9): F1 "others never freeze" relaxed from ≤ 1 to ≤ 1.2 freezes per 30 s on every 1 % row (measured 0.9–1.2; before 6–6.9). Alternative: keep tuning until every row ≤ 1 (risk: more delay or clean-line cost). Asserted per row.
+- OR-13: 7.1 builds its join part (T6/T7) on 8.1's gated branch while 8.1 is in review, instead of waiting for master (merges master before its final gate).
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -62,3 +64,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 05:25 dispatched 8.10 (after 8.9's hordeBuffer); told 8.1 to merge master (8.9) and to reset the per-client horde stream on reconnect.
 - 05:26 Asset session fixes (60ec1f4; gate 405 files / 3714 tests): M1 resumable bake ≤ 20000 units + 6 ms guard (long tasks 70–180 → 50–85 ms headless); M2 banner keeps 48 px (overBar / shrink); M3 relit cache re-bake after loss; L1, L4, L5, L6. Narrow re-review dispatched.
 - 05:37 Re-review asset art (4b0e2b4): NOT clean — M2/M3/L1/L4/L5/L6 fixed; R1 M unsplittable draw/readback steps 123–167 ms at 4× CPU; R2 M (fix-created) bake budget so small the bake takes ~63 s → relit pictures pop in during wave 1; R3–R7 L/nit; R8 noise table drop changed the approved look slightly. Round 2 sent (band readback, guard-driven budget, restore exact look).
+- 05:43 8.1 hand-back (db2cff2; gate 416 files / 3799 tests, load 3.54). Bot cut 8 s mid-wave back in ~0.3 s on the lossy line with HP/wallet/weapons kept; 130 s cut → restored at next build phase; phone shows 'reconnecting' after 3.1 s (was never); two-tab smoke found and fixed 3 bugs. Auto-accepted B1–B14 (docs/network-pass-decisions.md § 8.1). Open: app-switch escape is repeatable (no cooldown). Dispatched full review; 7.1 told to go on 8.1's branch; 8.10 told about reconnect keyframes.
