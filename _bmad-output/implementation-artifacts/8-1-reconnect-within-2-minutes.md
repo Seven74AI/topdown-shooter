@@ -168,7 +168,9 @@ Claude (builder child session, gds-dev-story; autonomous overnight run).
 
 ### Gate
 
-Gate 2026-11-25 05:34–05:41 on story-8-1 @ 801e1eb (= master d8d44d0 with Stories 8.8 + 8.9 merged in): `npm run typecheck && npm run lint && npm test && npm run build` → **green**: 416 test files passed (1 skipped), **3799 tests passed** (3 skipped), build ✓. Load 0.46 at the start, 3.54 at the end (4 cores; no other job of mine running). After the gate: the T4 horde-frame assertion in `RunRoom.reconnect.test.ts` (edited during the gate) re-run alone → 15/15; the commit after it changes only that test and docs.
+**Review-fix gate** 2026-11-25 06:13–06:20 on story-8-1 @ ae23fbd (master d8d44d0 already merged: `git merge origin/master` → up to date): typecheck && lint && test && build → **green**: 417 files passed (1 skipped), **3821 tests passed** (3 skipped), build ✓. Load 0.97 at the start, 3.90 at the end.
+
+First gate: Gate 2026-11-25 05:34–05:41 on story-8-1 @ 801e1eb (= master d8d44d0 with Stories 8.8 + 8.9 merged in): `npm run typecheck && npm run lint && npm test && npm run build` → **green**: 416 test files passed (1 skipped), **3799 tests passed** (3 skipped), build ✓. Load 0.46 at the start, 3.54 at the end (4 cores; no other job of mine running). After the gate: the T4 horde-frame assertion in `RunRoom.reconnect.test.ts` (edited during the gate) re-run alone → 15/15; the commit after it changes only that test and docs.
 
 ### Implementation Plan (as built)
 
