@@ -307,6 +307,10 @@ Reviewer: fresh reviewer cloud session (gds-code-review: Blind Hunter / Edge Cas
 | N1 | c0533ab | Teammate assert commented as documentation (no player-hit path) | — |
 | N2 | 351aa4f | Bots' caps imported from `devThrottle.ts` (`MAX_THROTTLE_LAG_MS` / `JITTER` moved there, re-exported by `urlOptions.ts`); `lineUrl()` keeps scheme, host name and path (only `[::1]` → 127.0.0.1); `--jitter` cap is now the client's 1000 | `tools/bots/lineArgs.test.ts` › "review N2: the caps are the client's; …" |
 | N3 | 61ffbf0 | T8 bot rows labelled "liveness only, different lines" (story + perf doc) | — |
+| RR1-a (low) | 8285bab | Test of the half-open path: client ends, server replies on `end`, the reply arrives through the line | `tools/netaudit/lagLine.test.ts` › "re-review 1: the half-open path …" (removing both `allowHalfOpen` fails it) |
+| RR1-b (low) | 7af3a01 | `throttleWiring.test.ts` strips `//` and `/* */` comments before matching | commenting out `activeThrottle.current = throttle`, `lossPct: 0 /* was … */`, or moving the overlay suffix into a `//` comment each fail it; self-check test of the stripper |
+| RR1-c (low) | 7af3a01 | Wiring check: `netSummary.ts › browserEnv()` uses `throttleLabel(urlOptions().throttle)` and no `location.search` / `URLSearchParams` | reverting to the raw query fails it |
+| RR1-d (nit) | 8285bab | `OrderedDelay.stop()` sets `stopped`: `push` / `pushEnd` are no-ops after it (no timer re-armed onto a destroyed socket) | `tools/netaudit/lagLine.test.ts` › "re-review 1 nit: a stopped queue takes nothing more and arms no timer" (removing the flag fails it) |
 
 Checks after the fixes: typecheck, lint, touched tests (see the hand-back message); no full gate (not asked).
 
@@ -351,3 +355,4 @@ Checks: `npm ci`, `npm run typecheck` ok; touched tests (lagLine, throttleWiring
 - 2026-11-25: Senior Developer Review (AI): findings (2 medium, 4 low, 3 nits); status stays review.
 - 2026-11-25: review fixes R1–R6, N1–N3 (builder); decision 8.8 B1 auto-accepted; status stays review.
 - 2026-11-25: Re-review (narrow) 1: 3 low, 1 nit (test gaps for R2 half-open / R3 comments / R5 wiring; timer leftover after close); status stays review.
+- 2026-11-25: re-review 1 fixes (a–d, test-only + one nit) by the builder; status stays review.
