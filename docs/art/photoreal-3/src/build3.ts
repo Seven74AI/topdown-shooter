@@ -10,7 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { drawMT1, drawMT2, drawRF1, drawRF2, drawWD1, drawWD2, inFrameM } from "./barricadeTakes";
+import { drawMT1, drawMT2, drawPB1, drawRF1, drawRF2, drawWD1, drawWD2, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const CURRENT: Record<string, string>; // today's frames (data URLs), injected by build.mjs
@@ -19,7 +19,7 @@ const PXM = 192; // 2× the game's 96 px per metre
 const SS = 2;
 const GAME_PXM = 96;
 
-type Glow = "none" | "flicker" | "heartbeat" | "blink";
+type Glow = "none" | "flicker" | "heartbeat" | "blink" | "strobe";
 interface Item {
   id: string;
   name: string;
@@ -75,18 +75,25 @@ const ITEMS: Item[] = [
 
 /** New orientation for the barricades, like the police sawhorse (designer 2026-11-25). */
 const take = (id: string, name: string, draw: (g: Ctx) => void, dir: "x" | "y", glints: number, note: string): Item => ({ id, name, wM: 2, hM: 0.5, draw: (g) => draw(g), inFrame: inFrameM, dir, glow: "none", glints, note });
+const amber = (r: number, g: number, b: number): boolean => {
+  const h = hueOf(r, g, b);
+  return h > 25 && h < 55 && satOf(r, g, b) > 0.55 && r > 200;
+};
 const TAKES: { title: string; now: string; items: Item[] }[] = [
+  { title: "Police barricade (in the game today)", now: "", items: [
+    { ...take("PB1", "PB1 · Police sawhorse, upright", drawPB1, "x", 8, "The striped board now stands up: lit top edge, front face, long shadow, A-frame legs, amber lamps blinking at the ends."), emissive: amber, glow: "strobe" },
+  ] },
   { title: "Wood barricade", now: "building_barricade_wood", items: [
-    take("WD1", "WD1 · Wooden sawhorses", drawWD1, "x", 6, "Three sawhorses like the police barrier, each topped with two mismatched nailed planks."),
-    take("WD2", "WD2 · Long plank beam", drawWD2, "x", 6, "One long beam of planks with staggered joints on four wooden A-frames: reads as one wall."),
+    take("WD1", "WD1 · Wooden sawhorses, X-braced", drawWD1, "x", 6, "Three upright sawhorse barricades: two planks with an X brace nailed across, A-frame legs."),
+    take("WD2", "WD2 · Boarded wall on posts", drawWD2, "x", 6, "One long boarded wall: posts sticking up above the boards, diagonal braces, A-frame legs."),
   ] },
   { title: "Reinforced barricade", now: "building_barricade_reinforced", items: [
-    take("RF1", "RF1 · Timber beam + razor wire on top", drawRF1, "x", 16, "A heavy three-plank beam, steel straps bolted at each frame, razor wire coiled along the top."),
-    take("RF2", "RF2 · Sawhorses + razor wire at the feet", drawRF2, "x", 16, "Strapped wooden sawhorses with razor wire coils running along both sides on the ground."),
+    take("RF1", "RF1 · Boarded wall + razor wire", drawRF1, "x", 16, "The boarded wall with steel straps bolted across and razor wire coiled along the top."),
+    take("RF2", "RF2 · X-braced sawhorses + razor wire", drawRF2, "x", 16, "X-braced sawhorses with steel corner plates and razor wire along the top."),
   ] },
   { title: "Metal barricade", now: "building_barricade_metal", items: [
-    take("MT1", "MT1 · Steel sawhorses", drawMT1, "x", 10, "Three steel sawhorses: riveted box beams with hazard stripes, tube legs, rubber feet."),
-    take("MT2", "MT2 · Long steel plate", drawMT2, "x", 10, "One long riveted plate barrier on steel A-frames, hazard chevrons at both ends, a bolted seam strap."),
+    take("MT1", "MT1 · Steel sawhorses", drawMT1, "x", 10, "Three upright steel barricades: hazard-striped plates on tube A-frames."),
+    take("MT2", "MT2 · Steel plate wall on posts", drawMT2, "x", 10, "One long riveted plate wall on steel posts, hazard chevrons at both ends."),
   ] },
 ];
 
@@ -330,6 +337,7 @@ function glowLevel(kind: Glow, t: number, seed: number): number {
     return 0.4 + 0.5 * beat;
   }
   if (kind === "blink") return t % 1.2 < 0.14 ? 1 : 0.12;
+  if (kind === "strobe") return Math.max(0.15, Math.sin(t * Math.PI * 2 * 0.9)) ** 0.5;
   return 0;
 }
 
@@ -501,16 +509,10 @@ function refCanvas(id: string, label: string): HTMLElement {
   return fig(c, label);
 }
 
+const nowItem0 = (id: string): boolean => ITEMS.some((x) => x.id === id);
+
 async function takes(): Promise<void> {
   const box = document.getElementById("takes") as HTMLElement;
-  const ref = document.createElement("article");
-  ref.className = "pair wide";
-  const rh = document.createElement("h3");
-  rh.textContent = "Reference: the police barricade (accepted B1 and B3)";
-  ref.appendChild(rh);
-  ref.appendChild(refCanvas("prop_barrier_a", "Police B1 · sawhorses"));
-  ref.appendChild(refCanvas("prop_barrier_b", "Police B3 · concrete + tape"));
-  box.appendChild(ref);
   let n = 0;
   for (const grp of TAKES) {
     const h = document.createElement("h2");
@@ -521,15 +523,17 @@ async function takes(): Promise<void> {
     const nowCard = document.createElement("article");
     nowCard.className = "pair";
     const nh = document.createElement("h3");
-    nh.textContent = "Today (photoreal, below)";
+    nh.textContent = nowItem0(grp.now) ? "Today (photoreal, below)" : "Today";
     nowCard.appendChild(nh);
-    const nowItem = ITEMS.find((x) => x.id === grp.now) as Item;
-    const nl = relight(nowItem, 1700 + n);
-    const na = animated(nl, nowItem, 1, n + 20);
-    na.frame(0);
-    nowCard.appendChild(fig(na.c, "Today"));
-    live.push({ el: na.c, frame: na.frame, on: true });
-    io.observe(na.c);
+    const nowItem = ITEMS.find((x) => x.id === grp.now);
+    if (nowItem) {
+      const nl = relight(nowItem, 1700 + n);
+      const na = animated(nl, nowItem, 1, n + 20);
+      na.frame(0);
+      nowCard.appendChild(fig(na.c, "Today"));
+      live.push({ el: na.c, frame: na.frame, on: true });
+      io.observe(na.c);
+    } else nowCard.appendChild(refCanvas("prop_barrier_a", "Today · B1 sawhorses"));
     grid.appendChild(nowCard);
     for (const it of grp.items) {
       await new Promise((r) => setTimeout(r, 0));

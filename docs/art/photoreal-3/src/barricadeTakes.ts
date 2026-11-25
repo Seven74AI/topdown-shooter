@@ -1,8 +1,11 @@
 /**
  * Barricades, new orientation (designer 2026-11-25: "take some inspiration from the police barricade for the wood
  * barricade, the orientation and perspective", then "the same for the metal barricade and reinforced barricade").
- * Like the accepted police sawhorse B1: seen straight from above, the top board along the line with its side face
- * just showing, legs splayed symmetrically to the front and back with feet, lower rails near both edges.
+ * Round 2 ("they look like a bench now, same for all others", and "the police barricade has the same problem"): a
+ * wide flat top on corner legs reads as a seat. So the boards now stand UP: a thin lit top edge, the front face
+ * below it, a long cast shadow that shows the height, and thin A-frame legs splayed to the back and the front (the
+ * front legs cross over the face), no stretcher rails. Plus barricade details: X-bracing, posts, razor wire on top,
+ * hazard plates, warning lamps.
  * Drawn in metres on the 2 × 0.5 m frame (x ∈ [−1, 1], y ∈ [−0.25, 0.25]); 1 px = 1/96 m.
  */
 import type { Ctx } from "../../../../apps/client/src/render/city/buildingArt";
@@ -175,40 +178,6 @@ function shadow(g: Ctx, x0: number, y0: number, x1: number, y1: number): void {
   g.restore();
 }
 
-/** The sawhorse frame of one unit: lower rails near both edges, splayed legs to the front and back, feet. */
-function frame(g: Ctx, xa: number, xb: number, kind: "wood" | "steel", seed: number): void {
-  const inset = 0.05;
-  const legW = kind === "wood" ? 0.04 : 0.028;
-  const railY = 0.165;
-  const footY = 0.22;
-  const col = kind === "wood" ? "#6e5236" : "#5a5f66";
-  shadow(g, xa, -footY, xb, footY);
-  for (const s of [-1, 1]) bar(g, xa + inset, s * railY, xb - inset, s * railY, kind === "wood" ? 0.03 : 0.02, kind === "wood" ? "wood" : "steel", kind === "wood" ? "#654a30" : "#4a4e55", seed + s * 7);
-  for (const lx of [xa + inset, xb - inset]) {
-    for (const s of [-1, 1]) {
-      bar(g, lx, 0, lx - 0.008, s * footY, legW, kind === "wood" ? "wood" : "steel", col, seed + Math.round(lx * 50) + s);
-      // the foot
-      g.fillStyle = "#141518";
-      g.fillRect(lx - 0.03, s * footY - 0.014, 0.05, 0.028);
-      g.fillStyle = "rgba(255,255,255,0.12)";
-      g.fillRect(lx - 0.03, s * footY - 0.014, 0.05, 0.005);
-      if (kind === "wood") nail(g, lx - 0.004, s * railY);
-      else bolt(g, lx - 0.004, s * railY, 0.007);
-    }
-  }
-}
-
-/** The top board's side face (its thickness, seen just below the top face) as in B1. */
-function sideFace(g: Ctx, x0: number, x1: number, yTop: number, yBot: number, col: string): void {
-  g.fillStyle = col;
-  g.fillRect(x0, yTop, x1 - x0, yBot - yTop);
-  g.fillStyle = "rgba(0,0,0,0.25)";
-  g.fillRect(x0, yBot - (yBot - yTop) * 0.4, x1 - x0, (yBot - yTop) * 0.4);
-  g.strokeStyle = "#060505";
-  g.lineWidth = 1.2 * P;
-  g.strokeRect(x0, yTop, x1 - x0, yBot - yTop);
-}
-
 /** Razor wire coil along x at y: loops seen from above, with barbs. */
 function razorCoil(g: Ctx, x0: number, x1: number, y: number, rad: number, seed: number): void {
   const r = rng(seed);
@@ -314,96 +283,206 @@ function steelPlate(g: Ctx, x0: number, y0: number, x1: number, y1: number, col:
   }
 }
 
-// ─────────────────────────────── the takes ───────────────────────────────
+// ─────────────────────────────── round 2: upright ───────────────────────────────
+
+const TOP = -0.1; // the top edge's back line (frame m)
+const EDGE = 0.026; // the top edge's depth
+const FACE = 0.12; // the front face as seen
+const FOOT = 0.205; // legs reach this far to the back and the front
+
+type Painter = (g: Ctx, x0: number, x1: number, y0: number, y1: number) => void;
+interface Wall {
+  kind: "wood" | "steel";
+  /** Leg pairs (x of each A-frame). */
+  legs: number[];
+  face: Painter;
+  edge: string;
+  /** Posts standing above the top edge (x), wood or steel. */
+  posts?: number[];
+  wire?: boolean;
+  lamps?: number[];
+}
+
+/** A face that darkens towards the ground and a soft contact line at its foot. */
+function faceShade(g: Ctx, x0: number, x1: number, y0: number, y1: number): void {
+  const gr = g.createLinearGradient(0, y0, 0, y1);
+  gr.addColorStop(0, "rgba(0,0,0,0)");
+  gr.addColorStop(1, "rgba(0,0,0,0.42)");
+  g.fillStyle = gr;
+  g.fillRect(x0, y0, x1 - x0, y1 - y0);
+}
+
+function leg(g: Ctx, x: number, toY: number, kind: "wood" | "steel", seed: number, out = 0): void {
+  const y0 = TOP + EDGE * 0.5;
+  const fx = x + out + (toY > 0 ? 0.012 : -0.006);
+  bar(g, x, y0, fx, toY, kind === "wood" ? 0.03 : 0.022, kind === "wood" ? "wood" : "steel", kind === "wood" ? "#6a4e33" : "#5a5f66", seed);
+  g.fillStyle = "#141518";
+  g.fillRect(fx - 0.025, toY - 0.012, 0.05, 0.024);
+}
+
+function wall(g: Ctx, x0: number, x1: number, w: Wall, seed: number): void {
+  const yF = TOP + EDGE;
+  const yB = yF + FACE;
+  // the cast shadow: long, to the lower right, so the wall stands up
+  g.save();
+  g.filter = "blur(4px)";
+  g.fillStyle = "rgba(0,0,0,0.68)";
+  g.beginPath();
+  g.moveTo(x0, yB);
+  g.lineTo(x1, yB);
+  g.lineTo(x1 + 0.08, yB + 0.135);
+  g.lineTo(x0 + 0.08, yB + 0.135);
+  g.closePath();
+  g.fill();
+  g.restore();
+  const cx = (x0 + x1) / 2;
+  const out = (x: number): number => Math.sign(x - cx) * 0.035;
+  for (const [i, x] of w.legs.entries()) leg(g, x, -FOOT, w.kind, seed + i, out(x));
+  // posts' faces behind the boards' top edge
+  w.face(g, x0, x1, yF, yB);
+  faceShade(g, x0, x1, yF, yB);
+  g.strokeStyle = "#070605";
+  g.lineWidth = 1.4 * P;
+  g.strokeRect(x0, yF, x1 - x0, FACE);
+  // the top edge, lit
+  g.fillStyle = w.edge;
+  g.fillRect(x0, TOP, x1 - x0, EDGE);
+  g.fillStyle = "rgba(255,245,225,0.35)";
+  g.fillRect(x0, TOP, x1 - x0, 1.3 * P);
+  g.strokeRect(x0, TOP, x1 - x0, EDGE);
+  for (const [i, x] of (w.posts ?? []).entries()) {
+    // a post: its face runs down the wall, its top sticks up above the edge
+    const pw = 0.05;
+    if (w.kind === "wood") {
+      bar(g, x, TOP - 0.035, x, yB, pw, "wood", "#5f452c", seed + 40 + i);
+      plank(g, x - pw / 2, TOP - 0.055, x + pw / 2, TOP - 0.03, "#9a7a55", seed + 60 + i);
+    } else {
+      steelPlate(g, x - pw / 2, TOP - 0.04, x + pw / 2, yB, "#50555c", seed + 40 + i, false);
+      bolt(g, x, yF + 0.03, 0.007);
+      bolt(g, x, yB - 0.03, 0.007);
+    }
+  }
+  if (w.wire) razorCoil(g, x0, x1, TOP + 0.005, 0.055, seed + 80);
+  for (const [i, x] of w.legs.entries()) leg(g, x, FOOT, w.kind, seed + 20 + i, out(x));
+  for (const x of w.lamps ?? []) {
+    // the warning lamp on the top edge
+    g.fillStyle = "#1a1b1e";
+    g.fillRect(x - 0.03, TOP - 0.04, 0.06, 0.05);
+    g.fillStyle = "#ffb52e";
+    g.beginPath();
+    g.arc(x, TOP - 0.016, 0.021, 0, TAU);
+    g.fill();
+    g.fillStyle = "#fff1b8";
+    g.beginPath();
+    g.arc(x - 0.006, TOP - 0.022, 0.008, 0, TAU);
+    g.fill();
+  }
+}
+
+const woodFace = (seed: number, xbrace: boolean): Painter => (g, x0, x1, y0, y1) => {
+  const h = (y1 - y0) / 2;
+  plank(g, x0, y0, x1, y0 + h, WOODS[seed % 6] as string, seed);
+  plank(g, x0, y0 + h, x1, y1, WOODS[(seed + 3) % 6] as string, seed + 1);
+  if (xbrace) {
+    bar(g, x0 + 0.03, y0 + 0.012, x1 - 0.03, y1 - 0.012, 0.03, "wood", "#6c5034", seed + 2);
+    bar(g, x0 + 0.03, y1 - 0.012, x1 - 0.03, y0 + 0.012, 0.03, "wood", "#755838", seed + 3);
+  }
+  for (const x of [x0 + 0.03, x1 - 0.03]) for (const y of [y0 + h * 0.5, y0 + h * 1.5]) nail(g, x, y);
+};
+
+const steelFace = (seed: number, band: boolean): Painter => (g, x0, x1, y0, y1) => {
+  steelPlate(g, x0, y0, x1, y1, "#646a72", seed);
+  if (band) {
+    hazard(g, x0 + 0.02, y0 + 0.03, x1 - 0.02, y1 - 0.03, seed + 1);
+    g.strokeStyle = "#0a0b0d";
+    g.lineWidth = 1.3 * P;
+    g.strokeRect(x0 + 0.02, y0 + 0.03, x1 - x0 - 0.04, y1 - y0 - 0.06);
+  }
+};
+
+const policeFace: Painter = (g, x0, x1, y0, y1) => {
+  g.save();
+  g.beginPath();
+  g.rect(x0, y0, x1 - x0, y1 - y0);
+  g.clip();
+  g.fillStyle = "#e6e2d6";
+  g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  g.fillStyle = "#24497e";
+  const h = y1 - y0;
+  for (let sx = x0 - h; sx < x1; sx += 0.09) {
+    g.beginPath();
+    g.moveTo(sx, y1);
+    g.lineTo(sx + 0.045, y1);
+    g.lineTo(sx + 0.045 + h, y0);
+    g.lineTo(sx + h, y0);
+    g.closePath();
+    g.fill();
+  }
+  const r = rng(77 + Math.round(x0 * 100));
+  g.fillStyle = "rgba(40,30,20,0.35)";
+  for (let i = 0; i < 14; i++) g.fillRect(x0 + r() * (x1 - x0), y0 + r() * h, 0.006 + r() * 0.02, P);
+  g.restore();
+};
 
 const UNITS = 3;
-const unitX = (u: number): [number, number] => [-1 + (2 * u) / UNITS + 0.02, -1 + (2 * (u + 1)) / UNITS - 0.02];
+const unitX = (u: number): [number, number] => [-1 + (2 * u) / UNITS + 0.03, -1 + (2 * (u + 1)) / UNITS - 0.03];
+const units = (fn: (a: number, b: number, u: number) => void): void => {
+  for (let u = 0; u < UNITS; u++) {
+    const [a, b] = unitX(u);
+    fn(a, b, u);
+  }
+};
+const LONG_LEGS = [-0.8, -0.27, 0.27, 0.8];
 
-/** WD1: three wooden sawhorses, each topped with two mismatched nailed planks. */
+/** WD1: three upright wooden sawhorse barricades, two planks with an X brace nailed across. */
 export function drawWD1(g: Ctx): void {
-  for (let u = 0; u < UNITS; u++) {
-    const [a, b] = unitX(u);
-    frame(g, a, b, "wood", 100 + u * 11);
-    sideFace(g, a, b, 0.0, 0.085, "#3a2a1b");
-    plank(g, a, -0.075, b, -0.005, WOODS[u % 6] as string, 210 + u);
-    plank(g, a + 0.015, -0.005, b - 0.01, 0.065, WOODS[(u + 3) % 6] as string, 230 + u);
-    for (const x of [a + 0.04, b - 0.05]) for (const y of [-0.04, 0.03]) nail(g, x, y);
-  }
+  units((a, b, u) => wall(g, a, b, { kind: "wood", legs: [a + 0.06, b - 0.06], face: woodFace(200 + u, true), edge: "#9a7a55" }, 100 + u * 11));
 }
-
-/** WD2: one long beam of planks with staggered joints, on four wooden A-frames. */
+/** WD2: one long boarded wall on posts, X braces between them, A-frame legs. */
 export function drawWD2(g: Ctx): void {
-  for (const [i, x] of [-0.86, -0.3, 0.3, 0.86].entries()) frame(g, x - 0.1, x + 0.1, "wood", 300 + i * 9);
-  sideFace(g, -0.98, 0.98, 0.0, 0.09, "#3a2a1b");
-  plank(g, -0.98, -0.08, 0.15, -0.012, WOODS[0], 401);
-  plank(g, 0.15, -0.08, 0.98, -0.012, WOODS[3], 402);
-  plank(g, -0.98, -0.012, -0.35, 0.07, WOODS[1], 403);
-  plank(g, -0.35, -0.012, 0.6, 0.07, WOODS[4], 404);
-  plank(g, 0.6, -0.012, 0.98, 0.07, WOODS[2], 405);
-  for (const x of [-0.86, -0.3, 0.3, 0.86]) for (const y of [-0.05, 0.03]) nail(g, x + (y > 0 ? 0.02 : -0.02), y);
+  wall(g, -0.97, 0.97, { kind: "wood", legs: LONG_LEGS, face: (g, x0, x1, y0, y1) => {
+    woodFace(300, false)(g, x0, x1, y0, y1);
+    for (let k = 0; k < 3; k++) {
+      const a = -0.8 + k * 0.53 + 0.04;
+      bar(g, a, y0 + 0.012, a + 0.45, y1 - 0.012, 0.028, "wood", "#6c5034", 310 + k);
+    }
+  }, edge: "#9a7a55", posts: LONG_LEGS }, 320);
 }
-
-/** RF1: the heavy timber beam, steel straps at the joints, razor wire coiled along the top. */
+/** RF1: the boarded wall on posts, steel straps, razor wire coiled along the top. */
 export function drawRF1(g: Ctx): void {
-  for (const [i, x] of [-0.86, -0.3, 0.3, 0.86].entries()) frame(g, x - 0.1, x + 0.1, "wood", 500 + i * 9);
-  sideFace(g, -0.98, 0.98, 0.02, 0.11, "#33251a");
-  plank(g, -0.98, -0.1, 0.98, -0.03, WOODS[2], 601);
-  plank(g, -0.98, -0.03, 0.98, 0.04, WOODS[5], 602);
-  plank(g, -0.98, 0.04, 0.98, 0.095, WOODS[0], 603);
-  for (const x of [-0.86, -0.3, 0.3, 0.86]) {
-    steelPlate(g, x - 0.03, -0.11, x + 0.03, 0.105, "#5d636b", 610 + Math.round(x * 10), false);
-    bolt(g, x, -0.075);
-    bolt(g, x, 0.0);
-    bolt(g, x, 0.07);
-  }
-  razorCoil(g, -0.98, 0.98, -0.005, 0.075, 620);
+  wall(g, -0.97, 0.97, { kind: "wood", legs: LONG_LEGS, face: (g, x0, x1, y0, y1) => {
+    woodFace(500, false)(g, x0, x1, y0, y1);
+    for (const x of [-0.55, 0, 0.55]) {
+      steelPlate(g, x - 0.04, y0, x + 0.04, y1, "#5d636b", 510 + Math.round(x * 10), false);
+      bolt(g, x, y0 + 0.03);
+      bolt(g, x, y1 - 0.03);
+    }
+  }, edge: "#8e7050", posts: LONG_LEGS, wire: true }, 520);
 }
-
-/** RF2: wooden sawhorses with planks, razor wire coils run along both feet lines. */
+/** RF2: X-braced wooden sawhorse barricades with steel corner plates and razor wire on top. */
 export function drawRF2(g: Ctx): void {
-  razorCoil(g, -0.98, 0.98, -0.17, 0.06, 701);
-  razorCoil(g, -0.98, 0.98, 0.17, 0.06, 702);
-  for (let u = 0; u < UNITS; u++) {
-    const [a, b] = unitX(u);
-    frame(g, a, b, "wood", 710 + u * 11);
-    sideFace(g, a, b, 0.01, 0.1, "#33251a");
-    plank(g, a, -0.085, b, 0.0, WOODS[(u + 1) % 6] as string, 720 + u);
-    plank(g, a, 0.0, b, 0.08, WOODS[(u + 4) % 6] as string, 730 + u);
-    steelPlate(g, a + 0.02, -0.09, a + 0.07, 0.085, "#5d636b", 740 + u, false);
-    steelPlate(g, b - 0.07, -0.09, b - 0.02, 0.085, "#5d636b", 750 + u, false);
-    for (const x of [a + 0.045, b - 0.045]) for (const y of [-0.05, 0.04]) bolt(g, x, y, 0.007);
-  }
+  units((a, b, u) => wall(g, a, b, { kind: "wood", legs: [a + 0.06, b - 0.06], face: (g, x0, x1, y0, y1) => {
+    woodFace(720 + u, true)(g, x0, x1, y0, y1);
+    for (const x of [x0, x1 - 0.06]) {
+      steelPlate(g, x, y0, x + 0.06, y1, "#5d636b", 740 + u, false);
+      bolt(g, x + 0.03, y0 + 0.03, 0.007);
+      bolt(g, x + 0.03, y1 - 0.03, 0.007);
+    }
+  }, edge: "#8e7050", wire: true }, 710 + u * 11));
 }
-
-/** MT1: three steel sawhorses, each a riveted box beam with hazard stripes, tube legs, rubber feet. */
+/** MT1: three upright steel barricades, hazard-striped plates on tube A-frames. */
 export function drawMT1(g: Ctx): void {
-  for (let u = 0; u < UNITS; u++) {
-    const [a, b] = unitX(u);
-    frame(g, a, b, "steel", 800 + u * 11);
-    sideFace(g, a, b, 0.0, 0.085, "#25282c");
-    steelPlate(g, a, -0.075, b, 0.06, "#6a7078", 810 + u, false);
-    hazard(g, a + 0.03, -0.055, b - 0.03, 0.04, 820 + u);
-    g.strokeStyle = "#0a0b0d";
-    g.lineWidth = 1.3 * P;
-    g.strokeRect(a + 0.03, -0.055, b - a - 0.06, 0.095);
-    for (const x of [a + 0.015, b - 0.015]) for (const y of [-0.06, 0.045]) bolt(g, x, y, 0.006);
-  }
+  units((a, b, u) => wall(g, a, b, { kind: "steel", legs: [a + 0.06, b - 0.06], face: steelFace(810 + u, true), edge: "#9aa1a9" }, 800 + u * 11));
 }
-
-/** MT2: one long riveted steel plate barrier on steel A-frames, hazard chevrons at both ends. */
+/** MT2: one long riveted steel plate wall on steel posts, hazard chevrons at both ends. */
 export function drawMT2(g: Ctx): void {
-  for (const [i, x] of [-0.86, -0.3, 0.3, 0.86].entries()) frame(g, x - 0.1, x + 0.1, "steel", 900 + i * 9);
-  sideFace(g, -0.98, 0.98, 0.0, 0.09, "#25282c");
-  steelPlate(g, -0.98, -0.085, -0.005, 0.075, "#646a72", 911);
-  steelPlate(g, 0.005, -0.085, 0.98, 0.075, "#6b7179", 912);
-  hazard(g, -0.96, -0.06, -0.78, 0.05, 913);
-  hazard(g, 0.78, -0.06, 0.96, 0.05, 914);
-  for (const [x0, x1] of [[-0.96, -0.78], [0.78, 0.96]] as const) {
-    g.strokeStyle = "#0a0b0d";
-    g.lineWidth = 1.3 * P;
-    g.strokeRect(x0, -0.06, x1 - x0, 0.11);
-  }
-  // the seam strap between the two plates
-  steelPlate(g, -0.025, -0.09, 0.025, 0.08, "#51565d", 915, false);
-  for (const y of [-0.06, 0.0, 0.055]) bolt(g, 0, y, 0.008);
+  wall(g, -0.97, 0.97, { kind: "steel", legs: LONG_LEGS, face: (g, x0, x1, y0, y1) => {
+    steelFace(911, false)(g, x0, x1, y0, y1);
+    hazard(g, x0 + 0.02, y0 + 0.025, x0 + 0.2, y1 - 0.025, 913);
+    hazard(g, x1 - 0.2, y0 + 0.025, x1 - 0.02, y1 - 0.025, 914);
+  }, edge: "#9aa1a9", posts: LONG_LEGS }, 900);
+}
+/** PB1: the police sawhorse barricade, upright: striped board face, A-frame legs, amber lamps at the ends. */
+export function drawPB1(g: Ctx): void {
+  units((a, b, u) => wall(g, a, b, { kind: "steel", legs: [a + 0.06, b - 0.06], face: policeFace, edge: "#f1eee6", lamps: u === 0 ? [a + 0.06] : u === UNITS - 1 ? [b - 0.06] : [] }, 950 + u * 11));
 }
