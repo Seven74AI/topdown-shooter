@@ -46,15 +46,20 @@ export interface LootState {
   /** Who took it (null: nobody yet) and in which wave the bag dropped. */
   foundBy: string | null;
   foundWave: number;
+  /**
+   * Review M1: seats already banked for this run (a Leave / `run.leave` banks at once). They play on if they come
+   * back, but can't take the bag: their run is closed, so a find would be lost and teammates shown a phantom item.
+   */
+  readonly banked: Set<string>;
 }
 
 export function createLootState(): LootState {
-  return { plan: emptyLootPlan(), salt: 0, killIndex: 0, killed: 0, counting: false, state: LOOT_BAG.NONE, x: 0, y: 0, dropTick: 0, untilTick: 0, variant: 0, foundBy: null, foundWave: 0 };
+  return { plan: emptyLootPlan(), salt: 0, killIndex: 0, killed: 0, counting: false, state: LOOT_BAG.NONE, x: 0, y: 0, dropTick: 0, untilTick: 0, variant: 0, foundBy: null, foundWave: 0, banked: new Set() };
 }
 
 /** Plain copy for `snapshotWorld` (AC 12: the replay digest covers the bag). */
 export function snapshotLoot(l: Readonly<LootState>) {
-  return { plan: { ...l.plan }, salt: l.salt, killIndex: l.killIndex, killed: l.killed, counting: l.counting, state: l.state, x: l.x, y: l.y, dropTick: l.dropTick, untilTick: l.untilTick, variant: l.variant, foundBy: l.foundBy, foundWave: l.foundWave };
+  return { plan: { ...l.plan }, salt: l.salt, killIndex: l.killIndex, killed: l.killed, counting: l.counting, state: l.state, x: l.x, y: l.y, dropTick: l.dropTick, untilTick: l.untilTick, variant: l.variant, foundBy: l.foundBy, foundWave: l.foundWave, banked: [...l.banked].sort() };
 }
 
 /**
@@ -152,14 +157,14 @@ function playerInSlot(world: Readonly<World>, slot: number): PlayerState | undef
   return id ? world.players.get(id) : undefined;
 }
 
-/** B3: the lowest slot standing within `pickRadiusM` of the bag's centre (boundary inclusive), or undefined. */
+/** B3: the lowest slot standing within `pickRadiusM` of the bag's centre (boundary inclusive) and not banked yet (review M1), or undefined. */
 export function lootTaker(world: Readonly<World>): PlayerState | undefined {
   const l = world.loot;
   const r = world.balance.loot.pickRadiusM;
   const r2 = r * r;
   for (let s = 0; s < world.flameSlots.length; s++) {
     const p = playerInSlot(world, s);
-    if (!p || p.status !== "alive") continue;
+    if (!p || p.status !== "alive" || l.banked.has(p.id)) continue;
     const dx = p.x - l.x;
     const dy = p.y - l.y;
     if (dx * dx + dy * dy <= r2) return p;

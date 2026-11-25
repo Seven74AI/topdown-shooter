@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { endWave, BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView, NET_PROTOCOL_VERSION } from "@topdown/shared";
+import { endWave, LOOT_BAG, BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView, type World, NET_PROTOCOL_VERSION } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -88,6 +88,10 @@ async function toWave(accounts: (string | null)[], tokens: string[] = accounts.m
   for (const c of clients) c.send(C2S.BUILD_SET_READY, { ready: true });
   await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
   return { clients, inbox, room, w };
+}
+/** Review M1: the bag lies at (x, y) for the next 20 s (as if the planned kill had just dropped it). */
+function bagAt(w: World, x: number, y: number): void {
+  Object.assign(w.loot, { state: LOOT_BAG.OUT, x, y, dropTick: w.tick, untilTick: w.tick + 400, foundBy: null });
 }
 const idOf = (room: RunRoom, c: RunSdkRoom): string => room.members.get(c.sessionId)?.playerId ?? "";
 const rewardRows = (accountId: string): Promise<number> => countRunRewards(database, accountId);
@@ -203,6 +207,54 @@ describe("Story 7.2: banking in the room", () => {
     expect(got[0]).toMatchObject({ status: "saved", ending: "quit", leftWave: 1, total: 60 }); // "Banked when you left (wave 1)"
     expect(await rewardRows(b)).toBe(1);
     expect(await supplies(b)).toBe(60);
+  });
+
+  it("review M1 (B): run.leave keeps the socket, but the banked seat can't take the bag; a teammate still can", async () => {
+    const [a, b] = [await newAccount(), await newAccount()];
+    const { clients, inbox, room, w } = await toWave([a, b]);
+    const host = clients[0]!;
+    const guest = clients[1]!;
+    const gId = idOf(room, guest);
+    guest.send(C2S.RUN_LEAVE, {});
+    await vi.waitFor(() => expect(inbox[1]!.length).toBe(1));
+    expect(w.loot.banked.has(gId)).toBe(true);
+    const g = w.players.get(gId)!;
+    bagAt(w, g.x, g.y);
+    const t0 = w.tick;
+    await vi.waitFor(() => expect(w.tick).toBeGreaterThan(t0 + 5));
+    expect(w.loot.state).toBe(LOOT_BAG.OUT);
+    const h = w.players.get(idOf(room, host))!;
+    bagAt(w, h.x, h.y);
+    await vi.waitFor(() => expect(w.loot.foundBy).toBe(h.id));
+  });
+
+  it("review M1 (A): Leave mid-wave (banked), come back in the build phase: standing on the bag doesn't take it", async () => {
+    const [a, b] = [await newAccount(), await newAccount()];
+    const toks = [hex(), hex()];
+    const { clients, inbox, room, w } = await toWave([a, b], toks);
+    const guest = clients[1]!;
+    const bId = idOf(room, guest);
+    guest.send(C2S.RUN_LEAVE, {});
+    await vi.waitFor(() => expect(inbox[1]!.length).toBe(1));
+    await guest.leave(true);
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    endWave(w);
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const back = await colyseus.sdk.joinById<RunStateView>(guest.roomId, options("join", "P1", b, toks[1]));
+    const got = listen(back);
+    await back.waitForInitialState();
+    await vi.waitFor(() => expect(w.players.has(bId)).toBe(true));
+    const p = w.players.get(bId)!;
+    bagAt(w, p.x, p.y);
+    const t0 = w.tick;
+    await vi.waitFor(() => expect(w.tick).toBeGreaterThan(t0 + 5));
+    expect(w.loot.state).toBe(LOOT_BAG.OUT);
+    expect(w.loot.foundBy).toBeNull();
+    for (const q of w.players.values()) downPlayer(w, q);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]?.loot).toBeUndefined();
+    expect(got[0]?.teamLoot).toBeUndefined();
   });
 
   it("S3: a consented Leave without run.leave still banks at once (before the state leaves the World)", async () => {

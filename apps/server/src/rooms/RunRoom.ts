@@ -717,6 +717,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!world || !this.inRun() || !this.bank) return;
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
+    world.loot.banked.add(member.playerId); // review M1: a banked seat can no longer take the bag
     void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
   }
 

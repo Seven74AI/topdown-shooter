@@ -151,6 +151,36 @@ describe("Story 7.12 T2: the pick-up (B3)", () => {
     expect(world.loot.foundBy).toBe("p0");
   });
 
+  it("review L4: exactly at pickRadiusM takes it; a hair further doesn't", () => {
+    const { world } = bagWorld();
+    const p = addPlayer(world, "p0", 30, 30);
+    dropAt(world, 10, 10);
+    const r = world.balance.loot.pickRadiusM;
+    p.y = world.loot.y;
+    p.x = world.loot.x + r + 1e-6;
+    tick(world);
+    expect(world.loot.state).toBe(LOOT_BAG.OUT);
+    p.x = world.loot.x + r;
+    tick(world);
+    expect(world.loot.foundBy).toBe("p0");
+  });
+
+  it("review M1: a seat already banked (Leave / run.leave) can't take it; the next slot in range does", () => {
+    const { world } = bagWorld();
+    addPlayer(world, "p0", 10, 10);
+    addPlayer(world, "p1", 10, 10);
+    world.loot.banked.add("p0");
+    dropAt(world, 10, 10);
+    tick(world);
+    expect(world.loot.foundBy).toBe("p1");
+    const { world: w2 } = bagWorld();
+    addPlayer(w2, "p0", 10, 10);
+    w2.loot.banked.add("p0");
+    dropAt(w2, 10, 10);
+    for (let i = 0; i < 5; i++) tick(w2);
+    expect(w2.loot.state).toBe(LOOT_BAG.OUT);
+  });
+
   it("several in range on the same tick → the lowest slot", () => {
     const { world } = bagWorld();
     addPlayer(world, "p0", 30, 30);

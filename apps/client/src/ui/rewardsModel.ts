@@ -81,7 +81,7 @@ export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string):
   if (t) {
     const slot = playerSlotOf(t.playerId);
     const who = (slot >= 0 && slot < 4 ? nameOf(slot) : "") || "A teammate";
-    items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: "(Collector: they have every surprise item)", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
+    items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: t.wave > 0 ? "(Collector: they have every surprise item)" : "", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
   }
   const unlocks: UnlockRow[] = (rewards.newDistricts ?? []).map((d) => {
     const playable = PROGRESSION.districts.find((x) => x.id === d.id)?.playable === true;

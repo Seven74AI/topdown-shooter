@@ -21,7 +21,6 @@ import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
 import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
-import { pickLootItem } from "./loot";
 import { partName, runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
@@ -233,12 +232,12 @@ export class RunBank {
     // 7.12 D1: the finder banks first (or banked when it left), so every teammate's Results names the item.
     const finder = facts.lootFoundBy;
     const finderSeat = finder === null ? undefined : seats.find((x) => x.playerId === finder);
-    const first: Promise<RunRewards | undefined> = finderSeat ? this.bank(finderSeat) : Promise.resolve(finder === null ? undefined : this.done.get(finder));
+    const first: Promise<RunRewards | undefined> = finderSeat ? this.bank(finderSeat) : (finder === null ? undefined : this.banks.get(finder)) ?? Promise.resolve(undefined); // review M1: await a bank still in flight
     const all: Promise<RunRewards>[] = seats.map((seat) =>
       seat === finderSeat
         ? (first as Promise<RunRewards>)
         : first.then((f) => {
-            const teamLoot = finder === null ? undefined : teamLootOf(finder, facts, f);
+            const teamLoot = finder === null ? undefined : teamLootOf(finder, f);
             return this.bank(teamLoot ? { ...seat, teamLoot } : seat);
           }),
     );
@@ -316,10 +315,12 @@ function lootOnly(m: MetaLines): MetaLines {
   return out;
 }
 
-/** 7.12 D1: the teammates' line from the finder's result (or, if it never banked here, the item as the finder sees it). */
-function teamLootOf(finder: string, facts: RunFacts, r: RunRewards | undefined): TeamLoot {
+/**
+ * 7.12 D1: the teammates' line from the finder's result. Review M1: with no find in it (the finder's bank failed or
+ * was not saved), no item is guessed: `{key: null, wave: 0}` reads "<name> found the bag" (wave 0 = item unknown).
+ */
+function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot {
   const l = (r as { loot?: LootFind } | undefined)?.loot;
   if (l) return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
-  const key = pickLootItem(new Set(), facts.lootItemRoll);
-  return { playerId: finder, wave: facts.lootWave, key, name: key === null ? "" : partName(key) };
+  return { playerId: finder, wave: 0, key: null, name: "" };
 }

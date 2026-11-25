@@ -32,6 +32,11 @@ describe("Run rewards: items (7.11, 7.12) and unlocks (7.7)", () => {
     expect(rewardsView({ ...base, loot: { wave: 4, key: null, name: "" } }, true, 7).items[0]?.text).toBe(COLLECTOR_TEXT);
     const t = rewardsView({ ...base, teamLoot: { playerId: "p2", wave: 4, key: "pack:cat", name: "Cat in the backpack" } }, true, 7, undefined, names).items[0];
     expect(t).toMatchObject({ kind: "team", text: "Cid found: Cat in the backpack", slot: 2, big: false });
+    // review M1: the finder's item unknown (wave 0) → "found the bag", no Collector line, no item guessed
+    const u = rewardsView({ ...base, teamLoot: { playerId: "p1", wave: 0, key: null, name: "" } }, true, 7, undefined, names).items[0];
+    expect(u).toMatchObject({ kind: "team", text: "Bo found the bag", sub: "", key: null });
+    const c = rewardsView({ ...base, teamLoot: { playerId: "p1", wave: 5, key: null, name: "" } }, true, 7, undefined, names).items[0];
+    expect(c?.sub).toBe("(Collector: they have every surprise item)");
   });
 
   it("an unsaved bank still shows the find; nothing for a message of another run; empty groups take no rows", () => {

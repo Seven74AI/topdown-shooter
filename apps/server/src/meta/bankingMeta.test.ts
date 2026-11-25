@@ -94,6 +94,25 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     }
   });
 
+  it("review M1: a finder who left (bank still in flight) is awaited; a finder never banked here → 'found the bag', no item guessed", async () => {
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(2, "wiped");
+    w.loot.foundBy = "p0";
+    w.loot.foundWave = 3;
+    w.loot.plan.itemRoll = 0;
+    const p0 = w.players.get("p0")!;
+    void bank.bank({ playerId: "p0", accountId: ACCTS[0] as string, record: p0, ending: "quit", wave: 4, meta: bank.seatMetaNow(w, p0) }); // slow write (5 ms), not awaited
+    const [r1] = await bank.bankRunEnd(w, [{ playerId: "p1", accountId: ACCTS[1] as string }], []);
+    expect(r1?.teamLoot).toEqual({ playerId: "p0", wave: 3, key: lootPartKeys()[0], name: "Floral shirt" });
+    const bank2 = new RunBank(2, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w2 = team(1, "wiped");
+    w2.loot.foundBy = "p3"; // gone without a bank in this room
+    w2.loot.foundWave = 3;
+    const [r] = await bank2.bankRunEnd(w2, [{ playerId: "p0", accountId: ACCTS[1] as string }], []);
+    expect(r?.teamLoot).toEqual({ playerId: "p3", wave: 0, key: null, name: "" });
+  });
+
   it("7.12: an unsaved finder (no account) still sees the find; nothing else is granted without a saved bank", async () => {
     const bank = new RunBank(1, { repo: () => null, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
     const w = team(2, "extracted");
