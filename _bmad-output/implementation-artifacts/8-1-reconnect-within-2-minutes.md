@@ -554,6 +554,7 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 | RR3-L1 | low (test strength) | `tools/bots/cut.test.ts:61,83,86` (`loadSlack = max(1, load/2)`) | **The AC 11 bound (back ≤ 10 s after the cut) has no ceiling under load.** Load 4 → 20 s, 8 → 40 s, 16 → 80 s (the `until` wait scales too: 15 s × slack). Measured here: back **303 ms** after the cut ends — the real margin is ~30×, so the 10 s bound itself was never the flaky part; scaling it mostly lets a real regression (e.g. a reconnect that waits out a 15–20 s backoff) pass on a loaded CI box. A tick bound doesn't fit (the SDK's reconnect backoff is wall-clock; under load the server's ticks stretch too and would hide the same regression). | Keep the slack on the waits (ready / ack / `until`) only and assert the AC's 10 s unscaled; or cap it (`min(2, …)`). |
 | RR3-N1 | nit (test gap) | `apps/server/src/rooms/RunRoom.ts:1018` (`onDropHold`'s end time) | **Nothing pins "the 120 s still run from the drop" in `heldUntilTick`.** Mutation: end time from the vanish (`w.tick + holdS·20`) → all 19 `RunRoom.reconnect` tests pass; teammates' chips would read 3 s more than the seat really has (the seat still expires at drop + holdS: Colyseus window). Probe R1 pins it: `heldUntilTick − dropTick` = 121 for holdS 6 (expected 120 ± 1), seat left 6016 ms after the drop. | One assertion in the drop test: `heldUntilTick − tickAtDrop ≈ holdS × 20`. |
 | RR3-N2 | nit (record) | this file, re-review 2 header | Re-review 2 says its probes are kept in `probes/8-1-rr2/*.probe.ts.txt`; that directory was never committed (absent on `story-8-1` and master). | Accept; re-review 3's probes are committed under `probes/8-1-rr3/`. |
+| Gate flakes (this round) | Gate 6 failed in `cut.test` at "the run goes on" (wave 4 never ended in 150 s); reproduced 1 in 37 standalone runs: all 4 bots `ok`, none held, not frozen, 10 wave zombies left, 0 queued (the reconnect had worked: `backAfterCutEndMs` ≈ 350). The test now logs `cut_test_stuck` (players, zombies) when that wait fails; cause not found (bots' hunting suspected, not proven; not attributable to RR3-M1 on this evidence). Gate 7 failed in "a team wipes … (F3)": Ana never sent an input, so D1's quiet rule could hold her and freeze the room before Bo's body vanished; she now sends inputs (like the other room tests), wait 10 s | F3 test: 6× the room file in parallel with server + shared (load 4.45), all green |
 
 #### Attempts
 
@@ -595,6 +596,9 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 | RR3-L1 | `cut.test.ts`: the AC 11 10 s bound is fixed again; the load slack (`min(2, max(1, load/2))`) is on the condition waits only | `cut.test.ts` |
 | RR3-N1 | — (code already right) | `RunRoom.reconnect.test.ts` › drop test: `heldUntilTick − dropTick ≈ holdS × 20` (± 5 ticks); mutation "end from the vanish" fails it |
 | RR3-N2 | Re-review 3's probes committed under `probes/8-1-rr3/`. Re-review 2's `probes/8-1-rr2/` were the reviewer session's and are not in this container (not on any branch): noted, not recoverable here | — |
+
+
+Gate (re-review 3, 2026-11-25 08:44–08:51 UTC, story-8-1 merged with origin/master 8248be0, `npm ci`): `npm run typecheck && npm run lint && npm test && npm run build` → EXIT 0; 429 test files passed / 1 skipped, 3897 tests passed / 3 skipped; build ok. Load 3.31 at start, 3.53 at end. (Gates 6 and 7 of this round failed on the two flakes above.)
 
 ## Change Log
 
