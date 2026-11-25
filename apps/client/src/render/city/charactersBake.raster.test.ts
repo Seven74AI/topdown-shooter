@@ -27,7 +27,7 @@ import {
   type CharBake,
   type CharWorkerResult,
 } from "./charactersAtlas";
-import { frameSide } from "./charactersFrames";
+import { frameSide, isWaveOneFrame } from "./charactersFrames";
 import { DEFAULT_RESOLVED_LOOK } from "./survivorLook";
 
 const make = (w: number, h: number): HTMLCanvasElement => createCanvas(Math.max(1, w), Math.max(1, h)) as unknown as HTMLCanvasElement;
@@ -160,6 +160,16 @@ describe("Story 9.13: the character bake (main-thread fallback and worker housek
     let t = 0;
     while (pumpCharBake(b, Infinity, 50, () => (t += 0.05))) if (t > 1e6) break;
     expect(got).toBe(1);
+  });
+
+  it("B25: the queue serves the first build phase first (Walkers, guns), then runners, crawlers, spitters, brutes, bloaters", () => {
+    const order = allTasks().filter((t) => t.kind === "frame" && !t.plain).map((t) => (t.kind === "frame" ? t.frame : ""));
+    const first = (re: RegExp): number => order.findIndex((f) => re.test(f));
+    const last = (re: RegExp): number => order.length - 1 - [...order].reverse().findIndex((f) => re.test(f));
+    expect(last(/^zombie_walker_/)).toBeLessThan(first(/^survivorgun_/));
+    expect(last(/^survivorgun_/)).toBeLessThan(first(/^zombie_runner_/));
+    for (const [a, b] of [["runner", "crawler"], ["crawler", "spitter"], ["spitter", "brute"], ["brute", "bloater"]]) expect(last(new RegExp(`^zombie_${a}_`))).toBeLessThan(first(new RegExp(`^zombie_${b}_`)));
+    expect(order.filter((f) => isWaveOneFrame(f)).length).toBe(40 + 9);
   });
 
   it("restore: kept pictures are pixels (nothing to re-bake); if one is wiped all are queued again", () => {

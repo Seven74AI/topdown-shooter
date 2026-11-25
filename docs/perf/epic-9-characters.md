@@ -53,25 +53,45 @@ The bake overlapping the count (the story's 8 s warm-up from the start; caps 20 
 1× 15.3 vs 18.4 FPS (p95 83.3 vs 66.7), 4× 10.7 vs 12.3 FPS (p95 116.7 vs 100) — the worker and the landings
 during the first ~8 s (1×) / ~16 s (4×); in a real run they fall in the first build phase.
 
+### Cost per layer and draw calls (orchestrator follow-up)
+
+1× steady state, two rounds each, one layer hidden at a time (a temporary switch, not shipped); draw calls counted by
+wrapping `drawElements` / `drawArrays` (all WebGL draws of the frame, the whole scene):
+
+| configuration | FPS (r1 / r2) | mean | p95 ms | draw calls per frame |
+| --- | --- | --- | --- | --- |
+| master | 17.6 / 21.3 | 19.5 | 66.7 / 66.6 | 9 |
+| branch, everything on (16 / 8) | 20.9 / 19.5 | 20.2 | 50.1 / 66.7 | 14.1 |
+| branch, crossfade top hidden | 20.5 / 18.7 | 19.6 | 66.7 / 66.7 | 14.1 |
+| branch, sheen hidden | 20.3 / 19.1 | 19.7 | 66.7 / 66.7 | 13.1 |
+| branch, top and sheen hidden | 19.7 / 20.8 | 20.3 | 66.7 / 50.1 | 13.1 |
+
+The layers batch: the 150 zombies on their per-look sheets plus the crossfade tops (same sheets, normal blend) cost +4
+draw calls over master's one atlas, the additive band (sheen, glow) +1. With these caps no layer's cost stands out of
+the ±2 FPS noise; the caps stay at 16 / 8 because 20 / 10 put the 4× p95 one bucket up in one of two rounds (above).
+
 Steady-state profile (CDP Profiler, 6 s, 1×): ~95 % of the main thread's samples wait on the GPU in both master and
 the branch; the JavaScript the story adds (`ZombieView.update`, the cap pass, the layers) is < 0.2 %. The cost of the
 animated layers is draw / fill on the (software) GPU, which is why the caps, not code, set the budget.
 
 ## Bake time (AC 3)
 
-From the sheets' creation to the last relit picture landed (`window.__charBake`: 123 frames — 8 walk loops × 10, 4
-Spitter, 10 Brute, 20 Bloater pictures with their veins, 9 gun frames — plus the survivor's body), worker on,
-7 repetitions, median (min–max):
+From the sheets' creation to the last relit picture landed (`window.__charBake`: 123 frames — 8 walk loops × 10, 9 gun
+frames, 4 Spitter, 10 Brute, 20 Bloater pictures with their veins — plus the survivor's body), worker on, 7
+repetitions, median (min–max). B25 orders the queue for the first build phase: Walkers, the gun frames (the bodies
+jump the queue on their own), Runners, Crawlers, then the later waves' Spitters, Brutes, Bloaters; "wave-1 set" = every
+Walker walk picture and every gun frame relit.
 
-| CPU | `?stress=150` (150 Walkers drawing) | load | `?stress=1` (empty street, as the first build phase) | load |
-| --- | --- | --- | --- | --- |
-| headless, no throttle | 7.8 s (7.3–8.2) | 1.98 | — | — |
-| headless, 4× CPU throttle | 16.0 s (14.6–16.7) | 2.34 | **13.7 s (13.0–14.7)** | 1.99 |
+| CPU | wave-1 set done | all done | load |
+| --- | --- | --- | --- |
+| headless, no throttle, `?stress=150` | 4.0 s (3.7–4.1) | 7.0 s (6.6–7.3) | 1.43 |
+| headless, 4× CPU, `?stress=150` | 9.8 s (9.4–10.5) | **13.9 s (13.6–14.6)** | 1.82 |
+| headless, 4× CPU, `?stress=1` (empty street; before B25) | — | 13.7 s (13.0–14.7) | 1.99 |
 
-AC 3's "within 15 s at 4× CPU (inside the first build phase)": met on an empty street (13.7 s); with 150 Walkers
-drawing at the same time it takes 16 s. The same worker on an idle page bakes everything in ~2.4 s; in a running game,
-headless, every canvas readback and `transferToImageBitmap` used to wait for the busy GPU process (~60 ms each, 31 s in
-all) until the worker reused its canvases and posted pixels instead (B17).
+AC 3's "within 15 s at 4× CPU": met, with 150 Walkers drawing at the same time (before B25 and the last landing fixes
+it was 16.0 s, 14.6–16.7). The same worker on an idle page bakes everything in ~2.4 s; in a running game, headless,
+every canvas readback and `transferToImageBitmap` used to wait for the busy GPU process (~60 ms each, 31 s in all)
+until the worker reused its canvases and posted pixels instead (B17).
 
 ## Main thread (AC 3)
 
@@ -80,11 +100,10 @@ sheet upload per frame), `window.__charBake.maxPumpMs`, 7 repetitions, median (m
 
 | CPU | `?stress=150` | `?stress=1` |
 | --- | --- | --- |
-| headless, no throttle | **4.0 ms (2.8–6.4)** | — |
-| headless, 4× CPU throttle | 14.7 ms (10.5–26.1) | 13.2 ms (10.2–15.2) |
+| headless, no throttle | **3.1 ms (2.6–5.9)**; before the bake reorder 4.0 ms (2.8–6.4) | — |
+| headless, 4× CPU throttle | 13.3 ms (12.2–17.4); before 14.7 ms (10.5–26.1) | 13.2 ms (10.2–15.2) |
 
-AC 3's ≤ 6 ms at 1×: met at the median and in 6 of 7 runs (one 6.4 ms outlier: a sheet upload). The perf runs above
-logged 4.4 and 5.5 ms. At 4× the main thread's share is the sheet uploads (≤ 254 k px each) and the pixel writes; 9.11's
+AC 3's ≤ 6 ms at 1×: met in all 7 runs of the final build (worst 5.9 ms: a sheet upload). At 4× the main thread's share is the sheet uploads (≤ 254 k px each) and the pixel writes; 9.11's
 building bake measured 3.6 ms (1×) / 16.5 ms (4×) the same way.
 
 ## Not verified here

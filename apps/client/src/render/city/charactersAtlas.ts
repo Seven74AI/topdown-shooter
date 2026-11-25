@@ -18,6 +18,7 @@ import {
   frameSide,
   glowFrame,
   isLoopType,
+  isWaveOneFrame,
   sheenFrame,
   sheetOf,
   veinFrame,
@@ -187,7 +188,7 @@ export interface CharBake {
   /** Nothing in progress after the last pump (the next pump returns at once unless something new came in). */
   idle: boolean;
   /** Stats for the perf note (`window.__charBake`): main-thread max per pump, when the last picture landed. */
-  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; maxLandMs: number; maxRefreshMs: number; maxBodyMs: number; maxKeepMs: number };
+  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; waveOneMs: number; maxLandMs: number; maxRefreshMs: number; maxBodyMs: number; maxKeepMs: number };
 }
 let bake: CharBake | null = null;
 
@@ -239,6 +240,7 @@ function keep(b: CharBake, d: Done): void {
     loopLanded.set(a.sheet, set);
   }
   b.stats.landed++;
+  if (b.stats.waveOneMs === 0 && isWaveOneFrame(d.frame) && charArts().every((x) => !isWaveOneFrame(x.frame) || kept.get(x.frame)?.plain === false)) b.stats.waveOneMs = performance.now();
 }
 function closeAll(...s: (Pic | null)[]): void {
   for (const x of s) if (x && "close" in x) (x as ImageBitmap).close();
@@ -474,7 +476,7 @@ export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
 
 /** A bake over `sheets` (tests make them with a node canvas); main-thread until `useWorker`. */
 export function newCharBake(sheets: Map<string, Sheet>, make: (w: number, h: number) => HTMLCanvasElement, queue: Task[] = allTasks()): CharBake {
-  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, idle: false, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, maxLandMs: 0, maxRefreshMs: 0, maxBodyMs: 0, maxKeepMs: 0 } };
+  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, idle: false, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, waveOneMs: 0, maxLandMs: 0, maxRefreshMs: 0, maxBodyMs: 0, maxKeepMs: 0 } };
 }
 /** A sheet over a canvas (tests). */
 export function newSheet(key: string, canvas: HTMLCanvasElement): Sheet {

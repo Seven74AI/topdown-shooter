@@ -90,15 +90,31 @@ export const gunFrameOf = (weapon: string): string => frameName("survivorgun", w
 
 function build(): CharArt[] {
   const out: CharArt[] = [];
-  // walk loops first (the stress scene and wave 1 are walkers)
-  for (const type of LOOP_TYPES) {
+  const loop = (type: LoopType): void => {
     for (let v = 0; v < VARIANTS[type]; v++) {
       const draw = LOOP_DRAW[type];
       for (let k = 0; k < LOOP_FRAMES; k++) {
         out.push({ frame: walkFrame(type, v, k), sheet: sheetOf(type, v), extent: CHAR_EXTENT_R[type], seed: rowSeed(ROW[type] + v), draw: (g, r) => draw(g, r, v, k / LOOP_FRAMES), primary: k === 0, ...(k === 0 ? { plainFirst: true } : {}) });
       }
     }
+  };
+  // B25 bake order: what the first build phase and wave 1 show first (walkers, the guns; the bodies jump the queue on
+  // their own), then the types of later waves: runners, crawlers, spitters, brutes, bloaters
+  loop("walker");
+  const gun = (frame: string, row: number, draw: (g: G, r: number) => void): CharArt => ({ frame, sheet: gunSheetOf(frame), extent: CHAR_EXTENT_R.survivor, seed: rowSeed(row), draw, primary: true });
+  out.push(gun(GUN_PLAIN, 0, (g, r) => drawSurvivorGun(g, r)));
+  const flames = new Set(["flamethrower", "gas_torch"]);
+  for (const [i, w] of GUN_ROW_WEAPONS.entries()) {
+    const art = WEAPON_ART[w];
+    if (art) out.push({ ...gun(gunFrameOf(w), 1 + i, (g, r) => drawSurvivorGun(g, r, (c, rr) => art(c, "held", rr), WEAPON_BACK_ART[w])), ...(flames.has(w) ? { glows: true } : {}) });
   }
+  for (const w of Object.keys(WEAPON_ART)) {
+    const art = WEAPON_ART[w];
+    if (!GUN_ROW_WEAPONS.includes(w) && art) out.push(gun(gunFrameOf(w), 0, (g, r) => drawSurvivorGun(g, r, (c, rr) => art(c, "held", rr), WEAPON_BACK_ART[w])));
+  }
+  out.push(gun(GUN_CHAINSAW_RUNNING, 8, (g, r) => drawSurvivorGun(g, r, (c, rr) => drawChainsawRunning(c, "held", rr))));
+  loop("runner");
+  loop("crawler");
   for (let v = 0; v < VARIANTS.spitter; v++) {
     for (const wu of [false, true]) {
       const name = wu ? `${frameName("zombie", "spitter", "windup")}_${variantLetter(v)}` : frameName("zombie", "spitter", variantLetter(v));
@@ -118,20 +134,11 @@ function build(): CharArt[] {
       out.push({ frame: name, sheet: sheetOf("bloater", v), extent: CHAR_EXTENT_R.bloater, seed: rowSeed(row), draw: (g, r) => drawBloater(g, r, v, st / SWELL_STAGES), primary: true, bloater: { look: v, s: st / SWELL_STAGES, seed: 1300 + row * 17 } });
     }
   }
-  const gun = (frame: string, row: number, draw: (g: G, r: number) => void): CharArt => ({ frame, sheet: gunSheetOf(frame), extent: CHAR_EXTENT_R.survivor, seed: rowSeed(row), draw, primary: true });
-  out.push(gun(GUN_PLAIN, 0, (g, r) => drawSurvivorGun(g, r)));
-  const flames = new Set(["flamethrower", "gas_torch"]);
-  for (const [i, w] of GUN_ROW_WEAPONS.entries()) {
-    const art = WEAPON_ART[w];
-    if (art) out.push({ ...gun(gunFrameOf(w), 1 + i, (g, r) => drawSurvivorGun(g, r, (c, rr) => art(c, "held", rr), WEAPON_BACK_ART[w])), ...(flames.has(w) ? { glows: true } : {}) });
-  }
-  for (const w of Object.keys(WEAPON_ART)) {
-    const art = WEAPON_ART[w];
-    if (!GUN_ROW_WEAPONS.includes(w) && art) out.push(gun(gunFrameOf(w), 0, (g, r) => drawSurvivorGun(g, r, (c, rr) => art(c, "held", rr), WEAPON_BACK_ART[w])));
-  }
-  out.push(gun(GUN_CHAINSAW_RUNNING, 8, (g, r) => drawSurvivorGun(g, r, (c, rr) => drawChainsawRunning(c, "held", rr))));
   return out;
 }
+
+/** B25: the first wave's set (walk loops of the Walkers and every gun frame): the bake reports when it is in. */
+export const isWaveOneFrame = (frame: string): boolean => frame.startsWith("zombie_walker_") || frame.startsWith("survivorgun_");
 
 let arts: readonly CharArt[] | null = null;
 let byFrame: ReadonlyMap<string, CharArt> | null = null;

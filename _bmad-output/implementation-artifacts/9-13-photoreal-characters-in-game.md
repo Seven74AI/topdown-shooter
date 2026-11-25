@@ -131,6 +131,7 @@ Claude (builder session, gds-dev-story), 2026-11-25.
 - **B22 BR2 glows.** BR2's hi-vis orange is detected as glowing, as on the approved page (it pulses there too); kept to match the page. `CharArt.glows` lists the glowing looks (Spitters, BR2, flamethrower, gas torch); a test keeps it in step with the detection.
 - **B23 Character bake budget** `BAKE_MS_PER_FRAME = 4` ms (landing gets half).
 - **B24 Perf measurement.** `?stress=150` has no build phase, so the bake (done ~8 s after the start at 1×, ~16 s at 4× in headless) overlaps the story's 8 s warm-up + 12 s count; in headless the worker competes with the CPU renderer. The AC 4 table is the steady state (8 s warm-up after the bake landed, master warmed for the same session age); the overlapped run is reported too (`docs/perf/epic-9-characters.md`).
+- **B25 Bake order** (orchestrator): Walkers, then the gun frames (bodies jump the queue on their own), Runners, Crawlers, then Spitters, Brutes, Bloaters (later waves); the bake reports "wave-1 set done" (every Walker walk picture and gun frame) and "all done": 4× CPU with 150 Walkers 9.8 s / 13.9 s (≤ 15 s).
 - **Tests changed on purpose:** `SurvivorLookTextures.test.ts` — the gun frame's texture is its relit sheet (`gunSheetOf`), and the body's rotation includes take 4's sway (≤ 0.012 rad).
 
 ### Completion Notes List
