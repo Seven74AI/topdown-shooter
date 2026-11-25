@@ -221,9 +221,22 @@ export function drawSurvivor(
   look: ResolvedLook = DEFAULT_RESOLVED_LOOK,
   layers = true,
 ): void {
+  drawSurvivorGun(c, r, heldGun, back);
+  drawSurvivorBody(c, r, look, !back, layers);
+}
+
+function survivorLineState(c: G, r: number): void {
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;
   c.lineWidth = outlineWidth(r);
+}
+
+/**
+ * Story 7.9 (D2): what `drawSurvivor` draws under the arms — a weapon's back piece, then the held gun (or the plain gun
+ * bar). No look: one shared atlas frame per weapon, drawn under each player's own body picture.
+ */
+export function drawSurvivorGun(c: G, r: number, heldGun?: (c: G, r: number) => void, back?: (c: G, r: number) => void): void {
+  survivorLineState(c, r);
   // Story 5.4: a weapon's back piece (FT1's twin tanks) replaces the backpack, under everything.
   if (back) {
     c.save();
@@ -239,8 +252,16 @@ export function drawSurvivor(
     rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1);
     c.fill();
   }
+}
+
+/**
+ * Story 7.9 (D2): what `drawSurvivor` draws after the gun — arms, pack (`withPack` false for a weapon with a back
+ * piece), top, skin, hair, headgear — with the same line state, so gun frame + body frame = the 7.8 frame.
+ */
+export function drawSurvivorBody(c: G, r: number, look: ResolvedLook = DEFAULT_RESOLVED_LOOK, withPack = true, layers = true): void {
+  survivorLineState(c, r);
   drawArms(c, r, look.top, look.colours.top, look);
-  if (!back) drawPack(c, r, look.pack, partColour(look, "pack", look.pack), look);
+  if (withPack) drawPack(c, r, look.pack, partColour(look, "pack", look.pack), look);
   drawTop(c, r, look.top, look.colours.top, look);
   drawSkin(c, r, look.skin, look.colours.skin);
   if (!look.hidesHair) drawHair(c, r, look.hair, look.colours.hair);

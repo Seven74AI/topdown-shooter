@@ -1,6 +1,10 @@
+---
+baseline_commit: 1fade84
+---
+
 # Story 7.9: My look in the game
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47 (Epic 6 rounds 1–2 merged, 6.8–6.12 and the Network pass still to land). Customization story 2 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.9. -->
 
@@ -43,9 +47,9 @@ so that I can find myself and they can recognise me.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Look code (shared)** (AC 2–4, L1)
-  - [ ] `packages/shared/src/cosmetics/lookCode.ts`: `encodeLook(look)`, `decodeLook(input, owned) → { look, replaced }`, `ownedParts(cosmetics?)`, `LOOK_CODE_MAX = 96` (in `config/cosmetics.ts`), `partKey(slot, id)`. Pure, no allocation concerns (runs at join / bake only). Export from `packages/shared/src/index.ts` next to the 7.8 cosmetics block.
-  - [ ] `lookCode.test.ts`: round trip for all 51 parts, random colours, longest-id bound, junk fuzz, unowned replaced, per-slot fallback, `head:none` vs `pack:none`.
+- [x] **T1 Look code (shared)** (AC 2–4, L1)
+  - [x] `packages/shared/src/cosmetics/lookCode.ts`: `encodeLook(look)`, `decodeLook(input, owned) → { look, replaced }`, `ownedParts(cosmetics?)`, `LOOK_CODE_MAX = 96` (in `config/cosmetics.ts`), `partKey(slot, id)`. Pure, no allocation concerns (runs at join / bake only). Export from `packages/shared/src/index.ts` next to the 7.8 cosmetics block.
+  - [x] `lookCode.test.ts`: round trip for all 51 parts, random colours, longest-id bound, junk fuzz, unowned replaced, per-slot fallback, `head:none` vs `pack:none`.
 - [ ] **T2 Database and session** (AC 1) — waits for Story 7.1 on master
   - [ ] Drizzle schema: `look` text nullable on `progress`; `npm run db:migrate` migration file; the 7.1 progress repository returns it; the 7.1 session/progress response includes `look` (null → the client uses `DEFAULT_LOOK`).
   - [ ] Repository test (7.1's DB test pattern): null by default, a stored code reads back unchanged.
@@ -54,15 +58,15 @@ so that I can find myself and they can recognise me.
   - [ ] `RunRoom.checkAuth` (`RunRoom.ts:240`): decode with the account's `owned` (7.1 puts the account on `RunAuth`; until 7.11 `ownedParts()`), add `look` (canonical code) to `RunAuth`; `RunRoom.join` (`:327`) sets `PlayerState.look` with `name` (`:344`).
   - [ ] Schema field + every copy (brief 2): `RunState.ts`, `stateView.ts` (`PlayerStateView.look`, `PLAYER_STATE_FIELDS.look`), `fakeRoom.ts`, `devThrottle.ts` StateCopy, `resetRunFields` keeps it (`syncState.ts:217`), the 8.1 held seat / remembered seat keep it (check at build time).
   - [ ] Room tests: a bad look joins; an unowned part is replaced; look survives `lobby.return`; bandwidth per tick unchanged.
-- [ ] **T4 Gun under the body** (AC 7, 8) — decision 7.9 D2
-  - [ ] `spriteAtlas.ts`: gun-only frames `survivorgun_<weapon>_a` for each `WEAPON_ART` weapon (with `WEAPON_BACK_ART` drawn first for the flamethrower), `survivorgun_plain_a` (today's `CHAR.gun` bar) and `survivorgun_chainsaw_b` (running chain); `survivorGunFrameFor(weapon, running)` beside `survivorFrameFor` (`:53`). Same frame size as `survivor_body_a` and same centre, so gun and body line up with one position and rotation. Keep the existing `survivor_*` frames (7.8's digest pin); note them as unused in the game for a later cleanup.
-  - [ ] `spriteArt.ts`: a `drawSurvivorBody(c, r, look, withPack)` that draws what `drawSurvivor` draws after the gun (arms → pack → top → skin → hair → headgear, `layers = false`), with the same line-state sequence.
-  - [ ] Raster test (`@napi-rs/canvas`, 7.8 pattern): for every survivor frame, gun frame + body frame composed ≈ the 7.8 frame (AC 8).
+- [x] **T4 Gun under the body** (AC 7, 8) — decision 7.9 D2
+  - [x] `spriteAtlas.ts`: gun-only frames `survivorgun_<weapon>_a` for each `WEAPON_ART` weapon (with `WEAPON_BACK_ART` drawn first for the flamethrower), `survivorgun_plain_a` (today's `CHAR.gun` bar) and `survivorgun_chainsaw_b` (running chain); `survivorGunFrameFor(weapon, running)` beside `survivorFrameFor` (`:53`). Same frame size as `survivor_body_a` and same centre, so gun and body line up with one position and rotation. Keep the existing `survivor_*` frames (7.8's digest pin); note them as unused in the game for a later cleanup.
+  - [x] `spriteArt.ts`: a `drawSurvivorBody(c, r, look, withPack)` that draws what `drawSurvivor` draws after the gun (arms → pack → top → skin → hair → headgear, `layers = false`), with the same line-state sequence.
+  - [x] Raster test (`@napi-rs/canvas`, 7.8 pattern): for every survivor frame, gun frame + body frame composed ≈ the 7.8 frame (AC 8).
 - [ ] **T5 Per-player textures and PlayerView** (AC 7, 9–11, L3, L4)
-  - [ ] `apps/client/src/render/SurvivorLookTextures.ts`: one canvas per player id (2 frames side by side), registered once through `addGeneratedTexture` with a paint callback that reads the player's current resolved look (so a lost context repaints the current look); `setLook(playerId, code, stage)` repaints only when the code or stage changed (`tex.refresh()`); on scene `create` remove leftover `survivorlook_*` textures and unregister them (the `DarknessView.ts:136` / `:209` pattern: Phaser keeps textures across a scene restart); `dispose` on scene shutdown.
-  - [ ] `PlayerView.ts`: a second image for the gun (depth just under the body), both turned and placed together, both tinted (downed / slowed / `BODY_TINT`), both moved by `setAboveDark`; `setBody(textureKey, withPack)` switches the body frame only when the weapon's back piece changes (a swap or a buy), never per frame. The ring keeps `SLOT_COLORS` (AC 11).
-  - [ ] `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
-  - [ ] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
+  - [x] `apps/client/src/render/SurvivorLookTextures.ts`: one canvas per player id (2 frames side by side), registered once through `addGeneratedTexture` with a paint callback that reads the player's current resolved look (so a lost context repaints the current look); `setLook(playerId, code, stage)` repaints only when the code or stage changed (`tex.refresh()`); on scene `create` remove leftover `survivorlook_*` textures and unregister them (the `DarknessView.ts:136` / `:209` pattern: Phaser keeps textures across a scene restart); `dispose` on scene shutdown.
+  - [x] `PlayerView.ts`: a second image for the gun (depth just under the body), both turned and placed together, both tinted (downed / slowed / `BODY_TINT`), both moved by `setAboveDark`; `setBody(textureKey, withPack)` switches the body frame only when the weapon's back piece changes (a swap or a buy), never per frame. The ring keeps `SLOT_COLORS` (AC 11).
+  - [ ] (early part done; `NetSimHost` reads `state.look` once T3 adds it) `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
+  - [x] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
 - [ ] **T6 Lobby card** (AC 12) — after the designer's pick
   - [ ] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
 - [ ] **T7 Perf and gate** (AC 9, 14)
@@ -197,8 +201,22 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 
 ### Debug Log References
 
+### Implementation Plan / decisions made while building
+
+- **Early start (brief line 29):** T1, T4, T5 built before 7.1 / 8.1 reach master; **T2 (database), T3 (join and room state) and T6 (lobby card, SC3 line-up cards + DP2) are held** until the main session says 7.1 and 8.1 are on master. Until T3, `NetSimHost.playerInfo(id).look` reads `state.players.get(id).look` through a cast and finds nothing ("" = the default look); `LocalSimHost` takes the device look as a constructor option (`look`), not wired to 7.1's progress cache yet (T3).
+- **Repaint trigger (D1):** instead of listening for `decay.stage_changed`, `GameScene.syncLook` passes `world.decay.stage` to `SurvivorLookTextures.setLook` every frame; it is two compares when nothing changed and one repaint when the stage moved. Same result as the event (the stage only changes at a build start), but a tab that slept across several build starts repaints once (beat the rule 8), and a late Game scene start gets the right stage without a missed event.
+- **"No look sent"** (`undefined`, `null`, `""`) decodes to the default look with `replaced: 0` (bots and old tabs: no `look_replaced` log noise); any other bad input counts its replaced fields (a non-string / over-long / other-version input = all 8).
+- **Client decode uses every catalogue part** (`catalogueParts()`): the server already checked ownership; the client only falls back for ids its catalogue doesn't know. Practice (`LocalSimHost`) checks against `ownedParts()` like a join.
+- **`?devlooks=N`** = N survivors in all (mine + N − 1 extras, AC 14's "devlooks=4 → 3 extra"), 1–4, fixed-seed random starter looks, views only.
+- **PlayerView** keeps the 7.8 one-piece atlas path until `setBodyTexture` is called (GameScene always calls it), so 7.8's tests and any view without a look still draw.
+
 ### Completion Notes List
+
+- 2026-11-25 early part (T1, T4, T5): look code + 15 tests (round trip all 51 parts, 94/96-char bound, 1,000-string fuzz, per-slot / per-colour fallback, `head:none` vs `pack:none`, ownership); gun-only atlas frames `survivorgun_*` + `drawSurvivorGun` / `drawSurvivorBody` split of `drawSurvivor` (raster: gun + body composed = the one-piece frame, ≤ 2 per channel, every weapon); `SurvivorLookTextures` (bake once, repaint on look / stage change only, lost-context repaint of the current look, leftover cleanup, ≤ players on screen); PlayerView gun image under the body (shared tint / visibility / depth / rotation, nopack body for the flamethrower); animated layer from the look; `?devlooks=N`. Mutation pass: 11 mutations, all killed (the "pack always on" mutation first survived my raster test because the reference shares the body function: killed by 7.8's frozen AC 3 test, and a direct nopack pixel check was added).
 
 - Story context created 2026-11-25 from master 7385b47: comprehensive developer guide, status ready-for-dev.
 
 ### File List
+
+- New: `packages/shared/src/cosmetics/lookCode.ts`, `packages/shared/src/cosmetics/lookCode.test.ts`, `apps/client/src/render/SurvivorLookTextures.ts`, `apps/client/src/render/SurvivorLookTextures.test.ts`, `apps/client/src/render/devLooks.ts`, `apps/client/src/render/city/survivorGunSplit.raster.test.ts`, `apps/client/src/sim/LocalSimHost.look.test.ts`
+- Changed: `packages/shared/src/config/cosmetics.ts` (`LOOK_CODE_MAX`), `packages/shared/src/index.ts`, `apps/client/src/render/city/spriteArt.ts`, `apps/client/src/render/city/spriteAtlas.ts`, `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/darkness/fakeScene.testkit.ts` (stroke colour, `getTextureKeys`), `apps/client/src/scenes/GameScene.ts`, `apps/client/src/sim/SimHost.ts`, `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/LocalSimHost.ts`, `apps/client/src/sim/playerInfo.test.ts`, `apps/client/src/debug/urlOptions.ts`, `apps/client/src/debug/urlOptions.test.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`

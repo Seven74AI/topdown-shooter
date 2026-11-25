@@ -8,7 +8,7 @@ import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { TIER_PLATE_H, WEAPON_ART, WEAPON_BACK_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
 import { BLOATER_SWELL_STAGES, drawBloater } from "./bloaterArt";
 import { drawBileSplat, drawBurstFlash, drawClothScrap, drawGasDisc } from "./bloaterFxArt";
-import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
+import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawSurvivorGun, drawZombie } from "./spriteArt";
 
 /**
  * Story 4.9: the placeholder atlases, drawn procedurally into canvases and registered as Phaser
@@ -52,6 +52,20 @@ export const SURVIVOR_CHAINSAW_RUNNING = frameName("survivor", "chainsaw", "b");
 /** The survivor frame for the active weapon (no string building per frame); `running`: a Chainsaw that is cutting. */
 export const survivorFrameFor = (weapon: string, running = false): string =>
   running && weapon === "chainsaw" ? SURVIVOR_CHAINSAW_RUNNING : (SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME);
+
+/**
+ * Story 7.9 (D2): the held gun on its own (back piece + gun, no body), drawn under each player's own body picture
+ * (`SurvivorLookTextures`). Same frame size and centre as `SURVIVOR_FRAME`, so gun and body share one position and
+ * rotation. The `survivor_*` frames above stay in the atlas (Story 7.8's digest pin) but are no longer used by the game.
+ */
+export const SURVIVOR_GUN_PLAIN = frameName("survivorgun", "plain", "a");
+export const SURVIVOR_GUN_FRAMES: Readonly<Record<string, string>> = Object.fromEntries(Object.keys(WEAPON_ART).map((w) => [w, frameName("survivorgun", w, "a")]));
+export const SURVIVOR_GUN_CHAINSAW_RUNNING = frameName("survivorgun", "chainsaw", "b");
+/** The gun frame for the active weapon (no string building per frame); `running`: a Chainsaw that is cutting. */
+export const survivorGunFrameFor = (weapon: string, running = false): string =>
+  running && weapon === "chainsaw" ? SURVIVOR_GUN_CHAINSAW_RUNNING : (SURVIVOR_GUN_FRAMES[weapon] ?? SURVIVOR_GUN_PLAIN);
+/** The weapon has a back piece (the flamethrower's tanks): the body is drawn without its pack. */
+export const weaponHidesPack = (weapon: string): boolean => WEAPON_BACK_ART[weapon] !== undefined;
 
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
@@ -168,6 +182,9 @@ export function characterSpecs(): FrameSpec[] {
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
   out.push({ name: SURVIVOR_CHAINSAW_RUNNING, w: s, h: s });
+  out.push({ name: SURVIVOR_GUN_PLAIN, w: s, h: s });
+  for (const name of Object.values(SURVIVOR_GUN_FRAMES)) out.push({ name, w: s, h: s });
+  out.push({ name: SURVIVOR_GUN_CHAINSAW_RUNNING, w: s, h: s });
   return out;
 }
 export function downtownSpecs(): FrameSpec[] {
@@ -225,6 +242,12 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.translate(f.x + f.w / 2, f.y + f.h / 2);
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
   if (f.name === SURVIVOR_CHAINSAW_RUNNING) return drawSurvivor(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));
+  if (f.name === SURVIVOR_GUN_PLAIN) return drawSurvivorGun(g, CHAR_R_PX);
+  if (f.name === SURVIVOR_GUN_CHAINSAW_RUNNING) return drawSurvivorGun(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));
+  for (const [weapon, name] of Object.entries(SURVIVOR_GUN_FRAMES)) {
+    const art = WEAPON_ART[weapon];
+    if (name === f.name && art) return drawSurvivorGun(g, CHAR_R_PX, (c, r) => art(c, "held", r), WEAPON_BACK_ART[weapon]);
+  }
   for (const [weapon, name] of Object.entries(SURVIVOR_WEAPON_FRAMES)) {
     const art = WEAPON_ART[weapon];
     if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r), WEAPON_BACK_ART[weapon]); // Story 5.4: FT1's tanks

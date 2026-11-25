@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, bossWaves: null, bossHpScale: null, events: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false, blackoutPct: null, startWave: null, devLayer: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, bossWaves: null, bossHpScale: null, events: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false, blackoutPct: null, startWave: null, devLayer: null, devLooks: 0 });
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
     expect([parseUrlOptions("?stressbuild=molotov").stressMolotovs, parseUrlOptions("?stressbuild=molotov:2").stressMolotovs, parseUrlOptions("?stressbuild=molotov:9").stressMolotovs]).toEqual([8, 2, 0]); // Story 5.12
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
@@ -127,6 +127,13 @@ describe("parseUrlOptions: Story 6.1 ?startwave=", () => {
     expect(parseUrlOptions("?solo&devlayer=Propeller", true).devLayer).toBe("propeller");
     expect(parseUrlOptions("?solo&devlayer=wings", true).devLayer).toBeNull();
     expect(parseUrlOptions("?solo&devlayer=propeller", false).devLayer).toBeNull();
+  });
+
+  it("Story 7.9: ?devlooks=N (dev builds only): 1–4 survivors in all, anything else off", () => {
+    expect(parseUrlOptions("?stress=150&devlooks=4", true).devLooks).toBe(4);
+    expect(parseUrlOptions("?devlooks=1", true).devLooks).toBe(1);
+    for (const bad of ["0", "5", "-1", "2.5", "x", "", "999"]) expect(parseUrlOptions(`?devlooks=${bad}`, true).devLooks).toBe(0);
+    expect(parseUrlOptions("?devlooks=4", false).devLooks).toBe(0);
   });
 });
 

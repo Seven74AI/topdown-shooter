@@ -45,6 +45,7 @@ export {
   COSMETICS,
   CosmeticsError,
   DEFAULT_LOOK,
+  LOOK_CODE_MAX,
   STARTER_PARTS,
   cosmeticPart,
   layerSpinRevPerS,
@@ -58,6 +59,7 @@ export {
   type CosmeticSlot,
   type SurvivorLook,
 } from "./config/cosmetics";
+export { LOOK_CODE_VERSION, catalogueParts, decodeLook, encodeLook, ownedParts, partKey, type DecodedLook } from "./cosmetics/lookCode";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
