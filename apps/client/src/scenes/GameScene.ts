@@ -188,7 +188,6 @@ import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
 import { fillPingKeepOffs, growRect, newPingKeepOffs, type PingKeepOffMode } from "../render/pingArrows";
 import { PAIR_GAP_CSS_PX } from "../render/eventArrowPair";
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
-import { pingWheelColumn } from "./pingWheel";
 import { eventArrowDrawnRect } from "../render/eventArrow";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
@@ -2056,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
     mode.ready = m.readyButton;
     mode.vote = m.voting;
     mode.wheel = m.pingButton && m.ping.open;
-    mode.wheelColumn = pingWheelColumn(m); // B5 amended
+    mode.wheelColumn = m.pingWheelColumn; // B5 amended: the layout the HUD shows (frozen while open)
     const flag = ev?.flagArrowAt() ?? null;
     mode.flag = flag ? growRect(eventArrowDrawnRect(flag, size, this.pingFlagRect), PAIR_GAP_CSS_PX * k) : null;
     const badge = this.lootView?.badgeArrowAt() ?? null;

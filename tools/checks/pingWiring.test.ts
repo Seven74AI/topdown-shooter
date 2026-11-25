@@ -43,6 +43,7 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/mode\.flag = flag \?/);
     expect(src).toMatch(/mode\.loot = badge \?/);
     expect(src).toMatch(/mode\.wheel = m\.pingButton && m\.ping\.open;/);
+    expect(src).toMatch(/mode\.wheelColumn = m\.pingWheelColumn;/); // the layout the HUD shows (frozen while open)
   });
 
   it("HudScene: the button + wheel are made, laid out, drawn; a tap off the wheel closes it; the open wheel hides swap and the build bar (quick-use stays)", () => {
@@ -54,6 +55,12 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src.match(/!this\.pingHud\.wheelOpen/g)?.length).toBe(2); // swap + build bar (B5 amended: quick-use stays)
     expect(src).toMatch(/fitWaveText\(this\.scale\.width, this\.insets, dpr\(\), fullW, compactW, this\.waveFit\)/);
     expect(src).toMatch(/if \(\(m\.pingArrowSlots & \(1 << slot\)\) !== 0\) \{\s*if \(arrow\.visible\) arrow\.setVisible\(false\);/); // review M2
+  });
+
+  it("re-review nit: the chip layout changes only while the wheel is shut, and the model carries it", () => {
+    const src = read("apps", "client", "src", "scenes", "PingHud.ts");
+    expect(src).toMatch(/if \(column !== this\.column && !m\.ping\.open\) \{/);
+    expect(src).toMatch(/m\.pingWheelColumn = this\.column;/);
   });
 
   it("the view puts every ping object above the darkness", () => {

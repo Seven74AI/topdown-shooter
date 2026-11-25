@@ -101,7 +101,8 @@ export class PingView {
         o.ring.setPosition(cx, cy).setDisplaySize(rs, rs).setAlpha(alpha * 0.7 * (1 - u));
         o.word
           .setFrame(PING_WORDS[p.kind] as string)
-          .setPosition(cx, cy - s / 2 - wordHM * 0.45) // above the icon: the name label sits under it
+          // above the icon (the name label sits under it); B17: under it where above would run over HUD text
+          .setPosition(cx, this.arrows.wordBelow[i] ? cy + s / 2 + wordHM * 0.45 : cy - s / 2 - wordHM * 0.45)
           .setDisplaySize((wordHM * PING_WORD_W_PX) / PING_WORD_H_PX, wordHM)
           .setAlpha(alpha);
       } else {

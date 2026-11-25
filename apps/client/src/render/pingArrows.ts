@@ -1,8 +1,9 @@
 import { MAX_PLAYERS } from "@topdown/shared";
 import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
-import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
+import { EVENT_ARROW_HOLD_RAD, EVENT_ARROW_JUMP_CSS_PX, EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 import type { PingModel } from "./pingModel";
+import { HP_BAR_H, HP_MARGIN, HP_TEXT_PX, HP_TEXT_RESERVE_CSS_PX, LINE_HEIGHT, hudTextWidths, layoutHpBar, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
 import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "../scenes/buildBar";
 import { layoutUndoChip } from "../scenes/undoChip";
 import { layoutPingWheel, newPingChipRects } from "../scenes/pingWheel";
@@ -30,14 +31,51 @@ export const PING_WORD_CSS_PX = 20;
 export const PING_WORD_W_CSS_PX = 90;
 export const PING_LIFT_CSS_PX = 76;
 
-/** The icon + word rect (canvas px) of a ping at screen point (sx, sy), into `out`. */
-export function pingIconRect(sx: number, sy: number, k: number, out: ScreenRect): ScreenRect {
+/** The icon + word rect (canvas px) of a ping at screen point (sx, sy), into `out`; `below`: the word under the disc (B17). */
+export function pingIconRect(sx: number, sy: number, k: number, out: ScreenRect, below = false): ScreenRect {
   const half = (Math.max(PING_ICON_CSS_PX, PING_WORD_W_CSS_PX) / 2) * k;
   out.x = sx - half;
   out.w = 2 * half;
-  out.y = sy - (PING_LIFT_CSS_PX + PING_ICON_CSS_PX / 2 + PING_WORD_CSS_PX) * k;
+  out.y = sy - (PING_LIFT_CSS_PX + PING_ICON_CSS_PX / 2 + (below ? 0 : PING_WORD_CSS_PX)) * k;
   out.h = (PING_ICON_CSS_PX + PING_WORD_CSS_PX) * k;
   return out;
+}
+
+/** The word box alone (canvas px), above the disc. */
+function wordAboveRect(sx: number, sy: number, k: number, out: ScreenRect): ScreenRect {
+  out.x = sx - (PING_WORD_W_CSS_PX / 2) * k;
+  out.w = PING_WORD_W_CSS_PX * k;
+  out.y = sy - (PING_LIFT_CSS_PX + PING_ICON_CSS_PX / 2 + PING_WORD_CSS_PX) * k;
+  out.h = PING_WORD_CSS_PX * k;
+  return out;
+}
+
+const textRects: ScreenRect[] = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
+const textInsets = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * Decision 8.7 B17 (re-review L2): the HUD's drawn text blocks — the HP bar, the HP text (measured width, not the gear
+ * reserve), the money line and the wave line — into `textRects`.
+ */
+function hudTextBlocks(sw: number, insets: Insets, k: number): readonly ScreenRect[] {
+  Object.assign(textInsets, insets);
+  layoutHpBar(textInsets, k, textRects[0] as ScreenRect);
+  const t = textRects[1] as ScreenRect;
+  t.x = (HP_MARGIN + insets.left - 2) * k;
+  t.y = (HP_MARGIN + insets.top + HP_BAR_H + 2) * k;
+  t.w = ((hudTextWidths.hpText > 0 ? hudTextWidths.hpText : HP_TEXT_RESERVE_CSS_PX) + 4) * k;
+  t.h = (2 + HP_TEXT_PX * LINE_HEIGHT) * k;
+  layoutMoneyLine(textInsets, k, textRects[2] as ScreenRect);
+  layoutWaveLine(sw, textInsets, k, textRects[3] as ScreenRect);
+  return textRects;
+}
+const wordScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
+
+/** B17: the word goes under the disc when, above it, it would run over drawn HUD text. */
+export function pingWordBelow(sx: number, sy: number, sw: number, insets: Insets, k: number): boolean {
+  const r = wordAboveRect(sx, sy, k, wordScratch);
+  for (const o of hudTextBlocks(sw, insets, k)) if (r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h) return true;
+  return false;
 }
 const iconScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -46,8 +84,8 @@ const iconScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
  * word may run over a text block's reserve, e.g. the HP row's room for 5 gear icons at 568 × 320: my own ping, at the
  * screen centre, stays an icon there; a 3rd re-review point if the designer wants the word clear too.)
  */
-function iconVisible(sx: number, sy: number, sw: number, sh: number, insets: Insets, k: number, keepOffs: readonly ScreenRect[]): boolean {
-  const r = pingIconRect(sx, sy, k, iconScratch);
+function iconVisible(sx: number, sy: number, sw: number, sh: number, insets: Insets, k: number, keepOffs: readonly ScreenRect[], below: boolean): boolean {
+  const r = pingIconRect(sx, sy, k, iconScratch, below);
   if (r.x < insets.left * k || r.y < insets.top * k || r.x + r.w > sw - insets.right * k || r.y + r.h > sh - insets.bottom * k) return false;
   const half = (PING_ICON_CSS_PX / 2) * k;
   r.x = sx - half;
@@ -81,6 +119,11 @@ export interface PingArrows {
   readonly lite: boolean[];
   /** Per slot: the ping is seen as its world icon this frame (review M1). */
   readonly icon: boolean[];
+  /** Per slot: B17 — the icon's word is drawn under the disc (above it would run over HUD text). */
+  readonly wordBelow: boolean[];
+  /** Re-review M2: each slot's placement on the full keep-off set and on the lite set, each with its own hysteresis. */
+  readonly atFull: EventArrowPlace[];
+  readonly atLite: EventArrowPlace[];
   /** The arrow size used last frame (canvas px). */
   sizePx: number;
   /** Per slot: the beside spot held (1–8 beside `besideOf`'s arrow), 0 = its own 6.8 spot. */
@@ -109,6 +152,9 @@ export function newPingArrows(): PingArrows {
     avoidLite,
     lite: Array.from({ length: MAX_PLAYERS }, () => false),
     icon: Array.from({ length: MAX_PLAYERS }, () => false),
+    wordBelow: Array.from({ length: MAX_PLAYERS }, () => false),
+    atFull: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
+    atLite: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
     sizePx: PING_ARROW_CSS_PX,
     besideSpot: Array.from({ length: MAX_PLAYERS }, () => 0),
     besideOf: Array.from({ length: MAX_PLAYERS }, () => -1),
@@ -116,6 +162,8 @@ export function newPingArrows(): PingArrows {
 }
 
 const OFF = -1e6;
+/** Re-review M2: the lite set is let go only once the full set's spot is back within this of the bearing. */
+const LITE_RELEASE_RAD = (25 * Math.PI) / 180;
 /** A point this far out along the bearing is off every screen (the arrow placement's "off screen" input). */
 const FAR_PX = 1e5;
 const DIR_X = [0, 0, -1, 1];
@@ -251,7 +299,8 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     if (!p) continue;
     const sx = (p.x - vx) * pxPerM;
     const sy = (p.y - vy) * pxPerM;
-    if (!iconVisible(sx, sy, sw, sh, insets, k, out.controls)) continue;
+    out.wordBelow[i] = pingWordBelow(sx, sy, sw, insets, k); // B17
+    if (!iconVisible(sx, sy, sw, sh, insets, k, out.controls, out.wordBelow[i] as boolean)) continue;
     out.icon[i] = true;
     // the icon's disc (not its word box: a wide word at the screen centre would block every bearing straight up)
     const d = out.drawn[placed] as ScreenRect;
@@ -273,36 +322,70 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     const sx = (p.x - vx) * pxPerM;
     const sy = (p.y - vy) * pxPerM;
     const avoid = out.avoid[placed] as ScreenRect[];
-    let shown = false;
-    if (out.icon[i]) at.side = 0;
-    else {
-      let dx = sx - sw / 2;
-      let dy = sy - sh / 2;
-      const len = Math.hypot(dx, dy);
-      if (len < 1e-6) {
-        dx = 0;
-        dy = -1; // my own ping right under me with its icon hidden: point up, where the icon is
-      } else {
-        dx /= len;
-        dy /= len;
-      }
-      shown = placeEventArrow(sw / 2 + dx * FAR_PX, sh / 2 + dy * FAR_PX, sw, sh, insets, k, size, avoid, at);
-    }
-    out.shown[i] = shown;
-    if (!shown) {
+    const avoidLite = out.avoidLite[placed] as ScreenRect[];
+    const full = out.atFull[i] as EventArrowPlace;
+    const lit = out.atLite[i] as EventArrowPlace;
+    if (out.icon[i]) {
+      at.side = full.side = lit.side = 0;
+      out.shown[i] = false;
       out.besideSpot[i] = 0;
+      out.lite[i] = false;
       continue;
     }
-    // Crowding (several pings on one bearing, 568 × 320's corners): when the 6.8 spot is over 30° off, the arrow sits
-    // right beside one placed before it instead (the 6.10 pair rule's spots), held while legal and ≤ 30°.
-    if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, avoid, out);
-    out.lite[i] = false;
-    if (shown && lite && angErr(Math.atan2(at.y - sh / 2, at.x - sw / 2), at.angle) > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9) {
-      const avoidLite = out.avoidLite[placed] as ScreenRect[];
-      placeEventArrow(sw / 2 + Math.cos(at.angle) * FAR_PX, sh / 2 + Math.sin(at.angle) * FAR_PX, sw, sh, insets, k, size, avoidLite, at);
-      if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, avoidLite, out);
-      out.lite[i] = true;
+    let dx = sx - sw / 2;
+    let dy = sy - sh / 2;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) {
+      dx = 0;
+      dy = -1; // my own ping right under me with its icon hidden: point up, where the icon is
+    } else {
+      dx /= len;
+      dy /= len;
     }
+    const fx = sw / 2 + dx * FAR_PX;
+    const fy = sh / 2 + dy * FAR_PX;
+    placeEventArrow(fx, fy, sw, sh, insets, k, size, avoid, full); // always: its hysteresis stays warm
+    // Decision B16 with re-review M2's hysteresis: the lite set is used once the full set is over 30° off, and kept
+    // until the full set is back within 25° or its spot is within the 40 px / 10° hold of the lite spot.
+    let useLite = false;
+    if (lite) {
+      const errFull = angErr(Math.atan2(full.y - sh / 2, full.x - sw / 2), full.angle);
+      if (out.lite[i]) {
+        placeEventArrow(fx, fy, sw, sh, insets, k, size, avoidLite, lit);
+        const near =
+          Math.hypot(full.x - lit.x, full.y - lit.y) <= EVENT_ARROW_JUMP_CSS_PX * k &&
+          angErr(Math.atan2(full.y - sh / 2, full.x - sw / 2), Math.atan2(lit.y - sh / 2, lit.x - sw / 2)) <= EVENT_ARROW_HOLD_RAD;
+        useLite = !(errFull <= LITE_RELEASE_RAD || near);
+      } else if (errFull > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9) {
+        // start the lite placement from where the arrow is now (its hysteresis prefers the side nearer to it)
+        lit.x = at.side === 1 ? at.x : full.x;
+        lit.y = at.side === 1 ? at.y : full.y;
+        lit.side = 1;
+        placeEventArrow(fx, fy, sw, sh, insets, k, size, avoidLite, lit);
+        useLite = true;
+      }
+    }
+    if (!useLite) lit.side = 0;
+    const src = useLite ? lit : full;
+    // Re-review M1: a fresh spot more than 40 px away waits while the arrow's spot is still legal (against the set in
+    // use) and within 30° of the bearing — big keep-offs (Ready, the build bar) make the 6.8 placement cycle between
+    // spots on 0.25° steps; this holds it, so it moves once, when the old spot stops working.
+    const hold =
+      at.side === 1 &&
+      Math.hypot(src.x - at.x, src.y - at.y) > EVENT_ARROW_JUMP_CSS_PX * k &&
+      angErr(Math.atan2(at.y - sh / 2, at.x - sw / 2), src.angle) <= EVENT_ARROW_MAX_BEARING_ERR_RAD &&
+      legal(at.x, at.y, src.angle, sw, sh, insets, k, size, useLite ? avoidLite : avoid);
+    if (!hold) {
+      at.x = src.x;
+      at.y = src.y;
+    }
+    at.angle = src.angle;
+    at.side = 1;
+    out.lite[i] = useLite;
+    out.shown[i] = true;
+    // Crowding (several pings on one bearing, 568 × 320's corners): when the spot is over 30° off, the arrow sits
+    // right beside one placed before it instead (the 6.10 pair rule's spots), held while legal and ≤ 30°.
+    if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, useLite ? avoidLite : avoid, out);
     const r = eventArrowDrawnRect(at, size, drawnScratch);
     const d = out.drawn[placed] as ScreenRect;
     d.x = r.x - PAIR_GAP_CSS_PX * k;
@@ -354,7 +437,9 @@ export function fillPingKeepOffs(base: readonly ScreenRect[], mode: Readonly<Pin
   let n = 0;
   for (let i = 0; i < base.length && n < out.length; i++) {
     const b = base[i] as ScreenRect;
-    n = put(out, n, b.x, b.y, b.w, b.h);
+    // re-review L1: in a build phase nothing is drawn at the wave row's swap / quick-use (base 1, 2): parked
+    if (mode.build && (i === 1 || i === 2)) n = put(out, n, OFF, OFF, 0, 0);
+    else n = put(out, n, b.x, b.y, b.w, b.h);
   }
   const nBase = n;
   if (mode.build) {

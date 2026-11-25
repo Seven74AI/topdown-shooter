@@ -130,11 +130,14 @@ export class PingHud {
   draw(nowMs: number, slot: number): void {
     const m = this.model;
     stepPingWheel(m.ping, nowMs, m.pingButton);
+    // Re-review nit: the chips never move under a finger — the layout (column while quick-use shows, else 2 × 2) is
+    // chosen while the wheel is shut and kept until it closes; the model carries it for the arrows' keep-offs.
     const column = pingWheelColumn(m);
-    if (column !== this.column) {
+    if (column !== this.column && !m.ping.open) {
       this.column = column;
       this.placeChips();
     }
+    m.pingWheelColumn = this.column;
     const shown = m.pingButton;
     if (shown !== this.shownButton) {
       this.shownButton = shown;
