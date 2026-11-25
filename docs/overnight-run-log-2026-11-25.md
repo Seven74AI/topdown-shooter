@@ -29,3 +29,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - Follow-up (7.4): the BT1 shop still shows TWO borrowed cards (Mo, Kit) while the rule is 1 of 6 (designer D-rule) — the rule wins; the still kept the old sheet's state.
 - Follow-up (retro A12): one small "Epic 6 leftovers" tidy story (6.13 L-b/L-c/L-d/nit; 6.14 L6 top-band test) — schedule by file overlap in Epic 7.
 - 04:08 gate green on c87a707 (396 files / 3655 tests, load 3.67) → master.
+- 04:12 7.9 early part pushed (46d60e3): T1 look code, T4 gun under body, T5 per-player textures; 1360 touched tests, 11/11 mutations killed. Builder choices: D1 repaint by comparing decay stage per frame; missing look = 0 replaced fields; client decodes against full catalogue (server checks ownership); ?devlooks=N. Holding T2/T3/T6 for 7.1 + 8.1.
