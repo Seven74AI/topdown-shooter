@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance } from "@topdown/shared";
-import { ATLAS_BUILDINGS, BUILDINGS_PX_PER_M, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
-import { FRONT_BASE_Y, SIDE_C } from "./barricadeArt";
+import { ATLAS_BUILDINGS, BUILDINGS_PX_PER_M, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
+import { CB, FRONT_BASE_Y, SIDE_C } from "./barricadeArt";
 import { STAND_DEPTH, STAND_DEPTH_SPAN, standDepth } from "../barricadeLook";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./atlasLayout";
 
@@ -60,6 +60,19 @@ describe("photoreal group 3: standing barricades (one picture per rotation, vari
     const layout = packAtlas(specs);
     expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
     expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
+  });
+
+  it("step 3: every standing type has its four corner pieces in the atlas, origin on the square's centre", () => {
+    const specs = buildingsAtlasSpecs();
+    for (const t of WALLS) {
+      for (const kind of ["nw", "ne", "sw", "se"] as const) {
+        const c = cornerFrame(t, kind);
+        if (!c) throw new Error(`${t} ${kind}`);
+        expect(c.originY).toBeCloseTo(0.5 + CB / CORNER_H_M);
+        expect(specs.find((s) => s.name === c.frame)).toEqual({ name: c.frame, w: Math.round(CORNER_W_M * BUILDINGS_PX_PER_M), h: Math.round(CORNER_H_M * BUILDINGS_PX_PER_M) });
+      }
+    }
+    expect(cornerFrame("spike_trap", "nw")).toBeNull();
   });
 
   it("the variant is fixed by the spot (the same on every client) and both variants occur along a line", () => {

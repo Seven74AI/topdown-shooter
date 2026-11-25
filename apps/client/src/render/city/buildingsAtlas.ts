@@ -2,7 +2,8 @@ import type * as Phaser from "phaser";
 import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { addGeneratedTexture } from "./canvasTexture";
 import { drawBearTrap, drawInFrame, drawMine, drawSpikeTrap, type Ctx } from "./buildingArt";
-import { FRONT_BASE_Y, SIDE_C, drawFrontIn, drawFrontOut, drawSide, inFrameCentred, type Style } from "./barricadeArt";
+import { CB, FRONT_BASE_Y, SIDE_C, drawCorner, drawFrontIn, drawFrontOut, drawSide, inFrameCentred, type Style } from "./barricadeArt";
+import type { CornerKind } from "../wallCorners";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
 import { crossGreen, lampWhite, ledRed, relight, type Emissive, type Relit } from "./relight";
 import type { GlowKind } from "../buildingFx";
@@ -25,7 +26,7 @@ export const BUILDINGS_PX_PER_M = 96;
  * footprint centre at `SIDE_C` below its middle.
  */
 export const STANDING_VARIANTS = 2;
-export type WallView = "out" | "in" | "sidee" | "sidew";
+export type WallView = "out" | "in" | "sidee" | "sidew" | "cnw" | "cne" | "csw" | "cse";
 const STYLE_OF: Readonly<Record<string, Style>> = { wood_barricade: "wood", reinforced_barricade: "rf", metal_barricade: "mt" };
 const STYLE_NAME: Readonly<Record<Style, string>> = { wood: "wood", rf: "reinforced", mt: "metal" };
 /** The frame name of a standing barricade's picture. */
@@ -36,6 +37,9 @@ export const FRONT_W_M = 2;
 export const FRONT_H_M = 1;
 export const SIDE_W_M = 1;
 export const SIDE_H_M = 2.8;
+/** A corner piece: 1.4 × 2 m, its square's centre at `CB` below its middle. */
+export const CORNER_W_M = 1.4;
+export const CORNER_H_M = 2;
 /** The wood barricade's rot-0 picture (the pooled images' first frame). */
 export const FRAME_WOOD = wallFrame("wood", "out", 0);
 export const FRAME_SPIKE_TRAP = frameName("building", "spiketrap", "a");
@@ -72,6 +76,10 @@ function wallArt(): ArtSpec[] {
       out.push({ frame: wallFrame(st, "in", v), wM: FRONT_W_M, hM: FRONT_H_M, draw: (g) => drawFrontIn(g, st, 1 + v), inFrame: inFrameCentred, relit: relit(2) });
       out.push({ frame: wallFrame(st, "sidee", v), wM: SIDE_W_M, hM: SIDE_H_M, draw: (g) => drawSide(g, st, 1, 1 + v * 4), inFrame: inFrameCentred, relit: { ...relit(3), dir: "y" as const } });
       out.push({ frame: wallFrame(st, "sidew", v), wM: SIDE_W_M, hM: SIDE_H_M, draw: (g) => drawSide(g, st, -1, 2 + v * 4), inFrame: inFrameCentred, relit: { ...relit(4), dir: "y" as const } });
+    }
+    // the corner pieces (one look each: the front stub shows its inside on the north corners, its outside on the south)
+    for (const [kind, h, v] of [["nw", 1, 1], ["ne", -1, 1], ["sw", 1, -1], ["se", -1, -1]] as const) {
+      out.push({ frame: wallFrame(st, `c${kind}`, 0), wM: CORNER_W_M, hM: CORNER_H_M, draw: (g) => drawCorner(g, st, h, v, v > 0), inFrame: inFrameCentred, relit: { dir: "x" as const, seed: 2090 + si * 100 + h + v * 3, glints: 3, srcPxPerM: 192 } });
     }
   });
   return out;
@@ -187,6 +195,12 @@ export function wallVariant(minX: number, minY: number): number {
   return (h >>> 7) % STANDING_VARIANTS;
 }
 const ROT_VIEW: readonly WallView[] = ["out", "sidee", "in", "sidew"];
+/** The corner piece of a standing type, for a corner square (`wallCorners.ts › findCorners`), or null. */
+export function cornerFrame(type: string, kind: CornerKind): StandingFrame | null {
+  const st = STYLE_OF[type];
+  if (st === undefined) return null;
+  return { texture: ATLAS_BUILDINGS, frame: wallFrame(st, `c${kind}`, 0), wM: CORNER_W_M, hM: CORNER_H_M, originX: 0.5, originY: 0.5 + CB / CORNER_H_M };
+}
 /** The picture of a standing barricade at `rot` (0–3), or null for a type that isn't drawn standing. */
 export function standingFrame(type: string, rot: number, variant: number): StandingFrame | null {
   const st = STYLE_OF[type];

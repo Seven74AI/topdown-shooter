@@ -4,7 +4,8 @@ import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 import { barricadePoolSize, barricadeTint, barricadeTransform, framePointToWorld, standDepth, type BoxOut, type SpriteTransform } from "./barricadeLook";
-import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
+import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, cornerFrame, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
+import { findCorners, type Corner } from "./wallCorners";
 import { glintAlpha, glowLevel } from "./buildingFx";
 import { buildingShadowHeightM } from "./mineLook";
 import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
@@ -144,6 +145,9 @@ export class BuildingView {
   private readonly glows: (Phaser.GameObjects.Image | null)[] = [];
   private readonly glints: Phaser.GameObjects.Image[] = [];
   private readonly pt = { x: 0, y: 0 };
+  /** Photoreal group 3 step 3: corner pieces where two lines of standing barricades meet (pooled, laid on a re-lay). */
+  private readonly corners: Phaser.GameObjects.Image[] = [];
+  private readonly cornerList: Corner[] = [];
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
@@ -242,6 +246,29 @@ export class BuildingView {
     for (; g < this.glints.length; g++) {
       const gi = this.glints[g] as Phaser.GameObjects.Image;
       if (gi.visible) gi.setVisible(false);
+    }
+  }
+
+  /** Photoreal group 3 step 3: a corner piece in every free square where a front line and a side line meet. */
+  private layCorners(list: readonly Building[]): void {
+    const found = findCorners(list, isStanding, this.cornerList);
+    let n = 0;
+    for (const c of found) {
+      const st = cornerFrame(c.type, c.kind);
+      if (!st) continue;
+      let img = this.corners[n];
+      if (!img) {
+        img = this.scene.add.image(0, 0, st.texture, st.frame);
+        this.corners.push(img);
+      }
+      n++;
+      if (img.frame.name !== st.frame) img.setTexture(st.texture, st.frame);
+      // a hair nearer the camera than the walls it joins, so its stubs cover their ends
+      img.setOrigin(st.originX, st.originY).setPosition(c.x, c.y).setDisplaySize(st.wM, st.hM).setDepth(standDepth(c.y + 0.3)).setVisible(true);
+    }
+    for (let i = n; i < this.corners.length; i++) {
+      const img = this.corners[i] as Phaser.GameObjects.Image;
+      if (img.visible) img.setVisible(false);
     }
   }
 
@@ -364,6 +391,7 @@ export class BuildingView {
       }
     }
     if (relayout) {
+      this.layCorners(list);
       this.spritesUsed = used;
       for (let i = used; i < this.sprites.length; i++) {
         this.spriteId[i] = -1;
