@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PING_COOLDOWN_MS, playerInputSchema, NEUTRAL_INPUT } from "@topdown/shared";
-import { MessageGuard } from "./messageGuard";
+import { INPUT_BYTES, PING_COOLDOWN_MS, decodeInput, encodeInput, playerInputSchema, NEUTRAL_INPUT, type PlayerInput } from "@topdown/shared";
+import { MessageGuard, bytesParser } from "./messageGuard";
 import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S, PING_PER_S } from "./limits";
 
 function setup() {
@@ -29,6 +29,31 @@ describe("MessageGuard", () => {
       { obj: { playerId: "p0", reason: "invalid", dropped: 1 }, msg: "client_message_rejected" },
     ]);
     expect(guard.pending(client)?.invalid).toBe(2);
+  });
+
+  it("Story 8.11 (F2): the binary input through bytesParser: refused bytes are `invalid`, the 25/s input bucket is unchanged, a rate drop is told", () => {
+    const { guard, client, warns } = setup();
+    const seen: number[] = [];
+    const rateDropped: unknown[] = [];
+    const out = { ...NEUTRAL_INPUT };
+    const h = guard.guard(bytesParser(decodeInput, out), (_c, m: PlayerInput) => seen.push(m.seq), "input", (_c, m) => rateDropped.push(m));
+    const bytes = (seq: number): Uint8Array => {
+      const b = new Uint8Array(INPUT_BYTES);
+      encodeInput({ ...NEUTRAL_INPUT, seq }, b);
+      return b;
+    };
+    h(client, bytes(1));
+    h(client, bytes(2).subarray(0, 13)); // short
+    h(client, new Uint8Array([...bytes(3), 0])); // long
+    h(client, { ...NEUTRAL_INPUT, seq: 4 }); // the old object input: not bytes
+    h(client, "nope");
+    expect(seen).toEqual([1]);
+    expect(warns[0]).toEqual({ obj: { playerId: "p0", reason: "invalid", dropped: 1 }, msg: "client_message_rejected" });
+    expect(guard.pending(client)?.invalid).toBe(3);
+    for (let seq = 10; seq < 60; seq++) h(client, bytes(seq)); // a burst: 25 − 5 tokens already used
+    expect(seen.length).toBe(MAX_INPUTS_PER_S - 4); // every message (valid or not) took a token, as before
+    expect(rateDropped.length).toBe(50 - (MAX_INPUTS_PER_S - 5));
+    expect(rateDropped[0]).toBeInstanceOf(Uint8Array); // raw bytes to the rate-drop hook (RunRoom decodes them)
   });
 
   it("rate-limits inputs and other types with separate buckets", () => {

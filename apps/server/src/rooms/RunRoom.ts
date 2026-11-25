@@ -45,7 +45,9 @@ import {
   lobbySetLookSchema,
   netPongSchema,
   parseWaveMix,
-  playerInputSchema,
+  BYTES,
+  NEUTRAL_INPUT,
+  decodeInput,
   runStartSchema,
   shopBuySchema,
   shopRerollSchema,
@@ -110,7 +112,7 @@ import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { EventInterest } from "../net/eventInterest";
 import { CLOSE_REMOVED, CLOSE_RUN_SAVED, CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, SHUTDOWN_SAVE_WAIT_MS, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
-import { MessageGuard } from "../net/messageGuard";
+import { MessageGuard, bytesParser } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextConnectedHost, sameSeat, seatIdOf, seatKey, type Member } from "../run/lobby";
@@ -233,8 +235,11 @@ export interface RememberedSeat {
 /** `ms` rounded to one decimal, for log lines. */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
-/** State patches every 50 ms (20 Hz, the simulation rate). */
-const PATCH_RATE_MS = 50;
+/**
+ * State patches every 50 ms (20 Hz) in the lobby before the first run. Story 8.11 (AC 1): once a run started, the
+ * fixed timestep (which keeps running after Results and Back to lobby) patches itself, once per call of `onTick`.
+ */
+const LOBBY_PATCH_RATE_MS = 50;
 
 /** RTT probe period (Story 2.4): one `net.pinged` per client per second during a run. */
 export const PING_INTERVAL_MS = 1000;
@@ -401,6 +406,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
   private resumeTimer: Delayed | null = null;
   private frozenAtMs = 0;
+  /** Story 8.11: the decoded binary input (reused; `RunController.queueInput` copies it), and a rate-dropped one's. */
+  private readonly inputIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
+  private readonly rateDroppedIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
+  private readonly inputParser = bytesParser(decodeInput, this.inputIn);
   /** Story 7.2: this run's bank (`meta/banking.ts`; made at Start with the run id), null outside a run. */
   bank: RunBank | null = null;
   /** Story 7.2: the bank's one retry delay (tests shorten it on a live room, like `holdS`). */
@@ -511,7 +520,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.takeScenario(options as { scenario?: unknown; allowTestScenarios?: unknown });
     this.takeDevRunSeed((options as { devRunSeed?: unknown }).devRunSeed);
     this.maxClients = MAX_PLAYERS;
-    this.patchRate = PATCH_RATE_MS;
+    this.patchRate = LOBBY_PATCH_RATE_MS;
+    // Story 8.11 (AC 2, decision 8.11 D2): everything one tick sends a client (horde frame, events, ping, patch)
+    // reaches its socket as one write: Colyseus 0.18.29 corks each socket for the timestep's callback.
+    this.autoBatchMessages = true;
     // Only reachable by its code (joinById), never by a "join any run" matchmaking call.
     await this.setPrivate(true, false);
     this.setState(new RunState({ phase: "lobby", hostSlot: 0 }));
@@ -525,9 +537,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.info({ runId: this.resume.save.runId, wave: this.resume.save.wave, seats: this.resume.save.seats.length }, "run_resume_lobby");
     }
 
-    this.onMessage(
-      C2S.INPUT_SEND,
-      this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input", (c, m) => this.onInputRateDropped(c, m)),
+    // Story 8.11 (AC 3, F2): the binary input, through the same guard: its own 25/s bucket (unchanged), then
+    // `decodeInput` (exactly the schema's rules); a malformed or over-long one is dropped and counted as `invalid`.
+    this.onMessageBytes(
+      BYTES.INPUT,
+      this.net.guard(this.inputParser, (c, input) => this.onInput(c, input), "input", (c, m) => this.onInputRateDropped(c, m)),
     );
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
     this.onMessage(C2S.LOBBY_SET_LOOK, this.net.guard(lobbySetLookSchema, (c, m) => this.onSetLook(c, m.look))); // Story 7.10 (D3)
@@ -1850,6 +1864,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     syncState(this.state, controller); // spawn positions in the same patch as phase "build"
     // 0.18 fixed timestep: at most 5 catch-up steps, then the backlog is dropped.
     this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
+    // Story 8.11 (AC 1, F3): from now on every patch comes from `onTick` (one per tick). Set after the timestep:
+    // null without a simulation interval would add Colyseus's own clock interval (two clock ticks per step).
+    this.patchRate = null;
     this.pingTimer?.clear();
     this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
     this.waveStartMs = performance.now();
@@ -1873,12 +1890,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /**
-   * One server tick: step, copy to schema, forward events, send horde frames (all inside the
-   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`. Only phases
-   * "build", "wave" and (Story 6.11) "vote" step the World (Story 3.1): after Results nothing moves
-   * any more (Story 2.8).
+   * Story 8.11 (AC 1, F3): one call of the fixed timestep = at most one step, then the state patch (timed by
+   * `broadcastPatch`), so each patch carries exactly one tick (a catch-up runs this several times: one patch each).
+   * Outside the stepping phases (lobby after a run, Results, an 8.1 frozen room, a Save and quit) nothing steps and
+   * the patch still goes out here at 20 Hz when something changed (Ready flags, `frozen`/`resumeIn`, Results). The
+   * whole call is one socket write per client (`autoBatchMessages`): horde frame, events, then the patch (D3).
    */
   onTick(): void {
+    try {
+      this.step();
+    } finally {
+      this.broadcastPatch(); // review list 6: even after a tick error, so the state still reaches the phones
+    }
+  }
+
+  /**
+   * One server tick: step, copy to schema, forward events, send horde frames (all inside the
+   * slow-tick timing). Only phases "build", "wave" and (Story 6.11) "vote" step the World
+   * (Story 3.1): after Results nothing moves any more (Story 2.8).
+   */
+  private step(): void {
     const controller = this.controller;
     const phase = this.state.phase;
     if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
@@ -1998,7 +2029,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     void this.reloadProgress(members);
   }
 
-  /** Colyseus's patch interval: encode + send the state patch, timed like a tick (`slow_patch`). */
+  /** The state patch (Story 8.11: from `onTick`; the lobby interval before the first run): timed like a tick (`slow_patch`). */
   override broadcastPatch(): boolean {
     const watch = this.slowPatches;
     if (!watch) return super.broadcastPatch();
@@ -2586,7 +2617,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    */
   onInputRateDropped(client: RunClient, message: unknown): void {
     const member = this.members.get(client.sessionId);
-    if (member) this.controller?.rateDroppedInput(member.playerId, message);
+    // Story 8.11: the dropped binary input is decoded (seq, edges); one that doesn't decode carries nothing.
+    if (member && message instanceof Uint8Array && decodeInput(message, this.rateDroppedIn)) this.controller?.rateDroppedInput(member.playerId, this.rateDroppedIn);
   }
 
   onInput(client: RunClient, input: PlayerInput): void {

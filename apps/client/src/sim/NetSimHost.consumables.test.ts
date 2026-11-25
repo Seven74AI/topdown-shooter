@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { C2S, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type PlayerInput, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
+import { C2S, INPUT_STICK_STEPS, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type PlayerInput, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
@@ -43,10 +43,11 @@ describe("NetSimHost: consumables (Story 5.12)", () => {
       host.update(1 / 60);
     }
     host.update(0.05);
-    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    const sent = room.inputsSent() as PlayerInput[];
     expect(sent.length).toBeGreaterThanOrEqual(2);
-    expect(sent[0]).toMatchObject({ consumable: true, aimX: 0.75, fire: false });
-    expect(sent[1]).toMatchObject({ consumable: false, aimX: 0.5, fire: true });
+    const step = (v: number) => Math.round(v * INPUT_STICK_STEPS) / INPUT_STICK_STEPS; // Story 8.11: sent at 1/127 steps
+    expect(sent[0]).toMatchObject({ consumable: true, aimX: step(0.75), fire: false });
+    expect(sent[1]).toMatchObject({ consumable: false, aimX: step(0.5), fire: true });
   });
 
   it("re-review L: a medkit tap's own fire (held) is sent on the flagged step", () => {
@@ -57,7 +58,7 @@ describe("NetSimHost: consumables (Story 5.12)", () => {
     host.update(1 / 60);
     host.setLocalInput(held);
     host.update(0.05);
-    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    const sent = room.inputsSent() as PlayerInput[];
     expect(sent[0]).toMatchObject({ consumable: true, fire: true });
   });
 

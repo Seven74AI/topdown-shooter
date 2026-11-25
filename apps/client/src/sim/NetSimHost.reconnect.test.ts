@@ -16,7 +16,7 @@ describe("Story 8.1 NetSimHost send gate", () => {
     const host = new NetSimHost({ balance, session, now: () => 0, linkUp: () => up });
     host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1, fire: true });
     for (let i = 0; i < 30; i++) host.update(FRAME);
-    const before = (room.sentOf(C2S.INPUT_SEND) as PlayerInput[]).length;
+    const before = (room.inputsSent() as PlayerInput[]).length;
     expect(before).toBeGreaterThan(5); // liveness: inputs were flowing
     const unacked = host.predictor.stats.unackedInputs;
     up = false;
@@ -24,13 +24,13 @@ describe("Story 8.1 NetSimHost send gate", () => {
     host.update(FRAME);
     host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1, fire: true });
     for (let i = 0; i < 300; i++) host.update(FRAME); // 5 s offline
-    expect((room.sentOf(C2S.INPUT_SEND) as PlayerInput[]).length).toBe(before);
+    expect((room.inputsSent() as PlayerInput[]).length).toBe(before);
     expect(host.predictor.stats.unackedInputs).toBe(unacked); // nothing predicted offline either
     up = true;
     host.update(FRAME);
     host.update(FRAME);
     host.update(FRAME);
-    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    const sent = room.inputsSent() as PlayerInput[];
     expect(sent.length - before).toBeLessThanOrEqual(2); // one step per 50 ms again, never 5 s of catch-up
     expect(sent[sent.length - 1]?.seq).toBe(sent.length);
     expect(sent.slice(before).every((s) => !s.swap)).toBe(true); // a swap pressed offline is not sent late

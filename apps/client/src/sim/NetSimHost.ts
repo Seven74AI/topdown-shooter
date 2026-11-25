@@ -4,7 +4,11 @@ import { FlameCues } from "../render/flameCues";
 import {
   C2S,
   NET_EVENT_KIND,
+  BYTES,
+  INPUT_BYTES,
   NEUTRAL_INPUT,
+  decodeInput,
+  encodeInput,
   MUZZLE_OFFSET_M,
   createLobTarget,
   lobFlightTicks,
@@ -268,6 +272,8 @@ export class NetSimHost implements SimHost {
   private latchedTapFire = false;
   private seq = 0;
   private readonly sendBuf: MutableInput = { ...NEUTRAL_INPUT };
+  /** Story 8.11: `sendBuf` on the wire (`encodeInput`), reused every step. */
+  private readonly sendBytes = new Uint8Array(INPUT_BYTES);
   private drained: SimEvent[] = [];
   /** Server tick of each event drained from the queue this frame (review L1; reused). */
   private readonly drainedTicks: number[] = [];
@@ -842,7 +848,11 @@ export class NetSimHost implements SimHost {
       buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
-      room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
+      // Story 8.11 (AC 3): the 14-byte binary input; `buf` is rounded to what the server decodes (1/127 stick steps)
+      // BEFORE the predictor and the fire clock see it, so the predicted and the server's moves use the same values.
+      encodeInput(buf, this.sendBytes);
+      decodeInput(this.sendBytes, buf);
+      room.sendBytes(BYTES.INPUT, this.sendBytes); // copied synchronously: the bytes can be reused
       // Story 2.6: my survivor moves now, not a round trip later. Story 5.2: with the weapon state the
       // server's movement sees on this seq (the fire clock's, from the seq before: the Chainsaw slow).
       this.predictor.applyLocal(buf, this.fireClock.moveWeapon, this.fireClock.moveSwapping);

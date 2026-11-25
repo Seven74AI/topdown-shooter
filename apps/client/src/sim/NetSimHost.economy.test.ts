@@ -36,7 +36,7 @@ describe("NetSimHost wallets (Story 3.2)", () => {
       host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1, aimX: 1, fire: true });
       host.update(0.05);
     }
-    expect(room.sentOf(C2S.INPUT_SEND).length).toBeGreaterThan(0);
+    expect(room.inputsSent().length).toBeGreaterThan(0);
     expect(host.world.players.get("p1")?.wallet).toBe(100);
   });
 
