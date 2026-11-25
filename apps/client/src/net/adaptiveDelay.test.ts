@@ -175,6 +175,34 @@ describe("AdaptiveDelay (Story 8.9: delay from lateness, a render clock that str
     }
   });
 
+  it("R3 fine sweep: 1 ms frames (state kept), a 300 ms stall then a +200 ms lasting step: monotonic, ≤ 1.1× per frame, rate in [0.9, 1.1]", () => {
+    const d = new AdaptiveDelay();
+    const clock = new ServerClock();
+    let tick = 0;
+    let nextDue = 80;
+    let prev = -Infinity;
+    let maxStep = 0;
+    for (let nowMs = 0; nowMs < 20_000; nowMs += 1) {
+      while (nextDue <= nowMs) {
+        tick++;
+        clock.sample(nextDue, tick);
+        d.sample(nextDue, tick, clock.rawOffsetMs);
+        const t = tick + 1;
+        const late = (t === 100 ? 300 : 0) + (t * 50 >= 10_000 ? 200 : 0);
+        nextDue = Math.max(nextDue, t * 50 + 30 + late);
+      }
+      if (!clock.ready) continue;
+      const rt = d.advance(nowMs, clock.estimateTick(nowMs), tick);
+      if (prev > -Infinity) maxStep = Math.max(maxStep, rt - prev);
+      expect(rt).toBeGreaterThanOrEqual(prev);
+      expect(d.rate).toBeGreaterThanOrEqual(0.9 - EPS);
+      expect(d.rate).toBeLessThanOrEqual(1.1 + EPS);
+      prev = rt;
+    }
+    expect(maxStep).toBeLessThanOrEqual((1 / 50) * 1.1 + EPS); // 1 ms of frame → at most 1.1 ms of render time
+    expect(d.targetMs).toBe(RENDER_DELAY_MAX_MS); // the step's late frames were measured
+  });
+
   it("after a hidden tab the render clock re-anchors once (forward), it does not play seconds at 1.1×", () => {
     const d = new AdaptiveDelay();
     d.advance(0, 10);

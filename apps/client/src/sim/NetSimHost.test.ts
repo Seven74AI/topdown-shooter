@@ -291,6 +291,46 @@ describe("NetSimHost", () => {
       expect(host.hordeStats.decodeErrors).toBe(1);
     });
 
+    it("Story 8.9 (D7, wiring): horde frames feed the clock and the lateness too (late frames, patches on time, raise the delay)", () => {
+      const { host, room, arrive, setNow } = setup();
+      for (let t = 10; t <= 200; t++) {
+        setNow(500 + t * 50);
+        arrive(t); // patches always on time
+        setNow(500 + t * 50 + (t % 4 === 0 ? 80 : 1));
+        room.deliver(BYTES.HORDE_FRAME, frame(t, [{ netId: Z, x: 3, y: 3 }]));
+        host.update(1 / 60);
+      }
+      expect(host.netStats.lateP95Ms).toBeGreaterThanOrEqual(80);
+      expect(host.netStats.targetMs).toBeGreaterThan(125);
+    });
+
+    it("Story 8.9 (F1, wiring): an overdue horde frame slows the render clock to 0.9× at once; running past the newest frame counts one freeze", () => {
+      const { host, room, arrive, setNow } = setup();
+      let now = 0;
+      for (let t = 10; t <= 60; t++) {
+        now = 500 + t * 50;
+        setNow(now);
+        arrive(t);
+        room.deliver(BYTES.HORDE_FRAME, frame(t, [{ netId: Z, x: 3, y: 3 }]));
+        for (let f = 0; f < 3; f++) {
+          setNow(now + f * (50 / 3));
+          host.update(1 / 60);
+        }
+      }
+      expect(host.netStats.rate).toBeCloseTo(1, 2);
+      expect(host.netStats.freezes).toBe(0);
+      // The line stalls: no frame after tick 60. 40 ms later the next one is overdue.
+      let slowedAt = Number.NaN;
+      for (let ms = 50; ms <= 400; ms += 50 / 3) {
+        setNow(now + ms);
+        host.update(1 / 60);
+        if (Number.isNaN(slowedAt) && host.netStats.rate === 0.9) slowedAt = ms;
+      }
+      expect(slowedAt).toBeLessThanOrEqual(50 + 15 + 20 + 17); // the 50 ms cadence + 15 ms + the p95 bucket + one frame
+      expect(host.netStats.freezes).toBe(1); // 400 ms with no frame: ran past the newest once
+      expect(host.renderTick).toBeGreaterThan(60);
+    });
+
     it("a zombie.killed hides the zombie in the same frame its death event drains", () => {
       const { host, room, arrive, setNow } = setup();
       for (let t = 10; t <= 13; t++) {
