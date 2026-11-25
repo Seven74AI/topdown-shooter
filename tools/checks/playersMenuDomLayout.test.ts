@@ -67,20 +67,16 @@ let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: 
 let browser: Browser | null = null;
 let page: Page | null = null;
 
-/** Review L6: CI sets REQUIRE_BROWSER=1: a missing browser then FAILS this test instead of skipping it. */
-const REQUIRE = process.env.REQUIRE_BROWSER === "1";
-
-describe.skipIf(!pw && !REQUIRE)("Story 8.3 (R9): the Players menu and the Remove confirms in a real browser", () => {
+// Review L6: CI shard 1 fails if this browser test (`*DomLayout.test.ts`) skipped (tools/ci/check-browser-ran.mjs).
+describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms in a real browser", () => {
   beforeAll(async () => {
     const { createServer } = await import("vite");
     server = (await createServer({ root: CLIENT, configFile: join(CLIENT, "vite.config.ts"), logLevel: "silent", server: { host: "127.0.0.1", port: 0, strictPort: false, hmr: false } })) as unknown as typeof server;
     await server!.listen();
-    if (!pw) throw new Error("REQUIRE_BROWSER=1 but playwright is not installed");
     try {
-      browser = await pw.chromium.launch();
-    } catch (e) {
+      browser = await pw!.chromium.launch();
+    } catch {
       browser = null;
-      if (REQUIRE) throw e;
       return;
     }
     page = await browser.newPage({ viewport: { width: 568, height: 320 } });
@@ -101,10 +97,7 @@ describe.skipIf(!pw && !REQUIRE)("Story 8.3 (R9): the Players menu and the Remov
   for (const c of CASES) {
     for (const [w, h] of SIZES) {
       it(`${w}×${h}, ${c.name}: inside the safe area, no overlaps, buttons ≥ 44 px, text ≥ 11 px`, async (ctx) => {
-        if (!page) {
-          if (REQUIRE) throw new Error("REQUIRE_BROWSER=1 but no browser page"); // review L6
-          return ctx.skip();
-        }
+        if (!page) return ctx.skip();
         await page.setViewportSize({ width: w, height: h });
         const m = (await page.evaluate(
           `(async (k) => {
