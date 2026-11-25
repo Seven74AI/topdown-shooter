@@ -1,7 +1,7 @@
 import { loadavg } from "node:os";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { C2S } from "@topdown/shared";
+import { C2S, bulletLineClear, shotLineClear } from "@topdown/shared";
 import { bootTestServer } from "../../apps/server/src/test/bootTestServer";
 import type { RunRoom } from "../../apps/server/src/rooms/RunRoom";
 import { BotClient } from "./botClient";
@@ -102,7 +102,7 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
       // The run goes on to the next build phase.
       const wave = world.waves.number;
       const ended = await until(() => room.state.phase === "build" || room.state.phase === "results", 150_000, 250);
-      if (!ended) console.log(JSON.stringify({ msg: "cut_test_stuck", phase: room.state.phase, frozen: room.state.frozen, wave: world.waves.number, tick: world.tick, players: [...world.players.values()].map((q) => ({ id: q.id, x: Math.round(q.x), y: Math.round(q.y), status: q.status, protect: q.protectTicks })), zombies: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => ({ x: Math.round(world.zombies.x[z] ?? 0), y: Math.round(world.zombies.y[z] ?? 0), t: world.zombies.type[z], s: world.zombies.state[z], hp: Math.round(world.zombies.hp[z] ?? 0), w: world.zombies.waveZombie[z] })), held: [...world.heldPlayers.keys()], holds: [...room.holds.keys()], remaining: world.waves.remaining, queued: world.waves.queued, bots: bots.map((b) => b.link) }));
+      if (!ended) console.log(JSON.stringify({ msg: "cut_test_stuck", phase: room.state.phase, frozen: room.state.frozen, wave: world.waves.number, tick: world.tick, players: [...world.players.values()].map((q) => ({ id: q.id, x: Math.round(q.x), y: Math.round(q.y), status: q.status, protect: q.protectTicks })), zombies: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => ({ x: Math.round(world.zombies.x[z] ?? 0), y: Math.round(world.zombies.y[z] ?? 0), t: world.zombies.type[z], s: world.zombies.state[z], hp: Math.round(world.zombies.hp[z] ?? 0), w: world.zombies.waveZombie[z] })), held: [...world.heldPlayers.keys()], holds: [...room.holds.keys()], remaining: world.waves.remaining, queued: world.waves.queued, bots: bots.map((b) => b.link), buildings: world.buildings.list.map((b) => ({ t: b.type, o: b.ownerId, x0: +b.minX.toFixed(1), y0: +b.minY.toFixed(1), x1: +b.maxX.toFixed(1), y1: +b.maxY.toFixed(1), hp: Math.round(b.hp), sb: b.stopsBullets })), lines: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => [...world.players.values()].map((q) => { const zx = world.zombies.x[z] ?? 0; const zy = world.zombies.y[z] ?? 0; return `${q.id}:${Math.hypot(zx - q.x, zy - q.y).toFixed(1)}m bullet=${bulletLineClear(world, q.x, q.y, zx, zy) ? 1 : 0} spit=${shotLineClear(world, zx, zy, q.x, q.y) ? 1 : 0}`; })) }));
       expect(ended).toBe(true);
       expect(room.state.phase).toBe("build");
       expect(world.waves.number).toBe(wave);
