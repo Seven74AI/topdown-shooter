@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ATLAS_CHARACTERS, ATLAS_DOWNTOWN, ATLAS_FX, downtownSpecs, ensureAtlases, imageAtlas } from "./spriteAtlas";
+import { ATLAS_CHARACTERS, ATLAS_DOWNTOWN, ATLAS_FX, downtownSpecs, ensureAtlases, imageAtlas, resetDowntownAtlasForTests } from "./spriteAtlas";
 import { STREET_PROPS_FRAMES, STREET_PROPS_HEIGHT, STREET_PROPS_KEY, STREET_PROPS_LAMPS, STREET_PROPS_WIDTH, loadStreetProps, resetStreetPropsForTests, takeStreetProps } from "./streetPropsAtlas";
 import { POLICE_DRUM, POLICE_DRUM_LAMP_DY_M, POLICE_PX_PER_M, policeSpecs } from "./streetPropsFrames";
 import { CB } from "./barricadeArt";
@@ -99,7 +99,9 @@ function stubDocument(): { w: number; h: number; draws: unknown[][] }[] {
     createElement: () => {
       const rec = { draws: [] as unknown[][], w: 0, h: 0 };
       made.push(rec);
-      const g = { drawImage: (...a: unknown[]) => rec.draws.push(a), getImageData: () => ({ data: [0, 0, 0, 255] }) };
+      const known: Record<string, unknown> = { drawImage: (...a: unknown[]) => rec.draws.push(a), getImageData: () => ({ data: [0, 0, 0, 255] }) };
+      // any other 2D call (the code atlas's drawings) is a no-op returning the context (gradients, paths…)
+      const g: unknown = new Proxy(known, { get: (t, k) => (typeof k === "string" && k in t ? t[k] : () => g), set: () => true });
       return {
         get width() {
           return rec.w;
@@ -149,7 +151,7 @@ describe("Story 9.14 (review L5): the loaded image becomes the downtown atlas", 
         addCanvas: (k: string) => (keys.add(k), tex),
         once: (_e: string, fn: () => void) => onAdd.push(fn),
       },
-      load: { image: () => undefined, on: () => undefined, start: () => undefined },
+      load: { image: () => undefined, on: () => undefined, once: () => undefined, start: () => undefined },
     } as unknown as Phaser.Scene;
     loadStreetProps(scene);
     keys.add(STREET_PROPS_KEY);
@@ -170,7 +172,7 @@ describe("Story 9.14 (review L5): the loaded image becomes the downtown atlas", 
     const onAdd: (() => void)[] = [];
     const scene = {
       textures: { exists: (k: string) => keys.has(k), remove: (k: string) => keys.delete(k), get: () => ({ getSourceImage: () => wrong }), once: (_e: string, fn: () => void) => onAdd.push(fn) },
-      load: { image: () => undefined, on: () => undefined, start: () => undefined },
+      load: { image: () => undefined, on: () => undefined, once: () => undefined, start: () => undefined },
     } as unknown as Phaser.Scene;
     expect(takeStreetProps(scene)).toBeNull(); // never asked
     keys.delete(STREET_PROPS_KEY);
@@ -221,5 +223,65 @@ describe("Story 9.14 (review L5): PoliceLineView", () => {
     expect(made.slice(7).every((m) => m.visible === false)).toBe(true);
     v.show([]);
     expect(made.every((m) => m.visible === false)).toBe(true);
+  });
+});
+
+describe("Story 9.14 (B26): a run never waits for the image; the next run picks it up", () => {
+  class FakeImage {
+    naturalWidth = STREET_PROPS_WIDTH;
+    naturalHeight = STREET_PROPS_HEIGHT;
+  }
+  afterEach(() => {
+    textureRegistry.unregister(ATLAS_DOWNTOWN);
+    vi.unstubAllGlobals();
+    resetStreetPropsForTests();
+    resetDowntownAtlasForTests();
+  });
+
+  it("run 1 (image not in) builds the code atlas; a mid-run caller never swaps it; run 2 rebuilds it once from the image", () => {
+    const made = stubDocument();
+    vi.stubGlobal("HTMLImageElement", FakeImage);
+    const img = new FakeImage();
+    const keys = new Map<string, string[]>([[ATLAS_CHARACTERS, []], [ATLAS_FX, []]]);
+    const onAdd: (() => void)[] = [];
+    let added = 0;
+    let removedDowntown = 0;
+    const scene = {
+      textures: {
+        exists: (k: string) => keys.has(k),
+        remove: (k: string) => {
+          if (k === ATLAS_DOWNTOWN) removedDowntown++;
+          return keys.delete(k);
+        },
+        get: () => ({ getSourceImage: () => img }),
+        addCanvas: (k: string) => {
+          if (keys.has(k)) throw new Error(`duplicate texture ${k}`);
+          added++;
+          const frames: string[] = [];
+          keys.set(k, frames);
+          return { add: (n: string) => frames.push(n), refresh: () => undefined, getFrameNames: () => frames, get: () => ({ cutX: 0, cutY: 0, cutWidth: 2, cutHeight: 2 }) };
+        },
+        once: (_e: string, fn: () => void) => onAdd.push(fn),
+      },
+      load: { image: () => undefined, on: () => undefined, once: () => undefined, start: () => undefined },
+    } as unknown as Phaser.Scene;
+    loadStreetProps(scene); // downloading
+    const run1 = ensureAtlases(scene, true);
+    expect(run1.frames.has(POLICE_DRUM)).toBe(false); // the code drawings for this run
+    expect(added).toBe(1);
+    keys.set(STREET_PROPS_KEY, []); // the image lands mid-run
+    for (const fn of onAdd) fn();
+    expect(ensureAtlases(scene)).toBe(run1); // a view made mid-run (a late joiner): no swap
+    expect(removedDowntown).toBe(0);
+    const run2 = ensureAtlases(scene, true); // the next run's city view
+    expect(run2.frames.has(POLICE_DRUM)).toBe(true);
+    expect(removedDowntown).toBe(1);
+    expect(added).toBe(2); // rebuilt once, through addGeneratedTexture
+    expect(keys.has(STREET_PROPS_KEY)).toBe(false); // the loader's texture is gone
+    expect(keys.get(ATLAS_DOWNTOWN)?.length).toBe(Object.keys(STREET_PROPS_FRAMES).length);
+    expect(made.at(-1)?.draws).toEqual([[img, 0, 0]]);
+    expect(made[0]?.w).toBe(0); // run 1's code canvas was released
+    expect(ensureAtlases(scene, true)).toBe(run2); // run 3: nothing to do
+    expect(added).toBe(2);
   });
 });

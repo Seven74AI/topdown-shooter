@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Story 9.14 reviews H1 / NEW-1 / NEW-2 / NEW-3: the street props image never holds up the title or the start handlers
- * (Story 8.1: a reload that takes its seat back asks for the Game scene during the title); the first start request is
- * kept and run once the image settles (loaded, failed or timed out), exactly once, while Boot still runs; nothing
- * brings the start screen back meanwhile; and an image that lands too late is dropped.
+ * Story 9.14 (B26, reviews H1 / NEW-1 / NEW-3 / re-review B): the street props image never holds anything up. The Boot
+ * scene starts its download and starts the Game scene at once on the first start request (Story 8.1: a reload that
+ * takes its seat back asks for it during the title), exactly once; a run that starts before the image is in draws its
+ * street props from code (`spriteAtlas.test` › B26), the image is kept for the next run whenever it lands, and a
+ * download that ends without a picture (an error, or an image that doesn't decode) fails at once.
  */
 const opts = { skips: false };
 vi.mock("phaser", () => ({ Scene: class {}, Scale: { Events: { RESIZE: "resize" } }, Scenes: { Events: { SHUTDOWN: "shutdown" } } }));
@@ -15,7 +16,7 @@ vi.mock("../render/city/streetProps.webp?url", () => ({ default: "/streetProps.w
 
 import { BootScene } from "./BootScene";
 import { uiStore, type UiScreen } from "../ui/uiState";
-import { STREET_PROPS_KEY, STREET_PROPS_TIMEOUT_MS, resetStreetPropsForTests, streetPropsState, takeStreetProps } from "../render/city/streetPropsAtlas";
+import { STREET_PROPS_KEY, resetStreetPropsForTests, streetPropsState, takeStreetProps } from "../render/city/streetPropsAtlas";
 import type { NetSession } from "../net/session";
 
 /** The game-wide texture manager (outlives a scene, like Phaser's). */
@@ -44,22 +45,20 @@ interface Fake {
   boot: BootScene;
   started: unknown[][];
   queued: string[];
-  texts: string[];
   timers: { fn: () => void; removed: boolean }[];
   /** The scene's loader fails the image (its `loaderror`). */
   fail(): void;
-  setActive(a: boolean): void;
+  /** The scene's loader finishes its queue (`complete`). */
+  complete(): void;
 }
 
 function makeBoot(textures: Textures, boot = new BootScene()): Fake {
   const started: unknown[][] = [];
   const queued: string[] = [];
-  const texts: string[] = [];
   const timers: { fn: () => void; removed: boolean }[] = [];
   const errors: ((f: { key?: string }) => void)[] = [];
-  let active = true;
-  const text = (_x: number, _y: number, s: string) => {
-    texts.push(s);
+  const completes: (() => void)[] = [];
+  const text = () => {
     const t = { setOrigin: () => t, setPosition: () => t };
     return t;
   };
@@ -74,12 +73,12 @@ function makeBoot(textures: Textures, boot = new BootScene()): Fake {
         return t;
       },
     },
-    sys: { isActive: () => active },
     scene: { start: (...a: unknown[]) => started.push(a) },
     textures: { exists: textures.exists, remove: textures.remove, get: textures.get, once: textures.onceFn },
     load: {
       image: (k: string) => queued.push(k),
       on: (ev: string, fn: (f: { key?: string }) => void) => ev === "loaderror" && errors.push(fn),
+      once: (ev: string, fn: () => void) => ev === "complete" && completes.push(fn),
       start: () => undefined,
     },
   });
@@ -87,12 +86,13 @@ function makeBoot(textures: Textures, boot = new BootScene()): Fake {
     boot,
     started,
     queued,
-    texts,
     timers,
     fail: () => {
       for (const fn of errors) fn({ key: STREET_PROPS_KEY });
     },
-    setActive: (a) => (active = a),
+    complete: () => {
+      for (const fn of completes.splice(0)) fn();
+    },
   };
 }
 
@@ -101,12 +101,11 @@ const fireTitle = (f: Fake): void => {
   for (const t of f.timers) if (!t.removed) t.fn();
 };
 
-describe("Story 9.14 (reviews H1, NEW-1..3): Boot and the street props image", () => {
+describe("Story 9.14 (B26): Boot never waits for the street props image", () => {
   let textures: Textures;
   let screens: UiScreen[];
   let unsub: () => void;
   beforeEach(() => {
-    vi.useFakeTimers();
     resetStreetPropsForTests();
     opts.skips = false;
     textures = new Textures();
@@ -116,124 +115,91 @@ describe("Story 9.14 (reviews H1, NEW-1..3): Boot and the street props image", (
   });
   afterEach(() => {
     unsub();
-    vi.useRealTimers();
     vi.restoreAllMocks();
     uiStore.handle("startOnline", undefined);
     uiStore.handle("startSolo", undefined);
   });
 
-  it("takes startOnline during the title before the image is in, says Loading…, and starts the run once it lands", () => {
+  it("starts the download and, on startOnline during the title (8.1 resume), starts the run at once while it loads", () => {
     const f = makeBoot(textures);
     f.boot.create();
     expect(f.queued).toEqual([STREET_PROPS_KEY]);
     expect(streetPropsState()).toBe("loading");
     const session = {} as NetSession;
-    uiStore.request("startOnline", session); // a reload taking its seat back, during the title
-    expect(f.started).toEqual([]); // kept, not dropped
-    expect(f.texts).toContain("Loading…");
-    expect(screens.at(-1)).toEqual({ kind: "playing", menu: "closed", online: true }); // no dead start screen
-    textures.add(STREET_PROPS_KEY);
-    expect(f.started).toEqual([["Game", { mode: "online", session }]]);
-    expect(streetPropsState()).toBe("ready");
+    uiStore.request("startOnline", session);
+    expect(f.started).toEqual([["Game", { mode: "online", session }]]); // no wait: Game's own handlers take over, as on master
+    expect(streetPropsState()).toBe("loading");
+    expect(takeStreetProps(f.boot)).toBeNull(); // this run draws from code
   });
 
-  it("NEW-1: the title's delayed step after a taken start does nothing: no start screen, no handlers, one start", () => {
+  it("8.1 resume during the title starts once: the title's delayed step is cancelled and does nothing if it fires", () => {
+    opts.skips = true; // ?solo too: still only the online start
     const f = makeBoot(textures);
     f.boot.create();
     const session = {} as NetSession;
     uiStore.request("startOnline", session);
-    expect(f.timers.every((t) => t.removed)).toBe(true); // the timer is cancelled
+    expect(f.timers.every((t) => t.removed)).toBe(true);
     const n = screens.length;
     for (const t of f.timers) t.fn(); // even if it fired anyway
-    expect(screens.length).toBe(n); // the UI was not reset to the start screen
-    uiStore.request("startSolo"); // a tap: no handler any more
+    expect(screens.length).toBe(n); // no start screen over the run
+    uiStore.request("startSolo");
     uiStore.request("startOnline", {} as NetSession);
-    textures.add(STREET_PROPS_KEY);
-    expect(f.started).toEqual([["Game", { mode: "online", session }]]); // exactly one start, the first request
-  });
-
-  it("NEW-1: with ?solo (skipsStartScreen) and a resumed seat, the online start wins and solo never starts", () => {
-    opts.skips = true;
-    const f = makeBoot(textures);
-    f.boot.create();
-    const session = {} as NetSession;
-    uiStore.request("startOnline", session);
-    for (const t of f.timers) t.fn();
-    textures.add(STREET_PROPS_KEY);
     expect(f.started).toEqual([["Game", { mode: "online", session }]]);
   });
 
-  it("NEW-1: two start requests (solo from the start screen, then a late online one) give one start", () => {
-    const f = makeBoot(textures);
-    f.boot.create();
-    fireTitle(f); // the start screen is up
-    uiStore.request("startSolo");
-    uiStore.request("startOnline", {} as NetSession);
-    uiStore.request("startSolo");
-    textures.add(STREET_PROPS_KEY);
-    expect(f.started).toEqual([["Game", { mode: "solo" }]]);
-  });
-
-  it("Boot started again while the image is still loading (Leave / back to the start screen) still starts the run once", () => {
-    const boot = new BootScene();
-    const f1 = makeBoot(textures, boot);
-    f1.boot.create();
-    fireTitle(f1);
-    const f2 = makeBoot(textures, boot); // the same scene object, started again (Phaser reuses it)
-    f2.boot.create({ start: true });
-    expect(f2.queued).toEqual([]); // no second download
-    uiStore.request("startSolo");
-    expect(f2.started).toEqual([]);
-    textures.add(STREET_PROPS_KEY); // heard on the texture manager, even though the first Boot's loader was reset
-    expect(f2.started).toEqual([["Game", { mode: "solo" }]]);
-  });
-
-  it("the waiter does not start the run when Boot is no longer the running scene", () => {
+  it("solo from the start screen starts at once, once", () => {
     const f = makeBoot(textures);
     f.boot.create();
     fireTitle(f);
     uiStore.request("startSolo");
-    f.setActive(false);
-    textures.add(STREET_PROPS_KEY);
-    expect(f.started).toEqual([]);
+    uiStore.request("startSolo");
+    expect(f.started).toEqual([["Game", { mode: "solo" }]]);
   });
 
-  it("a failed download starts the run anyway (code drawings), warns once, and is not queued again", () => {
+  it("an image that lands after the run started (Boot gone) is kept for the next run; Boot again starts no second download", () => {
+    const boot = new BootScene();
+    const f1 = makeBoot(textures, boot);
+    f1.boot.create();
+    fireTitle(f1);
+    uiStore.request("startSolo");
+    textures.add(STREET_PROPS_KEY); // heard on the game's texture manager, after Boot shut down
+    expect(streetPropsState()).toBe("ready");
+    expect(textures.keys.has(STREET_PROPS_KEY)).toBe(true); // not dropped: the next run's
+    const f2 = makeBoot(textures, boot); // Leave → Boot again (Phaser reuses the scene object)
+    f2.boot.create({ start: true });
+    expect(f2.queued).toEqual([]);
+    uiStore.request("startSolo");
+    expect(f2.started).toEqual([["Game", { mode: "solo" }]]);
+  });
+
+  it("a failed download (loaderror) fails at once, warns once, and is not queued again", () => {
     const f = makeBoot(textures);
     f.boot.create();
-    const session = {} as NetSession;
-    uiStore.request("startOnline", session);
     f.fail();
-    expect(f.started).toEqual([["Game", { mode: "online", session }]]);
     expect(streetPropsState()).toBe("failed");
     expect(console.warn).toHaveBeenCalledTimes(1);
     const again = makeBoot(textures);
     again.boot.create({ start: true });
     expect(again.queued).toEqual([]);
-    uiStore.request("startSolo");
-    expect(again.started).toEqual([["Game", { mode: "solo" }]]); // nothing to wait for: no Loading… either
-    expect(again.texts).not.toContain("Loading…");
   });
 
-  it("NEW-3: a hung download times out, the run starts, and an image that lands later is dropped from the texture manager", () => {
+  it("re-review B: an image that downloads but doesn't decode (no loaderror, no texture) fails as soon as the load ends", () => {
     const f = makeBoot(textures);
     f.boot.create();
-    const session = {} as NetSession;
-    uiStore.request("startOnline", session);
-    vi.advanceTimersByTime(STREET_PROPS_TIMEOUT_MS - 1);
-    expect(f.started).toEqual([]);
-    vi.advanceTimersByTime(1);
-    expect(f.started).toEqual([["Game", { mode: "online", session }]]);
-    textures.add(STREET_PROPS_KEY); // long after Boot shut down
-    expect(textures.keys.has(STREET_PROPS_KEY)).toBe(false);
+    f.complete();
+    expect(streetPropsState()).toBe("failed");
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    textures.add(STREET_PROPS_KEY); // nothing more happens after a failure
+    expect(streetPropsState()).toBe("failed");
     expect(takeStreetProps(f.boot)).toBeNull();
   });
 
-  it("no download once the downtown atlas exists", () => {
-    textures.keys.add("atlas_downtown");
+  it("the load ending with the texture in is a success (not a failure)", () => {
     const f = makeBoot(textures);
     f.boot.create();
-    expect(f.queued).toEqual([]);
-    expect(streetPropsState()).toBe("failed");
+    textures.add(STREET_PROPS_KEY);
+    f.complete();
+    expect(streetPropsState()).toBe("ready");
+    expect(console.warn).not.toHaveBeenCalled();
   });
 });

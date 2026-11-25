@@ -2,7 +2,9 @@ import type * as Phaser from "phaser";
 import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
-import { addGeneratedTexture } from "./canvasTexture";
+import { addGeneratedTexture, releaseCanvas } from "./canvasTexture";
+import { textureRegistry } from "../gfx/textureRegistry";
+import { POLICE_DRUM } from "./streetPropsFrames";
 import { STREET_PROPS_FRAMES, STREET_PROPS_HEIGHT, STREET_PROPS_WIDTH, takeStreetProps } from "./streetPropsAtlas";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
@@ -443,18 +445,29 @@ export function imageAtlas(img: HTMLImageElement, scene?: Phaser.Scene): AtlasCa
   return { canvas, frames };
 }
 
-/** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
-export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
+/** Tests: forget the downtown atlas (a fresh page). */
+export function resetDowntownAtlasForTests(): void {
+  downtownAtlas = null;
+}
+
+/**
+ * Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). Story 9.14
+ * (B26): the downtown atlas is the pre-rendered photoreal set when the image is in, the code drawings otherwise (B8).
+ * A run that started on the code atlas keeps it; `runStart` (only the city view, made once per run before anything
+ * draws from the downtown atlas) rebuilds it from the image once that has landed. Every other caller (views made
+ * mid-run, e.g. a late joiner's `PlayerView`) never swaps it.
+ */
+export function ensureAtlases(scene: Phaser.Scene, runStart = false): AtlasCanvas {
   register(scene, ATLAS_CHARACTERS, characterSpecs, drawCharacterFrame);
   register(scene, ATLAS_FX, fxSpecs, drawFxFrame);
-  // Story 9.14: the pre-rendered photoreal props when the image loaded; the code drawings otherwise (B8)
-  if (!scene.textures.exists(ATLAS_DOWNTOWN)) {
-    const img = takeStreetProps(scene);
-    downtownAtlas = img ? imageAtlas(img, scene) : register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
+  const img = takeStreetProps(scene);
+  if (runStart && img && downtownAtlas && !downtownAtlas.frames.has(POLICE_DRUM) && scene.textures.exists(ATLAS_DOWNTOWN)) {
+    textureRegistry.unregister(ATLAS_DOWNTOWN);
+    scene.textures.remove(ATLAS_DOWNTOWN);
+    releaseCanvas(downtownAtlas.canvas);
+    downtownAtlas = null;
   }
-  if (!downtownAtlas) {
-    const img = takeStreetProps(scene);
-    downtownAtlas = img ? imageAtlas(img) : build(downtownSpecs(), drawDowntownFrame);
-  }
+  if (!scene.textures.exists(ATLAS_DOWNTOWN)) downtownAtlas = img ? imageAtlas(img, scene) : register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
+  if (!downtownAtlas) downtownAtlas = img ? imageAtlas(img) : build(downtownSpecs(), drawDowntownFrame);
   return downtownAtlas;
 }

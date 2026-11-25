@@ -6,7 +6,7 @@ import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, policePieces, releaseShadowStamps, resetPatternTiles, type CityScene } from "./drawCity";
 import { PoliceLineView } from "./PoliceLineView";
-import type { PolicePiece } from "./streetPropsFrames";
+import { POLICE_DRUM, type PolicePiece } from "./streetPropsFrames";
 import { standDepth } from "../barricadeLook";
 import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
@@ -180,7 +180,9 @@ export class CityView {
     private readonly runSeed: () => number = () => 0,
   ) {
     this.dressing = dressingFor(map.name);
-    this.atlas = ensureAtlases(scene);
+    this.atlas = ensureAtlases(scene, true); // Story 9.14 (B26): the run start, where the photoreal image may replace the code atlas
+    // B26: the image wasn't in when this run built its city: this run draws the street props from code (flat police lines)
+    if (!this.atlas.frames.has(POLICE_DRUM)) console.info("street props: this run uses the code drawings (the photoreal image is not loaded yet)");
     const oneTile = Math.floor(MAX_ATLAS_PX / Math.max(map.widthM, map.heightM));
     this.bakePxPerM = Math.round(Math.min(BAKE_MAX_PX_PER_M, oneTile, Math.max(BAKE_MIN_PX_PER_M, zoomPxPerM)));
     const id = instance++;

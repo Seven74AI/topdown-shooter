@@ -6,8 +6,7 @@ import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
-import { loadStreetProps, streetPropsState, whenStreetPropsSettled } from "../render/city/streetPropsAtlas";
-import { playingScreen } from "../ui/uiState";
+import { loadStreetProps } from "../render/city/streetPropsAtlas";
 
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
@@ -20,8 +19,6 @@ export interface BootSceneData {
 
 const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
-const LOADING_FONT_PX = 16; // Story 9.14: the "Loading…" line under the title (CSS px)
-const LOADING_GAP_PX = 36; // its distance below the screen's middle (CSS px)
 
 export class BootScene extends Phaser.Scene {
   /**
@@ -40,8 +37,8 @@ export class BootScene extends Phaser.Scene {
   create(data?: BootSceneData): void {
     this.starting = false;
     this.titleTimer = null;
-    // Story 9.14 (B1, review H1): the street props atlas image (~0.5 MB) downloads in the background while the title and
-    // the start screen are up; a start waits for it to settle (at most `STREET_PROPS_TIMEOUT_MS`), see `startGame`.
+    // Story 9.14 (B1, B26): the street props atlas image (~0.5 MB) downloads in the background; nothing waits for it. A
+    // run that starts before it is in draws its street props from code; the next run uses the image.
     loadStreetProps(this);
     prewarmAmbience(); // Stories 4.6/4.7 review M: synthesize the ambience loops in idle time on the start screen / lobby (once per page)
     const error = data?.error;
@@ -96,10 +93,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   /**
-   * Story 9.14 (reviews H1, NEW-1, NEW-2): takes the first start request only (the handlers go, the title's delayed
-   * step is cancelled); the Game scene starts once the street props image has settled (drawn with it, or from code
-   * after a failure or the timeout), exactly once, and only if Boot is still the running scene. While it waits the
-   * start screen goes (its buttons would do nothing) and the canvas says "Loading…" under the title.
+   * Story 9.14 (review NEW-1, B26): the first start request only starts the Game scene, at once (the handlers go, the
+   * title's delayed step is cancelled); later requests are ignored. Nothing waits for the street props image.
    */
   private startGame(data: GameSceneData): void {
     if (this.starting) return;
@@ -108,21 +103,6 @@ export class BootScene extends Phaser.Scene {
     uiStore.handle("startOnline", undefined);
     this.titleTimer?.remove();
     this.titleTimer = null;
-    if (streetPropsState() === "loading") this.showLoading(data.mode === "online");
-    whenStreetPropsSettled(() => {
-      if (!this.sys.isActive()) return;
-      this.scene.start("Game", data);
-    });
-  }
-
-  private showLoading(online: boolean): void {
-    uiStore.set(playingScreen(online)); // the Game scene sets the same screen when it starts
-    this.add
-      .text(this.scale.width / 2, this.scale.height / 2 + LOADING_GAP_PX * dpr(), "Loading…", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: `${Math.round(LOADING_FONT_PX * dpr())}px`,
-        color: "#c8c8c8",
-      })
-      .setOrigin(0.5);
+    this.scene.start("Game", data);
   }
 }

@@ -74,8 +74,8 @@ referenced for repaints (another 4.4 MB); the loader's GPU copy is removed.
 | alternatives not shipped | PNG 892 KB, WebP q90 129 KB (lossy: re-encodes the approved pixels) |
 
 531 KB added to the first load, far under the 2 MB story cap and the 15 MB / 10 s first-load budget. The Boot scene
-starts the download as it shows the title; the title and the start handlers never wait for it (review H1). A run's
-start waits until the image is in, has failed, or 12 s have passed; then the street is drawn from the image, or from
-code (B8). While it waits the canvas says "Loading…" (B25). Slow 4G (CDP: 562.5 ms latency, 1.44 Mbps down), page load
-to title: 9.8 / 9.7 s before the change, 6.0 / 6.0 s after; `?solo` to the first city bake: 12.3 / 12.3 s → 11.8 /
-11.7 s (`docs/art/9-14/slow4g.cjs`). The frame JSON (5 KB) is bundled into the JS.
+starts the download as it shows the title, and nothing waits for it (B26). A run that starts before the image is in
+draws its street props from code (flat police lines); the next run uses the image. Slow 4G (CDP: 562.5 ms latency,
+1.44 Mbps down; `docs/art/9-14/slow4g.cjs`, 2 rounds), page load to title: 9.7 / 9.7 s before the change, 6.0 / 6.1 s
+after; `?solo` to the first city bake: 12.3 / 12.2 s → 8.8 / 8.6 s. That first run uses the code atlas on Slow 4G (the
+image lands a few seconds later); on a fast connection the image is in before the run starts. The frame JSON (5 KB) is bundled into the JS.
