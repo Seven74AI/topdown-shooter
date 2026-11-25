@@ -24,5 +24,21 @@
       "belowLifetime": 300,
       "multiplier": 2
     }
-  }
+  },
+  "districts": [
+    {
+      "id": "downtown",
+      "name": "Downtown",
+      "unlock": null,
+      "playable": true
+    },
+    {
+      "id": "district_2",
+      "name": "District 2",
+      "unlock": {
+        "extractFrom": "downtown"
+      },
+      "playable": false
+    }
+  ]
 }

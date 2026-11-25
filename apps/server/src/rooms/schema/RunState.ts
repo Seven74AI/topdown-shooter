@@ -220,6 +220,9 @@ const runFields = {
   lootBagUntilTick: t.uint32().default(0),
   /** Its look (0–4: LB4–LB8). */
   lootBagVariant: t.uint8().default(0),
+  // Story 7.7: the run's district (the host's pick in the lobby) and the districts anyone in the lobby has (bit i = list index).
+  district: t.string().default("downtown"),
+  districtsOpen: t.uint8().default(1),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

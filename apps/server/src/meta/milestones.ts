@@ -1,4 +1,4 @@
-import { MILESTONES, milestonePartKey, type Milestone, type MilestoneId } from "@topdown/shared";
+import { MILESTONES, hadWave, milestonePartKey, type Milestone, type MilestoneId } from "@topdown/shared";
 
 /**
  * Story 7.11 (AC 4, 10, M-F1–M-F4): which milestones a seat reached in a run — pure and table-driven
@@ -7,8 +7,8 @@ import { MILESTONES, milestonePartKey, type Milestone, type MilestoneId } from "
  * the account doesn't own yet (`newMilestoneParts`). Nothing here reads the database.
  */
 export interface MilestoneRun {
-  /** Waves that ENDED while this seat was in the run (playing, downed, out or held all count: 7.2's rule, D1). */
-  readonly wavesIn: ReadonlySet<number>;
+  /** Bit n − 1: wave n ENDED while this seat was in the run (playing, downed, out or held all count, D1; `PlayerState.waveMask`). */
+  readonly waveMask: number;
   /** The Behemoth died while this seat was in the run (not only for the finisher, D1). */
   readonly bossKilledWhileIn: boolean;
   /** The team extracted while this seat was in the run, and from which district (7.7's id). */
@@ -32,7 +32,7 @@ function reached(m: Milestone, run: MilestoneRun, stats: LifetimeStats): boolean
   const r = m.rule;
   switch (r.kind) {
     case "wave_cleared":
-      return run.wavesIn.has(r.n);
+      return hadWave(run.waveMask, r.n);
     case "extracted":
       return run.extracted && run.district === r.district;
     case "boss_killed":
@@ -48,7 +48,7 @@ function reached(m: Milestone, run: MilestoneRun, stats: LifetimeStats): boolean
     case "extracted_all_four":
       return run.extracted && run.extractedAllFour;
     case "wave10_never_downed": {
-      for (let w = 1; w <= 10; w++) if (!run.wavesIn.has(w)) return false;
+      for (let w = 1; w <= 10; w++) if (!hadWave(run.waveMask, w)) return false;
       return run.downsWaves1to10 === 0;
     }
   }

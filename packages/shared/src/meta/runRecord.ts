@@ -1,5 +1,6 @@
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
+import { waveBit } from "./milestoneRecord";
 
 /**
  * Story 7.2 (AC 1, S2): the per-player "was I there" counters Supplies are paid from (`meta/supplies.ts`).
@@ -16,9 +17,12 @@ import type { PlayerState } from "../player/player";
  * Module-level callbacks: no closure or iterator per call (these run once per wave, but keep the house rule).
  */
 let endless = false;
+/** Story 7.11: the wave's bit in the seat's `waveMask` (0 past wave 31). */
+let bit = 0;
 const addWave = (p: PlayerState): void => {
   if (endless) p.endlessWavesIn = Math.min(0xffff, p.endlessWavesIn + 1);
   else p.wavesIn = Math.min(0xff, p.wavesIn + 1);
+  p.waveMask = (p.waveMask | bit) >>> 0;
 };
 const addHeldWave = (h: { readonly player: PlayerState }): void => addWave(h.player);
 const addBoss = (p: PlayerState): void => {
@@ -30,6 +34,7 @@ const addHeldBoss = (h: { readonly player: PlayerState }): void => addBoss(h.pla
 /** `wave.ended { number }`: +1 wave for everyone in the run (present or held). */
 export function countWaveEnded(world: World, number: number): void {
   endless = number > world.balance.waves.runWaves;
+  bit = waveBit(number);
   world.players.forEach(addWave);
   world.heldPlayers.forEach(addHeldWave);
 }
@@ -38,6 +43,11 @@ export function countWaveEnded(world: World, number: number): void {
 export function countWipedWave(world: World): void {
   if (world.run.phase !== "wave") return;
   countWaveEnded(world, world.waves.number);
+  bit = 0;
+  // Story 7.11: a wave the team FELL in is paid (D8) but not survived: no milestone wave bit for it.
+  const b = waveBit(world.waves.number);
+  world.players.forEach((p) => (p.waveMask = (p.waveMask & ~b) >>> 0));
+  world.heldPlayers.forEach((h) => (h.player.waveMask = (h.player.waveMask & ~b) >>> 0));
 }
 
 /**

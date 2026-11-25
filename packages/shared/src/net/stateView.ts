@@ -195,6 +195,9 @@ export interface RunStateView {
   readonly lootBagY: number;
   readonly lootBagUntilTick: number;
   readonly lootBagVariant: number;
+  /** Story 7.7: the run's district id (the host's lobby pick) and the open districts' bitmask (bit i = `progression.json › districts[i]`). */
+  readonly district: string;
+  readonly districtsOpen: number;
 }
 
 /**
@@ -341,6 +344,8 @@ export const RUN_STATE_FIELDS = {
   lootBagY: true,
   lootBagUntilTick: true,
   lootBagVariant: true,
+  district: true, // Story 7.7
+  districtsOpen: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

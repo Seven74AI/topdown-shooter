@@ -1,4 +1,4 @@
-import { PROGRESSION, type RunRewards } from "@topdown/shared";
+import { PROGRESSION, playerSlotOf, type RunRewards } from "@topdown/shared";
 import { formatSupplies } from "../net/rewardsStore";
 
 /**
@@ -43,6 +43,49 @@ export interface RewardsView {
   readonly note: string;
   /** Brief 26: the four row groups in their fixed order; groups 2–4 are filled by later stories. */
   readonly groups: readonly ["supplies", "items", "unlocks", "nudge"];
+  /** Group 2 (7.11 then 7.12): new items, my find / Collector, a teammate's find (D1). Empty = no space. */
+  readonly items: readonly ItemRow[];
+  /** Group 3 (7.7): "Unlocked: District 2". */
+  readonly unlocks: readonly UnlockRow[];
+}
+
+/** One item row (group 2). `key` = the part (`slot:id`) for its picture; null = none (Collector). */
+export interface ItemRow {
+  readonly kind: "new" | "found" | "collector" | "team";
+  readonly text: string;
+  readonly sub: string;
+  readonly key: string | null;
+  /** 7.12 D1: the finder's own line is the bigger one. */
+  readonly big: boolean;
+  /** The teammate's slot (team rows: the name's colour); −1 otherwise. */
+  readonly slot: number;
+}
+
+export interface UnlockRow {
+  readonly id: string;
+  readonly text: string;
+  readonly sub: string;
+}
+
+export const COLLECTOR_TEXT = "Collector: you have every surprise item";
+
+/** Groups 2 and 3 from the message (Stories 7.7, 7.11, 7.12). `nameOf(slot)` = the Results table's name. */
+export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string): { items: ItemRow[]; unlocks: UnlockRow[] } {
+  const items: ItemRow[] = [];
+  for (const n of rewards.newItems ?? []) items.push({ kind: "new", text: `New item: ${n.name}`, sub: n.reason ? `(${n.reason})` : "", key: n.key, big: false, slot: -1 });
+  const l = rewards.loot;
+  if (l) items.push(l.key === null ? { kind: "collector", text: COLLECTOR_TEXT, sub: "", key: null, big: true, slot: -1 } : { kind: "found", text: `Found in wave ${l.wave}: ${l.name}`, sub: "", key: l.key, big: true, slot: -1 });
+  const t = rewards.teamLoot;
+  if (t) {
+    const slot = playerSlotOf(t.playerId);
+    const who = (slot >= 0 && slot < 4 ? nameOf(slot) : "") || "A teammate";
+    items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: "(Collector: they have every surprise item)", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
+  }
+  const unlocks: UnlockRow[] = (rewards.newDistricts ?? []).map((d) => {
+    const playable = PROGRESSION.districts.find((x) => x.id === d.id)?.playable === true;
+    return { id: d.id, text: `Unlocked: ${d.name}`, sub: playable ? "" : "coming soon" };
+  });
+  return { items, unlocks };
 }
 
 export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
@@ -51,11 +94,12 @@ export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
  * The panel for this Results screen: `online` false = practice solo (decision 7.2 D1: banks nothing, says so);
  * `rewards` null = not arrived yet ("Saving…"); a message whose seed is not this run's is treated as not arrived.
  */
-export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies): RewardsView {
-  const base = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS };
+export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies, nameOf: (slot: number) => string = () => ""): RewardsView {
+  const base = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS, items: [] as ItemRow[], unlocks: [] as UnlockRow[] };
   if (!online) return { ...base, state: "practice", status: REWARDS_TEXT.practice };
   if (rewards === null || rewards.seed !== seed) return { ...base, state: "saving", status: REWARDS_TEXT.saving };
-  if (rewards.status !== "saved") return { ...base, state: rewards.status, status: REWARDS_TEXT[rewards.status] };
+  // Stories 7.7 / 7.11 / 7.12: an unsaved or failed bank still shows the find (the server sends only that then).
+  if (rewards.status !== "saved") return { ...base, ...metaRows(rewards, nameOf), state: rewards.status, status: REWARDS_TEXT[rewards.status] };
   const l = rewards.lines;
   const all: RewardLine[] = [
     { key: "waves", label: `Waves ${rewards.waveCount} × ${cfg.perWave}`, amount: l.waves, frac: 0 },
@@ -68,6 +112,7 @@ export function rewardsView(rewards: RunRewards | null, online: boolean, seed: n
   const max = Math.max(1, ...shown.map((x) => x.amount));
   return {
     ...base,
+    ...metaRows(rewards, nameOf),
     state: "saved",
     headline: `+${formatSupplies(rewards.total)}`,
     lines: shown.map((x) => ({ ...x, frac: x.amount / max })),

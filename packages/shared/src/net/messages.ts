@@ -65,6 +65,11 @@ export const C2S = {
    * still open. Never an amount (S6); a second one, one outside a run or one with no account does nothing more.
    */
   RUN_LEAVE: "run.leave",
+  /**
+   * `{ id }` (Story 7.7, R2/R4/R5): the host picks the run's district in the lobby. Accepted only in the lobby, from
+   * the host, for a playable district some member has unlocked; anything else is logged and ignored.
+   */
+  LOBBY_DISTRICT: "lobby.district",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -121,6 +126,8 @@ export const S2C = {
    * `run.rewards` only for this run id.
    */
   RUN_STARTED: "run.started",
+  /** `{ from }` (Story 7.7 R3): the picked district's last holder left the lobby; the pick went back to Downtown. */
+  LOBBY_DISTRICT_RESET: "lobby.district_reset",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -226,6 +233,12 @@ export type ParsedJoinOptions = z.output<typeof joinOptionsSchema>;
 
 /** `lobby.set_ready` (Story 2.3): lobby only. */
 export const lobbySetReadySchema = z.object({ ready: z.boolean() }).strict();
+/** Story 7.7: `lobby.district`. */
+export const lobbyDistrictSchema = z.object({ id: z.string().max(32) }).strict();
+/** Story 7.7: `lobby.district_reset`. */
+export interface LobbyDistrictReset {
+  from: string;
+}
 export type LobbySetReady = z.infer<typeof lobbySetReadySchema>;
 
 /** `run.start` (Story 2.3): host only, when `canStart` (net/lobbyRules.ts) holds. */
@@ -487,6 +500,14 @@ export const runRewardsSchema = z
     ending: z.enum(["wiped", "extracted", "lost", "quit"]).optional(),
     /** Review L4: the wave a `quit` bank was made in (0 / absent otherwise). */
     leftWave: z.number().int().min(0).max(0xffff).optional(),
+    /** Story 7.11: the parts this run granted ("New item: Riot helmet (first extraction)"; `reason` = `resultLine`). */
+    newItems: z.array(z.object({ key: z.string().max(32), name: z.string().max(32), reason: z.string().max(40) }).strict()).max(16).optional(),
+    /** Story 7.12: my find — "Found in wave N: <name>", or Collector (`key` null). */
+    loot: z.object({ wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
+    /** Story 7.12 (D1): a teammate's find, on everyone else's Results ("Ana found: Traffic cone"). */
+    teamLoot: z.object({ playerId: z.string().max(4), wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
+    /** Story 7.7: districts this run unlocked ("Unlocked: District 2"). */
+    newDistricts: z.array(z.object({ id: z.string().max(32), name: z.string().max(24) }).strict()).max(8).optional(),
   })
   .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
 export type RunRewards = z.infer<typeof runRewardsSchema>;

@@ -46,9 +46,11 @@ describe("progress.look (Story 7.9 AC 1)", () => {
     // A migrations folder with only the migrations before this one (7.1's 0000_init), as the VPS has today.
     const dir = mkdtempSync(join(tmpdir(), "td-mig-"));
     try {
-      const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
-      const before = journal.entries.filter((e) => `${e.tag}.sql` !== look7);
-      expect(before.length).toBe(journal.entries.length - 1);
+      const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { tag: string; idx: number }[] };
+      // Story 7.11: only the migrations BEFORE this one (a later 0003 left in would be applied first and make Drizzle skip 0002)
+      const lookIdx = journal.entries.find((e) => `${e.tag}.sql` === look7)?.idx ?? -1;
+      const before = journal.entries.filter((e) => e.idx < lookIdx);
+      expect(before.length).toBe(lookIdx);
       cpSync(MIGRATIONS_FOLDER, dir, { recursive: true });
       for (const f of readdirSync(dir)) if (f === look7) rmSync(join(dir, f));
       writeFileSync(join(dir, "meta", "_journal.json"), JSON.stringify({ ...journal, entries: before }));
@@ -56,7 +58,7 @@ describe("progress.look (Story 7.9 AC 1)", () => {
       const db = drizzle({ client });
       await migrate(db, { migrationsFolder: dir });
       const applied = (await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`)) as unknown as { rows: { n: number }[] };
-      expect(applied.rows[0]?.n).toBe(journal.entries.length - 1); // 0000 and 7.2's 0001 applied, not the look
+      expect(applied.rows[0]?.n).toBe(lookIdx); // 0000 and 7.2's 0001 applied, not the look (nor anything after it)
       const noLook = (await db.execute(sql`select count(*)::int as n from information_schema.columns where table_name = 'progress' and column_name = 'look'`)) as unknown as { rows: { n: number }[] };
       expect(noLook.rows[0]?.n).toBe(0);
       await db.execute(sql`insert into accounts (guest_token_hash, display_name) values (${"c".repeat(64)}, 'Ana')`);

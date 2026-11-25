@@ -110,6 +110,9 @@ export interface FakeState {
   lootBagY: number;
   lootBagUntilTick: number;
   lootBagVariant: number;
+  /** Story 7.7. */
+  district: string;
+  districtsOpen: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -167,6 +170,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     lootBagY: 0,
     lootBagUntilTick: 0,
     lootBagVariant: 0,
+    district: "downtown", // Story 7.7
+    districtsOpen: 1,
   };
 }
 

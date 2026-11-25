@@ -310,6 +310,8 @@ export {
   guestTokenSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
+  lobbyDistrictSchema, // Story 7.7
+  type LobbyDistrictReset,
   netPongSchema,
   playerNameSchema,
   runStartSchema,
@@ -713,3 +715,5 @@ export { emptyLootPlan, lootKillIndex, makeLootPlan, pickLootVariant, type LootP
 export { LOOT_BAG, createLootState, forceLootPlan, lootSpot, lootTaker, parseDevLoot, snapshotLoot, updateLootBag, type LootBagStateCode, type LootState } from "./loot/lootBag";
 // Stories 7.10 / 7.11 / 7.12: milestone data and the loot parts list
 export { MILESTONES, MILESTONE_IDS, MilestonesError, loadMilestones, lootPartKeys, milestonePartKey, type Milestone, type MilestoneId, type MilestoneRule } from "./config/milestones";
+export { countMilestoneEvent, hadWave, waveBit } from "./meta/milestoneRecord"; // Story 7.11
+export { DEFAULT_DISTRICT, districtIndex, districtList, districtName, districtsUnlockedBy, openMask, pickRefusal, type PickRefusal } from "./meta/districts"; // Story 7.7

@@ -144,6 +144,18 @@ export interface PlayerState {
   endlessWavesIn: number;
   bossesIn: number;
   endlessBossesIn: number;
+  /**
+   * Story 7.11 (`meta/milestoneRecord.ts`): the milestone counters, server bookkeeping like 7.2's record (not in the
+   * schema, not mirrored). `waveMask` bit n − 1 = wave n ended while in the run; own kills (+ the Behemoth's finisher);
+   * revives given; downs during waves 1 … runWaves; barricades placed that stood at the next wave start (+ the ids
+   * placed this build, waiting for it).
+   */
+  waveMask: number;
+  kills: number;
+  revives: number;
+  downs10: number;
+  barricades: number;
+  barricadesPending: number[];
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -200,6 +212,12 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     endlessWavesIn: 0,
     bossesIn: 0,
     endlessBossesIn: 0,
+    waveMask: 0, // Story 7.11
+    kills: 0,
+    revives: 0,
+    downs10: 0,
+    barricades: 0,
+    barricadesPending: [],
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

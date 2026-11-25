@@ -6,6 +6,7 @@ import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 import { formatSupplies, rewardsStore } from "../net/rewardsStore";
 import type { RunRewards } from "@topdown/shared";
 import { lineAmount, rewardsView, type RewardsView } from "./rewardsModel";
+import { itemPortraitUrl } from "../render/city/survivorPortrait";
 
 /**
  * Results after a team wipe (Story 2.8, FR11): the wave reached, then color dot, name and kills per
@@ -53,7 +54,7 @@ export function ResultsScreen() {
   }
   const sub = resultsSub(screen);
   const cls = `game-over results rw${screen.ending === "extracted" ? " results--held" : screen.ending === "lost" ? " results--lost" : ""}`;
-  const view = rewardsView(rewards, screen.online, screen.seed);
+  const view = rewardsView(rewards, screen.online, screen.seed, undefined, (slot) => screen.rows.find((r) => r.slot === slot)?.name ?? "");
   return (
     <div class={look !== "none" ? `results-backdrop results-backdrop--${look}` : undefined}>
       <div class={cls} role="dialog" aria-labelledby="results-title">
@@ -131,6 +132,15 @@ export function ResultsScreen() {
   );
 }
 
+/**
+ * Stories 7.11 / 7.12: a found or granted part's picture — the default survivor wearing it (7.9's portrait drawing;
+ * 7.10's `partTileUrl` close-up replaces it when it lands). A Collector row shows the bag badge instead.
+ */
+function ItemPicture({ partKey }: { partKey: string | null }) {
+  const url = partKey ? itemPortraitUrl(partKey) : null;
+  return url ? <img class="rw-item__pic" src={url} alt="" /> : <span class="rw-item__pic rw-item__pic--bag" aria-hidden="true" />;
+}
+
 /** Story 7.2 (AC 5, RW1): the "Run rewards" card. One scrolling column; rows in the fixed order of brief 26. */
 export function RunRewardsCard({ view }: { view: RewardsView }) {
   return (
@@ -189,7 +199,32 @@ export function RunRewardsCard({ view }: { view: RewardsView }) {
             </p>
           )}
         </div>
-        {/* Brief 26: groups 2–4 (items 7.11/7.12, unlocks 7.4/7.7, nudge 7.6) append here, in this order; empty groups render nothing. */}
+        {view.items.length > 0 ? (
+          <ul class="rw-group rw-group--items" data-group="items" data-testid="rewards-items">
+            {view.items.map((it, i) => (
+              <li key={`${it.kind}${i}`} class={`rw-item rw-item--${it.kind}${it.big ? " rw-item--big" : ""}`}>
+                <ItemPicture partKey={it.key} />
+                <span class="rw-item__text">
+                  <span class="rw-item__line" style={it.slot >= 0 ? { color: SLOT_COLOR_CSS[it.slot] } : undefined}>
+                    {it.text}
+                  </span>
+                  {it.sub ? <span class="rw-item__sub">{it.sub}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {view.unlocks.length > 0 ? (
+          <ul class="rw-group rw-group--unlocks" data-group="unlocks" data-testid="rewards-unlocks">
+            {view.unlocks.map((u) => (
+              <li key={u.id} class="rw-unlock">
+                <span class="rw-unlock__line">{u.text}</span>
+                {u.sub ? <span class="rw-unlock__sub">{u.sub}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {/* Brief 26: group 4 (nudge 7.6) appends here; group 3 also takes 7.4's lines. Empty groups render nothing. */}
       </div>
     </section>
   );

@@ -36,6 +36,13 @@ export const progress = pgTable("progress", {
   districts: jsonb("districts").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   /** Story 7.9: the survivor look code (`lookCode.ts`, ≤ 96 chars); null = the default look. Written by 7.10's editor. */
   look: text("look"),
+  /**
+   * Story 7.11 (AC 1): owned milestone and loot part keys (`slot:id`; a starter key is never stored). Written only
+   * inside the end-of-run bank (7.11 milestones, 7.12 loot finds), as a union under the row lock.
+   */
+  cosmetics: text("cosmetics").array().notNull().default(sql`'{}'::text[]`),
+  /** Story 7.11 (AC 1, 5): lifetime counters for the lifetime milestones, added under the row lock at each bank. */
+  stats: jsonb("stats").$type<LifetimeStatsRow>().notNull().default(sql`'{"revives":0,"kills":0,"barricades":0,"runs":0}'::jsonb`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Brief 18: a balance can never go below 0, whatever a later story's bank or purchase code does.
@@ -60,6 +67,14 @@ export const runRewards = pgTable("run_rewards", {
   primaryKey({ name: "run_rewards_pk", columns: [t.runId, t.accountId] }),
   check("run_rewards_supplies_nonneg", sql`${t.supplies} >= 0`),
 ]);
+
+/** Story 7.11: `progress.stats`. */
+export interface LifetimeStatsRow {
+  revives: number;
+  kills: number;
+  barricades: number;
+  runs: number;
+}
 
 export type AccountRow = typeof accounts.$inferSelect;
 export type ProgressRow = typeof progress.$inferSelect;

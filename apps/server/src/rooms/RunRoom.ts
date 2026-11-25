@@ -21,6 +21,7 @@ import {
   evacVoteSchema,
   runLeaveSchema,
   DOWNTOWN_MAP,
+  type DistrictMap,
   NET_PROTOCOL_VERSION,
   buildingPlaceSchema,
   buildingRepairSchema,
@@ -94,7 +95,7 @@ import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
 import { pickDevForceBlackout } from "../run/devForceBlackout";
 import { pickDevBossWaves } from "../run/devBossWaves";
-import { decodeLook, encodeLook, ownedParts, parseDevEvents } from "@topdown/shared";
+import { DEFAULT_DISTRICT, decodeLook, districtIndex, encodeLook, lobbyDistrictSchema, openMask, ownedParts, parseDevEvents, pickRefusal, type LobbyDistrictReset } from "@topdown/shared";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
@@ -141,6 +142,8 @@ export interface RunAuth {
   accountId: string | null;
   /** Story 7.9: the canonical look code (`decodeLook` against the account's owned parts; bad parts → default parts). */
   look: string;
+  /** Story 7.11: the look the client asked for, kept until the account's owned parts load (the join itself reads no database). */
+  rawLook?: unknown;
 }
 
 export type RunClient = Client<{ auth: RunAuth }>;
@@ -219,6 +222,9 @@ export function randomUint32(): number {
  */
 let lastLootVariant = -1;
 
+/** Story 7.7: the playable districts' maps by id (v1: Downtown only; Epic 11 / later districts add theirs). */
+const DISTRICT_MAPS: Readonly<Record<string, DistrictMap>> = { [DOWNTOWN_MAP.name]: DOWNTOWN_MAP };
+
 /** Codes picked by rooms still being created (not yet visible to `getLocalRoomById`). */
 const reservedCodes = new Set<string>();
 
@@ -291,6 +297,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   readonly holds = new Map<string, Hold>();
   /** Story 8.1 (F8): seats whose hold ran out, by `seatKey`, for the rest of the run. */
   readonly rememberedSeats = new Map<string, RememberedSeat>();
+  /** Stories 7.7 / 7.11: each member's saved districts and owned parts, loaded at join (absent: none / not loaded). */
+  private readonly memberProgress = new Map<string, { readonly districts: readonly string[]; readonly cosmetics: readonly string[] }>();
   /** Story 8.1: the hold length in seconds (HOLD_S; tests may shorten it on a live room, like `allowSoloStart`). */
   holdS = HOLD_S;
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
@@ -345,7 +353,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // become default parts. Logged as a count only, never the player-chosen text.
     const look = decodeLook(parsed.data.look, ownedParts());
     if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
-    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId, look: encodeLook(look.look) };
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId, look: encodeLook(look.look), rawLook: parsed.data.look };
   }
 
   override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {
@@ -374,6 +382,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice))); // Story 6.11
     this.onMessage(C2S.RUN_LEAVE, this.net.guard(runLeaveSchema, (c) => this.onRunLeave(c))); // Story 7.2 (D4)
+    this.onMessage(C2S.LOBBY_DISTRICT, this.net.guard(lobbyDistrictSchema, (c, m) => this.onLobbyDistrict(c, m.id))); // Story 7.7
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.build, m.rev, m.card, m.item, m.slot ?? null)));
     this.onMessage(C2S.SHOP_REROLL, this.net.guard(shopRerollSchema, (c, m) => this.onShopReroll(c, m.build, m.rev))); // Story 5.13
@@ -458,6 +467,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false, look: auth.look }));
     this.attachClient(client, member);
     this.log.info({ playerId, slot }, "player_joined");
+    void this.loadMemberProgress(member, auth.rawLook); // Stories 7.7 / 7.11: districts and owned parts (async, never awaited)
   }
 
   /** The per-socket parts of a join (a first join, a reconnect, a takeover): guard, byte meters, `run.joined`. */
@@ -700,7 +710,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!world || !this.inRun() || !this.bank) return;
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
-    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number });
+    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
@@ -728,6 +738,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.holds.delete(playerId);
     this.members.delete(member.sessionId); // frees the slot
     this.state.players.delete(playerId);
+    if (this.state.phase === "lobby") {
+      this.memberProgress.delete(playerId);
+      this.recomputeDistricts(); // Story 7.7 R3: the pick can't strand anyone
+    }
     const controller = this.controller;
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
@@ -780,6 +794,61 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (hold) hold.reconnection = null;
     this.endHold(member, "token");
     this.sendOffer(client, member.playerId);
+  }
+
+  /**
+   * Stories 7.7 (AC 3) + 7.11 (AC 2): a member's saved progress, loaded once at join (2 s timeout; nothing on failure or
+   * without an account): its districts open the lobby's picker (R2), its owned parts re-check the look it asked for —
+   * in the lobby only (a look never changes mid-run). Fire and forget: the join never waits for the database.
+   */
+  private async loadMemberProgress(member: Member, rawLook: unknown): Promise<void> {
+    const repo = roomProgressRepo();
+    if (!repo || member.accountId === null) return;
+    let row: Awaited<ReturnType<typeof repo.get>> = null;
+    try {
+      row = await repo.get(member.accountId);
+    } catch (e) {
+      this.log.warn({ playerId: member.playerId, err: e instanceof Error ? e.message.slice(0, 120) : "?" }, "member_progress_unavailable");
+      return;
+    }
+    if (!row || this.members.get(member.sessionId) !== member) return; // left meanwhile
+    this.memberProgress.set(member.playerId, { districts: row.districts, cosmetics: row.cosmetics });
+    if (this.state.phase === "lobby") {
+      const look = encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
+      if (look !== member.look) {
+        member.look = look;
+        const player = this.state.players.get(member.playerId);
+        if (player) player.look = look;
+      }
+      this.recomputeDistricts();
+    }
+  }
+
+  /** Story 7.7 (R2, R3): the open mask from the members' districts; a pick nobody here has goes back to Downtown. */
+  private recomputeDistricts(): void {
+    const lists: (readonly string[])[] = [];
+    for (const m of this.members.values()) lists.push(this.memberProgress.get(m.playerId)?.districts ?? []);
+    const mask = openMask(lists);
+    if (this.state.districtsOpen !== mask) this.state.districtsOpen = mask;
+    const i = districtIndex(this.state.district);
+    if (i < 0 || (mask & (1 << i)) === 0) {
+      const from = this.state.district;
+      this.state.district = DEFAULT_DISTRICT;
+      this.log.info({ from }, "district_reset");
+      this.broadcast(S2C.LOBBY_DISTRICT_RESET, { from } satisfies LobbyDistrictReset);
+    }
+  }
+
+  /** `lobby.district` (Story 7.7 R2, R4, R5): the host's pick, lobby only; a refusal is only logged (like Start). */
+  onLobbyDistrict(client: RunClient, id: string): void {
+    const member = this.members.get(client.sessionId);
+    if (!member || this.state.phase !== "lobby") return;
+    const refusal = pickRefusal(id, this.state.districtsOpen, member.slot === this.state.hostSlot);
+    if (refusal !== null) {
+      this.log.info({ playerId: member.playerId, reason: refusal }, "district_pick_refused");
+      return;
+    }
+    if (this.state.district !== id) this.state.district = id;
   }
 
   /** `lobby.set_ready`: the sender's own flag, lobby only. */
@@ -1077,10 +1146,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 7.12 (D3): the loot stream's secret salt (never on the room state); DEV_LOOT=3:0.1 forces a bag (dev only).
     const lootSalt = randomUint32();
     const lootPick = pickDevLoot(process.env);
+    // Story 7.7 (AC 5): the host's pick chooses the map; in v1 only Downtown has one (R5: nothing else is pickable).
+    const map = DISTRICT_MAPS[this.state.district] ?? DOWNTOWN_MAP;
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
       players,
+      map,
       pauseWaves: process.env.DEV_NO_WAVES === "1",
       // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
@@ -1135,7 +1207,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
-    this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs }); // Story 7.2
+    this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs, district: this.state.district }); // Story 7.2 (+ 7.7: the run's district)
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that

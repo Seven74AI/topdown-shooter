@@ -93,6 +93,12 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   endlessWavesIn: "kept",
   bossesIn: "kept",
   endlessBossesIn: "kept",
+  waveMask: "kept", // Story 7.11: the milestone counters ride with the held seat (NP 21)
+  kills: "kept",
+  revives: "kept",
+  downs10: "kept",
+  barricades: "kept",
+  barricadesPending: "kept",
 };
 
 /** Gives every field a non-default value so "kept" really means kept. */
@@ -110,6 +116,12 @@ function scramble(world: World, p: PlayerState): void {
   p.endlessWavesIn = 2;
   p.bossesIn = 1;
   p.endlessBossesIn = 1;
+  p.waveMask = 0b11111; // Story 7.11
+  p.kills = 321;
+  p.revives = 3;
+  p.downs10 = 1;
+  p.barricades = 7;
+  p.barricadesPending.push(42);
   p.slowTicksLeft = 5;
   p.slowPct = 30;
   p.fireTicks = 3;

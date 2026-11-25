@@ -3,16 +3,16 @@ import { lootPartKeys, milestonePartKey } from "@topdown/shared";
 import { milestonesReached, newMilestoneParts, type LifetimeStats, type MilestoneRun } from "./milestones";
 import { pickLootItem } from "./loot";
 
-const run = (over: Partial<MilestoneRun> = {}): MilestoneRun => ({ wavesIn: new Set<number>(), bossKilledWhileIn: false, extracted: false, district: "downtown", extractedAllFour: false, downsWaves1to10: 0, ...over });
+const run = (over: Partial<MilestoneRun> = {}): MilestoneRun => ({ waveMask: 0, bossKilledWhileIn: false, extracted: false, district: "downtown", extractedAllFour: false, downsWaves1to10: 0, ...over });
 const stats = (over: Partial<LifetimeStats> = {}): LifetimeStats => ({ revives: 0, kills: 0, barricades: 0, runs: 0, ...over });
-const waves = (a: number, b: number): Set<number> => new Set(Array.from({ length: b - a + 1 }, (_, i) => a + i));
+const waves = (a: number, b: number): number => { let m = 0; for (let n = a; n <= b; n++) m |= 1 << (n - 1); return m >>> 0; };
 
 describe("Story 7.11: milestonesReached (pure, table-driven)", () => {
   it("M1 at wave 5 (not 4), M4 at wave 15 (not 14); an out-since-wave-3 player still has the waves (M-F1)", () => {
-    expect(milestonesReached(run({ wavesIn: waves(1, 4) }), stats())).not.toContain("m1");
-    expect(milestonesReached(run({ wavesIn: waves(1, 5), downsWaves1to10: 1 }), stats())).toEqual(["m1"]);
-    expect(milestonesReached(run({ wavesIn: waves(1, 14), downsWaves1to10: 1 }), stats())).not.toContain("m4");
-    expect(milestonesReached(run({ wavesIn: waves(1, 15), downsWaves1to10: 1 }), stats())).toContain("m4");
+    expect(milestonesReached(run({ waveMask: waves(1, 4) }), stats())).not.toContain("m1");
+    expect(milestonesReached(run({ waveMask: waves(1, 5), downsWaves1to10: 1 }), stats())).toEqual(["m1"]);
+    expect(milestonesReached(run({ waveMask: waves(1, 14), downsWaves1to10: 1 }), stats())).not.toContain("m4");
+    expect(milestonesReached(run({ waveMask: waves(1, 15), downsWaves1to10: 1 }), stats())).toContain("m4");
   });
 
   it("M2 only extracting from Downtown; M3 the Behemoth died while in; M8 only all four standing", () => {
@@ -30,9 +30,9 @@ describe("Story 7.11: milestonesReached (pure, table-driven)", () => {
   });
 
   it("M10: every wave 1–10 and never downed in them; a down in wave 9 or a missed wave 1 → no", () => {
-    expect(milestonesReached(run({ wavesIn: waves(1, 10) }), stats())).toContain("m10");
-    expect(milestonesReached(run({ wavesIn: waves(1, 10), downsWaves1to10: 1 }), stats())).not.toContain("m10");
-    expect(milestonesReached(run({ wavesIn: waves(2, 10) }), stats())).not.toContain("m10");
+    expect(milestonesReached(run({ waveMask: waves(1, 10) }), stats())).toContain("m10");
+    expect(milestonesReached(run({ waveMask: waves(1, 10), downsWaves1to10: 1 }), stats())).not.toContain("m10");
+    expect(milestonesReached(run({ waveMask: waves(2, 10) }), stats())).not.toContain("m10");
   });
 
   it("M-F3: a part already owned is never granted again", () => {

@@ -22,6 +22,19 @@ const suppliesSchema = z
   })
   .strict();
 
+/**
+ * Story 7.7 (AC 1, D1): the districts, in list order (the lobby bitmask's bit i = index i). `unlock: null` = open from the
+ * start; `{ extractFrom }` = an extraction from that district unlocks it (R1). `playable: false` = "coming soon" (R5).
+ */
+const districtSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9_]{1,32}$/),
+    name: z.string().min(1).max(24),
+    unlock: z.object({ extractFrom: z.string().regex(/^[a-z0-9_]{1,32}$/) }).strict().nullable(),
+    playable: z.boolean(),
+  })
+  .strict();
+
 const itemId = z.string().regex(/^[a-z0-9_]{1,32}$/, "item ids are lowercase snake_case");
 
 export const progressionSchema = z
@@ -31,6 +44,13 @@ export const progressionSchema = z
       .min(1)
       .refine((ids) => new Set(ids).size === ids.length, "starterPool has a duplicate id"),
     supplies: suppliesSchema,
+    districts: z
+      .array(districtSchema)
+      .min(1)
+      .max(8) // the lobby's u8 bitmask
+      .refine((ds) => new Set(ds.map((x) => x.id)).size === ds.length, "districts has a duplicate id")
+      .refine((ds) => ds[0]?.unlock === null && ds[0]?.playable === true, "the first district is open and playable (the default pick)")
+      .refine((ds) => ds.every((x) => x.unlock === null || ds.some((y) => y.id === x.unlock?.extractFrom)), "an unlock names an unknown district"),
   })
   .strict();
 
@@ -53,6 +73,11 @@ export function loadProgression(data: unknown = raw): Readonly<Progression> {
   Object.freeze(p.starterPool);
   Object.freeze(p.supplies.rookieLift);
   Object.freeze(p.supplies);
+  for (const d of p.districts) {
+    if (d.unlock) Object.freeze(d.unlock);
+    Object.freeze(d);
+  }
+  Object.freeze(p.districts);
   return Object.freeze(p);
 }
 

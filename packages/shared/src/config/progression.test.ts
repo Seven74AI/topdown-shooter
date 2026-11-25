@@ -43,7 +43,7 @@ describe("progression.json (Story 7.1)", () => {
     expect(() => loadProgression({ starterPool: ["Pistol"], supplies })).toThrow(ProgressionError);
     expect(() => loadProgression({ starterPool: [], supplies })).toThrow(ProgressionError);
     expect(() => loadProgression({ starterPool: ["pistol"], supplies, extra: 1 })).toThrow(ProgressionError);
-    expect(loadProgression({ starterPool: ["pistol"], supplies }).starterPool).toEqual(["pistol"]);
+    expect(loadProgression({ starterPool: ["pistol"], supplies, districts: PROGRESSION.districts }).starterPool).toEqual(["pistol"]); // Story 7.7: districts are required
   });
 
   it("Story 7.2: supplies are the FR78 / D1 / D3 / D5 numbers, integers only, all present", () => {
