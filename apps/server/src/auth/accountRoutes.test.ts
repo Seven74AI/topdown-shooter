@@ -12,7 +12,10 @@ import { log } from "../ops/logger";
 import { serverBalance } from "../rooms/RunRoom";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
-import { verifyTicket } from "./ticket";
+import { readTicket, verifyTicket } from "./ticket";
+
+/** The account a ticket names (claims only; the binding is checked in P1 and the room tests). */
+const ticketAccount = (t: unknown): string | null => readTicket(t, SECRET)?.accountId ?? null;
 
 const SECRET = "test-secret-".padEnd(48, "x");
 const TOKEN_A = "a1".repeat(16);
@@ -74,8 +77,11 @@ describe("POST /account/session (Story 7.1 AC 4)", () => {
     if (!body.saved) throw new Error("expected saved");
     expect(body.deviceToken).toMatch(/^[0-9a-f]{32}$/);
     expect(body.account).toEqual({ displayName: "", username: null });
-    const accountId = verifyTicket(body.ticket, SECRET);
+    const accountId = ticketAccount(body.ticket);
     expect(accountId).not.toBeNull();
+    // Review M1: the ticket is bound to the token it was issued with, and to no other.
+    expect(verifyTicket(body.ticket, SECRET, hashGuestToken(body.deviceToken))).toBe(accountId);
+    expect(verifyTicket(body.ticket, SECRET, hashGuestToken(TOKEN_A))).toBeNull();
     const found = await accountsRepo(database).findByTokenHash(hashGuestToken(body.deviceToken));
     expect(found?.id).toBe(accountId);
     expect(await progressRepo(database).get(accountId as string)).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [] });
@@ -98,33 +104,33 @@ describe("POST /account/session (Story 7.1 AC 4)", () => {
 
   it("P2: localStorage cleared (cookie only) and cookie gone (token only) both find the same account; both are written back", async () => {
     const first = await call(port, { deviceToken: TOKEN_A });
-    const id = verifyTicket(first.body.ticket, SECRET);
+    const id = ticketAccount(first.body.ticket);
     expect(id).not.toBeNull();
 
     const cookieOnly = await call(port, { cookie: TOKEN_A });
-    expect(verifyTicket(cookieOnly.body.ticket, SECRET)).toBe(id);
+    expect(ticketAccount(cookieOnly.body.ticket)).toBe(id);
     expect(cookieOnly.body.deviceToken).toBe(TOKEN_A); // localStorage rewritten from it
     expect(cookieToken(cookieOnly.cookie)).toBe(TOKEN_A);
 
     const tokenOnly = await call(port, { deviceToken: TOKEN_A });
-    expect(verifyTicket(tokenOnly.body.ticket, SECRET)).toBe(id);
+    expect(ticketAccount(tokenOnly.body.ticket)).toBe(id);
     expect(cookieToken(tokenOnly.cookie)).toBe(TOKEN_A); // cookie rewritten from it
 
     const both = await call(port, { cookie: TOKEN_A, deviceToken: TOKEN_A });
-    expect(verifyTicket(both.body.ticket, SECRET)).toBe(id);
+    expect(ticketAccount(both.body.ticket)).toBe(id);
   });
 
   it("P2 / D3: cookie and localStorage disagree → the cookie wins and both are rewritten to it", async () => {
-    const a = verifyTicket((await call(port, { deviceToken: TOKEN_A })).body.ticket, SECRET);
-    const b = verifyTicket((await call(port, { deviceToken: TOKEN_B })).body.ticket, SECRET);
+    const a = ticketAccount((await call(port, { deviceToken: TOKEN_A })).body.ticket);
+    const b = ticketAccount((await call(port, { deviceToken: TOKEN_B })).body.ticket);
     expect(a).not.toBe(b);
     const r = await call(port, { cookie: TOKEN_A, deviceToken: TOKEN_B });
-    expect(verifyTicket(r.body.ticket, SECRET)).toBe(a);
+    expect(ticketAccount(r.body.ticket)).toBe(a);
     expect(r.body.deviceToken).toBe(TOKEN_A);
     expect(cookieToken(r.cookie)).toBe(TOKEN_A);
     // A cookie with no account and a token with one: the token's account wins (first that matches).
     const r2 = await call(port, { cookie: "d4".repeat(16), deviceToken: TOKEN_B });
-    expect(verifyTicket(r2.body.ticket, SECRET)).toBe(b);
+    expect(ticketAccount(r2.body.ticket)).toBe(b);
     expect(cookieToken(r2.cookie)).toBe(TOKEN_B);
   });
 
@@ -149,7 +155,7 @@ describe("POST /account/session (Story 7.1 AC 4)", () => {
     expect(over.body).toEqual({ saved: false, deviceToken: expect.stringMatching(/^[0-9a-f]{32}$/), ticket: null, account: null });
     expect(await accountsRepo(database).findByTokenHash(hashGuestToken(over.body.deviceToken))).toBeNull();
     const existing = await call(port, { ip, cookie: TOKEN_A });
-    expect(verifyTicket(existing.body.ticket, SECRET)).toBe(verifyTicket(known.body.ticket, SECRET));
+    expect(ticketAccount(existing.body.ticket)).toBe(ticketAccount(known.body.ticket));
     expect((await call(port, { ip: "203.0.113.10" })).body.saved).toBe(true);
   });
 
@@ -212,7 +218,7 @@ describe("P5: a restart finds the same account", () => {
       const one = await bootTestServer({ database: openPglite(dir), sessionSecret: SECRET });
       const first = await call(one.port);
       await one.colyseus.shutdown();
-      const id = verifyTicket(first.body.ticket, SECRET);
+      const id = ticketAccount(first.body.ticket);
       expect(id).not.toBeNull();
 
       const twoDb = openPglite(dir);
@@ -220,7 +226,7 @@ describe("P5: a restart finds the same account", () => {
       try {
         const again = await call(two.port, { cookie: first.body.deviceToken });
         // The second server really read the row: same id, and still exactly one account for the token.
-        expect(verifyTicket(again.body.ticket, SECRET)).toBe(id);
+        expect(ticketAccount(again.body.ticket)).toBe(id);
         expect((await accountsRepo(twoDb).findByTokenHash(hashGuestToken(first.body.deviceToken)))?.id).toBe(id);
       } finally {
         await two.colyseus.shutdown();

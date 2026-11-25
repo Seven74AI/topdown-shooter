@@ -80,7 +80,7 @@ function saved(token: string, account: { id: string; displayName: string; userna
   return {
     saved: true,
     deviceToken: token,
-    ticket: signTicket(account.id, secret, nowMs),
+    ticket: signTicket(account.id, hashGuestToken(token), secret, nowMs),
     account: { displayName: account.displayName, username: account.username },
   };
 }

@@ -304,8 +304,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       throw refuse("rate_limited");
     }
     // Story 7.1 (P4): only a server-signed ticket names an account; pure HMAC, no database (AC 9). Never logged.
-    const accountId = ticketAccountId(parsed.data.ticket);
-    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken), accountId };
+    // Review M1: the ticket counts only with the guest token it was issued for.
+    const guestTokenHash = hashGuestToken(parsed.data.guestToken);
+    const accountId = ticketAccountId(parsed.data.ticket, guestTokenHash);
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId };
   }
 
   override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {

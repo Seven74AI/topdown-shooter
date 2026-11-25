@@ -4,6 +4,7 @@ import type { Database } from "../db/client";
 import { SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 import { mintGuestToken, resolveGuestSession } from "./guestSession";
+import { hashGuestToken } from "../run/lobby";
 import { verifyTicket } from "./ticket";
 
 log.level = process.env.LOG_LEVEL ?? "silent";
@@ -41,7 +42,7 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
     const { response } = await resolveGuestSession({ cookieToken: "not-a-token", deviceToken: TOKEN, ip: "1.2.3.4" }, { accounts: repo, newGuestLimiter: limiter(), sessionSecret: SECRET });
     expect(find).toHaveBeenCalledTimes(1);
     expect(response.deviceToken).toBe(TOKEN);
-    expect(verifyTicket(response.ticket, SECRET)).toBe("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4");
+    expect(verifyTicket(response.ticket, SECRET, hashGuestToken(TOKEN))).toBe("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4");
   });
 
   it("mints distinct 32-hex tokens", () => {
