@@ -1762,6 +1762,12 @@ export class HudScene extends Phaser.Scene {
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
     const { hp, maxHp, burning, inAcid, gearMask } = this.model;
+    // Story 8.2 (AC 4, B11): a waiting late joiner has no survivor yet: no HP row (it would read "0 / 0").
+    const watching = this.model.watching;
+    if (this.hpBar.visible === watching) {
+      this.hpBar.setVisible(!watching);
+      this.hpText.setVisible(!watching);
+    }
     if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid && gearMask === this.shownGearMask) return;
     this.shownGearMask = gearMask;
     this.shownHp = hp;
@@ -1809,6 +1815,7 @@ export class HudScene extends Phaser.Scene {
   private drawMoney(): void {
     const m = this.model;
     const k = dpr();
+    if (this.moneyText.text !== "" && this.moneyText.visible === m.watching) this.moneyText.setVisible(!m.watching); // Story 8.2: no "$0" while waiting
     if (m.money !== this.shownMoney) {
       this.shownMoney = m.money;
       const safe = this.insets;

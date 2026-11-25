@@ -1,4 +1,4 @@
-/* global require, process, console, window, document, setInterval */
+/* global require, process, console, window, document */
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled, not a dependency) */
 // Stories 8.2 + 8.3 late-join smoke (brief R10; story T10). NOT game code, not a test.
 //
@@ -6,8 +6,8 @@
 // ?lag=150&jitter=20&loss=1&debug=1): A creates (god-mode `net150`), B joins, they start and reach a wave;
 // C joins MID-WAVE (it must wait: the line "Wave in progress, …", no body), enters at the next build phase
 // with late-join money, A (the host) removes C from the ☰ → Players menu in that build phase (C shows "You
-// were removed from this run" + OK and can't rejoin), then A goes into a hidden tab 6 s (B becomes host at
-// once and sees "You are now the host"). Screenshots of each step.
+// were removed from this run" + OK), then the host's tab closes (a drop: the other tab becomes host at once and
+// sees "You are now the host"). Screenshots of each step.
 // Steps (own ports; never `npm run dev`; stop each process by PID afterwards):
 //   1. server: (cd apps/server && PORT=2813 HOST=127.0.0.1 ALLOW_SOLO_START=1 ALLOW_TEST_SCENARIOS=1 node --import tsx src/index.ts)
 //   2. client: a local Vite config merging apps/client/vite.config.ts with port 5813 and /api → :2813 (not committed)
@@ -102,10 +102,43 @@ async function waitFor(page, pred, ms, step = 100) {
   }
   const w = await waitFor(A, (p) => p.phase === "wave", 60000);
   note(`wave: ${w.ok} ${JSON.stringify(w.p)}`);
-  for (const p of [A, B]) {
-    await p.mouse.move(500, 150);
-    await p.mouse.down();
-  }
+  // The tabs aim at their nearest zombie (screen point from the Game camera) and hold fire, so waves end.
+  const aimers = new Set([A, B]);
+  let aiming = true;
+  const aimOnce = (page) =>
+    page
+      .evaluate(() => {
+        const s = window.__game && window.__game.scene.getScene("Game");
+        const h = s && s.host;
+        const w = h && h.world;
+        const me = w && w.players.get(h.localPlayerId);
+        if (!me) return null;
+        const z = w.zombies;
+        let best = -1;
+        let bd = Infinity;
+        for (let i = 0; i < z.aliveCount; i++) {
+          const id = z.aliveIds[i];
+          const d = Math.hypot(z.x[id] - me.x, z.y[id] - me.y);
+          if (d < bd) {
+            bd = d;
+            best = id;
+          }
+        }
+        if (best < 0) return null;
+        const cam = s.cameras.main;
+        return { x: (z.x[best] - cam.worldView.x) * cam.zoom, y: (z.y[best] - cam.worldView.y) * cam.zoom };
+      })
+      .catch(() => null);
+  void (async () => {
+    for (const p of aimers) await p.mouse.down().catch(() => {});
+    while (aiming) {
+      for (const p of aimers) {
+        const at = await aimOnce(p);
+        if (at) await p.mouse.move(Math.max(1, Math.min(639, at.x)), Math.max(1, Math.min(359, at.y))).catch(() => {});
+      }
+      await A.waitForTimeout(150).catch(() => {});
+    }
+  })();
   await A.waitForTimeout(2000);
 
   // 1. C joins mid-wave: it waits.
@@ -120,41 +153,50 @@ async function waitFor(page, pred, ms, step = 100) {
   const cb = await waitFor(C, (p) => p.phase === "build" && p.waiting === false && p.wallet !== null, 240000, 250);
   note(`C at the build phase: ${cb.ok ? `entered (wave ${cb.p.wave}, wallet ${cb.p.wallet})` : `NOT entered: ${JSON.stringify(cb.p)}`}`);
   if (cb.ok) await C.screenshot({ path: `${OUT}/8-2-C-entered.png` }).catch(() => {});
+  aiming = false;
+  await A.waitForTimeout(400);
 
   // 3. The host removes C from ☰ → Players (build phase).
+  // Whoever is host now (a headless tab can go quiet and lose the role: H1) opens ☰ → Players.
+  const pa = await probe(A);
+  const H = pa.hostSlot === pa.mySlot ? A : B;
+  note(`host for the remove: ${H === A ? "A" : "B"} (hostSlot ${pa.hostSlot})`);
   if (cb.ok) {
-    await A.mouse.up();
-    await A.keyboard.press("Escape");
-    await A.waitForTimeout(400);
-    const players = A.locator(".in-run-menu button", { hasText: "Players" });
+    for (const p of [A, B]) await p.mouse.up().catch(() => {});
+    // The test scenario's per-wave "Network results" dialog (debug) sits over the menu: close it first.
+    for (const p of [A, B]) await p.locator(".stress-results button", { hasText: "Close" }).click({ timeout: 1500 }).catch(() => {});
+    await H.keyboard.press("Escape");
+    await H.waitForTimeout(400);
+    const players = H.locator(".in-run-menu button", { hasText: "Players" });
     if (await players.count()) {
       await players.first().click();
-      await A.waitForTimeout(300);
-      await A.screenshot({ path: `${OUT}/8-3-A-players.png` }).catch(() => {});
-      await A.locator(".in-run-menu__player", { hasText: "TabC" }).locator("button").click();
-      await A.waitForTimeout(300);
-      await A.screenshot({ path: `${OUT}/8-3-A-confirm.png` }).catch(() => {});
-      await A.locator('[data-testid="remove-confirm"] button.btn--danger').click();
+      await H.waitForTimeout(300);
+      await H.screenshot({ path: `${OUT}/8-3-host-players.png` }).catch(() => {});
+      await H.locator(".in-run-menu__player", { hasText: "TabC" }).locator("button").click();
+      await H.waitForTimeout(300);
+      await H.screenshot({ path: `${OUT}/8-3-host-confirm.png` }).catch(() => {});
+      await H.locator('[data-testid="remove-confirm"] button.btn--danger').click();
       const tr = Date.now();
       const cr = await waitFor(C, (p) => /removed/.test(p.notice || ""), 10000, 100);
       note(`remove: C ${cr.ok ? `shows "${cr.p.notice}" after ${cr.at - tr} ms` : `no notice: ${JSON.stringify(cr.p)}`}`);
       if (cr.ok) await C.screenshot({ path: `${OUT}/8-3-C-removed.png` }).catch(() => {});
-      await A.keyboard.press("Escape").catch(() => {});
+      await H.keyboard.press("Escape").catch(() => {});
     } else {
       note("remove: no Players item in A's menu (not host?)");
     }
   }
 
-  // 4. A hides for 6 s: B is host at once and sees the toast.
+  // 4. The host's tab closes (a drop: its seat is held; a hidden tab is held only in a wave, 8.1 D1): the other tab is
+  //    host at once and sees the toast.
+  const O = H === A ? B : A;
   const th = Date.now();
-  await A.evaluate(() => window.__game.loop.sleep());
-  const bh = await waitFor(B, (p) => p.hostSlot !== null && p.hostSlot === p.mySlot, 12000, 100);
-  const toast = await waitFor(B, (p) => /You are now the host/.test(p.toast || ""), 6000, 50);
-  note(`host move: B ${bh.ok ? `is host ${bh.at - th} ms after A hid` : `NOT host: ${JSON.stringify(bh.p)}`}; toast ${toast.ok ? `"${toast.p.toast}"` : "not seen"}`);
-  if (toast.ok) await B.screenshot({ path: `${OUT}/8-3-B-host-toast.png` }).catch(() => {});
-  await A.evaluate(() => window.__game.loop.wake());
-  await A.waitForTimeout(4000);
-  note(`end: A ${JSON.stringify(await probe(A))} B ${JSON.stringify(await probe(B))}`);
+  await H.close();
+  const bh = await waitFor(O, (p) => p.hostSlot !== null && p.hostSlot === p.mySlot, 12000, 100);
+  const toast = await waitFor(O, (p) => /You are now the host/.test(p.toast || ""), 6000, 50);
+  note(`host move: the other tab ${bh.ok ? `is host ${bh.at - th} ms after the host hid` : `NOT host: ${JSON.stringify(bh.p)}`}; toast ${toast.ok ? `"${toast.p.toast}"` : "not seen"}`);
+  if (toast.ok) await O.screenshot({ path: `${OUT}/8-3-new-host-toast.png` }).catch(() => {});
+  await O.waitForTimeout(2000);
+  note(`end: ${H === A ? "B" : "A"} ${JSON.stringify(await probe(O))}`);
   fs.writeFileSync(`${OUT}/smoke-8-2-3.log`, results.join("\n") + "\n");
   await browser.close();
 })().catch((e) => {

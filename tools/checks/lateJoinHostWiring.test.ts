@@ -27,6 +27,8 @@ describe("Stories 8.2 + 8.3 client wiring", () => {
     const hud = client("scenes", "HudScene.ts");
     expect(hud).toContain("!this.model.voting && !this.model.watching"); // the sticks
     expect(hud).toContain("m.repairOpen || m.voting || m.watching"); // the weapon panel
+    expect(hud).toContain("this.hpText.setVisible(!watching);"); // no "0 / 0" HP row while waiting
+    expect(hud).toContain("this.moneyText.setVisible(!m.watching);"); // no "$0" while waiting
     expect(src).toMatch(/this\.hostWatch\.observe\(host\.hostSlot, host\.mySlot\)\) this\.toasts\.push\(HOST_TOAST_TEXT\)/);
     expect(src).toMatch(/this\.hostWatch\.reset\(\);/);
   });
