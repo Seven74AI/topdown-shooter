@@ -38,7 +38,7 @@ import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSti
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
 import { BUILD_BAR_SLOTS, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, buildBarSlots, layoutBuildBar, newBuildBarLayout, readyLeftX, tileState, type BuildTile } from "./buildBar";
-import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { FRAME_WOOD, buildingFrame, ensureBuildingsAtlas, textureOfFrame } from "../render/city/buildingsAtlas";
 import { BUILD_ICON_FRAME_H, BUILD_ICON_FRAME_W, BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y, BUILD_ICON_TEXTURE, buildIconFrame, ensureBuildIcons } from "../render/city/buildIcons";
 import { drawPlankIcon } from "../render/BuildingView";
 import { drawTurretIcon } from "../render/TurretView";
@@ -629,7 +629,7 @@ export class HudScene extends Phaser.Scene {
     this.barGlyphs.length = 0;
     for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
       this.barTiles.push(this.add.graphics().setDepth(1001).setVisible(false));
-      this.barIcons.push(this.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(1002).setVisible(false));
+      this.barIcons.push(this.add.image(0, 0, textureOfFrame(FRAME_WOOD), FRAME_WOOD).setDepth(1002).setVisible(false));
       this.barIconGfx.push(this.add.graphics().setDepth(1002).setVisible(false));
       this.barGlyphs.push(this.add.text(0, 0, "", this.outlinedStyle(TILE_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false));
       this.barPrices.push(this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_PRICE_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1002).setVisible(false));

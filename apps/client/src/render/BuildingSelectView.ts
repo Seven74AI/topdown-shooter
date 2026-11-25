@@ -1,12 +1,14 @@
 import type * as Phaser from "phaser";
 import { buildingById, type World } from "@topdown/shared";
+import { ABOVE_STANDING_DEPTH } from "./barricadeLook";
 
 /** Story 3.7: the selected building's outline (world metres): white, a little outside the footprint. */
 const SELECT_COLOR = 0xffffff;
 const SELECT_LINE_M = 0.08;
 const SELECT_PAD_M = 0.12;
 /** Above buildings (3), below zombies (≥ 5). */
-const SELECT_DEPTH = 4;
+// review M2 (photoreal group 3): above the standing barricades' pictures, which rise over their footprint
+const SELECT_DEPTH = ABOVE_STANDING_DEPTH;
 
 /** Story 3.7: outlines the building the repair panel is open for; redrawn only when the selection changes. */
 export class BuildingSelectView {

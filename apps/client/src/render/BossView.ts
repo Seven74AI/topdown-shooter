@@ -16,9 +16,13 @@ import {
   BOSS_RING,
   BOSS_TELE,
   BOSS_TELE_RADIUS_PX,
+  TELE_TICKS,
+  TELE_TICK_IN_PX,
+  TELE_TICK_MAJOR,
   ensureBossTextures,
 } from "./city/bossAtlas";
 import { ABOVE_DARK, aboveDarkness } from "./darkness/aboveDark";
+import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize } from "./city/hudWarnArt";
 import {
   chargeLaneLook,
   chargeLaneProgress,
@@ -42,11 +46,15 @@ import {
  *   fill; RECOVER after a slam `slamHit` for half a second. A `boss.hit` flashes it.
  * - In the dark (6.3: `isBlackout` / `darknessAlpha > 0`, set through `setDark`) its outline + eyes
  *   frame above the darkness (`ABOVE_DARK.boss`; red eyes when enraged, 6.7).
- * - The telegraph: the baked disc (red + white hatching, red edge, dashed inner edge, a hole for the
- *   body) and a red fill ring growing from the body's edge to the ring, drawn from the SERVER's start
- *   tick (`telegraphProgress` with the host's estimated server tick), above the zombies and the
- *   darkness (`ABOVE_DARK.telegraph`). Pooled: 2 slots (the current one and the fading one).
- * - A red skull over its target (everyone sees it; `ABOVE_DARK.marker`).
+ * - The telegraph (asset fixes, designer: S1 glow + sparks + countdown): the baked glowing disc (additive)
+ *   brightening over the windup, its countdown ticks lighting one by one clockwise from the top (the
+ *   circle closes on the hit tick) with a bright head, and sparks lifting off the rim and drifting in,
+ *   thicker toward the hit. Driven by the SERVER's start tick (`telegraphProgress` with the host's
+ *   estimated server tick), above the zombies and the darkness (`ABOVE_DARK.telegraph`). Pooled: 2
+ *   slots (the current one and the fading one).
+ * - Its target's lock (asset fixes round 5, P1): red HUD corner brackets round the hunted survivor, closing in
+ *   as a slam winds up, a turning tick ring, a scrolling hazard bar and a TARGET tag; flickering like a
+ *   failing display (everyone sees it; `ABOVE_DARK.marker`).
  * - The slam's crack decals: a pool of `boss.json › caps.maxDecals` (oldest reused), cleared at a build start.
  * - Story 6.6: the charge lane (the baked hatched strip cropped to the lane's length, white arrows, a
  *   red fill growing from the body's back by the start-tick progress, full through the rush, fading
@@ -63,6 +71,25 @@ const WALK_STEP_M = 0.65;
 const SLAM_HIT_S = 0.5;
 const HIT_FLASH_S = 0.08;
 const HIT_TINT = 0xffb0a0;
+/** `Phaser.BlendModes.ADD` (a number: this module only imports Phaser's types, so tests run without a browser). */
+const BLEND_ADD = 1;
+/** The telegraph's lit ticks: a red bloom under a white-hot core (colour, alpha, width in texture px). */
+const TICK_GLOW = 0xff3c28;
+const TICK_CORE = 0xffebdc;
+/** Lit ticks are longer than the dim baked ones (texture px). */
+const TICK_LIT_LONG_PX = 20;
+const TICK_LIT_SHORT_PX = 11;
+/** Sparks off the rim: count at the start and at the hit, how far in they drift (share of the ring's width). */
+const SPARKS_MIN = 30;
+const SPARKS_MAX = 100;
+const SPARK_DRIFT = 0.55;
+/** Seconds of spark drift time per spark lifetime (randomised per spark ×1–2.5). */
+const SPARK_LIFE_S = 1;
+/** The target lock (P1), in metres: bracket box half-size, the tag's display size (88 × 44 CSS px at 47 CSS px per metre). */
+const LOCK_R_M = 0.8;
+const LOCK_CSS_PER_M = 47;
+const LOCK_LINE_M = 2 / LOCK_CSS_PER_M;
+/** Story 6.6: the charge lane's fill (the slam has its own glowing countdown). */
 const FILL_COLOR = 0xff2828;
 const FILL_ALPHA = 0.38;
 const RING_WHITE = 0xffffff;
@@ -71,8 +98,6 @@ const ROAR_COLOR = 0xff4a2e;
 /** Story 6.6 / 6.7: transient rings (roar shock ring, drop puff, crash dust) — a pool. */
 const RINGS = 4;
 const DEAD_TINT = 0x8a8a8a;
-const SKULL_M = 0.9;
-const SKULL_LIFT_M = 1.1;
 /** Review M2: the body's opacity while zombies walk under it (they read through it; no new colour). */
 export const BOSS_DIM_ALPHA = 0.55;
 /** Review L-b: seconds the body takes to dim or come back (no flicker as a zombie crosses its rim). */
@@ -154,7 +179,10 @@ export class BossView {
   /** Story 6.6: the body redrawn above its own charge lane / throw ring (the "hole for the body"), in the light only. */
   private readonly bodyTop: Phaser.GameObjects.Image;
   private readonly outline: Phaser.GameObjects.Image;
-  private readonly skull: Phaser.GameObjects.Image;
+  private readonly tag: Phaser.GameObjects.Image;
+  private readonly lock: Phaser.GameObjects.Graphics;
+  /** The slam windup (0–1) the brackets close in with (0: none). */
+  private lockP = 0;
   private readonly tele: TeleSlot[] = [];
   private readonly decals: Phaser.GameObjects.Image[] = [];
   private nextDecal = 0;
@@ -165,6 +193,8 @@ export class BossView {
   private flashS = 0;
   private slamHitS = 0;
   private readonly look: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
+  /** Seconds since the view started (drives the sparks; never the gameplay). */
+  private clockS = 0;
   private readonly at = { x: 0, y: 0 };
 
   constructor(
@@ -177,11 +207,14 @@ export class BossView {
     this.body = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(BODY_DEPTH).setVisible(false);
     this.bodyTop = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(ABOVE_DARK.telegraph + 0.002).setVisible(false);
     this.outline = aboveDarkness(scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[BOSS_FRAME.outline]).setDisplaySize(side, side).setVisible(false), "boss");
-    this.skull = aboveDarkness(scene.add.image(0, 0, BOSS_FX, BOSS_FX_FRAMES.skull).setDisplaySize(SKULL_M, SKULL_M).setVisible(false), "marker");
+    ensureHudWarnTextures(scene);
+    const tagSize = hudFrameCssSize("tag");
+    this.tag = aboveDarkness(scene.add.image(0, 0, BOSS_HUD, HUD_FRAMES.tag).setDisplaySize(tagSize.w / LOCK_CSS_PER_M, tagSize.h / LOCK_CSS_PER_M).setVisible(false), "marker");
+    this.lock = aboveDarkness(scene.add.graphics().setVisible(false), "marker");
     for (let i = 0; i < 2; i++) {
       this.tele.push({
-        disc: aboveDarkness(scene.add.image(0, 0, BOSS_TELE).setVisible(false), "telegraph"),
-        fill: aboveDarkness(scene.add.graphics().setVisible(false), "telegraph"),
+        disc: aboveDarkness(scene.add.image(0, 0, BOSS_TELE).setBlendMode(BLEND_ADD).setVisible(false), "telegraph"),
+        fill: aboveDarkness(scene.add.graphics().setBlendMode(BLEND_ADD).setVisible(false), "telegraph"),
         attackId: -1,
         startTick: 0,
         hitTick: 0,
@@ -376,6 +409,7 @@ export class BossView {
     if (b.state === BOSS_STATE.TELEGRAPH || b.state === BOSS_STATE.RUSH || (a.kind === BOSS_ATTACK.THROW && serverTick <= a.hitTick)) {
       this.onTelegraph(a.id, a.kind, a.startTick, a.hitTick, a.cx, a.cy, a.radiusM, a.cx + a.dirX * a.lenM, a.cy + a.dirY * a.lenM, a.crash, a.src);
     }
+    this.clockS += dtS;
     this.drawTelegraphs(serverTick);
     this.drawLane(serverTick);
     this.drawRing(serverTick, b.state === BOSS_STATE.DEAD || b.state === BOSS_STATE.NONE);
@@ -390,7 +424,8 @@ export class BossView {
       if (this.body.visible) {
         this.body.setVisible(false);
         this.outline.setVisible(false);
-        this.skull.setVisible(false);
+        this.tag.setVisible(false);
+        this.lock.setVisible(false);
       }
       this.lastX = Number.NaN;
       return;
@@ -434,8 +469,11 @@ export class BossView {
       if (this.outline.frame.name !== o) this.outline.setFrame(o);
       this.outline.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     } else if (this.outline.visible) this.outline.setVisible(false);
-    if (targetAt) this.skull.setPosition(targetAt.x, targetAt.y - SKULL_LIFT_M).setVisible(true);
-    else if (this.skull.visible) this.skull.setVisible(false);
+    if (targetAt) this.drawLock(targetAt.x, targetAt.y);
+    else if (this.tag.visible) {
+      this.tag.setVisible(false);
+      this.lock.clear().setVisible(false);
+    }
   }
 
   /** Story 6.7 (D6): the collapse, then the dark body on the street (not solid) until the build start. */
@@ -448,7 +486,10 @@ export class BossView {
     this.body.setPosition(drawX, drawY).setRotation(b.facing).setTint(DEAD_TINT).setAlpha(1).setVisible(true);
     if (this.bodyTop.visible) this.bodyTop.setVisible(false);
     if (this.outline.visible) this.outline.setVisible(false); // no eyes above the dark: it is no danger now
-    if (this.skull.visible) this.skull.setVisible(false);
+    if (this.tag.visible) {
+      this.tag.setVisible(false); // no target lock once it is dead
+      this.lock.clear().setVisible(false);
+    }
   }
 
   private drawLane(serverTick: number): void {
@@ -544,6 +585,7 @@ export class BossView {
   }
 
   private drawTelegraphs(serverTick: number): void {
+    this.lockP = 0;
     for (const s of this.tele) {
       if (s.attackId < 0 || Number.isNaN(serverTick)) {
         if (s.disc.visible) {
@@ -559,16 +601,117 @@ export class BossView {
         if (serverTick > s.hitTick) s.attackId = -1; // done: the slot is free
         continue;
       }
-      s.disc.setAlpha(look.alpha).setVisible(true);
-      // The fill: a ring from the body's edge out to progress × radius (the body hole stays clear).
-      const outer = s.r * look.progress;
-      const g = s.fill.clear();
-      if (outer > s.hole) {
-        const w = outer - s.hole;
-        g.lineStyle(w, FILL_COLOR, FILL_ALPHA * look.alpha).strokeCircle(s.cx, s.cy, s.hole + w / 2);
+      const p = look.progress;
+      if (look.alpha >= 1) this.lockP = Math.max(this.lockP, p);
+      s.disc.setAlpha(look.alpha * (0.45 + 0.55 * p)).setVisible(true); // the glow gathers over the windup
+      this.drawCountdown(s.fill.clear(), s, p, look.alpha);
+      s.fill.setVisible(true);
+    }
+  }
+
+  /**
+   * The target lock at (x, y) (P1): corner brackets (breathing while it walks, closing in over a slam's
+   * windup), a turning ring of ticks, a scrolling hazard bar under them and the TARGET tag above, all with
+   * the display flicker. Graphics in metres; no allocation.
+   */
+  private drawLock(x: number, y: number): void {
+    const t = this.clockS;
+    const fl = hudFlicker(t);
+    const r = LOCK_R_M;
+    const lock = this.lockP > 0 ? this.lockP : 0.4 + 0.2 * Math.sin(t * 2);
+    const gap = r * (1.25 - 0.35 * lock);
+    const len = r * 0.55;
+    const g = this.lock.clear();
+    for (let pass = 0; pass < 2; pass++) {
+      g.lineStyle(pass === 0 ? LOCK_LINE_M * 4 : LOCK_LINE_M, HUD_RED, (pass === 0 ? 0.25 : 1) * fl);
+      for (let c = 0; c < 4; c++) {
+        const sx = c & 1 ? 1 : -1;
+        const sy = c & 2 ? 1 : -1;
+        const cx = x + sx * gap;
+        const cy = y + sy * gap;
+        g.lineBetween(cx, cy, cx - sx * len, cy);
+        g.lineBetween(cx, cy, cx, cy - sy * len);
       }
-      g.setVisible(true);
+    }
+    // the turning tick ring
+    g.lineStyle(LOCK_LINE_M, HUD_RED, 0.7 * fl);
+    for (let i = 0; i < 24; i++) {
+      if (i % 6 === 0) continue;
+      const a = (i / 24) * Math.PI * 2 + t * 0.8;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      g.lineBetween(x + ca * r * 0.95, y + sa * r * 0.95, x + ca * r * 1.08, y + sa * r * 1.08);
+    }
+    // the hazard bar under the brackets, its stripes scrolling
+    const by = y + gap + 0.08;
+    const bh = 0.08;
+    const step = 0.08;
+    const off = (t * 0.4) % (step * 2);
+    g.fillStyle(HUD_RED, fl);
+    for (let sx = x - r - step * 2 + off; sx < x + r; sx += step * 2) {
+      const x0 = Math.max(x - r, sx);
+      const x1 = Math.min(x + r, sx + step);
+      if (x1 <= x0) continue;
+      // one slanted stripe: a parallelogram as two triangles, kept inside the bar
+      const tx0 = Math.min(x + r, x0 + bh);
+      const tx1 = Math.min(x + r, x1 + bh);
+      g.fillTriangle(x0, by + bh, x1, by + bh, tx1, by);
+      g.fillTriangle(x0, by + bh, tx1, by, tx0, by);
+    }
+    g.setVisible(true);
+    this.tag
+      .setPosition(x, y - gap - r * 0.65)
+      .setAlpha(fl)
+      .setVisible(true);
+  }
+
+  /**
+   * The live part of the slam telegraph into `g` (world metres): the countdown ticks lit up to `p`, the
+   * sweep's bright head, and the sparks. No allocation (sparks are hashed from their index and the clock).
+   */
+  private drawCountdown(g: Phaser.GameObjects.Graphics, s: TeleSlot, p: number, alpha: number): void {
+    const k = s.r / BOSS_TELE_RADIUS_PX; // metres per texture px
+    const R = s.r;
+    const lit = Math.floor(p * TELE_TICKS);
+    for (let pass = 0; pass < 2; pass++) {
+      g.lineStyle((pass === 0 ? 7 : 2.6) * k, pass === 0 ? TICK_GLOW : TICK_CORE, (pass === 0 ? 0.35 : 0.95) * alpha);
+      for (let i = 0; i < lit; i++) {
+        const a = -Math.PI / 2 + (i / TELE_TICKS) * Math.PI * 2;
+        const l = (i % TELE_TICK_MAJOR === 0 ? TICK_LIT_LONG_PX : TICK_LIT_SHORT_PX) * k;
+        const r0 = R - (TELE_TICK_IN_PX - 2) * k;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        g.lineBetween(s.cx + ca * r0, s.cy + sa * r0, s.cx + ca * (r0 - l), s.cy + sa * (r0 - l));
+      }
+    }
+    // the sweep's head: a hot point riding the rim
+    if (p < 1) {
+      const a = -Math.PI / 2 + p * Math.PI * 2;
+      const hx = s.cx + Math.cos(a) * (R - 4 * k);
+      const hy = s.cy + Math.sin(a) * (R - 4 * k);
+      for (let i = 4; i >= 1; i--) {
+        g.fillStyle(i === 1 ? TICK_CORE : TICK_GLOW, (i === 1 ? 0.9 : 0.16) * alpha);
+        g.fillCircle(hx, hy, i * 5 * k);
+      }
+    }
+    // sparks lifting off the rim and drifting in, more of them toward the hit
+    const n = Math.round(SPARKS_MIN + p * (SPARKS_MAX - SPARKS_MIN));
+    const span = (R - s.hole) * SPARK_DRIFT;
+    for (let i = 0; i < n; i++) {
+      const h1 = sparkHash(i, 1);
+      const life = (this.clockS / (SPARK_LIFE_S * (1 + sparkHash(i, 3) * 1.5)) + sparkHash(i, 4)) % 1;
+      const a = h1 * Math.PI * 2 + this.clockS * 0.15 * (sparkHash(i, 2) - 0.5);
+      const d = R - life * span;
+      const fade = Math.sin(life * Math.PI) * (0.5 + p * 0.5) * alpha;
+      g.fillStyle(sparkHash(i, 5) < 0.5 ? 0xffb45a : 0xffe08c, fade);
+      g.fillCircle(s.cx + Math.cos(a) * d, s.cy + Math.sin(a) * d, (1 + sparkHash(i, 6) * 1.6) * k);
     }
   }
 }
 
+/** A stable 0–1 value per spark and channel (no allocation, no Math.random: every client draws the same sparks). */
+function sparkHash(i: number, ch: number): number {
+  let h = Math.imul(i + 1, 374761393) ^ Math.imul(ch, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}

@@ -59,7 +59,9 @@ export const CAR_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName(
 /** Story 4.12: each car variant burnt (fire-lab panel D): drawn for a car that is a fire's target. */
 export const CAR_BURNT_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName("vehicle", "carburnt", variantLetter(i)));
 export const PROP_PUMP = frameName("prop", "pump", "a");
+/** The two police barrier looks at 6 m (the asset review shows these; the city bake draws each line at its own length). */
 export const PROP_BARRIER = frameName("prop", "barrier", "a");
+export const PROP_BARRIER_CONCRETE = frameName("prop", "barrier", "b");
 export const PROP_SANDBAGS = frameName("prop", "sandbags", "a");
 /** Story 4.5's `block` mutations: the dumpster, and a generic blockage for any other block. */
 export const PROP_DUMPSTER = frameName("prop", "dumpster", "a");
@@ -70,6 +72,7 @@ const PROP_NATIVE: Readonly<Record<string, readonly [number, number]>> = {
   ...Object.fromEntries(CAR_BURNT_FRAMES.map((n) => [n, [144, 64] as const])),
   [PROP_PUMP]: [64, 32],
   [PROP_BARRIER]: [192, 16],
+  [PROP_BARRIER_CONCRETE]: [192, 16],
   [PROP_SANDBAGS]: [96, 32],
   [PROP_DUMPSTER]: [48, 48],
   [PROP_BLOCK]: [48, 48],
@@ -249,7 +252,8 @@ function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.scale(DOWNTOWN_ATLAS_SCALE, DOWNTOWN_ATLAS_SCALE);
   if (f.name === VEHICLE_BUS) drawBus(g, w, h);
   else if (f.name === PROP_PUMP) drawPump(g, w, h);
-  else if (f.name === PROP_BARRIER) drawBarrier(g, w, h);
+  else if (f.name === PROP_BARRIER) drawBarrier(g, w, h, "sawhorse");
+  else if (f.name === PROP_BARRIER_CONCRETE) drawBarrier(g, w, h, "concrete");
   else if (f.name === PROP_DUMPSTER) drawDumpster(g, w, h);
   else if (f.name === PROP_BLOCK) drawBlock(g, w, h);
   else {
