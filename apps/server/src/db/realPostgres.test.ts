@@ -96,6 +96,81 @@ describe.skipIf(!URL)("Story 7.2: banking on real PostgreSQL (TEST_DATABASE_URL)
       expect((await countRunRewards(database, a.id)) - before).toBe(expected.rows);
     }, 20_000);
   }
+
+  // Re-review RR-M1 (from `7-2-review-probes/rereview1-realPostgres.probe.ts.txt`): the invariant in every case is
+  // "the result the caller gets equals what was committed" — rejected/failed ⇒ nothing paid, resolved/saved ⇒ paid once.
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const rec5 = { wavesIn: 5, endlessWavesIn: 0, bossesIn: 0, endlessBossesIn: 0 };
+  async function seeded() {
+    const a = await acct();
+    const repo = progressRepo(database);
+    await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 1000, breakdown: {} }));
+    return { a, repo, before: await countRunRewards(database, a.id) };
+  }
+  /** The repository's own pool (max 5) is busy: n banks on other accounts each wait on a held row lock. */
+  async function saturate(n: number, holdMs: number, repo: ReturnType<typeof progressRepo>) {
+    const others = await Promise.all(Array.from({ length: n }, () => acct()));
+    for (const o of others) await repo.addSupplies(randomUUID(), o.id, () => ({ supplies: 1, breakdown: {} }));
+    await Promise.all(others.map((o) => lockFor(o.id, holdMs)));
+    return others.map((o) => repo.addSupplies(randomUUID(), o.id, () => ({ supplies: 1, breakdown: {} })).catch((e: unknown) => e));
+  }
+
+  for (const lockMs of [1400, 1600, 2500]) {
+    it(`RR-M1 A: a row locked ${lockMs} ms, through RunBank → the status matches the money`, async () => {
+      const { a, repo, before } = await seeded();
+      await lockFor(a.id, lockMs);
+      const t0 = Date.now();
+      const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+      const r = await bank.bank({ playerId: "p1", accountId: a.id, record: rec5, ending: "wiped" });
+      await sleep(Math.max(0, lockMs - (Date.now() - t0)) + 1500);
+      expect((await countRunRewards(database, a.id)) - before).toBe(r.status === "saved" ? 1 : 0);
+    }, 20_000);
+  }
+
+  it("RR-M1 B1: pool saturated + row lock → addSupplies resolves ⇔ it committed (never rejected-then-committed)", async () => {
+    const { a, repo, before } = await seeded();
+    await lockFor(a.id, 2300);
+    const busy = await saturate(5, 1300, repo);
+    const res = await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 50, breakdown: {} })).then(() => "resolved", () => "rejected");
+    await Promise.all(busy);
+    await sleep(2500);
+    expect((await countRunRewards(database, a.id)) - before).toBe(res === "resolved" ? 1 : 0);
+  }, 30_000);
+
+  it("RR-M1 B2: RunBank with the pool squeezed before both attempts → the status matches the money", async () => {
+    const { a, repo, before } = await seeded();
+    const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+    await lockFor(a.id, 2300);
+    const busy1 = await saturate(5, 1300, repo);
+    const t0 = Date.now();
+    const p = bank.bank({ playerId: "p1", accountId: a.id, record: rec5, ending: "wiped" });
+    await sleep(Math.max(0, 3700 - (Date.now() - t0)));
+    await lockFor(a.id, 2600);
+    const busy2 = await saturate(5, 1300, repo);
+    const r = await p;
+    await Promise.all([...busy1, ...busy2]);
+    await sleep(3000);
+    expect((await countRunRewards(database, a.id)) - before).toBe(r.status === "saved" ? 1 : 0);
+  }, 40_000);
+
+  it("RR-M1 C: statements each under 1.5 s but summing past the budget → rejected AND rolled back (the PostgreSQL < 17 path)", async () => {
+    const { a, repo, before } = await seeded();
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create or replace function rr72_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(1.2); return new; end $$`);
+    await c.query(`drop trigger if exists rr72 on run_rewards; create trigger rr72 before insert on run_rewards for each row when (new.supplies = 51) execute function rr72_slow()`);
+    try {
+      await lockFor(a.id, 1000);
+      const res = await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 51, breakdown: {} })).then(() => "resolved", () => "rejected");
+      await sleep(2000);
+      const paid = (await countRunRewards(database, a.id)) - before;
+      expect(paid).toBe(res === "resolved" ? 1 : 0);
+      expect(res).toBe("rejected"); // 1.0 s lock + 1.2 s insert > the 1.8 s budget: the pre-COMMIT check (or transaction_timeout) rolls back
+    } finally {
+      await c.query(`drop trigger if exists rr72 on run_rewards`);
+      await c.end();
+    }
+  }, 20_000);
 });
 
 describe.skipIf(!URL)("Story 7.3: unlocks on real PostgreSQL (TEST_DATABASE_URL)", () => {

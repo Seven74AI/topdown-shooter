@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
+import { endWave, BYTES, C2S, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -49,10 +49,18 @@ const options = (intent: "create" | "join", name: string, accountId: string | nu
     ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
   };
 };
-function listen(c: RunSdkRoom): RunRewards[] {
-  const got: RunRewards[] = [];
+/** `run.rewards` received (in order); `runIds` the `run.started` ids, and `order` both kinds as they came. */
+function listen(c: RunSdkRoom): RunRewards[] & { runIds: string[]; order: string[] } {
+  const got = Object.assign([] as RunRewards[], { runIds: [] as string[], order: [] as string[] });
   for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
-  c.onMessage(S2C.RUN_REWARDS, (m: unknown) => got.push(runRewardsSchema.parse(m)));
+  c.onMessage(S2C.RUN_STARTED, (m: { runId: string }) => {
+    got.runIds.push(m.runId);
+    got.order.push("started");
+  });
+  c.onMessage(S2C.RUN_REWARDS, (m: unknown) => {
+    got.push(runRewardsSchema.parse(m));
+    got.order.push("rewards");
+  });
   return got;
 }
 
@@ -95,6 +103,8 @@ describe("Story 7.2: banking in the room", () => {
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));
     for (const got of inbox) await vi.waitFor(() => expect(got.length).toBe(1));
     for (const got of inbox) {
+      expect(got.runIds).toEqual([room.bank?.runId]); // RR-L1: run.started at Start, before the rewards
+      expect(got.order).toEqual(["started", "rewards"]);
       expect(got[0]).toMatchObject({ runId: room.bank?.runId, seed: room.state.runSeed, status: "saved", lines: { waves: 10, boss: 0, extract: 0 }, waveCount: 1, rookie: true, total: 20, newTotal: 20 });
     }
     expect(await supplies(a)).toBe(20);
@@ -162,7 +172,37 @@ describe("Story 7.2: banking in the room", () => {
     const got = listen(back);
     await vi.waitFor(() => expect(got.length).toBe(1));
     expect(got[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 3, total: 60 }); // 2 waves + the wipe wave (D8), rookie × 2
+    expect(got.order).toEqual(["started", "rewards"]); // RR-L1: the run id first, so the phone accepts the resend
+    expect(got.runIds).toEqual([room.bank?.runId]);
     expect(await rewardRows(b)).toBe(1);
+  });
+
+  it("re-review N-R3 (B5): Leave mid-wave (banked quit) → come back in the build phase → run end: one row, and Results shows the earlier quit bank", async () => {
+    const [a, b] = [await newAccount(), await newAccount()];
+    const toks = [hex(), hex()];
+    const { clients, inbox, room, w } = await toWave([a, b], toks);
+    const guest = clients[1]!;
+    const bId = idOf(room, guest);
+    w.players.get(bId)!.wavesIn = 3;
+    guest.send(C2S.RUN_LEAVE, {});
+    await vi.waitFor(() => expect(inbox[1]!.length).toBe(1));
+    expect(inbox[1]![0]).toMatchObject({ ending: "quit", leftWave: 1, total: 60 });
+    await guest.leave(true);
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    endWave(w);
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const back = await colyseus.sdk.joinById<RunStateView>(guest.roomId, options("join", "P1", b, toks[1]));
+    const got = listen(back);
+    await back.waitForInitialState();
+    await vi.waitFor(() => expect(w.players.has(bId)).toBe(true));
+    await vi.waitFor(() => expect(got.runIds).toEqual([room.bank?.runId])); // the run id on the rejoin
+    w.players.get(bId)!.wavesIn = 9; // plays on: not paid again
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]).toMatchObject({ status: "saved", ending: "quit", leftWave: 1, total: 60 }); // "Banked when you left (wave 1)"
+    expect(await rewardRows(b)).toBe(1);
+    expect(await supplies(b)).toBe(60);
   });
 
   it("S3: a consented Leave without run.leave still banks at once (before the state leaves the World)", async () => {
@@ -183,7 +223,8 @@ describe("Story 7.2: banking in the room", () => {
     host.send(C2S.RUN_LEAVE, {});
     host.send(C2S.RUN_LEAVE, { supplies: 99999 });
     await new Promise((r) => setTimeout(r, 150));
-    expect(got).toEqual([]);
+    expect(got.length).toBe(0);
+    expect(got.order).toEqual([]); // no run: no run.started either
     expect(await rewardRows(a)).toBe(0);
   });
 

@@ -115,6 +115,12 @@ export const S2C = {
    * rejoin carries the same result).
    */
   RUN_REWARDS: "run.rewards",
+  /**
+   * `{ runId }` (Story 7.2 re-review RR-L1, B18 amended): the run's id, to everyone at Start and to a seat that
+   * attaches during the run or on its Results (before any `run.rewards` on that socket). The phone accepts
+   * `run.rewards` only for this run id.
+   */
+  RUN_STARTED: "run.started",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -478,6 +484,9 @@ export const runRewardsSchema = z
   })
   .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
 export type RunRewards = z.infer<typeof runRewardsSchema>;
+/** Story 7.2 (RR-L1): `run.started`. */
+export const runStartedSchema = z.object({ runId: z.string().uuid() }).passthrough();
+export type RunStarted = z.infer<typeof runStartedSchema>;
 
 /** `net.pinged` (Story 2.4): sent to each client every second during a run. `rttMs` is the server's EWMA so far. */
 export interface NetPinged {

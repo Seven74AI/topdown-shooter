@@ -24,6 +24,7 @@ function memory(): KeyValueStore & { map: Map<string, string> } {
 describe("Story 7.2: rewardsStore", () => {
   it("keeps the latest valid message, tells listeners, and matches it to a run by seed (either arrival order)", () => {
     const s = new RewardsStore(() => null);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     const seen: (RunRewards | null)[] = [];
     s.subscribe((m) => seen.push(m));
     expect(s.forSeed(7)).toBeNull(); // Results first: "Saving…"
@@ -35,28 +36,35 @@ describe("Story 7.2: rewardsStore", () => {
 
   it("review L3 (B11): a message with fields from a later story is accepted and they are kept (forward compatible)", () => {
     const s = new RewardsStore(() => null);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     const r = s.receive({ ...msg(), items: [{ id: "riot", milestone: "M2" }], unlock: { weapon: "grenade_launcher", price: 500 } });
     expect(r).not.toBeNull();
     expect((r as unknown as { items: unknown[] }).items.length).toBe(1);
   });
 
-  it("review L5: a new run forgets the previous run's rewards (Saving… again) and ignores its late message, even with the same seed", () => {
+  it("re-review RR-L1 (B18 amended): only the current run's rewards are accepted — a late message of the previous run is ignored even with the same seed", () => {
     const s = new RewardsStore(() => null);
     const seen: (RunRewards | null)[] = [];
     s.subscribe((m) => seen.push(m));
-    s.receive(msg());
-    s.startRun();
+    expect(s.receive(msg())).toBeNull(); // before run.started: not accepted
+    s.setRun({ runId: msg().runId });
+    expect(s.receive(msg())?.total).toBe(40);
+    const run2 = "1f1e2d3c-4b5a-4968-8776-655443322111";
+    s.setRun({ runId: run2 }); // run 2 starts: run 1's rewards are forgotten
     expect(s.forSeed(7)).toBeNull();
     expect(seen.at(-1)).toBeNull();
-    expect(s.receive(msg())).toBeNull(); // the old run's message arriving late (dev fixed seed: same seed)
+    expect(s.receive(msg())).toBeNull(); // run 1's message arriving LATE during run 2 (dev fixed seed: same seed)
     expect(s.forSeed(7)).toBeNull();
-    const next = msg({ runId: "1f1e2d3c-4b5a-4968-8776-655443322111" });
-    expect(s.receive(next)?.runId).toBe(next.runId);
-    expect(s.forSeed(7)?.runId).toBe(next.runId);
+    expect(s.receive(msg({ runId: run2 }))?.runId).toBe(run2);
+    s.setRun({ runId: run2 }); // the same run again (a rejoin): its rewards stay
+    expect(s.forSeed(7)?.runId).toBe(run2);
+    s.setRun({ runId: "not-a-uuid" }); // garbage: ignored
+    expect(s.forSeed(7)?.runId).toBe(run2);
   });
 
   it("ignores garbage (a hand-made message with a bad shape or a negative amount)", () => {
     const s = new RewardsStore(() => null);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     expect(s.receive({ total: 999999 })).toBeNull();
     expect(s.receive({ ...msg(), total: -5 })).toBeNull();
     expect(s.get()).toBeNull();
@@ -65,6 +73,7 @@ describe("Story 7.2: rewardsStore", () => {
   it("D4: a Leave's saved bank becomes the start screen's line once, then is gone", () => {
     const store = memory();
     const s = new RewardsStore(() => store);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     s.receive(msg({ total: 1240 }), true);
     expect(store.map.has(LAST_BANK_KEY)).toBe(true);
     expect(s.takeLeaveLine()).toBe("+1,240 Supplies banked from your last run");
@@ -74,6 +83,7 @@ describe("Story 7.2: rewardsStore", () => {
   it("D4: nothing to show for a failed / unsaved / empty bank, or an ordinary run end (not a Leave)", () => {
     const store = memory();
     const s = new RewardsStore(() => store);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     s.receive(msg({ status: "failed", total: 0 }), true);
     s.receive(msg({ status: "not_saved", total: 0 }), true);
     s.receive(msg({ total: 0 }), true);
@@ -92,6 +102,7 @@ describe("Story 7.2: rewardsStore", () => {
       removeItem: () => {},
     };
     const s = new RewardsStore(() => bad);
+    s.setRun({ runId: msg().runId }); // run.started (RR-L1)
     expect(() => s.receive(msg(), true)).not.toThrow();
     expect(s.takeLeaveLine()).toBeNull();
   });

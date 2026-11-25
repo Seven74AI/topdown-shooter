@@ -13,7 +13,6 @@ export const VOTE_SEEN_SLACK_MS = 500;
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
 import { activeRun } from "./activeRun";
-import { rewardsStore } from "./rewardsStore";
 
 /** What the phase handler needs (main.ts passes the real stores; tests pass fakes). */
 export interface OnlineFlowDeps {
@@ -103,7 +102,6 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
     if (phase === "build" || phase === "wave" || phase === "vote") {
       if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
-      rewardsStore.startRun(); // Story 7.2 review L5: the previous run's rewards never show on this run's Results
       session = deps.makeSession();
       activeRun.set(session);
       if (session) deps.ui.request("startOnline", session);
