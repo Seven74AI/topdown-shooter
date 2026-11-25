@@ -255,6 +255,7 @@ Early part only (no full gate yet, per dispatch), on `story-7-12` from master f6
 ### Change Log
 
 - 2026-11-25: early part T0–T4 built (stream, plan, bag in the World, network record + events, client view, badge, line, sounds, art); T5 held.
+- 2026-11-25: review round 1 fixed (M1–M6, L1–L9); 7.6 merged (migration → 0004, payee, MERGE_RULES); full gate green on 72fd4da.
 - 2026-11-25: scope change — the merged story 7.7 + 7.11 + 7.12; built after 7.2 / 7.9 / 7.3 landed: milestone counters, migration 0003, meta writes in 7.2's bank, loot item + Collector, districts (data, lobby pick, R3, Start), Results rows, hub line. Status → review.
 
 ## Senior Developer Review (AI)
@@ -376,6 +377,6 @@ Each was fixed minimally, with a test; each new test was mutated once (the old c
 
 Real PostgreSQL 16 (a throwaway local cluster): `apps/server/src/db` + `apps/server/src/meta` with `TEST_DATABASE_URL`, plus the review's `realPgMeta` probe: 14 files, 85 tests, all pass, none skipped.
 
-GATE_LINE_PLACEHOLDER
+**Full gate after the review fixes, commit 72fd4da on `story-7-12` merged with master c00713d (7.6 landed; migration regenerated as 0004): typecheck ✔, lint ✔, test ✔ — 512 files passed, 4 skipped; 4,603 tests passed, 31 skipped — build ✔. Load ≈ 2.9 (4 cores).** A first run on cd23bfc failed 7 tests in 3 files: the district room tests needed 7.6's `checkTicketRows: false` (B21), the 7.1 AC 9 source check forbade the M3 reload's `.then(` (now an async `reloadProgress`), and `metaWiring` still expected the pre-M3 delete. All fixed in 72fd4da. Real PostgreSQL 16 after the 7.6 merge: `apps/server/src/db` + `meta` + `auth`, 23 files, 197 tests, all pass, none skipped.
 
 For the narrow re-review: M1 (`lootBag.ts` `lootTaker`, `banking.ts` `bankRunEnd` / `teamLootOf`, `RunRoom.ts` `bankLeaver`), M2 (`milestoneRecord.ts`, `downed.ts`, `damage.ts`), M3 (`RunRoom.ts` `finalLeave` / `onLobbyReturn` / `loadMemberProgress`), and the `banking.ts` / `RunRoom.ts` merge resolutions.
