@@ -4,7 +4,7 @@ baseline_commit: 1fade848628c7738a860d491f1ca3e9ccdfb744f
 
 # Story 7.1: Progress saved on the server
 
-Status: in-progress
+Status: review
 
 <!-- Epic 7 progression story 1 of 7 (7.1–7.7). Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D1–D12 (docs/epic-7-decisions.md, docs/ideas/epic-7/proposal.md § 0) are rules here, not questions. New decisions: "Decisions to confirm" below and docs/epic-7-story-decisions-progress.md. Order of work: Epic 6 (landing) → Network pass (8.8, 8.9, 8.1, 8.10, 8.11) → Epic 7. -->
 
@@ -50,10 +50,10 @@ so that my progress is kept from my very first run.
 - [x] **T3 Repositories** (AC 8, 9): `accountsRepo` (`findByTokenHash`, `createGuest(tokenHash, name)`, `setDisplayName`), `progressRepo` (`get(accountId)`, `createEmpty`), the 2 s timeout wrapper, `db_error` log; a test that no file outside `src/db/` imports `drizzle-orm` or `db/schema`.
 - [x] **T4 progression.json** (AC 3): file, zod schema, `progression.ts` export (`PROGRESSION`, `starterPool`), id-exists test. Not part of `balanceVersion` until a story puts a gameplay number in it (7.5 does: see its notes).
 - [x] **T5 Account HTTP API** (AC 4, 5, 10): `auth/guestSession.ts` (cookie/token resolution, D3), `auth/ticket.ts` (sign/verify, constant-time compare), route `POST /account/session` in `app.ts` (verify `createEndpoint`'s cookie and header API in `node_modules/@colyseus/core` / better-call before writing it), the new-guest limiter (reset in `test/bootTestServer.ts:21-29`), Origin check.
-- [ ] **T6 Room** _(HELD: early start, waits for 8.1 on master, brief 29)_ (AC 5, 6, 7): `joinOptionsSchema.ticket`; `checkAuth` → `accountId`; `Member.accountId` + identity key; `already_joined` by key; display name save in `onJoin`; logs `join_account {accountId|null}` (never the token).
-- [ ] **T7 Client** _(HELD: early start, waits for 8.1 on master)_ (AC 4, 5, 7; P2, P3): `apps/client/src/net/account.ts` (`fetch("/api/account/session", { method: "POST", credentials: "same-origin" })`, 3 s timeout, try/catch; on failure join without a ticket), `guestToken.ts` keeps its key and format and writes back the server's `deviceToken`; `connection.ts options()` (`connection.ts:39-48`) adds `ticket`; `StartScreen` name prefill. Base URL: same as `serverUrl()` (`connection.ts:27`).
+- [x] **T6 Room** (AC 5, 6, 7): `joinOptionsSchema.ticket`; `checkAuth` → `accountId`; `Member.accountId` + identity key; `already_joined` by key; display name save in `onJoin`; logs `join_account {accountId|null}` (never the token).
+- [x] **T7 Client** (AC 4, 5, 7; P2, P3): `apps/client/src/net/account.ts` (`fetch("/api/account/session", { method: "POST", credentials: "same-origin" })`, 3 s timeout, try/catch; on failure join without a ticket), `guestToken.ts` keeps its key and format and writes back the server's `deviceToken`; `connection.ts options()` (`connection.ts:39-48`) adds `ticket`; `StartScreen` name prefill. Base URL: same as `serverUrl()` (`connection.ts:27`).
 - [x] **T8 Deploy + backups** (AC 1, 11): compose service, `deploy.sh` (password + secret generation, migrate step), `backup.sh`, `restore.sh`, `docs/deploy.md` section, `docs/hermes-go-live.md` "Every later release" gains "first Epic 7 deploy" steps.
-- [ ] **T9 Tests** (below) + full gate + hand-back.
+- [x] **T9 Tests** (below) + full gate + hand-back.
 
 ## Dev Notes
 
@@ -157,7 +157,9 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - **T8:** compose `postgres` service (B4) + `pgdata` volume, server `DATABASE_URL`/`SESSION_SECRET`/`depends_on` healthy; `deploy.sh` (`ensure_secret`, `env_set` keeps other `.env` lines, migrate in a one-off container before `up -d`, skipped for pre-7.1 shas), `backup.sh` (B5), `restore.sh` (scratch database + row counts), `docs/deploy.md` › Database, `docs/hermes-go-live.md` › First Epic 7 deploy; `.gitignore` / `.dockerignore` gain `.data` and `deploy/backup.env`.
 - Manual (dev, port 2711): server starts with PGlite in a directory; `POST /account/session` → 200, cookie and ticket; restart → the cookie resolves to the same account id; production without `DATABASE_URL` / `SESSION_SECRET` → fatal log line, exit 1; `npm run db:migrate` twice → no-op.
 - Mutations (brief 6), each made a test fail: no cookie read (4 failed), accept expired tickets (1), no new-guest limit (1), localStorage wins over the cookie (1), no progress row (3), 5 s timeout (1), no Origin check (1), cookie not HttpOnly (1).
-- Build-time choices 7.1 B1–B7: `docs/epic-7-decisions.md` › Story 7.1 build-time choices (auto-accepted overnight (designer: follow the GDS recommendation)).
+- **T6:** ticket verified in the static `checkAuth` (pure HMAC via `auth/roomAccounts.ts`, B9); `Member`/`RememberedSeat.accountId`; `seatKey` acct:/guest:, seat matches by `sameSeat` (B8); display name saved async in `onJoin`; `join_account {accountId}` log.
+- **T7:** `net/account.ts` (3 s timeout, never throws, writes back `deviceToken`), `guestTokenStore` with `set`, `net/serverUrl.ts`, ticket in every join path (`createGame`, `joinGame`, `rejoinGame`), StartScreen prefill on start-up.
+- Build-time choices 7.1 B1–B9: `docs/epic-7-decisions.md` › Story 7.1 build-time choices (auto-accepted overnight (designer: follow the GDS recommendation)).
 
 ### Test evidence per task (brief R1: file > test name)
 
@@ -166,11 +168,35 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - **T3:** `apps/server/src/db/db.test.ts` > "createGuest makes an account and an empty progress row; find and setDisplayName round-trip"; > "two createGuest calls for one token at once give one account"; > "progress.createEmpty is idempotent …"; > "P5: a second database opened on the same PGlite directory finds the same account"; > "a call that never answers fails after the timeout with db_error {op}"; > "the default timeout is 2 s"; > "a failing database (unreachable Postgres) rejects as DbUnavailableError"; > "production without DATABASE_URL refuses; dev falls back to PGlite"; `apps/server/src/db/noDbImports.test.ts` > "no file outside src/db imports drizzle-orm, pg, PGlite or db/schema".
 - **T4:** `packages/shared/src/config/progression.test.ts` > "starts with exactly the 13 FR79 starter ids"; > "every starter id exists in weapons / gear / buildings / consumables"; > "refuses duplicates, bad ids, extra keys and an empty pool"; > "is frozen".
 - **T5:** `apps/server/src/auth/ticket.test.ts` > "a fresh ticket verifies to its account until it expires (10 min)"; > "refuses another secret's ticket"; > "refuses a hand-made ticket …"; > "refuses garbage …"; > "refuses a correctly signed payload that is not <uuid>.<ms>". `apps/server/src/auth/accountRoutes.test.ts` > "P1: a new device gets a guest account and an empty progress row with no form"; > "keeps a valid presented token that has no account yet"; > "P2: localStorage cleared (cookie only) and cookie gone (token only) …"; > "P2 / D3: cookie and localStorage disagree → the cookie wins …"; > "P4: never logs the token, its hash or the ticket"; > "limits: the 21th new guest from one IP …"; > "refuses a body over 2 KB (413), a malformed or oversized token or extra fields (400)"; > "refuses a foreign or missing Origin with 403 …"; > "P3 … answers 200 saved:false with no ticket …"; > "P5 … two test servers one after the other on one PGlite directory …". `apps/server/src/auth/guestSession.test.ts` > "a database that times out gives saved:false …"; > "a failing createGuest … is unsaved too …"; > "ignores malformed cookie values …"; > "mints distinct 32-hex tokens".
+- **T6:** `apps/server/src/rooms/RunRoom.account.test.ts` > "a valid ticket sets Member.accountId and the acct: identity key"; > "no ticket: accountId null and today's guest: key"; > "P4: a forged, expired or other-secret ticket is accepted as a join but names no account"; > "an accountId (or an over-long ticket) in the join options is refused as invalid_options"; > "logs join_account with the account id, never the ticket or the token"; > "lobby: a second join of the same account (another guest token) is already_joined"; > "lobby: the same guest token with and without a ticket is one seat …"; > "two different accounts in one lobby both get seats"; > "started run: the same account from another device … takes the seat over (8.1 D5)"; > "started run: a copied guest token (7.1 D5 …) behaves exactly the same"; > "started run: a seat that joined unsaved takes the account of a later valid ticket …"; > "started run: another account (new token) is still run_started"; > "saves the name used at a successful join (async, best effort)"; > "P3: with the database down a ticketed join is still accepted …"; > "onTick has no await and the room reaches the database only through roomAccountsRepo in saveDisplayName". 8.1's `RunRoom.reconnect.test.ts` unchanged and green.
+- **T7:** `apps/client/src/net/account.test.ts` > "posts the localStorage token same-origin to /api/account/session and writes the server's token back (P2)"; > "sessionTicket: the ticket when saved, undefined when the server says not saved (P3)"; > "a timeout (3 s), a network error, a 5xx and a malformed reply all give null and keep the token"; > "storage throwing: the server's token lives in memory for this page"; > "prefillName: …". `apps/client/src/net/connection.account.test.ts` > "createGame, joinGame and rejoinGame each send the ticket fetched just before"; > "no ticket (save server down): the join goes ahead without the field (P3)". `apps/client/src/net/guestToken.test.ts` > "set stores a valid token, ignores a malformed one, and falls back to memory when storage throws". Wiring (R2): `tools/checks/accountWiring.test.ts` > "the start screen asks for the account on start-up and prefills the name through prefillName (AC 7)"; > "account.ts posts to serverUrl() + /account/session"; > "every join path in connection.ts fetches the ticket right before joining".
+- **T9:** full gate below; mutations: T6 5/5 caught (seatKey guest-only 3 failed, sameSeat key-only 2, no ticket verify 8, no name save 1, takeover keeps null 1), T7 4/4 (no prefill 1, no ticket 1, no write-back 3, no timeout 1). Browser (Chromium, server 2711 + Vite 5711, dev PGlite): first visit empty name; Create "Kai" → `join_account {accountId: <uuid>}`; cookie `tdg` HttpOnly Path=/api equals the localStorage token, `document.cookie` can't see it; localStorage wiped → reload → name "Kai" prefilled, same token written back; cookie wiped → reload → name "Kai", cookie rewritten to the same token; no 32-hex token or ticket in the server log.
 - **T8:** no automated test (no Docker daemon here): `docker compose -f deploy/docker-compose.yml config -q` passed; `bash -n` on deploy.sh / backup.sh / restore.sh; production start without `DATABASE_URL` / `SESSION_SECRET` exits 1 (manual, port 2713). Runs on the VPS: Hermes.
 
 ### Gate (brief R6)
 
-- Early part (not the full gate): `npm run typecheck` ✅, `npm run lint` ✅ (whole repo), touched tests 132/132 ✅, load 1.17 (2026-11-25 04:16). Full gate after T6/T7.
+- Early part: typecheck ✅, lint ✅, touched tests 132/132 ✅, load 1.17 (04:16).
+- **FULL GATE ✅** `npm run typecheck && npm run lint && npm test && npm run build` on story-7-1 merged with origin/master `d8d44d0` AND origin/story-8-1 `83761d2` (8.1 not on master yet): 426 test files passed / 1 skipped, 3861 tests passed / 3 skipped, build OK; load 0.92 at start → 3.32 at end (2026-11-25 05:54–06:01).
+
+### Notes for the merge
+
+- `apps/server/src/run/lobby.ts`: `seatKey` (acct:/guest:) + new `sameSeat`; `Member.accountId`. 8.1's other lines untouched.
+- `apps/server/src/rooms/RunRoom.ts`: `RunAuth.accountId`, `RememberedSeat.accountId`, `checkAuth` ticket, `onJoin` → `saveDisplayName`, `join()` seat matches via `sameSeat`, `takeOver` / `restoreRemembered` carry `accountId`. 7.2–7.7 read `Member.accountId` (null = unsaved).
+- `apps/server/src/app.ts`: `database` / `sessionSecret` options, `setRoomAccounts`, `createRouter({ health, accountSession })`, `onShutdown` db close — next to 8.1's ping lines.
+- `apps/server/src/net/limits.ts`: 7.1 constants appended AFTER 8.1's (merge conflict resolved here, both kept).
+- `packages/shared/src/net/messages.ts` `joinOptionsSchema`: `ticket` added after `devRunSeed` (7.9 look code, 8.10 version check: additive).
+- `packages/shared/src/index.ts`: two export blocks (progression after cosmetics, account after messages).
+- `apps/client/src/net/connection.ts`: `serverUrl` moved to `net/serverUrl.ts` (re-exported); `options(intent, name, ticket?)`; every join path awaits `sessionTicket()`.
+- `apps/client/src/ui/StartScreen.tsx`: one start-up effect (7.3 Progress button, 7.6 account row go elsewhere in the file).
+- `deploy/*`, `docs/deploy.md`, `docs/hermes-go-live.md`: this story only. Balance version: unchanged (progression.json is not in it).
+- `tools/bots/botClient.ts`: no ticket (bots play unsaved, as intended).
+
+### Not verified
+
+- No Docker daemon here: the compose `postgres` service, `deploy.sh`'s migrate step, `backup.sh`, `restore.sh` never ran (compose checked with `docker compose config -q`, scripts with `bash -n`). PostgreSQL itself never ran: all DB tests use PGlite (same SQL dialect; the `pg` driver path is tested only for "unreachable → DbUnavailableError").
+- VPS: first Epic 7 deploy, R2 bucket + rclone, cron, restore test — Hermes (`docs/hermes-go-live.md` › First Epic 7 deploy).
+- Real phones / iOS Safari (the 7-day storage wipe, Secure cookie on the real domain): only Chromium on localhost.
+- Gated with 8.1 from its branch (`83761d2`), not from master: merge master again once 8.1's review fixes land.
 
 ### File List
 
@@ -178,6 +204,8 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - `apps/server/package.json`, `apps/server/drizzle.config.ts`, `apps/server/drizzle/0000_init.sql`, `apps/server/drizzle/meta/_journal.json`, `apps/server/drizzle/meta/0000_snapshot.json`
 - `apps/server/src/db/{schema,client,migrate,migrateCli,paths,timeout,accountsRepo,progressRepo}.ts`, `apps/server/src/db/{db,noDbImports}.test.ts`
 - `apps/server/src/auth/{ticket,guestSession,accountRoutes}.ts`, `apps/server/src/auth/{ticket,guestSession,accountRoutes}.test.ts`
+- `apps/server/src/auth/roomAccounts.ts`, `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/RunRoom.account.test.ts`, `apps/server/src/run/lobby.ts`, `packages/shared/src/net/messages.ts`
+- `apps/client/src/net/{account,serverUrl}.ts`, `apps/client/src/net/{account,connection.account}.test.ts`, `apps/client/src/net/{connection,guestToken}.ts`, `apps/client/src/net/guestToken.test.ts`, `apps/client/src/ui/StartScreen.tsx`, `tools/checks/accountWiring.test.ts`
 - `apps/server/src/app.ts`, `apps/server/src/index.ts`, `apps/server/src/net/limits.ts`, `apps/server/src/net/rateLimit.ts`, `apps/server/src/test/bootTestServer.ts`
 - `packages/shared/src/config/progression.{json,ts,test.ts}`, `packages/shared/src/net/account.ts`, `packages/shared/src/index.ts`
 - `deploy/docker-compose.yml`, `deploy/deploy.sh`, `deploy/backup.sh`, `deploy/restore.sh`
@@ -188,3 +216,4 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: early part (T1–T5, T8) built on `story-7-1`; T6, T7, T9 held until 8.1 is on master.
+- 2026-11-25: merged origin/story-8-1; T6 (room), T7 (client), T9 done; full gate green; status review.
