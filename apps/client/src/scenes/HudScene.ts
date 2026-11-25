@@ -1180,7 +1180,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined && !m.voting; // Story 6.11: hidden in the vote
+    const show = m.consumableVisible && frame !== undefined && !m.voting && !m.watching; // Story 6.11: hidden in the vote; 8.2: and while waiting
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;
@@ -1762,6 +1762,12 @@ export class HudScene extends Phaser.Scene {
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
     const { hp, maxHp, burning, inAcid, gearMask } = this.model;
+    // Story 8.2 (AC 4, B11): a waiting late joiner has no survivor yet: no HP row (it would read "0 / 0").
+    const watching = this.model.watching;
+    if (this.hpBar.visible === watching) {
+      this.hpBar.setVisible(!watching);
+      this.hpText.setVisible(!watching);
+    }
     if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid && gearMask === this.shownGearMask) return;
     this.shownGearMask = gearMask;
     this.shownHp = hp;
@@ -1809,6 +1815,7 @@ export class HudScene extends Phaser.Scene {
   private drawMoney(): void {
     const m = this.model;
     const k = dpr();
+    if (this.moneyText.text !== "" && this.moneyText.visible === m.watching) this.moneyText.setVisible(!m.watching); // Story 8.2: no "$0" while waiting
     if (m.money !== this.shownMoney) {
       this.shownMoney = m.money;
       const safe = this.insets;
@@ -1845,7 +1852,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   override update(): void {
-    const touch = !this.router.isMouse && !this.model.voting; // mouse mode hides the sticks; Story 6.11: so does the vote
+    const touch = !this.router.isMouse && !this.model.voting && !this.model.watching; // mouse mode hides the sticks; Story 6.11: so does the vote; 8.2: and waiting
     this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
@@ -2104,7 +2111,7 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3); Story 5.21: under the action bar.
-    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting; // Story 6.11: under the vote's buttons too
+    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting || m.watching; // Story 6.11: under the vote's buttons too; 8.2: a waiting joiner has no weapon yet
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;
@@ -2117,7 +2124,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting && !m.watching; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

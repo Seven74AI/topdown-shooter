@@ -49,6 +49,12 @@ describe("lobby layout (Story 7.9 T6, R9)", () => {
           expect(inside(c.bar, c.card)).toBe(true);
           expect(inside(c.name, c.card)).toBe(true);
           expect(overlap(c.picture, c.name)).toBe(false);
+          // Story 8.3 (H2): the host's Remove button on another player's card: ≥ 44 px, inside the card, clear of the name block and the bar
+          expect(inside(c.remove, c.card)).toBe(true);
+          expect(c.remove.w).toBeGreaterThanOrEqual(MIN_LOBBY_BUTTON);
+          expect(c.remove.h).toBeGreaterThanOrEqual(MIN_LOBBY_BUTTON);
+          expect(overlap(c.remove, c.name)).toBe(false);
+          expect(overlap(c.remove, c.bar)).toBe(false);
           // D3: about 3× game size — at least 2.5 × the game's 28 px survivor body (r = 14 px)
           expect(c.picture.w).toBeGreaterThanOrEqual(70);
           expect(c.picture.w).toBe(c.picture.h);

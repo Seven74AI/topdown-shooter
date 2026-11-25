@@ -71,3 +71,23 @@ describe("lobbyStore.attach: why the room was lost (Story 2.2)", () => {
     expect(onLost).not.toHaveBeenCalled();
   });
 });
+
+describe("lobbyStore.attach: removed by the host (Story 8.3 AC 12)", () => {
+  it("a 4022 close is `removed`, never a reconnect or connection_lost", () => {
+    const f = fakeRoom();
+    const onLost = vi.fn();
+    lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
+    f.close(4022);
+    expect(onLost).toHaveBeenCalledExactlyOnceWith("removed");
+    expect(lobbyStore.current()).toBeNull();
+  });
+
+  it("player.removed first: whatever close code follows, it is `removed`", () => {
+    const f = fakeRoom();
+    const onLost = vi.fn();
+    lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
+    f.message(S2C.PLAYER_REMOVED, {});
+    f.close(1006);
+    expect(onLost).toHaveBeenCalledExactlyOnceWith("removed");
+  });
+});

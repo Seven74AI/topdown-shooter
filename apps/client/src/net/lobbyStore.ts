@@ -2,6 +2,7 @@ import {
   districtName,
   BYTES,
   C2S,
+  CLOSE_REMOVED,
   CLOSE_TAKEN_OVER,
   MAX_PLAYERS,
   RECONNECT,
@@ -40,6 +41,10 @@ export interface LobbyPlayer {
   readonly ready: boolean;
   /** Story 7.9: the look code from the room state (the lobby card's survivor picture). */
   readonly look: string;
+  /** Story 8.2 (J4): a late joiner watching the wave (not in the World yet). Absent = false. */
+  readonly waiting?: boolean;
+  /** Story 8.1/8.3: the seat is held (reconnecting). Absent = false. */
+  readonly held?: boolean;
 }
 
 /** Plain data for the lobby screen (never schema instances in Preact state). */
@@ -56,16 +61,38 @@ export interface LobbySnapshot {
   /** Story 7.7 R3: the last "back to Downtown" notice (its district's name; "" none) and a counter that changes with each. */
   readonly districtReset: string;
   readonly districtResetSeq: number;
+  /** Story 8.3 (AC 11): the run's remembered seats (left, or a hold ran out): the host's Players list can remove them. */
+  readonly left: readonly LeftSeat[];
 }
 
-const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0 };
+/** Story 8.3: a remembered seat from `state.leftSeats`. */
+export interface LeftSeat {
+  readonly playerId: string;
+  readonly name: string;
+}
+
+/** Story 8.3: `state.leftSeats` (JSON `[[playerId, name], …]`, "" none) → the list; anything malformed → none. */
+export function parseLeftSeats(json: string | undefined): readonly LeftSeat[] {
+  if (!json) return [];
+  try {
+    const raw: unknown = JSON.parse(json);
+    if (!Array.isArray(raw)) return [];
+    const out: LeftSeat[] = [];
+    for (const e of raw) if (Array.isArray(e) && typeof e[0] === "string" && typeof e[1] === "string" && /^p[0-3]$/.test(e[0])) out.push({ playerId: e[0], name: e[1] });
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: [] };
 
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
-  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look }));
+  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look, waiting: p.waiting === true, held: (p.heldUntilTick ?? 0) > 0 }));
   players.sort((a, b) => a.slot - b.slot);
-  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0 };
+  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0, left: parseLeftSeats(state.leftSeats) };
 }
 
 /** Text under the host's Start button (AC 4). */
@@ -246,12 +273,12 @@ class LobbyStore {
           inRun: () => inRunPhase(room.state?.phase),
           rejoin,
           onRecovered: (r) => onRecovered?.(r),
-          onGone: () => {
+          onGone: (removed) => {
             if (this.room !== room) return;
             this.detach();
             this.set(EMPTY);
             seatStore.clear();
-            onLost("connection_lost");
+            onLost(removed === true ? "removed" : "connection_lost"); // Story 8.3 review M3: a held seat the host removed
           },
           leaveForGood: (late) => void late.leave(true),
           onStatus: (status, sinceMs) => {
@@ -273,6 +300,11 @@ class LobbyStore {
     // Story 2.2: a stop or redeploy announces itself before the room closes.
     let shuttingDown = false;
     let shutdownText: string | undefined;
+    // Story 8.3 (H3): the host removed me; the server closes with 4022 right after. Terminal either way.
+    let removed = false;
+    room.onMessage(S2C.PLAYER_REMOVED, () => {
+      removed = true;
+    });
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, (m: { message?: unknown }) => {
       shuttingDown = true;
       // The server says why ("Server restarting", or a room error): show its words.
@@ -282,6 +314,13 @@ class LobbyStore {
     schedule();
     room.onLeave((code) => {
       if (this.room !== room) return; // we left on purpose
+      // Story 8.3 (AC 12): removed by the host: never a reconnect or a takeover (4022 is terminal, never like 4000).
+      if (removed || code === CLOSE_REMOVED) {
+        this.detach();
+        this.set(EMPTY);
+        seatStore.clear();
+        return onLost("removed");
+      }
       // Story 8.1 (brief 21): mid-run, an end that isn't a Leave or a shutdown is a drop the SDK
       // couldn't repair (it gave up, or the token was refused): take the seat over by guest token.
       const link = this.link;
@@ -317,6 +356,11 @@ class LobbyStore {
   /** Story 7.7: the host picks the run's district (the server checks host, lobby and the open rule). */
   pickDistrict(id: string): void {
     this.room?.send(C2S.LOBBY_DISTRICT, { id });
+  }
+
+  /** Story 8.3 (H2): the host removes a player (the server checks host, phase and target; a refusal is only logged). */
+  remove(playerId: string): void {
+    this.room?.send(C2S.HOST_REMOVE, { playerId });
   }
 
   /** Results (Story 2.8): Back to lobby, for the whole room (the server takes it from any member). */

@@ -373,6 +373,11 @@ export const wavesSchema = z
     zombiesPerWave: z.number().int().positive().max(65535), // the biggest wave is checked against the Uint16 counts in balance.ts crossCheck (3.10 review)
     maxAlive: z.number().int().positive(),
     lastRushCount: z.number().int().min(0),
+    /**
+     * Spitter deadlock fix A (designer 2026-11-25; review L5, decision 8.2-B15): the last rush also starts once EVERY
+     * remaining wave zombie has been a Spitter holding its spot for `holdS` (checked every `checkEveryTicks` ticks).
+     */
+    spitterStall: z.object({ holdS: z.number().min(0), checkEveryTicks: z.number().int().min(1) }).strict().default({ holdS: 8, checkEveryTicks: 10 }),
     /** Story 3.1: the build phase before wave 1 and after every wave (FR44); ends early when everyone is Ready. */
     buildPhaseS: z.number().positive(),
     /** Spawn pressure: every spawnIntervalS, up to spawnPerInterval zombies leave the queue. */
@@ -638,6 +643,18 @@ export const economySchema = z
     waveClearBonusPerWave: z.number().int().min(0),
     /** Story 3.6: a building's kill pays its owner this share of the kill reward, rounded down. */
     buildingKillShare: z.number().min(0).max(1),
+    /**
+     * Story 8.2 (FR72, Epic 8 D6/D7, decisions E8-J1/E8-J4): a late joiner's money and the build time a join adds.
+     * Money = max(own start money, `base` + ⌊`avgShare` × team average earned⌋); the first late join in a build
+     * phase adds `extraBuildS` seconds (whole ticks).
+     */
+    lateJoin: z
+      .object({
+        base: z.number().int().min(0),
+        avgShare: z.number().min(0).max(1),
+        extraBuildS: z.number().min(0).max(120),
+      })
+      .strict(),
   })
   .strict();
 

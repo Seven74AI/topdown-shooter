@@ -228,6 +228,10 @@ export class BotClient {
     m.status = p.status;
   };
 
+  /** Story 8.2: this bot joined mid-wave and waited (`PlayerState.waiting`), then entered at a build phase. */
+  waited = false;
+  entered = false;
+
   /** Story 8.1: the room I play in (a takeover replaces it). */
   room: Room<unknown, RunStateView>;
   /** Story 8.1: the link status; inputs are sent only while "ok" (F7). */
@@ -464,6 +468,16 @@ export class BotClient {
     if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);
     if (!me) return;
+    // Story 8.2 (J4): a late joiner waiting for the next build phase watches: no input, no shop, no Ready.
+    if (me.waiting === true) {
+      if (!this.waited) this.log({ msg: "bot_waiting", bot: this.name, playerId: this.playerId, phase: state.phase, wave: state.wave });
+      this.waited = true;
+      return;
+    }
+    if (this.waited && !this.entered) {
+      this.entered = true;
+      this.log({ msg: "bot_entered", bot: this.name, playerId: this.playerId, wave: state.wave, wallet: me.wallet });
+    }
     // Story 3.10: shop first (one action per step, waiting for each answer), then Ready.
     if (state.phase === "build" && !this.shopDone) this.shopStep(state, me);
     // Once per build, retried after ~1 s if the server still hasn't got it (3.1 review: it shares

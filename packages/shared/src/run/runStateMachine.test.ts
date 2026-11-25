@@ -13,7 +13,7 @@ import { endRun, endWave, setBuildReady, skipWave, startBuild, startWave } from 
 
 const balance = loadBalance();
 /** Story 6.11/6.12: the run fields the 3.x tests don't look at. */
-const R = { voteTicksLeft: 0, endless: false, endlessEvent: "", lastEndlessEvent: "" };
+const R = { voteTicksLeft: 0, endless: false, endlessEvent: "", lastEndlessEvent: "", joinExtendedBuild: false, joinPending: false }; // Story 8.2: + joinExtendedBuild, joinPending
 const BUILD_TICKS = ticksFor(balance.waves.buildPhaseS);
 
 /** Zombies frozen (kills by hand), players can't be hurt unless a test says so. */
@@ -295,7 +295,7 @@ describe("determinism (NFR10)", () => {
       setBuildReady(world, "p1", true);
       run(world, 1);
       const mid = snapshotWorld(world);
-      expect(mid.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS - 21, ending: "none", ...R });
+      expect(mid.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS - 21, ending: "none", ...R, joinExtendedBuild: undefined, joinPending: undefined }); // Story 8.2: the snapshot leaves the flags out while false
       expect(mid.players.find(([id]) => id === "p1")?.[1].buildReady).toBe(true);
       run(world, BUILD_TICKS);
       clearWave(world);
