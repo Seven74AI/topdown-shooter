@@ -326,3 +326,56 @@ Changed: see "Notes for the merge".
 | fog wiring drops the acid view | fogWiring.test (client) | caught |
 | GameScene's per-frame `wireFog` removed | tools/checks/fogWiring.test | caught |
 | crate's fresh slot with 0 ammo | localFire.test | caught |
+
+## Re-review (AI)
+
+**Reviewer:** fresh-agent re-reviewer, 2026-11-25. **Reviewed commit:** `90269c0` (review fixes `56e2a06` after review `51e1323`; 6.8's own code from `185496d` and master docs `58ab0b7` ignored). **Ran:** `npm run typecheck` (clean); probe tests (deleted) and the targeted suites under mutation: `supplyDrop`, `survivor`, `gasLeak`, `powerFailure`, `tenWaveSim`, `eventPickups`, `hudLayout`. Full gate not run.
+
+**Outcome:** M1, L1–L5, L7, L8, L10 hold. L11 has one rule break and two small issues. **0 high, 1 medium, 3 low** (+1 note).
+
+| # | Sev | Where | Scenario | Fix |
+|---|---|---|---|---|
+| RR1 | Medium | `render/eventArrowPair.ts:27` → `render/eventArrow.ts:120-122` | At 568 × 320, the NPC arrow's drawn rect (now an obstacle) can leave no clear ray within 30°. The flag arrow then drops to the "nearest clear ray anywhere" fallback, which the code comments say happens "never on a phone layout". Sweep: NPC fixed every 15°, flag ±60° around it in 0.01° steps, state kept. **15,224 of 289,218 frames are more than 30° off, up to 43°.** Example: NPC at 225°, flag at 240.78° → 30.3°. At 640 × 360 the max is 30.0° and at 844 × 390 it is 5.8°. The L11 pair test checks overlap, the safe area, the HUD and the 48 px rule, but not the 6.8 RR1 bearing cap. | Where no ray within 30° clears the first arrow, put the flag arrow next to the NPC arrow along the edge (or stack the two). Add a bearing-error ≤ 30° check to the L11 pair test. |
+| RR2 | Low | `render/eventArrowPair.ts` (first rect as a plain obstacle, no hysteresis) | Same sweep, then oscillate ±0.01° around each jump of more than 12 px for 40 frames. Sites that flip the arrow every frame (pair / flag alone): **568 × 320 19 / 0**, 640 × 360 26 / 16, 844 × 390 34 / 16. The solo sites are 6.8's own on-ray steps. The extra ones come from the NPC rect. | Hysteresis against the first rect: keep last frame's side of it while the flag ray stays within the rect plus a margin. Add a ±0.01° oscillation case to the pair test. |
+| RR3 | Low | `render/eventArrowPair.ts:25-26` (`avoidBoth.length = 0` then `push`) | Setting `length = 0` makes V8 drop the array's backing store, so every frame allocates a new one (brief 10). Node micro-check of the same pattern: 2,950 scavenges per 2e7 calls, against 0 with indexed writes. | A fixed 6-slot array with indexed writes and a count. Or give `placeEventArrow` an optional extra rect. |
+| RR4 | Low | `combat/firing.ts:366-372` (the boss is hit before `onSpecialShot` returns the tank's `t`) | L5 is only partly fixed: the bullet still hurts things past the tank within the same 3 m step. A Behemoth 3.5 m east of the tank, pierce 5 round: **156 damage = 6 bullet + 150 gas**. Zombies past the tank in that step die to the blast anyway, so only the boss is affected. | Take the armed tank's `t` as a blocker during the gather (with `blockT`), before zombie and boss hits are applied. |
+| N1 | Note | `render/eventMarkers.ts:287` `CRATE_CANCEL_UNTIL` 0.75 | Worst case at lag 150 ± 20 for a step-off made at a shown 14/20: patch 50 ms + down 85 ms + frame 16 ms + up 85 ms + tick 50 ms ≈ 286 ms ≈ 5.7 ticks, against 6 ticks of headroom. So the prompt is true at the dev throttle's 150 ± 20, but only about 15 ms of margin is left. At about 200 ms RTT it promises a cancel the server won't honour. | Accept (server truth; the warning stays), or derive the cut-off from the measured RTT. |
+
+### Exploit attempts → result
+
+- **M1 (crate claim):**
+  - Step off, then back on during the flare: the arrival time resets and the other player takes it. Holds.
+  - Downed for one tick during the flare: the time resets. Holds.
+  - Two players arriving on the same tick: slot order. Holds.
+  - On the spot from the first flare tick: keeps first place. Holds.
+  - Waits through the whole flare: claim ticks are exactly 1 on the landing tick and the take lands at `takeS`. Holds.
+  - The holder steps off while slots 0 and 1 are on: the claim goes to the next earliest, not the lowest slot. Holds.
+  - Same-seed runs give identical `snapshotSpecial` output, with `onSince` in it. Holds.
+- **L3 (survivor in fire):**
+  - A molotov under the survivor, alone or with a car fire elsewhere: no damage. Holds.
+  - Its own clock is kept while outside a fire and resumes inside. It doesn't share a pulse with a player in the same fire. Holds.
+  - Next to a fire but not overlapping: no damage. Holds.
+  - Being led through a fire is impossible: S4 stops it at fire edges.
+- **L4 (boss damage):** grenade, mine and Bloater specs built with `createExplosionSpec` still deal `zombieDamage` to the Behemoth (−1 default). Each module keeps its own spec, so the gas spec's 150 can't leak into other blasts. The launcher uses the grenade spec. Holds.
+- **L5 (bullet stop):**
+  - The car alarm returns −1; the car is cover, so the bullet already stops at its face.
+  - Car and tank are never armed together (`else if`), so nothing counts twice.
+  - Credit uses `pool.owner`. A rewound round hits the static tank the same way.
+  - Pierce: the round stops at the tank (tested).
+  - The boss past the tank is still hit in the same step (RR4).
+- **L7 / L8 (prompt):** see N1. A teammate's claim gives no prompt; nobody's claim gives the full prompt.
+- **L11 (two arrows):** see RR1 to RR3. No overlap was found in any sweep frame.
+
+### Mutations (reverted; each caught)
+
+| Mutation | Test |
+|---|---|
+| M1: claim goes to the lowest slot on the spot | supplyDrop.test |
+| L1: survivor not in the Spitters' list / B1 spit range check removed / survivor acid damage removed / `survivorWanted` radius 999 | survivor.test (1 / 1 / 1 / 2 fail) |
+| L2: power-failure guard → `true` | powerFailure.test |
+| L3: survivor fire damage removed | survivor.test |
+| L4: gas `bossDamage` → −1 | gasLeak.test |
+| L5: tank `t` ignored | gasLeak.test |
+| L7: `CRATE_CANCEL_UNTIL` 0.85 | eventPickups.test |
+| L10: per-player refunds not logged | tenWaveSim.test |
+| L11: first arrow not avoided | hudLayout.test (2 fail) |
