@@ -146,6 +146,31 @@ export interface RunStateView {
   readonly endless: boolean;
   /** Story 6.5: the Behemoth's record (one nested schema; `boss/bossState.ts` is the sim side). */
   readonly boss?: BossStateView; // absent before the first fight patch (a lobby state)
+  /**
+   * Story 6.8: the active special event (`world.special.active`), on change only: kind (255 none),
+   * phase, its start and phase ticks, the marker in cm, the stampede's lane (255 none). The mirror
+   * copies them so a late join or a woken tab draws the marker and countdown from server ticks.
+   */
+  readonly eventKind: number;
+  readonly eventPhase: number;
+  readonly eventStartTick: number;
+  readonly eventPhaseTick: number;
+  readonly eventX: number;
+  readonly eventY: number;
+  readonly eventLane: number;
+  /** Story 6.9: the supply crate — `weaponIds` index (255 none), the claimant's player slot (255 none), its ticks on it. */
+  readonly crateWeapon: number;
+  readonly crateClaimSlot: number;
+  readonly crateClaimTicks: number;
+  /** Story 6.10: the survivor NPC (cm, HP, `NPC_STATE`, look 0–2, leader slot 255 none) and its safe flag (cm). */
+  readonly npcX: number;
+  readonly npcY: number;
+  readonly npcHp: number;
+  readonly npcState: number;
+  readonly npcLook: number;
+  readonly npcLeaderSlot: number;
+  readonly safeX: number;
+  readonly safeY: number;
 }
 
 /**
@@ -261,8 +286,26 @@ export const RUN_STATE_FIELDS = {
   decayFiresOut: true,
   blackoutPct: true, // Story 6.3
   halfDark: true, // Story 6.3
+  eventKind: true, // Story 6.8
+  eventPhase: true,
+  eventStartTick: true,
+  eventPhaseTick: true,
+  eventX: true,
+  eventY: true,
+  eventLane: true,
   voteTicksLeft: true, // Story 6.11
   endless: true, // Story 6.12
+  crateWeapon: true, // Story 6.9
+  crateClaimSlot: true,
+  crateClaimTicks: true,
+  npcX: true, // Story 6.10
+  npcY: true,
+  npcHp: true,
+  npcState: true,
+  npcLook: true,
+  npcLeaderSlot: true,
+  safeX: true,
+  safeY: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

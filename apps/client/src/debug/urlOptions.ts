@@ -67,6 +67,11 @@ export interface UrlOptions {
   bossWaves: string | null;
   bossHpScale: number | null;
   /**
+   * Story 6.8 (dev builds only, solo; online the server's `DEV_EVENTS`): `?events=car_alarm@1,stampede@2`
+   * replaces the run's event schedule (world.debug, never the JSON). Raw; parsed by `parseDevEvents`.
+   */
+  events: string | null;
+  /**
    * `?seed=<uint32>` (Story 4.4, dev builds only, like `?zdmg`): the host's Create asks the server
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
    */
@@ -166,6 +171,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     shopCards: dev ? q.get("shopcards") : null, // Story 5.13: dev builds only
     bossWaves: dev ? q.get("bosswave") : null, // Story 6.5: dev builds only
     bossHpScale: dev ? parseBossHpScale(q.get("bosshp")) : null,
+    events: dev ? q.get("events") : null, // Story 6.8: dev builds only
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),

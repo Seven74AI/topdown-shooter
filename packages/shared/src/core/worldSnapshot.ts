@@ -1,3 +1,4 @@
+import { snapshotSpecial } from "../events/eventState";
 import type { World } from "./world";
 import { snapshotShop } from "../economy/shopCards";
 import { snapshotBoss } from "../boss/bossState";
@@ -37,6 +38,10 @@ function snapshotZombies(world: World) {
       trapTicks: z.trapTicks[id], // Story 5.9
       slowPct: z.slowPct[id],
       holdTicks: z.holdTicks[id], // Story 5.14
+      lureTicks: z.lureTicks[id], // Story 6.8
+      stampedeHit: z.stampedeHit[id],
+      stampedeAnchor: z.stampedeAnchor[id],
+      stampedeTick: z.stampedeTick[id],
       knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
       knockHead: z.knockHead[id],
       // Story 5.4: flame clocks per flamer slot and the burn
@@ -236,6 +241,7 @@ export function snapshotWorld(world: World) {
     flameSlots: [...world.flameSlots],
     // Story 6.5: the Behemoth (all of it, incl. threat, attack and history; its grid/field ride in `pathing`).
     boss: snapshotBoss(world.boss),
+    special: snapshotSpecial(world.special), // Story 6.8
   };
 }
 

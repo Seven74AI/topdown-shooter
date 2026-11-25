@@ -1,3 +1,4 @@
+import { EVENT_KINDS } from "../events/eventState";
 import { describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance } from "../config/balance";
 import type { SystemFn } from "../core/systems";
@@ -120,10 +121,10 @@ describe("Story 6.12 F6: one event on even non-Behemoth endless waves, never the
     expect(pickEndlessEvent(w, [], "")).toBe("");
   });
 
-  it("the build-start hook schedules nothing until 6.8's framework lands (no candidates) and never in waves 1–10", () => {
+  it("the build-start hook schedules one fitting event for an even endless wave (Stories 6.9 / 6.10: the framework's gates) and never in waves 1–10", () => {
     const w = endlessAt(12);
     startBuild(w);
-    expect(w.run.endlessEvent).toBe("");
+    expect(EVENT_KINDS as readonly string[]).toContain(w.run.endlessEvent);
     const r = createWorld({ balance, seed: 4 });
     addPlayer(r, "p0", 24, 16);
     startBuild(r);

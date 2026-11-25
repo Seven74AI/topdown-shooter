@@ -3,6 +3,7 @@ import { MolotovView } from "../render/MolotovView";
 import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
 import {
   NEUTRAL_INPUT,
+  parseDevEvents,
   buildingAtPoint,
   type MoveRequest,
   consumableStats,
@@ -59,7 +60,7 @@ import {
   isBlackout as isBlackoutNow,
   setForcedBlackout,
 } from "@topdown/shared";
-import { dpr } from "../display";
+import { dpr, safeArea, type SafeArea } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
 import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
@@ -71,6 +72,8 @@ import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
+import { EventView } from "../render/EventView";
+import { cratePrompt, createEventCue, eventCue } from "../render/eventMarkers";
 import { BOSS_TARGET_BUZZ, bossCue, type BossCue } from "../render/bossCue";
 import { BloaterFx } from "../render/bloaterFx";
 import { BloaterView } from "../render/BloaterView";
@@ -104,6 +107,7 @@ import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
 import { ScreenFog } from "../render/fog/screenFog";
+import { wireFog, type FogTakers } from "../render/fog/fogWiring";
 import { FogView } from "../render/fog/FogView";
 import { DustView } from "../render/city/DustView";
 import { MedStationView } from "../render/MedStationView";
@@ -320,6 +324,11 @@ export class GameScene extends Phaser.Scene {
     o.mine = id === h.localPlayerId;
   };
   private bossMusic = false;
+  /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
+  private eventView: EventView | null = null;
+  /** Story 6.8 review M2: the safe-area insets the event edge arrow keeps inside (read on create and resize, never per frame). */
+  private eventInsets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
+  private readonly eventCueOut = createEventCue();
   private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
   /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
   private bossEvacShown = 0;
@@ -590,6 +599,7 @@ export class GameScene extends Phaser.Scene {
     if (!session) {
       world.debug.bossWaves = parseBossWaves(opts.bossWaves);
       world.debug.bossHpScale = opts.bossHpScale ?? 1;
+      world.debug.events = parseDevEvents(opts.events); // Story 6.8 dev (?events=car_alarm@1; dev builds, solo)
     }
     this.gameOver = false;
     this.kills = 0;
@@ -651,6 +661,8 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
+    this.eventView = new EventView(this, host.world); // Story 6.8
+    this.eventInsets = { ...safeArea() };
     this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
     this.voteReq.reset();
     this.voteSend.reset();
@@ -699,8 +711,7 @@ export class GameScene extends Phaser.Scene {
     this.screenFog = new ScreenFog();
     this.fogView = new FogView(this, this.screenFog, opts.lowFx);
     this.darknessView.fog = this.fogView;
-    if (this.zombieView) this.zombieView.fog = this.screenFog;
-    if (this.trailView) this.trailView.fog = this.screenFog; // review L5: no trail marks from fog-hidden Crawlers
+    wireFog(this.fogTakers(), this.screenFog); // zombies, trails (review L5: no marks from fog-hidden Crawlers), spit
     // Story 6.2: Ruins dust (pools sized by decay.json › ruins; halved with ?fx=low).
     this.dustView = new DustView(this, balance.decay.ruins.maxDustSmoke, balance.decay.ruins.maxDustGrit, opts.lowFx);
     // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.
@@ -739,6 +750,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.readEventInsets, this); // Story 6.8 review M2
     this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx, () => this.runSeed); // Story 6.2: the lamp flicker key
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
@@ -765,6 +777,7 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.readEventInsets, this); // Story 6.8
       this.scene.stop("Hud");
       detachDesktop();
       this.router = null;
@@ -830,6 +843,8 @@ export class GameScene extends Phaser.Scene {
       this.projectileView?.destroy();
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
+      this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
+      this.eventView = null;
       this.heliView = null; // Story 6.11: its images go with the scene
       voteStore.handle(null);
       voteStore.set(CLOSED_VOTE);
@@ -1296,7 +1311,9 @@ export class GameScene extends Phaser.Scene {
       if (me) keepStressMolotovs(host.world, host.localPlayerId, me.x, me.y, this.stressMolotovs);
     }
     host.setLocalInput(this.input_);
-    this.hudModel.toastText = this.toasts.current(this.time.now);
+    // Story 6.9 (G7): standing on the crate shows what you lose ("Replaces your SMG III") the whole second.
+    const crate = cratePrompt(host.world, host.localPlayerId);
+    this.hudModel.toastText = crate !== "" ? crate : this.toasts.current(this.time.now);
   }
 
   /** The host's step (online: applies the latest state). */
@@ -1720,6 +1737,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** A camera shake of `fraction` of the view (see `shakeIntensityFor`: Phaser's own shake scales by zoom²). */
+  /** Story 6.8 review M2: the safe area the event edge arrow keeps inside, on resize. */
+  private readEventInsets(): void {
+    this.eventInsets = { ...safeArea() };
+  }
+
   /** Story 6.5: a boss event's banner, sound, shake, buzz and music (none for a woken tab's backlog). */
   private bossEvent(host: SceneHost, e: SimEvent, localId: string): void {
     const me = host.world.players.get(localId);
@@ -2016,6 +2038,11 @@ export class GameScene extends Phaser.Scene {
         e.type === "boss.killed"
       ) {
         this.bossEvent(host, e, localId); // Stories 6.5–6.7
+      } else if (e.type === "event.triggered" || e.type === "event.phase_changed" || e.type === "event.ended") {
+        // Story 6.8 (F1): the banner and the sound (none for a woken tab's backlog); the marker follows the state.
+        const cue = eventCue(e, host.world.balance, this.eventCueOut);
+        if (cue.banner) this.showBanner(cue.banner, cue.bannerColor); // the colour rule: amber = an event you can use, yellow-green = gas, white = pick-ups and people
+        if (cue.sound) playSfx(cue.sound);
       } else if (e.type === "boss.telegraph") {
         this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM, e.endX, e.endY, e.crash, e.src);
         this.bossEvent(host, e, localId); // Story 6.6: the scrape / lift sound
@@ -2052,6 +2079,9 @@ export class GameScene extends Phaser.Scene {
     this.updateScreenFog(host, localId);
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
+    const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
+    if (this.eventView) this.eventView.bossBarShown = this.hudModel.bossVisible; // Story 6.14 review L3
+    this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
@@ -2173,6 +2203,7 @@ export class GameScene extends Phaser.Scene {
     // Online: the first bake waits until the mirror has the server's decay stage (review L: no
     // stage-1 bake followed by a second one a moment later on a late join).
     const synced = !(host instanceof NetSimHost) || host.decaySynced;
+    if (this.cityView) this.cityView.powerFlicker = this.eventView?.powerFlicker() ?? -1; // Story 6.10 (P1)
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
     this.dustView?.update(host.world, ruinsLookAt(host.world), this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.updateDarkness(host, zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
@@ -2191,7 +2222,17 @@ export class GameScene extends Phaser.Scene {
     const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
     const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
     fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
-    if (this.acidView) this.acidView.fog = fog;
+    wireFog(this.fogTakers(), fog); // Story 6.10 follow-up (6.2 R1): one tested wiring, every frame
+  }
+
+  /** The views the fog hides things in (`render/fog/fogWiring.ts`); one reused record. */
+  private readonly fogTakerList: FogTakers = { zombieView: null, trailView: null, acidView: null };
+  private fogTakers(): FogTakers {
+    const t = this.fogTakerList;
+    t.zombieView = this.zombieView ?? null;
+    t.trailView = this.trailView ?? null;
+    t.acidView = this.acidView ?? null;
+    return t;
   }
 
   /**

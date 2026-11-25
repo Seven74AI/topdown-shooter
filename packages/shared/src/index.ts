@@ -632,3 +632,32 @@ export {
   type FogBeam,
   type FogRadii,
 } from "./decay/collapse";
+// Story 6.8: special events (framework, car alarm, stampede)
+export {
+  EVENT_KINDS,
+  EVENT_KIND_NONE_WIRE,
+  EVENT_NONE,
+  EVENT_OUTCOMES,
+  EVENT_PHASE,
+  createSpecialEventState,
+  eventActive,
+  eventKindIndex,
+  snapshotSpecial,
+  type ActiveEvent,
+  type EventKind,
+  type EventOutcome,
+  type SpecialEventState,
+} from "./events/eventState";
+export { endSpecialEvent, eventHoldsWave, forceEvent, specialShotTarget, triggerPointReached, updateSpecialEvents } from "./events/specialEvents";
+export { armEndlessEvent, eventFits, scheduleRunEvents } from "./events/schedule";
+export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
+export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
+export { parseDevEvents } from "./events/devEvents";
+// Stories 6.9 + 6.10: gas leak, supply drop, power failure, survivor
+export { NPC_STATE, type GasLeakState, type SupplyDropState, type SurvivorState } from "./events/eventState";
+export { GAS_LEAK_WEAPON, gasLeakZone, gasTankArmed } from "./events/gasLeak";
+export { pickCrateSpot } from "./events/supplyDrop";
+export { powerFailureWave } from "./events/powerFailure";
+export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
+export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
+export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";

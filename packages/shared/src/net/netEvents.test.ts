@@ -12,6 +12,14 @@ const dec: NetEventContext = { balance };
 /** One of every forwarded kind, with values already on the wire grid (cm, tenths, ms). */
 const dir = (deg: number) => ({ dirX: Math.cos((deg * Math.PI) / 180), dirY: Math.sin((deg * Math.PI) / 180) });
 const EVENTS: SimEvent[] = [
+  // Story 6.8: the special events (kinds and outcomes as indices; ticks absolute)
+  { type: "event.triggered", kind: "car_alarm", wave: 3, x: 44.25, y: 18.5, startTick: 123456, phase: 1, lane: -1 },
+  { type: "event.triggered", kind: "stampede", wave: 8, x: 1, y: 16, startTick: 9, phase: 3, lane: 3 },
+  { type: "event.phase_changed", kind: "car_alarm", phase: 2, tick: 200000, playerId: "p2" },
+  { type: "event.phase_changed", kind: "stampede", phase: 4, tick: 69, playerId: null },
+  { type: "event.ended", kind: "stampede", outcome: "wave_end" },
+  { type: "event.ended", kind: "survivor", outcome: "failed" },
+  { type: "event.skipped", kind: "gas_leak", wave: 4 },
   // Story 6.5: the Behemoth (absolute ticks: the client draws from the server's start tick)
   { type: "boss.warning", x: 1.5, y: 31.25, hitTick: 123456 },
   { type: "boss.arrived", x: 2, y: 30, maxHp: 4800, look: 3 },
@@ -85,6 +93,8 @@ const EVENTS: SimEvent[] = [
   // Story 5.1: a weapon upgrade.
   { type: "weapon.upgraded", playerId: "p2", weapon: "smg", slot: 1, level: 3 },
   { type: "weapon.upgraded", playerId: "p0", weapon: "pistol", slot: 0, level: 4 },
+  // Story 6.9: the supply crate taken (any phase).
+  { type: "weapon.crate_taken", playerId: "p1", weapon: "flamethrower", slot: 1, level: 2 },
   // Story 5.7: the Brute's roar / banner (first of the run, then a later one).
   { type: "zombie.brute_spawned", zombieId: 9, x: 0.6, y: 31.4, first: true },
   { type: "zombie.brute_spawned", zombieId: 200, x: 47.4, y: 16, first: false },

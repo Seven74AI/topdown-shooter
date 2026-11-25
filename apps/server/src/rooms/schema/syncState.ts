@@ -1,4 +1,4 @@
-import { CONSUMABLE_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { CONSUMABLE_NONE, EVENT_KIND_NONE_WIRE, EVENT_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BossState, BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -37,6 +37,48 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.endless !== world.run.endless) state.endless = world.run.endless; // Story 6.12
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
+  syncSpecialEvent(state, world); // Story 6.8
+}
+
+/** Story 6.8: the active event, field by field on change only (an idle record costs no bytes). */
+function syncSpecialEvent(state: RunState, world: World): void {
+  const a = world.special.active;
+  const kind = a.kind === EVENT_NONE ? EVENT_KIND_NONE_WIRE : a.kind;
+  if (state.eventKind !== kind) state.eventKind = kind;
+  if (kind === EVENT_KIND_NONE_WIRE) return; // the last event's fields stay (no bytes); the kind says none
+  if (state.eventPhase !== a.phase) state.eventPhase = a.phase;
+  if (state.eventStartTick !== a.startTick) state.eventStartTick = a.startTick;
+  if (state.eventPhaseTick !== a.phaseTick) state.eventPhaseTick = a.phaseTick;
+  const x = Math.round(a.x * 100);
+  const y = Math.round(a.y * 100);
+  if (state.eventX !== x) state.eventX = x;
+  if (state.eventY !== y) state.eventY = y;
+  const lane = a.lane < 0 ? 255 : a.lane;
+  if (state.eventLane !== lane) state.eventLane = lane;
+  // Story 6.9: the crate (weapon, claim).
+  const d = world.special.supplyDrop;
+  const cw = d.weapon < 0 ? 255 : d.weapon;
+  if (state.crateWeapon !== cw) state.crateWeapon = cw;
+  const cs = d.claimSlot < 0 ? 255 : d.claimSlot;
+  if (state.crateClaimSlot !== cs) state.crateClaimSlot = cs;
+  const ct = Math.min(255, d.claimTicks);
+  if (state.crateClaimTicks !== ct) state.crateClaimTicks = ct;
+  // Story 6.10: the survivor NPC and its flag (≈ 20 Hz while it moves; nothing while it waits).
+  const n = world.special.survivor;
+  const nx = Math.round(n.x * 100);
+  const ny = Math.round(n.y * 100);
+  if (state.npcX !== nx) state.npcX = nx;
+  if (state.npcY !== ny) state.npcY = ny;
+  const hp = Math.max(0, Math.min(255, Math.round(n.hp)));
+  if (state.npcHp !== hp) state.npcHp = hp;
+  if (state.npcState !== n.state) state.npcState = n.state;
+  if (state.npcLook !== n.look) state.npcLook = n.look;
+  const ls = n.leaderSlot < 0 ? 255 : n.leaderSlot;
+  if (state.npcLeaderSlot !== ls) state.npcLeaderSlot = ls;
+  const sx = Math.round(n.safeX * 100);
+  const sy = Math.round(n.safeY * 100);
+  if (state.safeX !== sx) state.safeX = sx;
+  if (state.safeY !== sy) state.safeY = sy;
 }
 
 /** Story 6.5: the boss record, field by field on change only (an idle record costs no bytes). */
@@ -237,6 +279,24 @@ export function resetRunFields(state: RunState): void {
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
   state.boss = new BossState(); // Story 6.5: no boss before the next run's wave 10
+  state.eventKind = EVENT_KIND_NONE_WIRE; // Story 6.8: no event before the next run's
+  state.eventPhase = 0;
+  state.eventStartTick = 0;
+  state.eventPhaseTick = 0;
+  state.eventX = 0;
+  state.eventY = 0;
+  state.eventLane = 255;
+  state.crateWeapon = 255; // Story 6.9
+  state.crateClaimSlot = 255;
+  state.crateClaimTicks = 0;
+  state.npcX = 0; // Story 6.10
+  state.npcY = 0;
+  state.npcHp = 0;
+  state.npcState = 0;
+  state.npcLook = 0;
+  state.npcLeaderSlot = 255;
+  state.safeX = 0;
+  state.safeY = 0;
 }
 
 function resetPlayer(s: PlayerState): void {

@@ -73,10 +73,31 @@ export interface FakeState {
   /** Story 6.3. */
   blackoutPct: number;
   halfDark: boolean;
+  /** Story 6.8: the active special event. */
+  eventKind: number;
+  eventPhase: number;
+  eventStartTick: number;
+  eventPhaseTick: number;
+  eventX: number;
+  eventY: number;
+  eventLane: number;
   voteTicksLeft: number;
   endless: boolean;
   /** Story 6.5: the boss record. */
   boss: FakeBoss;
+  /** Story 6.9: the crate. */
+  crateWeapon: number;
+  crateClaimSlot: number;
+  crateClaimTicks: number;
+  /** Story 6.10: the survivor NPC and its flag. */
+  npcX: number;
+  npcY: number;
+  npcHp: number;
+  npcState: number;
+  npcLook: number;
+  npcLeaderSlot: number;
+  safeX: number;
+  safeY: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -106,9 +127,27 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayFiresOut: 0,
     blackoutPct: 0,
     halfDark: false,
+    eventKind: 255, // Story 6.8: none
+    eventPhase: 0,
+    eventStartTick: 0,
+    eventPhaseTick: 0,
+    eventX: 0,
+    eventY: 0,
+    eventLane: 255,
     voteTicksLeft: 0, // Story 6.11
     endless: false, // Story 6.12
     boss: fakeBoss(),
+    crateWeapon: 255, // Story 6.9: none
+    crateClaimSlot: 255,
+    crateClaimTicks: 0,
+    npcX: 0, // Story 6.10
+    npcY: 0,
+    npcHp: 0,
+    npcState: 0,
+    npcLook: 0,
+    npcLeaderSlot: 255,
+    safeX: 0,
+    safeY: 0,
   };
 }
 

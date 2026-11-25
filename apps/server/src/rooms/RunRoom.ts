@@ -86,6 +86,7 @@ import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
 import { pickDevForceBlackout } from "../run/devForceBlackout";
 import { pickDevBossWaves } from "../run/devBossWaves";
+import { parseDevEvents } from "@topdown/shared";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
@@ -700,6 +701,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const blackoutPick = pickDevForceBlackout(process.env);
     // Story 6.5 (dev only, read per run): DEV_BOSS_WAVES=3 brings the Behemoth in wave 3.
     const bossPick = pickDevBossWaves(process.env);
+    // Story 6.8 (dev only, read per run): DEV_EVENTS=car_alarm@3,stampede@4 replaces the event schedule.
+    const devEvents = process.env.NODE_ENV === "production" ? null : parseDevEvents(process.env.DEV_EVENTS);
     // Story 6.1 (dev only, read per run): DEV_START_WAVE=7 starts the run at wave 7 (its decay stage applied at the first build).
     const startWavePick = pickDevStartWave(process.env, serverBalance);
     const controller = new RunController({
@@ -713,6 +716,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       shopCards: shopPick.cards,
       forceBlackoutPct: blackoutPick.pct,
       bossWaves: bossPick.waves,
+      events: devEvents,
       scenario: this.scenario,
       startWave: startWavePick.wave,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
@@ -729,6 +733,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
     if (bossPick.waves !== null) this.log.warn({ waves: bossPick.waves }, "dev_boss_waves");
     else if (bossPick.ignored !== null) this.log.warn({ value: process.env.DEV_BOSS_WAVES, reason: bossPick.ignored }, "dev_boss_waves_ignored");
+    if (devEvents !== null) this.log.warn({ events: devEvents }, "dev_events"); // review L8: after the boss's else-if
     if (startWavePick.wave !== null) this.log.warn({ wave: startWavePick.wave }, "dev_start_wave");
     else if (startWavePick.ignored !== null) this.log.warn({ value: process.env.DEV_START_WAVE, reason: startWavePick.ignored }, "dev_start_wave_ignored");
     if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");

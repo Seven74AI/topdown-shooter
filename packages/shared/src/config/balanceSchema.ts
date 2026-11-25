@@ -321,6 +321,16 @@ export const pathingSchema = z
     wideSeedRings: z.number().int().min(1).max(12).default(6),
     /** Story 5.7 (review L4): rings searched for a reached cell round a wide body standing in a grown wall cell. */
     wideSteerRings: z.number().int().min(1).max(6).default(2),
+    /**
+     * Story 6.13 (6.8 review M1): the wide-body stall net. A wide body whose wide field gives it no
+     * next cell (it stands at the field's end, a seed cell at the mouth of a slot too narrow for it,
+     * or in a grown wall cell) while its line to the player is blocked, and that moves less than
+     * `wideStuckProgressM` for `wideStuckS`, is stuck: it goes for the wall building within
+     * `wideStuckReachM` nearest its target and attacks it (a Bloater swells on it).
+     */
+    wideStuckS: z.number().positive().refine(wholeTickS, "pathing.wideStuckS must be whole ticks").default(2),
+    wideStuckProgressM: z.number().positive().default(0.25),
+    wideStuckReachM: z.number().positive().max(8).default(2.5),
   })
   .strict();
 
@@ -666,6 +676,10 @@ export const botsSchema = z
     medkitBelowHpFrac: z.number().min(0).max(1).default(0.4),
     /** Story 5.12: a bot throws a grenade / molotov at the densest zombie within throw range when at least this many stand within its radius. */
     throwClusterMin: z.number().int().min(1).max(64).default(5),
+    /** Story 6.8: a bot keeps this far (m) outside an active stampede's lane. */
+    laneMarginM: z.number().min(0).max(8).default(1),
+    /** Story 6.8: rule 2c's strafe changes side every this many input seqs (64 = 3.2 s at 20 Hz). */
+    strafeFlipSeqs: z.number().int().min(1).max(10_000).default(64),
   })
   .strict();
 
@@ -1377,6 +1391,132 @@ export const bossSchema = z
   })
   .strict();
 
+/**
+ * Story 6.8: the special events (`events.json`; FR37, FR38, FR41). The schedule (2 events in 2 of
+ * `waves`, never neighbours) and every spot come from the `events` seed stream; every number here.
+ */
+export const eventsSchema = z
+  .object({
+    /** Events per run (F2: 2). */
+    perRun: z.number().int().min(0).max(4),
+    /** Waves an event may come in (never 5: crossCheckEvents). */
+    waves: z.array(z.number().int().min(1).max(255)).min(1),
+    /** F3: an event starts once this share of its wave has spawned (drawn per event in [min, max]). */
+    startFractionMin: z.number().min(0).max(1),
+    startFractionMax: z.number().min(0).max(1),
+    /** The client skips an event's banner older than this (a woken tab; the 5.7 `ageS` rule). */
+    lateBannerS: z.number().positive().max(30),
+    carAlarm: z
+      .object({
+        armedS: z.number().positive().refine(wholeTickS, "carAlarm.armedS must be whole ticks"),
+        alarmS: z.number().positive().refine(wholeTickS, "carAlarm.alarmS must be whole ticks"),
+        pullRadiusM: z.number().positive().max(48),
+        /** A lured zombie with a standing player this close (centre to centre) goes for the player (F5). */
+        distractBreakM: z.number().min(0).max(10),
+        pickMinM: z.number().min(0),
+        pickMaxM: z.number().positive(),
+        /** The lure fields are seeded from the free cells within this of the car's box. */
+        lureSeedM: z.number().positive().max(3),
+      })
+      .strict()
+      .refine((c) => c.pickMinM < c.pickMaxM, "carAlarm.pickMinM must be below pickMaxM"),
+    stampede: z
+      .object({
+        warningS: z.number().positive().refine(wholeTickS, "stampede.warningS must be whole ticks"),
+        runS: z.number().positive().refine(wholeTickS, "stampede.runS must be whole ticks"),
+        laneWidthM: z.number().positive().max(16),
+        speedMps: z.number().positive().max(12),
+        contactDamage: z.number().positive().max(100),
+        /** Runners by players in the run (index 0 = solo; downed players count, D11). */
+        countByPlayers: z.array(z.number().int().min(1).max(64)).length(4),
+        /** Zombies allowed above the alive cap that applies (brief line 22). */
+        overCap: z.number().int().min(0),
+        rowSize: z.number().int().min(1).max(16),
+        rowGapS: z.number().positive().refine(wholeTickS, "stampede.rowGapS must be whole ticks"),
+        laneNearTeamM: z.number().min(0),
+        stuckS: z.number().positive().refine(wholeTickS, "stampede.stuckS must be whole ticks"),
+        stuckProgressM: z.number().positive(),
+        /** A Runner looks this far ahead for cover and steers round it (F6: "cover pushes them aside"). */
+        deflectLookM: z.number().positive().max(4),
+        /** While side-stepping cover, this share of the speed keeps pushing along the lane. */
+        sidestepAlongFrac: z.number().min(0).max(1),
+      })
+      .strict(),
+    /** Story 6.9 (FR39, G1–G4): the gas leak at the gas-station zone's centre. */
+    gasLeak: z
+      .object({
+        hissS: z.number().positive().refine(wholeTickS, "gasLeak.hissS must be whole ticks"),
+        /** G3: bullets pass the tank for this long, then the first player bullet that reaches it blows it. */
+        armDelayS: z.number().min(0).refine(wholeTickS, "gasLeak.armDelayS must be whole ticks"),
+        radiusM: z.number().positive().max(12),
+        playerDamage: z.number().min(0).max(200),
+        /** DD2: every zombie in the blast dies through the normal damage path (no kill flag). */
+        killDamage: z.number().positive(),
+        buildingDamage: z.number().min(0),
+        /** D1: where the tank sits ("zone_centre": the centre of the map's `gas_leak` hazard). */
+        tankAt: z.literal("zone_centre"),
+        tankRadiusM: z.number().positive().max(2),
+        /** Review L4: what the blast does to the Behemoth (every zombie dies; the boss takes this, never a one-shot). */
+        bossDamage: z.number().min(0),
+      })
+      .strict()
+      .refine((g) => g.armDelayS < g.hissS, "gasLeak.armDelayS must be below hissS"),
+    /** Story 6.9 (FR40, G5–G8): the supply crate. */
+    supplyDrop: z
+      .object({
+        flareS: z.number().positive().refine(wholeTickS, "supplyDrop.flareS must be whole ticks"),
+        minFromTeamM: z.number().min(0),
+        takeRadiusM: z.number().positive().max(3),
+        takeS: z.number().positive().max(10).refine(wholeTickS, "supplyDrop.takeS must be whole ticks"),
+        level: z.number().int().min(1).max(8),
+        weapons: z.array(z.string().min(1)).min(1).max(16),
+        /** The landing spot's circle must be free of boxes, buildings and fire. */
+        spotClearM: z.number().positive().max(3),
+      })
+      .strict(),
+    /** Story 6.10 (FR42, P1–P3): the power failure (its light level is `decay.json › blackout.powerFailureLightPct`). */
+    powerFailure: z
+      .object({
+        waves: z.array(z.number().int().min(1).max(255)).min(1),
+        flickerS: z.number().positive().refine(wholeTickS, "powerFailure.flickerS must be whole ticks"),
+      })
+      .strict(),
+    /** Story 6.10 (FR43, S1–S5): the survivor NPC. */
+    survivor: z
+      .object({
+        hp: z.number().int().min(1).max(255),
+        radiusM: z.number().positive().max(1),
+        speedMps: z.number().positive().max(10),
+        followGapM: z.number().min(0).max(4),
+        pickUpM: z.number().positive(),
+        loseM: z.number().positive(),
+        minFromTeamM: z.number().min(0),
+        safeMinFromNpcM: z.number().min(0),
+        saveRadiusM: z.number().positive(),
+        reward: z.number().int().min(0),
+        helpCallS: z.number().positive(),
+        /** S5: a saved survivor waves this long at the flag, then the event ends. */
+        waveOffS: z.number().min(0).refine(wholeTickS, "survivor.waveOffS must be whole ticks"),
+        /** Decision 6.10 B1: while it waits (not yet led) zombies ignore it unless their centre is within this. */
+        waitIgnoreM: z.number().min(0).max(48),
+      })
+      .strict()
+      .refine((s) => s.loseM > s.pickUpM, "survivor.loseM must exceed pickUpM")
+      .refine((s) => s.saveRadiusM < s.safeMinFromNpcM, "survivor.saveRadiusM must be below safeMinFromNpcM"),
+    fx: z
+      .object({
+        maxDustParticles: z.number().int().min(1).max(256),
+        maxMarkers: z.number().int().min(1).max(8),
+        maxChevrons: z.number().int().min(1).max(32),
+        maxGasParticles: z.number().int().min(1).max(256), // Story 6.9
+        maxFlareParticles: z.number().int().min(1).max(256), // Story 6.9
+      })
+      .strict(),
+    banners: z.record(z.string(), z.string().min(1)),
+  })
+  .strict()
+  .refine((e) => e.startFractionMin <= e.startFractionMax, "startFractionMin must be ≤ startFractionMax");
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -1393,6 +1533,7 @@ export const balanceFileSchemas = {
   gear: gearSchema, // Story 5.11
   consumables: consumablesSchema, // Story 5.12
   boss: bossSchema, // Story 6.5
+  events: eventsSchema, // Story 6.8
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -1414,4 +1555,5 @@ export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;
 export type BossStats = z.output<typeof bossSchema>;
+export type EventsStats = z.output<typeof eventsSchema>;
 export type ConsumableItemStats = z.output<typeof consumableItemSchema>;

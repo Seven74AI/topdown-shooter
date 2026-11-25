@@ -27,6 +27,7 @@ import { createBlastQueue, type BlastQueue } from "../zombies/bloater";
 import { createMolotovZones, type MolotovZones } from "../hazards/molotov";
 import { createLightState, type LightState } from "../decay/lightState";
 import { createShopOffers, type ShopOffers } from "../economy/shopOffers";
+import { createSpecialEventState, type SpecialEventState } from "../events/eventState";
 import { createBossState, recordBossHistory, type BossState } from "../boss/bossState";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
@@ -133,6 +134,12 @@ export interface World {
    * its body for the push-out, D1).
    */
   readonly boss: BossState;
+  /**
+   * Story 6.8: the special events (`events/eventState.ts`): the run's schedule, the active event and
+   * its records. Server truth, in `snapshotWorld`; server and solo run `updateSpecialEvents`, the
+   * client's mirror copies the active event from the room state.
+   */
+  readonly special: SpecialEventState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -164,6 +171,12 @@ export interface WorldDebug {
   bossWaves: readonly number[] | null;
   /** Story 6.5 dev (`?bosshp=`, tests only): the boss's HP × this. 1 = real. */
   bossHpScale: number;
+  /**
+   * Story 6.8 dev override (server `DEV_EVENTS=car_alarm@3,stampede@4`, solo `?events=`; dev builds
+   * only): the run's schedule instead of the `events` stream's draw (each at `startFractionMin`).
+   * null = the real draw.
+   */
+  events: readonly { readonly kind: string; readonly wave: number }[] | null;
 }
 
 export interface CreateWorldOptions {
@@ -206,7 +219,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopCards: null, bossWaves: null, bossHpScale: 1 },
+    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopCards: null, bossWaves: null, bossHpScale: 1, events: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
@@ -225,6 +238,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     lights: createLightState(), // Story 5.10 (derived)
     shop: createShopOffers(), // Story 5.13
     boss: createBossState(), // Story 6.5
+    special: createSpecialEventState(), // Story 6.8
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

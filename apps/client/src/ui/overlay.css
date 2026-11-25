@@ -875,16 +875,6 @@ p.in-run-menu__title {
   height: 28px;
 }
 
-.shop-card__glyph {
-  width: 24px;
-  height: 24px;
-}
-
-.shop-card__glyph--weapon {
-  width: 56px;
-  height: 24px;
-}
-
 .shop-card__name {
   display: -webkit-box;
   -webkit-line-clamp: 2;

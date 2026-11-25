@@ -22,7 +22,7 @@ import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { PREDICTION_SNAP_M } from "../../apps/client/src/net/netConfig";
 import { neutralizeInput, standsStill } from "../../apps/client/src/input/menuInput";
-import { VoteSender, pollVote } from "../../apps/client/src/ui/voteModel";
+import { VOTE_URGENT_GAP_MS, VoteSender, pollVote } from "../../apps/client/src/ui/voteModel";
 
 const TICK_MS = TICK_DT_S * 1000;
 let colyseus: ColyseusTestServer;
@@ -130,7 +130,7 @@ describe("Story 6.11 review M1: a vote flood keeps the last choice", () => {
       frame();
       await sleep(1000 / 60);
     }
-    await sleep(270 - 2 * (1000 / 60)); // past the 250 ms urgent gap, before a token refills (333 ms)
+    await sleep(VOTE_URGENT_GAP_MS + 20 - 2 * (1000 / 60)); // past the urgent gap (100 ms), well before a token refills (333 ms)
     sender.want("extract"); // only the urgent borrow can send it now
     const before = w.run.voteTicksLeft;
     frame();

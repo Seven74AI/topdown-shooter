@@ -31,22 +31,33 @@ describe("Story 6.1: ten-wave sim", () => {
     for (const seed of SEEDS) {
       let god = false;
       // Story 6.2 review M3: from wave 7 (stage 4) the run's collapsed alley buries one mouth, and the
-      // wave director really picks the breaches (read from its recent-pick ring every tick).
+      // wave director really picks the breaches. Story 6.14 (6.2 R2): the picks of each tick are counted
+      // (the wave's `typeSpawned` total: one per spawned wave zombie, i.e. per pick), and only that many
+      // newest ring entries are read; a tick with as many picks as the ring holds fails instead of
+      // silently reading nothing.
       const buriedAtRuins = new Set<string>();
       const pickedFrom7 = new Set<string>();
-      let prevHead = -1;
+      let prevSpawned = -1;
+      let picksRead = 0;
       const onTick = (w: World): void => {
-        if (w.decay.stage < 4) return;
+        let spawned = 0;
+        for (let t = 0; t < w.waves.typeSpawned.length; t++) spawned += w.waves.typeSpawned[t] as number;
+        const picks = prevSpawned < 0 ? 0 : spawned >= prevSpawned ? spawned - prevSpawned : spawned; // the count restarts each wave
+        prevSpawned = spawned;
+        if (w.decay.stage < 4) return; // picks before stage 4 stay out
         if (buriedAtRuins.size === 0) w.map.spawnPoints.forEach((sp, i) => void (isSpawnBuried(w, i) && buriedAtRuins.add(sp.name)));
         const cap = Math.min(w.waves.recentSpawns.length, balance.waves.spawnPick.recentPicks);
-        if (prevHead < 0) prevHead = w.waves.recentSpawnHead; // picks before stage 4 stay out
-        // Only the picks made since the last tick (the ring advanced from prevHead to the head).
-        for (let k = prevHead; k !== w.waves.recentSpawnHead; k = (k + 1) % cap) pickedFrom7.add((w.map.spawnPoints[w.waves.recentSpawns[k] as number] as { name: string }).name);
-        prevHead = w.waves.recentSpawnHead;
+        expect(picks, `seed ${seed} tick ${w.tick}: more picks in one tick than the ring holds`).toBeLessThan(cap);
+        for (let k = 1; k <= picks; k++) {
+          const at = (w.waves.recentSpawnHead - k + cap) % cap;
+          pickedFrom7.add((w.map.spawnPoints[w.waves.recentSpawns[at] as number] as { name: string }).name);
+        }
+        picksRead += picks;
       };
       const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void (god = w.debug.godMode) });
       expect([...buriedAtRuins].length, `seed ${seed}: one alley mouth buried at stage 4`).toBe(1);
       expect([...buriedAtRuins][0], `seed ${seed}`).toMatch(/^alley_[123]_mouth$/);
+      expect(picksRead, `seed ${seed}: picks read from wave 7`).toBeGreaterThan(100);
       expect(pickedFrom7.has([...buriedAtRuins][0] as string), `seed ${seed}: the buried mouth is never picked`).toBe(false);
       expect([...pickedFrom7].some((n) => n.startsWith("breach_")), `seed ${seed}: a breach used from wave 7`).toBe(true);
       runs.push(r);
@@ -59,10 +70,12 @@ describe("Story 6.1: ten-wave sim", () => {
       expect(r.wiped).toBe(false);
       expect(r.waves.map((w) => w.wave)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(r.waves.map((w) => w.size)).toEqual([40, 80, 120, 160, 200, 240, 280, 320, 360, 400]);
+      // Money adds up per player (review L10: building refunds — 6.2's 50 % back when rubble or a
+      // fire takes a building — are not in `earned`; the log keeps them per player).
       for (let i = 0; i < 4; i++) {
-        expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
+        expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) + (r.refunded[i] as number) - (r.spent[i] as number));
       }
-      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss + r.earnedBy.event).toBe(r.earned.reduce((a, b) => a + b, 0)); // 6.10: + the survivor's "event" pay
       expect(r.earnedBy.boss, `seed ${seed}: the Behemoth's 150 to each of the 4 (Story 6.7)`).toBe(4 * balance.boss.killPay);
       // F3: exactly 2 Brutes in each of waves 7–10 (one in 5 and 6).
       for (let w = 5; w <= 10; w++) expect(r.brutes.spawnedInWave.filter((n) => n === w).length, `seed ${seed} wave ${w}`).toBe(w >= 7 ? 2 : 1);

@@ -1,18 +1,20 @@
 import type { Balance } from "../config/balance";
 import type { World } from "../core/world";
 import { isBossWave } from "../boss/bossState";
+import { EVENT_KINDS } from "../events/eventState";
+import { eventFits } from "../events/schedule";
 
 /**
  * Story 6.12 (F6, D4, D6): one special event in each even endless wave without a Behemoth (12, 14,
  * 16, 18, 22, 24…), never the same event as the previous endless event, drawn from the `events`
  * stream at the build start before that wave.
  *
- * MERGE POINT (Story 6.8's events framework, built in parallel): this module owns only the endless
- * rule — which waves, and "no repeat". The events themselves (gates, start window 20–60 %, banner,
- * sound, marker, power failure) are 6.8/6.10's. Until the framework lands, `endlessEventCandidates`
- * returns no candidate, so nothing is scheduled ("none"). At the merge, 6.8 makes it return the
- * event ids whose gates pass for `wave` (power failure included: 6.12 D6) and starts the chosen one
- * through its own scheduler from `world.run.endlessEvent`.
+ * This module owns only the endless rule — which waves, and "no repeat" (the ONE endless scheduler).
+ * The events themselves (gates, start window 20–60 %, banner, sound, marker) are Story 6.8's
+ * framework: `endlessEventCandidates` lists the kinds whose `eventFits` gate passes for `wave` (6.9 /
+ * 6.10's kinds join as they register; power failure included: 6.12 D6), and `startBuild` hands the
+ * pick to the framework (`events/schedule.ts › armEndlessEvent`), which starts it like a scheduled
+ * entry.
  */
 
 /** Story 6.12: wave `wave` gets one endless event (even, past the run, no Behemoth). */
@@ -22,16 +24,14 @@ export function isEndlessEventWave(balance: Balance, wave: number, endless: bool
   return !isBossWave(balance, wave, true, bossOverride); // re-review N1: the dev boss override decides the boss waves here too
 }
 
-const NO_CANDIDATES: readonly string[] = [];
+/** Reused candidate list (no allocation per build). */
+const candidates: string[] = [];
 
-/**
- * The event ids that may run in endless wave `wave` (their gates pass). 6.8 fills this at the merge
- * (see the module comment); until then: none.
- */
+/** The event ids that may run in endless wave `wave`: every registered kind whose gate passes (6.8 `eventFits`), in `EVENT_KINDS` order. */
 export function endlessEventCandidates(world: Readonly<World>, wave: number): readonly string[] {
-  void world;
-  void wave;
-  return NO_CANDIDATES;
+  candidates.length = 0;
+  for (let k = 0; k < EVENT_KINDS.length; k++) if (eventFits(world, k, wave)) candidates.push(EVENT_KINDS[k] as string);
+  return candidates;
 }
 
 /**

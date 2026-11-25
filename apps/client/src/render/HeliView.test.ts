@@ -26,11 +26,10 @@ describe("heliPose", () => {
 });
 
 describe("evacPadOf", () => {
-  it("the map's evac_pad event spot (6.8's layer) when present, else the map centre (Downtown (24, 16))", () => {
-    expect(evacPadOf(DOWNTOWN_MAP)).toEqual(
-      (DOWNTOWN_MAP as { eventSpots?: { name: string; x: number; y: number }[] }).eventSpots?.find((s) => s.name === "evac_pad") ?? { x: 24, y: 16 },
-    );
-    expect(evacPadOf({ ...DOWNTOWN_MAP, eventSpots: [{ name: "evac_pad", x: 20, y: 12 }] } as unknown as typeof DOWNTOWN_MAP)).toEqual({ x: 20, y: 12 });
+  it("the map's evac_pad event spot (6.8's events layer: Downtown (24, 15.9)), else the map centre", () => {
+    expect(evacPadOf(DOWNTOWN_MAP)).toEqual({ x: 24, y: 15.9 });
+    expect(evacPadOf({ ...DOWNTOWN_MAP, eventSpots: [{ name: "pad_b", kind: "evac_pad", x: 20, y: 12, minStage: 1 }] } as unknown as typeof DOWNTOWN_MAP)).toEqual({ x: 20, y: 12 });
+    expect(evacPadOf({ ...DOWNTOWN_MAP, eventSpots: [] })).toEqual({ x: 24, y: 16 });
   });
 });
 

@@ -83,6 +83,17 @@ export interface ZombiePool {
   readonly igniterSlot: Uint8Array;
   readonly igniteWeapon: Uint8Array;
   readonly igniteDamage: Float32Array;
+  /**
+   * Story 6.8: car-alarm lure — ticks this zombie still walks to the sounding car (0 = not lured).
+   * Set by the alarm for every zombie within the pull radius, counted down by the AI, cleared when
+   * the alarm ends; 0 on spawn.
+   */
+  readonly lureTicks: Uint16Array;
+  /** Story 6.8 (F7): a stampede Runner's hit mask — bit s = it already hit the player in slot s. 0 on spawn. */
+  readonly stampedeHit: Uint8Array;
+  /** Story 6.8 (D7): a stampede Runner's progress along its lane at `stampedeTick` (the stuck check). */
+  readonly stampedeAnchor: Float32Array;
+  readonly stampedeTick: Int32Array;
   /** Scratch velocities for the AI (computed for all zombies first, then applied). */
   readonly vx: Float32Array;
   readonly vy: Float32Array;
@@ -146,6 +157,10 @@ export function createZombiePool(capacity: number): ZombiePool {
     freedAtTick: new Int32Array(capacity),
     freedHead: 0,
     freedCount: 0,
+    lureTicks: new Uint16Array(capacity), // Story 6.8
+    stampedeHit: new Uint8Array(capacity),
+    stampedeAnchor: new Float32Array(capacity),
+    stampedeTick: new Int32Array(capacity),
     vx: new Float32Array(capacity),
     vy: new Float32Array(capacity),
   };
@@ -194,6 +209,10 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.igniterSlot[id] = 255;
   pool.igniteWeapon[id] = 0;
   pool.igniteDamage[id] = 0;
+  pool.lureTicks[id] = 0; // Story 6.8: not lured, no stampede record
+  pool.stampedeHit[id] = 0;
+  pool.stampedeAnchor[id] = 0;
+  pool.stampedeTick[id] = 0;
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
   pool.waveZombie[id] = waveZombie ? 1 : 0;
@@ -234,6 +253,27 @@ export function killZombie(world: World, id: number, killerId: string | null, we
   // Story 5.8 (FR-B): a Bloater that dies, from any cause, bursts where it died (one hook, no
   // listener: the order is deterministic). Removal without dying (`clearZombies`) never gets here.
   onZombieKilled(world, id, x, y, killerId, buildingId, weapon);
+}
+
+/**
+ * Story 6.8: takes a zombie off the map without it dying — no `zombie.killed`, no reward, no Bloater
+ * burst (a stampede Runner that ran off the far edge). Its slot is held like a killed one's.
+ */
+export function removeZombie(world: World, id: number): void {
+  const pool = world.zombies;
+  if (!isZombieAlive(pool, id)) return;
+  const pos = pool.alivePos[id] as number;
+  const last = pool.aliveIds[pool.aliveCount - 1] as number;
+  pool.aliveIds[pos] = last;
+  pool.alivePos[last] = pos;
+  pool.aliveCount--;
+  pool.alivePos[id] = -1;
+  pool.state[id] = ZOMBIE_STATE.FREE;
+  const tail = (pool.freedHead + pool.freedCount) % pool.capacity;
+  pool.freedIds[tail] = id;
+  pool.freedAtTick[tail] = world.tick;
+  pool.freedCount++;
+  world.economy.damagerCount[id] = 0;
 }
 
 /** Balance id of a zombie's type. */

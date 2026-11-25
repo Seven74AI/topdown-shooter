@@ -141,3 +141,40 @@ describe("loadTiledMap (Story 4.1)", () => {
     expect(issuesOf(raw)).toContain(message);
   });
 });
+
+describe("Story 6.8: the events layer", () => {
+  const sp = (k: string, v: string | number): Obj => ({ name: k, type: typeof v === "string" ? "string" : "int", value: v });
+  const withEvents = (objects: Obj[]): Obj => {
+    const m = tiny();
+    (m.layers as Obj[]).push(group("events", objects));
+    return m;
+  };
+  it("is optional: a map without it has no spots and no lanes", () => {
+    const m = loadTiledMap(tiny(), "t");
+    expect(m.eventSpots).toEqual([]);
+    expect(m.stampedeLanes).toEqual([]);
+  });
+  it("reads lanes (dir, stages) and spots (kind, minStage) in map order", () => {
+    const m = loadTiledMap(
+      withEvents([
+        rect(20, "lane_e", 0, 32, 256, 64, { properties: [sp("kind", "stampede_lane"), sp("dir", "e"), sp("minStage", 2), sp("maxStage", 4)] }),
+        point(21, "crate_1", 48, 112, [sp("kind", "crate")]),
+        point(22, "safe_1", 240, 112, [sp("kind", "safe"), sp("minStage", 3)]),
+      ]),
+      "t",
+    );
+    expect(m.stampedeLanes).toEqual([{ name: "lane_e", minX: 0, minY: 1, maxX: 8, maxY: 3, dir: "e", minStage: 2, maxStage: 4 }]);
+    expect(m.eventSpots).toEqual([
+      { name: "crate_1", kind: "crate", x: 1.5, y: 3.5, minStage: 1 },
+      { name: "safe_1", kind: "safe", x: 7.5, y: 3.5, minStage: 3 },
+    ]);
+  });
+  it("refuses a bad dir, a lane not spanning the map, a stage range backwards, an unknown kind, a spot inside a box", () => {
+    const lane = (extra: Obj[], w = 256): Obj => rect(20, "lane", 0, 32, w, 64, { properties: [sp("kind", "stampede_lane"), ...extra] });
+    expect(() => loadTiledMap(withEvents([lane([sp("dir", "x")])]), "t")).toThrow(/events: lane: dir must be one of e, w, s, n/);
+    expect(() => loadTiledMap(withEvents([lane([sp("dir", "e")], 128)]), "t")).toThrow(/a lane spans the map/);
+    expect(() => loadTiledMap(withEvents([lane([sp("dir", "e"), sp("minStage", 4), sp("maxStage", 2)])]), "t")).toThrow(/maxStage 2 is below minStage 4/);
+    expect(() => loadTiledMap(withEvents([point(21, "p", 48, 112, [sp("kind", "pizza")])]), "t")).toThrow(/kind must be stampede_lane or one of crate, survivor, safe, evac_pad/);
+    expect(() => loadTiledMap(withEvents([point(21, "p", 80, 48, [sp("kind", "crate")])]), "t")).toThrow(/inside collision box box/);
+  });
+});

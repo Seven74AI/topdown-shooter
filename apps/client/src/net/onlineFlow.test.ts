@@ -195,6 +195,50 @@ describe("Story 6.11: the vote in the run cycle", () => {
     shownAt = Number.NEGATIVE_INFINITY;
   });
 
+  it("story 6.14 (6.11 RR3-L1): locked from the build phase for 60 s, the vote → results backlog lands 1.5 s after the extract → no late dawn", () => {
+    hidden = false;
+    shownAt = Number.NEGATIVE_INFINITY;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 0;
+    t.phase("build"); // the last live sample (offset 1000)
+    // The phone locks; wave 10 (60 s), the vote and the extract play without it. Back 60 s later, but
+    // the socket's backlog (TCP retransmission backoff) lands 1.5 s after unlocking (> SHOWN_GRACE_MS),
+    // every patch equally late: wave at tick 600, vote at 1800, Results at 1900 (5 s of vote).
+    const landsAt = 1000 + 1900 * 50 + 1500;
+    clock = landsAt;
+    shownAt = landsAt - 1500;
+    t.room.state.tick = 600;
+    t.phase("wave");
+    t.room.state.tick = 1800;
+    clock = landsAt + 1;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1900;
+    clock = landsAt + 2;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ kind: "results", ending: "extracted", dawnEndsAtMs: clock }); // straight to the card
+    shownAt = Number.NEGATIVE_INFINITY;
+  });
+
+  it("story 6.14 (6.11 RR3-L1): a live 1 s all-voted hold (20 ticks) seen 0.6 s apart under jitter still plays the dawn", () => {
+    hidden = false;
+    shownAt = Number.NEGATIVE_INFINITY;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 600;
+    t.phase("wave");
+    t.room.state.tick = 1200;
+    clock = 1000 + 600 * 50 + 300; // the vote patch 300 ms late (lag)
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1220; // everyone voted at once: the 1 s hold
+    clock = 1000 + 600 * 50 + 300 + 600; // 0.6 s after the vote patch (it was 300 ms late, this one is on time)
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted" });
+    expect((t.screens.at(-1) as { dawnEndsAtMs: number }).dawnEndsAtMs).toBeGreaterThan(clock + 3000);
+  });
+
   it("re-review RL2: a new run seen without its lobby patch restarts the clock (run 2's dawn plays)", () => {
     shownAt = Number.NEGATIVE_INFINITY;
     hidden = false;
