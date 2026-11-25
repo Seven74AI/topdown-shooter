@@ -21,7 +21,7 @@ import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
 import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
-import { partName, runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
+import { runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
 export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
