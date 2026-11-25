@@ -34,7 +34,7 @@ describe("Stories 7.7 / 7.11 / 7.12 are wired in", () => {
     const results = read("apps", "client", "src", "ui", "ResultsScreen.tsx");
     expect(results).toContain('data-testid="rewards-items"');
     expect(results).toContain('data-testid="rewards-unlocks"');
-    expect(results).toContain("rewardsView(rewards, screen.online, screen.seed, undefined, (slot) =>");
+    expect(results).toContain("rewardsView(rewards, screen.online, screen.seed, undefined, (slot, seatId) => resultName(screen.rows, slot, seatId))"); // PR #9 review L1: by seat
     const lobby = read("apps", "client", "src", "ui", "LobbyScreen.tsx");
     expect(lobby).toContain("districtCards(lobby.district, lobby.districtsOpen, view.isHost)");
     expect(lobby).toContain("lobbyStore.pickDistrict(d.id);");

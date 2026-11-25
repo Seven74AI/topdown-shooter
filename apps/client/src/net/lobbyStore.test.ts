@@ -57,6 +57,7 @@ describe("snapshotLobby", () => {
         { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "", waiting: false, held: false },
         { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie", waiting: false, held: false }, // Story 8.2/8.3: waiting, held
       ],
+      resumeWave: 0, // Story 8.6
       district: "downtown", // Story 7.7
       districtsOpen: 1,
       districtReset: "",
