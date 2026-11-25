@@ -431,8 +431,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (pick.ignored) this.log.warn({ seed: requested, reason: pick.ignored }, "dev_run_seed_ignored");
   }
 
-  override onJoin(client: RunClient): void {
+  override async onJoin(client: RunClient): Promise<void> {
     try {
+      // Story 7.6 re-review RR2: the ticket's device row is checked AGAIN when the socket arrives — a seat reserved
+      // (≤ 15 s) before a reset, a log in or a log out must not seat the account (nor rename it): the seat is unsaved.
+      if (client.auth && client.auth.accountId !== null) client.auth.accountId = await ticketStillCurrent(client.auth.accountId, client.auth.guestTokenHash);
       // Story 7.6 review L2: re-checked here, synchronously with the member being added (an account switch that
       // started after onAuth either sees this member in its room re-check, or this join sees its mark).
       if (client.auth && isSwitching(client.auth.guestTokenHash)) throw refuse("rate_limited");

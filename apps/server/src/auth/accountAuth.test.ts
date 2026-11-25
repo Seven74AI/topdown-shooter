@@ -14,7 +14,7 @@ import { roomAccountsRepo } from "./roomAccounts";
 import { RunRoom, ticketStillCurrent } from "../rooms/RunRoom";
 import { accountsRepo } from "../db/accountsRepo";
 import { deviceTokensRepo } from "../db/deviceTokensRepo";
-import { NameFailureLimiter, SlidingWindowLimiter } from "../net/rateLimit";
+import { NameFailureLimiter, SlidingWindowLimiter, nameFailureIpKey } from "../net/rateLimit";
 import { logIn as logInAction } from "./accountAuth";
 import { readTicket, verifyTicket } from "./ticket";
 
@@ -421,5 +421,86 @@ describe("Story 7.6 review L2: a join and an account switch of one device can't 
     expect(await logInAction({ cookieToken: g.token, username: a.username, password: PASSWORD, ip: "10.80.0.1" }, deps)).toEqual({ status: 409, error: "in_room" });
     expect(calls).toBe(2);
     expect(readTicket((await post("/account/session", {}, { cookie: g.token })).body.ticket, SECRET)?.accountId).toBe(g.id); // still the guest
+  });
+});
+
+/** Reserves a seat (POST /matchmake/create/run: onAuth runs) without connecting yet. */
+async function reserve(guestToken: string, ticket: unknown, name = "Ana"): Promise<unknown> {
+  const opts = { intent: "create", name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken, ...(typeof ticket === "string" ? { ticket } : {}) };
+  const res = await fetch(`http://127.0.0.1:${port}/matchmake/create/${RUN_ROOM_NAME}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(opts) });
+  expect(res.status).toBe(200);
+  return res.json();
+}
+
+/** Connects a reservation; returns the server-side member's account id, then leaves. */
+async function consume(reservation: unknown): Promise<string | null> {
+  const c = await colyseus.sdk.consumeSeatReservation(reservation as Parameters<typeof colyseus.sdk.consumeSeatReservation>[0]);
+  for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
+  const room = colyseus.getRoomById(c.roomId) as unknown as RunRoom;
+  const id = room.members.get(c.sessionId)?.accountId ?? null;
+  await c.leave();
+  return id;
+}
+
+describe("Story 7.6 re-review RR2: a seat reserved before an account switch never seats (or renames) the account", () => {
+  it("E5: the thief reserves a seat with the stolen login, the owner resets, the thief connects → unsaved seat, the owner's name untouched", async () => {
+    const a = await account();
+    const thief = await post("/account/login", { username: a.username, password: PASSWORD });
+    const reservation = await reserve(String(thief.body.deviceToken), thief.body.ticket, "PWNED");
+    const reset = await post("/account/recover", { username: a.username, code: a.code, newPassword: "owner again 2" });
+    expect(reset.status).toBe(200);
+    expect(await consume(reservation)).toBeNull();
+    await new Promise((r) => setTimeout(r, 100)); // a (wrong) display-name save would be async
+    const owner = await post("/account/session", {}, { cookie: String(reset.body.deviceToken) });
+    expect(owner.body.account).toEqual({ displayName: "", username: a.username });
+  });
+
+  it("E7: a guest reserves a seat, logs in on the same phone, then connects → the seat is unsaved (not the dead token's retired guest)", async () => {
+    const a = await account();
+    const g = await post("/account/session", {});
+    const reservation = await reserve(g.token as string, g.body.ticket);
+    expect((await post("/account/login", { username: a.username, password: PASSWORD }, { cookie: g.token as string })).status).toBe(200);
+    expect(await consume(reservation)).toBeNull();
+  });
+
+  it("liveness: with nothing switched, a reserved seat still connects with its account", async () => {
+    const a = await account();
+    const s = await post("/account/session", {}, { cookie: a.token });
+    expect(await consume(await reserve(a.token, s.body.ticket))).toBe(a.id);
+  });
+});
+
+describe("Story 7.6 re-review RR5: onAuth itself refuses a token in the middle of a switch", () => {
+  it("RunRoom.onAuth throws rate_limited for a marked token (without relying on onJoin's copy)", async () => {
+    const g = await guest();
+    const h = hashGuestToken(g.token);
+    const opts = { intent: "create", name: "Ana", balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken: g.token };
+    beginSwitch(h);
+    try {
+      await expect(RunRoom.onAuth("", opts, { ip: "10.95.0.1" } as never)).rejects.toThrow(/rate_limited/);
+    } finally {
+      endSwitch(h);
+    }
+    await expect(RunRoom.onAuth("", opts, { ip: "10.95.0.1" } as never)).resolves.toMatchObject({ guestTokenHash: h, accountId: null });
+  });
+});
+
+describe("Story 7.6 re-review RR1: the per-name budget counts an IPv6 /56 as one address", () => {
+  it("10 wrong guesses from 10 /64s of one /56 → a fresh /64 of the SAME /56 is refused; another /56 is evaluated; the owner still logs in", async () => {
+    const a = await account();
+    for (let i = 0; i < 10; i++) {
+      const ip = `2001:db8:7:01${i.toString(16).padStart(2, "0")}::1`;
+      expect((await post("/account/login", { username: a.username, password: "guess guess" }, { ip })).status).toBe(401);
+    }
+    expect((await post("/account/login", { username: a.username, password: "guess guess" }, { ip: "2001:db8:7:01ff::9" })).status).toBe(429);
+    expect((await post("/account/login", { username: a.username, password: "guess guess" }, { ip: "2001:db8:7:0200::1" })).status).toBe(401);
+    expect((await post("/account/login", { username: a.username, password: PASSWORD }, { ip: "10.96.0.1" })).status).toBe(200);
+  });
+
+  it("nameFailureIpKey: IPv6 → /56, IPv4 and IPv4-mapped unchanged", () => {
+    expect(nameFailureIpKey("2001:db8:7:01ab::1")).toBe("2001:db8:7:100::/56");
+    expect(nameFailureIpKey("2001:db8:7:1ff:0:0:0:9")).toBe("2001:db8:7:100::/56");
+    expect(nameFailureIpKey("10.1.2.3")).toBe("10.1.2.3");
+    expect(nameFailureIpKey("::ffff:10.1.2.3")).toBe("10.1.2.3");
   });
 });

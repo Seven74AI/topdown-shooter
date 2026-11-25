@@ -329,6 +329,15 @@ Not findings: E4 — a thief already SEATED when the owner resets keeps the owne
 
 **Mutations (each restored after):** M1 refuse every address over budget → 1 fail ✓; M1 count right answers too → 1 fail ✓; M2 drop the delete-all → 2 fail ✓; B24 drop the hash re-check → PGlite "a login whose verified password hash changed …" fails ✓ and real-PG "review M2 race" fails ✓; L1 trust every ticket → 3 fail ✓; L1 timeout refuses → 1 fail ✓; L2 drop the onAuth mark check → **survives** (RR5); L2 drop the onJoin mark check → wiring check fails ✓; L2 drop the re-check in `switching()` → 1 fail ✓; look merge rule guest-first → mergeRules fails ✓.
 
+### Re-review 1 fixes (builder, 2026-11-25; checked by the main session under the re-review cap)
+
+| ID | Fix | Test (file > test name) |
+| --- | --- | --- |
+| RR2 | `RunRoom.onJoin` is async and re-checks the ticket's device row (`ticketStillCurrent`) when the socket arrives, before the member is added; a failed re-check seats unsaved and never saves the display name. The mark check stays after the await (synchronous with the member add) | `auth/accountAuth.test.ts` > "E5: the thief reserves a seat with the stolen login, the owner resets, the thief connects → unsaved seat, the owner's name untouched", "E7: a guest reserves a seat, logs in on the same phone, then connects → the seat is unsaved …", "liveness: …" (mutation: remove the onJoin re-check → E5, E7 fail) |
+| RR1 | `nameFailureIpKey`: the per-name failure budget keys IPv6 by /56 (B3 updated) | `auth/accountAuth.test.ts` > "10 wrong guesses from 10 /64s of one /56 …", "nameFailureIpKey: …" |
+| RR5 | onAuth's own `isSwitching` refusal tested directly | `auth/accountAuth.test.ts` > "RunRoom.onAuth throws rate_limited for a marked token …" (mutation: remove it → fails) |
+| RR3, RR4 | Accepted (decision 7.6 B25): the row check's P3 fallback is load-triggerable (an old ticket's banks still only reach the account); the limiters' per-call prune is bounded by the window | — |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).

@@ -194,7 +194,20 @@ export class NameFailureLimiter {
   }
 }
 
-export const loginNameLimiter = new NameFailureLimiter(MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN, LOGIN_WINDOW_MS);
+/**
+ * Story 7.6 re-review RR1 (B3): the address key of the per-name failure budget is coarser for IPv6 — a /56 (a home or
+ * a small VPS allocation) counts as ONE failing address, so rotating through /64s inside it gives no extra guesses.
+ * IPv4 (and anything else) as `ipKey`.
+ */
+export function nameFailureIpKey(ip: string): string {
+  const k = ipKey(ip);
+  if (!k.endsWith("::/64")) return k;
+  const g = k.slice(0, -"::/64".length).split(":");
+  g[3] = (parseInt(g[3] ?? "0", 16) & 0xff00).toString(16);
+  return `${g.join(":")}::/56`;
+}
+
+export const loginNameLimiter = new NameFailureLimiter(MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN, LOGIN_WINDOW_MS, Date.now, nameFailureIpKey);
 /** Story 7.6: upgrade / logout per IP (before any work) and per account. */
 export const accountActionIpLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
 export const accountActionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN, LOGIN_WINDOW_MS, Date.now, (key) => key);
