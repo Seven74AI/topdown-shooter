@@ -4,7 +4,7 @@ baseline_commit: a06c9cf
 
 # Story 10.10: Build button (hybrid build-phase UI)
 
-Status: review
+Status: done
 
 (Waiting on the designer's layout pick, **Decision BU-1** below. Building UX follow-up to Stories 5.15–5.21. Designer decision 2026-11-25: "hybrid" — a **Build** button plus the **last-placed building** as a one-tap quick tile; Build opens the full grid as a panel and a pick closes it. Options page: `docs/art/build-ui/index.html`. Written with `gds-create-story` (+ `gds-ux` for the layout thinking), headless.)
 
