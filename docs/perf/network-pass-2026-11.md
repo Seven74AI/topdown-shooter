@@ -35,7 +35,7 @@ See the story file's measurement table (`PERF_ASSERT=1 npx vitest run apps/serve
 
 ### Bots on the lossy line
 
-See the story file (T8): 4 bots, `--scenario net150 --until-wave 5 --hold-fire 45`; before = master's `lagProxy.ts` (server→client stalls only, `--stall-prob 0.01 --stall-ms 200`), after = `--lag 150 --jitter 20 --loss 1` (in-process `lagLine.ts`, both directions).
+Liveness only (review N3: the before and after lines differ, so these runs are not a before/after measurement). See the story file (T8): 4 bots, `--scenario net150 --until-wave 5 --hold-fire 45`; before = master's `lagProxy.ts` (server→client stalls only, `--stall-prob 0.01 --stall-ms 200`), after = `--lag 150 --jitter 20 --loss 1` (in-process `lagLine.ts`, both directions).
 
 ## 8.9 Smooth through hiccups
 
