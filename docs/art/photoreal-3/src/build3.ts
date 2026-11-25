@@ -10,7 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { drawMT3, drawPB3, drawRF3, drawWD3, inFrameM } from "./barricadeTakes";
+import { SIDE_C, drawCornerPost, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3side, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const REFS: Record<string, string>; // the Meshy references (round 3)
@@ -577,7 +577,59 @@ async function takes(): Promise<void> {
   }
 }
 
+/** A small fort of wood barricades: front pieces, side pieces, corner posts, drawn nearest-last. */
+async function fort(): Promise<void> {
+  const box = document.getElementById("fort") as HTMLElement;
+  const front = relight(take("f", "", drawWD3, "x", 0, ""), 1801);
+  const side = relight({ ...take("s", "", drawWD3side, "y", 0, ""), wM: 1, hM: 2.8 }, 1802);
+  const post = relight({ ...take("p", "", drawCornerPost, "y", 0, ""), wM: 0.6, hM: 1.2 }, 1803);
+  await new Promise((r) => setTimeout(r, 0));
+  const PX = 150; // scene px per metre
+  const W = 7.4;
+  const Hm = 5.4;
+  const c = canvas(Math.round(W * PX), Math.round(Hm * PX));
+  const g = ctx(c);
+  asphalt(g, c.width, c.height, 21);
+  night(g, c.width, c.height, 0.3, [[c.width * 0.2, c.height * 0.1, c.width]]);
+  const k = PX / PXM;
+  // [kind, footprint centre x, y] in metres; the fort: north run of two, west and east runs, a south piece, a gap at the south east
+  const pieces: ["front" | "side" | "post", number, number][] = [
+    ["front", 2.25, 1.5], ["front", 4.25, 1.5], ["side", 1.0, 2.75], ["side", 5.5, 2.75], ["front", 2.25, 4.0],
+    ["post", 1.0, 1.5], ["post", 5.5, 1.5], ["post", 1.0, 4.0],
+  ];
+  const drawOrder = pieces.map((p) => ({ p, near: p[0] === "side" ? p[2] + 1 : p[2] + (p[0] === "post" ? 0.26 : 0.25) })).sort((a, b) => a.near - b.near);
+  for (const { p } of drawOrder) {
+    const [kind, x, y] = p;
+    const lit = kind === "front" ? front : kind === "side" ? side : post;
+    // where the footprint centre sits in each frame
+    const ox = lit.w / 2;
+    const oy = kind === "front" ? lit.h / 2 + 0.24 * PXM : kind === "side" ? lit.h / 2 + SIDE_C * PXM : lit.h / 2 + 0.35 * PXM;
+    g.drawImage(lit.base, (x + 0.2) * PX - ox * k, (y + 0.4) * PX - oy * k, lit.w * k, lit.h * k);
+  }
+  const card = document.createElement("article");
+  card.className = "pair wide";
+  const h3 = document.createElement("h3");
+  h3.textContent = "WD3 laid out as a small fort";
+  card.appendChild(h3);
+  card.appendChild(fig(c, "Front pieces (rotations 0 / 2) · side pieces (1 / 3) · corner posts where lines meet · an open end at the bottom right"));
+  const pieceRow = document.createElement("div");
+  pieceRow.className = "pieces";
+  const show = (lit: Lit, cap: string, s: number): HTMLElement => {
+    const cc = canvas(Math.round(lit.w * s) + 40, Math.round(lit.h * s) + 40);
+    const gg = ctx(cc);
+    asphalt(gg, cc.width, cc.height, 22);
+    night(gg, cc.width, cc.height, 0.3, []);
+    gg.drawImage(lit.base, 20, 20, lit.w * s, lit.h * s);
+    return fig(cc, cap);
+  };
+  pieceRow.appendChild(show(side, "The side picture", 0.6));
+  pieceRow.appendChild(show(post, "The corner post", 0.6));
+  card.appendChild(pieceRow);
+  box.appendChild(card);
+}
+
 async function main(): Promise<void> {
+  await fort();
   await takes();
   const list = document.getElementById("list") as HTMLElement;
   for (let i = 0; i < ITEMS.length; i++) {

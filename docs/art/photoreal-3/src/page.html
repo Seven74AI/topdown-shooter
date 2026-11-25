@@ -37,6 +37,9 @@ h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
 .refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .refs figure { margin: 0; }
 .refs img { width: 100%; height: auto; display: block; border-radius: 4px; }
+.pieces { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.pieces figure { margin: 0; }
+.pieces canvas { width: auto !important; max-width: 100%; height: auto; }
 #loading { color: var(--muted); margin-top: 16px; }
 .pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 36px; }
 .pick p { margin: 0; color: var(--fg); }
@@ -47,6 +50,11 @@ h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
   <p>The same recipe as the accepted characters: today's drawings are kept exactly (every plank, bolt and spike), then rendered with real volume and the cool street light, with materials read from the drawing: wood grain along the planks, brushed and pitted steel, rough rust, woven sandbags. Then details come alive: floodlights hum and flicker, the med cross beats and scans, the mine's LED blinks with a sensor ping, and glints run over steel jaws, spikes and wire. Game code; both sides drawn at twice the game's resolution.</p>
 </header>
 <p id="loading">Drawing…</p>
+<section id="rot">
+  <h2 class="big">Rotation and corners (round 3b)</h2>
+  <p>You asked how standing barricades turn and join. Today the game just spins the picture 90°. That works seen straight from above, but a standing barricade would end up lying on its side, with its shadow pointing the wrong way. So, as standing-up top-down games do, each barricade gets <b>two pictures</b>: the <b>front</b> view for lines running left–right, and the <b>side</b> view for lines running up–down. In the side view you see the near end and the top edge running up the screen, with props and junk sticking out to both sides. Where two lines meet, a <b>corner post</b> joins them. Pieces closer to the camera are drawn over the ones behind, and the light and shadows keep one direction everywhere. Below is the wood wall laid out as a small fort.</p>
+  <div id="fort"></div>
+</section>
 <section id="new">
   <h2 class="big">New: barricades from real references (round 3)</h2>
   <p>Rounds 1 and 2 still looked like benches, and so does today's police sawhorse. The references below show why. Real barricades are taller than they are deep, and they read from a raised camera: you see the front face, legs and props splayed out, junk piled at the base, and above all a long shadow on the street that repeats the slats. So these are drawn standing up the way the references are, with the shadow cast from each one's real outline. Built from scavenged parts: an old door, pallets, corrugated sheets, chains, razor wire, welded plates, sandbags. One direction per type for now. If this is the right way to go, I'll make variations.</p>

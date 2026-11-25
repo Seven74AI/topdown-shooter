@@ -809,3 +809,101 @@ export function drawMT3(g: Ctx): void {
     for (let i = 0; i < 9; i++) sandbag(c, -0.93 + i * 0.235, YB + 0.1, 0.25, 6130 + i);
   });
 }
+
+// ─────────────────────────────── round 3b: rotation and corners ───────────────────────────────
+// Designer: "how do you manage the rotation? corners". A standing barricade can't be spun like a flat sprite, so each
+// type gets two pictures: the FRONT view (lines along x, rot 0/2) and the SIDE view (lines along y, rot 1/3), and
+// where two lines meet a CORNER POST joins them. The light (and every shadow) keeps one direction.
+// Side frame: 1 × 2.8 m, the footprint (0.5 × 2 m) centred on (0, SIDE_C); the wall's base line runs along x = 0.
+
+export const SIDE_C = 0.4;
+const SN = SIDE_C - 1; // north end of the base line
+const SS_ = SIDE_C + 1; // south end (nearest the camera)
+
+/** WD3 side view: the near end of the wall, its uneven top edge running up the screen, props both sides, junk. */
+export function drawWD3side(g: Ctx): void {
+  const H = 1.0;
+  const up = H * TILT;
+  const r = rng(4400);
+  // shadow: the wall's height thrown down-right, with gaps where the slats are
+  g.save();
+  g.filter = "blur(1.5px)";
+  g.fillStyle = "rgba(0,0,0,0.62)";
+  const dx = up * 0.55;
+  const dy = up * 0.32;
+  for (let y = SN; y < SS_; y += 0.075) {
+    if (r() < 0.12) continue;
+    const h = 0.85 + r() * 0.25;
+    g.beginPath();
+    g.moveTo(0, y);
+    g.lineTo(dx * h, y + dy * h);
+    g.lineTo(dx * h, y + 0.068 + dy * h);
+    g.lineTo(0, y + 0.068);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
+  // props on the west side (behind the wall's line on screen: drawn first) and junk
+  for (const y of [SN + 0.35, SIDE_C, SS_ - 0.4]) bar(g, 0, y - up * 0.72, -0.2, y + 0.04, 0.045, "wood", "#6a4e33", 4410 + Math.round(y * 10));
+  cinder(g, -0.22, SIDE_C + 0.55);
+  // the top edge, north to south: plank tops of uneven height, the door's edge, pallet slat ends
+  const parts: { y0: number; y1: number; h: number; col: string; w: number }[] = [];
+  let y = SN;
+  while (y < SS_ - 0.01) {
+    const k = r();
+    const len = k < 0.15 ? 0.38 : k < 0.3 ? 0.42 : 0.075;
+    const col = k < 0.15 ? "#86877b" : k < 0.3 ? "#a08a62" : (WOODS[Math.floor(r() * 6)] as string);
+    parts.push({ y0: y, y1: Math.min(SS_, y + len), h: k < 0.15 ? 1.02 : k < 0.3 ? 0.95 : 0.86 + r() * 0.22, col, w: k < 0.3 ? 0.09 : 0.1 });
+    y += len;
+  }
+  for (const p of parts) {
+    // each part's top, raised by its own height; a sliver of its east side shows where it stands taller than the next
+    // drawn north to south from its top down to its base: the next (nearer) part covers it from its own top, so
+    // what stays visible is this part's top and, where it stands taller, a sliver of its near face
+    const t0 = p.y0 - p.h * TILT;
+    plank(g, -p.w / 2, t0, p.w / 2, p.y1, p.col, 4420 + Math.round(p.y0 * 100));
+    g.fillStyle = "rgba(0,0,0,0.38)";
+    g.fillRect(-p.w / 2, p.y1 - p.h * TILT, p.w, p.h * TILT); // the near face, in shade
+    g.fillStyle = "rgba(255,240,210,0.18)";
+    g.fillRect(-p.w / 2, t0, p.w, p.y1 - p.y0); // the lit top
+  }
+  // the long cross plank seen end-on along the top, nails
+  for (const p of parts) if (p.w > 0.065) nail(g, 0, (p.y0 + p.y1) / 2 - p.h * TILT);
+  // the near end: its face, the full height
+
+  for (const t of [0.36, 0.66]) {
+    // the cross planks' cut ends
+    g.fillStyle = "#5a422a";
+    g.fillRect(-0.065, SS_ - t * TILT - 0.02, 0.13, 0.04);
+    g.strokeStyle = "#0a0806";
+    g.lineWidth = 1.2 * P;
+    g.strokeRect(-0.065, SS_ - t * TILT - 0.02, 0.13, 0.04);
+  }
+  // props on the east side (in front on screen) and junk
+  for (const y2 of [SN + 0.6, SIDE_C + 0.25]) bar(g, 0, y2 - up * 0.72, 0.2, y2 + 0.05, 0.045, "wood", "#6a4e33", 4450 + Math.round(y2 * 10));
+  tyre(g, 0.22, SIDE_C - 0.3, 0.075);
+}
+
+/** The corner post that joins two lines: a thick squared timber, a bit taller, its face and its shadow. Frame 0.6 × 1.2 m, base at y 0.35. */
+export function drawCornerPost(g: Ctx): void {
+  const base = 0.35;
+  const H = 1.15;
+  g.save();
+  g.filter = "blur(1.5px)";
+  g.fillStyle = "rgba(0,0,0,0.62)";
+  g.beginPath();
+  g.moveTo(-0.07, base);
+  g.lineTo(0.07, base);
+  g.lineTo(0.07 + H * TILT * 0.55, base + H * TILT * 0.32);
+  g.lineTo(-0.07 + H * TILT * 0.55, base + H * TILT * 0.32);
+  g.closePath();
+  g.fill();
+  g.restore();
+  bar(g, 0, base, 0, base - H * TILT, 0.14, "wood", "#5f452c", 4600);
+  plank(g, -0.07, base - H * TILT - 0.07, 0.07, base - H * TILT, "#9a7a55", 4601); // its top
+  for (const t of [0.3, 0.7]) {
+    g.fillStyle = "#3a3d42";
+    g.fillRect(-0.075, base - H * TILT * t - 0.012, 0.15, 0.024);
+    bolt(g, 0, base - H * TILT * t, 0.009);
+  }
+}
