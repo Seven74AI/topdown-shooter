@@ -6,7 +6,7 @@ import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { layoutBossBar } from "./bossBar";
 import { eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
-import { layoutHpBlock, layoutWaveLine } from "./hudTopLayout";
+import { layoutHpBlock, layoutMoneyLine, layoutWaveLine } from "./hudTopLayout";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
@@ -215,6 +215,7 @@ describe("Story 6.8 review M2 / re-review R1–R3: the event edge arrow (not pre
       const keepOff: Box[] = [
         { id: "hp_block", ...layoutHpBlock(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
         { id: "wave_line", ...layoutWaveLine(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+        { id: "money_line", ...layoutMoneyLine(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
       ];
       const size = EVENT_ARROW_CSS_PX * K;
       const at = { x: 0, y: 0, angle: 0 };
@@ -295,8 +296,9 @@ describe("Story 6.8 re-review 2 RR1: the edge arrow keeps its bearing and moves 
         // meets the quick-use button, so straight up, up-right and right each need one; wider screens
         // need one at the swap / quick-use pair. One per place per turn — the hysteresis stops a flicker.
         expect(bigJumps, `jumps > 40 px over two turns (${dir > 0 ? "clockwise" : "anticlockwise"})`).toBeLessThanOrEqual(2 * 3);
-        // jitter ±0.1° round every whole degree after settling: no jump > 40 px (hysteresis)
-        for (let deg = 0; deg < 360; deg++) {
+        // jitter ±0.1° round every degree (+0.37°) after settling: no jump > 40 px (hysteresis)
+        for (let deg0 = 0; deg0 < 360; deg0++) {
+          const deg = deg0 + 0.37; // fractional angles (re-review 3 nit)
           const j = { x: 0, y: 0, angle: 0, side: 0 };
           let qx = NaN;
           let qy = NaN;
@@ -311,6 +313,73 @@ describe("Story 6.8 re-review 2 RR1: the edge arrow keeps its bearing and moves 
       }
       expect((maxErr * 180) / Math.PI, "max bearing error (°)").toBeLessThanOrEqual(30 + 1e-6);
       console.info(`RR1 ${cw}×${ch} k${k}: max bearing error ${((maxErr * 180) / Math.PI).toFixed(2)}°, max smooth step ${maxSmoothJump.toFixed(2)} CSS px, max jump ${maxJump.toFixed(1)} CSS px`);
+    });
+  }
+});
+
+describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () => {
+  const CASES: [number, number, number][] = [];
+  for (const k of [1, 3]) for (const [w, h] of [[568, 320], [640, 360], [800, 360], [844, 390], [390, 844]] as const) CASES.push([w, h, k]);
+  for (const [cw, ch, k] of CASES) {
+    it(`${cw} × ${ch} at k ${k}: every jump > 40 px of a 0.01° sweep, crossed back and forth (±0.01°…±1°, 40 frames) or walked slowly with ±2 px noise, flips at most once`, () => {
+      const w = cw * k;
+      const h = ch * k;
+      const avoid = waveControlRects(w, h, INSET, k, newWaveControlRects());
+      const size = EVENT_ARROW_CSS_PX * k;
+      const R = Math.hypot(w, h); // the event point just beyond the corner distance: off screen at every bearing
+      const put = (deg: number, at: { x: number; y: number; angle: number; side?: number }, nx = 0, ny = 0): void => {
+        const a = (deg * Math.PI) / 180;
+        expect(placeEventArrow(w / 2 + Math.cos(a) * R + nx * k, h / 2 + Math.sin(a) * R + ny * k, w, h, INSET, k, size, avoid, at)).toBe(true);
+      };
+      // 1. find every jump of the fresh (stateless) placement
+      const jumps: number[] = [];
+      let freshErr = 0;
+      const fresh = { x: 0, y: 0, angle: 0, side: 0 };
+      let px = NaN;
+      let py = NaN;
+      for (let i = 0; i < 36000; i++) {
+        fresh.side = 0;
+        put(i / 100, fresh);
+        if (!Number.isNaN(px) && Math.hypot(fresh.x - px, fresh.y - py) / k > 40) jumps.push(i / 100);
+        const e = Math.atan2(fresh.y - h / 2, fresh.x - w / 2) - (i / 100) * (Math.PI / 180);
+        freshErr = Math.max(freshErr, (Math.abs(Math.atan2(Math.sin(e), Math.cos(e))) * 180) / Math.PI);
+        px = fresh.x;
+        py = fresh.y;
+      }
+      const flips = (track: (frame: number) => [number, number, number], frames: number): number => {
+        const at = { x: 0, y: 0, angle: 0, side: 0 };
+        let n = 0;
+        let qx = NaN;
+        let qy = NaN;
+        for (let f = 0; f < frames; f++) {
+          const [deg, nx, ny] = track(f);
+          put(deg, at, nx, ny);
+          if (!Number.isNaN(qx) && Math.hypot(at.x - qx, at.y - qy) / k > 40) n++;
+          qx = at.x;
+          qy = at.y;
+        }
+        return n;
+      };
+      let worst = 0;
+      let seed = 7;
+      const noise = (): number => {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return (seed / 2147483648) * 4 - 2; // ±2 px
+      };
+      for (const j of jumps) {
+        for (const amp of [0.01, 0.05, 0.2, 1]) {
+          const n = flips((f) => [j + (f % 2 === 0 ? -amp : amp), 0, 0], 40);
+          expect(n, `oscillating ±${amp}° across the jump at ${j.toFixed(2)}°`).toBeLessThanOrEqual(1);
+          worst = Math.max(worst, n);
+        }
+        for (const dir of [1, -1]) {
+          const n = flips((f) => [j + dir * (-3 + f * 0.05), noise(), noise()], 121);
+          expect(n, `walking ${dir > 0 ? "up" : "down"} through the jump at ${j.toFixed(2)}° with ±2 px noise`).toBeLessThanOrEqual(1);
+          worst = Math.max(worst, n);
+        }
+      }
+      expect(freshErr).toBeLessThanOrEqual(30 + 1e-6);
+      console.info(`RR3-1 ${cw}×${ch} k${k}: fresh max bearing error ${freshErr.toFixed(2)}°, fresh-placement jumps at [${jumps.map((d) => d.toFixed(2)).join(", ")}]°, worst flips ${worst}`);
     });
   }
 });

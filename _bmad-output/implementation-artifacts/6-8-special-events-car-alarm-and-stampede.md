@@ -567,6 +567,16 @@ Every layout: 0 overlaps with ☰, swap, quick-use, the HP block or the wave lin
 
 **Mutations (each applied, the named test run, reverted):** fallback hysteresis removed → hudLayout 2 failed; obstacle pull-back off → 2 failed; notch chamfers 0 → 2 failed; max error 30° → 60° → 2 failed; 30° → 20° → 2 failed; RR4 guard off → schedule 1 failed; `lastEndlessEvent` restore off → 1 failed; `startBuild` without `previousLast` → 1 failed. **Survived:** `HP_ROW_RESERVE_CSS_PX` 0, `WAVE_LINE_RESERVE_CSS_PX` 240 (RR3-3), and the RR4 wave check removed (RR3-4).
 
+### Re-review 3 fixes (builder, 2026-11-25, after merging `rereview3-6-8` d26ac60)
+
+| # | Fix | Test / measured |
+| --- | --- | --- |
+| RR3-1 [BEHAVIOUR] | Jump hysteresis in `placeEventArrow`. If the fresh placement would move the arrow more than 40 CSS px from last frame's spot, and that spot is still legal (inside the notched region, off every obstacle, clear of the survivor) and within 10° of the bearing (`EVENT_ARROW_HOLD_RAD`), the arrow stays there. This covers both the pull-back at a control's corner and the far side of a blocked fan. Crossing back and forth flips at most once. | `hudLayout.test` "RR3-1": 568×320, 640×360, 800×360, 844×390 and 390×844 at k 1 and 3. A 0.01° stateless sweep finds every jump > 40 px: 568×320 at 356.71°; 640×360 at 13.77° / 349.26°; 800×360 at 10.55° / 351.80°; 844×390 at 12.24° / 354.69°; 390×844 at 67.17°. Then 40 frames oscillating ±0.01 / 0.05 / 0.2 / 1° across each, and a ±3° walk each way with ±2 px noise: **0 flips everywhere** (bound 1). Stateless max bearing error: 14.25° at 568×320, 0° elsewhere. With the hold, the 0.1° sweep's max is 28.5° at 568×320 and 10° elsewhere. |
+| RR3-2 | The HP block is split: `layoutHpBlock` is the bar and the HP row (wide); `layoutMoneyLine` is its own short rect under it. `waveControlRects` has 6 rects. Straight up at 568×320 now has a spot (its fresh jump is gone). | the keep-off checks include the money line. |
+| RR3-3 | `hudTopLayout` builds the widest strings with HudScene's own functions: `WIDEST_WAVE_LINE = waveLine(wave 999, 9999, endless)`, `WIDEST_HP_TEXT = hpRowText(9999, 9999, Burning)` (HudScene now draws the HP text with `hpRowText`), and `WIDEST_MONEY_TEXT`. HudScene measures them with its own text styles at create and reports the widths (`reportHudTextWidths`). Each rect reserves max(fallback, measured), plus the 5 gear icons on the HP row. | `hudTopLayout.test`: every `waveLine` / `hpRowText` output is no longer than the widest string; a measured width wider than the fallback widens the rects. |
+| RR3-4 | `forceEvent` in endless sets `run.endlessEvent` and `run.lastEndlessEvent` to the forced kind (dev). | `schedule.test`: forced in wave 11 → kept, last = forced; a pending forced entry for another wave, or a done one for the same wave, doesn't stop the pick; a force in the build replaces the pick, and wave 14 doesn't repeat it. |
+| nit | The jitter test runs at fractional angles (+0.37°). | — |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -580,3 +590,4 @@ Every layout: 0 overlaps with ☰, swap, quick-use, the HP block or the wave lin
 - 2026-11-25: Re-review 2 (AI) of R1–R4 + the 6.11/6.12 merge: approve with notes (1 medium RR1 arrow bearing / jump, 3 low).
 - 2026-11-25: re-review 2 fixes: RR1 arrow on its ray (notched safe rect, obstacles, ≤ 30° fallback with hysteresis), RR2/RR3 wave-line and HP-row reserves, RR4 forced event wins over the endless pick, fakeRoom order.
 - 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes: changes requested (1 medium RR3-1 arrow flicker at obstacle corners, 3 low, 1 nit).
+- 2026-11-25: re-review 3 fixes: RR3-1 arrow jump hysteresis (no strobe), RR3-2 money line split from the HP block, RR3-3 measured HUD reserves, RR3-4 forced endless kind remembered.

@@ -147,6 +147,12 @@ export function forceEvent(world: World, kind: string): boolean {
   s.extra.startFraction = world.balance.events.startFractionMin;
   s.extraDone = false;
   for (let i = 0; i < s.count; i++) if ((s.schedule[i] as ScheduleEntry).wave === wave) s.done |= 1 << i; // replaced (not "skipped": no event)
+  // Re-review 3 RR3-4 (dev): in endless the forced kind is the coming wave's endless event, so 6.12's
+  // no-repeat remembers it (a pick already armed for that wave is replaced above).
+  if (world.run.endless) {
+    world.run.endlessEvent = kind;
+    world.run.lastEndlessEvent = kind;
+  }
   return true;
 }
 

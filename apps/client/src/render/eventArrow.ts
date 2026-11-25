@@ -1,6 +1,6 @@
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
-import { layoutHpBlock, layoutWaveLine } from "../scenes/hudTopLayout";
+import { layoutHpBlock, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
 
 /**
  * Story 6.8 review M2 (brief 31): where the event edge arrow sits on the SCREEN. Not pressable, but it
@@ -35,7 +35,8 @@ export const EVENT_ARROW_PAD_CSS_PX = 6;
 
 /**
  * What the arrow keeps off in a wave (the same layout functions / constants HudScene draws with), into
- * `out` (5 rects): ☰, swap, quick-use, then (re-review R1) the HP block and the wave line.
+ * `out` (6 rects): ☰, swap, quick-use, then (re-review R1) the HP block (bar + HP row), the wave line
+ * and (re-review 3 RR3-2) the money line.
  */
 export function waveControlRects(w: number, h: number, insets: Insets, k: number, out: ScreenRect[]): ScreenRect[] {
   const ms = MENU_BUTTON_CSS_PX * k;
@@ -54,12 +55,13 @@ export function waveControlRects(w: number, h: number, insets: Insets, k: number
   cons.w = cons.h = r.size;
   layoutHpBlock(insets, k, out[3] as ScreenRect);
   layoutWaveLine(w, insets, k, out[4] as ScreenRect);
+  layoutMoneyLine(insets, k, out[5] as ScreenRect); // re-review 3 RR3-2: its own short rect under the HP row
   return out;
 }
 const rightScratch = newRightButtonsLayout();
 
 export function newWaveControlRects(): ScreenRect[] {
-  return [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
+  return [0, 1, 2, 3, 4, 5].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
 }
 
 /** The arrow's placement (kept by the caller across frames: `side` is the hysteresis state). */
@@ -109,11 +111,30 @@ export function placeEventArrow(sx: number, sy: number, w: number, h: number, in
   const prevX = out.x;
   const prevY = out.y;
   out.side = 1;
-  if (exitClear(bearing, bearing)) {
-    out.x = rg.x;
-    out.y = rg.y;
-    return true;
+  place(bearing, hadPrev, prevX, prevY);
+  // Re-review 3 RR3-1: never jump between distant spots on a small bearing change. A jump (a ray
+  // grazing a control's corner, a blocked fan's far side) waits while last frame's spot is still legal
+  // and within `EVENT_ARROW_HOLD_RAD` of the bearing: crossing back and forth flips at most once.
+  if (hadPrev && Math.hypot(rg.x - prevX, rg.y - prevY) > EVENT_ARROW_JUMP_CSS_PX * k && legalAt(prevX, prevY, bearing)) {
+    const err = Math.abs(Math.atan2(Math.sin(Math.atan2(prevY - rg.cy, prevX - rg.cx) - bearing), Math.cos(Math.atan2(prevY - rg.cy, prevX - rg.cx) - bearing)));
+    if (err <= EVENT_ARROW_HOLD_RAD) {
+      rg.x = prevX;
+      rg.y = prevY;
+    }
   }
+  out.x = rg.x;
+  out.y = rg.y;
+  return true;
+}
+
+/** Re-review 3 RR3-1: a move longer than this (CSS px) is a jump, held off by the hysteresis. */
+export const EVENT_ARROW_JUMP_CSS_PX = 40;
+/** …while last frame's spot is within this of the bearing. */
+export const EVENT_ARROW_HOLD_RAD = (10 * Math.PI) / 180;
+
+/** The fresh placement for `bearing` into rg.x / rg.y. */
+function place(bearing: number, hadPrev: boolean, prevX: number, prevY: number): void {
+  if (exitClear(bearing, bearing)) return;
   // the nearest clear ray each way (≤ 30°); hysteresis: the one nearer where the arrow was last frame
   const max = EVENT_ARROW_MAX_BEARING_ERR_RAD;
   const dp = searchSide(bearing, 1, max);
@@ -127,9 +148,20 @@ export function placeEventArrow(sx: number, sy: number, w: number, h: number, in
     rg.x = px;
     rg.y = py;
   }
-  out.x = rg.x;
-  out.y = rg.y;
-  return true;
+}
+
+/** Is (x, y) a legal arrow centre now (inside the notched region, off every obstacle, clear of the survivor)? */
+function legalAt(x: number, y: number, tipAngle: number): boolean {
+  if (!insideRegion(x, y)) return false;
+  for (let i = 0; i < obstacleCount; i++) {
+    const o = obstacles[i] as ScreenRect;
+    if (x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h) return false;
+  }
+  atScratch.x = x;
+  atScratch.y = y;
+  atScratch.angle = tipAngle;
+  const r = eventArrowDrawnRect(atScratch, rg.size, drawnScratch);
+  return rectCentreGap(r.x, r.y, r.w, r.h, rg.cx, rg.cy) >= rg.clear - 1e-6;
 }
 
 /** Scratch for one placement (no allocation per call). */
