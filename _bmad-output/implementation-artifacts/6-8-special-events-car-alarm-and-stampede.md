@@ -452,6 +452,31 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 | L8 | `dev_events` log line moved after the boss's `else if` in `RunRoom`. | read. |
 | Nits | `sidestepAlongFrac` → `events.json`; `laneMarginM`, `strafeFlipSeqs` → `bots.json`; `EDGE_EPS_M` / `MERGE_GAP_M` documented geometry epsilons; `bandBox` skips boxes beside the lane's width; `mirrorSpecialEvent` looks the car up once per marker position (per mirror World). | tests above. |
 
+### Re-review (AI) (fresh agent, 2026-11-25, narrow: the review-fix commits e0e56b1..5b307e0)
+
+**Outcome: approve with notes (0 high, 1 medium, 3 low).** The fixes hold: B2, the update-outcome API, L1–L8. M2 keeps the arrow off every pressable control, but the arrow still covers the HP bar and the wave line (R1).
+
+**Run:** `npm run typecheck` (clean). Unchanged: `spots` (main 81.9 %, cross 96.3 %, stuck 46/3000), `stampede`, `carAlarm`, `specialEvents` (36/36), `hudLayout` (7/7), server `eventBandwidth` (worst frame 28.2 KB/s, 150 in view 23.6 KB/s). Throw-away probe tests, deleted afterwards.
+
+| # | Sev | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- |
+| R1 | medium | `apps/client/src/render/eventArrow.ts:31` (`waveControlRects`), `render/EventView.ts:118` | The arrow avoids only ☰, swap and quick-use. Probe at 1° steps with HudScene's constants: the 34 px arrow overlaps the HP bar block (HudScene `drawHealth`, `HP_MARGIN` 16 + inset, 200 × 16 + the HP text) for **65°** of directions at 568 × 320 (52° at 640 × 360; 31° at 844 × 390; 14° at 1280 × 720). It overlaps the "Wave n · Zombies m" line (top centre, `WAVE_TOP_PX` 12, about 220 px wide) for **85°** (77° at 640 × 360). HudScene draws above GameScene, so the arrow sits under or across the HP readout and the wave line. For example, an event up-left of the survivor puts the arrow at (67, 23), right on the HP bar's left end. Brief 31 covers only pressable controls, so this breaks no rule, but it hurts the "readable" part of D10. | Export the HP-block and wave-line rects from HudScene's constants (or a small `layoutHpBlock` / `layoutWaveLine`), add them to `avoid`, and add them to the HUD layout test's arrow block as keep-off rects. |
+| R2 | low | `render/eventArrow.ts:58` (`placeEventArrow` on-screen test) | The arrow now shows only when the event point is off the canvas. Before, it also showed within `EDGE_MARGIN_M` 1.2 m of the edge. An event point that is on the canvas but in the safe-area inset (for example sx = 20 with a 44 px notch inset) or under ☰ / HP gets no arrow, and its pin is hidden. | Count a point outside the safe rect (or inside an avoid rect) as off screen. |
+| R3 | low | `scenes/hudLayout.test.ts:181` | The test box is 34 px (half 17). The drawn tip reaches about **20.7 px** from the arrow centre along the axes (disc 0.7 × 34, tip at 0.62 × disc, half-size 0.25 × disc). Placement is still safe because the 6 px pad gives half = 23, but the test asserts on a box smaller than what is drawn. A smaller pad would pass the test and still let the tip overlap a control. | Test with the drawn extent (size/2 + tip overhang), or make `EVENT_ARROW_CSS_PX` the true outer extent. |
+| R4 | low (docs) | this file, AC 9 + the JSON block (`runS 10`); the review's "the hold always ends (≤ 13 s)"; decisions 6.8 B1 ("28.2 KB/s for ≤ 13 s") | With B2 the hold is 3 + 12 = **15.00 s** (probe: 300 ticks max over 20 seeds × 4 players), and the over-budget horde window is up to 12 s of crossing. The promise text is stale. Nothing tests the duration (eventBandwidth checks only the rate). | Update AC 9 / JSON to 12 and the hold to ≤ 15 s, and note in B1 that the window is now the 12 s crossing. |
+
+**Exploit attempts:**
+
+1. **B2 hold.** Measured the active stampede over 20 seeds × 4 players: exactly 300 ticks (15.00 s), never longer. The hold is `kind === STAMPEDE`, and update ends the event at `runS`. Worst horde frame unchanged (28.2 KB/s, 30 over-cap). Main-street crossing is 81.9 % against the 75 % bar (about 7 points of margin), so 18 % still join the wave. B2's "crosses and leaves" is mostly true. **Holds.**
+2. **Double end.** The `EventBus` queues and delivers at flush, and `end()` does not re-enter. `endSpecialEvent` clears `kind` only after `end()`, but nothing inside `end()` reaches it. `skipWave` one tick before `runS` runs out gives a single `wave_end`; `skipWave` after a `done` gives no second `event.ended`. Car alarm and stampede each end once with `"done"`. **Holds.**
+3. **L7.** Car sounded before the fields were built, 12 zombies (walkers + brutes) round `street_car_east`: no zombie entered a solid during the 10-tick build window or after. All 12 were lured and gathered within 5.7 m of the car. Same trace on two runs per seed (1, 3, 9). `lureBuild` is in `snapshotWorld`. **Holds.**
+4. **M2.** At 1° steps, plus points just off every edge, at 568 × 320, 640 × 360, 844 × 390, 390 × 844 and 1280 × 720: the arrow never touched ☰, swap or quick-use. **Holds.** It does cover the HP bar and the wave line (R1). No per-frame allocation: `waveControlRects` reuses `this.controls` and the right-buttons scratch, and the insets are copied on create and resize only.
+
+**Mutations (each applied, the named test run, reverted):**
+
+- Killed: L1 drop `anyoneStanding`; L2 count standing only; L3 drop the spawn pause; L4 hold only while RUNNING; L5 `min2 = 0`; L6b drop `!stampede` in the held-building branch; L7 drop `lureBuild === LURE_READY`; M2 no slide pass; M2 pad −8 px.
+- L6a in its first form (delete the sticky refresh branch) **survived, but it is equivalent**: zombieAi counts `lureTicks` down every tick, so the stale value ends with the alarm anyway. The real mutation ("drop the lure outside 15 m", `lureTicks = inside ? ticksLeft : 0`) is killed.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -459,3 +484,4 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 - 2026-11-24: built (gds-dev-story): framework, car alarm, stampede, events map layer, wire, client; merged 6.6+6.7 and 6.2+6.4 from master; status review.
 - 2026-11-24: Senior Developer Review (AI) by a fresh reviewer: changes requested (2 medium, 8 low)
 - 2026-11-24: review fixes: 6.8 B2 (runS 12), the update-outcome API, M2 (edge arrow in the HUD layout test), L1–L8, nits; status review.
+- 2026-11-25: Re-review (AI) of the review fixes: approve with notes (1 medium R1 edge arrow over the HP bar / wave line, 3 low).
