@@ -1,6 +1,9 @@
+---
+baseline_commit: 2a889297
+---
 # Story 9.13: Photoreal characters in the game
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -23,27 +26,27 @@ Approved look: **take 4 with today's grey see-through outline** (designer 2026-1
 
 ## Tasks / Subtasks
 
-- [ ] T1 Port the renderer (AC 1, 3)
-  - [ ] `render/city/charRelight.ts`: take4 `relight4` as a resumable generator like `relight.ts › relightSteps` (yield per row / band, `MakeCanvas` injected, no `document`, bloom pre-blurred with `boxBlur` instead of `ctx.filter`), outputs base / glow / bloom / gloss, KEEP_OUTLINE behaviour hard-wired on. Copy `hash2` / `vnoise` / `fbm` from `docs/art/asset-fixes-1/src/lib.ts` (or reuse `groundDamageArt.ts › fbm/hash2` if identical). Rescale every fixed-px constant (blur radii, texture periods, bloom 6 px, drips, vein step/spacing/speed, sac min radius) from the page's 68 px/r to the game resolution (B3).
-  - [ ] `render/city/commonzArt.ts`: port `drawWalker2 / drawRunner2 / drawCrawler2` (game code only: bruteArt `artKit`). Fix the clipping the survey found (crawler blood smear ~1.83 r vs extent 1.75; walker fingertips ~1.58 r vs 1.55) by trimming the drawing, not by growing the frame (display size must not change).
-- [ ] T2 Character bake (AC 3, 7)
-  - [ ] `render/city/charactersFrames.ts` (pure, worker-safe: frame list + `bakeSteps`), `charactersBakeWorker.ts`, and the kept-cache / pump / worker / restore logic in `spriteAtlas.ts` (or a sibling `charactersAtlas.ts`) mirroring `buildingsAtlas.ts`. Separate sheets so a landing picture re-uploads only its sheet; glow+bloom sheet, gloss sheet; all ≤ 2048² (architecture budget).
-  - [ ] New frames: walk-loop frames `zombie_<walker|runner|crawler>_<v>_w<0..9>` (keep today's `ZOMBIE_FRAMES` names valid as the plain fallback / frame 0). Keep every existing frame name.
-  - [ ] Pump from `ZombieView.update()` (like `BuildingView.update` → `pumpBuildingsAtlas`), not from GameScene.
-- [ ] T3 Views (AC 2, 4, 6)
-  - [ ] `ZombieView`: two stacked pooled images per zombie for the crossfade (only within the cap), walk phase advanced by distance moved (B8), breathing/sway as scale/rotation offsets, glow/bloom as ADD images on their own depth band (batching), sheen as one ADD image stepping through baked sheen positions (B5), a cap-selection pass every N frames (not every frame), hit flash / windup / swell / fog alpha applied to every layer; keep `shownImages`, `drawnImage`, `forEachSwell` contracts (wall silhouettes, EyesView, BloaterView).
-  - [ ] `render/CharacterFxView.ts` (new): Bloater veins + sacs (B6) and Spitter drips (B7), pooled and capped.
-  - [ ] `PlayerView` / `SurvivorLookTextures`: relit body per player (worker; repaint budget kept), relit gun frames, SURV breathing/sway/glow flicker, chainsaw shake while cutting.
-  - [ ] Caps in `packages/shared/src/config/balance/controls.json` › `fx` + `balanceSchema.ts` (both), e.g. `maxCharacterAnim`, `maxCharacterSheen`, `maxBloaterFx`, `maxSpitterDrips`; `?fx=low` halves them.
-- [ ] T4 Gallery + docs (AC 6, 7)
-  - [ ] `gallery/collect.ts`: synchronous bake; relit frames + walk loops cut. `npm run gallery:export`; commit `tools/gallery/manifest.json`; update `SUPERSEDED` / approved sections per `docs/art/asset-review.md` (do NOT republish the review artifact — the orchestrator does).
-  - [ ] Readability sheet items 134+ with screenshots in `docs/art/9-13/` (DPR 2: 844×390, 568×320, desktop 1280×720): horde at night, horde in rain stage 3, blackout, survivors with 4 looks, Brute + Spitter windup, Bloater swell, a zombie behind a fort wall (silhouette).
-- [ ] T5 Tests + perf (AC 3, 4, 8)
-  - [ ] `charRelight.raster.test.ts`: KEEP_OUTLINE pass-through (outline pixels unchanged), no step > one readback band, a pinned digest of one relit Walker frame, emissive detection on a Bloater.
-  - [ ] Bake housekeeping tests copied from `buildingsBake.raster.test.ts` (stale gen, failure hands frames back, deadline, idle close, frozen tab, restore keeps/re-bakes).
-  - [ ] Wiring check `tools/checks/charactersBakeWiring.test.ts` (pump in `ZombieView.update`, gallery bake, restore registration).
-  - [ ] Cap tests: never more than the cap animated; `?fx=low` halves; no allocation in `update` (pool sizes stable over 600 frames).
-  - [ ] Perf table in `docs/perf/epic-9-characters.md` (before/after, 1× and 4×, load) + bake times (7 reps, median, min–max) + main-thread max long task.
+- [x] T1 Port the renderer (AC 1, 3)
+  - [x] `render/city/charRelight.ts`: take4 `relight4` as a resumable generator like `relight.ts › relightSteps` (yield per row / band, `MakeCanvas` injected, no `document`, bloom pre-blurred with `boxBlur` instead of `ctx.filter`), outputs base / glow / bloom / gloss, KEEP_OUTLINE behaviour hard-wired on. Copy `hash2` / `vnoise` / `fbm` from `docs/art/asset-fixes-1/src/lib.ts` (or reuse `groundDamageArt.ts › fbm/hash2` if identical). Rescale every fixed-px constant (blur radii, texture periods, bloom 6 px, drips, vein step/spacing/speed, sac min radius) from the page's 68 px/r to the game resolution (B3).
+  - [x] `render/city/commonzArt.ts`: port `drawWalker2 / drawRunner2 / drawCrawler2` (game code only: bruteArt `artKit`). Fix the clipping the survey found (crawler blood smear ~1.83 r vs extent 1.75; walker fingertips ~1.58 r vs 1.55) by trimming the drawing, not by growing the frame (display size must not change).
+- [x] T2 Character bake (AC 3, 7)
+  - [x] `render/city/charactersFrames.ts` (pure, worker-safe: frame list + `bakeSteps`), `charactersBakeWorker.ts`, and the kept-cache / pump / worker / restore logic in `spriteAtlas.ts` (or a sibling `charactersAtlas.ts`) mirroring `buildingsAtlas.ts`. Separate sheets so a landing picture re-uploads only its sheet; glow+bloom sheet, gloss sheet; all ≤ 2048² (architecture budget).
+  - [x] New frames: walk-loop frames `zombie_<walker|runner|crawler>_<v>_w<0..9>` (keep today's `ZOMBIE_FRAMES` names valid as the plain fallback / frame 0). Keep every existing frame name.
+  - [x] Pump from `ZombieView.update()` (like `BuildingView.update` → `pumpBuildingsAtlas`), not from GameScene.
+- [x] T3 Views (AC 2, 4, 6)
+  - [x] `ZombieView`: two stacked pooled images per zombie for the crossfade (only within the cap), walk phase advanced by distance moved (B8), breathing/sway as scale/rotation offsets, glow/bloom as ADD images on their own depth band (batching), sheen as one ADD image stepping through baked sheen positions (B5), a cap-selection pass every N frames (not every frame), hit flash / windup / swell / fog alpha applied to every layer; keep `shownImages`, `drawnImage`, `forEachSwell` contracts (wall silhouettes, EyesView, BloaterView).
+  - [x] `render/CharacterFxView.ts` (new): Bloater veins + sacs (B6) and Spitter drips (B7), pooled and capped.
+  - [x] `PlayerView` / `SurvivorLookTextures`: relit body per player (worker; repaint budget kept), relit gun frames, SURV breathing/sway/glow flicker, chainsaw shake while cutting.
+  - [x] Caps in `packages/shared/src/config/balance/controls.json` › `fx` + `balanceSchema.ts` (both), e.g. `maxCharacterAnim`, `maxCharacterSheen`, `maxBloaterFx`, `maxSpitterDrips`; `?fx=low` halves them.
+- [x] T4 Gallery + docs (AC 6, 7)
+  - [x] `gallery/collect.ts`: synchronous bake; relit frames + walk loops cut. `npm run gallery:export`; commit `tools/gallery/manifest.json`; update `SUPERSEDED` / approved sections per `docs/art/asset-review.md` (do NOT republish the review artifact — the orchestrator does).
+  - [x] Readability sheet items 134+ with screenshots in `docs/art/9-13/` (DPR 2: 844×390, 568×320, desktop 1280×720): horde at night, horde in rain stage 3, blackout, survivors with 4 looks, Brute + Spitter windup, Bloater swell, a zombie behind a fort wall (silhouette).
+- [x] T5 Tests + perf (AC 3, 4, 8)
+  - [x] `charRelight.raster.test.ts`: KEEP_OUTLINE pass-through (outline pixels unchanged), no step > one readback band, a pinned digest of one relit Walker frame, emissive detection on a Bloater.
+  - [x] Bake housekeeping tests copied from `buildingsBake.raster.test.ts` (stale gen, failure hands frames back, deadline, idle close, frozen tab, restore keeps/re-bakes).
+  - [x] Wiring check `tools/checks/charactersBakeWiring.test.ts` (pump in `ZombieView.update`, gallery bake, restore registration).
+  - [x] Cap tests: never more than the cap animated; `?fx=low` halves; no allocation in `update` (pool sizes stable over 600 frames).
+  - [x] Perf table in `docs/perf/epic-9-characters.md` (before/after, 1× and 4×, load) + bake times (7 reps, median, min–max) + main-thread max long task.
 
 ## Dev Notes
 

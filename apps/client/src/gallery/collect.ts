@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { ensureAtlases } from "../render/city/spriteAtlas";
 import { ensureBuildingsAtlas, pumpBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { ensureCharacterSheets, pumpCharacters } from "../render/city/charactersAtlas";
 import { ensureBuildIcons } from "../render/city/buildIcons";
 import { ensureBlastFxAtlas } from "../render/city/blastFxAtlas";
 import { ensureBossTextures } from "../render/city/bossAtlas";
@@ -41,6 +42,8 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureAtlases(this);
           ensureBuildingsAtlas(this, { worker: false }); // baked on the spot below, not in a worker
           pumpBuildingsAtlas(Infinity, Infinity); // the relit pictures, all of them, before the frames are cut
+          ensureCharacterSheets(this, { worker: false }); // Story 9.13: the relit characters (walk loops, glow, sheen, veins), baked on the spot
+          pumpCharacters(Infinity, Infinity);
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);
           ensureBossTextures(this);

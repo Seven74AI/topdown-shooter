@@ -578,6 +578,14 @@ export const fxSchema = z
     floodLightMergeM: z.number().min(0).max(16).default(4),
     /** Designer pick C (2026-11-25): silhouettes of bodies behind standing walls drawn at once (pooled, capped). */
     maxWallSilhouettes: z.number().int().min(1).max(64).default(24),
+    /** Story 9.13 (B4): zombies drawn with the full animation (walk crossfade, glow, sheen), nearest the camera first; the rest step their walk pictures and breathe only. `?fx=low` halves every Story 9.13 cap. */
+    maxCharacterAnim: z.number().int().min(0).max(256).default(20),
+    /** Story 9.13 (B5): of those, the ones that also get the moving sheen. */
+    maxCharacterSheen: z.number().int().min(0).max(256).default(10),
+    /** Story 9.13 (B6): Bloaters drawn with their glowing veins and acid sacs. */
+    maxBloaterFx: z.number().int().min(0).max(32).default(6),
+    /** Story 9.13 (B7): Spitters drawn dripping acid. */
+    maxSpitterDrips: z.number().int().min(0).max(32).default(8),
     /** Story 5.23: placement dust particles alive at once (8 per puff; the oldest puff reused). */
     maxPlaceDust: z.number().int().min(8).max(512).default(64),
     /** Story 5.23: owner corner tabs (3 s after a placement) drawn at once (the oldest reused). */
