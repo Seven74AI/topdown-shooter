@@ -4,7 +4,8 @@
  *
  *   npx tsx tools/netsim/smoothRun.ts [seconds=60] [seeds=3]
  *
- * One JSON line per row (case × line), summed over the seeds.
+ * One JSON line per row (case × line), summed over the seeds. Story 8.10: the horde is drawn through the real
+ * stream (encoder → stream decoder → HordeBuffer); every zombie at 20 Hz as in the game (B7); `HORDE_NEAR_M=8` in the env runs the 10 Hz far rule.
  */
 import { simulate, type Options } from "./hitsSim";
 
@@ -47,8 +48,11 @@ for (const c of cases) {
     const p50: number[] = [];
     const p95: number[] = [];
     let dmax = 0;
+    let hordeBytes = 0;
+    let hordeErrors = 0;
+    let keyframes = 0;
     for (let seed = 1; seed <= seeds; seed++) {
-      const r = simulate({ seconds, oneWayMs: 75, jitterHalfMs: 10, seed, weapon: "pistol", kite: false, ...c.o, ...l.o });
+      const r = simulate({ seconds, oneWayMs: 75, jitterHalfMs: 10, seed, weapon: "pistol", kite: false, ...(process.env.HORDE_NEAR_M ? { hordeNearM: Number(process.env.HORDE_NEAR_M) } : {}), ...c.o, ...l.o });
       const s = r.smooth;
       apparent += r.apparentHits;
       reversed += r.reversed;
@@ -69,6 +73,9 @@ for (const c of cases) {
       p50.push(s.delayP50);
       p95.push(s.delayP95);
       dmax = Math.max(dmax, s.delayMax);
+      hordeBytes += r.horde.bytes; // Story 8.10: the real stream
+      hordeErrors += r.horde.decodeErrors;
+      keyframes += r.horde.keyframes;
     }
     const per30 = (n: number): number => Math.round((n / ((seeds * (seconds - 2)) / 30)) * 10) / 10;
     process.stdout.write(
@@ -93,6 +100,9 @@ for (const c of cases) {
         queuedChangesPerS: Math.round((qChanges / (seeds * seconds)) * 10) / 10,
         apparent,
         reversedPct: pct(reversed, apparent),
+        hordeKBps: Math.round((hordeBytes / 1024 / (seeds * seconds)) * 10) / 10,
+        keyframesPerS: Math.round((keyframes / (seeds * seconds)) * 100) / 100,
+        hordeDecodeErrors: hordeErrors,
       }) + "\n",
     );
   }

@@ -1,5 +1,7 @@
 import {
   BYTES,
+  HordeStreamDecoder,
+  type HordeSink,
   C2S,
   S2C,
   REPAIR_ERRORS,
@@ -204,9 +206,11 @@ export interface NetRoomLike {
  * unsubscribes are buffered again; `reset()` (called when the room returns to the lobby) drops
  * them, so the next run's scene never gets the previous run's events.
  *
- * Horde frames (`BYTES.HORDE_FRAME`, Story 2.5) are listened to from the join too, so the SDK
- * never warns about an unhandled type; until `onHorde` is called they are dropped (unreliable
- * snapshots: the next frame replaces them) and counted in `earlyHordeDropped`.
+ * Horde frames (`BYTES.HORDE_FRAME`, Story 2.5) are listened to from the join too. Story 8.10
+ * (decision 8.10 D4): they are DECODED here from the join (`hordeStream`: keyframes + deltas), so
+ * frames that arrive before the Game scene is up still update the baseline; the `onHorde` sink gets
+ * every decoded frame from its call on (full frames), and frames decoded with no sink are counted in
+ * `earlyHordeDropped` (not drawn, but not lost to the delta chain).
  *
  * `player.left` (Story 2.11) is listened to from the join as well; it goes to the `onPlayerLeft`
  * sink (the Game scene's toast) and is dropped while none listens (the lobby list follows the state).
@@ -222,9 +226,11 @@ export class RunInbox {
   private readonly offs: (() => void)[] = [];
   private readonly early: SimEventsFlushed[] = [];
   private sink: ((m: SimEventsFlushed) => void) | null = null;
-  /** Horde frames dropped because no game scene listened yet. */
+  /** Horde frames decoded while no game scene listened yet (baseline kept, nothing drawn). */
   earlyHordeDropped = 0;
-  private hordeSink: ((bytes: Uint8Array) => void) | null = null;
+  /** Story 8.10: this connection's horde baseline (a reload or reconnect is a new inbox: a new decoder). */
+  readonly hordeStream = new HordeStreamDecoder();
+  private hordeSink: HordeSink | null = null;
   private leftSink: ((m: PlayerLeft) => void) | null = null;
   private refusedSink: ((reason: PlaceError) => void) | null = null;
   private shopSink: ((a: ShopAnswer) => void) | null = null;
@@ -362,8 +368,8 @@ export class RunInbox {
     };
   }
 
-  /** Each horde frame from now on (earlier ones were dropped). Returns the unsubscribe. */
-  onHorde(sink: (bytes: Uint8Array) => void): () => void {
+  /** Each decoded horde frame from now on (Story 8.10: full frames). Returns the unsubscribe. */
+  onHorde(sink: HordeSink): () => void {
     this.hordeSink = sink;
     return () => {
       if (this.hordeSink === sink) this.hordeSink = null;
@@ -391,6 +397,7 @@ export class RunInbox {
     this.early.length = 0;
     this.earlyDropped = 0;
     this.earlyHordeDropped = 0;
+    this.hordeStream.reset(); // Story 8.10: the next run starts with a keyframe
   }
 
   /** Stops listening for good. Safe to call twice. */
@@ -426,8 +433,8 @@ export class RunInbox {
 
   private receiveHorde(bytes: Uint8Array): void {
     if (this.closed) return;
-    if (this.hordeSink) this.hordeSink(bytes);
-    else this.earlyHordeDropped++;
+    const sink = this.hordeSink;
+    if (this.hordeStream.decode(bytes, sink) && !sink) this.earlyHordeDropped++;
   }
 
   private receiveEvents(m: SimEventsFlushed): void {
@@ -486,8 +493,13 @@ export class NetSession {
   }
 
   /** See `RunInbox.onHorde`. */
-  onHorde(sink: (bytes: Uint8Array) => void): () => void {
+  onHorde(sink: HordeSink): () => void {
     return this.inbox.onHorde(sink);
+  }
+
+  /** See `RunInbox.hordeStream` (Story 8.10). */
+  get hordeStream(): HordeStreamDecoder {
+    return this.inbox.hordeStream;
   }
 
   /** See `RunInbox.onBuildingRefused`. */

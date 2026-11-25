@@ -17,8 +17,8 @@ export interface NetOverlaySource {
     readonly corrections: number;
     readonly snaps: number;
   };
-  /** Horde frames accepted so far (the overlay turns it into frames per second). */
-  readonly hordeStats: { readonly framesReceived: number };
+  /** Horde frames accepted so far (the overlay turns it into frames per second); Story 8.10: keyframes and refused frames. */
+  readonly hordeStats: { readonly framesReceived: number; readonly keyframes: number; readonly decodeErrors: number };
   /** The server's test scenario ("" = a normal game). */
   readonly scenario: string;
   /** This device is the room's host (only the host asked for a scenario, so only it sees a refusal). */
@@ -314,3 +314,8 @@ export function countInView(
 
 /** The one instance the probe, the GameScene and the overlay share. */
 export const perf = new PerfStats();
+
+/** Story 8.10 (AC 9): `key 1.0/s · err 0` (keyframes per second, horde frames refused on this connection). */
+export function hordeStreamText(keyPerS: number, errors: number): string {
+  return `key ${keyPerS.toFixed(1)}/s · err ${errors}`;
+}

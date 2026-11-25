@@ -20,6 +20,8 @@ interface HordeSnapshot {
   readonly y: Float32Array;
   readonly heading: Uint8Array;
   readonly typeState: Uint8Array;
+  /** Story 8.10: the tick each record's pose was refreshed (a far zombie's own refresh tick). */
+  readonly refresh: Float64Array;
   /** Pool slot → record index in this snapshot, or −1. */
   readonly slotIndex: Int16Array;
 }
@@ -32,6 +34,7 @@ const newSnapshot = (): HordeSnapshot => ({
   y: new Float32Array(SLOTS),
   heading: new Uint8Array(SLOTS),
   typeState: new Uint8Array(SLOTS),
+  refresh: new Float64Array(SLOTS),
   slotIndex: new Int16Array(SLOTS).fill(-1),
 });
 
@@ -54,6 +57,10 @@ export class HordeSample {
  *   record of B is drawn lerped from A when A has the same net id, else at B's position (a new
  *   generation is a different zombie: never lerped from the dead one). Past the newest frame A is
  *   held (no extrapolation); before the oldest, the oldest is shown.
+ * - Story 8.10 (D1): a record carries its refresh tick. Far zombies are refreshed every 2nd tick, so
+ *   they are lerped between their OWN refreshes: from A's pose (refreshed at rA) to the first later
+ *   snapshot (B, or the one after it) refreshed after rA, at (renderTick − rA) / (r − rA). Near
+ *   zombies (refreshed every frame) get exactly the per-frame lerp.
  * - Missing rule (Story 8.9, D4): a slot absent from a frame remembers that frame's tick; it
  *   leaves the view once the render tick is HORDE_MISSING_TICKS (150 ms) past it (`dropMissing`),
  *   not after 3 arriving frames (a burst after a stall brings 3 at once). Until then it is held at
@@ -119,10 +126,11 @@ export class HordeBuffer implements HordeSink {
     this.writing = s;
   }
 
-  record(i: number, netId: number, x: number, y: number, heading: number, typeState: number): void {
+  record(i: number, netId: number, x: number, y: number, heading: number, typeState: number, refreshTick?: number): void {
     const s = this.writing;
     if (!s || i >= s.count) return;
     const slot = zombieSlotOfNetId(netId);
+    s.refresh[i] = refreshTick ?? s.tick;
     s.netId[i] = netId;
     s.x[i] = x;
     s.y[i] = y;
@@ -225,9 +233,26 @@ export class HordeBuffer implements HordeSink {
       let heading = b.heading[k] as number;
       const j = a ? (a.slotIndex[slot] as number) : -1;
       if (a && j >= 0 && a.netId[j] === netId) {
-        x = (a.x[j] as number) + (x - (a.x[j] as number)) * t;
-        y = (a.y[j] as number) + (y - (a.y[j] as number)) * t;
-        if (t < 0.5) heading = a.heading[j] as number;
+        // Story 8.10: lerp between this zombie's own refreshes (near ones: exactly A → B at t).
+        const rA = a.refresh[j] as number;
+        let tx = x;
+        let ty = y;
+        let r = b.refresh[k] as number;
+        if (r <= rA) {
+          // B holds A's pose (a far zombie between refreshes): glide toward the next refresh if it is here.
+          const c = ai + 2 < this.count ? this.at(ai + 2) : null;
+          const jc = c ? (c.slotIndex[slot] as number) : -1;
+          if (c && jc >= 0 && c.netId[jc] === netId && (c.refresh[jc] as number) > rA) {
+            r = c.refresh[jc] as number;
+            tx = c.x[jc] as number;
+            ty = c.y[jc] as number;
+            heading = c.heading[jc] as number;
+          }
+        }
+        const u = r > rA ? Math.min(1, Math.max(0, (renderTick - rA) / (r - rA))) : t;
+        x = (a.x[j] as number) + (tx - (a.x[j] as number)) * u;
+        y = (a.y[j] as number) + (ty - (a.y[j] as number)) * u;
+        if (u < 0.5) heading = a.heading[j] as number;
       }
       this.sampledAt[slot] = id;
       this.heldNetId[slot] = netId;

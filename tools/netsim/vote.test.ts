@@ -15,7 +15,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
-import { BYTES, C2S, DOWNTOWN_MAP, NEUTRAL_INPUT, PLACEHOLDER_MAP, RUN_ROOM_NAME, S2C, TICK_DT_S, createRng, loadBalance, skipWave, type PlayerInput, type RunStateView } from "@topdown/shared";
+import {
+  NET_PROTOCOL_VERSION, BYTES, C2S, DOWNTOWN_MAP, NEUTRAL_INPUT, PLACEHOLDER_MAP, RUN_ROOM_NAME, S2C, TICK_DT_S, createRng, loadBalance, skipWave, type PlayerInput, type RunStateView } from "@topdown/shared";
 import { bootTestServer } from "../../apps/server/src/test/bootTestServer";
 import { RunRoom, serverBalance } from "../../apps/server/src/rooms/RunRoom";
 import { RunController } from "../../apps/server/src/run/RunController";
@@ -44,6 +45,7 @@ const options = (intent: "create" | "join", name: string) => ({
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken: randomBytes(16).toString("hex"),
 });
 const quiet = (c: RunSdkRoom) => {
