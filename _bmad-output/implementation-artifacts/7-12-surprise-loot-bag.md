@@ -206,7 +206,7 @@ Story files keep their ACs: `7-7-district-unlock-rule.md`, `7-11-milestone-items
 
 ### Gate
 
-GATE_PLACEHOLDER
+**Full gate (merged story 7.7 + 7.11 + 7.12), commit 1366b68 on `story-7-12` merged with master 99ac898 (7.3, after 7.1 / 7.2 / 7.9 / 8.1): typecheck ✔, lint ✔, test ✔ — 490 files passed, 3 skipped; 4,363 tests passed, 23 skipped (real-PostgreSQL tests skip without a server) — build ✔. Load 3.4 (4 cores).** A first gate run failed 14 tests (7.3 / 7.9 tests comparing the progress reply, a 7.9 source check, SQL outside `src/db` in a test, the hub's Districts line overflowing at 568 × 320); all fixed in 1366b68. Mutations of the merged part, each failed a test: M5 `>` for `>=`; District 2 on any ending; no owned check (double grant); counting barricade placements; a non-host pick allowed; loot from all parts (owned too); the wiped wave counted as survived.
 
 
 Early part only (no full gate yet, per dispatch), on `story-7-12` from master f67154d: typecheck ✔, lint ✔; touched areas (`packages/shared` loot/core/net/config/replay/waves/bots + the 8 raw-balance tests, `apps/server`, `apps/client`, `tools/checks`): 2,398 tests, all pass after three follow-ups (gallery `collect.ts`, `urlOptions` default list, the `run_started` log fields) — 297 files; the whole `packages/shared` suite passed earlier in the session (1,667 tests) once the order test and a dropped balance cross-check were fixed. Load ≈ 2.9 (4 cores). Mutations (brief 6), each failed a test: pick-up allows downed; pick-up boundary narrowed; the drop skips the spot search; the bag expires at the wave's end; `runChance` ÷ 10; `lastWave` + 1; no salt. Full gate after T5 on the branch merged with master.
