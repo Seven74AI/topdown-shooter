@@ -65,6 +65,8 @@ export interface PlayerStateView {
   readonly consumableCount: number;
   /** Story 6.11: my evacuation vote (0 none, 1 extract, 2 stay), on change only; every phone shows the chips (F2). */
   readonly vote: number;
+  /** Story 8.9: my inputs queued on the server when its last tick started; my steps run at 0.9× above 2 (D5, D6). */
+  readonly inputQueued: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -255,6 +257,7 @@ export const PLAYER_STATE_FIELDS = {
   consumable: true, // Story 5.12
   consumableCount: true,
   vote: true, // Story 6.11
+  inputQueued: true, // Story 8.9
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

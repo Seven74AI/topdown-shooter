@@ -7,7 +7,7 @@ const env: NetSummaryEnv = { userAgent: "UA-test", viewport: "915×412", dpr: 2,
 
 function source() {
   return {
-    netStats: { rttMs: 0, delayMs: 100, jitterMs: 10, corrections: 0, snaps: 0, apparentHits: 0, confirmed: 0, reversed: 0 },
+    netStats: { rttMs: 0, delayMs: 100, targetMs: 100, lateP95Ms: 10, rate: 1, freezes: 0, queued: 2, corrections: 0, snaps: 0, apparentHits: 0, confirmed: 0, reversed: 0 },
     hordeStats: { framesReceived: 0 },
     scenario: "net150",
     isHost: true,

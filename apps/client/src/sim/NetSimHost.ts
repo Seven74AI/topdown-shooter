@@ -67,19 +67,25 @@ import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { endingOf } from "../net/onlineFlow";
 import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
+import { StepPacing } from "../net/stepPacing";
 import { LocalFireClock } from "../net/localFire";
 import { CosmeticProjectiles } from "../net/cosmeticProjectiles";
 import { EARLY_HIT_SLACK_MS, REVERSED_HIT_SLACK_MS, ReversedHits } from "../debug/reversedHits";
 
-/** Starting interpolation delay in ticks (100 ms); `AdaptiveDelay` then moves it within 100–150 ms. */
+/** Starting interpolation delay in ticks (100 ms); `AdaptiveDelay` then moves it within 100–250 ms (Story 8.9). */
 export const RENDER_DELAY_TICKS = RENDER_DELAY_MIN_MS / (TICK_DT_S * 1000);
 
 /** Netcode numbers for the perf overlay (Stories 2.6, 2.7, 2.10), updated every frame (one object, reused). */
 export interface NetStats {
   rttMs: number;
-  /** Interpolation delay of others (ms) and the jitter it follows. */
+  /** Interpolation delay of others (ms) and the jitter it follows. Story 8.9: the delay's target, the p95 lateness it covers, the playback rate. */
   delayMs: number;
-  jitterMs: number;
+  targetMs: number;
+  lateP95Ms: number;
+  rate: number;
+  /** Story 8.9: times the render tick ran past the newest horde frame (others held still), and my queued inputs on the server. */
+  freezes: number;
+  queued: number;
   /** `Predictor.stats` of the local survivor. */
   corrections: number;
   snaps: number;
@@ -138,7 +144,7 @@ export interface NetSimHostOptions {
  *   HP, status and loadout from the latest state (the HUD works unchanged);
  * - except the local survivor (Story 2.6): drawn from the `Predictor`, which applies each sent
  *   input at once and reconciles on every snapshot's `ackSeq`;
- * - the render tick is `estimate − AdaptiveDelay` (100–150 ms from jitter), one value per frame;
+ * - the render tick is `AdaptiveDelay`'s clock (100–250 ms behind the estimate, from lateness; Story 8.9), one value per frame;
  * - waves from the latest state;
  * - projectiles (Story 2.7) are cosmetic only: my own shots spawn at once from the local fire
  *   clock (with the muzzle flash and sound as an immediate local `weapon.fired`), others' from the
@@ -178,7 +184,11 @@ export class NetSimHost implements SimHost {
   readonly netStats: NetStats = {
     rttMs: 0,
     delayMs: 0,
-    jitterMs: 0,
+    targetMs: 0,
+    lateP95Ms: 0,
+    rate: 1,
+    freezes: 0,
+    queued: 0,
     corrections: 0,
     snaps: 0,
     maxErrorM: 0,
@@ -231,6 +241,11 @@ export class NetSimHost implements SimHost {
   private readonly hordeSample = new HordeSample();
 
   private accumulatorS = 0;
+  /** Story 8.9: my step rate from the server's queue depth. */
+  private readonly pacing = new StepPacing();
+  /** Story 8.9: freeze episodes (render tick past the newest horde frame) and whether one is on. */
+  private freezes = 0;
+  private frozen = false;
   private input: PlayerInput = NEUTRAL_INPUT;
   private latchedSwap = false;
   private latchedConsumable = false;
@@ -312,7 +327,7 @@ export class NetSimHost implements SimHost {
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
-    this.offs.push(opts.session.onHorde((b) => this.hordeStats.receive(b)));
+    this.offs.push(opts.session.onHorde((b) => this.receiveHorde(b)));
     this.offs.push(
       opts.session.onBuildingRefused((reason) => this.queueRefusal(reason)),
     );
@@ -416,9 +431,10 @@ export class NetSimHost implements SimHost {
     this.stats.lastUpdateSteps = 0;
     if (this.disposed) return;
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
-    this.delay.frame(frameDtS);
+    // Story 8.9: both clocks are monotonic; the render clock stretches 0.9–1.1× toward its delay.
     this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
-    this.renderTickNow = this.clock.ready ? this.delay.renderTick(this.serverTickNow) : Number.NaN;
+    this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick, this.clock.rawTick(t0)) : Number.NaN;
+    this.countFreeze();
     // Story 2.7: the horde first, so my shots this frame assist toward and stop at what is drawn.
     this.applyHorde(this.renderTickNow);
     this.cosmetics.update(frameDtS);
@@ -711,7 +727,8 @@ export class NetSimHost implements SimHost {
 
   /** One input per 50 ms step, like LocalSimHost; at most 5 per frame, the rest dropped. */
   private stepInputs(frameDtS: number): void {
-    this.accumulatorS += frameDtS;
+    // Story 8.9 (D5): 0.9× while the server holds a backlog of my inputs; never faster than 1×.
+    this.accumulatorS += frameDtS * this.pacing.frame();
     let steps = 0;
     const room = this.session.room;
     while (this.accumulatorS >= TICK_DT_S && steps < MAX_CATCHUP_STEPS) {
@@ -887,7 +904,11 @@ export class NetSimHost implements SimHost {
     const s = this.predictor.stats;
     n.rttMs = this.session.rttMs;
     n.delayMs = this.delay.delayMs;
-    n.jitterMs = this.delay.jitterMs;
+    n.targetMs = this.delay.targetMs;
+    n.lateP95Ms = this.delay.lateP95Ms;
+    n.rate = this.delay.rate;
+    n.freezes = this.freezes;
+    n.queued = this.pacing.queued;
     n.corrections = s.corrections;
     n.snaps = s.snaps;
     n.maxErrorM = s.maxErrorM;
@@ -999,8 +1020,27 @@ export class NetSimHost implements SimHost {
     if (this.snapshots.size > 0 && state.tick <= this.snapshots.latestTick) return; // nothing new this patch
     const now = this.now();
     this.takeSnapshot(state);
-    this.clock.sample(now, state.tick);
-    this.delay.snapshot(now, state.tick); // arrival after the dev throttle, if on
+    this.sampleClock(now, state.tick); // arrival after the dev throttle, if on
+  }
+
+  /** Story 8.9 (D7): a horde frame into the buffer; an accepted one is a clock and lateness sample too. */
+  private receiveHorde(bytes: unknown): void {
+    if (this.disposed || !this.hordeStats.receive(bytes)) return;
+    this.sampleClock(this.now(), this.horde.latestTick);
+  }
+
+  /** Story 8.9: patches and horde frames feed the server clock and the delay's lateness. */
+  private sampleClock(now: number, tick: number): void {
+    this.clock.sample(now, tick);
+    this.delay.sample(now, tick, this.clock.rawOffsetMs);
+  }
+
+  /** Story 8.9 (F1): one freeze per episode of the render tick past the newest horde frame. */
+  private countFreeze(): void {
+    const newest = this.horde.latestTick;
+    const frozen = newest >= 0 && this.renderTickNow > newest;
+    if (frozen && !this.frozen) this.freezes++;
+    this.frozen = frozen;
   }
 
   /** Others go into the interpolation ring; my own player reconciles the prediction (Story 2.6). */
@@ -1013,6 +1053,7 @@ export class NetSimHost implements SimHost {
     this.predictor.syncBoss(state.boss); // Story 6.5 (DD6): the boss's body for the push-out
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
+    this.pacing.onPatch(me.inputQueued ?? 0); // Story 8.9 (D5, D6): the server's count of my queued inputs
     this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct, me.knockTicks, me.knockDx, me.knockDy, me.knockStepMm, me.gear);
     // Events go out at the tick, patches later on one socket: every server shot for seqs ≤ ack is
     // already counted. Local shots there beyond them were never fired by the server.
