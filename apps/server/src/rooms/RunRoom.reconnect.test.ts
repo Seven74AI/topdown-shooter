@@ -338,9 +338,13 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
     expect(room.members.size).toBe(4);
   });
 
-  it("a stranger (unknown guest token) is still refused in a started run (run_started)", async () => {
-    const { clients } = await runOf(2);
-    await expect(colyseus.sdk.joinById((clients[0] as RunSdkRoom).roomId, options("join", "Eve", randomBytes(16).toString("hex")))).rejects.toThrow("run_started");
+  it("Story 8.2: a stranger (unknown guest token) gets a NEW seat in a started run, never a teammate's", async () => {
+    const { clients, room } = await runOf(2);
+    const eve = await colyseus.sdk.joinById<RunStateView>((clients[0] as RunSdkRoom).roomId, options("join", "Eve", randomBytes(16).toString("hex")));
+    record(eve);
+    await vi.waitFor(() => expect(room.state.players.get("p2")?.name).toBe("Eve"));
+    expect(room.state.players.get("p0")?.name).toBe("Ana");
+    expect(room.state.players.get("p1")?.name).toBe("Bo");
   });
 
   it("the lobby keeps the already_joined refusal", async () => {

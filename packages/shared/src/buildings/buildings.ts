@@ -30,8 +30,11 @@ export interface Building {
   readonly id: number;
   /** Key of `balance.buildings.types`. Story 5.9: changes only through `setBuildingType` (an upgrade, same footprint). */
   type: string;
-  /** Player id of the builder ("p0"–"p3" online, "local" solo); Story 3.6 credits kills to it. */
-  readonly ownerId: string;
+  /**
+   * Player id of the builder ("p0"–"p3" online, "local" solo); Story 3.6 credits kills to it. Story 8.3 (decision
+   * E8-H3): "" once its owner was removed from the run (`disownBuildings`): it pays nobody and counts for nobody's cap.
+   */
+  ownerId: string;
   /** Min corner as 0.5 m lattice indices (x = gx × BUILD_GRID_M m). Story 5.22: changed only by `relocateBuilding` (a move). */
   gx: number;
   gy: number;
@@ -181,6 +184,26 @@ export function ownedCount(world: Readonly<World>, ownerId: string): number {
   const list = world.buildings.list;
   let n = 0;
   for (let i = 0; i < list.length; i++) if ((list[i] as Building).ownerId === ownerId) n++;
+  return n;
+}
+
+/**
+ * Story 8.3 (H3, decision E8-H3): a removed player's buildings stay standing, repairable by anyone,
+ * but pay nobody and count for nobody's cap: their owner is cleared (`ownerId` → "", the owner mark
+ * draws neutral). `version++` so every copy follows. Between ticks (the room's Remove). Returns how
+ * many buildings were disowned.
+ */
+export function disownBuildings(world: World, ownerId: string): number {
+  if (ownerId === "") return 0;
+  const list = world.buildings.list;
+  let n = 0;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (b.ownerId !== ownerId) continue;
+    b.ownerId = "";
+    n++;
+  }
+  if (n > 0) world.buildings.version++;
   return n;
 }
 

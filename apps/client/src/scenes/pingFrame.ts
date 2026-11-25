@@ -30,7 +30,7 @@ export function pingFrame(m: HudModel, kb: KeyboardMouse, host: SimHost, linkOk:
   const inRun = phase === "build" || phase === "wave" || phase === "vote";
   const me = w.players.get(host.localPlayerId);
   const standing = me !== undefined && (me.status === "alive" || me.status === "downed");
-  m.pingButton = host.pings !== null && linkOk && !host.roomFrozen && runOnScreen && inRun && standing && !blocked && !busy; // review L2: not frozen
+  m.pingButton = host.pings !== null && linkOk && !host.roomFrozen && !m.watching && runOnScreen && inRun && standing && !blocked && !busy; // review L2: not frozen; 8.2: not while waiting (watching)
   m.pingSlot = host.pings !== null ? host.playerInfo(host.localPlayerId).slot : -1;
   if (kb.takePing() && m.pingButton) togglePingWheel(m.ping, nowMs);
   if (m.ping.open && m.pingButton) {

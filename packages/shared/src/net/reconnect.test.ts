@@ -146,6 +146,17 @@ describe("Story 8.1 SeatRecovery (AC 6, 9)", () => {
     expect(got).toEqual(["gone", "gone"]);
   });
 
+  it("Story 8.3 review M3: removed stops at once and says so (onGone(true)); gone says nothing more (onGone(false))", async () => {
+    const time = fakeTime();
+    const got: (boolean | undefined)[] = [];
+    const deps = { onRecovered: () => {}, onSeatKept: () => {}, onGone: (removed?: boolean) => void got.push(removed), now: time.now, schedule: time.schedule };
+    new SeatRecovery<string>({ ...deps, join: async () => ({ ok: false, reason: "removed" }) }).start();
+    await time.advance(10);
+    new SeatRecovery<string>({ ...deps, join: async () => ({ ok: false, reason: "gone" }) }).start();
+    await time.advance(10);
+    expect(got).toEqual([true, false]);
+  });
+
   it("cancel() (the token reconnect won, or Leave) stops it; a late success is handed to onLate", async () => {
     const time = fakeTime();
     let release: (r: RecoveryJoin<string>) => void = () => {};

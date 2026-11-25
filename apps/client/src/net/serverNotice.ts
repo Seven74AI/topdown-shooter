@@ -9,7 +9,8 @@ export const SERVER_SHUTDOWN_CLOSE_CODE = 4001;
 
 /** Why a joined room ended without the player leaving. */
 /** Story 8.1: `taken_over` — this seat was opened in another tab or by a reload (D5), which now has it. */
-export type LostReason = "server_restarting" | "connection_lost" | "taken_over";
+/** Story 8.3: `removed` — the host removed this player (close 4022 or `player.removed`): terminal, never a reconnect. */
+export type LostReason = "server_restarting" | "connection_lost" | "taken_over" | "removed";
 
 /**
  * The server announces a stop with `server.shutdown_started`, then closes with 4001

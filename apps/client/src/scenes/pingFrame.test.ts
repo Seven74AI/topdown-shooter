@@ -42,6 +42,10 @@ describe("pingFrame (Story 8.7)", () => {
     const m = createHudModel();
     pingFrame(m, kb, fakeHost("wave", "alive", true, true).host, true, true, false, false, 0);
     expect(m.pingButton, "review L2: the room is frozen (8.1)").toBe(false);
+    const w8 = createHudModel();
+    w8.watching = true;
+    pingFrame(w8, kb, fakeHost("wave", "alive").host, true, true, false, false, 0);
+    expect(w8.pingButton, "8.2: a waiting late joiner (watching) has no ping button").toBe(false);
   });
 
   it("F toggles the wheel only while the button shows; 1–4 pick (sent once, latched with the press), 5–7 ignored, no build pick while open", () => {

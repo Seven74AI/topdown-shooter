@@ -780,3 +780,11 @@ export { LOOT_BAG, createLootState, forceLootPlan, lootSpot, lootTaker, parseDev
 export { MILESTONES, MILESTONE_IDS, MilestonesError, loadMilestones, lootPartKeys, milestonePartKey, type Milestone, type MilestoneId, type MilestoneRule } from "./config/milestones";
 export { countMilestoneEvent, hadWave, waveBit } from "./meta/milestoneRecord"; // Story 7.11
 export { DEFAULT_DISTRICT, districtIndex, districtList, districtName, districtsUnlockedBy, openMask, pickRefusal, type PickRefusal } from "./meta/districts"; // Story 7.7
+
+// ── Stories 8.2 + 8.3 (join mid-run, host role, remove) ──
+export { averageEarned, lateJoinWallet } from "./economy/lateJoin";
+export { addLatePlayer } from "./player/lateJoin";
+export { addBuildTime } from "./run/runStateMachine";
+export { disownBuildings } from "./buildings/buildings";
+export { hostRemoveSchema, type HostRemove, type PlayerRemoved } from "./net/messages";
+export { CLOSE_REMOVED } from "./net/reconnect";

@@ -34,6 +34,10 @@
  *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
  *                         token reconnect and guest-token takeover bring it back; it logs
  *                         `bot_reconnected` (after X ms, via token | guest) and a `bot_cut` line.
+ *   --late-bot <N>        Story 8.2: bots N… (1-based, N ≥ 2) join the started run late instead of in the lobby:
+ *   --late-at <W>         … bot N in the build phase before wave W (default 2) …
+ *   --late-mid <W>        … and bot N+1 (if any) mid-wave W (it waits, then enters at the next build phase).
+ *                         Logs `bot_waiting` / `bot_entered` and a `bots_late` line.
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
  * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
@@ -64,10 +68,14 @@ interface Args {
   cutBot: number;
   cutAtS: number;
   cutForS: number;
+  /** Story 8.2: the first late bot (1-based; 0 = off), the wave its build phase leads into, and the mid-wave joiner's wave. */
+  lateBot: number;
+  lateAt: number;
+  lateMid: number;
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every", "late-bot", "late-at", "late-mid"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -113,6 +121,7 @@ function parseArgs(argv: readonly string[]): Args {
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
     cutForS: Number(get("cut-for") ?? 8),
+    ...lateOf(get("late-bot"), get("late-at"), get("late-mid"), count, room !== undefined),
   };
 }
 
@@ -132,6 +141,18 @@ function pingEveryOf(raw: string | undefined): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) throw new Error("--ping-every must be a number of seconds ≥ 0");
   return n;
+}
+
+/** Story 8.2: `--late-bot` must name a bot after the host (we create the room); `--late-at` / `--late-mid` are waves ≥ 1. */
+function lateOf(bot: string | undefined, at: string | undefined, mid: string | undefined, count: number, joining: boolean): { lateBot: number; lateAt: number; lateMid: number } {
+  if (bot === undefined) return { lateBot: 0, lateAt: 0, lateMid: 0 };
+  const n = Number(bot);
+  if (joining) throw new Error("--late-bot needs a room the bots create (no --room)");
+  if (!Number.isInteger(n) || n < 2 || n > count) throw new Error(`--late-bot must be 2–${count}`);
+  const lateAt = Number(at ?? 2);
+  const lateMid = mid === undefined ? 0 : Number(mid);
+  if (!Number.isInteger(lateAt) || lateAt < 1 || !Number.isInteger(lateMid) || lateMid < 0) throw new Error("--late-at / --late-mid must be wave numbers");
+  return { lateBot: n, lateAt, lateMid };
 }
 
 /** Story 8.1: `--cut-bot` must name one of the bots. */
@@ -174,7 +195,8 @@ async function main(): Promise<void> {
     roomId = host.roomId;
     log({ msg: "room_created", roomId, scenario: args.scenario ?? null });
   }
-  for (let i = bots.length; i < args.count; i++) {
+  const lobbyCount = args.lateBot > 0 ? args.lateBot - 1 : args.count; // Story 8.2: the late bots join after the start
+  for (let i = bots.length; i < lobbyCount; i++) {
     bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId }));
   }
   log({ msg: "bots_joined", roomId, count: bots.length });
@@ -196,6 +218,7 @@ async function main(): Promise<void> {
     host.room.send(C2S.RUN_START, {});
     log({ msg: "run_start_sent", roomId });
   }
+  if (args.lateBot > 0) void joinLateBots(args, bots, roomId, (i) => urlFor(i), base, timeUp, log);
 
   const cutOn = cutLine as CutLine | null;
   if (cutOn && args.cutBot > 0) {
@@ -241,6 +264,39 @@ async function main(): Promise<void> {
     const closed = bots.find((b) => b.closed)?.closed;
     if (closed) return stop(`room closed (code ${closed.code}${closed.reason ? `: ${closed.reason}` : ""})`);
     if (timeUp()) return stop(`--max-seconds ${args.maxSeconds} reached`);
+  }
+}
+
+/**
+ * Story 8.2: the late bots — bot `lateBot` joins in the build phase before wave `lateAt`, the next one (if any) mid-wave
+ * `lateMid`; any further bots join right after. Each is pushed into `bots` (the summary and the stop include them).
+ */
+async function joinLateBots(
+  args: Args,
+  bots: BotClient[],
+  roomId: string,
+  urlFor: (bot: number) => Promise<string>,
+  base: { url: string; log: (line: Record<string, unknown>) => void; holdFireS: number; origin?: string },
+  timeUp: () => boolean,
+  log: (line: Record<string, unknown>) => void,
+): Promise<void> {
+  const host = bots[0] as BotClient;
+  const waitFor = async (ok: () => boolean): Promise<boolean> => {
+    while (!ok()) {
+      if (timeUp() || host.closed) return false;
+      await sleep(100);
+    }
+    return true;
+  };
+  for (let n = args.lateBot; n <= args.count; n++) {
+    const midWave = n === args.lateBot + 1 && args.lateMid > 0;
+    const ok = midWave
+      ? await waitFor(() => host.room.state?.phase === "wave" && (host.room.state?.wave ?? 0) >= args.lateMid)
+      : await waitFor(() => host.room.state?.phase === "build" && (host.room.state?.wave ?? 0) + 1 >= args.lateAt);
+    if (!ok) return;
+    const bot = await BotClient.connect({ ...base, url: await urlFor(n), name: `Bot ${n}`, roomId });
+    bots.push(bot);
+    log({ msg: "bots_late", bot: bot.name, playerId: bot.playerId, phase: host.room.state?.phase, wave: host.room.state?.wave, midWave });
   }
 }
 

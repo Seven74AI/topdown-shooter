@@ -2,6 +2,7 @@
   "zombiesPerWave": 40,
   "maxAlive": 150,
   "lastRushCount": 5,
+  "spitterStall": { "holdS": 8, "checkEveryTicks": 10 },
   "buildPhaseS": 30,
   "spawnIntervalS": 0.25,
   "spawnPerInterval": 2,

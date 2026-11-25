@@ -117,6 +117,8 @@ function modes(w: number, h: number): Record<string, Box[]> {
     ],
     // Story 8.1 (D2, D4): the reconnecting / seat-kept panel is modal (it covers the HUD): its one control, Leave.
     reconnecting: [{ id: "link_leave", ...leaveRect(w, h, INSET.right, INSET.bottom) }],
+    // Story 8.2 (J4): a waiting late joiner has only ☰ (no ping button: Story 8.7 P4).
+    waiting: [menu(w)],
     // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
     vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
@@ -195,7 +197,7 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   for (const [w, h] of SIZES) {
     it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => {
       const m = modes(w, h);
-      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" ? 1 : 3); // liveness (8.1's modal panel has one control)
+      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" || mode === "waiting" ? 1 : 3); // liveness (8.1's modal panel has one control; 8.2's waiting joiner only ☰)
       const v = violations(w, h);
       expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
       for (const [k, now] of v) {
@@ -874,7 +876,7 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
       let checked = 0;
       for (const [mode, boxes] of Object.entries(m)) {
         const mine = boxes.filter((b) => b.id === "ping" || b.id.startsWith("ping_chip"));
-        if (mode === "holding" || mode === "reconnecting" || mode === "selected") {
+        if (mode === "holding" || mode === "reconnecting" || mode === "selected" || mode === "waiting") {
           expect(mine, `${mode}: no ping button`).toEqual([]);
           continue;
         }

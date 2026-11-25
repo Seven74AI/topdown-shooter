@@ -227,12 +227,17 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     expect([...room.members.values()].find((x) => x.playerId === "p1")?.accountId).toBeNull();
   });
 
-  it("review M1: a leaked ticket with any other token can't take the account's seat (run_started)", async () => {
+  it("review M1: a leaked ticket with any other token can't take the account's seat (Story 8.2: a new unsaved seat at most)", async () => {
     const t = token();
-    const { bo } = await started(t, { ticket: bound(ACCT) });
+    const { room, bo } = await started(t, { ticket: bound(ACCT) });
     const leaked = signTicket(ACCT, hashGuestToken(t), SECRET);
-    const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Bo", token(), { ticket: leaked })));
-    expect(e.message).toBe("run_started");
+    const eve = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: leaked })));
+    await vi.waitFor(() => expect(room.members.size).toBe(3), { timeout: 5000 });
+    const seat = [...room.members.values()].find((x) => x.playerId === "p1");
+    expect(seat?.sessionId).toBe(bo.sessionId); // the account's seat is untouched
+    const stranger = [...room.members.values()].find((x) => x.sessionId === eve.sessionId);
+    expect(stranger?.playerId).toBe("p2");
+    expect(stranger?.accountId).toBeNull(); // the ticket counts only with its own token
   });
 
   it("review L1: a seat that gained an account is re-keyed, so the same account from another device then takes it over", async () => {
@@ -258,10 +263,12 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     expect(room.rememberedSeats.size).toBe(0);
   });
 
-  it("started run: another account (new token) is still run_started", async () => {
-    const { bo } = await started(token(), { ticket: bound(ACCT) });
-    const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Cy", token(), { ticket: bound("22222222-2222-4333-8444-555555555555") })));
-    expect(e.message).toBe("run_started");
+  it("started run: another account (new token) joins as a NEW seat (Story 8.2), never the account's", async () => {
+    const { room, bo } = await started(token(), { ticket: bound(ACCT) });
+    const cy = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Cy", token(), { ticket: bound("22222222-2222-4333-8444-555555555555") })));
+    await vi.waitFor(() => expect(room.members.size).toBe(3), { timeout: 5000 });
+    expect([...room.members.values()].find((x) => x.playerId === "p1")?.sessionId).toBe(bo.sessionId);
+    expect([...room.members.values()].find((x) => x.sessionId === cy.sessionId)?.playerId).toBe("p2");
   });
 });
 

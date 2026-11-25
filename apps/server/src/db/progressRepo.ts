@@ -52,6 +52,13 @@ export function readStats(raw: unknown): LifetimeStatsRow {
   const o = (raw ?? {}) as Partial<Record<keyof LifetimeStatsRow, unknown>>;
   return { revives: statN(o.revives), kills: statN(o.kills), barricades: statN(o.barricades), runs: statN(o.runs) };
 }
+/** Re-review L3: what was played since the first bank, per field, never negative. */
+const subStats = (a: LifetimeStatsRow, b: LifetimeStatsRow): LifetimeStatsRow => ({
+  revives: Math.max(0, a.revives - b.revives),
+  kills: Math.max(0, a.kills - b.kills),
+  barricades: Math.max(0, a.barricades - b.barricades),
+  runs: Math.max(0, a.runs - b.runs),
+});
 const addStats = (a: LifetimeStatsRow, d: LifetimeStatsRow): LifetimeStatsRow => ({
   revives: a.revives + statN(d.revives),
   kills: a.kills + statN(d.kills),
@@ -105,8 +112,12 @@ export interface ProgressRepo {
    * payout from the locked value, the `run_rewards` row is inserted (primary key (run_id, account_id): a duplicate
    * means "already banked" and nothing else is written), then Supplies and lifetime Supplies grow by the amount.
    * Later writers (7.7 district, 7.11 milestones, 7.12 loot) join this transaction.
+   * Story 8.2 (AC 13, decision E8-J6) `topUp`: the seat banked this run before (a Leave) and came back. An existing
+   * row is then RAISED to the new total and only `new − already` (≥ 0) is added to Supplies and lifetime Supplies; new
+   * items and districts are granted (a set union, so nothing twice); lifetime stats are not added again (they were
+   * counted with the first bank: decision 8.2 B5). Two concurrent top-ups serialize on the progress row lock.
    */
-  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout, meta?: RunMetaWrites): Promise<BankResult>;
+  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout, meta?: RunMetaWrites, topUp?: boolean): Promise<BankResult>;
   /**
    * Story 7.3 (AC 5, brief 18): buys `unlockId` for `price` (from the SERVER's progression.json, never the request) in
    * ONE conditional update: `supplies >= price AND NOT unlocks ? id`. Two concurrent buys for one account serialize on
@@ -262,7 +273,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
       ),
     // Review RR-M1: NOT under withDbTimeout (which stops waiting while the work goes on): the result is the
     // transaction's own final outcome, bounded inside the database (`boundedTransaction`).
-    addSupplies: (runId, accountId, pay, meta) =>
+    addSupplies: (runId, accountId, pay, meta, topUp = false) =>
       boundedTransaction(
         database,
         "progress.addSupplies",
@@ -284,25 +295,66 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .for("update");
           const before = locked[0];
           if (!before) throw new Error("progress row missing");
+          const owned = new Set(before.cosmetics ?? []);
+          const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
+          const rowWhere = and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId));
+          if (topUp) {
+            // Story 8.2 (E8-J6) top-up: the seat banked this run before (its Leave) and came back.
+            const earlier = (await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1))[0];
+            if (earlier) {
+              // Review M1: the rookie rule sees the lifetime BEFORE this run (the first bank's part taken back out).
+              const payout = pay(Math.max(0, before.lifetimeSupplies - earlier.supplies));
+              const supplies = Math.max(0, Math.floor(payout.supplies));
+              const diff = supplies - earlier.supplies;
+              // Review H2 + re-review L3: the first bank stored its stats delta in the row; the top-up adds and grants only
+              // what was played since (full − earlier, per field, ≥ 0): exact, never twice. A row without one adds nothing.
+              const earlierBreakdown = (earlier.breakdown as Record<string, unknown> | null) ?? {};
+              const earlierDelta = earlierBreakdown.statsDelta === undefined ? null : readStats(earlierBreakdown.statsDelta);
+              const extraDelta = meta && earlierDelta ? subStats(readStats(meta.statsDelta), earlierDelta) : null;
+              const statsNow = extraDelta ? addStats(readStats(before.stats), extraDelta) : readStats(before.stats);
+              const statsMoved = extraDelta !== null && (extraDelta.kills > 0 || extraDelta.revives > 0 || extraDelta.barricades > 0 || extraDelta.runs > 0);
+              // …and the first bank's loot find is kept (never a second item).
+              const grant = meta ? meta.grant(statsNow, owned, districtsBefore) : null;
+              const earlierLoot = (earlier.breakdown as Record<string, unknown> | null)?.loot;
+              const grantLootKey = (grant?.breakdown.loot as { key?: string | null } | undefined)?.key ?? null;
+              const cosmeticsNow = grant ? grant.cosmetics.filter((k) => earlierLoot === undefined || k !== grantLootKey) : [];
+              const metaLines: Record<string, unknown> = grant ? { ...grant.breakdown } : {};
+              if (meta) metaLines.statsDelta = earlierDelta && extraDelta ? addStats(earlierDelta, extraDelta) : earlierBreakdown.statsDelta; // what is counted so far
+              if (earlierLoot !== undefined) metaLines.loot = earlierLoot; // the first find stays the find
+              const topExtra: Partial<typeof progress.$inferInsert> = {};
+              if (statsMoved) topExtra.stats = statsNow;
+              const newKeys = cosmeticsNow.filter((k) => !owned.has(k));
+              if (newKeys.length > 0) topExtra.cosmetics = [...owned, ...new Set(newKeys)];
+              const newDistricts = (grant?.districts ?? []).filter((d) => !districtsBefore.includes(d));
+              if (newDistricts.length > 0) topExtra.districts = [...districtsBefore, ...new Set(newDistricts)];
+              const paid = Math.max(0, diff);
+              const granted = newKeys.length > 0 || newDistricts.length > 0 || statsMoved;
+              if (paid === 0 && !granted) return { banked: false, supplies: earlier.supplies, newTotal: before.supplies, breakdown: (earlier.breakdown as Record<string, unknown>) ?? {}, nudge: false };
+              const breakdown = paid > 0 ? { ...payout.breakdown, ...metaLines } : { ...((earlier.breakdown as Record<string, unknown>) ?? {}), ...metaLines };
+              await tx.update(runRewards).set({ supplies: Math.max(supplies, earlier.supplies), breakdown }).where(rowWhere);
+              const raised = await tx
+                .update(progress)
+                .set({ supplies: sql`${progress.supplies} + ${paid}`, lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${paid}`, ...topExtra, updatedAt: sql`now()` })
+                .where(eq(progress.accountId, payee))
+                .returning({ supplies: progress.supplies });
+              // Review M1: with nothing more to pay, new items and districts are still granted (not Supplies).
+              return { banked: true, supplies: Math.max(supplies, earlier.supplies), newTotal: raised[0]?.supplies ?? before.supplies + paid, breakdown, nudge: false };
+            }
+          }
           const payout = pay(before.lifetimeSupplies);
           const supplies = Math.max(0, Math.floor(payout.supplies));
           // Stories 7.7 / 7.11 / 7.12: the meta writes, computed from the locked row (written below only if this bank is new).
           const statsAfter = meta ? addStats(readStats(before.stats), meta.statsDelta) : null;
-          const owned = new Set(before.cosmetics ?? []);
-          const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
           const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;
-          const breakdown = grant ? { ...payout.breakdown, ...grant.breakdown } : payout.breakdown;
+          // Re-review L3: the stats delta this bank counts rides in the row (a later top-up adds only what came after).
+          const breakdown = grant && meta ? { ...payout.breakdown, ...grant.breakdown, statsDelta: meta.statsDelta } : payout.breakdown;
           const inserted = await tx
             .insert(runRewards)
             .values({ runId, accountId, supplies, breakdown })
             .onConflictDoNothing()
             .returning({ runId: runRewards.runId });
           if (inserted.length === 0) {
-            const earlier = await tx
-              .select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown })
-              .from(runRewards)
-              .where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)))
-              .limit(1);
+            const earlier = await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1);
             const row = earlier[0];
             return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
           }

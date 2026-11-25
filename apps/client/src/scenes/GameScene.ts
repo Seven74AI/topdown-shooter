@@ -151,6 +151,7 @@ import { cachedProgress, practiceInit } from "../net/practicePool";
 import { progressStore } from "../net/progressStore";
 import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
+import { HOST_TOAST_TEXT, HostToastWatch } from "../ui/hostToast";
 import { getSettings } from "../settings/settings";
 import {
   COUNTDOWN_LIFT_M,
@@ -258,6 +259,8 @@ export class GameScene extends Phaser.Scene {
   private leaving = false;
   /** Story 2.11: "<name> left" lines for the HUD, one at a time. */
   private readonly toasts = new ToastQueue();
+  /** Story 8.3 (H1, AC 9): "You are now the host", once, when the role moves to me mid-run (never on the first patch). */
+  private readonly hostWatch = new HostToastWatch();
   /** Story 5.7: the Brute spawn cue (reused record). */
   private readonly bruteCue: BruteCue = { roar: false, banner: false, pan: 0 };
   /** How this run is simulated: the local World, or the server's (Story 2.4). */
@@ -660,6 +663,7 @@ export class GameScene extends Phaser.Scene {
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;
+    this.hostWatch.reset(); // Story 8.3: a (re)started scene's first patch never toasts
     this.toasts.clear();
     this.barToast = "";
     perf.hits = netHost ? netHost.netStats : null;
@@ -1131,6 +1135,7 @@ export class GameScene extends Phaser.Scene {
     m.wave = host.world.waves.number;
     m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
     m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
+    m.watching = host instanceof NetSimHost && host.waiting; // Story 8.2 (J4): a waiting late joiner has only ☰
     m.remaining = host.world.waves.remaining;
   }
 
@@ -1204,7 +1209,7 @@ export class GameScene extends Phaser.Scene {
     const build = run.phase === "build";
     m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
     // Story 5.21 (D3): hidden under the action bar too (its row is only 8 px above Ready's top edge).
-    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active && !this.repairPanel.open;
+    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active && !this.repairPanel.open && !m.watching;
     const serverReady = host.world.players.get(host.localPlayerId)?.buildReady === true;
     const now = this.time.now;
     this.myReady = this.ready.update(run.phase, host.world.waves.number, serverReady, now);
@@ -1414,6 +1419,7 @@ export class GameScene extends Phaser.Scene {
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
+    if (host instanceof NetSimHost && host.hostSlot >= 0 && this.hostWatch.observe(host.hostSlot, host.mySlot)) this.toasts.push(HOST_TOAST_TEXT); // Story 8.3 (H1): no state yet = no patch yet
     this.updateConsumable(host, menuOpen, shopOpen); // Story 5.12: after placement (the hand cluster hides the button)
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
@@ -1812,7 +1818,7 @@ export class GameScene extends Phaser.Scene {
         r.show = false;
       }
     }
-    m.buildBar = r.show;
+    m.buildBar = r.show && !m.watching; // Story 8.2: nothing to build while waiting
   }
 
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
@@ -1834,7 +1840,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.statusSecs = -1;
-    m.statusText = me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
+    // Story 8.2 (J4): a waiting late joiner reads as "out" in the mirror; its own line says why.
+    const waitingLine = this.host instanceof NetSimHost ? this.host.waitingLine : "";
+    m.statusText = waitingLine !== "" ? waitingLine : me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
   }
 
   /** Story 2.9: teammates for the HUD (none once the team is wiped: Results are up). */

@@ -156,6 +156,8 @@ describe("RunRoom pings (Story 8.7)", () => {
       expect(pingRefusal(ph, false, false, undefined)).toBe("status"); // no World player (8.2's waiting joiner)
       expect(pingRefusal(ph, true, false, "alive")).toBe("frozen");
       expect(pingRefusal(ph, false, true, "alive")).toBe("held");
+      expect(pingRefusal(ph, false, false, "alive", true)).toBe("waiting"); // 8.2's waiting late joiner, even with a World player
+      expect(pingRefusal(ph, false, false, undefined, true)).toBe("waiting");
     }
     for (const ph of ["lobby", "results"]) expect(pingRefusal(ph, false, false, "alive")).toBe("phase");
   });

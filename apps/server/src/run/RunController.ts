@@ -1,4 +1,6 @@
 import {
+  addLatePlayer,
+  disownBuildings,
   INPUT_QUEUE_TARGET,
   forceLootPlan,
   NEUTRAL_INPUT,
@@ -703,6 +705,28 @@ export class RunController {
     this.slots.set(player.id, s);
     this.insertInOrder(s);
     return true;
+  }
+
+  /**
+   * Story 8.2 (AC 1): a late joiner enters the World in a build phase (shared `addLatePlayer`: team spawn point or
+   * the first free spot round it, `wallet`, a fresh survivor, +15 s once per build). Rewind as in the constructor,
+   * a new input slot in player-id order. The card offer is drawn on demand (`offerFor` → `ensureOffer`, stream
+   * `shop:<slot>:<n>`). False outside a build phase or for an id already in the run.
+   */
+  addLatePlayer(playerId: string, slot: number, wallet: number, init: { unlocks?: number; training?: TrainingLevels } = {}): boolean {
+    if (this.slots.has(playerId)) return false;
+    const p = addLatePlayer(this.world, playerId, slot, wallet, init);
+    if (!p) return false;
+    p.rewindMaxTicks = this.world.zombieHistory.enabled ? REWIND_CAP_TICKS : 0;
+    const s = new PlayerSlot(playerId);
+    this.slots.set(playerId, s);
+    this.insertInOrder(s);
+    return true;
+  }
+
+  /** Story 8.3 (H3, decision E8-H3): a removed player's buildings stay, pay nobody and count for nobody's cap. */
+  disownBuildings(playerId: string): number {
+    return disownBuildings(this.world, playerId);
   }
 
   /** Back into the tick order by player id (`p0` < `p1` …), so the order never depends on who dropped first. */

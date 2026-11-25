@@ -80,6 +80,8 @@ export interface HudModel {
   endless: boolean;
   /** Story 6.11: the evacuation vote is on (the sticks hide; the top line says so). */
   voting: boolean;
+  /** Story 8.2 (J4, AC 4): I am a waiting late joiner: no controls but ☰ (sticks, weapon panel, quick-use, Ready, build bar hidden). */
+  watching: boolean;
   /** Story 3.1: the Ready button is shown (a build phase, a run on screen, menu closed). */
   readyButton: boolean;
   /** The local player is Ready (as this device last asked: shown at once, also online). */
@@ -341,6 +343,7 @@ export const createHudModel = (): HudModel => ({
   buildSecs: -1,
   endless: false,
   voting: false,
+  watching: false,
   readyButton: false,
   readyOn: false,
   readyCount: 0,

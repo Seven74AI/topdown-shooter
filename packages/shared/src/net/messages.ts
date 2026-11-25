@@ -83,6 +83,13 @@ export const C2S = {
    * (P1). Build, wave and vote, standing or downed (E8-P4); its own 1/s bucket (E8-P5); dropped silently otherwise.
    */
   PING_SEND: "ping.send",
+  // ── Story 8.3 (host remove) ──
+  /**
+   * `{ playerId }` (Story 8.3, H2/H3, Epic 8 D9): the host removes a player (connected, reconnecting, waiting or a
+   * remembered seat) in the lobby or a build phase. Anything else (not the host, a wave or the vote, yourself, an
+   * unknown id) is logged and ignored. "other" bucket.
+   */
+  HOST_REMOVE: "host.remove",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -144,6 +151,9 @@ export const S2C = {
   // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
   /** `PingShown` `[slot, kindIdx, x, y, tick]` to every player, the sender too (Story 8.7): a teammate's ping (never World state, P5). */
   PING_SHOWN: "ping.shown",
+  // ── Story 8.3 (host remove) ──
+  /** `{}` (Story 8.3, H3): to the removed player only, right before the server closes their socket with 4022. */
+  PLAYER_REMOVED: "player.removed",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -165,7 +175,12 @@ export type { RunPhase } from "../run/runStateMachine";
  * Story 8.1: `seat_kept` — this player's seat in a started run is remembered (their hold ran out),
  * but it can come back only in a build phase with its slot free: the phone waits and retries (D4).
  */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required";
+/**
+ * Story 8.2: `run_started` only while the run shows Results ("This run is ending"); `run_full` — every free slot is taken
+ * or kept for a teammate's held or remembered seat (J3, decision E8-J3). Story 8.3: `removed` — the host removed this
+ * seat from the room (H3, decision E8-H2: for the room's lifetime).
+ */
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -569,7 +584,8 @@ export interface RunJoined {
 }
 
 /** Why a player left (Story 2.11): `left` = a consented leave (Leave game), else `disconnected`. */
-export type PlayerLeftReason = "left" | "disconnected";
+/** Story 8.3: `removed` — the host removed them (H3). */
+export type PlayerLeftReason = "left" | "disconnected" | "removed";
 
 /** `player.left` payload (Story 2.11), broadcast to the room in the lobby and during a run. */
 export interface PlayerLeft {
@@ -606,3 +622,9 @@ export const PING_SHOW_MS = 4000;
  * leaves 200 ms for send jitter (a frame's quantisation, ±100 ms of line jitter), so an honest ping is never dropped.
  */
 export const PING_COOLDOWN_MS = 1200;
+// ── Story 8.3 (host remove) ──
+/** `host.remove` (Story 8.3): the seat to remove, by player id (`p0`–`p3`). */
+export const hostRemoveSchema = z.object({ playerId: z.string().regex(/^p[0-3]$/) }).strict();
+export type HostRemove = z.infer<typeof hostRemoveSchema>;
+/** `player.removed` payload (Story 8.3): nothing (the reason is the message itself). */
+export type PlayerRemoved = Record<string, never>;

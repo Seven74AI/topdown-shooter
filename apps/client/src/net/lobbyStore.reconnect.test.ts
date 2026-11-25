@@ -88,6 +88,20 @@ describe("Story 8.1 lobbyStore reconnect wiring", () => {
     expect(linkStore.get().status).toBe("seat_kept");
   });
 
+  it("Story 8.3 review M3: a held seat the host removed — its takeover is refused 'removed' → onLost('removed'), the seat forgotten", async () => {
+    vi.stubGlobal("sessionStorage", memoryStorage());
+    const f = linkRoom("build");
+    const rejoin = vi.fn(async (): Promise<RecoveryJoin<RunConnection>> => ({ ok: false, reason: "removed" }));
+    const { onLost } = attach(f, rejoin);
+    f.message(S2C.RUN_JOINED, { playerId: "p0", slot: 0, tickRateHz: 20 });
+    f.leaveWith(4003); // the SDK gave up (the socket died while held; the 4022 never reached this phone)
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(rejoin).toHaveBeenCalledTimes(1);
+    expect(onLost).toHaveBeenCalledExactlyOnceWith("removed");
+    expect(seatStore.load()).toBeNull();
+  });
+
   it("a 4021 right after adopting a LATE takeover of mine is my own crossed takeovers: take the seat again (no 'taken over')", async () => {
     const f = linkRoom();
     const rejoin = vi.fn(async (): Promise<RecoveryJoin<RunConnection>> => ({ ok: false, reason: "network" }));
@@ -109,6 +123,21 @@ describe("Story 8.1 lobbyStore reconnect wiring", () => {
     await Promise.resolve();
     expect(onLost).toHaveBeenCalledWith("taken_over");
     expect(rejoin).not.toHaveBeenCalled();
+  });
+
+  it("Story 8.3 (AC 12): removed mid-run (4022): 'removed', no takeover, the seat forgotten", async () => {
+    vi.stubGlobal("sessionStorage", memoryStorage());
+    const f = linkRoom("build");
+    const rejoin = vi.fn(async (): Promise<RecoveryJoin<RunConnection>> => ({ ok: false, reason: "network" }));
+    const { onLost } = attach(f, rejoin);
+    f.message(S2C.RUN_JOINED, { playerId: "p0", slot: 0, tickRateHz: 20 });
+    expect(seatStore.load()).not.toBeNull();
+    f.message(S2C.PLAYER_REMOVED, {});
+    f.leaveWith(4022);
+    await Promise.resolve();
+    expect(rejoin).not.toHaveBeenCalled();
+    expect(onLost).toHaveBeenCalledExactlyOnceWith("removed");
+    expect(seatStore.load()).toBeNull();
   });
 
   it("closed as taken over (4021): 'taken_over', and the seat stays saved (the other tab has it)", () => {
