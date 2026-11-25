@@ -70,6 +70,8 @@ describe("Story 9.14 (AC 4): a sawhorse police line laid with the standing pictu
       expect(west).toBeGreaterThanOrEqual(5 - 1e-9);
       expect(west + unitsOf(p) * POLICE_UNIT_M).toBeLessThanOrEqual(5 + L + 1e-9);
     }
+    // shorter than one sawhorse: only its drums (re-review nit)
+    expect(policeLineLayout({ name: "tiny", minX: 0, minY: 0, maxX: 0.6, maxY: 0.5 }).every((p) => p.drum)).toBe(true);
     // a north–south line shorter than a side piece: only its drums
     const s = policeLineLayout({ name: "short", minX: 0, minY: 4, maxX: 0.5, maxY: 5.5 });
     expect(s.every((p) => p.drum)).toBe(true);

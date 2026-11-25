@@ -95,6 +95,7 @@ Claude (builder session for Story 9.14, gds-dev-story flow).
 - **B22 Drift hash inputs (review M1).** The hash is built from esbuild's metafile inputs for the atlas page: 22 files, listed in `streetProps.json › sources`. `node_modules` and `packages/shared` are excluded. The shared package (balance JSON, sims, map data) is pulled in through `dressing.ts`'s imports but never reaches the pictures, and hashing it would fail every story's CI on any balance change. The check test rebuilds the list with esbuild and compares it.
 - **B23 Review L4 accepted as is** (orchestrator: the same pattern as the 9.12 side walls).
 - **B24 Boot and the image (review H1).** The Boot scene no longer preloads. `create()` puts up the title and the start handlers at once and starts the download in the background. A start request is taken at once and the Game scene starts when the download settles: loaded, failed (one `console.warn`, B8), or 12 s timeout (`STREET_PROPS_TIMEOUT_MS`; an image that lands later is dropped). Nothing is queued again after a failure or once `atlas_downtown` exists. Slow 4G (CDP, dev-mode builds served by vite preview, `docs/art/9-14/slow4g.cjs`): page load to title went from 9.7 s / 9.7 s to 6.0 s / 6.0 s (2 rounds); `?solo` to the first city bake went from 12.3 / 12.0 s to 11.6 / 11.7 s, with the photo atlas in both.
+- **B25 Boot start guard, not start-at-once (re-review NEW-1 / NEW-2).** The Boot scene keeps waiting for the image, made airtight. The first start request sets `starting`: the handlers go, the title's delayed step is removed and returns early if it fires anyway, and later requests are ignored. The waiter starts Game once, and only while Boot is the running scene. While waiting, the screen switches to the in-run screen (no dead start buttons) and the canvas says "Loading…" under the title. The start-at-once alternative (code atlas first, then repaint `atlas_downtown` and re-bake when the image lands) was not chosen: the two atlases have different layouts and frame sets (the police pictures exist only in the image), so it would swap a live texture's frames under the police sprites and re-bake mid-run, which is riskier for the last re-review round. Slow 4G (CDP, 2 rounds): page load to title 9.8 / 9.7 s before H1 → 6.0 / 6.0 s now; `?solo` to the first bake 12.3 / 12.3 s → 11.8 / 11.7 s; "Loading…" shown in both `?solo` runs.
 - **B19 Perf at stage 2 too.** `?stress=150` runs at stage 1, which has no police line, so the table adds a stress row forced to stage 2 (`applyDecayStage`) on both trees.
 
 ### Review fixes (orchestrator review of PR #22 @a80ae3f: 1 high, 3 medium, 8 low)
@@ -111,6 +112,23 @@ Claude (builder session for Story 9.14, gds-dev-story flow).
 - L6: `drawCity.ts › stampIntact`. A stamp whose probe pixel reads empty is painted again on the next bake. `invalidateBake` only runs on a lost WebGL context or a restored tile canvas, not when the browser empties another 2D canvas.
 - L7: one `console.warn` on fallback (`streetPropsAtlas.ts › settle`).
 - L8: readability key 142 notes the dumpster's 4.5 cm side gaps.
+
+### Re-review round 1 fixes (orchestrator, on 2571089)
+
+- NEW-1 (high): `BootScene.ts`: `starting` guard reset in `create`; `titleTimer` kept, removed on start, early return in its callback; `startGame` takes the first request only, ignores the rest, and starts Game once if `sys.isActive()`. B25.
+- NEW-2 (medium): `BootScene.ts › showLoading`: the in-run screen plus "Loading…" while a taken start waits.
+- NEW-3 (low): `streetPropsAtlas.ts › loadStreetProps`: success is heard on the texture manager (`addtexture-street_props_src`, game-wide), failure on `loaderror` or the timer, so an image that lands after a timeout or a Boot restart is still dropped.
+- Nit (L3): a front line shorter than one sawhorse gets drums only. The drift-hash nit (character art in the inputs) was left: it fails safe.
+- Tests: `scenes/bootStreetProps.test.ts`, 9 cases:
+  - taken start with Loading… and the in-run screen;
+  - a delayed title step after a taken start does nothing;
+  - `?solo` plus a resumed seat: online wins;
+  - two requests give one start;
+  - Boot restarted while loading still starts once;
+  - an inactive Boot doesn't start;
+  - failure warns once and isn't re-queued;
+  - a late image after a timeout is dropped from the texture manager;
+  - no load once the atlas exists.
 
 ### Debug Log References
 

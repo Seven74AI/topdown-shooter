@@ -138,7 +138,7 @@ describe("Story 9.14 (review L5): the loaded image becomes the downtown atlas", 
     vi.stubGlobal("HTMLImageElement", FakeImage);
     const img = new FakeImage();
     const keys = new Set<string>([ATLAS_CHARACTERS, ATLAS_FX]); // those two are someone else's (they exist already)
-    const onComplete: (() => void)[] = [];
+    const onAdd: (() => void)[] = [];
     const frames: string[] = [];
     const tex = { add: (n: string) => frames.push(n), refresh: () => undefined, getFrameNames: () => frames, get: () => ({ cutX: 0, cutY: 0, cutWidth: 2, cutHeight: 2 }) };
     const scene = {
@@ -147,12 +147,13 @@ describe("Story 9.14 (review L5): the loaded image becomes the downtown atlas", 
         remove: (k: string) => keys.delete(k),
         get: () => ({ getSourceImage: () => img }),
         addCanvas: (k: string) => (keys.add(k), tex),
+        once: (_e: string, fn: () => void) => onAdd.push(fn),
       },
-      load: { image: () => undefined, once: (_e: string, fn: () => void) => onComplete.push(fn), start: () => undefined },
+      load: { image: () => undefined, on: () => undefined, start: () => undefined },
     } as unknown as Phaser.Scene;
     loadStreetProps(scene);
     keys.add(STREET_PROPS_KEY);
-    for (const fn of onComplete) fn();
+    for (const fn of onAdd) fn();
     const a = ensureAtlases(scene);
     expect(keys.has(STREET_PROPS_KEY)).toBe(false); // the loader's texture is gone
     expect(keys.has(ATLAS_DOWNTOWN)).toBe(true);
@@ -166,17 +167,17 @@ describe("Story 9.14 (review L5): the loaded image becomes the downtown atlas", 
     vi.stubGlobal("HTMLImageElement", FakeImage);
     const wrong = Object.assign(new FakeImage(), { naturalWidth: 10 });
     const keys = new Set<string>([STREET_PROPS_KEY]);
-    const onComplete: (() => void)[] = [];
+    const onAdd: (() => void)[] = [];
     const scene = {
-      textures: { exists: (k: string) => keys.has(k), remove: (k: string) => keys.delete(k), get: () => ({ getSourceImage: () => wrong }) },
-      load: { image: () => undefined, once: (_e: string, fn: () => void) => onComplete.push(fn), start: () => undefined },
+      textures: { exists: (k: string) => keys.has(k), remove: (k: string) => keys.delete(k), get: () => ({ getSourceImage: () => wrong }), once: (_e: string, fn: () => void) => onAdd.push(fn) },
+      load: { image: () => undefined, on: () => undefined, start: () => undefined },
     } as unknown as Phaser.Scene;
     expect(takeStreetProps(scene)).toBeNull(); // never asked
     keys.delete(STREET_PROPS_KEY);
     loadStreetProps(scene);
     expect(takeStreetProps(scene)).toBeNull(); // still loading
     keys.add(STREET_PROPS_KEY);
-    for (const fn of onComplete) fn();
+    for (const fn of onAdd) fn();
     expect(takeStreetProps(scene)).toBeNull();
     expect(keys.has(STREET_PROPS_KEY)).toBe(false);
   });

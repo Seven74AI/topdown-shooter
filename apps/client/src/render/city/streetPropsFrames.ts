@@ -122,7 +122,7 @@ export function policeLineLayout(b: LineBox, out: PolicePiece[] = []): PolicePie
   if (w >= h) {
     const L = w;
     const y = (b.minY + b.maxY) / 2;
-    const fit = Math.max(1, Math.floor(L / POLICE_UNIT_M + EPS));
+    const fit = Math.floor(L / POLICE_UNIT_M + EPS); // 0 for a line shorter than one sawhorse: drums only (re-review nit)
     const cover = Math.max(1, Math.ceil(L / POLICE_UNIT_M - EPS));
     const units = cover <= 3 ? Math.min(3, fit) : cover; // one piece: only what fits (L3); more: close up the joins
     const sizes: number[] = [];

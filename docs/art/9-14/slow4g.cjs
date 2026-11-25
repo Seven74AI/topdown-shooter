@@ -18,9 +18,12 @@ const SLOW4G = { offline: false, latency: 562.5, downloadThroughput: (1.6e6 * 0.
       await p.goto(base + "/" + q, { waitUntil: "commit" });
       const title = await p.waitForFunction(() => { const s = window.__game?.scene?.getScene("Boot"); return !!s && s.sys.isActive() && s.children.list.some((c) => c.type === "Text"); }, null, { timeout: 240000, polling: 50 }).then(() => Date.now() - t0);
       let game = "";
+      // review NEW-2: does the canvas say "Loading…" while a taken start waits for the image?
+      const loadingSeen = q ? p.waitForFunction(() => window.__game?.scene?.getScene("Boot")?.children?.list?.some((c) => c.type === "Text" && c.text === "Loading…"), null, { timeout: 240000, polling: 20 }).then(() => true, () => false) : Promise.resolve("");
       if (q) game = await p.waitForFunction(() => { const s = window.__game?.scene?.getScene("Game"); return s && s.cityView && s.cityView.bakeCount > 0; }, null, { timeout: 240000, polling: 50 }).then(() => Date.now() - t0);
+      const loading = await Promise.race([loadingSeen, new Promise((r) => setTimeout(() => r(false), 100))]);
       const photo = q ? await p.evaluate(() => window.__game.textures.get("atlas_downtown").has("prop_policedrum_a")) : "";
-      console.log(JSON.stringify({ round: r + 1, label, q: q || "(start screen)", titleMs: title, gameBakedMs: game, photoAtlas: photo }));
+      console.log(JSON.stringify({ round: r + 1, label, q: q || "(start screen)", titleMs: title, gameBakedMs: game, loadingShown: loading, photoAtlas: photo }));
       await ctx.close();
     }
   }

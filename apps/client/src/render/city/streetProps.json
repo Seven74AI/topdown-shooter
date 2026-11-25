@@ -3,7 +3,7 @@
  "image": "streetProps.webp",
  "imageSha": "751fd14e55334692",
  "chromium": "158.0.8127.36",
- "sourcesHash": "108e1849833ce5ee",
+ "sourcesHash": "ebea0464f42a7f16",
  "sources": [
   "apps/client/src/render/city/atlasLayout.ts",
   "apps/client/src/render/city/barricadeArt.ts",

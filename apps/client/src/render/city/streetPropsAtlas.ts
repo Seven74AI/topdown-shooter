@@ -41,17 +41,17 @@ export function streetPropsState(): StreetPropsState {
   return state;
 }
 
-function settle(scene: Phaser.Scene, ok: boolean): void {
+function settle(textures: Phaser.Textures.TextureManager, ok: boolean): void {
   if (state !== "loading") {
-    // review H1: an image that lands after the timeout is never used: drop it
-    if (scene.textures.exists(STREET_PROPS_KEY)) scene.textures.remove(STREET_PROPS_KEY);
+    // review H1 / NEW-3: an image that lands after the timeout is never used: drop it
+    if (textures.exists(STREET_PROPS_KEY)) textures.remove(STREET_PROPS_KEY);
     return;
   }
   if (timer !== null) clearTimeout(timer);
   timer = null;
   state = ok ? "ready" : "failed";
   if (!ok) {
-    if (scene.textures.exists(STREET_PROPS_KEY)) scene.textures.remove(STREET_PROPS_KEY);
+    if (textures.exists(STREET_PROPS_KEY)) textures.remove(STREET_PROPS_KEY);
     console.warn("street props atlas did not load: drawing the street props from code (Story 9.14 B8)"); // review L7
   }
   for (const w of waiters.splice(0)) w();
@@ -60,18 +60,24 @@ function settle(scene: Phaser.Scene, ok: boolean): void {
 /**
  * Starts the atlas image's download once per page (nothing when it is under way, done, failed, or the downtown atlas
  * already exists). `start`: false from a `preload` (the scene manager starts the loader and waits for it there);
- * true from `create` (the download runs in the background: the scene is already up).
+ * true from `create` (the download runs in the background: the scene is already up). Success is heard on the game's
+ * texture manager (review NEW-3: it outlives the scene, so a late image is still seen and dropped after a Boot
+ * restart), failure on the scene's loader or the timer.
  */
 export function loadStreetProps(scene: Phaser.Scene, start = true, timeoutMs = STREET_PROPS_TIMEOUT_MS): void {
   if (state !== "idle") return;
-  if (scene.textures.exists(DOWNTOWN_KEY)) {
+  const textures = scene.textures;
+  if (textures.exists(DOWNTOWN_KEY)) {
     state = "failed"; // the atlas was drawn already (from code): nothing would use the image
     return;
   }
   state = "loading";
-  timer = setTimeout(() => settle(scene, false), timeoutMs);
+  timer = setTimeout(() => settle(textures, false), timeoutMs);
+  textures.once(`addtexture-${STREET_PROPS_KEY}`, () => settle(textures, true));
+  scene.load.on("loaderror", (file: { key?: string }) => {
+    if (file.key === STREET_PROPS_KEY) settle(textures, false);
+  });
   scene.load.image(STREET_PROPS_KEY, imageUrl, { responseType: "blob", timeout: timeoutMs });
-  scene.load.once("complete", () => settle(scene, scene.textures.exists(STREET_PROPS_KEY)));
   if (start) scene.load.start();
 }
 

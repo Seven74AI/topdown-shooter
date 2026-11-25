@@ -6,7 +6,8 @@ import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
-import { loadStreetProps, whenStreetPropsSettled } from "../render/city/streetPropsAtlas";
+import { loadStreetProps, streetPropsState, whenStreetPropsSettled } from "../render/city/streetPropsAtlas";
+import { playingScreen } from "../ui/uiState";
 
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
@@ -19,13 +20,26 @@ export interface BootSceneData {
 
 const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
+const LOADING_FONT_PX = 16; // Story 9.14: the "Loading…" line under the title (CSS px)
+const LOADING_GAP_PX = 36; // its distance below the screen's middle (CSS px)
 
 export class BootScene extends Phaser.Scene {
+  /**
+   * Story 9.14 (review NEW-1): the first start request taken (solo or online); every later one is ignored, the title's
+   * delayed start screen never comes back, and the Game scene starts exactly once. Reset in `create` (Phaser reuses
+   * the scene object when Boot starts again).
+   */
+  private starting = false;
+  /** The title's delayed step (start screen, or the `?solo` start), removed once a start is taken. */
+  private titleTimer: Phaser.Time.TimerEvent | null = null;
+
   constructor() {
     super("Boot");
   }
 
   create(data?: BootSceneData): void {
+    this.starting = false;
+    this.titleTimer = null;
     // Story 9.14 (B1, review H1): the street props atlas image (~0.5 MB) downloads in the background while the title and
     // the start screen are up; a start waits for it to settle (at most `STREET_PROPS_TIMEOUT_MS`), see `startGame`.
     loadStreetProps(this);
@@ -60,7 +74,9 @@ export class BootScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, center);
     });
 
-    this.time.delayedCall(TITLE_SHOW_MS, () => {
+    this.titleTimer = this.time.delayedCall(TITLE_SHOW_MS, () => {
+      this.titleTimer = null;
+      if (this.starting) return; // review NEW-1: a start was taken during the title (a resumed seat): keep its screen
       // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
       if (skipsStartScreen(urlOptions())) return this.startSolo();
       uiStore.handle("startSolo", () => this.startSolo());
@@ -71,23 +87,42 @@ export class BootScene extends Phaser.Scene {
 
   /** The host started the online run: the server runs the fight (Story 2.4). */
   private startOnline(session: NetSession): void {
-    uiStore.handle("startSolo", undefined);
-    uiStore.handle("startOnline", undefined);
     this.startGame({ mode: "online", session });
   }
 
   /** Offline play, exactly as in Epic 1. */
   private startSolo(): void {
-    uiStore.handle("startSolo", undefined);
-    uiStore.handle("startOnline", undefined);
     this.startGame({ mode: "solo" });
   }
 
   /**
-   * Story 9.14 (review H1): the request was taken (the handlers are gone, as before); the Game scene starts once the
-   * street props image has settled, so the city is drawn with it (or from code after a failure or the timeout).
+   * Story 9.14 (reviews H1, NEW-1, NEW-2): takes the first start request only (the handlers go, the title's delayed
+   * step is cancelled); the Game scene starts once the street props image has settled (drawn with it, or from code
+   * after a failure or the timeout), exactly once, and only if Boot is still the running scene. While it waits the
+   * start screen goes (its buttons would do nothing) and the canvas says "Loading…" under the title.
    */
   private startGame(data: GameSceneData): void {
-    whenStreetPropsSettled(() => this.scene.start("Game", data));
+    if (this.starting) return;
+    this.starting = true;
+    uiStore.handle("startSolo", undefined);
+    uiStore.handle("startOnline", undefined);
+    this.titleTimer?.remove();
+    this.titleTimer = null;
+    if (streetPropsState() === "loading") this.showLoading(data.mode === "online");
+    whenStreetPropsSettled(() => {
+      if (!this.sys.isActive()) return;
+      this.scene.start("Game", data);
+    });
+  }
+
+  private showLoading(online: boolean): void {
+    uiStore.set(playingScreen(online)); // the Game scene sets the same screen when it starts
+    this.add
+      .text(this.scale.width / 2, this.scale.height / 2 + LOADING_GAP_PX * dpr(), "Loading…", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: `${Math.round(LOADING_FONT_PX * dpr())}px`,
+        color: "#c8c8c8",
+      })
+      .setOrigin(0.5);
   }
 }
