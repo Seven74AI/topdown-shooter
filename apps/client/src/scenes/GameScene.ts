@@ -2080,6 +2080,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
     const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
+    if (this.eventView) this.eventView.bossBarShown = this.hudModel.bossVisible; // Story 6.14 review L3
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);

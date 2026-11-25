@@ -5,6 +5,7 @@ import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
 import { EventPickupsView } from "./EventPickupsView";
 import { createPairHold, placeSecondEventArrow } from "./eventArrowPair";
+import { layoutBossBar } from "../scenes/bossBar";
 import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
@@ -58,6 +59,9 @@ export class EventView {
   /** Stories 6.9 / 6.10: tank, crate, survivor and flag. */
   private readonly pickups: EventPickupsView;
   private readonly controls = newWaveControlRects();
+  /** Story 6.14 review L3: the Game scene sets it each frame — the boss bar shows, so the arrows keep off it. */
+  bossBarShown = false;
+  private readonly bossRect = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
   private readonly arrowAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // `side`: the placement's hysteresis (re-review 2 RR1)
   private readonly flagHold = createPairHold(); // re-review RR2: the beside-side hold
   private readonly flagAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // Story 6.10: the flag's own placement (its own hysteresis)
@@ -122,7 +126,9 @@ export class EventView {
     // The edge arrow (D10; review M2: placed in screen px off the wave controls, inside the safe area).
     const pxPerM = vw > 0 ? sw / vw : 1;
     const arrowPx = EVENT_ARROW_CSS_PX * k;
-    const onEdge = look.visible && placeEventArrow((look.x - vx) * pxPerM, (look.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), this.arrowAt);
+    const boss = this.bossBarShown ? layoutBossBar(sw, insets.left, insets.top, insets.right, k, this.bossRect) : null;
+    const controls = waveControlRects(sw, sh, insets, k, this.controls, boss);
+    const onEdge = look.visible && placeEventArrow((look.x - vx) * pxPerM, (look.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, controls, this.arrowAt);
     this.arrow.setVisible(onEdge);
     this.tip.setVisible(onEdge);
     if (onEdge) {
@@ -143,7 +149,7 @@ export class EventView {
     // px, off the wave controls / HP block, inside the safe area).
     const f = look.flag;
     // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
-    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt, this.flagHold);
+    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, controls, onEdge ? this.arrowAt : null, this.flagAt, this.flagHold);
     f.edge.visible = flagEdge;
     if (!f.visible) {
       this.flagAt.side = 0;

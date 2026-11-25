@@ -76,6 +76,8 @@ One full gate on story-6-14-tidy (origin/master 62dd2ef already contained; fix-b
 - `apps/client/src/render/eventArrowPair.ts`: `PairHold` has a new field `fanRad` (create it with `createPairHold`).
 - `packages/shared/src/config/balance.ts`: `crossCheckBoss` imports `ticksFor` (`core/time`).
 - No shared sim, schema, wire or balance JSON change.
+- Review L6: the asset branch `claude/dazzling-meitner-zhu5p0` must rebase onto this story and re-run the brief-31 "Story 6.14" top-band test: its BossHud places an element at `l.y + l.h + gap`, and the boss bar now sits at y 60 (was 46) on phones.
+- `apps/client/src/render/eventArrow.ts`: `waveControlRects` fills 7 rects now (the 7th is the boss bar while it shows, else a copy of ☰) and takes an optional `boss` rect; `EventView.bossBarShown` is set by GameScene each frame.
 
 ### File List
 
@@ -86,7 +88,7 @@ One full gate on story-6-14-tidy (origin/master 62dd2ef already contained; fix-b
 - `packages/shared/src/events/gasLeak.test.ts`
 - `apps/client/src/ui/voteModel.ts`, `voteModel.test.ts`
 - `apps/client/src/net/onlineFlow.ts`, `onlineFlow.test.ts`
-- `apps/client/src/render/eventArrowPair.ts`
+- `apps/client/src/render/eventArrowPair.ts`, `eventArrow.ts`, `EventView.ts`, `apps/client/src/scenes/GameScene.ts`
 - `apps/client/src/scenes/hudLayout.test.ts`, `hudTopLayout.ts`, `hudTopLayout.test.ts`, `bossBar.ts`, `HudScene.ts`
 - `apps/client/src/ui/overlay.css`
 - `tools/checks/votePollWiring.test.ts` (new)
@@ -140,7 +142,16 @@ Reviewer: fresh-agent light review (one checker, time-boxed), 2026-11-25. Commit
 
 Not re-mutated (the dev's table covers them): AC 1, 2, 5, the gas-leak test, and the banner / boss-bar mutations of AC 7.
 
+### Review fixes (builder, 2026-11-25, after merging `origin/review-6-14` bdd5b6d and master b9aadaf)
+
+- **M1.** `hudLayout.test.ts` "story 6.14 review M1" (568 × 320, 640 × 360): a 2 × 2 px keep-off dot on each of the 8 beside spots forces the fan for a flag that clashes with the NPC arrow (NPC every 3°, flag −0.3° / +0.2°); asserts the fan was used (> 20 cases), that the nearest fan ray's spot would touch the NPC arrow (> 10 cases), and that the placed flag never touches it and is ≤ 30° off. Deleting the `overlapGrown(…, rn, gap)` check in `tryFan` fails it.
+- **L4 [B, small].** "story 6.14 review L4": the same forced fan, the flag bearing jittering ±0.01° round each point where a fresh pick changes the fan's side; at most one flip per case. **The test found a real flicker** (11 flips in 12 frames at 568 × 320 npc 282°, 640 × 360 npc 48°): the held ray sat exactly on the 30° cap or the NPC-clearance edge, so a 0.02° wobble dropped it every frame. Fix: a fresh fan pick first wants a spot ≤ 29° off and 3 px more clearance than the gap (`FAN_HOLD_SLACK_RAD`, `FAN_HOLD_SLACK_CSS_PX`), then up to the plain rules; the hold keeps checking the plain 30° / gap. Mutations: the fan-ray hold line removed → fails; both slacks 0 → fails.
+- **L1.** The top-band test asserts the wave line's scale ≥ 11/16 (an 11 px floor; 568 × 320 with insets 44 measures ≈ 0.73).
+- **L3 [B].** `waveControlRects(…, boss)`: the boss bar is a keep-off for the event / flag arrows while it shows (EventView ← GameScene `hudModel.bossVisible`). New test "story 6.14 review L3" (4 sizes, every 1°): the drawn arrow is off the boss bar and keeps every 6.8 rule. **Trade-off:** at 568 × 320 the bar (y 60–85, 300 px wide) leaves no legal spot within 30° of straight up, so the arrow takes the nearest clear ray: up to **36.7°** off (asserted ≤ 37° there, ≤ 30° at 640 × 360 / 800 × 360 / 844 × 390, measured 10°). Keeping off the bar was preferred over the 30° cap; the designer may want to choose. Mutation: boss rect not used → fails (4 sizes). The rusher arrows (HudScene) were not changed.
+- **L5** skipped (cosmetic, documented in the review). **L2** left as built (main session shows the designer). **L6** in Notes for the merge.
+
 ## Change Log
 
 - 2026-11-25: story written and built (items 1–8); status review.
 - 2026-11-25: Senior Developer Review (AI): approve; 1 medium, 6 low (test bite gaps, minor layout notes).
+- 2026-11-25: review fixes M1, L1, L3, L4 (+ the fan flicker L4's test found); L6 noted; L2, L5 left.

@@ -119,13 +119,19 @@ export function placeSecondEventArrow(
     return true;
   }
   // Else the flag keeps 6.8's single-arrow rule on a ray of its own ≤ 30° fan, nearest its bearing
-  // first, at a spot that keeps every rule and clears the NPC arrow.
-  for (let d = FAN_STEP_RAD; d <= EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9; d += FAN_STEP_RAD) {
-    for (const sgn of FAN_SIGNS) {
-      if (tryFan(sgn * d, sx, sy, w, h, insets, k, size, avoid, out, gap)) {
-        hold.side = FAN;
-        hold.fanRad = sgn * d;
-        return true;
+  // first, at a spot that keeps every rule and clears the NPC arrow. Review L4: a fresh pick first wants
+  // a spot ≤ 30° − FAN_HOLD_SLACK_RAD off and FAN_HOLD_SLACK_CSS_PX clear of the NPC arrow beyond the gap, so the held ray (checked against the full 30°) survives a
+  // jittering bearing instead of flipping sides every frame; only then up to 30°.
+  for (let pass = 0; pass < 2; pass++) {
+    const maxErr = pass === 0 ? EVENT_ARROW_MAX_BEARING_ERR_RAD - FAN_HOLD_SLACK_RAD : EVENT_ARROW_MAX_BEARING_ERR_RAD;
+    const clear = pass === 0 ? gap + FAN_HOLD_SLACK_CSS_PX * k : gap;
+    for (let d = FAN_STEP_RAD; d <= EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9; d += FAN_STEP_RAD) {
+      for (const sgn of FAN_SIGNS) {
+        if (tryFan(sgn * d, sx, sy, w, h, insets, k, size, avoid, out, clear, maxErr)) {
+          hold.side = FAN;
+          hold.fanRad = sgn * d;
+          return true;
+        }
       }
     }
   }
@@ -136,6 +142,9 @@ export function placeSecondEventArrow(
 }
 
 const FAN_SIGNS = [1, -1] as const;
+/** Review L4: the slack a fresh fan pick keeps below the 30° cap (the hold checks the full cap). */
+const FAN_HOLD_SLACK_RAD = (1 * Math.PI) / 180;
+const FAN_HOLD_SLACK_CSS_PX = 3;
 const fanPlace: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 };
 
 /**
@@ -143,14 +152,14 @@ const fanPlace: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 };
  * accepted when the flag drawn there (tip along its TRUE bearing) keeps every rule, is within 30° of
  * that bearing and clears the NPC arrow (`rn`); writes `out` then.
  */
-function tryFan(off: number, sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace, gap: number): boolean {
+function tryFan(off: number, sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace, gap: number, maxErr = EVENT_ARROW_MAX_BEARING_ERR_RAD): boolean {
   const angle = probeAngle;
   const ray = angle + off;
   const R = Math.hypot(sx - w / 2, sy - h / 2);
   fanPlace.side = 0;
   if (!placeEventArrow(w / 2 + Math.cos(ray) * R, h / 2 + Math.sin(ray) * R, w, h, insets, k, size, avoid, fanPlace)) return false;
   if (!legalAt(fanPlace.x, fanPlace.y, angle, w, h, insets, k, size, avoid)) return false;
-  if (bearingErr(fanPlace.x, fanPlace.y, angle, w, h) > EVENT_ARROW_MAX_BEARING_ERR_RAD) return false;
+  if (bearingErr(fanPlace.x, fanPlace.y, angle, w, h) > maxErr) return false;
   probe.x = fanPlace.x;
   probe.y = fanPlace.y;
   probe.angle = angle;
