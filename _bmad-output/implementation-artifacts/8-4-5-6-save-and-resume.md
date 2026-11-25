@@ -251,6 +251,13 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 - **Lows**: Remove refused while saving; Remove in a build autosaves at once (unlinks the account, no resurrection by an older autosave); `lastSave` only after the write; per-run token; a resumed lobby needs one of its own seats (the last one leaving releases the save); `saved_at` column (0005 regenerated, unreleased); away seats' flags reset; `seatCounter` saved; boot sweep uses the district map; a lost run logs "lost"; `run_save_failed` once per run on a dead database; route rate key (8.6-B11); tests for S1 extras (fires, boss record, endless, blackout, bag), the shape check (version-keyed hashes with value types), the resume wave size, "Couldn't load saved games" layout, the endless wave-15 size (23.6 KB).
 - **Nits**: realPostgres files documented for `--no-file-parallelism`; spec names: C2S `run.save_quit` / S2C `run.saved` / `run.save_failed` as specified; the list is `POST /api/saved-runs` (8.6-B2, story said GET); the refusal set adds `save_unavailable` and `save_too_old` to the story's two.
 
+### Review round 2 (re-review of 6b38bad: 1 H + 3 L) — fixes
+
+- **H** a merged guest paid twice on resume: the bank transaction finds the run's earlier row on the payee OR any account merged into it (or the payee when a merged guest's seat banks): a top-up raises that row, a first bank pays nothing again; `listUnbanked` counts such a row as banked. The resume keeps mapping the seat (key and account) to the merged account so the save stays listed for it (part (a) "keep the original accountId" would unlink the save from the account for seats still away; the bank-side lookup covers both directions instead). Tests: room (guest banks wave 1 → merge → resume → Save and quit: 20 stays 20, one row), PGlite and real PG (×5 concurrent top-ups).
+- **L2** the Start restore passes `codeVersion` (same as the claim's trial).
+- **L3** a removed finder's `foundBy` is kept (the noted seat + `oneBagPerRun` decide); teammates' Results keep the "found" line with the finder's seat id (test).
+- **L4** the boot sweep's expiry is `SAVE_KEEP_MS` after the row's last write (D13: 7 days in the story; the review note said 14, the story's 7 kept), never a claim's old expiry (test).
+
 ### Change Log
 
 - 2026-11-25: Stories 8.4+8.5+8.6 implemented (save format, saved_runs, autosave, Save and quit, resume, Saved games, bots, docs) + PR #9 review L1.

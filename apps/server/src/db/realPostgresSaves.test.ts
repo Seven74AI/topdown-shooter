@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo } from "./accountsRepo";
@@ -77,6 +78,20 @@ describe.skipIf(!URL)("Stories 8.4–8.6: saves on real PostgreSQL (TEST_DATABAS
       const owners = [(await progress.get(a))!.cosmetics.includes(key), (await progress.get(b))!.cosmetics.includes(key)].filter(Boolean);
       expect(owners).toHaveLength(1);
     }
+  });
+
+  it("re-review H: a guest's bank, a merge, then the account's top-ups at once ×5 → one row, paid once", async () => {
+    const progress = progressRepo(database);
+    const [g, a] = [await acct(), await acct()];
+    const run = randomUUID();
+    await progress.addSupplies(run, g, () => ({ supplies: 20, breakdown: {} }));
+    const db = await database.db();
+    await db.execute(sql`update accounts set merged_into = ${a} where id = ${g}`);
+    const before = (await progress.get(a))!.supplies;
+    await Promise.all(Array.from({ length: 5 }, () => progress.addSupplies(run, a, () => ({ supplies: 20, breakdown: {} }), undefined, true)));
+    expect((await progress.get(a))!.supplies).toBe(before);
+    const n = ((await db.execute(sql`select count(*)::int as n from run_rewards where run_id = ${run}`)) as unknown as { rows: { n: number }[] }).rows[0]!.n;
+    expect(n).toBe(1);
   });
 });
 

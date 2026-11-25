@@ -2,7 +2,7 @@
  * Story 7.1: the `progress` row per account (Supplies, bought unlocks, Training, districts). 7.2–7.7 add the
  * banking and purchase writes here (one transaction each, brief 18).
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Database } from "./client";
 import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema";
 import { PROGRESSION } from "@topdown/shared";
@@ -321,7 +321,22 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           if (!before) throw new Error("progress row missing");
           const owned = new Set(before.cosmetics ?? []);
           const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
-          const rowWhere = and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId));
+          // Stories 8.4–8.6 re-review H: the run's row may sit on ANOTHER account of the same person — a guest that was
+          // merged into the payee (it banked as the guest before logging in), or the payee itself when a merged guest's
+          // seat banks. That row is this seat's earlier bank (a top-up raises it; a first bank pays nothing again).
+          const merged = tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.mergedInto, payee));
+          const sameRun = await tx
+            .select({ accountId: runRewards.accountId })
+            .from(runRewards)
+            .where(and(eq(runRewards.runId, runId), or(eq(runRewards.accountId, accountId), eq(runRewards.accountId, payee), inArray(runRewards.accountId, merged))))
+            .orderBy(sql`${runRewards.accountId} = ${accountId} desc`)
+            .limit(1);
+          const rowAccount = sameRun[0]?.accountId ?? accountId;
+          const rowWhere = and(eq(runRewards.runId, runId), eq(runRewards.accountId, rowAccount));
+          if (!topUp && rowAccount !== accountId) {
+            const row = (await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1))[0];
+            return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
+          }
           if (topUp) {
             // Story 8.2 (E8-J6) top-up: the seat banked this run before (its Leave) and came back.
             const earlier = (await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1))[0];

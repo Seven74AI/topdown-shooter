@@ -27,6 +27,7 @@ const RUN = "0f1e2d3c-4b5a-4968-8776-655443322110";
 const RUN2 = "1f1e2d3c-4b5a-4968-8776-655443322111";
 const later = () => new Date(Date.now() + SAVE_KEEP_MS);
 let hashN = 0;
+const repo = (d: Database) => savedRunsRepo(d);
 const guest = (database: Database) => accountsRepo(database).createGuest((++hashN).toString(16).padStart(64, "0"), "Ana");
 const row = (id: string, links: { id: string }[], over: Partial<SaveRow> = {}): SaveRow => ({
   id,
@@ -171,6 +172,37 @@ describe("Story 8.4–8.6: savedRunsRepo", () => {
     expect(swept[0]!.snapshot.wave).toBe(3);
     expect((await repo.listForAccount(a.id)).length).toBe(2);
     expect(await repo.releaseOpenOnBoot(later())).toEqual([]);
+  });
+
+  it("re-review L4: the boot sweep's expiry counts from the row's LAST write (D13), not a claim's old expiry", async () => {
+    const database = fresh();
+    const a = await guest(database);
+    const repo = savedRunsRepo(database);
+    await repo.saveResumable(row(RUN, [a]), new Date(Date.now() + 1000)); // a nearly expired save …
+    await repo.claim(RUN, a.id, "ROOM");
+    await repo.upsertOpen(row(RUN, [a], { roomCode: "ROOM" })); // … resumed and autosaved (its last write now)
+    await repo.releaseOpenOnBoot();
+    const db = await database.db();
+    const r = await rows<{ left_ms: number }>(db, sql`select (extract(epoch from (expires_at - updated_at)) * 1000)::float8 as left_ms from saved_runs where id = ${RUN}`);
+    expect(r[0]!.left_ms).toBeGreaterThan(SAVE_KEEP_MS - 60_000);
+    expect((await repo.listForAccount(a.id)).length).toBe(1);
+  });
+
+  it("re-review H: a run banked by a guest that was then merged counts as banked for the account (one row, no second payment)", async () => {
+    const database = fresh();
+    const [g, acc] = [await guest(database), await guest(database)];
+    const progress = (await import("./progressRepo")).progressRepo(database);
+    await progress.addSupplies(RUN, g.id, () => ({ supplies: 20, breakdown: {} }));
+    const db = await database.db();
+    await db.execute(sql`update accounts set merged_into = ${acc.id} where id = ${g.id}`);
+    const top = await progress.addSupplies(RUN, acc.id, () => ({ supplies: 20, breakdown: {} }), undefined, true);
+    expect(top.banked).toBe(false); // the same 20: nothing more
+    const first = await progress.addSupplies(RUN, acc.id, () => ({ supplies: 20, breakdown: {} }));
+    expect(first.banked).toBe(false); // nor as a first bank
+    const n = await rows<{ n: number }>(db, sql`select count(*)::int as n from run_rewards where run_id = ${RUN}`);
+    expect(n[0]!.n).toBe(1);
+    await repo(database).saveResumable(row(RUN, [acc]), new Date(Date.now() + SAVE_KEEP_MS));
+    expect((await repo(database).listUnbanked()).map((r) => r.id)).not.toContain(RUN);
   });
 
   it("E8-S11: each account keeps its newest 3; a run nobody is linked to any more is deleted", async () => {

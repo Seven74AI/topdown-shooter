@@ -66,7 +66,7 @@ export interface SavedRunsRepo {
   /** S3: the only way to open a save — 'saved', not expired, linked to this account → 'open' for `roomCode`. */
   claim(id: string, accountId: string, roomCode: string): Promise<ClaimResult>;
   /** E8-S6: every 'open' row (a process that died without a clean stop) becomes resumable. Returns them. */
-  releaseOpenOnBoot(expiresAt: Date): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
+  releaseOpenOnBoot(expiresAt?: Date): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
   /** E8-S11: the account keeps its newest `keep` resumable runs; older links go, a run nobody is linked to is deleted. Expired runs go too. */
   pruneAccount(accountId: string, keep?: number): Promise<{ unlinked: number; deleted: string[] }>;
   /**
@@ -169,12 +169,14 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
         const now = await tx.select({ status: savedRuns.status }).from(savedRuns).where(and(eq(savedRuns.id, id), linked)).limit(1);
         return now[0]?.status === "open" ? { outcome: "busy" } : { outcome: "gone" };
       }),
-    releaseOpenOnBoot: (expiresAt) =>
+    releaseOpenOnBoot: () =>
       write("savedRuns.releaseOpenOnBoot", async (tx) =>
         // Review L: a claimed run keeps its expiry (coalesce); a run only ever autosaved gets one now.
         tx
           .update(savedRuns)
-          .set({ status: "saved", roomCode: null, expiresAt: sql`coalesce(${savedRuns.expiresAt}, ${expiresAt.toISOString()}::timestamptz)`, savedAt: sql`coalesce(${savedRuns.savedAt}, now())`, updatedAt: sql`now()` })
+          // Re-review L4 (D13): resumable for SAVE_KEEP_MS after its LAST save (the row's last write: the last autosave, or
+          // the claim when none followed), never the claim's old expiry.
+          .set({ status: "saved", roomCode: null, expiresAt: sql`${savedRuns.updatedAt} + ${`${SAVE_KEEP_MS} milliseconds`}::interval`, savedAt: sql`${savedRuns.updatedAt}`, updatedAt: sql`now()` })
           .where(eq(savedRuns.status, "open"))
           .returning({ id: savedRuns.id, snapshot: savedRuns.snapshot }),
       ),
@@ -201,7 +203,8 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
         "savedRuns.listUnbanked",
         async () => {
           const db = await database.db();
-          const unbanked = sql`exists (select 1 from ${savedRunPlayers} where ${savedRunPlayers.savedRunId} = ${savedRuns.id} and not exists (select 1 from ${runRewards} where ${runRewards.runId} = ${savedRuns.id} and ${runRewards.accountId} = ${savedRunPlayers.accountId}))`;
+          // Re-review H: a row on an account merged into the link's account (the guest it was) counts as banked.
+          const unbanked = sql`exists (select 1 from ${savedRunPlayers} where ${savedRunPlayers.savedRunId} = ${savedRuns.id} and not exists (select 1 from ${runRewards} where ${runRewards.runId} = ${savedRuns.id} and (${runRewards.accountId} = ${savedRunPlayers.accountId} or ${runRewards.accountId} in (select ${accounts.id} from ${accounts} where ${accounts.mergedInto} = ${savedRunPlayers.accountId}))))`;
           return db.select({ id: savedRuns.id, snapshot: savedRuns.snapshot }).from(savedRuns).where(and(eq(savedRuns.status, "saved"), gt(savedRuns.expiresAt, sql`now()`), unbanked));
         },
         timeoutMs * 5,

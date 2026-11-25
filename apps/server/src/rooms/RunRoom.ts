@@ -1068,21 +1068,19 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.savingQuit) return refuse("not_now"); // review L (E8-S10): the run is being saved this moment
     if (playerId === sender.playerId) return refuse("self");
     const target = Array.from(this.members.values()).find((m) => m.playerId === playerId);
-    if (target) return this.afterRemove(playerId, () => this.removeSeat(target, sender));
-    for (const [key, seat] of this.rememberedSeats) if (seat.playerId === playerId) return this.afterRemove(playerId, () => this.removeRemembered(key, seat, sender));
+    if (target) return this.afterRemove(() => this.removeSeat(target, sender));
+    for (const [key, seat] of this.rememberedSeats) if (seat.playerId === playerId) return this.afterRemove(() => this.removeRemembered(key, seat, sender));
     return refuse("unknown");
   }
 
   /**
-   * Stories 8.4–8.6 review H1 + L (E8-S10): a removed seat's find goes with it (its bank took the item; nobody who gets
-   * the player id later can be its finder), and in a build phase a fresh autosave follows at once — the save row no longer
+   * Stories 8.4–8.6 review L (E8-S10): in a build phase a fresh autosave follows a Remove at once — the save row no longer
    * lists the seat (its account is unlinked) and no older autosave can bring it back on a mid-wave shutdown.
    */
-  private afterRemove(playerId: string, remove: () => void): void {
+  private afterRemove(remove: () => void): void {
     remove();
     const world = this.controller?.world;
     if (!world || !this.inRun()) return;
-    if (world.loot.foundBy === playerId) world.loot.foundBy = null;
     if (this.state.phase === "build") this.autosave("removed");
   }
 
@@ -1757,7 +1755,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         seed: resume ? resume.save.seed : runSeed,
         players,
         // Story 8.6 (AC 13): a resume restores the save (returning members' seats in the World; the rest away).
-        ...(resume ? { restore: { save: resume.save, present: (seat: SavedSeat) => resumedIds.has(seat.playerId), onDropped: (d: object) => this.log.warn(d, "save_item_dropped") } } : {}),
+        ...(resume ? { restore: { save: resume.save, present: (seat: SavedSeat) => resumedIds.has(seat.playerId), codeVersion: SAVE_CODE_VERSION, onDropped: (d: object) => this.log.warn(d, "save_item_dropped") } } : {}),
         map,
         pauseWaves: process.env.DEV_NO_WAVES === "1",
         // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.

@@ -73,7 +73,7 @@ describe("H1: one loot bag pays out once across a remove, a reused player id, a 
     await clearWave(l);
     l.clients[0]!.send(C2S.HOST_REMOVE, { playerId: "p1" }); // Bo banks the find on his removal
     await vi.waitFor(async () => expect((await lootOwned(b.accountId!)).length).toBe(1));
-    expect(w.loot.foundBy).toBeNull(); // the find left with Bo's seat
+    expect(w.loot.foundBy).toBe("p1"); // kept (re-review L3): the noted SEAT, not the player id, is the finder
     const cy = await colyseus.sdk.joinById<RunStateView>(l.room.roomId, joinOptions("join", c));
     const cyIn = listen(cy);
     await vi.waitFor(() => expect(w.players.has("p1")).toBe(true)); // Cy took p1 (a new seat)
@@ -257,6 +257,40 @@ describe("M6: a guest's saved runs follow it into the account it logs into", () 
     expect([...l2.room.members.values()][0]!.playerId).toBe("p0");
     await start(l2);
     expect(world(l2).players.get("p0")!.wallet).toBe(999); // the guest's own seat
+    // Re-review H: the guest's save bank (20, wave 0 → 0 waves… the Save and quit after 0 waves paid 0) plus this
+    // resume's save pay the run ONCE: one run_rewards row for the person, Supplies unchanged by the second save.
+    const before = await supplies(database, target.id);
+    await saveQuit(l2);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(await supplies(database, target.id)).toBe(before);
+    const rows = (await db.execute(`select count(*)::int as n from run_rewards where run_id = '${id}'`)) as unknown as { rows: { n: number }[] };
+    expect(rows.rows[0]!.n).toBe(1);
+  });
+
+  it("re-review H: a guest that banked waves, then merged, resumes and saves at once → paid once (Supplies unchanged, one row)", async () => {
+    const gToken = "ef".repeat(16);
+    const guest: Player = { name: "Gil", accountId: (await accountsRepo(database).createGuest(hashGuestToken(gToken), "Gil")).id, token: gToken };
+    const l = await lobby(colyseus, [guest]);
+    await start(l);
+    world(l).debug.bossWaves = [];
+    await toWave(l);
+    await clearWave(l);
+    const id = await saveQuit(l);
+    await vi.waitFor(async () => expect(await supplies(database, guest.accountId!)).toBe(20));
+    const target = await accountsRepo(database).createGuest("9".repeat(64), "Acc");
+    const db = await database.db();
+    await db.execute(`update accounts set username = 'accuser', username_lower = 'accuser' where id = '${target.id}'`);
+    const newToken = "fe".repeat(16);
+    await deviceTokensRepo(database).logIn({ oldTokenHash: hashGuestToken(gToken), newTokenHash: hashGuestToken(newToken), accountId: target.id });
+    expect(await supplies(database, target.id)).toBe(20); // the merge carried the 20
+    const l2 = await lobby(colyseus, [{ name: "Gil", accountId: target.id, token: newToken }], id);
+    await start(l2);
+    await saveQuit(l2);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(await supplies(database, target.id)).toBe(20); // never 40
+    const rows = (await db.execute(`select count(*)::int as n from run_rewards where run_id = '${id}'`)) as unknown as { rows: { n: number }[] };
+    expect(rows.rows[0]!.n).toBe(1);
+    expect((await saves.listUnbanked()).map((r) => r.id)).not.toContain(id); // the boot sweep sees it as banked
   });
 });
 
@@ -364,5 +398,32 @@ describe("Lows (room)", () => {
     await l.clients[0]!.leave(true);
     await vi.waitFor(() => expect(info).toHaveBeenCalledWith(expect.objectContaining({ runId: id, why: "lost" }), "run_save_deleted"));
     expect(await rowOf(id)).toBeNull();
+  });
+
+  it("re-review L3: after the finder's seat is removed, the teammates' Results still name the find ('A teammate found …', by seat)", async () => {
+    const [a, b] = [await newPlayer(database, "Ana"), await newPlayer(database, "Bo")];
+    const l = await lobby(colyseus, [a, b]);
+    const got: { teamLoot?: { seatId?: string; key: string | null } }[] = [];
+    l.clients[0]!.onMessage(S2C.RUN_REWARDS, (m: { teamLoot?: { seatId?: string; key: string | null } }) => got.push(m));
+    await start(l);
+    const w = world(l);
+    w.debug.bossWaves = [];
+    w.loot.plan.has = true;
+    w.loot.plan.itemRoll = 0;
+    await toWave(l);
+    const bo = w.players.get("p1")!;
+    const boSeat = [...l.room.members.values()].find((m) => m.playerId === "p1")!;
+    Object.assign(w.loot, { state: LOOT_BAG.OUT, x: bo.x, y: bo.y, dropTick: w.tick, untilTick: w.tick + 400, foundBy: null, foundWave: w.waves.number });
+    await vi.waitFor(() => expect(w.loot.foundBy).toBe("p1"));
+    await clearWave(l);
+    l.clients[0]!.send(C2S.HOST_REMOVE, { playerId: "p1" });
+    await vi.waitFor(async () => expect((await lootOwned(b.accountId!)).length).toBe(1));
+    expect(w.loot.foundBy).toBe("p1"); // kept: the seat note decides who the finder is
+    await toWave(l);
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]!.teamLoot?.seatId).toBe(`p1#${boSeat.seatGen}`);
+    expect(got[0]!.teamLoot?.key).not.toBeNull();
+    expect(await lootOwned(a.accountId!)).toEqual([]);
   });
 });
