@@ -138,7 +138,9 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-25 overnight run.
 
 ### Gate
 
-Gate after the review fixes (2026-11-25, full, builder): commit f140d789 = story-7-6 merged with master 99ac898f (7.1, 7.2, 7.9, 7.3 landed) — typecheck ✓, lint ✓, test ✓ 480 files passed / 1 skipped, 4407 tests passed / 3 skipped (TEST_DATABASE_URL = local PostgreSQL 16: realPostgres + realPostgresAccounts ran), build ✓; 487.6 s of tests; load 1.11 at start, 4.84 at end (4-core container, this builder alone).
+Gate after re-review 1 (2026-11-25, full, builder): commit 3eaea228 = story-7-6 merged with master 7fdf9b86 (7.1, 7.2, 7.9, 7.3, 7.4+7.5) — typecheck ✓, lint ✓, test ✓ 493 files passed / 1 skipped, 4513 tests passed / 3 skipped (TEST_DATABASE_URL = local PostgreSQL 16), build ✓; 508.8 s of tests; load 3.48 at start, 3.35 at end (this builder alone).
+
+Earlier (superseded): Gate after the review fixes (2026-11-25, full, builder): commit f140d789 = story-7-6 merged with master 99ac898f (7.1, 7.2, 7.9, 7.3 landed) — typecheck ✓, lint ✓, test ✓ 480 files passed / 1 skipped, 4407 tests passed / 3 skipped (TEST_DATABASE_URL = local PostgreSQL 16: realPostgres + realPostgresAccounts ran), build ✓; 487.6 s of tests; load 1.11 at start, 4.84 at end (4-core container, this builder alone).
 
 First gate (superseded): Gate (2026-11-25, full, builder): commit e43ab3f7 = story-7-6 (on story-7-3 18a328ad) merged with master c26d1bcf (7.1 + 7.2 landed) — typecheck ✓, lint ✓, test ✓ 467 files passed / 1 skipped, 4277 tests passed / 3 skipped (with TEST_DATABASE_URL = local PostgreSQL 16: 7.2/7.3 realPostgres + 7.6 realPostgresAccounts ran), build ✓; 476.7 s of tests; load 1.49 at start, 3.07 at end (4-core container, this builder alone).
 
