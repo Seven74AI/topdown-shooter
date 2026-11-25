@@ -91,7 +91,19 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Pro
         async () => {
           if (!Number.isInteger(price) || price <= 0) throw new Error("unlock price must be a positive integer");
           const db = await database.db();
+          hasTxTimeout ??= db
+            .execute(sql`select current_setting('server_version_num')::int as v`)
+            .then((r) => ((r as unknown as { rows: { v: number }[] }).rows[0]?.v ?? 0) >= 170000)
+            .catch(() => {
+              hasTxTimeout = null;
+              return false;
+            });
+          const txTimeout = await hasTxTimeout;
           return db.transaction(async (tx): Promise<UnlockResult> => {
+            // The 7.2 review M1 rule: bounded inside PostgreSQL, so a purchase never commits after the route answered 503.
+            await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BANK_LOCK_TIMEOUT_MS}ms'`));
+            await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${BANK_LOCK_TIMEOUT_MS}ms'`));
+            if (txTimeout) await tx.execute(sql.raw(`SET LOCAL transaction_timeout = '${BANK_TX_TIMEOUT_MS}ms'`));
             const updated = await tx
               .update(progress)
               .set({
