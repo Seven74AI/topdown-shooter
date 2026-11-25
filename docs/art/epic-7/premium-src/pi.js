@@ -186,8 +186,19 @@ function makePI(S) {
     const hl = g.createLinearGradient(0, y, 0, y + h); hl.addColorStop(0, 'rgba(255,255,255,0.4)'); hl.addColorStop(0.5, 'rgba(255,255,255,0)'); hl.addColorStop(1, 'rgba(0,0,0,0.25)'); g.fillStyle = hl; rrect(g, x, y, w, h, 3); g.fill();
     text(g, String(i + 1), x + w / 2, y + h / 2 + Math.min(w, h) * 0.3, { px: Math.min(w, h) * 0.78, wt: 700, col: '#ffffff', align: 'center', shadow: true });
   }
+  /** TL3: one "Training" cell = total levels of 20, a thin 4-step bar under it (one step per boost), MAX when all 20. */
+  function trainCell(g, x, ny, tr, small) {
+    const n = tr.reduce((a, b) => a + b, 0), px = small ? 14 : 16;
+    if (n === 20) { const tw0 = tw(g, 'MAX', small ? 10 : 11, 700, 1.2) + 14; tag(g, x - tw0, ny - (small ? 12 : 13), 'Max', 'white', { px: small ? 10 : 11, h: small ? 15 : 17 }); }
+    else {
+      tnum(g, String(n), x - tw(g, '/20', small ? 11 : 12, 500), ny, px, { align: 'right', wt: 600, col: n === 0 ? S.mute : S.ink, skew: 0 });
+      text(g, '/20', x, ny, { px: small ? 11 : 12, wt: 500, col: S.mute, align: 'right', shadow: false });
+    }
+    const bw = small ? 34 : 44, bx = x - bw, by = ny + (small ? 6 : 7), sw = (bw - 3 * 2) / 4;
+    tr.forEach((v, k) => bar(g, bx + k * (sw + 2), by, sw, small ? 4 : 5, v / 5));
+  }
   /** List row: normal / hover / selected. */
-  function listRow(g, x, y, w, h, p, i, cols, state = 'normal', small = true) {
+  function listRow(g, x, y, w, h, p, i, cols, state = 'normal', small = true, tl3 = false) {
     if (state !== 'normal') {
       const gr = g.createLinearGradient(x, 0, x + w, 0);
       if (state === 'selected') { gr.addColorStop(0, S.selA); gr.addColorStop(1, S.selB); } else { gr.addColorStop(0, 'rgba(255,255,255,0.07)'); gr.addColorStop(1, 'rgba(255,255,255,0.02)'); }
@@ -197,10 +208,11 @@ function makePI(S) {
     slotChip(g, x + 1, y + 6, 13, small ? 18 : 22, i);
     const ny = y + (small ? 15 : 17);
     text(g, p.name, cols.name, ny, { px: small ? 15 : 17, wt: 600, col: S.ink, shadow: false });
-    if (state === 'selected') micro(g, 'YOU', cols.name + tw(g, p.name, small ? 15 : 17, 600) + 5, ny - 1, { col: S.accentText, px: 8 });
+    if (state === 'selected') { if (tl3 && small) micro(g, 'YOU', cols.name, ny + 12, { col: S.accentText, px: 8 }); else micro(g, 'YOU', cols.name + tw(g, p.name, small ? 15 : 17, 600) + 5, ny - 1, { col: S.accentText, px: 8 }); }
     tnum(g, fmt(p.kills), cols.kills, ny, small ? 14 : 16, { align: 'right', wt: 500, col: S.ink2, skew: 0 });
     tnum(g, '$' + fmt(p.earned), cols.earned, ny, small ? 14 : 16, { align: 'right', wt: 600, col: S.ink, skew: 0 });
-    text(g, trLine(p.tr), cols.name, ny + (small ? 13 : 15), { px: small ? 11.5 : 12.5, wt: 500, col: S.mute, shadow: false });
+    if (tl3) trainCell(g, cols.train, ny, p.tr, small);
+    else text(g, trLine(p.tr), cols.name, ny + (small ? 13 : 15), { px: small ? 11.5 : 12.5, wt: 500, col: S.mute, shadow: false });
     if (state !== 'selected') divider(g, x, y + h - 1, w);
   }
   /** Item card with rarity framing. rarity: 'gold' | 'white' | 'steel' | 'slot'. */
@@ -361,8 +373,8 @@ function makePI(S) {
     }
     g.restore();
   }
-  function base(L, state) {
-    return cached(`pi-base-${S.code}-${L.w}-${state}`, () => {
+  function base(L, state, tl3 = false) {
+    return cached(`pi-base-${S.code}-${L.w}-${state}${tl3 ? '-tl3' : ''}`, () => {
       const [c, g] = mk(L.w, L.h);
       g.drawImage(S.bg(L.w, L.h, state), 0, 0, L.w, L.h);
       // left: team
@@ -370,11 +382,13 @@ function makePI(S) {
       header(g, fx, fy, fW, L.hb, 'EXTRACTED', { caption: 'RUN COMPLETE · DOWNTOWN', px: L.small ? 19 : 24 });
       micro(g, 'WAVE', fx + fW - 8, fy + 11, { align: 'right' });
       tnum(g, state === 'endless' ? '14' : '10', fx + fW - 8, fy + L.hb - 6, L.small ? 19 : 24, { align: 'right', fill: S.numFill, glow: S.numGlow, blur: 10 });
-      const S2 = L.small, px = S2 ? 8 : 12, cols = { name: fx + px + 20, kills: fx + fW - (S2 ? 62 : 104), earned: fx + fW - px };
+      const S2 = L.small, px = S2 ? 8 : 12;
+      const cols = tl3 ? { name: fx + px + 20, kills: fx + fW - (S2 ? 94 : 164), earned: fx + fW - (S2 ? 45 : 74), train: fx + fW - px } : { name: fx + px + 20, kills: fx + fW - (S2 ? 62 : 104), earned: fx + fW - px };
       let yy = fy + L.hb + (S2 ? 8 : 12);
-      micro(g, 'PLAYER', cols.name, yy + 6); micro(g, 'KILLS', cols.kills, yy + 6, { align: 'right' }); micro(g, 'EARNED', cols.earned, yy + 6, { align: 'right' });
+      micro(g, 'PLAYER', tl3 && S2 ? fx + px : cols.name, yy + 6); micro(g, 'KILLS', cols.kills, yy + 6, { align: 'right' }); micro(g, 'EARNED', cols.earned, yy + 6, { align: 'right' });
+      if (tl3) micro(g, S2 ? 'TRAIN' : 'TRAINING', cols.train, yy + 6, { align: 'right', col: S.accentText });
       yy += S2 ? 11 : 14;
-      TEAM.forEach((p, i) => { listRow(g, fx + px, yy, fW - px * 2, S2 ? 34 : 40, p, i, cols, i === 0 ? 'selected' : 'normal', S2); yy += S2 ? 35 : 42; });
+      TEAM.forEach((p, i) => { listRow(g, fx + px, yy, fW - px * 2, S2 ? 34 : 40, p, i, cols, i === 0 ? 'selected' : 'normal', S2, tl3); yy += S2 ? 35 : 42; });
       const bh = 44, by = L.left.y + L.left.h - S.fw - bh - (S2 ? 8 : 12);
       button(g, fx + px, by, S2 ? 150 : 176, bh, 'Back to lobby', 'primary', 'normal', { px: 15 });
       if (!S2) { micro(g, 'RUN SEED', fx + fW - px, by + 18, { align: 'right' }); tnum(g, '2207', fx + fW - px, by + 34, 14, { align: 'right', wt: 600, col: S.ink2, skew: 0 }); }
@@ -392,7 +406,7 @@ function makePI(S) {
   function render(g, w, h, state, t, opt = {}) {
     const L = layoutPI(w, h), reveal = !!opt.reveal, still = !reveal && opt.idle == null, tt = reveal ? t : 99, clock = reveal ? t : opt.idle || 0;
     const rows = cached(`pi-rows-${w}-${state}`, () => rowsPI(state, L));
-    g.drawImage(base(L, state), 0, 0, w, h);
+    g.drawImage(base(L, state, !!opt.tl3), 0, 0, w, h);
     const V = L.view, sc = opt.scroll != null ? opt.scroll : reveal ? scrollAt(rows, L, tt) : 0;
     g.save(); g.beginPath(); g.rect(V.x - 6, V.y - 6, V.w + 12, V.h + 6); g.clip();
     for (const r of rows) { const yy = V.y + r.y - sc; if (yy > V.y + V.h + 4 || yy + r.h < V.y - 8) continue; drawRow(g, L, r, V.x, yy, V.w, tt, clock, still); }
