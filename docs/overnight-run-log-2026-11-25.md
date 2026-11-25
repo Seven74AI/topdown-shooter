@@ -11,6 +11,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTvgAGDYHqrNxgjxz9 | Lumen redraw BT1/AC1/SC3/TL3 | epic-7-lumen-picks |
 | session_01CgLgPTHBB6ZMNgxhetcmfH | Builder 7.1 (early part T1–T5, T8) | story-7-1 |
 | session_01CgLgPXkMujTFt9FkusaTPz | Builder 7.9 (early part T1, T4, T5) | story-7-9 |
+| session_01CgLgPT2yAMRMLRecGBwVue | Builder 8.1 | story-8-1 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -19,6 +20,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-3: Epic 7 brief v1 written and pushed before the retro returned (retro lines appended later as R-lines).
 - OR-4: 7.1 and 7.9 start early on their tasks that don't touch 8.1's join rewrite (7.1: DB, repos, progression.json, account API, deploy; 7.9: look code, gun under the body, per-player textures). Their join/room tasks wait for 8.1 (alternative: wait for the Network pass to finish). Reason: HANDOFF §3 session 9 speed-up 1 (start by real file overlap).
 - OR-5: number ranges assigned: netEvents Network pass 100–109, 7.1–7.7 110–119, 7.9 120–124, 7.11 125–129, 7.12 130–139; readability items NP 100–104, 7.9 105–109, 7.12 110–114, 7.2–7.7 115–129.
+- OR-6: 8.1 starts before round 1 (8.8/8.9) lands, because it is on Epic 7's critical path (7.1 T6 waits for its join rewrite); it merges 8.8/8.9 when they land (alternative: round order 8.8 ∥ 8.9 → 8.1). Seat identity built around one identity-key function for 7.1.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -31,3 +33,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:08 gate green on c87a707 (396 files / 3655 tests, load 3.67) → master.
 - 04:12 7.9 early part pushed (46d60e3): T1 look code, T4 gun under body, T5 per-player textures; 1360 touched tests, 11/11 mutations killed. Builder choices: D1 repaint by comparing decay stage per frame; missing look = 0 replaced fields; client decodes against full catalogue (server checks ownership); ?devlooks=N. Holding T2/T3/T6 for 7.1 + 8.1.
 - 04:17 7.1 early part pushed (6aa9b81): deps, schema+migration, repos, progression.json, account API, deploy/backups; 132 touched tests, 8/8 mutations caught. Auto-accepted B1–B7 (docs/epic-7-decisions.md › Story 7.1 build-time choices). Not verified: no Docker here; VPS steps are Hermes's. Holding T6/T7 for 8.1.
+- 04:18 dispatched 8.1 (early, OR-6).
