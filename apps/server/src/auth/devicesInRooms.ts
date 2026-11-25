@@ -19,3 +19,25 @@ export function deviceInRoom(tokenHash: string): boolean {
   for (const read of readers) for (const h of read()) if (h === tokenHash) return true;
   return false;
 }
+
+/**
+ * Review L2: devices in the middle of an account switch (log in, reset, log out). The switch marks the old token before
+ * it re-checks `deviceInRoom` and keeps the mark until its transaction settled; a room join of a marked token is
+ * refused (`RunRoom.onAuth`, and again in `onJoin`, which is synchronous with the member being added). So either the
+ * join added its member before the re-check (the switch answers 409 in_room) or the join sees the mark.
+ */
+const switching = new Map<string, number>();
+
+export function beginSwitch(tokenHash: string): void {
+  switching.set(tokenHash, (switching.get(tokenHash) ?? 0) + 1);
+}
+
+export function endSwitch(tokenHash: string): void {
+  const n = (switching.get(tokenHash) ?? 0) - 1;
+  if (n > 0) switching.set(tokenHash, n);
+  else switching.delete(tokenHash);
+}
+
+export function isSwitching(tokenHash: string): boolean {
+  return switching.has(tokenHash);
+}

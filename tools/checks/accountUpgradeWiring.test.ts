@@ -58,6 +58,13 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
     expect(room).toMatch(/this\.unregisterDevices = registerRoomDevices\(\(\) => Array\.from\(this\.members\.values\(\), \(m\) => m\.guestTokenHash\)\);/);
     expect(room).toMatch(/override onDispose\(\): void \{\s*this\.unregisterDevices\?\.\(\);/);
     expect(read(`${SRV}test/bootTestServer.ts`).match(/resetAccountLimiters\(\);/g)?.length).toBe(2);
+    // review L1 / L2: the join re-checks the ticket's device row and refuses a token in the middle of a switch
+    expect(room).toMatch(/if \(auth\.accountId !== null\) auth\.accountId = await ticketStillCurrent\(auth\.accountId, auth\.guestTokenHash\);/);
+    expect(room).toMatch(/if \(isSwitching\(guestTokenHash\)\) throw refuse\("rate_limited"\);/);
+    expect(room).toMatch(/if \(client\.auth && isSwitching\(client\.auth\.guestTokenHash\)\) throw refuse\("rate_limited"\);\s*this\.join\(client\);/);
+    expect(app).toMatch(/setRoomAccounts\(\{ sessionSecret, accounts, progress, checkTicketRows \}\)/);
+    const auth = read(`${SRV}auth/accountAuth.ts`);
+    expect(auth.match(/return await switching\(/g)?.length).toBe(3); // login, recover, logout
   });
 
   it("the bank sends the nudge and pays a merged guest's account; login merges through meta/merge.ts", () => {

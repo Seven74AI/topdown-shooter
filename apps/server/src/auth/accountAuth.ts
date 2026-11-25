@@ -30,7 +30,7 @@ import type { DeviceTokensRepo, LogInResult } from "../db/deviceTokensRepo";
 import { ipKey, type NameFailureLimiter, type SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
-import { deviceInRoom } from "./devicesInRooms";
+import { beginSwitch, deviceInRoom, endSwitch } from "./devicesInRooms";
 import { mintGuestToken } from "./guestSession";
 import { hashSecret, verifySecret } from "./passwords";
 import { formatRecoveryCode, newRecoveryCode } from "./recoveryCode";
@@ -146,6 +146,21 @@ function precheck(cookieToken: string | null | undefined, username: string, ip: 
   return { oldHash };
 }
 
+/**
+ * Review L2: runs an account switch of the device `oldHash` with the token marked (rooms refuse a marked token) and the
+ * room re-checked AFTER the mark, right before the transaction: no seat can attach to the old token meanwhile.
+ */
+async function switching<T>(oldHash: string | null, deps: AccountAuthDeps, run: () => Promise<AuthOutcome<T>>): Promise<AuthOutcome<T>> {
+  if (oldHash === null) return run();
+  beginSwitch(oldHash);
+  try {
+    if ((deps.inRoom ?? deviceInRoom)(oldHash)) return fail(409, "in_room");
+    return await run();
+  } finally {
+    endSwitch(oldHash);
+  }
+}
+
 /** AC 4: log in (a device that is a guest with progress merges it, D11). */
 export async function logIn(
   input: { cookieToken: string | null | undefined; username: string; password: string; ip: string },
@@ -161,15 +176,17 @@ export async function logIn(
       log.warn({ ip: input.ip }, "login_failed");
       return fail(401, "wrong_login");
     }
-    const token = mintGuestToken();
-    const r = await deps.devices.logIn({ oldTokenHash: pre.oldHash, newTokenHash: hashGuestToken(token), accountId: creds.id, expectPasswordHash: creds.passwordHash ?? "" });
-    if (r.outcome !== "ok") {
-      log.warn({ ip: input.ip }, "login_failed"); // the password was reset meanwhile: the old one no longer works
-      return fail(401, "wrong_login");
-    }
-    logMerge(r);
-    log.info({ accountId: r.account.id, merged: r.merged !== null }, "login_ok");
-    return { status: 200, body: sessionOf(r, token, deps), deviceToken: token };
+    return await switching(pre.oldHash, deps, async () => {
+      const token = mintGuestToken();
+      const r = await deps.devices.logIn({ oldTokenHash: pre.oldHash, newTokenHash: hashGuestToken(token), accountId: creds.id, expectPasswordHash: creds.passwordHash ?? "" });
+      if (r.outcome !== "ok") {
+        log.warn({ ip: input.ip }, "login_failed"); // the password was reset meanwhile: the old one no longer works
+        return fail(401, "wrong_login");
+      }
+      logMerge(r);
+      log.info({ accountId: r.account.id, merged: r.merged !== null }, "login_ok");
+      return { status: 200, body: sessionOf(r, token, deps), deviceToken: token };
+    });
   } catch {
     return fail(503, "save_unavailable");
   }
@@ -194,20 +211,22 @@ export async function recoverAccount(
     }
     const code = newRecoveryCode();
     const [passwordHash, recoveryCodeHash] = await Promise.all([hashSecret(input.newPassword), hashSecret(code)]);
-    const token = mintGuestToken();
-    const r = await deps.devices.logIn({
-      oldTokenHash: pre.oldHash,
-      newTokenHash: hashGuestToken(token),
-      accountId: creds.id,
-      credentials: { expectRecoveryHash: creds.recoveryCodeHash, passwordHash, recoveryCodeHash },
+    return await switching(pre.oldHash, deps, async () => {
+      const token = mintGuestToken();
+      const r = await deps.devices.logIn({
+        oldTokenHash: pre.oldHash,
+        newTokenHash: hashGuestToken(token),
+        accountId: creds.id,
+        credentials: { expectRecoveryHash: creds.recoveryCodeHash as string, passwordHash, recoveryCodeHash },
+      });
+      if (r.outcome === "stale_credentials") {
+        log.warn({ ip: input.ip }, "recover_failed"); // another reset with the same code won
+        return fail(401, "wrong_code");
+      }
+      logMerge(r);
+      log.info({ accountId: r.account.id, merged: r.merged !== null }, "recover_ok");
+      return { status: 200, body: { ...sessionOf(r, token, deps), recoveryCode: formatRecoveryCode(code) }, deviceToken: token };
     });
-    if (r.outcome === "stale_credentials") {
-      log.warn({ ip: input.ip }, "recover_failed"); // another reset with the same code won
-      return fail(401, "wrong_code");
-    }
-    logMerge(r);
-    log.info({ accountId: r.account.id, merged: r.merged !== null }, "recover_ok");
-    return { status: 200, body: { ...sessionOf(r, token, deps), recoveryCode: formatRecoveryCode(code) }, deviceToken: token };
   } catch {
     return fail(503, "save_unavailable");
   }
@@ -224,18 +243,20 @@ export async function logOut(input: { cookieToken: string | null | undefined; ip
     return fail(429, "rate_limited");
   }
   try {
-    const fresh = mintGuestToken();
-    const r = await deps.devices.logOut(oldHash, hashGuestToken(fresh));
-    if (r.outcome !== "ok") return fail(409, "not_logged_in");
-    log.info({ accountId: r.previousAccountId, guestId: r.account.id }, "logout");
-    const body: DeviceSessionResponse = {
-      saved: true,
-      deviceToken: fresh,
-      ticket: signTicket(r.account.id, hashGuestToken(fresh), deps.sessionSecret, (deps.now ?? Date.now)()),
-      account: { displayName: r.account.displayName, username: null },
-      progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [] },
-    };
-    return { status: 200, body, deviceToken: fresh };
+    return await switching(oldHash, deps, async () => {
+      const fresh = mintGuestToken();
+      const r = await deps.devices.logOut(oldHash, hashGuestToken(fresh));
+      if (r.outcome !== "ok") return fail(409, "not_logged_in");
+      log.info({ accountId: r.previousAccountId, guestId: r.account.id }, "logout");
+      const body: DeviceSessionResponse = {
+        saved: true,
+        deviceToken: fresh,
+        ticket: signTicket(r.account.id, hashGuestToken(fresh), deps.sessionSecret, (deps.now ?? Date.now)()),
+        account: { displayName: r.account.displayName, username: null },
+        progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [] },
+      };
+      return { status: 200, body, deviceToken: fresh };
+    });
   } catch {
     return fail(503, "save_unavailable");
   }

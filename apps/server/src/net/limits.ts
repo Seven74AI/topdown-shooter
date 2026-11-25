@@ -124,3 +124,6 @@ export const LOGIN_WINDOW_MS = 60_000;
 export const ARGON2_MEMORY_KIB = 19_456;
 export const ARGON2_PASSES = 2;
 export const ARGON2_LANES = 1;
+
+/** Story 7.6 review L1: how long a join waits for the ticket's device-row check before trusting the ticket (P3). */
+export const TICKET_ROW_CHECK_MS = 1000;

@@ -9,7 +9,13 @@ import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
 import { MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN, MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN } from "../net/limits";
 import { verifyCount } from "./passwords";
-import { deviceInRoom } from "./devicesInRooms";
+import { beginSwitch, deviceInRoom, endSwitch } from "./devicesInRooms";
+import { roomAccountsRepo } from "./roomAccounts";
+import { RunRoom, ticketStillCurrent } from "../rooms/RunRoom";
+import { accountsRepo } from "../db/accountsRepo";
+import { deviceTokensRepo } from "../db/deviceTokensRepo";
+import { NameFailureLimiter, SlidingWindowLimiter } from "../net/rateLimit";
+import { logIn as logInAction } from "./accountAuth";
 import { readTicket, verifyTicket } from "./ticket";
 
 /** Story 7.6 (A1–A5, AC 2–11): the account routes over real HTTP, on PGlite. */
@@ -314,5 +320,86 @@ describe("Story 7.6 AC 11: logs", () => {
     for (const secret of [PASSWORD, "wrong pass", "newer pass", code, code.replace(/-/g, ""), g.token, phone.token, String(li.body.deviceToken), String(rc.body.recoveryCode), hashGuestToken(g.token), "$argon2id"]) {
       expect(all).not.toContain(secret);
     }
+  });
+});
+
+/** Joins a new room with this token (+ ticket); returns the server-side member's account id, then leaves. */
+async function seatAccount(guestToken: string, ticket: unknown): Promise<string | null> {
+  const opts = { intent: "create", name: "Ana", balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken, ...(typeof ticket === "string" ? { ticket } : {}) };
+  const c = await colyseus.sdk.create(RUN_ROOM_NAME, opts);
+  for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
+  const room = colyseus.getRoomById(c.roomId) as unknown as RunRoom;
+  const id = room.members.get(c.sessionId)?.accountId ?? null;
+  await c.leave();
+  return id;
+}
+
+describe("Story 7.6 review L1: old tickets stop seating", () => {
+  it("after a log in, the old guest token + its ticket seat unsaved; the new token + new ticket seat the account", async () => {
+    const a = await account();
+    const phone = await post("/account/session", {});
+    const oldToken = phone.token as string;
+    const oldTicket = phone.body.ticket;
+    expect(await seatAccount(oldToken, oldTicket)).toBe(readTicket(oldTicket, SECRET)?.accountId); // liveness: valid before
+    const li = await post("/account/login", { username: a.username, password: PASSWORD }, { cookie: oldToken });
+    expect(await seatAccount(oldToken, oldTicket)).toBeNull();
+    expect(await seatAccount(String(li.body.deviceToken), li.body.ticket)).toBe(a.id);
+  });
+
+  it("after a log out, the account phone's old token + cached ticket seat unsaved, never as the account", async () => {
+    const a = await account();
+    const s = await post("/account/session", {}, { cookie: a.token });
+    expect(await seatAccount(a.token, s.body.ticket)).toBe(a.id);
+    expect((await post("/account/logout", {}, { cookie: a.token })).status).toBe(200);
+    expect(await seatAccount(a.token, s.body.ticket)).toBeNull();
+  });
+
+  it("P3: the save server down or slow → the ticket counts as before (never refused, never waits past the bound)", async () => {
+    const repo = roomAccountsRepo();
+    if (!repo) throw new Error("no repo");
+    const spy = vi.spyOn(repo, "findByTokenHash").mockRejectedValueOnce(new Error("db down"));
+    expect(await ticketStillCurrent("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", "a".repeat(64))).toBe("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4");
+    spy.mockImplementationOnce(() => new Promise(() => {})); // never answers
+    const t0 = performance.now();
+    expect(await ticketStillCurrent("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", "a".repeat(64))).toBe("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4");
+    expect(performance.now() - t0).toBeLessThan(1600);
+    // a row naming another account → unsaved
+    spy.mockResolvedValueOnce({ id: "11111111-2222-4333-8444-555555555555", displayName: "", username: null });
+    expect(await ticketStillCurrent("0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", "a".repeat(64))).toBeNull();
+  });
+});
+
+describe("Story 7.6 review L2: a join and an account switch of one device can't overlap", () => {
+  it("a token in the middle of a switch is refused at join (onAuth); after the switch it joins", async () => {
+    const g = await guest();
+    const h = hashGuestToken(g.token);
+    beginSwitch(h);
+    try {
+      await expect(seatAccount(g.token, undefined)).rejects.toThrow(/rate_limited/);
+    } finally {
+      endSwitch(h);
+    }
+    expect(await seatAccount(g.token, undefined)).toBeNull(); // joins again (no ticket: unsaved)
+  });
+
+  it("the room is re-checked right before the transaction: a seat that appeared during the password check → 409, nothing switched", async () => {
+    const a = await account();
+    const g = await guest();
+    const h = hashGuestToken(g.token);
+    let calls = 0;
+    const deps = {
+      accounts: accountsRepo(database),
+      devices: deviceTokensRepo(database),
+      loginIpLimiter: new SlidingWindowLimiter(5, 60_000),
+      loginNameLimiter: new NameFailureLimiter(10, 60_000),
+      actionIpLimiter: new SlidingWindowLimiter(30, 60_000),
+      actionLimiter: new SlidingWindowLimiter(10, 60_000),
+      logGate: new SlidingWindowLimiter(1, 60_000),
+      sessionSecret: SECRET,
+      inRoom: (hash: string) => hash === h && ++calls > 1, // not in a room at the first check, seated by the second
+    };
+    expect(await logInAction({ cookieToken: g.token, username: a.username, password: PASSWORD, ip: "10.80.0.1" }, deps)).toEqual({ status: 409, error: "in_room" });
+    expect(calls).toBe(2);
+    expect(readTicket((await post("/account/session", {}, { cookie: g.token })).body.ticket, SECRET)?.accountId).toBe(g.id); // still the guest
   });
 });

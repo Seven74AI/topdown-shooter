@@ -34,6 +34,8 @@ export interface GameServerOptions {
   database?: Database;
   /** Story 7.1: HMAC key of the session tickets. Required in production (index.ts); random per start otherwise. */
   sessionSecret?: string;
+  /** Story 7.6 review L1: re-check a join ticket's device row (default true; off only in tests with made-up accounts). */
+  checkTicketRows?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export function createGameServer({
   allowTestScenarios = false,
   database = openPglite(),
   sessionSecret = randomSessionSecret(),
+  checkTicketRows = true,
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   const accounts = accountsRepo(database);
@@ -64,7 +67,7 @@ export function createGameServer({
     // Story 7.6: upgrade / login / recover / logout
     auth: { devices: deviceTokensRepo(database), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter },
   });
-  setRoomAccounts({ sessionSecret, accounts, progress }); // Story 7.2: banking
+  setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
     routes: createRouter({ health, accountSession, accountUnlock, accountUpgrade, accountLogin, accountRecover, accountLogout }),
