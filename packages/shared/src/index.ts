@@ -689,3 +689,5 @@ export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, RECONNECT, SeatRecovery, Watchdog, c
 // Story 7.12: the surprise loot bag (plan, bag, dev switch)
 export { emptyLootPlan, lootKillIndex, makeLootPlan, pickLootVariant, type LootPlan } from "./loot/lootPlan";
 export { LOOT_BAG, createLootState, forceLootPlan, lootSpot, lootTaker, parseDevLoot, snapshotLoot, updateLootBag, type LootBagStateCode, type LootState } from "./loot/lootBag";
+// Stories 7.10 / 7.11 / 7.12: milestone data and the loot parts list
+export { MILESTONES, MILESTONE_IDS, MilestonesError, loadMilestones, lootPartKeys, milestonePartKey, type Milestone, type MilestoneId, type MilestoneRule } from "./config/milestones";
