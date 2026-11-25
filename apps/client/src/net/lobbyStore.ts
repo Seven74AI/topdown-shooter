@@ -346,7 +346,6 @@ export function leaveAfterRewards(room: Pick<RunConnection, "leave" | "send" | "
     return;
   }
   let done = false;
-  let off: (() => void) | undefined;
   const finish = (): void => {
     if (done) return;
     done = true;
@@ -355,7 +354,7 @@ export function leaveAfterRewards(room: Pick<RunConnection, "leave" | "send" | "
     void room.leave(true);
   };
   const timer = setTimeout(finish, waitMs);
-  off = room.onMessage(S2C.RUN_REWARDS, (m: unknown) => {
+  const off = room.onMessage(S2C.RUN_REWARDS, (m: unknown) => {
     rewardsStore.receive(m, true);
     finish();
   }) as (() => void) | undefined;
