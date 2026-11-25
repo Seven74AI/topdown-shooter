@@ -396,9 +396,73 @@ Each fix above changes behaviour → narrow re-review whose first task is "explo
 | L6 | T4's event-queue sub-item unticked (struck through, Not verified 6) | — |
 | 8.10 | Comment hooks in `attachClient` (keyframe request), `onReconnect` (reset baseline), `takeOver` and `finalLeave` (delete the old sessionId's baseline) | — |
 
+### Re-review (narrow) 1
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY the fix commits b65edc2, 5084cf3, ae23fbd. Tree: `rereview-8-1` = `origin/story-8-1` a4c802c merged with `origin/master` 02e7d8c (8.8, 8.9, building art). **One conflict**, `apps/client/src/scenes/hudLayout.test.ts` import block (master added `BOSS_BAR_NAME_CSS_PX` + moved the evacVoteCss comment; the story added `HELD_CHIPS`): resolved by keeping both (the `connectionModel` comment now names `heldChipsCss.test.ts`). Checks: `npm ci`; `npm run typecheck` green; the 9 touched test files green (127 tests) after the merge; `tools/bots/cut.test.ts` green (64 s). Probes were scratch tests (shared sim, client models, live Colyseus rooms on an OS-picked port), not committed.
+
+**Verdict: FINDINGS — 0 high, 1 medium, 3 low, 4 nit.** H1, H2, H3, M1/B15, L1, L2, L3 hold under every attempt below; the medium is a client-side consequence of M2.
+
+| ID | Sev | Where | Scenario (probed) | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **RR1-M1** | medium (created by M2) | `apps/client/src/scenes/GameScene.ts:1073` (vote chips from `host.world.players`), `apps/client/src/ui/voteModel.ts:112,121` (`allIn` / result line), `voteUrgent` | **The phone's vote panel contradicts the server once a seat is held.** The mirror drops held teammates (`NetSimHost.ts:299`), so the panel tallies only present players while the server now counts held seats as silent = Extract and `everyoneVoted` waits. Probe (`voteView` + shared `resolveEvacVote`): 4 seats, 2 Stay + 1 Extract present, 1 held → panel **"STAY · 1 – 2"**, server **Extract**. 2 Stay + 2 held → panel "STAY · 0 – 2" for the rest of the 15 s, then the run extracts. `voteUrgent` also says "everyone voted" (urgent sends) while the server waits the full timer. | Add held seats to the vote input as silent (dimmed) chips, from the room state (`heldUntilTick > 0`), so `allIn` stays false, the result line counts them as Extract and `voteUrgent` agrees with `everyoneVoted`. Test: 3 present + 1 held → no result line; result = server's choice. |
+| RR1-L1 | low (pre-existing, B15 doesn't close it) | `packages/shared/src/player/hold.ts:50` (body leaves the World at once on a drop) | **Vanishing is still an invulnerability** — B15's doc says "never an escape or an invulnerability". A held body is not in `world.players`: no zombie or boss target, no blast or slam. Probe: hold, 50-damage blast on the spot, return 5 ticks later → in place, unprotected, **HP unchanged** (the same blast hits a present body). Unlimited per wave (B15 only limits teleport + protection). Costs the cheater a blind reconnect (airplane mode, or a modified client). Co-op only. | Designer call. Option: a mid-wave DROP keeps the body in the World (standing, hittable, untargeted by nothing) for `returnMinHoldTicks` before it vanishes — the 3 s the quiet rule already waits; or record it as accepted in B15 and fix the doc line. |
+| RR1-L2 | low (designer note on H3) | `packages/shared/src/waves/waveDirector.ts:376`, `packages/shared/src/boss/behemoth.ts:182` | **A held seat that never comes back sizes what starts in its 120 s.** Probe: count drops to 1 when the hold expires (live room, `holdS` 0.4) and a real solo still gets ×0.35 / solo HP — but a 2-player team whose mate's phone dies faces the next wave sized for 2 and, if the Behemoth arrives inside the hold, 2-player HP (×0.6 vs solo ×0.4 = 1.5×) for the whole fight, while gaps / crawlers (`telegraph.ts:281`, `enrage.ts:101`, present bodies) run at solo pace. Bounded (one wave / one boss), the intended trade against H3's cheese. | Optional: when a hold expires (`releaseHeld`) with the boss alive, rescale `hp`/`maxHp` to the new seat count keeping the fraction. Or accept in B15. |
+| RR1-L3 | low (test asserts an unreachable state) | `packages/shared/src/player/hold.test.ts:303`, `hold.ts:87` | **Solo returns are never protected now.** Solo (and any all-held team) freezes the World, so `world.tick − atTick` stays 0 → `longHold` false → in place, unprotected. Probe (live room): solo drop mid-wave, 4 s frozen, token return → `protectTicks` 0. The shared test gets protection only by advancing `world.tick` by hand during a "freeze" — impossible in a room. The 3-2-1 arguably gives the beat (zombies stood still too), but D3's "nobody standing: in place, still protected" silently no longer applies to solo. | Either decide (B15 note: "a frozen World's return is covered by the 3-2-1") and change the test to expect 0, or measure the hold in room ms (`hold.atMs`) for the frozen case. |
+| RR1-N1 | nit | `hold.test.ts:494` (M2) | `everyoneVoted`'s held check survives mutation (`|| heldPlayers.size > 0` removed → 31/31 green): the test calls `resolveEvacVote` directly. The probe confirms the behaviour (3 seats, 2 Stay + 1 held: the vote runs 300 ticks = the whole 15 s, bounded; ends earlier if the hold expires). | Step the World in the vote with a held seat and assert it is still "vote" after `allVotedHoldS`. |
+| RR1-N2 | nit | `apps/client/src/net/linkMonitor.ts:110` (L3) | `adopt(r, late)` wiring untested: setting `lateAdoptedAtMs` on every adopt passes linkMonitor + lobbyStore tests (16/16) — the L3 tests set the flag by hand. | One linkMonitor test: a normal recovery leaves `lateAdoptedAtMs` −∞, a late one sets it. |
+| RR1-N3 | nit | `apps/server/src/rooms/RunRoom.ts` `takeOver` (L2), `NetSimHost.ts:1070` (M3), `events/common.ts:67` (H3) | Wiring untested: removing `net.rename` in `takeOver` passes the 24 touched server tests (my live probe — same guard object after a takeover — catches it); removing `delay.rebase()` or the link-up edge passes the M3 test; `playersInRun` without held seats passes 143 shared tests. | A room-level guard-identity test; an M3 case for the link edge; one stampede-size case with a held seat. |
+| RR1-N4 | nit | `NetSimHost.ts:1068` (M3) | The re-base is taken on the frame the overlay LIFTS (`frozen` true → false), not while it covers: the drawn picture steps back by the render delay (probe: 1 tick in the fake at 50 ms delay; ~2–5 ticks at a real 100–250 ms) — the last pre-freeze motion replays once. Monotonic after (probe: 30 frames). Link edge: 0 step. | Accept, or freeze the render clock while `frozen` (no step at all). |
+
+#### Attempts (each fix: "exploit this fix")
+
+| # | Fix | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | H1 | Live: HP 20, drop in build → wave starts → token return | HP 20 kept ✔ |
+| 2 | H1 | Live: drop in wave → build → return (heal once), drop again in that build → return in the next wave | 20 → 70, then 70 kept (no 2nd heal) ✔ |
+| 3 | H1 | Real state machine: held in the wave-10 vote → Stay → endless build → return | one heal ✔; `buildStartIndex` vote 10 → build 11 → wave 11 (no heal from build → wave) ✔ |
+| 4 | H1 | Two build starts while held | one catch-up (one heal), never two ✔ |
+| 5 | H2 | Leave + rejoin same build ×2, then Leave → next build → rejoin | 20, 20, then one heal ✔ (+ the story's live test) |
+| 6 | H3 | Count with a held seat, after hold expiry (live, `holdS` 0.4), real solo wave size | 2 → 1 on expiry; real solo ×0.35 ✔ — residual harm RR1-L2 |
+| 7 | H3 | grep `players.size` in `packages/shared/src` for other run-long counts | only per-moment ones left (boss gaps, enrage crawlers, wipe/ready checks) ✔ |
+| 8 | B15 | Live: two 3 s+ drops in one wave (teammate sending inputs) | 1st teleported + protected, 2nd `{moved 0, prot 0}` ✔ |
+| 9 | B15 | Per wave across 9 → 10 → endless 11, 12 | one protected return per wave each wave ✔ |
+| 10 | B15 | Alternate two players | per-player field, each gets one per wave (accepted rule) ✔ |
+| 11 | B15 | In-place return as an escape: blast on the vanished spot | **dodged** → RR1-L1 |
+| 12 | B15 | Solo / all-held freeze | never protected → RR1-L3 |
+| 13 | B15 | Honest phone dropping twice in a wave | 2nd lands where it vanished (zombies had retargeted away) unprotected — the accepted B15 cost |
+| 14 | M2 | 2 Stay + 1 Extract + 1 held; 2 Stay + 2 held | server Extract ✔; **phone panel says STAY** → RR1-M1 |
+| 15 | M2 | Held seat returning during the vote | vote cleared at the hold, can vote again (`castVote` once in `players`) ✔ |
+| 16 | M2 | All present voted, one held | waits the whole 15 s timer (300 ticks), bounded ✔ (RR1-N1) |
+| 17 | M3 | 6 s freeze, then resume; link down 6 s, then up | backward step 1 tick at the freeze edge (RR1-N4), 0 at the link edge; monotonic 30 frames after ✔ |
+| 18 | L2 | Live takeover: guard object for the new session; old socket's leave | same object, old key gone, 2 guards ✔ |
+| 19 | L3 | Mutation: every adopt sets the late flag | passes → RR1-N2 |
+
+#### Mutations (each reverted)
+
+| Mutation | Result |
+| --- | --- |
+| `buildStartIndex` without the build +1 | 4 fail ✔ |
+| drop `protectedReturnWave` check | 1 fail ✔ |
+| `longHold = true` | 1 fail ✔ |
+| `beginWave` count without held | 1 fail ✔ |
+| Behemoth HP without held | 1 fail ✔ |
+| `countVotes` without held silent | 1 fail ✔ |
+| no `markHeldEvac` | 1 fail ✔ |
+| `everyoneVoted` without held check | **0 fail** (RR1-N1) |
+| `restoreSeat(…, −1)` (H2) | 1 fail ✔ |
+| `playersInRun` without held | **0 fail** (RR1-N3) |
+| no `clock.rebase()` | 1 fail ✔ |
+| no `delay.rebase()` / no link-up edge | **0 fail** (RR1-N3) |
+| `add` ignores `keep` | 1 fail ✔ |
+| no `net.rename` in `takeOver` | **0 fail** in the touched tests (RR1-N3; caught by the live probe) |
+| late flag on every adopt | **0 fail** (RR1-N2) |
+| `run_ended` without held seats | 1 fail ✔ |
+| `HELD_CHIPS` renamed / CSS twin | `heldChipsCss` fails ✔ |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
 - 2026-11-25: built (T1–T9), merged with master after 8.8 and 8.9 landed; decisions 8.1 B1–B14 auto-accepted overnight; status review.
 - 2026-11-25: senior developer review (AI): changes requested (H1–H3, M1–M3, L1–L6); findings above.
 - 2026-11-25: review fixes H1–H3, M1 (decision 8.1 B15), M2, M3, L1–L6 (builder); 8.10 hooks left as comments.
+- 2026-11-25: narrow re-review 1 of the fixes: 1 medium (RR1-M1 vote panel vs held seats), 3 low, 4 nit.
