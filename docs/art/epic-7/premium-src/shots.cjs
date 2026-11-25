@@ -11,7 +11,7 @@ let OUT = "docs/art/epic-7/premium/";
 (async () => {
   const framesArg = process.argv.find((a) => a.startsWith("--frames="));
   const scratch = framesArg ? framesArg.slice(9) : null;
-  const only = process.argv.find((a) => /^(P[RCI]|L[GCPT])\d$/.test(a));
+  const only = process.argv.find((a) => /^(P[RCI]|L[GCPTR])\d$/.test(a));
   const pageArg = process.argv.find((a) => a.startsWith("--page="));
   const pageFile = pageArg ? pageArg.slice(7) : "premium-rewards.html";
   const outArg = process.argv.find((a) => a.startsWith("--out=")); if (outArg) OUT = outArg.slice(6);

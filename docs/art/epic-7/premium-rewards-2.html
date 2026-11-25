@@ -1245,11 +1245,15 @@ const LUMEN = {
     frame: ['#e9d5a2', '#9a7a3e', '#3a2c14'], face: ['rgba(14,32,34,0.9)', 'rgba(5,12,13,0.95)'], numFill: (g, px) => { const gr = g.createLinearGradient(0, -px * 0.75, 0, 0); gr.addColorStop(0, '#fff6dc'); gr.addColorStop(0.45, '#e9cf8c'); gr.addColorStop(0.55, '#b88a3c'); gr.addColorStop(1, '#6e4f1a'); return gr; }, numGlow: 'rgba(230,190,110,0.45)',
     rNew: { frame: ['#f6e3b2', '#c9a052', '#6a4c18'], bg: ['#4a3a1c', '#15100a'], head: ['#e3c27c', '#b38a3e'], headInk: '#1a1205', edge: '#f6e3b2', glow: 'rgba(240,200,120,0.85)', floor: 'rgba(240,210,140,0.5)', back: 'rgba(240,200,120,0.3)' } },
 };
+LUMEN.LR4 = { name: 'Crimson + steel', accent: '#e8434f', accentText: '#ff9aa1', glow: 'rgba(240,60,70,0.8)', tint: rgbaOf('232,67,79'), btn: ['#ffb3b8', '#e8434f', '#8e1620'], ink0: '#ffffff', fill: ['#8e1620', '#ffb3b8'], tag: ['#ffb3b8', '#d8333f'], badgeIn: 'rgba(24,4,6,0.92)',
+    frame: ['#dfe5eb', '#6d7782', '#262c33'], face: ['rgba(34,30,36,0.9)', 'rgba(11,9,12,0.95)'], numFill: (g, px) => { const gr = g.createLinearGradient(0, -px * 0.75, 0, 0); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#ffd0d3'); gr.addColorStop(0.56, '#e8434f'); gr.addColorStop(1, '#7a0f18'); return gr; }, numGlow: 'rgba(240,60,70,0.5)',
+    rNew: { frame: ['#ffd0d3', '#e8434f', '#6a0d15'], bg: ['#4a161c', '#14070a'], head: ['#e8434f', '#b0222e'], headInk: '#ffffff', edge: '#ffc2c6', glow: 'rgba(240,60,70,0.85)', floor: 'rgba(255,120,130,0.5)', back: 'rgba(240,60,70,0.3)' } };
 const LG0 = makePI(lumenSkin({ code: 'LG0', ...LUMEN.LG0 }));
 const LC1 = makePI(lumenSkin({ code: 'LC1', ...LUMEN.LC1 }));
 const LP2 = makePI(lumenSkin({ code: 'LP2', ...LUMEN.LP2 }));
 const LT3 = makePI(lumenSkin({ code: 'LT3', ...LUMEN.LT3 }));
 const PI1 = makePI(lumenSkin({ code: 'PI1', ...LUMEN.LG0 }));
+const LR4 = makePI(lumenSkin({ code: 'LR4', ...LUMEN.LR4 }));
 const PI2 = makePI({
   code: 'PI2', shape: 'cut', corner: 12, fw: 4, cardCorner: 8,
   bg: PI_BG('dw1', 0.58), sheetBg: '#0c0d0e', fade: 'rgba(18,20,23,0.97)',

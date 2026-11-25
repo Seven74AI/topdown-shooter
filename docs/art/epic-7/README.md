@@ -169,6 +169,7 @@ construction, components, layout and motion are identical; only the palette chan
 | **LC1** (favourite) | Ice cyan | Cool, clean, high-tech; strongest contrast on the warm dawn | Near the blue slot: teammate cards keep the slot-blue frame, dot and name; new items use a lighter, greener cyan; Supplies are no longer amber |
 | LP2 | Platinum | Quiet luxury: white-silver chrome, champagne only on new items | White = pick-ups and people: silver chrome lowers the pop of names, so new items get a warm champagne frame |
 | LT3 | Teal + brass | Crafted, instrument-like | Teal sits between the green slot and gas yellow-green; it stays blue-leaning and never fills large areas; new items are brass |
+| LR4 | Crimson + steel (added after the designer allowed red on menu screens) | Bold war-room debrief, strongest on blue hour | Red = boss danger now applies to play only; players may still read red as danger. New items are crimson; white text on the crimson button. Still images only (no video, per the designer) |
 
 Files per theme: `premium-3/<code>-components.jpg` (sheet at 2×), `-results-568.jpg`, `-results-800.jpg`,
 `-reveal-at-2.9s.jpg`, `-section.jpg` (half size), `-reveal.webm` (about 1.5 MB). The PI3 label overflow (the
