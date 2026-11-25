@@ -4,7 +4,7 @@ baseline_commit: 1fade84
 
 # Story 7.9: My look in the game
 
-Status: review
+Status: done
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47 (Epic 6 rounds 1–2 merged, 6.8–6.12 and the Network pass still to land). Customization story 2 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.9. -->
 
