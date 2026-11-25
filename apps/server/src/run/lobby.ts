@@ -16,6 +16,11 @@ export interface Member {
   readonly name: string;
   /** Hex SHA-256 of the guest token (Story 8.1 matches a reconnecting player with it). */
   readonly guestTokenHash: string;
+  /**
+   * Story 8.1: the seat identity (`seatKey`): who this member IS across sockets. Every seat match
+   * (already_joined, takeover, remembered seats) compares this key, never the hash directly.
+   */
+  readonly seatKey: string;
   /** When they joined; the longest-connected member becomes host. */
   /** Join sequence number within the room (lower = joined earlier). */
   readonly joinOrder: number;
@@ -43,4 +48,15 @@ export function nextHost<M extends Pick<Member, "joinOrder">>(members: Iterable<
 /** Hex SHA-256 of a guest token. The raw token is never stored or logged. */
 export function hashGuestToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+/**
+ * Story 8.1: THE seat identity — the one function every seat match uses (the lobby's
+ * `already_joined`, the run's takeover of a held or still-open seat, the remembered seats after a
+ * hold ran out). Today a guest seat: `guest:<hash of the guest token>`. Story 7.1 switches this one
+ * function to `acct:<accountId>` when the join carries an account ticket (and keeps `guest:` for
+ * guests), so the room needs no other change.
+ */
+export function seatKey(auth: { readonly guestTokenHash: string }): string {
+  return `guest:${auth.guestTokenHash}`;
 }

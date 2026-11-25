@@ -1,6 +1,10 @@
+---
+baseline_commit: b0e491a9e10eb5acb73fbbecb7f30aba93ab8172
+---
+
 # Story 8.1: Reconnect within 2 minutes
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Network pass story 3 of 5 (pulled forward from Epic 8 by the designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Accepted Epic 8 decisions D1–D5 (docs/ideas/epic-8/decisions.md) are already rules here. -->
 

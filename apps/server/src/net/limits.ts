@@ -46,3 +46,23 @@ export const REWIND_CAP_MS = 300;
  * row (1 s of inputs) the queue resyncs to the client's seqs (a client that really restarted).
  */
 export const INPUT_SEQ_RESYNC_AFTER = 20;
+
+/**
+ * Story 8.1 (decision 8.1 D1): a connected player with no input for this many ticks (3 s) in a wave
+ * is put on hold like a drop (hidden tab, app switch, a dead spot the socket hasn't noticed). Inputs
+ * arrive 20×/s, so 3 s of none is never a normal line (the lossy line's stalls are 200–400 ms).
+ */
+export const QUIET_HOLD_TICKS = 60;
+/** Story 8.1 (Epic 8 D1): seconds a dropped (or quiet) player's seat is held before it is freed and remembered. */
+export const HOLD_S = 120;
+/** Story 8.1 (Epic 8 D5): the restart count after a freeze, in seconds (3-2-1). */
+export const RESUME_COUNT_S = 3;
+/**
+ * Story 8.1 (decision 8.1 D8): the transport's silent-socket limit: a ping every 3 s, terminated after
+ * 4 unanswered (≈ 12–15 s; Colyseus's default 2 ≈ 6–9 s). With D1 the survivor is already safe after 3 s.
+ */
+export const TRANSPORT_PING_INTERVAL_MS = 3000;
+export const TRANSPORT_PING_MAX_RETRIES = 4;
+/** Story 8.1: close codes for a seat that moved (never 4000 consented, never 4010 MAY_TRY_RECONNECT: the SDK must NOT auto-reconnect; the client shows "opened in another tab" / "seat kept"). Mirrored in the client (netConfig). */
+export const CLOSE_TAKEN_OVER = 4021;
+export const CLOSE_SEAT_KEPT = 4020;

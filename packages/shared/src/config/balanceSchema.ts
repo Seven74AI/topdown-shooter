@@ -536,6 +536,8 @@ export const playerSchema = z
      * buildings only: a returning player is never placed inside a box.
      */
     returnWideSearchRings: z.number().int().min(1),
+    /** Story 8.1 (D3): spawn protection after a mid-wave return from a hold, in ticks (40 = 2 s). */
+    returnProtectTicks: z.number().int().min(0).max(255),
   })
   .strict();
 

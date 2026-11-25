@@ -27,6 +27,7 @@ export const movePlayers: SystemFn = (world, dtS) => {
   for (const p of world.players.values()) {
     p.prevX = p.x;
     p.prevY = p.y;
+    if (p.protectTicks > 0) p.protectTicks--; // Story 8.1 (D3): spawn protection counts every tick
     const input = world.inputs.get(p.id);
     // Story 5.2: the Chainsaw slows its wielder while attacking (multiplies with a bite slow).
     // Story 5.11: the running shoes' bonus multiplies with both (the Predictor mirrors `gear`).

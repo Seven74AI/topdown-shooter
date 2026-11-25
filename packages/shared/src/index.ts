@@ -129,7 +129,8 @@ export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
-export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
+export { checkTeamWipe, downPlayer, findReviver, placeNextToTeammate, returnOutPlayers, updateDowned } from "./player/downed";
+export { holdPlayer, isHeld, releaseHeldPlayer, restoreSeat, returnPlayer } from "./player/hold"; // Story 8.1
 export { spectateTarget } from "./player/spectate";
 export { playerSpeed, slowPlayer, tickSlow } from "./player/slow";
 export { KNOCK_DIR_SCALE, knockPlayer, stepKnock } from "./player/knockback"; // Story 5.7

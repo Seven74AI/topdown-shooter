@@ -31,7 +31,7 @@ export const friendlyFireStats = { hits: 0, damage: 0, downs: 0 };
  * Returns the HP actually taken (0: nothing happened, no event). Allocation-free.
  */
 export function damagePlayerBy(world: World, target: PlayerState, amount: number, tag: DamageTag, sourcePlayerId: string | null, sourceZombieId = -1): number {
-  if (target.status !== "alive" || world.debug.godMode || !(amount > 0)) return 0;
+  if (target.status !== "alive" || world.debug.godMode || target.protectTicks > 0 || !(amount > 0)) return 0; // Story 8.1: spawn protection
   let dmg = amount;
   if (sourcePlayerId !== null) {
     if (tag === "bullet" || tag === "melee") return 0; // bullets and melee never hurt players
