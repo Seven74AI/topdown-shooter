@@ -3408,6 +3408,29 @@ So that we know it's ready for every week.
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
 **Then** each one is marked met with its evidence (a doc or test), and the release is tagged `v1.0`
 
+### Story 10.10: Build button (hybrid build-phase UI)
+
+(Added 2026-11-25, designer decision "hybrid"; story file `10-10-build-button.md`; options `docs/art/build-ui/index.html`. Key auto-accepted: Epic 5 is closed, this is client-only UX polish. **Waits on the designer's layout pick, Decision BU-1 (A / B / C / D; recommended B).**)
+
+As a player in a build phase,
+I want my last building one tap away and the rest behind a Build button,
+So that repeat placements stay instant and the screen edge stays clear.
+
+**Acceptance Criteria:**
+
+**Given** a build phase with empty hands and nothing selected
+**When** the HUD shows
+**Then** the bottom-right shows a **Build** button and the **last-placed building** as a one-tap quick tile (today's 4 × 2 grid is gone), and Shop stays reachable (BU-2)
+**And** tapping the quick tile starts the 5.15 hold with that type in one tap, with today's money/cap refusals and toasts (5.16/5.17 unchanged)
+
+**Given** I tap Build
+**When** the panel opens with every unlocked shop type and Shop
+**Then** picking a type closes it and starts the hold; the panel never covers the survivor's 48 px zone or the ghost, and closes on Close, a tap outside, the ping wheel, the menu, the phase end, being downed
+
+**Given** the layout tests
+**When** they run at 568 × 320 … 1920 × 1080 with and without insets
+**Then** every closed/open control is in the one HUD layout test, the 568/640 build-tile baseline breaches are gone, keys 1–7 still pick types directly, the cluster hides under the open ping wheel and while waiting (8.2), and nothing in gameplay, the server or balance changes
+
 ## Epic 11: Random city (post-v1)
 
 The host can pick **Random city**: a new 70 × 70 m city generated from rules on every run, next to the hand-made Downtown. The generator lives in shared code and turns a city seed into a normal `DistrictMap` (solids, cover, spawns, hazards, events, decay groups with `pick N`), so `applyDecayStage`, the server, prediction and replays stay unchanged and nothing is downloaded. Every city passes checks A–G and the anchor check, or it is rejected and regenerated. Open from the start; Story 7.7's District 2 rule is unchanged.
