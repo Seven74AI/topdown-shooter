@@ -16,8 +16,7 @@
  * It counts my apparent hits (my cosmetic bullet crossed a drawn zombie) and how many the server
  * did not confirm in time (reversed).
  *
- * Story 8.9: `loss` (TCP loss as head-of-line stalls both ways, from the network audit's
- * `hitsLossSim.ts`; Story 8.8 owns it), `latencyStep` (a lasting latency rise: a cell handover),
+ * Story 8.8: `loss` (TCP loss as head-of-line stalls both ways). Story 8.9: `latencyStep` (a lasting latency rise: a cell handover),
  * the real clock / delay / step pacing (brief 20), and the smoothness counters in `Result.smooth`.
  */
 import {
@@ -96,7 +95,12 @@ export interface Options {
   clientMap?: DistrictMap;
   /** Story 4.2: where the survivor stands (standing runs; default the team start). */
   start?: { x: number; y: number };
-  /** Network audit / Story 8.8: TCP loss as head-of-line stalls (both directions): a message is held `stallMs` with `pct` % chance, and everything behind it. */
+  /**
+   * Story 8.8 (network audit §3.5): TCP loss as ordered head-of-line stalls, both directions. With
+   * probability `pct` / 100 per message, that message (and, the link being ordered, everything
+   * behind it) waits an extra `stallMs` (a lost segment waiting for its retransmit). Never a
+   * reorder, never a lost message. Absent = no extra rng draw (the clean line is bit for bit today's).
+   */
   loss?: { pct: number; stallMs: number };
   /** Story 8.9: from `atMs` on, both directions take `addMs` longer for good (a cell handover; ordered, so nothing overtakes). */
   latencyStep?: { atMs: number; addMs: number };
@@ -160,6 +164,8 @@ export interface Result {
   fanMismatches: number;
   /** The largest pellet direction difference seen (radians). */
   fanMaxDiffRad: number;
+  /** Story 8.8: stalls injected by `Options.loss`, per direction (liveness). */
+  stalls: { up: number; down: number };
   /** Story 8.9. */
   smooth: Smooth;
 }
@@ -174,18 +180,19 @@ export const FAN_EPS_RAD = 1e-4;
 class Link<T> {
   private readonly items: { due: number; v: T }[] = [];
   private lastDue = -Infinity;
+  /** Story 8.8: stalls injected on this link. */
+  stalls = 0;
   constructor(
     private readonly oneWayMs: number,
     private readonly jitterHalfMs: number,
     private readonly rng: { range(a: number, b: number): number },
     private readonly loss?: { pct: number; stallMs: number },
     private readonly latencyStep?: { atMs: number; addMs: number },
-    /** Story 8.9: its own draws for the loss, so a lossy run spawns the same zombies as a clean one. */
-    private readonly lossRng?: { range(a: number, b: number): number },
   ) {}
   send(now: number, v: T, notBefore = -Infinity): void {
-    const stall = this.loss && this.lossRng && this.lossRng.range(0, 100) < this.loss.pct ? this.loss.stallMs : 0;
-    const step = this.latencyStep && now >= this.latencyStep.atMs ? this.latencyStep.addMs : 0;
+    const stall = this.loss && this.rng.range(0, 100) < this.loss.pct ? this.loss.stallMs : 0;
+    if (stall > 0) this.stalls++;
+    const step = this.latencyStep && now >= this.latencyStep.atMs ? this.latencyStep.addMs : 0; // Story 8.9
     const due = Math.max(this.lastDue, notBefore, now + stall + step + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
     this.lastDue = due;
     this.items.push({ due, v });
@@ -245,9 +252,8 @@ export function simulate(o: Options): Result {
   const typeState = o.zombieType ? packTypeState(zombieTypeIndex(o.zombieType), ZOMBIE_STATE.CHASE) : WALKER_TYPE_STATE;
   for (let i = 0; i < walkers; i++) spawnRingWalker();
 
-  const lossRng = createRng(o.seed * 7919 + 1);
-  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep, lossRng);
-  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep, lossRng);
+  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep);
+  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep);
 
   // Client.
   const mirror = createWorld({ balance, seed: 0, map: clientMap, systems: NO_SYSTEMS });
@@ -564,6 +570,7 @@ export function simulate(o: Options): Result {
     fanShots,
     fanMismatches,
     fanMaxDiffRad,
+    stalls: { up: up.stalls, down: down.stalls },
   };
 }
 

@@ -86,7 +86,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, smooth: emptySmooth() };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 }, smooth: emptySmooth() };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
@@ -97,6 +97,10 @@ const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number
     sum.kills += r.kills;
     sum.shots += r.shots;
     sum.viewOffsets.push(...r.viewOffsets);
+    sum.serverShotSeqs.push(...r.serverShotSeqs);
+    sum.localShotSeqs.push(...r.localShotSeqs);
+    sum.stalls.up += r.stalls.up;
+    sum.stalls.down += r.stalls.down;
   }
   const offs = [...sum.viewOffsets].sort((a, b) => a - b);
   const q = (p: number) => (offs[Math.floor(offs.length * p)] ?? 0).toFixed(2);
