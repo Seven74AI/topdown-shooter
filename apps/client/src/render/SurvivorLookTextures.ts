@@ -1,6 +1,8 @@
 import type * as Phaser from "phaser";
 import { catalogueParts, cosmeticPart, decodeLook, type AnimatedLayerId } from "@topdown/shared";
 import { addGeneratedTexture } from "./city/canvasTexture";
+import type { PlayerView } from "./PlayerView";
+import type { SurvivorLayerPool } from "./SurvivorLayerPool";
 import { CHAR_R_PX } from "./city/spriteAtlas";
 import { CHAR_EXTENT_R, drawSurvivorBody } from "./city/spriteArt";
 import { resolveLook, type ResolvedLook } from "./city/survivorLook";
@@ -126,4 +128,27 @@ function paintBodies(g: CanvasRenderingContext2D, look: ResolvedLook, canvas: HT
     drawSurvivorBody(g, CHAR_R_PX, look, i === 0, false);
     g.restore();
   }
+}
+
+/**
+ * Story 7.9: one frame of a view's look (GameScene's `syncLook`). The body texture from the code and the decay stage
+ * (two compares when nothing changed; one repaint on a new code or stage, D1); when the code changed, the animated
+ * layer from the look (AC 10), or `devLayer` (`?devlayer`, dev builds) on everyone. `pool` is made on first need.
+ */
+export function syncViewLook(
+  view: PlayerView,
+  textures: SurvivorLookTextures,
+  id: string,
+  code: string,
+  stage: number,
+  pool: () => SurvivorLayerPool,
+  hasPool: boolean,
+  devLayer: AnimatedLayerId | null,
+): void {
+  view.setBodyTexture(textures.setLook(id, code, stage));
+  if (view.lookCode === code) return;
+  view.lookCode = code;
+  const layer = devLayer ?? lookLayer(code);
+  if (layer) view.setAnimatedLayer(pool(), layer);
+  else if (hasPool) view.setAnimatedLayer(pool(), null);
 }

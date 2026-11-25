@@ -158,7 +158,7 @@ import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
 import { parseBossWaves, urlOptions } from "../debug/urlOptions";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
-import { SurvivorLookTextures, lookLayer } from "../render/SurvivorLookTextures";
+import { SurvivorLookTextures, syncViewLook } from "../render/SurvivorLookTextures";
 import { DevLooks } from "../render/devLooks";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
@@ -289,15 +289,9 @@ export class GameScene extends Phaser.Scene {
    * (AC 10); `?devlayer` (dev builds) still forces it on everyone.
    */
   private readonly syncLook = (view: PlayerView, id: string, code: string): void => {
-    const textures = this.lookTextures;
-    if (!textures) return;
-    view.setBodyTexture(textures.setLook(id, code, this.host?.world.decay.stage ?? 1));
-    if (view.lookCode === code) return;
-    view.lookCode = code;
-    const layer = urlOptions().devLayer ?? lookLayer(code);
-    if (layer) view.setAnimatedLayer((this.layerPool ??= new SurvivorLayerPool(this)), layer);
-    else if (this.layerPool) view.setAnimatedLayer(this.layerPool, null);
+    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, urlOptions().devLayer);
   };
+  private readonly layerPoolOf = (): SurvivorLayerPool => (this.layerPool ??= new SurvivorLayerPool(this));
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
   private readonly slotOfPlayer = (id: string): number => this.host?.playerInfo(id).slot ?? -1;

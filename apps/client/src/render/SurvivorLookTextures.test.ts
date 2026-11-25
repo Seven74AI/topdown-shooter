@@ -6,7 +6,7 @@ import { DEFAULT_LOOK, encodeLook, type PlayerState } from "@topdown/shared";
 import { fakeScene, type FakeObject } from "./darkness/fakeScene.testkit";
 import { textureRegistry } from "./gfx/textureRegistry";
 import { DARK_BODY_DEPTH, PlayerView } from "./PlayerView";
-import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK, LOOK_FRAME_SIDE, SurvivorLookTextures, lookLayer, lookTextureKey } from "./SurvivorLookTextures";
+import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK, LOOK_FRAME_SIDE, SurvivorLookTextures, lookLayer, lookTextureKey, syncViewLook } from "./SurvivorLookTextures";
 import { SurvivorLayerPool } from "./SurvivorLayerPool";
 import { SLOT_COLORS } from "./playerColors";
 import { ATLAS_CHARACTERS, SURVIVOR_GUN_FRAMES, SURVIVOR_GUN_PLAIN } from "./city/spriteAtlas";
@@ -253,5 +253,31 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     if (layer) v.setAnimatedLayer(pool, layer);
     expect(v.layerSprite).not.toBeNull();
     v.destroy();
+  });
+});
+
+describe("GameScene's look hookup: syncViewLook (Story 7.9 AC 7, 10; R2)", () => {
+  it("sets the body texture, follows the stage, and takes the layer from the look (once per code)", () => {
+    const fs = fakeScene();
+    const tx = new SurvivorLookTextures(fs.scene, napiCanvas);
+    let pool: SurvivorLayerPool | null = null;
+    const poolOf = (): SurvivorLayerPool => (pool ??= new SurvivorLayerPool(fs.scene, napiCanvas));
+    const v = new PlayerView(fs.scene, 0.4);
+    const frame = (code: string, stage: number, dev: "propeller" | null = null): void => syncViewLook(v, tx, "p1", code, stage, poolOf, pool !== null, dev);
+    frame(DEFAULT_CODE, 1);
+    expect((v.bodySprite as unknown as FakeObject).texture).toBe(lookTextureKey("p1"));
+    expect(v.layerSprite).toBeNull();
+    expect(pool).toBeNull(); // no layer: no pool made
+    frame(DEFAULT_CODE, 1);
+    frame(DEFAULT_CODE, 2); // a build start
+    expect(tx.bakes).toBe(2);
+    frame("v1|head:prop", 2); // a look with the propeller cap (owned in a later story)
+    expect(v.layerSprite).not.toBeNull();
+    frame(DEFAULT_CODE, 2);
+    expect(v.layerSprite).toBeNull();
+    frame("v1|head:beanie", 2, "propeller"); // ?devlayer forces it on everyone
+    expect(v.layerSprite).not.toBeNull();
+    v.destroy();
+    tx.dispose();
   });
 });

@@ -126,6 +126,7 @@ The server never trusts the look beyond "these parts exist and you own them": it
 ### Files
 
 - New: `packages/shared/src/cosmetics/lookCode.ts` (+ test), `apps/client/src/render/SurvivorLookTextures.ts` (+ test), `apps/client/src/render/city/survivorPortrait.ts` (+ test), the 7.9 migration under `apps/server/src/db/` (7.1's folder), `docs/perf/epic-7-looks.md`.
+- New (R2): `apps/client/src/scenes/lookWiring.test.ts`
 - Changed: `packages/shared/src/config/cosmetics.ts` (`LOOK_CODE_MAX`), `packages/shared/src/index.ts`, `packages/shared/src/net/messages.ts`, `packages/shared/src/net/stateView.ts`, `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/schema/RunState.ts`, `apps/server/src/rooms/schema/syncState.ts` (`resetRunFields` comment/keep), 7.1's progress repository and session response, `apps/client/src/net/connection.ts`, `fakeRoom.ts`, `devThrottle.ts`, `lobbyStore.ts`, `apps/client/src/ui/LobbyScreen.tsx` (+ `overlay.css`), `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/city/spriteAtlas.ts`, `apps/client/src/render/city/spriteArt.ts`, `apps/client/src/scenes/GameScene.ts`, `apps/client/src/sim/SimHost.ts`, `NetSimHost.ts`, `LocalSimHost.ts`, `apps/client/src/debug/urlOptions.ts`, `tools/bots/botClient.ts` (no look: fine, check it still joins).
 
 ## Test plan
@@ -209,6 +210,22 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 - **Client decode uses every catalogue part** (`catalogueParts()`): the server already checked ownership; the client only falls back for ids its catalogue doesn't know. Practice (`LocalSimHost`) checks against `ownedParts()` like a join.
 - **`?devlooks=N`** = N survivors in all (mine + N − 1 extras, AC 14's "devlooks=4 → 3 extra"), 1–4, fixed-seed random starter looks, views only.
 - **PlayerView** keeps the 7.8 one-piece atlas path until `setBodyTexture` is called (GameScene always calls it), so 7.8's tests and any view without a look still draw.
+
+### Tests per checked task (retro R1: file > test name)
+
+- T1 lookCode.ts → `packages/shared/src/cosmetics/lookCode.test.ts` > "round-trips every one of the 51 parts with random colours", "the longest legal look … fits in 96 characters", "refuses to write a code over the bound", "fuzz: 1,000 random strings …", "reads each slot on its own …", "each colour on its own …", "fields in any order …", "head:none and pack:none are different parts", "ownedParts() is exactly the 31 starter parts", "a part not owned is drawn as the default part …", "catalogueParts() is every one of the 51 parts …"
+- T1 lookCode.test.ts → itself (mutation pass: per-slot fallback, owned check, length cap — all killed)
+- T4 spriteAtlas.ts gun frames → `apps/client/src/render/city/survivorGunSplit.raster.test.ts` > "one gun frame per held-art weapon, the plain bar and the running chainsaw, all survivor-sized"
+- T4 spriteArt.ts `drawSurvivorBody` → same file > "the gun frame alone shows no body, and the body alone no gun (the split is real)"; 7.8's `survivorParts.raster.test.ts` > "AC 3: … is today's survivor …" (still green, the digest pin unchanged)
+- T4 raster test → same file > "%s: gun + default body = the one-piece frame" (9 frames, ≤ 2 per channel)
+- T5 SurvivorLookTextures.ts → `apps/client/src/render/SurvivorLookTextures.test.ts` > "bakes each player's body once …", "L4: the same code and stage every frame does nothing …", "D1: a new decay stage repaints once, darker …", "brief 20: a lost context repaints the CURRENT look …", "a restarted scene drops the previous run's leftover bodies first", "beat the rule 4: 50 rejoins …", "beat the rule 3: …", "L6: the same code and stage draw the same pixels on two phones"
+- T5 PlayerView.ts → same file > "body from the player's texture, gun from the shared atlas just under it …", "the flamethrower's tanks …", "downed / slowed tints, out and the blackout depth …", "L4: no frame or texture call per frame …", "L3: no look changes the ring colour …", "without a look texture (7.8 path) …", "AC 10: a look with the propeller cap …"
+- T5 GameScene hookup (R2 wiring) → `apps/client/src/scenes/lookWiring.test.ts` (each of the 5 hookup lines; deleting the leave line fails it) + `SurvivorLookTextures.test.ts` > "sets the body texture, follows the stage, and takes the layer from the look (once per code)"; LocalSimHost look → `apps/client/src/sim/LocalSimHost.look.test.ts` (3 tests); `apps/client/src/sim/playerInfo.test.ts` (look "")
+- T5 `?devlooks=N` → `apps/client/src/debug/urlOptions.test.ts` > "Story 7.9: ?devlooks=N (dev builds only) …"; `SurvivorLookTextures.test.ts` > "beat the rule 4" uses `devLookCodes`
+
+### Gate (retro R6)
+
+- Early part (46d60e3 + R1/R2 commit): typecheck + lint clean; touched tests (render, sim, debug, scenes, tools/checks, shared cosmetics/config) 1360 passed / 0 failed, load 0.22. Full gate: not yet (at the end, after T2/T3/T6/T7 and a master merge).
 
 ### Completion Notes List
 
