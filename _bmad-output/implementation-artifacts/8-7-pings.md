@@ -113,7 +113,7 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 
 ### Gate
 
-GATE_LINE
+- **Gate (R6):** story commit + master `06e8356` merged (merge `c292148`); `npm run typecheck && npm run lint && npm test && npm run build && REQUIRE_DIST=1 npx vitest run tools/checks/noCheatsInRelease.test.ts` → exit 0. **526 test files passed / 4 skipped, 4738 tests passed / 31 skipped**; lint 0 problems; build OK; release no-cheats scan 3/3. Load at the end 3.71 (1-min). Only docs (this file) changed after the gate.
 
 ### Tests per task (brief R1: "file > test name")
 
@@ -166,4 +166,56 @@ GATE_LINE
 
 ### File List
 
-FILE_LIST
+- M `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- M `apps/client/src/audio/placeholderSfx.ts`
+- M `apps/client/src/debug/DevCheats.css`
+- M `apps/client/src/gallery/collect.ts`
+- M `apps/client/src/input/KeyboardMouse.ts`
+- M `apps/client/src/input/keyMap.test.ts`
+- M `apps/client/src/input/keyMap.ts`
+- M `apps/client/src/net/session.ts`
+- A `apps/client/src/render/PingView.ts`
+- M `apps/client/src/render/eventArrow.ts`
+- A `apps/client/src/render/pingArrows.test.ts`
+- A `apps/client/src/render/pingArrows.ts`
+- A `apps/client/src/render/pingArt.ts`
+- A `apps/client/src/render/pingModel.test.ts`
+- A `apps/client/src/render/pingModel.ts`
+- M `apps/client/src/scenes/GameScene.ts`
+- M `apps/client/src/scenes/HudScene.ts`
+- A `apps/client/src/scenes/PingHud.ts`
+- M `apps/client/src/scenes/bossBar.ts`
+- M `apps/client/src/scenes/hudLayout.test.ts`
+- M `apps/client/src/scenes/hudModel.ts`
+- M `apps/client/src/scenes/hudTopLayout.ts`
+- A `apps/client/src/scenes/pingFrame.test.ts`
+- A `apps/client/src/scenes/pingFrame.ts`
+- A `apps/client/src/scenes/pingWheel.test.ts`
+- A `apps/client/src/scenes/pingWheel.ts`
+- A `apps/client/src/scenes/pingWheelState.ts`
+- M `apps/client/src/sim/LocalSimHost.ts`
+- A `apps/client/src/sim/NetSimHost.ping.test.ts`
+- M `apps/client/src/sim/NetSimHost.ts`
+- M `apps/client/src/sim/SimHost.ts`
+- M `apps/client/src/ui/sizes.ts`
+- M `apps/server/src/net/limits.ts`
+- M `apps/server/src/net/messageGuard.test.ts`
+- M `apps/server/src/net/messageGuard.ts`
+- A `apps/server/src/rooms/RunRoom.ping.test.ts`
+- M `apps/server/src/rooms/RunRoom.ts`
+- A `docs/art/epic-8/built/8-7-desktop-help-seen.png`
+- A `docs/art/epic-8/built/8-7-desktop-pings.png`
+- A `docs/art/epic-8/built/8-7-desktop-wheel-open.png`
+- A `docs/art/epic-8/built/8-7-phone-edge-arrow.png`
+- A `docs/art/epic-8/built/8-7-phone-help.png`
+- A `docs/art/epic-8/built/8-7-phone-wheel-open.png`
+- A `docs/art/epic-8/built/8-7-shots.cjs`
+- M `docs/epic-8-story-decisions.md`
+- M `docs/playtests/milestone-1/readability-sheet.md`
+- M `packages/shared/src/index.ts`
+- M `packages/shared/src/net/messages.ts`
+- M `tools/bots/botClient.ts`
+- A `tools/bots/ping.test.ts`
+- M `tools/bots/run.ts`
+- A `tools/checks/pingWiring.test.ts`
+- M `_bmad-output/implementation-artifacts/8-7-pings.md` (this file)
