@@ -103,34 +103,22 @@ function put(world: World, kind: number, wave: number): void {
 }
 
 /**
- * Story 6.8 for 6.12 (endless): one event for endless wave `wave` (6.12 calls it for even waves
- * without a Behemoth): a kind that fits `wave` and is not the previous endless event's (6.12 D4),
- * from the `events` stream, with its start fraction; written to `world.special.extra`. Returns the
- * kind index, or EVENT_NONE when none fits.
+ * Story 6.8 × 6.12 (endless): `startBuild` calls this right after 6.12's `scheduleEndlessEvent` (the
+ * one endless scheduler: which waves, no repeat). The picked kind (`world.run.endlessEvent`, "" =
+ * none) becomes the framework's extra entry for the coming wave, with its start fraction (stream
+ * `events`); it then triggers like a scheduled entry. A dev-forced event (`forceEvent`) after this
+ * replaces it. Returns the kind index, or EVENT_NONE.
  */
-export function scheduleEndlessEvent(world: World, wave: number): number {
+export function armEndlessEvent(world: World): number {
+  const id = world.run.endlessEvent;
+  if (id === "") return EVENT_NONE;
+  const kind = EVENT_KINDS.indexOf(id as (typeof EVENT_KINDS)[number]);
+  if (kind < 0) return EVENT_NONE;
   const s = world.special;
-  const rng = world.streams.events;
-  let n = 0;
-  for (let k = 0; k < EVENT_KINDS.length; k++) if (k !== s.lastEndlessKind && eventFits(world, k, wave)) n++;
-  if (n === 0) {
-    s.extra.kind = EVENT_NONE;
-    return EVENT_NONE;
-  }
-  let pick = rng.int(0, n - 1);
-  let kind = EVENT_NONE;
-  for (let k = 0; k < EVENT_KINDS.length; k++) {
-    if (k === s.lastEndlessKind || !eventFits(world, k, wave)) continue;
-    if (pick-- === 0) {
-      kind = k;
-      break;
-    }
-  }
   const ev = world.balance.events;
   s.extra.kind = kind;
-  s.extra.wave = wave;
-  s.extra.startFraction = rng.range(ev.startFractionMin, ev.startFractionMax);
+  s.extra.wave = world.waves.number + 1;
+  s.extra.startFraction = world.streams.events.range(ev.startFractionMin, ev.startFractionMax);
   s.extraDone = false;
-  s.lastEndlessKind = kind;
   return kind;
 }

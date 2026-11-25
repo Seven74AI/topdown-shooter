@@ -427,6 +427,68 @@ export const wavesSchema = z
       .array(z.number().min(0).lt(1))
       .refine((a) => a.every((v, i) => i === 0 || v >= (a[i - 1] as number)), "fixedAtFractions must be ascending")
       .default([]),
+    /**
+     * Story 6.11: the evacuation vote. It opens after clearing wave `runWaves` (the single source:
+     * no separate `firstWave` key to keep equal, so every `runWaves` override moves it too) and lasts `voteS`; once every player voted it ends `allVotedHoldS`
+     * later (D3). `dawnS`: the client's dawn after Extract. `padRadiusM`: the helicopter pad's drawn
+     * ring (the centre is map data: the `evac_pad` event spot). Story 6.12: in endless a vote also
+     * opens after every `everyWaves`-th wave past `runWaves` (15, 20, 25…).
+     */
+    evac: z
+      .object({
+        voteS: z.number().positive().max(120).default(15),
+        allVotedHoldS: z.number().min(0).max(10).default(1),
+        dawnS: z.number().min(0).max(30).default(4),
+        everyWaves: z.number().int().min(1).max(100).default(5),
+        padRadiusM: z.number().positive().max(10).default(3),
+      })
+      .strict()
+      .default({ voteS: 15, allVotedHoldS: 1, dawnS: 4, everyWaves: 5, padRadiusM: 3 }),
+    /**
+     * Story 6.12: endless waves (past `runWaves`, after Stay). Size `min(N × zombiesPerWave,
+     * maxZombiesPerWave)` × the party scale (F1); every zombie spawned in wave N > `hpGrowthFromWave`
+     * has `1 + hpGrowthPerWave × (N − hpGrowthFromWave)` × HP (F2); `N − (brutesFirstWave −
+     * brutesAtFirstWave)` Brutes spread from `bruteFromFraction` to `bruteToFraction` of the wave,
+     * at most `brutesMaxAlive` alive (F3); a Behemoth every `bossEveryWaves`-th wave past `runWaves`
+     * with `1 + bossHpGrowthPerBoss × k` × HP (F4); odd waves reuse wave `oddWaveMix`'s mix, even
+     * waves wave `evenWaveMix`'s (D5); `eventEvenWaves`: one special event on even non-boss waves (F6).
+     * The light rule is `decay.json › blackout.endlessOddWaves / endlessEvenHalfDark` (6.3's block).
+     */
+    endless: z
+      .object({
+        maxZombiesPerWave: z.number().int().positive().max(65535).default(600),
+        hpGrowthFromWave: z.number().int().min(1).max(255).default(15),
+        hpGrowthPerWave: z.number().min(0).max(1).default(0.06),
+        brutesFirstWave: z.number().int().min(1).max(255).default(11),
+        brutesAtFirstWave: z.number().int().min(0).max(255).default(3),
+        brutesPerWave: z.number().int().min(0).max(10).default(1),
+        brutesMaxAlive: z.number().int().min(1).max(64).default(6),
+        bruteFromFraction: z.number().min(0).lt(1).default(0.25),
+        bruteToFraction: z.number().min(0).lt(1).default(0.9),
+        bossEveryWaves: z.number().int().min(1).max(100).default(5),
+        bossHpGrowthPerBoss: z.number().min(0).max(10).default(0.25),
+        eventEvenWaves: z.boolean().default(true),
+        oddWaveMix: z.number().int().min(1).max(255).default(9),
+        evenWaveMix: z.number().int().min(1).max(255).default(10),
+      })
+      .strict()
+      .refine((e) => e.bruteToFraction >= e.bruteFromFraction, "endless.bruteToFraction must be ≥ bruteFromFraction")
+      .default({
+        maxZombiesPerWave: 600,
+        hpGrowthFromWave: 15,
+        hpGrowthPerWave: 0.06,
+        brutesFirstWave: 11,
+        brutesAtFirstWave: 3,
+        brutesPerWave: 1,
+        brutesMaxAlive: 6,
+        bruteFromFraction: 0.25,
+        bruteToFraction: 0.9,
+        bossEveryWaves: 5,
+        bossHpGrowthPerBoss: 0.25,
+        eventEvenWaves: true,
+        oddWaveMix: 9,
+        evenWaveMix: 10,
+      }),
   })
   .strict();
 
@@ -836,6 +898,8 @@ export const BLACKOUT_DEFAULTS = {
   endlessLightPct: 5,
   halfDarkK: 0.5,
   halfDarkInBuild: false,
+  endlessOddWaves: true,
+  endlessEvenHalfDark: true,
   glowM: 1.6,
   fireLightM: 4,
   muzzleLightM: 3,
@@ -867,6 +931,10 @@ export const blackoutSchema = z
     endlessLightPct: z.number().int().min(1).max(100).default(BLACKOUT_DEFAULTS.endlessLightPct),
     halfDarkK: z.number().gt(0).max(1).default(BLACKOUT_DEFAULTS.halfDarkK),
     halfDarkInBuild: z.boolean().default(BLACKOUT_DEFAULTS.halfDarkInBuild),
+    /** Story 6.12 (F5): odd endless waves (11, 13, 15…) are blackout waves at `endlessLightPct`. */
+    endlessOddWaves: z.boolean().default(true),
+    /** Story 6.12 (D3): even endless waves are drawn at `endlessLightPct` at half strength (`halfDarkK`), like a stage-5 build phase. */
+    endlessEvenHalfDark: z.boolean().default(true),
     /** F2: the glow round every standing/downed survivor (crossCheck: > every zombie radius + the player's). */
     glowM: z.number().positive().max(4).default(BLACKOUT_DEFAULTS.glowM),
     fireLightM: z.number().positive().max(16).default(BLACKOUT_DEFAULTS.fireLightM),

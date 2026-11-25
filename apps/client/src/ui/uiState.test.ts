@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { menuStep, playingScreen, resultsTitle, uiStore, type MenuAction, type MenuState } from "./uiState";
+import { menuStep, playingScreen, resultsSub, resultsTitle, uiStore, type MenuAction, type MenuState } from "./uiState";
 
-describe("resultsTitle (Story 3.10)", () => {
-  it("is 'You held out!' after the last wave, else the wave reached", () => {
-    expect(resultsTitle({ wave: 5, heldOut: true })).toBe("You held out!");
-    expect(resultsTitle({ wave: 3, heldOut: false })).toBe("Wave reached 3");
+describe("resultsTitle / resultsSub (Stories 6.11, 6.12)", () => {
+  it("\"Extracted\" / \"Lost in the city\" with the wave under it; a wipe before any vote: the wave reached", () => {
+    expect(resultsTitle({ wave: 10, ending: "extracted" })).toBe("Extracted");
+    expect(resultsSub({ wave: 10, ending: "extracted" })).toBe("Wave reached 10");
+    expect(resultsTitle({ wave: 13, ending: "lost" })).toBe("Lost in the city");
+    expect(resultsSub({ wave: 13, ending: "lost" })).toBe("Wave reached 13 · rewards after wave 10 lost");
+    expect(resultsTitle({ wave: 3, ending: "wiped" })).toBe("Wave reached 3");
+    expect(resultsSub({ wave: 3, ending: "wiped" })).toBe("");
   });
 });
 
@@ -12,8 +16,8 @@ describe("uiStore", () => {
   it("notifies subscribers and routes requests", () => {
     const seen: string[] = [];
     const off = uiStore.subscribe((s) => seen.push(s.kind));
-    uiStore.set({ kind: "results", wave: 3, rows: [], online: false, heldOut: false, seed: 5 });
-    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false, heldOut: false, seed: 5 });
+    uiStore.set({ kind: "results", wave: 3, rows: [], online: false, ending: "wiped", endless: false, seed: 5, dawnEndsAtMs: 0 });
+    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false, ending: "wiped", endless: false, seed: 5, dawnEndsAtMs: 0 });
     let restarted = 0;
     uiStore.handle("restart", () => restarted++);
     uiStore.request("restart");

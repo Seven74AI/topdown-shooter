@@ -487,6 +487,17 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 | R3 | `EVENT_ARROW_DISC_FRAC` / `TIP_FRAC` / `TIP_OFFSET` and `eventArrowDrawnRect` are exported. EventView draws with the same constants. | `hudLayout.test` asserts on the drawn disc ∪ tip box, not the 34 px box. |
 | R4 | AC 9, F8, the JSON block → `runS` 12; the hold is ≤ 3 + 12 = 15 s (review text, exploit list); decisions 6.8 B1 → "≤ 15 s (the over-budget window is the ≤ 12 s crossing)". | `stampede.test`: 5 seeds hold the wave for exactly `ticksFor(warningS) + ticksFor(runS)` = 300 ticks (≤ 15 s), then release. |
 
+### Merge of 6.11 + 6.12 (master 739eb2c, 2026-11-25)
+
+- Conflicts resolved by keeping both sides: RunState schema, `RUN_STATE_FIELDS` and the fixtures list 6.8's 7 `event*` fields, then `voteTicksLeft` / `endless`; `PlayerState.vote` stays last. NET_EVENT_KIND: 55–58 (6.8), then 65–67 (6.11). GameScene creates, updates and destroys EventView and HeliView/vote side by side. The readability sheet has 70–74, then 80–85.
+- `updateRun` keeps `if (updateWaves(world) && !eventHoldsWave(world)) endWave(world)` after 6.11's vote branch. `skipWave` ends the event first.
+- **One endless scheduler (6.12's).** `run/endlessEvents.ts › endlessEventCandidates` returns every kind whose `eventFits` passes for the wave (reused array). 6.8's `scheduleEndlessEvent` and `special.lastEndlessKind` are removed, so 6.12's `run.lastEndlessEvent` is the only no-repeat. `startBuild` calls 6.12's `scheduleEndlessEvent`, then the new `events/schedule.ts › armEndlessEvent`, which writes `run.endlessEvent` into `special.extra` for the coming wave with a start fraction (stream `events`). It then triggers like a scheduled entry.
+- HeliView `evacPadOf` reads the typed `map.eventSpots` (`kind === "evac_pad"`: Downtown (24, 15.9)).
+- Tests:
+  - `schedule.test`: the candidates are the kinds that pass `eventFits`. Over 6 seeds through `startBuild` → wave 12 the picked car alarm or stampede triggers, the odd wave 13 gets none, and wave 14 triggers the other kind.
+  - `endless.test`: the 6.12 hook test now expects a pick in wave 12.
+  - `HeliView.test`: the pad is at (24, 15.9).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -496,3 +507,4 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 - 2026-11-24: review fixes: 6.8 B2 (runS 12), the update-outcome API, M2 (edge arrow in the HUD layout test), L1–L8, nits; status review.
 - 2026-11-25: Re-review (AI) of the review fixes: approve with notes (1 medium R1 edge arrow over the HP bar / wave line, 3 low).
 - 2026-11-25: re-review fixes R1–R4 (arrow off the HP block and the wave line, safe-rect on-screen test, drawn-extent test, runS 12 / ≤ 15 s docs and the hold test).
+- 2026-11-25: merged 6.11 + 6.12 from master: one endless scheduler (6.12) feeding the framework (`armEndlessEvent`); HeliView pad from `evac_pad`.

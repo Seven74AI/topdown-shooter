@@ -117,11 +117,9 @@ export interface SpecialEventState {
   count: number;
   /** Bit i = schedule entry i finished (triggered and ended, or skipped). */
   done: number;
-  /** Forced (dev) or endless (6.12) entry; kind EVENT_NONE when unused. Done when `extraDone`. */
+  /** Forced (dev) or endless (6.12, `armEndlessEvent`) entry; kind EVENT_NONE when unused. Done when `extraDone`. */
   readonly extra: ScheduleEntry;
   extraDone: boolean;
-  /** 6.12: the kind of the previous endless event (never the same twice in a row, 6.12 D4). */
-  lastEndlessKind: number;
   readonly active: ActiveEvent;
   readonly carAlarm: CarAlarmState;
   readonly stampede: StampedeState;
@@ -141,7 +139,6 @@ export function createSpecialEventState(): SpecialEventState {
     done: 0,
     extra: { kind: EVENT_NONE, wave: 0, startFraction: 0 },
     extraDone: false,
-    lastEndlessKind: EVENT_NONE,
     active: { kind: EVENT_NONE, phase: EVENT_PHASE.NONE, startTick: 0, phaseTick: 0, x: 0, y: 0, wave: 0, entry: -1, lane: -1 },
     carAlarm: { car: "", minX: 0, minY: 0, maxX: 0, maxY: 0, shotBy: null },
     stampede: { toSpawn: 0, spawned: 0, rowTimer: 0, alive: 0, dirX: 0, dirY: 0 },
@@ -162,7 +159,6 @@ export function snapshotSpecial(s: Readonly<SpecialEventState>) {
     done: s.done,
     extra: { ...s.extra },
     extraDone: s.extraDone,
-    lastEndlessKind: s.lastEndlessKind,
     active: { ...s.active },
     carAlarm: { ...s.carAlarm },
     stampede: { ...s.stampede },

@@ -10,6 +10,8 @@
     "endlessLightPct": 5,
     "halfDarkK": 0.5,
     "halfDarkInBuild": true,
+    "endlessOddWaves": true,
+    "endlessEvenHalfDark": true,
     "glowM": 1.6,
     "fireLightM": 4,
     "muzzleLightM": 3,

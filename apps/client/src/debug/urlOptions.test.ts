@@ -150,6 +150,7 @@ describe("Story 6.5 ?bosswave / ?bosshp", () => {
   it("parses dev values; refuses junk", async () => {
     const { parseBossHpScale, parseBossWaves } = await import("./urlOptions");
     expect(parseBossWaves("3")).toEqual([3]);
+    expect(parseBossWaves("none")).toEqual([]); // re-review N1
     expect(parseBossWaves("1,4")).toEqual([1, 4]);
     expect(parseBossWaves("0")).toBeNull();
     expect(parseBossWaves("x")).toBeNull();

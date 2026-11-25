@@ -192,7 +192,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.y[id] = y;
   pool.prevX[id] = x;
   pool.prevY[id] = y;
-  pool.hp[id] = stats.hp;
+  pool.hp[id] = stats.hp * world.waves.hpMult; // Story 6.12 (F2, D-B): endless HP growth, once at spawn (1 outside endless)
   pool.attackCooldownTicks[id] = 0;
   pool.fireTicks[id] = 0; // Story 4.8: a reused slot starts with a cold burn clock
   pool.spitTicks[id] = 0; // Story 5.6: ready to wind up

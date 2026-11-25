@@ -82,7 +82,7 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
     expect(c.kills).toEqual(rec.run.kills); // every kill again, by the same player
     expect(c.turretKills).toBe(rec.run.turretKills);
     expect(w.run.phase).toBe("results");
-    expect(w.run.heldOut).toBe(rec.run.heldOut);
+    expect(w.run.ending).toBe(rec.run.ending);
     expect(w.buildings.list.length).toBeGreaterThan(0);
   });
 

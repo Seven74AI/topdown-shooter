@@ -284,6 +284,33 @@ describe("syncState", () => {
     expect(state.players.get("p0")).toMatchObject({ level0: 0, level1: 0 });
   });
 
+  it("Story 6.11/6.12: a vote, its ticks, the ending and endless are synced on change and reset on lobby return", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    const p0 = w.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    p0.vote = 2;
+    w.run.voteTicksLeft = 120;
+    w.run.endless = true;
+    syncState(state, controller);
+    expect(state.players.get("p0")?.vote).toBe(2);
+    expect(state.voteTicksLeft).toBe(120);
+    expect(state.endless).toBe(true);
+    expect(encoder.encode().length).toBeLessThan(24); // three small field patches
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // nothing per tick when nothing changed
+    state.resultEnding = "lost";
+    resetRunFields(state);
+    expect(state.players.get("p0")?.vote).toBe(0);
+    expect(state.voteTicksLeft).toBe(0);
+    expect(state.endless).toBe(false);
+    expect(state.resultEnding).toBe("");
+  });
+
   it("Story 5.11: gear (with maxHp/hp) written on change only (one small patch), reset on lobby return", () => {
     const { controller, state, encoder } = setup();
     const w = controller.world;

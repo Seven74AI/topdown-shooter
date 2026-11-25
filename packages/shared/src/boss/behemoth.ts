@@ -11,7 +11,7 @@ import type { PlayerState } from "../player/player";
 import { FLOW_UNREACHED, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell } from "../zombies/flowField";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
-import { BOSS_ATTACK, BOSS_STATE, bossBodyOn, bossMaxHp, isBossWave, resetBoss } from "./bossState";
+import { BOSS_ATTACK, BOSS_STATE, bossBodyOn, bossMaxHp, endlessBossHpMult, isBossWave, resetBoss } from "./bossState";
 import { flushBossHits } from "./bossDamage";
 import { bossStats, createAttackZone, startBossAttack, updateBossAttack } from "./telegraph";
 import { planCharge } from "./charge";
@@ -178,7 +178,7 @@ function arrive(world: World): void {
   const bal = world.balance.boss;
   b.number++;
   b.look = behemothLookIndex(world.seed, b.number, b.number > 1 ? b.look : -1);
-  b.maxHp = bossMaxHp(world.balance, world.players.size, world.debug.bossHpScale);
+  b.maxHp = bossMaxHp(world.balance, world.players.size, world.debug.bossHpScale, endlessBossHpMult(world.balance, world.waves.number, world.run.endless)); // Story 6.12 (F4)
   b.hp = b.maxHp;
   b.state = BOSS_STATE.WALK;
   b.stateTicks = 0;
@@ -203,14 +203,14 @@ function arrivalDue(world: Readonly<World>): boolean {
   const w = world.waves;
   const b = world.boss;
   if (b.state !== BOSS_STATE.NONE || b.wave === w.number) return false;
-  if (!isBossWave(world.balance, w.number, false, world.debug.bossWaves)) return false;
+  if (!isBossWave(world.balance, w.number, world.run.endless, world.debug.bossWaves)) return false;
   return w.size - w.queued >= Math.round(w.size * world.balance.boss.arriveAtFraction);
 }
 
 /** F11 helper: this wave is a boss wave whose boss has not come yet (the wave can't end before it). */
 export function bossPending(world: Readonly<World>): boolean {
   const b = world.boss;
-  return b.wave !== world.waves.number && isBossWave(world.balance, world.waves.number, false, world.debug.bossWaves);
+  return b.wave !== world.waves.number && isBossWave(world.balance, world.waves.number, world.run.endless, world.debug.bossWaves);
 }
 
 /** Any standing player's centre within `slam.triggerM` of the boss's centre. */

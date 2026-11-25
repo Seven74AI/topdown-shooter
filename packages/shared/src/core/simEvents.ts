@@ -73,8 +73,12 @@ export type SimEvent =
   | { type: "player.out"; playerId: string }
   | { type: "player.returned"; playerId: string; x: number; y: number }
   | { type: "team.wiped"; wave: number }
-  /** Story 3.10: the team cleared the run's last wave (`waves.runWaves`); the run is over ("You held out!"). */
-  | { type: "run.held_out"; wave: number }
+  /** Story 6.11: the evacuation vote opened after clearing `wave`; it lasts `ticks` server ticks (F4). (Replaces 3.10's `run.held_out`.) */
+  | { type: "run.vote_opened"; wave: number; ticks: number }
+  /** Story 6.11: the vote's result (F3): the counts of the players in the run when it resolved. */
+  | { type: "run.vote_resolved"; choice: "extract" | "stay"; extract: number; stay: number; silent: number }
+  /** Story 6.11: the team extracted after clearing `wave` (`endless`: after Stay, 6.12: the DW2 dawn); Results follow the same tick. */
+  | { type: "run.extracted"; wave: number; endless: boolean }
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }

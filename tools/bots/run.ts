@@ -17,7 +17,7 @@
  *                         150-alive cap (the worst case for bandwidth; default 0)
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
- * (Story 3.10) a `bots_economy` line: the run's end (held out / wiped, wave) and per bot its kills,
+ * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
  * money earned (to compare with the GDD target), wallet, weapons bought and buildings placed. The bots
  * shop from `bots.json › shoppingList` in every build phase.
  */
@@ -137,7 +137,7 @@ async function main(): Promise<void> {
     await sleep(250);
     const phase = bots[0]?.room.state?.phase;
     if (bots.every((b) => b.lastEndedWave >= args.untilWave)) return stop(`wave ${args.untilWave} ended`);
-    if (phase === "results") return stop(bots[0]?.room.state?.resultHeldOut ? "run ended (held out)" : "run ended (team wiped)");
+    if (phase === "results") return stop(`run ended (${bots[0]?.room.state?.resultEnding || "wiped"})`); // Story 6.11
     const closed = bots.find((b) => b.closed)?.closed;
     if (closed) return stop(`room closed (code ${closed.code}${closed.reason ? `: ${closed.reason}` : ""})`);
     if (timeUp()) return stop(`--max-seconds ${args.maxSeconds} reached`);
@@ -166,7 +166,7 @@ function summary(bots: readonly BotClient[], reason: string, log: (line: Record<
   log({
     msg: "bots_economy",
     phase: state?.phase,
-    heldOut: state?.resultHeldOut ?? false,
+    ending: state?.resultEnding ?? "", // Story 6.11
     resultWave: state?.resultWave ?? 0,
     bots: bots.map((b) => {
       const p = state?.players?.get(b.playerId);

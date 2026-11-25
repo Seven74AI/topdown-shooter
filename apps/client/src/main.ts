@@ -17,11 +17,18 @@ import { parseJoinPath } from "./net/route";
 import { NetSession, type NetRoomLike } from "./net/session";
 import { DevThrottle } from "./net/devThrottle";
 import { createOnlinePhaseHandler } from "./net/onlineFlow";
+import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import "./ui/overlay.css";
+
+// Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
+let lastShownMs = Number.NEGATIVE_INFINITY;
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) lastShownMs = performance.now();
+});
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
 // (capped at MAX_DPR) and zoom it back down to the CSS viewport.
@@ -104,6 +111,9 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
           return new NetSession(fight, joined, () => leaveRoom(room), inbox);
         },
         inbox: () => lobbyStore.inbox(),
+        dawnS: clientBalance().waves.evac.dawnS, // Story 6.11
+        pageHidden: () => document.hidden, // re-review 2 (RR2-M1)
+        lastShownMs: () => lastShownMs,
         ui: uiStore,
       }),
     });

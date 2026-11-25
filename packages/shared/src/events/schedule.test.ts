@@ -4,8 +4,14 @@ import { createWorld, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { stageForWave } from "../decay/decayState";
 import { addPlayer } from "../player/player";
-import { EVENT_KINDS, EVENT_NONE } from "./eventState";
-import { eventFits, scheduleEndlessEvent, scheduleRunEvents } from "./schedule";
+import { EVENT_KINDS } from "./eventState";
+import { eventFits, scheduleRunEvents } from "./schedule";
+import { applyStartWave } from "../run/devStartWave";
+import { endlessEventCandidates } from "../run/endlessEvents";
+import { skipWave, startBuild, startWave } from "../run/runStateMachine";
+import { TICK_DT_S } from "../config/constants";
+import { step } from "../core/world";
+import type { SimEvent } from "../core/simEvents";
 import { alarmCandidates } from "./carAlarm";
 
 const balance = loadBalance();
@@ -105,16 +111,50 @@ describe("Story 6.8 F2: the run's schedule", () => {
     expect(w.streams.events.getState()).toEqual(st);
   });
 
-  it("6.12's endless hook: one event that fits, never the previous endless kind", () => {
+  it("6.12's endless candidates are the kinds whose gate passes (eventFits), in EVENT_KINDS order", () => {
     const w = world(5, 2);
-    let prev = EVENT_NONE;
     for (let wave = 12; wave <= 40; wave += 2) {
-      const k = scheduleEndlessEvent(w, wave);
-      expect(k).not.toBe(EVENT_NONE);
-      expect(k).not.toBe(prev);
-      expect(eventFits(w, k, wave)).toBe(true);
-      expect(w.special.extra).toMatchObject({ kind: k, wave });
-      prev = k;
+      const ids = endlessEventCandidates(w, wave);
+      const want = EVENT_KINDS.filter((_, k) => eventFits(w, k, wave));
+      expect([...ids]).toEqual(want);
+      expect(ids).toContain("car_alarm");
+      expect(ids).toContain("stampede");
     }
   });
+});
+
+describe("Story 6.8 × 6.12: an even endless wave starts its event through 6.12's scheduler", () => {
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    it(`seed ${seed}: the build before wave 12 picks a kind (startBuild → scheduleEndlessEvent → armEndlessEvent); wave 12 triggers it; wave 14's never repeats it`, () => {
+      const w = createWorld({ balance, seed, map: DOWNTOWN_MAP });
+      const p = addPlayer(w, "p0", 24, 16);
+      const events: SimEvent[] = [];
+      w.events.subscribe((e) => events.push(e));
+      applyStartWave(w, 12);
+      startBuild(w);
+      const seen: string[] = [];
+      for (const wave of [12, 14]) {
+        expect(w.run.phase).toBe("build");
+        expect(w.waves.number + 1).toBe(wave);
+        const id = w.run.endlessEvent;
+        expect(["car_alarm", "stampede"]).toContain(id);
+        expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf(id as (typeof EVENT_KINDS)[number]), wave });
+        expect(w.special.extraDone).toBe(false);
+        startWave(w);
+        events.length = 0;
+        for (let i = 0; i < 20 * 120 && !events.some((e) => e.type === "event.triggered"); i++) {
+          p.hp = p.maxHp; // the test is about the trigger, not survival
+          step(w, TICK_DT_S);
+        }
+        expect(events.find((e) => e.type === "event.triggered"), `wave ${wave}: ${id} triggered`).toMatchObject({ type: "event.triggered", kind: id, wave });
+        seen.push(id);
+        // on to the build before the next even wave (the odd wave between gets none)
+        skipWave(w);
+        expect(w.run.endlessEvent).toBe("");
+        startWave(w);
+        skipWave(w);
+      }
+      expect(seen[0]).not.toBe(seen[1]); // 6.12 D4: never the same twice in a row
+    });
+  }
 });

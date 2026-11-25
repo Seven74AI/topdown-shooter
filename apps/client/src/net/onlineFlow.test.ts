@@ -11,6 +11,9 @@ const joined = { playerId: "p1", slot: 1, tickRateHz: 20 };
 const batch = (tick: number): SimEventsFlushed => ({ tick, events: [[NET_EVENT_KIND.WAVE_STARTED, tick, 8]] });
 
 /** The main.ts wiring with fakes: one room, its inbox, the ui requests seen. */
+let clock = 1000;
+let hidden = false;
+let shownAt = Number.NEGATIVE_INFINITY;
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(2, { name: "Cid", kills: 3, earned: 120 }), fakePlayer(0, { name: "Ana", kills: 7, earned: 245 })]));
   room.state.phase = "lobby";
@@ -28,6 +31,10 @@ function setup() {
       return s;
     },
     inbox: () => inbox,
+    dawnS: 4,
+    nowMs: () => clock,
+    pageHidden: () => hidden,
+    lastShownMs: () => shownAt,
     ui: {
       set: (s) => screens.push(s),
       request: (name, ...args) => requests.push({ name, arg: args[0] }),
@@ -70,6 +77,152 @@ describe("build phase in the run cycle (Story 3.1)", () => {
   });
 });
 
+describe("Story 6.11: the vote in the run cycle", () => {
+  it("build → wave → vote → build keeps the one session; an Extract seen live plays the 4 s dawn, a late one does not", () => {
+    const t = setup();
+    t.phase("build");
+    t.phase("wave");
+    t.phase("vote");
+    t.phase("build"); // Stay
+    t.phase("wave");
+    t.phase("vote");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toHaveLength(1);
+    t.room.state.resultWave = 15;
+    t.room.state.resultEnding = "extracted";
+    t.room.state.endless = true;
+    t.room.state.tick = 80; // the extract tick: 4 s of server time after the phases above (tick 0 at clock 1000)
+    clock = 5000;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ kind: "results", ending: "extracted", endless: true, wave: 15, dawnEndsAtMs: 9000 });
+    // A late Game scene start (Results seen first, e.g. a reload) → no dawn.
+    const u = setup();
+    u.room.state.resultEnding = "extracted";
+    u.phase("results");
+    expect(u.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock });
+  });
+
+  it("review M2: a page frozen across the extract (the backlog delivers vote → results 5 s late) gets no dawn; 1 s late plays the rest", () => {
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 1180;
+    t.phase("wave");
+    t.room.state.tick = 1200;
+    clock = 2000;
+    t.phase("vote"); // seen live: offset = 2000 − 1200 × 50
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300; // extracted 5 s of server time later
+    clock = 2000 + 5000 + 5000; // the tab slept: the vote → results backlog arrives 5 s after the extract
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock }); // straight to the card
+    const u = setup();
+    clock = 1000;
+    u.room.state.tick = 1200;
+    u.phase("vote");
+    u.room.state.resultEnding = "extracted";
+    u.room.state.tick = 1300;
+    clock = 1000 + 5000 + 1000; // 1 s late: 3 s of dawn left, ending on the extract tick + 4 s
+    u.phase("results");
+    expect(u.screens.at(-1)).toMatchObject({ dawnEndsAtMs: 1000 + 5000 + 4000 });
+  });
+
+  it("re-review RL1: 5 s of dropped server ticks earlier in the run don't cost a live player the dawn (the clock restarts at each wave)", () => {
+    shownAt = Number.NEGATIVE_INFINITY;
+    hidden = false;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 0;
+    t.phase("build");
+    t.room.state.tick = 600;
+    clock = 1000 + 600 * 50;
+    t.phase("wave"); // wave 1, live
+    // … nine waves later, the server lost 5 s of ticks to stalls (setFixedTimestep drops the backlog)
+    t.room.state.tick = 20_000;
+    clock = 1000 + 20_000 * 50 + 5000;
+    t.phase("build");
+    t.room.state.tick = 20_600;
+    clock = 1000 + 20_600 * 50 + 5000;
+    t.phase("wave"); // wave 10 starts: a fresh live sample
+    t.room.state.tick = 30_000;
+    clock = 1000 + 30_000 * 50 + 5000;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 30_100;
+    clock = 1000 + 30_100 * 50 + 5000 + 80; // live (80 ms of latency)
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock - 80 + 4000 });
+  });
+
+  /** The live vote → results of one run (wave start at `c0`, extract 5 s into the vote, 80 ms latency). */
+  function liveExtract(c0: number) {
+    clock = c0;
+    const t = setup();
+    t.room.state.tick = 600;
+    t.phase("wave");
+    t.room.state.tick = 1200;
+    clock = c0 + 600 * 50;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300;
+    clock = c0 + 700 * 50 + 80;
+    return t;
+  }
+
+  it("re-review 2 (RR2-M1): a 2 s tab switch at the vote's start, live at the extract → the full dawn", () => {
+    hidden = false;
+    shownAt = 1000 + 600 * 50 + 2000; // came back 2 s into the vote, 3 s before the extract
+    const t = liveExtract(1000);
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock - 80 + 4000 });
+    shownAt = Number.NEGATIVE_INFINITY;
+  });
+
+  it("re-review 2 (RR2-M1): hidden when the Results patch is processed → no dawn", () => {
+    hidden = true;
+    shownAt = Number.NEGATIVE_INFINITY;
+    const t = liveExtract(1000);
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ dawnEndsAtMs: clock });
+    hidden = false;
+  });
+
+  it("re-review 2 (RR2-M1, RR2-L1): shown 0.5 s before the patch (a frozen tab's queued messages) → no dawn", () => {
+    hidden = false;
+    const t = liveExtract(1000);
+    shownAt = clock - 500;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ dawnEndsAtMs: clock });
+    shownAt = Number.NEGATIVE_INFINITY;
+  });
+
+  it("re-review RL2: a new run seen without its lobby patch restarts the clock (run 2's dawn plays)", () => {
+    shownAt = Number.NEGATIVE_INFINITY;
+    hidden = false;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 50_000; // run 1 was long
+    t.phase("wave");
+    t.room.state.resultEnding = "wiped";
+    t.phase("results");
+    clock += 60_000 + 1200 * 50; // its lobby, build and wave patches skipped under ?lag: run 2 (ticks from 0) is first seen in its vote
+    t.room.state.tick = 1200;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300;
+    clock += 100 * 50;
+    t.phase("results");
+    expect(t.sessions).toHaveLength(2);
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock + 4000 });
+  });
+
+  it("a vote seen first (a late join / reload during the vote) starts the session", () => {
+    const t = setup();
+    t.phase("vote");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toEqual([{ name: "startOnline", arg: t.sessions[0] }]);
+  });
+});
+
 describe("online run cycle in one room (Story 2.8)", () => {
   it("the Game scene's NetSimHost.dispose after Back to lobby doesn't leave the room", () => {
     const t = setup();
@@ -95,9 +248,11 @@ describe("online run cycle in one room (Story 2.8)", () => {
     expect(t.screens.at(-1)).toEqual({
       kind: "results",
       wave: 4,
-      heldOut: false,
+      ending: "wiped",
+      endless: false,
       online: true,
       seed: 3141592653,
+      dawnEndsAtMs: clock, // a wipe: no dawn
       rows: [
         { slot: 0, name: "Ana", kills: 7, earned: 245 },
         { slot: 2, name: "Cid", kills: 3, earned: 120 },
@@ -158,6 +313,7 @@ describe("online run cycle in one room (Story 2.8)", () => {
       state: () => fakeState(),
       makeSession: () => null,
       inbox: () => null,
+      dawnS: 4,
       ui: {
         set: (s) => {
           screens.push(s);
@@ -175,18 +331,19 @@ describe("online run cycle in one room (Story 2.8)", () => {
 describe("resultsFromState", () => {
   it("shows at least wave 1, rows by slot", () => {
     const s = fakeState([fakePlayer(1, { kills: 2 })]);
-    expect(resultsFromState(s)).toEqual({ wave: 1, heldOut: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
+    expect(resultsFromState(s)).toEqual({ wave: 1, ending: "wiped", endless: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
   });
 
-  it("Story 3.10: the last wave cleared → heldOut, the wave reached and each player's earnings", () => {
+  it("Story 6.11: an extract → ending \"extracted\", the wave reached and each player's earnings", () => {
     const s = fakeState([fakePlayer(3, { kills: 40, earned: 610 }), fakePlayer(0, { kills: 52, earned: 655 })]);
     s.phase = "results";
     s.resultWave = 5;
-    s.resultHeldOut = true;
+    s.resultEnding = "extracted";
     s.runSeed = 99;
     expect(resultsFromState(s)).toEqual({
       wave: 5,
-      heldOut: true,
+      ending: "extracted",
+      endless: false,
       seed: 99,
       rows: [
         { slot: 0, name: "P0", kills: 52, earned: 655 },

@@ -651,3 +651,11 @@ describe("Story 6.8: events.json", () => {
     bad((e) => ((e.stampede as Record<string, unknown>).countByPlayers = [12, 18, 24]), /countByPlayers/);
   });
 });
+
+describe("Story 6.11/6.12 review L5", () => {
+  it("evac.everyWaves must equal endless.bossEveryWaves (a vote after every endless Behemoth wave)", () => {
+    const files = bundledBalanceFiles();
+    (files.waves as { evac: { everyWaves: number } }).evac.everyWaves = 4;
+    expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
+  });
+});

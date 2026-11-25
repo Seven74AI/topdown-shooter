@@ -28,3 +28,13 @@ export function holdBuildingInput(out: MutablePlayerInput): MutablePlayerInput {
   out.fire = false;
   return out;
 }
+
+/**
+ * Story 6.11 (D-B; re-review N2): my survivor stands still (neutral move, no fire) while the in-run
+ * menu or the shop is open, and for the whole evacuation vote — the server freezes everything in a
+ * vote, and neutral moves keep the client's Predictor standing still too. The Game scene and the
+ * netsim test both use this one rule.
+ */
+export function standsStill(menuOpen: boolean, shopOpen: boolean, phase: string): boolean {
+  return menuOpen || shopOpen || phase === "vote";
+}

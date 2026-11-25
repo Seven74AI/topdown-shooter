@@ -8,6 +8,7 @@ import { layoutBossBar } from "./bossBar";
 import { eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { layoutHpBlock, layoutWaveLine } from "./hudTopLayout";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
+import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -78,6 +79,11 @@ function modes(w: number, h: number): Record<string, Box[]> {
       { id: "chip", x: hand.chip.x, y: hand.chip.y, w: hand.chip.w, h: hand.chip.h },
       sq("undo", undoHand.x, undoHand.y, undoHand.size),
     ],
+    // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
+    vote: (() => {
+      const v = layoutEvacVote(w, h, INSET.bottom);
+      return [menu(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+    })(),
     selected: [menu(w), ...act.rects.filter((r) => r.visible).map((r, i) => ({ id: `action_${ACTION_IDS[i]}`, x: r.x, y: r.y, w: r.w, h: r.h }))],
   };
 }
@@ -134,6 +140,11 @@ const KNOWN_LIST: [string, number][] = [
   ["640x360 selected action_move: within 48 px of the centre", 19],
   ["640x360 selected action_move: in the move-stick half", 37],
   ["640x360 selected action_upgrade: within 48 px of the centre", 21.47],
+  // Story 6.11 (EX1 as picked: EXTRACT left of the ring) — designer decision 6.11 B1 "K: keep EX1". In a vote the
+  // sticks are hidden, input is neutral and the server is frozen (D4); an accidental Extract is the
+  // silent default and can be changed (D2).
+  ["568x320 vote vote_extract: in the move-stick half", 118],
+  ["640x360 vote vote_extract: in the move-stick half", 118],
 ];
 const KNOWN_AS_BUILT = new Map<string, number>(KNOWN_LIST);
 
@@ -159,6 +170,32 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
 
   it("the baseline measures are recorded (no NaN)", () => {
     for (const [k, v] of KNOWN_AS_BUILT) expect(Number.isFinite(v), k).toBe(true);
+  });
+
+  it("Story 6.11 (T4, review L1): the vote row at 568×320 / 640×360 / 800×360 / 844×390 — ring between the buttons, ≥ 12 px gaps, 56 px tall, inside the safe area, clear of ☰ and the survivor", () => {
+    for (const [w, h] of [...SIZES, [800, 360] as [number, number], [844, 390] as [number, number]]) {
+      const v = layoutEvacVote(w, h, INSET.bottom);
+      const boxes: Box[] = [
+        { id: "extract", ...v.extract },
+        { id: "ring", ...v.ring },
+        { id: "stay", ...v.stay },
+      ];
+      expect(v.extract.h).toBeGreaterThanOrEqual(56);
+      expect(v.stay.h).toBeGreaterThanOrEqual(56);
+      // left to right with ≥ 12 px between neighbours (buttons never touch the ring or each other)
+      for (let i = 1; i < boxes.length; i++) {
+        const a = boxes[i - 1] as Box;
+        const b = boxes[i] as Box;
+        expect(b.x - (a.x + a.w), `${w}x${h} ${a.id} → ${b.id}`).toBeGreaterThanOrEqual(12);
+      }
+      for (const b of boxes) {
+        expect(b.x).toBeGreaterThanOrEqual(INSET.left);
+        expect(b.x + b.w).toBeLessThanOrEqual(w - INSET.right);
+        expect(b.y + b.h).toBeLessThanOrEqual(h - INSET.bottom);
+        expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${w}x${h} ${b.id}`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+        expect(overlaps(b, menu(w)), `${w}x${h} ${b.id} vs ☰`).toBe(false);
+      }
+    }
   });
 
   it("the checks bite: a box at the centre is caught (self-check)", () => {

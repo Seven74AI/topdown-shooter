@@ -252,9 +252,10 @@ export function parseBossHpScale(raw: string | null | undefined): number | null 
   return n > 0 && n <= 10 ? n : null;
 }
 
-/** Story 6.5: `?bosswave=3` / `1,4` → the wave list (1–255 each), else null. */
+/** Story 6.5: `?bosswave=3` / `1,4` → the wave list (1–255 each); `none` → [] (no Behemoth, endless included; re-review N1); else null. */
 export function parseBossWaves(raw: string | null | undefined): readonly number[] | null {
   if (raw === null || raw === undefined || raw.trim() === "") return null;
+  if (raw.trim().toLowerCase() === "none") return [];
   const parts = raw.split(",").map((t) => t.trim());
   if (parts.length > 10 || !parts.every((t) => /^\d{1,3}$/.test(t))) return null;
   const waves = parts.map(Number);

@@ -23,6 +23,8 @@ import {
   DOWNTOWN_MAP,
   removePlayer,
   setBuildReady,
+  castVote,
+  type EvacChoice,
   setZombieHistoryEnabled,
   setInput,
   skippedInputWeaponTick,
@@ -308,6 +310,11 @@ export class RunController {
     this.world.events.subscribe((e) => this.events.push(e));
     startBuild(this.world); // Story 3.1: Lobby → Build; `build.started` goes out with the first tick
     if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
+  }
+
+  /** Story 6.11: an evacuation vote (the World ignores it outside phase "vote"). */
+  castVote(playerId: string, choice: EvacChoice): void {
+    castVote(this.world, playerId, choice);
   }
 
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
