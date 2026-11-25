@@ -36,6 +36,10 @@ jobs:
       GIT_SHA: ci # the compose file refuses to run without it; matches the tags built below
     steps:
       - uses: actions/checkout@v7
+      - name: Throwaway stack secrets (Story 7.1 made the compose file require them; never real ones)
+        run: |
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: docker build -f deploy/server.Dockerfile --target server -t topdown-server:ci .
       - run: docker build -f deploy/server.Dockerfile --target web -t topdown-web:ci .
       - name: Caddyfile is valid
