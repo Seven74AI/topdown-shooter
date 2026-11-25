@@ -36,3 +36,45 @@ describe("Story 8.1 NetSimHost send gate", () => {
     expect(sent.slice(before).every((s) => !s.swap)).toBe(true); // a swap pressed offline is not sent late
   });
 });
+
+describe("Story 8.1 × 8.9: a same-room reconnect keeps the render clock monotonic (8.9 F2)", () => {
+  it("5 s with no patches while the link is down, then patches resume ahead: the render tick never goes backwards", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 })]));
+    let now = 0;
+    let up = true;
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => now, linkUp: () => up });
+    let tick = 0;
+    let offset = 0; // server ticks ahead of the client's time (the server went on while we were gone)
+    let last = Number.NEGATIVE_INFINITY;
+    let patchesAfter = 0;
+    let samples = 0;
+    const frame = (patch: boolean): void => {
+      now += 1000 / 60;
+      if (patch && now >= (tick + 1 - offset) * 50) {
+        tick++;
+        room.state.tick = tick;
+        room.patch();
+        if (offset > 0) patchesAfter++;
+      }
+      host.update(FRAME);
+      const r = host.renderTick;
+      if (Number.isFinite(r)) {
+        expect(r).toBeGreaterThanOrEqual(last - 1e-9);
+        last = r;
+        samples++;
+      }
+    };
+    for (let i = 0; i < 180; i++) frame(true); // 3 s live
+    up = false;
+    const at = now;
+    while (now - at < 5000) frame(false); // dropped: nothing arrives
+    up = true;
+    tick += 100; // back: the server is 100 ticks further on (5 s of the gap … minus nothing: it kept running)
+    offset = 100;
+    for (let i = 0; i < 300; i++) frame(true);
+    expect(samples).toBeGreaterThan(400); // liveness: the clock really ran on both sides of the gap
+    expect(patchesAfter).toBeGreaterThan(50); // patches really resumed ahead
+    expect(last).toBeGreaterThan(tick - 20); // and the render clock caught up forward
+  });
+});
