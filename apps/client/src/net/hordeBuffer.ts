@@ -1,4 +1,4 @@
-import { HORDE_MAX_RECORDS, HORDE_MISSING_LIMIT, zombieSlotOfNetId, type HordeSink } from "@topdown/shared";
+import { HORDE_MAX_RECORDS, HORDE_MISSING_TICKS, zombieSlotOfNetId, type HordeSink } from "@topdown/shared";
 
 /** Horde snapshots kept (Story 2.5): AC 3 asks for 3; 8 covers Story 2.6's 150 ms delay plus jitter. */
 export const HORDE_RING_SIZE = 8;
@@ -49,9 +49,10 @@ export class HordeSample {
  *   record of B is drawn lerped from A when A has the same net id, else at B's position (a new
  *   generation is a different zombie: never lerped from the dead one). Past the newest frame A is
  *   held (no extrapolation); before the oldest, the oldest is shown.
- * - Missing-3 rule: a slot absent from a new frame counts a miss; at HORDE_MISSING_LIMIT misses
- *   in a row it leaves the view. Until then it is held at its last sampled position, so a zombie
- *   crossing the margin edge doesn't flicker.
+ * - Missing rule (Story 8.9, D4): a slot absent from a frame remembers that frame's tick; it
+ *   leaves the view once the render tick is HORDE_MISSING_TICKS (150 ms) past it (`dropMissing`),
+ *   not after 3 arriving frames (a burst after a stall brings 3 at once). Until then it is held at
+ *   its last sampled position, so a zombie crossing the margin edge doesn't flicker.
  * - Dead set: `markDead(netId)` (or `killAt` once the render tick reaches the kill) hides that net
  *   id in every snapshot, now and in later frames still carrying it.
  */
@@ -61,14 +62,14 @@ export class HordeBuffer implements HordeSink {
   private count = 0;
   private writing: HordeSnapshot | null = null;
 
-  /** Per slot: net id of the newest frames (−1 when out of view) and misses in a row. */
+  /** Per slot: net id of the newest frames (−1 when out of view) and the tick of the first frame that lacked it (−1 none). */
   private readonly lastNetId = new Int32Array(SLOTS).fill(-1);
-  private readonly missCount = new Uint8Array(SLOTS);
+  private readonly firstMissTick = new Float64Array(SLOTS).fill(-1);
   /** Per slot: the net id marked dead (−1 none). */
   private readonly deadNetId = new Int32Array(SLOTS).fill(-1);
   /**
    * Per slot: a net id whose `zombie.killed` is queued but not rendered yet (−1 none). It stays
-   * drawn (A's or the held pose) even after the missing-3 rule dropped it, so it never vanishes
+   * drawn (A's or the held pose) even after the missing rule dropped it, so it never vanishes
    * before its death FX (Story 2.5 review: with 2.6's 3-tick delay, every kill did).
    */
   private readonly pendingKillNetId = new Int32Array(SLOTS).fill(-1);
@@ -124,7 +125,7 @@ export class HordeBuffer implements HordeSink {
     s.typeState[i] = typeState;
     s.slotIndex[slot] = i;
     this.lastNetId[slot] = netId;
-    this.missCount[slot] = 0;
+    this.firstMissTick[slot] = -1;
     const dead = this.deadNetId[slot] as number;
     if (dead >= 0 && dead !== netId) this.deadNetId[slot] = -1; // a new generation (or a wrapped one)
   }
@@ -136,13 +137,24 @@ export class HordeBuffer implements HordeSink {
     this.count++;
     for (let slot = 0; slot < SLOTS; slot++) {
       if ((this.lastNetId[slot] as number) < 0 || (s.slotIndex[slot] as number) >= 0) continue;
-      const misses = (this.missCount[slot] as number) + 1;
-      this.missCount[slot] = misses;
-      if (misses >= HORDE_MISSING_LIMIT) {
-        const last = this.lastNetId[slot] as number;
-        this.lastNetId[slot] = -1;
-        if (this.pendingKillNetId[slot] !== last) this.heldNetId[slot] = -1;
-      }
+      if ((this.firstMissTick[slot] as number) < 0) this.firstMissTick[slot] = s.tick;
+    }
+  }
+
+  /**
+   * Story 8.9 (D4): slots missing since a frame the render tick is HORDE_MISSING_TICKS past leave
+   * the view (a pending kill keeps its zombie drawn until its death FX). One small function so the
+   * delta decoder (Story 8.10) keeps the rule.
+   */
+  private dropMissing(renderTick: number): void {
+    for (let slot = 0; slot < SLOTS; slot++) {
+      const miss = this.firstMissTick[slot] as number;
+      if (miss < 0 || renderTick < miss + HORDE_MISSING_TICKS) continue;
+      this.firstMissTick[slot] = -1;
+      const last = this.lastNetId[slot] as number;
+      if (last < 0) continue;
+      this.lastNetId[slot] = -1;
+      if (this.pendingKillNetId[slot] !== last) this.heldNetId[slot] = -1;
     }
   }
 
@@ -154,7 +166,7 @@ export class HordeBuffer implements HordeSink {
     if (this.heldNetId[slot] === netId) this.heldNetId[slot] = -1;
   }
 
-  /** Still drawn while missing: in view by the missing-3 rule, or its kill not rendered yet. */
+  /** Still drawn while missing: in view by the missing rule, or its kill not rendered yet. */
   private keepsShowing(slot: number, netId: number): boolean {
     return this.lastNetId[slot] === netId || this.pendingKillNetId[slot] === netId;
   }
@@ -180,6 +192,7 @@ export class HordeBuffer implements HordeSink {
       this.killHead = (this.killHead + 1) % HORDE_KILL_QUEUE_SIZE;
       this.killCount--;
     }
+    this.dropMissing(renderTick);
     out.count = 0;
     if (this.count === 0) return;
     const id = ++this.sampleId;
@@ -234,7 +247,7 @@ export class HordeBuffer implements HordeSink {
         this.put(out, netId, a.x[k] as number, a.y[k] as number, a.heading[k] as number, a.typeState[k] as number);
       }
     }
-    // Missing from B (and A) but still in view by the missing-3 rule: hold the last sampled pose.
+    // Missing from B (and A) but still in view by the missing rule: hold the last sampled pose.
     for (let slot = 0; slot < SLOTS; slot++) {
       const held = this.heldNetId[slot] as number;
       if (held < 0 || this.sampledAt[slot] === id) continue;
@@ -255,7 +268,7 @@ export class HordeBuffer implements HordeSink {
       s.slotIndex.fill(-1);
     }
     this.lastNetId.fill(-1);
-    this.missCount.fill(0);
+    this.firstMissTick.fill(-1);
     this.deadNetId.fill(-1);
     this.pendingKillNetId.fill(-1);
     this.heldNetId.fill(-1);

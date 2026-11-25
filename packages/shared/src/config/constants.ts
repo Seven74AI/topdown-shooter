@@ -70,3 +70,10 @@ export const MIN_AIM_LEN = 1e-6;
  * the pool capacities); `loadBalance` refuses a `fixed` entry above it.
  */
 export const MAX_FIXED_PER_WAVE = 8;
+
+/**
+ * Story 2.4 (review): the input backlog the server's queue should settle at (2 inputs = 100 ms of
+ * jitter cover). Story 8.9 moves it here: the client slows its steps while the server reports more
+ * of its inputs queued than this (`PlayerState.inputQueued`). Netcode, not balance.
+ */
+export const INPUT_QUEUE_TARGET = 2;

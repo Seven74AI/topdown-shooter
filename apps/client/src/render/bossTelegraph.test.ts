@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TICK_DT_S } from "@topdown/shared";
-import { loadBalance, sweepChargeLane, createWorld } from "@topdown/shared";
+import { createRng, loadBalance, sweepChargeLane, createWorld } from "@topdown/shared";
+import { ServerClock } from "../net/serverClock";
 import {
   chargeLaneLook,
   chargeLaneProgress,
@@ -135,5 +136,54 @@ describe("Story 6.7 the collapse (D6)", () => {
     expect(deathFrameIndex(0.6, 1.5)).toBe(1);
     expect(deathFrameIndex(1.2, 1.5)).toBe(2);
     expect(deathFrameIndex(60, 1.5)).toBe(2);
+  });
+});
+
+describe("Story 8.9 (F7): the telegraph fill on the slewed, monotonic server clock", () => {
+  it("through stalls, a burst and a lasting +200 ms latency step: 0 at the start tick, 1 exactly at the hit, never above 1, never shrinks", () => {
+    const rng = createRng(5);
+    const clock = new ServerClock();
+    const look: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
+    let tick = 0;
+    let due = 80;
+    let stall = 0;
+    let checked = 0;
+    let started = 0;
+    // A telegraph every 40 ticks, 30 ticks long; the line: 75 ms ± 10, 3 % × 300 ms stalls, +200 ms from 10 s on.
+    const SPAN = 30;
+    let prev = -1;
+    let window = -1;
+    for (let now = 0; now < 25_000; now += 1000 / 60) {
+      while (due <= now) {
+        tick++;
+        clock.sample(due, tick);
+        if (rng.range(0, 100) < 3) stall = 300;
+        const base = (tick + 1) * 50 >= 10_000 ? 275 : 75;
+        due = Math.max(due, (tick + 1) * 50 + base + stall + rng.range(-10, 10));
+        stall = 0;
+      }
+      if (!clock.ready) continue;
+      const est = clock.estimateTick(now);
+      const startTick = Math.floor(est / 40) * 40;
+      if (startTick < 40 || est > startTick + SPAN) continue;
+      telegraphProgress(est, startTick, startTick + SPAN, look);
+      if (startTick !== window) {
+        window = startTick;
+        prev = -1;
+        started++;
+        expect(look.progress).toBeLessThan(0.02); // the fill starts from the start tick: one frame in at most
+      }
+      checked++;
+      expect(look.visible).toBe(true);
+      expect(look.progress).toBeGreaterThanOrEqual(prev);
+      expect(look.progress).toBeLessThanOrEqual(1);
+      prev = look.progress;
+    }
+    expect(started).toBeGreaterThan(8);
+    expect(checked).toBeGreaterThan(500);
+    telegraphProgress(70, 40, 70, look);
+    expect(look.progress).toBe(1); // exactly on the hit
+    telegraphProgress(70 - 1e-6, 40, 70, look);
+    expect(look.progress).toBeLessThan(1);
   });
 });

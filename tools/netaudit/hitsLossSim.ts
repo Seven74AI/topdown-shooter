@@ -346,7 +346,7 @@ export function simulate(o: Options): Result {
       latest = d;
       snaps.push(d);
       serverClock.sample(t, d.tick);
-      delay.snapshot(t, d.tick);
+      delay.sample(t, d.tick, serverClock.rawOffsetMs); // Story 8.9 API (8.8 merges this copy into hitsSim and deletes it)
       predictor.reconcile(d.me.ackSeq, d.me.x, d.me.y, d.me.status);
       for (const e of d.events) {
         if (e[0] === NET_EVENT_KIND.ZOMBIE_HIT && e[7] === 0) hits.serverHit(e[1] as number, t, o.oneWayMs + delay.delayMs + EARLY_HIT_SLACK_MS);
@@ -357,9 +357,8 @@ export function simulate(o: Options): Result {
       }
     }
     // The frame, in NetSimHost.update order.
-    delay.frame(dtMs / 1000);
     if (serverClock.ready) {
-      const rt = delay.renderTick(serverClock.estimateTick(t));
+      const rt = delay.advance(t, serverClock.estimateTick(t), latest ? latest.tick : -1);
       viewTick = viewTickOf(rt);
       sampleHorde(rt);
       mirrorZombies(sample, mirror.zombies);

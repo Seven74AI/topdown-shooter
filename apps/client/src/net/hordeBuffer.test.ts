@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HORDE_MAX_FRAME_BYTES,
-  HORDE_MISSING_LIMIT,
+  HORDE_MISSING_TICKS,
   ZOMBIE_STATE,
   TICK_DT_S,
   createWorld,
@@ -99,7 +99,7 @@ describe("HordeBuffer", () => {
     expect(sample(3).get(A)?.x).toBeCloseTo(1, 5);
   });
 
-  it("holds a zombie missing for 1–2 frames, and drops it at 3", () => {
+  it("Story 8.9 (D4): holds a zombie missing from frames until the render tick is 3 ticks (150 ms) past the first frame that lacked it", () => {
     const { push, sample } = setup();
     push(1, [{ netId: A, x: 1, y: 1 }, { netId: B, x: 5, y: 5 }]);
     push(2, [{ netId: A, x: 2, y: 1 }, { netId: B, x: 6, y: 5 }]);
@@ -107,12 +107,39 @@ describe("HordeBuffer", () => {
     push(3, [{ netId: A, x: 3, y: 1 }]);
     expect(sample(3).get(B)?.x).toBeCloseTo(6, 5); // held at its last sampled position
     push(4, [{ netId: A, x: 4, y: 1 }]);
-    expect(sample(4).get(B)?.x).toBeCloseTo(6, 5);
-    expect(HORDE_MISSING_LIMIT).toBe(3);
     push(5, [{ netId: A, x: 5, y: 1 }]);
-    const s = sample(5);
+    push(6, [{ netId: A, x: 6, y: 1 }]);
+    expect(HORDE_MISSING_TICKS).toBe(3);
+    expect(sample(5.9).get(B)?.x).toBeCloseTo(6, 5); // 145 ms of missing render time: still there
+    const s = sample(6); // 150 ms past frame 3, the first without it
     expect(s.has(B)).toBe(false);
-    expect(s.get(A)?.x).toBeCloseTo(5, 5);
+    expect(s.get(A)?.x).toBeCloseTo(6, 5);
+  });
+
+  it("Story 8.9 (F5): three frames without a margin zombie landing in one burst don't remove it while the render tick is behind them", () => {
+    const { push, sample } = setup();
+    push(1, [{ netId: A, x: 1, y: 1 }, { netId: B, x: 5, y: 5 }]);
+    push(2, [{ netId: A, x: 2, y: 1 }, { netId: B, x: 6, y: 5 }]);
+    expect(sample(1.5).has(B)).toBe(true);
+    // A stall: frames 3–5 (B just outside the margin for them) arrive in one task, then 6 has B again.
+    push(3, [{ netId: A, x: 3, y: 1 }]);
+    push(4, [{ netId: A, x: 4, y: 1 }]);
+    push(5, [{ netId: A, x: 5, y: 1 }]);
+    for (const t of [2, 2.5, 3, 4, 5.5]) expect(sample(t).has(B)).toBe(true); // the old missing-3 rule dropped it here
+    push(6, [{ netId: A, x: 6, y: 1 }, { netId: B, x: 7, y: 5 }]);
+    expect(sample(5.9).has(B)).toBe(true);
+    expect(sample(6).get(B)?.x).toBeCloseTo(7, 5);
+  });
+
+  it("Story 8.9: a zombie really gone leaves 150 ms of render time after the first frame without it, not later", () => {
+    const { push, sample } = setup();
+    push(1, [{ netId: B, x: 5, y: 5 }]);
+    expect(sample(1).has(B)).toBe(true);
+    for (let t = 2; t <= 8; t++) push(t, []);
+    expect(sample(3).has(B)).toBe(true);
+    expect(sample(4.9).has(B)).toBe(true);
+    expect(sample(5).has(B)).toBe(false); // first frame without it: 2; 2 + 3 = 5
+    expect(sample(8).has(B)).toBe(false);
   });
 
   it("a zombie back within 2 frames keeps showing (no flicker at the margin)", () => {

@@ -1,6 +1,6 @@
 /** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
-import { simulate, type Options, type Result } from "./hitsSim";
+import { emptySmooth, simulate, type Options, type Result } from "./hitsSim";
 
 const pct = (r: Result) => (r.apparentHits > 0 ? (100 * r.reversed) / r.apparentHits : 0);
 const report = (name: string, r: Result): void => {
@@ -86,7 +86,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0 };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, smooth: emptySmooth() };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
