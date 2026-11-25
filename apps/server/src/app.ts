@@ -18,6 +18,10 @@ import { trainRequests } from "./auth/train";
 import { health } from "./ops/health";
 import { log } from "./ops/logger";
 import { RunRoom } from "./rooms/RunRoom";
+import { savedRunsRepo, type SavedRunsRepo } from "./db/savedRunsRepo";
+import { setRoomSaves } from "./run/roomSaves";
+import { createSavedRunsRoute } from "./auth/savedRunsRoute";
+import { savedRunsIpLimiter } from "./net/rateLimit";
 
 export interface GameServerOptions {
   /**
@@ -73,9 +77,12 @@ export function createGameServer({
   });
   void warmDummyHash(); // Story 7.6 review N3: the missing-name verify costs the same from the first login
   setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
+  const saves: SavedRunsRepo = savedRunsRepo(database);
+  setRoomSaves(saves); // Stories 8.4–8.6: autosaves, Save and quit, resume
+  const savedRuns = createSavedRunsRoute({ accounts, saves, allowedOrigins, ipLimiter: savedRunsIpLimiter }); // Story 8.6
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
-    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook }),
+    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook, savedRuns }),
     transport: new WebSocketTransport({
       server: createGuardedHttpServer(),
       maxPayload: MAX_CLIENT_MESSAGE_BYTES,
@@ -94,7 +101,7 @@ export function createGameServer({
   });
   // Story 7.1: close the pool / PGlite after the rooms have closed (graceful stop, redeploy, test teardown).
   server.onShutdown(() => database.close());
-  return server;
+  return Object.assign(server, { saves });
 }
 
 export type GameServer = ReturnType<typeof createGameServer>;

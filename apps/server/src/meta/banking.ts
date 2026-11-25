@@ -60,6 +60,8 @@ const metaPlayer = (p: Readonly<PlayerState>): MetaPlayer => ({ waveMask: p.wave
 /** 7.12 D1: who found the bag and what came out of it (key null: Collector, or not known yet). */
 export interface TeamLoot {
   playerId: string;
+  /** PR #9 review L1: the finder's SEAT (`playerId#gen`): a player id is reused when a seat is removed; the client matches on this. */
+  seatId?: string;
   wave: number;
   key: string | null;
   name: string;
@@ -96,6 +98,13 @@ export interface RunBankDeps {
   nowMs?(): number;
   /** Story 7.7: the district this run is played in (`state.district` at Start; default Downtown). */
   district?: string;
+  /** Stories 8.4–8.6 (E8-S3): a resumed run keeps its run id (= the save id). Absent: a fresh UUID. */
+  runId?: string;
+  /**
+   * Stories 8.4–8.6 (E8-S4, E8-J6): this run was banked before (a resumable save tops up every linked seat), so EVERY
+   * bank of this RunBank is a top-up: it pays only `new − already` (never twice across nights).
+   */
+  resumed?: boolean;
 }
 
 /** What `run_rewards.breakdown` keeps: the payout, the ending and the record it came from (hand grants, later stories). */
@@ -175,7 +184,7 @@ function storedBreakdown(raw: Record<string, unknown>, supplies: number): Omit<B
 }
 
 export class RunBank {
-  readonly runId: string = randomUUID();
+  readonly runId: string;
   /** By player id: each seat banks once per run. */
   private readonly banks = new Map<string, Promise<RunRewards>>();
   /** By player id: the settled result (re-sent to a seat that comes back on Results). */
@@ -187,6 +196,11 @@ export class RunBank {
   /** Review H1: the seat that found the loot bag (`noteLootFinder`), so a reused player id is never taken for it. */
   private lootFinder: string | null = null;
 
+  /** Story 8.4–8.6 review H1: the finding seat (saved with the run, noted again by a resumed run's bank). */
+  get lootFinderSeat(): string | null {
+    return this.lootFinder;
+  }
+
   /** Review H1: the room tells the bank which SEAT found the bag (on `loot.found`). */
   noteLootFinder(seatId: string): void {
     this.lootFinder = seatId;
@@ -195,7 +209,9 @@ export class RunBank {
   constructor(
     readonly seed: number,
     private readonly deps: RunBankDeps,
-  ) {}
+  ) {
+    this.runId = deps.runId ?? randomUUID();
+  }
 
   /** This seat's settled result, if any (a reconnect on Results gets it again). */
   resultFor(seatId: string): RunRewards | undefined {
@@ -299,7 +315,7 @@ export class RunBank {
       seat === finderSeat
         ? (first as Promise<RunRewards>)
         : first.then((f) => {
-            const teamLoot = finder === null ? undefined : teamLootOf(finder, f);
+            const teamLoot = finder === null ? undefined : teamLootOf(finder, f, finderSeat?.seatId ?? this.lootFinder);
             return this.bank(teamLoot ? { ...seat, teamLoot } : seat);
           }),
     );
@@ -347,7 +363,7 @@ export class RunBank {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const t0 = now();
       try {
-        const r = await repo.addSupplies(this.runId, accountId, pay, writes, this.topUps.has(seatKeyOf(seat)));
+        const r = await repo.addSupplies(this.runId, accountId, pay, writes, this.deps.resumed === true || this.topUps.has(seatKeyOf(seat)));
         const b = storedBreakdown(r.breakdown, r.supplies);
         const meta = storedMeta(r.breakdown);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
@@ -389,10 +405,11 @@ function lootOnly(m: MetaLines): MetaLines {
  * isn't known — its bank failed (or timed out), or it never banked here — there is NO team line (no item is guessed,
  * no nameless "found the bag"). Review round 2 L1: only a SAVED find is named to teammates (`not_saved` too: no line).
  */
-function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot | undefined {
+function teamLootOf(finder: string, r: RunRewards | undefined, seatId: string | null): TeamLoot | undefined {
   const l = (r as { loot?: LootFind } | undefined)?.loot;
   if (!l || r?.status !== "saved") return undefined; // review round 2 L1: only a saved find names an item
-  return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
+  // PR #9 review L1: with the finder's seat, so a phone never names whoever sits in that slot now.
+  return { playerId: finder, ...(seatId !== null ? { seatId } : {}), wave: l.wave, key: l.key, name: l.name };
 }
 
 /** Review H1 (8.3): a seat's bank key — its seat id, else its player id. */

@@ -24,7 +24,7 @@ import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
-import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
+import { RUN_SAVED_TEXT, SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
 import { RECONNECT, shouldRescueReload } from "@topdown/shared";
@@ -115,6 +115,13 @@ function enterRoom(room: RunConnection, c: Connection): void {
           // Story 8.1 (D5): this seat is open in another tab now.
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.alreadyJoined });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.alreadyJoined);
+          return;
+        }
+        if (reason === "saved") {
+          // Story 8.5 (AC 9): "Run saved. Anyone from this run can resume it for 7 days." with OK; carried ghosts drop with the scene.
+          uiStore.set({ kind: "start" });
+          uiStore.request("leaveRun");
+          serverNotice.show(RUN_SAVED_TEXT);
           return;
         }
         if (reason === "removed") {
@@ -227,6 +234,7 @@ function throttled(room: RunConnection): NetRoomLike {
 
 uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));
 uiStore.handle("joinGame", (code, name) => enterLobby((c) => c.joinGame(code, name)));
+uiStore.handle("resumeGame", (id, name) => enterLobby((c) => c.resumeGame(id, name))); // Story 8.6
 /**
  * Leaves the room for good: the current one, or with `room` only if that is still the current one.
  * A share link is done with once you leave (BASE_URL: "/" on the VPS).
