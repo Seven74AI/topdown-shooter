@@ -96,6 +96,62 @@ describe("lagLine (Story 8.8: ordered delay + head-of-line stalls, both directio
     expect(line.stats().chunksUp).toBe(2);
   });
 
+  it("review R2: a side's write-then-end arrives in order, then the end (FIN), in both directions, after the line's delay", async () => {
+    const t = await target();
+    cleanups.push(t.close);
+    const line = await startLagLine({ listen: 0, target: t.port, rttMs: 200, jitterMs: 0 });
+    cleanups.push(line.close);
+    const c = await open(line.port);
+    cleanups.push(() => void c.destroy());
+    const down: Buffer[] = [];
+    let downEndAt = -1;
+    c.on("data", (b: Buffer) => down.push(b));
+    c.on("end", () => (downEndAt = performance.now()));
+    await until(() => t.peer() !== null);
+    const peer = t.peer() as Socket;
+    const t0 = performance.now();
+    peer.end("bye-from-server");
+    await until(() => downEndAt >= 0);
+    expect(Buffer.concat(down).toString()).toBe("bye-from-server");
+    expect(downEndAt - t0).toBeGreaterThanOrEqual(100 - 5); // one-way 100 ms: the FIN travelled behind the bytes
+    // The other way, on a fresh connection: the client's last bytes and its end reach the server.
+    const before = t.got.length;
+    const c2 = await open(line.port);
+    cleanups.push(() => void c2.destroy());
+    await until(() => t.peer() !== peer);
+    let upEnded = false;
+    (t.peer() as Socket).on("end", () => (upEnded = true));
+    const t1 = performance.now();
+    c2.end("bye-from-client");
+    await until(() => upEnded);
+    expect(Buffer.concat(t.got.slice(before).map((g) => g.buf)).toString()).toBe("bye-from-client");
+    expect(performance.now() - t1).toBeGreaterThanOrEqual(100 - 5);
+  });
+
+  it("review R2: a server's WebSocket close frame (code 4000) and FIN reach the client through a stalled line", async () => {
+    const t = await target();
+    cleanups.push(t.close);
+    const script: number[] = [];
+    const line = await startLagLine({ listen: 0, target: t.port, rttMs: 40, jitterMs: 0, lossPct: 50, stallMs: 150, random: () => script.shift() ?? 0.9 });
+    cleanups.push(line.close);
+    const c = await open(line.port);
+    cleanups.push(() => void c.destroy());
+    const got: Buffer[] = [];
+    let ended = false;
+    c.on("data", (b: Buffer) => got.push(b));
+    c.on("end", () => (ended = true));
+    await until(() => t.peer() !== null);
+    const peer = t.peer() as Socket;
+    script.push(0.5, 0.1); // the last data frame stalls 150 ms …
+    peer.write(Buffer.from([0x82, 0x02, 0x01, 0x02])); // a binary frame
+    script.push(0.5, 0.9);
+    peer.end(Buffer.from([0x88, 0x02, 0x0f, 0xa0])); // … the close frame (code 4000) and the FIN wait behind it
+    await until(() => ended);
+    expect([...Buffer.concat(got)]).toEqual([0x82, 0x02, 0x01, 0x02, 0x88, 0x02, 0x0f, 0xa0]);
+    expect(Buffer.concat(got).readUInt16BE(6)).toBe(4000);
+    expect(line.stats().stallsDown).toBe(1);
+  });
+
   it("close frees the port and drops the connections", async () => {
     const t = await target();
     cleanups.push(t.close);

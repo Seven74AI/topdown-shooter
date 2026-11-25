@@ -10,6 +10,11 @@
  * (head-of-line), then it all arrives in one burst. Never a reorder, never a lost byte — the
  * same model as the dev throttle (`apps/client/src/net/devThrottle.ts`) and the hits harness
  * (`tools/netsim/hitsSim.ts › Options.loss`; network pass brief line 14). No stream parsing here.
+ *
+ * Closing (review R2): a side that ends (FIN) is ended on the other side only after every byte it
+ * sent before has been delivered, in order, with the same delay — so a server's last frames and its
+ * WebSocket close frame (close code, e.g. 4000 "left") reach the client like on a real line. Sockets
+ * are destroyed at once only on an error (a reset is a reset) or by `LagLine.close()`.
  */
 import { connect, createServer, type Server, type Socket } from "node:net";
 
@@ -72,16 +77,27 @@ export interface LagLine {
 /** Decision 8.8 D2: one lost packet costs a 200 ms stall (about one 4G retransmit). */
 export const LAG_LINE_DEFAULT_STALL_MS = 200;
 
-/** Delivers chunks in order, each no earlier than its own delayed time. */
+/** Delivers chunks in order, each no earlier than its own delayed time; `buf: null` = end (FIN). */
 class OrderedDelay {
   private lastAt = 0;
-  private readonly queue: { at: number; buf: Buffer }[] = [];
+  private ended = false;
+  private readonly queue: { at: number; buf: Buffer | null }[] = [];
   private timer: NodeJS.Timeout | null = null;
   constructor(
     private readonly dest: Socket,
     private readonly onDeliver: (buf: Buffer) => void,
   ) {}
   push(buf: Buffer, delayMs: number): void {
+    if (this.ended) return;
+    this.enqueue(buf, delayMs);
+  }
+  /** Review R2: end the destination after everything queued before it (once). */
+  pushEnd(delayMs: number): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.enqueue(null, delayMs);
+  }
+  private enqueue(buf: Buffer | null, delayMs: number): void {
     const at = Math.max(this.lastAt, performance.now() + delayMs);
     this.lastAt = at;
     this.queue.push({ at, buf });
@@ -100,7 +116,11 @@ class OrderedDelay {
         this.timer = null;
         const now = performance.now();
         while (this.queue.length > 0 && (this.queue[0] as { at: number }).at <= now + 0.5) {
-          const item = this.queue.shift() as { at: number; buf: Buffer };
+          const item = this.queue.shift() as { at: number; buf: Buffer | null };
+          if (item.buf === null) {
+            if (!this.dest.destroyed) this.dest.end();
+            continue;
+          }
           if (!this.dest.destroyed) this.dest.write(item.buf);
           this.onDeliver(item.buf);
         }
@@ -121,9 +141,10 @@ export function startLagLine(o: LagLineOptions): Promise<LagLine> {
   const delays = new Set<OrderedDelay>();
   let nextId = 1;
 
-  const server: Server = createServer((client) => {
+  // allowHalfOpen: a FIN from one side must not end our other half at once (review R2).
+  const server: Server = createServer({ allowHalfOpen: true }, (client) => {
     client.setNoDelay(true);
-    const upstream = connect({ host: o.targetHost ?? "127.0.0.1", port: o.target });
+    const upstream = connect({ host: o.targetHost ?? "127.0.0.1", port: o.target, allowHalfOpen: true });
     upstream.setNoDelay(true);
     sockets.add(client);
     sockets.add(upstream);
@@ -151,20 +172,33 @@ export function startLagLine(o: LagLineOptions): Promise<LagLine> {
       stats.bytesDown += buf.length;
       down.push(buf, oneWay() + (stalled("down") ? stallMs : 0));
     });
-    const close = (): void => {
+    // Review R2: a FIN travels like data (after everything sent before it); a close without one
+    // (the socket is gone) ends the other side the same way; an error resets both at once.
+    client.on("end", () => up.pushEnd(oneWay()));
+    upstream.on("end", () => down.pushEnd(oneWay()));
+    const destroyBoth = (): void => {
       client.destroy();
       upstream.destroy();
-      sockets.delete(client);
-      sockets.delete(upstream);
       down.stop();
       up.stop();
+    };
+    const forget = (): void => {
+      if (!client.destroyed || !upstream.destroyed) return;
+      sockets.delete(client);
+      sockets.delete(upstream);
       delays.delete(down);
       delays.delete(up);
     };
-    client.on("close", close);
-    upstream.on("close", close);
-    client.on("error", close);
-    upstream.on("error", close);
+    client.on("close", () => {
+      up.pushEnd(oneWay());
+      forget();
+    });
+    upstream.on("close", () => {
+      down.pushEnd(oneWay());
+      forget();
+    });
+    client.on("error", destroyBoth);
+    upstream.on("error", destroyBoth);
   });
 
   return new Promise((resolve, reject) => {
