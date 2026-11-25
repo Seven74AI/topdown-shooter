@@ -11,7 +11,7 @@ import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt, type Building, type BuildingRotation } from "./buildings";
-import { PUSH_MOVED, PUSH_NONE, PUSH_STUCK, circleOverlapsBox, pushEscapes, pushOutOfBuildings, pushed } from "./collision";
+import { PUSH_ESCAPED, PUSH_MOVED, PUSH_NONE, PUSH_STUCK, circleOverlapsBox, pushEscapes, pushOutOfBuildings, pushed, segmentHitsBox } from "./collision";
 
 /** Story 3.4 (FR53): barricades block players and zombies; projectiles pass over. One mechanic per test. */
 const balance = loadBalance();
@@ -64,15 +64,37 @@ describe("circle vs box", () => {
     const e0 = pushEscapes.count;
     expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 12.5)).toBe(PUSH_STUCK);
     expect(pushed).toEqual({ x: 19.75, y: 12.5 });
-    expect(pushEscapes.count).toBe(e0); // a legal start spot: the old rule, no escape
-    // Fix bloater-car-corner: a start spot that is not legal (dropped into the slot, overlapping both walls by 0.15 m)
-    // leaves to the nearest clear spot, on its own side of the walls (out of the slot's south mouth), not across one.
-    expect(circleOverlapsBox(19.75, 11.5, 0.4, 19, 10, 19.5, 12)).toBe(true);
-    expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 11.5)).toBe(PUSH_MOVED);
-    expect(pushEscapes.count).toBe(e0 + 1);
-    expect(clearOfAll(world, pushed.x, pushed.y, 0.4)).toBe(true);
-    expect(pushed.y).toBeGreaterThan(12);
-    expect(Math.abs(pushed.x - 19.75)).toBeLessThan(0.5);
+    // Fix bloater-car-corner: with the escape on, a legal start spot keeps the old rule too.
+    expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 12.5, true, true)).toBe(PUSH_STUCK);
+    expect(pushed).toEqual({ x: 19.75, y: 12.5 });
+    expect(pushEscapes.count).toBe(e0);
+  });
+
+  it("fix bloater-car-corner: a start spot dropped into a slot narrower than the body leaves by a mouth, along the slot, never through a wall", () => {
+    const world = createWorld({ balance, seed: 1 });
+    wall(world, 19, 10, 1); // [19, 19.5] × [10, 12]
+    wall(world, 20, 10, 1); // [20, 20.5] × [10, 12]: a 0.5 m slot at x ∈ [19.5, 20]
+    const e0 = pushEscapes.count;
+    let tried = 0;
+    for (let fy = 10.05; fy < 12; fy += 0.1) {
+      for (let fx = 19.55; fx < 20; fx += 0.1) {
+        tried++;
+        expect(circleOverlapsBox(fx, fy, 0.4, 19, 10, 19.5, 12) || circleOverlapsBox(fx, fy, 0.4, 20, 10, 20.5, 12)).toBe(true);
+        // Without the escape: stuck where it is (the old rule; decay relocation and every other caller).
+        expect(pushOutOfBuildings(world, fx, fy, 0.4, fx, fy)).toBe(PUSH_STUCK);
+        expect(pushOutOfBuildings(world, fx, fy, 0.4, fx, fy, true, true), `(${fx.toFixed(2)}, ${fy.toFixed(2)})`).toBe(PUSH_ESCAPED);
+        const at = `(${fx.toFixed(2)}, ${fy.toFixed(2)}) -> (${pushed.x.toFixed(3)}, ${pushed.y.toFixed(3)})`;
+        expect(clearOfAll(world, pushed.x, pushed.y, 0.4), at).toBe(true);
+        // Its centre's way out crosses neither wall: along the slot and out of a mouth (then it may go on diagonally).
+        expect(segmentHitsBox(fx, fy, pushed.x - fx, pushed.y - fy, 19, 10, 19.5, 12), `${at}: through the west wall`).toBe(false);
+        expect(segmentHitsBox(fx, fy, pushed.x - fx, pushed.y - fy, 20, 10, 20.5, 12), `${at}: through the east wall`).toBe(false);
+        expect(pushed.y < 10 || pushed.y > 12, `${at}: out of a mouth`).toBe(true);
+        // The nearer mouth, where it is clearly nearer (past 1 m the rings are 0.25 m apart, so near the middle either may come first).
+        if (Math.abs(fy - 11) > 0.4) expect(pushed.y < 10, `${at}: the nearer mouth`).toBe(fy < 11);
+      }
+    }
+    expect(tried).toBe(100);
+    expect(pushEscapes.count).toBe(e0 + 100);
   });
 
   it("fix bloater-car-corner: a centre placed inside the join of two touching car-sized boxes (its start spot inside too) leaves to the nearest clear spot", () => {
@@ -86,12 +108,14 @@ describe("circle vs box", () => {
     expect(world.obstacles.solids.map((s) => s.name)).toEqual(["h_car", "v_car"]);
     // In the horizontal box near its bottom face: pushed out of it into the vertical one, and back.
     const e0 = pushEscapes.count;
-    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55)).toBe(PUSH_MOVED);
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55)).toBe(PUSH_STUCK); // the old rule: stays inside
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55, true, true)).toBe(PUSH_ESCAPED);
     expect(pushEscapes.count).toBe(e0 + 1); // it took the escape
     expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
-    expect(Math.hypot(pushed.x - 15.55, pushed.y - 15.55)).toBeLessThan(1.5); // the nearest clear spot, not far away
+    // The nearest clear spot is 1.45 m up (over the top face, y 14.1); past 1 m the rings are 0.25 m apart.
+    expect(Math.hypot(pushed.x - 15.55, pushed.y - 15.55)).toBeLessThanOrEqual(1.45 + 0.25 + 1e-9);
     // The same target from a legal start spot (beside the join): the ordinary push-out takes it out, no escape.
-    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15, 17.3)).toBe(PUSH_MOVED);
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15, 17.3, true, true)).toBe(PUSH_MOVED);
     expect(pushEscapes.count).toBe(e0 + 1);
     expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });
@@ -100,7 +124,8 @@ describe("circle vs box", () => {
     const world = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
     const kiosk = world.obstacles.solids.find((s) => s.name === "gas_kiosk");
     expect(kiosk && kiosk.maxX === world.map.widthM && kiosk.minY === 0).toBe(true); // the 7 × 6 m box in the map's corner
-    expect(pushOutOfBuildings(world, 47.01, 2.5, 0.6, 47.01, 2.5)).toBe(PUSH_MOVED);
+    expect(pushOutOfBuildings(world, 47.01, 2.5, 0.6, 47.01, 2.5)).toBe(PUSH_STUCK); // the old rule
+    expect(pushOutOfBuildings(world, 47.01, 2.5, 0.6, 47.01, 2.5, true, true)).toBe(PUSH_ESCAPED);
     expect(pushed.y).toBeGreaterThanOrEqual(6 + 0.6 - 1e-9); // out of its bottom face, the only one on the map
     expect(world.obstacles.solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.6 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });

@@ -283,7 +283,7 @@ function cornerTrial(seed: number): CornerTrial | null {
 describe("Fix bloater-car-corner: concave corners of two solids × crowds of wide bodies", () => {
   it(`${CORNER_TRIALS} corners (barricade L/T and the car L) × 40–120 Brutes/Bloaters: no body ends a tick in a solid, none stands still > ${STILL_S} s`, () => {
     const fails: string[] = [];
-    const seen = { trials: 0, car: 0, barricades: 0, bodies: 0, inJunction: 0, bloater: 0, brute: 0, longestStill: 0, bloatersLeft: 0, bodyTicks: 0, heldTicks: 0, farthestApproach: 0 };
+    const seen = { trials: 0, car: 0, barricades: 0, bodies: 0, inJunction: 0, bloater: 0, brute: 0, longestStill: 0, bloatersLeft: 0, bodyTicks: 0, heldTicks: 0, longestHeld: 0, notReached: 0 };
     const esc0 = pushEscapes.count;
     for (let seed = 1; seen.trials < CORNER_TRIALS && seed < CORNER_TRIALS * 20; seed++) {
       const t = cornerTrial(seed);
@@ -293,20 +293,22 @@ describe("Fix bloater-car-corner: concave corners of two solids × crowds of wid
       seen.bodies += t.ids.length;
       seen.inJunction += t.inJunction;
       for (const id of t.ids) seen[t.world.zombies.type[id] === zombieTypeIndex("bloater") ? "bloater" : "brute"]++;
-      const r = runCrowd(t.world, t.ids, ticksFor(CORNER_BOUND_S), false);
+      // Progress per body: it ends within 8 m of its player (the edge of a 120-body crowd round one player in a
+      // corner), or at least 1 m nearer than it started.
+      const r = runCrowd(t.world, t.ids, ticksFor(CORNER_BOUND_S), { approachOk: (s0, c) => c < 8 || c <= s0 - 1 });
       seen.longestStill = Math.max(seen.longestStill, r.longestStill);
       seen.bloatersLeft += r.bloatersLeft;
       seen.bodyTicks += r.bodyTicks;
       seen.heldTicks += r.heldTicks;
-      seen.farthestApproach = Math.max(seen.farthestApproach, r.farthestApproach);
-      if (r.inside.length > 0 || r.longestStill > STILL_TICKS) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId})`);
+      seen.longestHeld = Math.max(seen.longestHeld, r.longestHeld);
+      seen.notReached += r.notReached;
+      if (r.inside.length > 0 || r.longestStill > STILL_TICKS || r.farFrom.length > 0) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId}) | got nowhere ${r.farFrom.join(", ")}`);
     }
     (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[corner fuzz] ${JSON.stringify(seen)}; escapes ${pushEscapes.count - esc0}`);
     expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
     expect(seen.trials).toBe(CORNER_TRIALS);
     for (const k of ["car", "barricades", "inJunction", "bloater", "brute"] as const) expect(seen[k], k).toBeGreaterThan(0);
     expect(seen.heldTicks / seen.bodyTicks, "liveness: the still rule checked a real share of free body-ticks").toBeLessThan(0.95);
-    expect(seen.farthestApproach, "every body came up to the crowd round its player").toBeLessThan(10);
     expect(pushEscapes.count - esc0, "liveness: the push-out's escape really fired").toBeGreaterThan(0);
   }, 300_000);
 });

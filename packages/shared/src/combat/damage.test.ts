@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DOWNTOWN_MAP } from "../map/downtown";
 import { loadBalance } from "../config/balance";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld } from "../core/world";
@@ -27,7 +28,19 @@ describe("applyZombieDamage", () => {
     const world = createWorld({ balance: loadBalance(), seed: 1 });
     const id = spawnZombie(world, "walker", 0.4, 10);
     applyZombieDamage(world, id, 1, -1, 0, 5, null, "pistol");
-    expect(world.zombies.x[id]).toBeCloseTo(0.35, 5);
+    // FX-B1: swept like a knockback, it stops 0.1 mm short of the edge (`KNOCK_FACE_GAP_M`), never past it.
+    expect(world.zombies.x[id]).toBeGreaterThanOrEqual(0.35);
+    expect(world.zombies.x[id]).toBeCloseTo(0.3501, 5);
+  });
+
+  it("FX-B1 (fix bloater-car-corner): pushback is swept: hits stacked in one tick stop at a solid's face, never inside it", () => {
+    const world = createWorld({ balance: loadBalance(), seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    const kiosk = world.obstacles.solids.find((s) => s.name === "gas_kiosk");
+    if (!kiosk) throw new Error("gas_kiosk");
+    const id = spawnZombie(world, "walker", kiosk.minX - 0.36, 3); // 1 cm west of its west face
+    for (let k = 0; k < 4; k++) applyZombieDamage(world, id, 1, 1, 0, 0.25, "p0", "machete"); // 1 m east, into it
+    expect(world.zombies.x[id]).toBeLessThanOrEqual(kiosk.minX - 0.35);
+    expect(world.zombies.x[id]).toBeGreaterThan(kiosk.minX - 0.36); // it did move up to the face
   });
 });
 

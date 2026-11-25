@@ -62,6 +62,24 @@ baseline_commit: '388b584'
   - `NetSimHost.decay.test.ts` fixture was inside `se_offices` (an illegal spot, kept there by the old push-out): mirrored to the dumpster's east side, same assertion.
   - Edge-case finding: co-op hit pushback (`hurt`, not swept) stacked in one tick can drive a centre into a junction (dumpster against `se_offices`). That is a normal-play path, pinned in `carCorner.test.ts`.
 
+- Review round 2 (parent session, PR #12 at 7cad82a: changes requested). The intent was renegotiated by the parent: **FX-B1** (auto-accepted) changes normal play on purpose. Round 1's claims "every normal-play case has a legal `from`", "never jumps a wall" and "solo pushback can't" were disproved by the parent's probes; they are corrected below, and the code changed:
+  - **B1 (blocking), the escape crossed walls.**
+    - (a) FX-B1: `combat/damage.ts › hurt` now sweeps hit pushback like a knockback (`sweptMove`, shared with `applyKnockback`). No hit can shove a body into a solid any more, solo or co-op, which removes the only normal-play trigger. Headless digests change in 11 of 12 runs (seeds 1–3 × 1/4 bots × god/mortal vs master 2a88929; one is identical). Outcomes change too: seed 3 with 4 mortal bots wiped in wave 3 on master and now clears all 10 waves; seed 3 solo mortal clears 6 waves instead of 7. Two runs of the branch are identical (deterministic).
+    - (b) `escapeClearPath`: an escape candidate is rejected if the centre's straight path to it crosses any box the start centre isn't already in.
+    - (c) The slot test is parametrised over 100 start spots in the slot: every path stays clear of both walls, ends out of a mouth, and takes the nearer mouth where it is clearly nearer. New full-tick test: a sealed barricade fort with a 0.5 m murder hole, Walkers outside hit 1 m per tick for 200 ticks; none ends inside the fort or a wall.
+  - **B2 (blocking), decay relocation drifted from master** (25 of 48 zombies moved at seed 1). The escape is now opt-in (`escapeInside`, default false). Only zombie pass 4, player movement and player knockback enable it. `relocationPinned.test.ts` pins the stage 3 → 4 relocation (seeds 1 and 5) to master's hashes.
+  - **M3:** docs and comments corrected (this file, the case file, `collision.ts`).
+  - **M4, tests:**
+    - (a) The 200-Bloater test now runs with Bloater blasts harmless to zombies, so each Bloater must touch the player or swell on it itself (`notReached` = 0). It also caps the held share and checks the run lasts longer than the still bound.
+    - (b) Held now means chained, through touching bodies, to a free one (moving, attacking or touching the player), so two wedged bodies can't vouch for each other. The longest held run is reported.
+    - (c) The fuzz checks progress per body: a body alive at the bound must end within 8 m of its player, or at least 1 m nearer than it started.
+    - (d) The determinism test pins a golden digest and asserts the escape ran.
+    - (e) A comment says that `spawnZombie` in a rectangle stands in for `spawnInView`.
+  - **L5:** the escape prefilters the boxes within reach once per search, and caches dead ends per World and obstacle and building versions.
+  - **L6:** the direction count grows with the ring (16 to 256, at most one ring step apart along the ring), using rotation literals (only × and +).
+  - **Nits:** rings use an integer index; `PUSH_ESCAPED` is a distinct result code; `pushEscapes` is documented as process-global.
+  - Not done: a per-body cap on held ticks. A 120-body crowd round one player keeps a back row queued for all 30 s; every held tick is chained to a free body, and the longest held run is reported instead.
+
 ## Design Notes
 
 Checkpoint 1 approval: the intent and constraints come from the parent session's brief (bug report 2026-11-25); no human checkpoint is available in this autonomous run.
