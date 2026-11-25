@@ -69,6 +69,12 @@ export interface World {
   readonly decay: DecayState;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
+  /**
+   * Story 8.1: players on hold (dropped or quiet, `player/hold.ts`), by id. Out of the World: no
+   * system's `players` loop sees them (not a target, not hurt, not in the wipe check); only the pay
+   * path (`earn`, F5) finds them. `returnPlayer` puts them back exactly as held. In `snapshotWorld`.
+   */
+  readonly heldPlayers: Map<string, HeldPlayer>;
   /** Zombie storage (struct-of-arrays pool). */
   readonly zombies: ZombiePool;
   /** Spatial hash grid over zombies, rebuilt each tick by the zombie system. */
@@ -151,6 +157,15 @@ export interface World {
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
+/** Story 8.1: a held player and when the hold began (to replay a build start they missed on return). */
+export interface HeldPlayer {
+  readonly player: PlayerState;
+  /** Review H1: `buildStartIndex` at the hold (a build start was missed iff it grew). */
+  readonly buildIdx: number;
+  /** World tick of the hold (review M1 / B15: a hold shorter than `returnMinHoldTicks` returns in place, unprotected). */
+  readonly atTick: number;
+}
+
 export interface WorldDebug {
   /** The player takes no damage (contact damage is skipped). */
   godMode: boolean;
@@ -229,6 +244,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     obstacles,
     decay,
     players: new Map(),
+    heldPlayers: new Map(), // Story 8.1
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),

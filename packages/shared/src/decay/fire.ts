@@ -93,7 +93,7 @@ function molotovPulseDamage(world: Readonly<World>, slot: number): number {
 const burnPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
   // D4: downed players keep their own countdown; out players are off the map; god mode (dev, ?stress).
-  if (p.status !== "alive" || world.debug.godMode) return;
+  if (p.status !== "alive" || world.debug.godMode || p.protectTicks > 0) return; // Story 8.1 spawn protection
   const car = pass.cars && circleInFire(world.decay.fires, p.x, p.y, p.radiusM);
   const mol = molotovZoneAt(world, p.x, p.y, p.radiusM);
   if (!car && mol < 0) return;

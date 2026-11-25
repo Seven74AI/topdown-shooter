@@ -9,6 +9,7 @@ import {
   ok,
   type JoinOptions,
   type PlayerStateView,
+  type RecoveryJoin,
   type Result,
   type RunStateView,
 } from "@topdown/shared";
@@ -76,6 +77,45 @@ export async function joinGame(code: string, name: string): Promise<Result<RunCo
     return ok(counted(room as RunConnection));
   } catch (e) {
     return err(joinErrorText(e));
+  }
+}
+
+/**
+ * Story 8.1 (AC 6, 9): what a takeover join's failure means for the seat. `seat_kept`: the hold ran
+ * out, the seat waits for a build phase (D4); a refusal that can never change (`run_started`: no seat
+ * of mine here; the room is gone; another version) is `gone`; anything else (no answer: the line is
+ * still cut, a proxy error, the rate limit) is `network` and is tried again.
+ */
+export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
+  if (typeof e !== "object" || e === null) return "network";
+  const code = (e as { code?: unknown }).code;
+  const message = String((e as { message?: unknown }).message ?? "");
+  if (typeof code !== "number") return "network";
+  if (message === "seat_kept") return "seat_kept";
+  if (message === "run_started" || message === "balance_mismatch" || message === "invalid_options" || message === "already_joined") return "gone";
+  if (code === 522 && /not found/i.test(message)) return "gone";
+  return "network";
+}
+
+/**
+ * Story 8.1 (AC 6): takes my seat in a started run back with a fresh join by guest token (the
+ * server matches it: a held or still-open seat is taken over, a remembered one restored in a build phase).
+ */
+export async function rejoinGame(roomId: string, name: string): Promise<RecoveryJoin<RunConnection>> {
+  try {
+    const room = await sdk().joinById<RunStateView>(roomId, options("join", name));
+    return { ok: true, room: counted(room as RunConnection) };
+  } catch (e) {
+    return { ok: false, reason: recoveryFailure(e) };
+  }
+}
+
+/** Story 8.1 (AC 6): a reload's first try: the SDK's reconnection token from sessionStorage (`roomId:token`). */
+export async function reconnectSeat(token: string): Promise<RunConnection | null> {
+  try {
+    return counted((await sdk().reconnect<RunStateView>(token)) as RunConnection);
+  } catch {
+    return null;
   }
 }
 

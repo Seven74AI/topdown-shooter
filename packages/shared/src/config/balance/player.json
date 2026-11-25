@@ -11,5 +11,7 @@
   "flashlight": { "coneDeg": 60, "rangeM": 8 },
   "buildHealFrac": 0.5,
   "returnSearchRings": 3,
-  "returnWideSearchRings": 10
+  "returnWideSearchRings": 10,
+  "returnProtectTicks": 40,
+  "returnMinHoldTicks": 60
 }

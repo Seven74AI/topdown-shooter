@@ -44,6 +44,8 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     consumableCount: 0,
     vote: 0, // Story 6.11
     inputQueued: 0, // Story 8.9
+    heldUntilTick: 0, // Story 8.1
+    protectTicks: 0,
     ...over,
   };
 }
@@ -99,6 +101,8 @@ export interface FakeState {
   npcLeaderSlot: number;
   safeX: number;
   safeY: number;
+  frozen: boolean; // Story 8.1
+  resumeIn: number;
   /** Story 7.12: the loot bag record. */
   lootBagState: number;
   lootBagX: number;
@@ -155,6 +159,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     npcLeaderSlot: 255,
     safeX: 0,
     safeY: 0,
+    frozen: false, // Story 8.1
+    resumeIn: 0,
     lootBagState: 0, // Story 7.12: none
     lootBagX: 0,
     lootBagY: 0,

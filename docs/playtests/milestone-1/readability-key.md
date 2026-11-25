@@ -12,15 +12,15 @@ Scoring for the 4.10 decision rule: an object is **readable** when ≥ 3 of 4 pl
 | 6 | `07_police_barrier.png` | police barrier (stage 2) | **through** (stops bodies only) | |
 | 7 | `08_dumpster.png` | dumpster (stage 2) | **stop** | flagged "a green box" by the designer last session |
 | 8 | `09_sandbags.png` | sandbags (stage 3) | **through** (stops bodies only) | flagged "grey eggs" by the designer last session |
-| 9 | `12_wood_barricade.png` | wood barricade (player-built) | **stop** (stops bodies and bullets) | changed 2026-11-23: every barricade tier stops bullets (PR #6) |
+| 9 | `12_wood_barricade.png` | wood barricade (player-built; since 2026-11-25 a standing scavenged wall: stakes, a door, pallets, plywood, cross planks, props; here its braced inside) | **stop** (stops bodies and bullets) | changed 2026-11-23: every barricade tier stops bullets (PR #6). Picture retaken 2026-11-25 (photoreal group 3) |
 | 10 | `10_burning_car_with_fire_ring.png` | burning car (stage 3) | **stop** | hurts when your body touches the ring (2 m from the car's centre) |
 | 11 | `13_turret.png` | turret (player-built) | through | |
 | 12 | `11_rain_overall.png` | rain / puddles (night, stage 3) | n/a | mood check, not an object |
 | 13–15 | `14_walker.png`, `15_runner.png`, `16_crawler.png` | Walker (pale, slow), Runner (red, fast, flanks), Crawler (green, low, slows on bite) | n/a | Epic 3 check: can they tell them apart? |
-| 18 | `19_reinforced_barricade.png` | reinforced barricade (player-built, wood tier 2, B8 look) | **stop** (stops bodies and bullets) | walk on it: no. Story 5.9 |
-| 19 | `20_metal_barricade.png` | metal barricade (tier 3, M1c look, no yellow plate) | **stop** (stops bodies and bullets) | walk on it: no. Story 5.9 |
-| 20 | `21_spike_trap.png` | spike trap (nail board, floor) | **through** | walk on it: yes (players unharmed); zombies hurt + slowed. Story 5.9 |
-| 21 | `22_mine.png` | mine (floor, single use, N6 look) | **through** | walk on it: yes (players never set it off); inner ring = a zombie touching it sets it off, outer ring = blast (hurts you 40 too). Story 5.9 |
+| 18 | `19_reinforced_barricade.png` | reinforced barricade (player-built, wood tier 2; since 2026-11-25 the scavenged wall faced with rusty corrugated steel, straps and chains, razor wire along the top) | **stop** (stops bodies and bullets) | walk on it: no. Story 5.9; picture retaken 2026-11-25 |
+| 19 | `20_metal_barricade.png` | metal barricade (tier 3; since 2026-11-25 welded steel plates of uneven size with hazard bands and rust; here its outside) | **stop** (stops bodies and bullets) | walk on it: no. Story 5.9; picture retaken 2026-11-25 |
+| 20 | `21_spike_trap.png` | spike trap (nail board, floor; relit 2026-11-25, spike tips glint) | **through** | walk on it: yes (players unharmed); zombies hurt + slowed. Story 5.9 |
+| 21 | `22_mine.png` | mine (floor, single use, N6 look; relit 2026-11-25, its red light blinks; picture taken without the build-phase rings) | **through** | walk on it: yes (players never set it off); inner ring = a zombie touching it sets it off, outer ring = blast (hurts you 40 too). Story 5.9 |
 | 22 | `23_spitter.png` | Spitter (Story 5.6, P4 "gaunt"): bony grey body covered in glowing green pustules, open mouth dripping acid | n/a | right if "spitter / acid zombie / the green-spotted one"; it stands off ~6 m, rears back (mouth blazes, gurgle) and spits; bullets kill it like any zombie |
 | 23 | `24_acid_puddle.png` | acid puddle (Story 5.6) | through (a ground hazard) | hurts (2 every 0.4 s) while your body touches the bright ring (1 m round its centre); gone after 3 s and at every build start |
 | 24 | `25_survivor_fire_axe.png` | survivor holding the Fire Axe (Story 5.2, AX1: long wooden haft, red head at the end) | n/a | right if "axe / fire axe"; swing = a wide pale arc with a warm rim, the zombie is knocked 1.5 m back (stops at cover) |
@@ -48,8 +48,8 @@ Story 5.10 additions (pictures: Playwright, solo dev build `?shopall=1`, 844×39
 
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
-| 37 | `38_floodlight.png` | a floodlight (FL1: a yellow tripod work light, its glass along the front edge) and its warm-white light pool (4 m radius) on the street | **pass** (bullets fly over it; it stops bodies: an obstacle, not cover) | right if "lamp / light / work light / floodlight"; 150 HP, zombies break it; not in the shop until the blackout story (6.3) |
-| 38 | `39_med_station.png` | a med station (MS10: hard med cases stacked on a crate, a glowing green-cross LED panel on top) and its soft green ring at the 2 m heal edge | **pass** (an obstacle, not cover) | right if "medkit / healing / first aid"; touch the ring = +5 HP/s while standing (never for downed survivors), two stations don't stack, walls don't block it; a green "+" shows by a survivor being healed |
+| 37 | `38_floodlight.png` | a floodlight (FL1: a yellow tripod work light, its glass along the front edge; relit 2026-11-25, the lamp hums and flickers) and its warm-white light pool (4 m radius) on the street | **pass** (bullets fly over it; it stops bodies: an obstacle, not cover) | right if "lamp / light / work light / floodlight"; 150 HP, zombies break it; not in the shop until the blackout story (6.3) |
+| 38 | `39_med_station.png` | a med station (MS10: hard med cases stacked on a crate, a glowing green-cross LED panel on top; relit 2026-11-25, the cross beats like a pulse) and its soft green ring at the 2 m heal edge | **pass** (an obstacle, not cover) | right if "medkit / healing / first aid"; touch the ring = +5 HP/s while standing (never for downed survivors), two stations don't stack, walls don't block it; a green "+" shows by a survivor being healed |
 
 Story 5.14 additions (pictures: Playwright, solo dev build, 844×390 at 2×, 2026-11-23):
 
@@ -78,6 +78,12 @@ Story 7.8 addition (picture: game code drawn with @napi-rs/canvas, `docs/art/7-8
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
 | 49 | `49_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |
+
+Photoreal group 3 addition (pictures: Playwright, solo dev build, 844×390 at 2×, after the relit bake, build-phase owner dots and range rings hidden, 2026-11-25; pictures 9, 18–21 and 37–40 retaken the same way):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 63 | `63_fort.png` | a closed fort of standing barricades: the far wall wood (its braced inside toward you), the side walls reinforced (seen end-on: the top edge running up, razor wire on top, braces inside), the near wall metal (its outside), a post at each corner | **stop** (every wall) | right if "a fort / a base / walls". A zombie can't get in: the walls meet at the corners (the corner posts are drawn there, they add nothing to the walls' blocking). Wrong (a readability bug) if anyone reads the corners as gaps, or the thin side walls as weaker than the front ones. Open look question for the designer: bodies just behind a wall are hidden by it (see `docs/art/occlusion/compare.html`) |
 
 Story 7.12 addition (pictures: the game in headless Chromium, 568 × 320 at deviceScaleFactor 2, `docs/art/epic-7/built/7-12-shots.cjs`, 2026-11-25):
 

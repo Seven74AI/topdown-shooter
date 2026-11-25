@@ -104,6 +104,29 @@ Bots on the lossy line (`npm run bots -- --count 4 --scenario net150 --until-wav
 - L2: rate held at 1× at the stretch cap while overdue; rate slew ≤ 4/s; `FRAME_OVERDUE_MS` 15 → 10 to keep F1 (2/s with 15 ms: 1.03 freezes/30 s; 4/s with 10 ms: 0.86).
 - Re-review RL1: the render clock's max(estimate, measurement) reference was an equivalent mutant once the 50 % catch-up was in, and is removed (numbers unchanged: same tests and bounds pass). RM1 → B9: F1 is ≤ 1.2 freezes per 30 s on every 1 % row.
 
+## 8.1 Reconnect within 2 minutes
+
+Measured 2026-11-25 in the builder's cloud session (4 cores, load 0.1–0.6 during the bot runs). Bots: `npm run bots -- --url http://127.0.0.1:2811 --count 4 [--lag 150 --jitter 20 --loss 1|2] --cut-bot 2 --cut-at 12 --cut-for <S> --until-wave 3`, server `DEV_START_WAVE=3` (the 130 s run: `--scenario net150`, god mode, so the other three survive the 2 minutes). "Back" = the cut bot's link is up and its survivor is in the World again, counted from the end of the cut. The cut line (`tools/netaudit/cutLine.ts`) holds every byte both ways (no close) and sits in front of 8.8's lag line.
+
+| Case | Before (master b0e491a) | After (story-8-1) |
+| --- | --- | --- |
+| Bot line cut 8 s mid-wave, clean line | out of the run (any drop = leave, `RunRoom.onLeave`; the 2.11 test asserted removal) | back **51 ms** after the cut (token reconnect + guest takeover), HP 100 → 100, wallet 171 → 172 (a kill paid while held), weapons same |
+| Bot line cut 8 s, lossy line 1 % (150 ± 10 ms, 200 ms stalls; 138 stalls) | out | back **303 ms** after the cut (guest takeover), HP/wallet/weapons same |
+| Bot line cut 8 s, lossy line 2 % (261 stalls) | out | back **302 ms** after the cut, HP 92 → 92, wallet 130 → 133 (turret pay while held, F5) |
+| Bot line cut 30 s, clean | out | back **51 ms** after the cut; offline inputs dropped (no `returned via input`) |
+| Bot line cut 130 s (net150) | out | hold ran out at 120 s (`player_hold_expired`), 7 × `seat_kept` refusals mid-wave, **restored at the next build phase** 13 s after the cut, wallet 136 → 136, same weapons |
+| Automated 8 s cut (4 bots on 8.8's 1 % line, `tools/bots/cut.test.ts`) | — | 6 / 6 green (3 clean-line runs before 8.8 merged, 3 lossy + net150 after) |
+| Server: silent socket terminated after | 6–9 s (`pingMaxRetries` 2) | 12–15 s (3 s × 4; config, `TRANSPORT_PING_*` in limits.ts; not timed here) — and the survivor is held after 3 s of no input (D1) |
+| Phone shows "reconnecting" after | never (≈ 56 s of silent SDK retries, then the start screen) | **3.1 s** (two-tab smoke: 3075–3133 ms, watchdog 3 s; unit test fires at 3001 ms in a 1 ms sweep); **30 ms** on an `offline` event |
+| Teammate sees the grey chip after | — | 3.1–3.4 s (smoke) |
+| Server tick with a held player (wave 3, 84 zombies) | tick avg 0.92 ms (8 s cut run), max 6.5 ms | same wave without a hold: 0.88 / 2.2 ms (30 s run). Hold bookkeeping per tick = one loop over ≤ 4 slots + a `heldPlayers.size` check: below the noise (budget ≤ +0.2 ms) |
+| Bytes: hold fields | — | 0 B/s while nobody is held (heldUntilTick / protectTicks / frozen / resumeIn change only on a hold, a return, a freeze; protectTicks 40 changes once after a mid-wave return ≈ 40 × 3 B over 2 s) |
+
+Notes:
+- A bot cut longer than the 2.12/8.8 checks is quiet-held after 3 s; the takeover joins wait on the cut line and land within ~0.3 s of it ending (one attempt in flight, 10 s attempt timeout).
+- Inputs a bot sent in the first 3 s of a cut (before its watchdog fired) arrive late; at most the input ring (6 = 0.3 s of moves) is applied. Phones send a `viewTick`: an input more than 2 s behind the server is dropped (F7); bots send none, so this rule does not cover them.
+- Two-tab browser smoke (brief 34): `docs/perf/network-pass-smoke-8-1-2026-11-25.md`.
+
 ## 8.10 Half-size horde stream
 
 Branched from master `d8d44d0` (8.8 + 8.9 on it). Change: the horde stream becomes per-client keyframes + deltas (wire format `NET_PROTOCOL_VERSION` 2, refused at join as `update_required` otherwise), heading worked out on the phone (sent only when it would be > 4 steps off, B1), zombies > 8 m from the view centre refreshed every 2nd tick by slot parity and glided between their own refreshes on the phone, a keyframe on the first frame / after a skip / every 20 ticks (staggered) / whenever a delta is not smaller; decoded per connection from the join (`RunInbox`). Full table: the story file (`_bmad-output/implementation-artifacts/8-10-half-size-horde-stream.md` › Measurements).

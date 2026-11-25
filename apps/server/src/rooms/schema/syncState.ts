@@ -14,6 +14,7 @@ export function syncState(state: RunState, controller: RunController): void {
   pass.controller = controller;
   pass.alive = 0;
   world.players.forEach(visitPlayer); // a module-level callback: no closure per tick
+  if (world.heldPlayers.size > 0) world.heldPlayers.forEach(visitHeld); // Story 8.1
   const alive = pass.alive;
   pass.state = null;
   pass.controller = null;
@@ -273,6 +274,13 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.knockDy !== p.knockDy) s.knockDy = p.knockDy;
   if (s.knockStepMm !== p.knockStepMm) s.knockStepMm = p.knockStepMm;
   if (s.gear !== p.gear) s.gear = p.gear; // Story 5.11: on a purchase only
+  if (s.protectTicks !== p.protectTicks) s.protectTicks = p.protectTicks; // Story 8.1: 40 changes after a mid-wave return, then none
+}
+
+/** Story 8.1 (F5): a held player's wallet still changes (their turrets' pay); nothing else of theirs does. */
+function visitHeld(h: { readonly player: SimPlayer }): void {
+  const s = pass.state?.players.get(h.player.id);
+  if (s) syncWallet(s, h.player);
 }
 
 /** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
@@ -286,6 +294,8 @@ export function resetRunFields(state: RunState): void {
   state.resultEnding = ""; // Story 6.11
   state.voteTicksLeft = 0;
   state.endless = false; // Story 6.12
+  state.frozen = false; // Story 8.1
+  state.resumeIn = 0;
   state.buildTicksLeft = 0;
   state.runSeed = 0; // Story 4.4: the next run writes its own
   state.decayStage = 0; // Story 4.5
@@ -346,6 +356,8 @@ function resetPlayer(s: PlayerState): void {
   s.kills = 0;
   s.buildReady = false;
   s.vote = 0; // Story 6.11
+  s.heldUntilTick = 0; // Story 8.1
+  s.protectTicks = 0;
   s.wallet = 0;
   s.earned = 0;
   s.slowTicks = 0;

@@ -27,6 +27,11 @@
  *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
+ *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
+ *   --cut-at <S>          … cut S seconds after the run started (default 30) …
+ *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
+ *                         token reconnect and guest-token takeover bring it back; it logs
+ *                         `bot_reconnected` (after X ms, via token | guest) and a `bot_cut` line.
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
  * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
@@ -36,6 +41,7 @@
 import { readFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
+import { startCutLine, type CutLine } from "../netaudit/cutLine";
 import { startLagLine, type LagLine } from "../netaudit/lagLine";
 import { lineUrl, parseLine, type LineArgs } from "./lineArgs";
 
@@ -50,10 +56,14 @@ interface Args {
   holdFireS: number;
   /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
   line: LineArgs | null;
+  /** Story 8.1: the cut switch (bot index 1-based, start and length in seconds); 0 = off. */
+  cutBot: number;
+  cutAtS: number;
+  cutForS: number;
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "kbps"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -95,6 +105,9 @@ function parseArgs(argv: readonly string[]): Args {
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
     line: parseLine(get, url),
+    cutBot: cutBotOf(get("cut-bot"), count),
+    cutAtS: Number(get("cut-at") ?? 30),
+    cutForS: Number(get("cut-for") ?? 8),
   };
 }
 
@@ -106,6 +119,14 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
   return { url: lineUrl(args.url, line.port), line };
+}
+
+/** Story 8.1: `--cut-bot` must name one of the bots. */
+function cutBotOf(raw: string | undefined, count: number): number {
+  if (raw === undefined) return 0;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > count) throw new Error(`--cut-bot must be 1–${count}`);
+  return n;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -123,15 +144,25 @@ async function main(): Promise<void> {
   const bots: BotClient[] = [];
   const { url, line } = await startLine(args, log);
   const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
+  // Story 8.1: the cut bot's line: a local TCP pass-through in front of the bots' URL (chained BEFORE 8.8's lag line when it is on).
+  let cutLine: CutLine | null = null;
+  const urlFor = async (bot: number): Promise<string> => {
+    if (bot !== args.cutBot) return url;
+    const u = new URL(url);
+    cutLine = await startCutLine({ targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname, target: Number(u.port || (u.protocol === "https:" ? 443 : 80)) });
+    u.hostname = "127.0.0.1";
+    u.port = String(cutLine.port);
+    return u.toString().replace(/\/$/, "");
+  };
   let roomId = args.room;
   if (!roomId) {
-    const host = await BotClient.connect({ ...base, name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}) });
+    const host = await BotClient.connect({ ...base, url: await urlFor(1), name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}) });
     bots.push(host);
     roomId = host.roomId;
     log({ msg: "room_created", roomId, scenario: args.scenario ?? null });
   }
   for (let i = bots.length; i < args.count; i++) {
-    bots.push(await BotClient.connect({ ...base, name: `Bot ${i + 1}`, roomId }));
+    bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId }));
   }
   log({ msg: "bots_joined", roomId, count: bots.length });
 
@@ -151,6 +182,31 @@ async function main(): Promise<void> {
     }
     host.room.send(C2S.RUN_START, {});
     log({ msg: "run_start_sent", roomId });
+  }
+
+  const cutOn = cutLine as CutLine | null;
+  if (cutOn && args.cutBot > 0) {
+    const bot = bots[args.cutBot - 1] as BotClient;
+    setTimeout(() => {
+      const me = bot.room.state?.players?.get(bot.playerId);
+      const at = { hp: me?.hp, wallet: me?.wallet, weapon0: me?.weapon0, weapon1: me?.weapon1, wave: bot.room.state?.wave, phase: bot.room.state?.phase };
+      log({ msg: "bot_cut_started", bot: bot.name, forS: args.cutForS, at });
+      const endsAt = performance.now() + args.cutForS * 1000;
+      void cutOn.cut(args.cutForS * 1000).then(async () => {
+        log({ msg: "bot_cut_ended", bot: bot.name, stats: cutOn.stats() });
+        while (bot.link !== "ok" && performance.now() - endsAt < 60_000) await sleep(50);
+        await sleep(300); // the next patch
+        const now = bot.room.state?.players?.get(bot.playerId);
+        log({
+          msg: "bot_cut",
+          bot: bot.name,
+          backAfterCutEndMs: Math.round(performance.now() - 300 - endsAt),
+          reconnects: bot.reconnects,
+          at,
+          now: { hp: now?.hp, wallet: now?.wallet, weapon0: now?.weapon0, weapon1: now?.weapon1, held: now?.heldUntilTick },
+        });
+      });
+    }, args.cutAtS * 1000);
   }
 
   let stopping = false;

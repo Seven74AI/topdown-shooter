@@ -24,10 +24,15 @@ import {
   createWorld,
   DOWNTOWN_MAP,
   removePlayer,
+  holdPlayer,
+  returnPlayer,
+  releaseHeldPlayer,
+  restoreSeat,
   setBuildReady,
   castVote,
   type EvacChoice,
   setZombieHistoryEnabled,
+  viewTickOfInput,
   setInput,
   skippedInputWeaponTick,
   startBuild,
@@ -63,7 +68,7 @@ import {
   type ZombieTypeId,
   setForcedBlackout,
 } from "@topdown/shared";
-import { INPUT_SEQ_RESYNC_AFTER, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { INPUT_SEQ_RESYNC_AFTER, QUIET_HOLD_TICKS, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS, STALE_INPUT_TICKS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
 
 /** Story 2.12: the rewind cap in ticks (REWIND_CAP_MS, never more than the shared history holds). */
@@ -148,6 +153,17 @@ class PlayerSlot {
   depthAtTick = 0;
   /** Zombies this player killed this run (Story 2.8 Results). */
   kills = 0;
+  /** Story 8.1 (F7): inputs dropped because they were made while the line was down (`isStaleInput`). */
+  offlineDrops = 0;
+  /** Story 8.1 (D1): ticks in a row with no input queued or applied (a quiet phone); reset by every queued input. */
+  quietTicks = 0;
+  /** Story 8.1: on hold (dropped or quiet): out of `order`, its inputs ignored until `returnPlayer`. */
+  held = false;
+  /**
+   * Decision 8.1 B16 (re-review RR1-L1): a mid-wave DROP leaves the body in the World for this many
+   * more ticks (standing still, hittable, a target), then it vanishes into the hold; > 0 = dropping.
+   */
+  dropTicks = 0;
   /**
    * Story 2.7 review: inputs dropped since the last tick (overflow or drain), oldest first (copies).
    * Each gets a weapon-only tick before the next step, so weapon timing follows seqs.
@@ -162,6 +178,22 @@ class PlayerSlot {
    */
   weaponDebt = 0;
 }
+
+/** Story 8.1: an empty queue that accepts any next seq (a hold or a return). Kills and telemetry stay. */
+const resetQueue = (s: PlayerSlot): void => {
+  s.head = 0;
+  s.count = 0;
+  s.lastQueuedSeq = 0;
+  s.ackSeq = 0;
+  s.jumpStreak = 0;
+  s.overTargetTicks = 0;
+  s.skippedCount = 0;
+  s.weaponDebt = 0;
+  s.carrySwap = s.carryConsumable = s.carryFire = false;
+  s.quietTicks = 0;
+  s.depthAtTick = 0; // Story 8.9's synced backlog: none after a hold / return (the phone runs at 1×)
+  s.spreadWatch.reset();
+};
 
 /** Dropped inputs remembered for their weapon-only tick (more in one tick is a client flood: dropped). */
 const SKIPPED_MAX = 16;
@@ -263,6 +295,13 @@ export interface RunControllerOptions {
    */
   onSpreadCancelSuspect?: (s: SpreadCancelSuspect) => void;
   /**
+   * Story 8.1 (D1): called (between steps, at the start of `tick()`) when a connected player went
+   * quiet for QUIET_HOLD_TICKS in a wave and was put on hold. The room logs it and sets the hold fields.
+   */
+  onQuietHold?: (playerId: string) => void;
+  /** Decision 8.1 B16: a dropped body's 3 s ran out and it vanished into the hold (between steps). */
+  onDropHold?: (playerId: string) => void;
+  /**
    * Story 2.12 re-review M-A: called (at most once per wave per player) when a player's input seqs
    * had to be resynced (a run of non-consecutive seqs). Telemetry only (`seq_gap_suspect`).
    */
@@ -295,8 +334,14 @@ export class RunController {
   private readonly devPlacedHpFraction: number | null;
   private readonly onSpreadCancelSuspect: ((s: SpreadCancelSuspect) => void) | null;
   private readonly onSeqResync: ((playerId: string, wave: number, resyncs: number) => void) | null;
+  private readonly onQuietHold: ((playerId: string) => void) | null;
+  private readonly onDropHold: ((playerId: string) => void) | null;
+  /** Story 8.1: slots of held players (kept so a return keeps kills and telemetry). */
+  private readonly heldSlots = new Map<string, PlayerSlot>();
 
   constructor(opts: RunControllerOptions) {
+    this.onQuietHold = opts.onQuietHold ?? null;
+    this.onDropHold = opts.onDropHold ?? null;
     this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
     this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
     this.onSeqResync = opts.onSeqResync ?? null;
@@ -407,7 +452,7 @@ export class RunController {
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */
   queueInput(playerId: string, input: PlayerInput): void {
     const s = this.slots.get(playerId);
-    if (!s) return;
+    if (!s || s.held || s.dropTicks > 0) return; // Story 8.1 (F7): nothing a held (or dropping) seat sent is applied
     if (input.seq <= s.lastQueuedSeq) {
       s.staleDrops++;
       return;
@@ -431,6 +476,13 @@ export class RunController {
       }
     }
     s.jumpStreak = 0;
+    if (this.isStaleInput(input)) {
+      // Story 8.1 (F7): made while the line was down, delivered late: the seq counts, nothing applies.
+      s.lastQueuedSeq = input.seq;
+      s.offlineDrops++;
+      return;
+    }
+    s.quietTicks = 0;
     const full = s.count === INPUT_QUEUE_MAX;
     if (full) {
       dropOldest(s);
@@ -461,7 +513,7 @@ export class RunController {
    */
   rateDroppedInput(playerId: string, message: unknown): void {
     const s = this.slots.get(playerId);
-    if (!s || typeof message !== "object" || message === null) return;
+    if (!s || s.held || typeof message !== "object" || message === null) return;
     const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown; aimX?: unknown; aimY?: unknown; fire?: unknown };
     if (typeof m.seq !== "number" || m.seq !== s.lastQueuedSeq + 1) return;
     s.lastQueuedSeq = m.seq;
@@ -510,9 +562,10 @@ export class RunController {
   }
 
   /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
-  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number } {
+  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number; offline: number } {
     const s = this.slots.get(playerId);
     return {
+      offline: s?.offlineDrops ?? 0,
       overflow: s?.overflowDrops ?? 0,
       stale: s?.staleDrops ?? 0,
       drained: s?.drainSkips ?? 0,
@@ -530,9 +583,151 @@ export class RunController {
   /** Removes a player who left mid-run; zombies pick the next-nearest player on the next tick. */
   removePlayer(playerId: string): void {
     const s = this.slots.get(playerId);
-    if (s) this.order.splice(this.order.indexOf(s), 1);
+    if (s && this.order.includes(s)) this.order.splice(this.order.indexOf(s), 1);
     this.slots.delete(playerId);
+    this.heldSlots.delete(playerId);
     removePlayer(this.world, playerId);
+  }
+
+  /**
+   * Story 8.1 (AC 1, 2): puts a player on hold between ticks (`holdPlayer`: out of the World, downed
+   * → out, inputs dropped). Its input queue is emptied (F7) and it leaves the tick order. False if
+   * unknown or already held.
+   */
+  holdPlayer(playerId: string, awayTicks = 0): boolean {
+    const s = this.slots.get(playerId);
+    if (!s || s.held || !holdPlayer(this.world, playerId, awayTicks)) return false;
+    s.held = true;
+    s.dropTicks = 0;
+    this.order.splice(this.order.indexOf(s), 1);
+    this.heldSlots.set(playerId, s);
+    resetQueue(s);
+    return true;
+  }
+
+  /** Story 8.1 (F7): the input's view is more than STALE_INPUT_TICKS behind the server (made while the line was down). */
+  isStaleInput(input: PlayerInput): boolean {
+    const view = viewTickOfInput(input);
+    return view >= 0 && this.world.tick - view > STALE_INPUT_TICKS;
+  }
+
+  /**
+   * Decision 8.1 B16: a dropped seat. Mid-wave the body stays in the World for `returnMinHoldTicks`
+   * (3 s: standing still, hittable, a target — exactly like D1's quiet phone) and then vanishes into
+   * the hold (`onDropHold`); in a build or vote phase (nothing hurts there) it is held at once.
+   * Returns "dropping" | "held" | null (unknown or already held).
+   */
+  dropPlayer(playerId: string): "dropping" | "held" | null {
+    const s = this.slots.get(playerId);
+    if (!s || s.held) return null;
+    if (this.world.run.phase !== "wave") return this.holdPlayer(playerId) ? "held" : null;
+    if (s.dropTicks === 0) {
+      s.dropTicks = this.world.balance.player.returnMinHoldTicks;
+      resetQueue(s);
+    }
+    return "dropping";
+  }
+
+  /** Decision 8.1 B16: back within the 3 s: the body never left — it just plays on in place (no teleport, no protection). */
+  cancelDrop(playerId: string): boolean {
+    const s = this.slots.get(playerId);
+    if (!s || s.dropTicks === 0) return false;
+    s.dropTicks = 0;
+    resetQueue(s);
+    return true;
+  }
+
+  /** Decision 8.1 B16: the seat dropped and its body is still in the World (its 3 s running). */
+  isDropping(playerId: string): boolean {
+    return (this.slots.get(playerId)?.dropTicks ?? 0) > 0;
+  }
+
+  /** Story 8.1 (D5): a takeover by a new tab: its seqs start afresh (no seq_gap_suspect), nothing else changes. */
+  resetInputs(playerId: string): void {
+    const s = this.slots.get(playerId);
+    if (s) resetQueue(s);
+  }
+
+  /** Story 8.1: the player is on hold. */
+  isHeld(playerId: string): boolean {
+    return this.slots.get(playerId)?.held === true;
+  }
+
+  /** Story 8.1: players present in the World (not held): 0 = nobody to play, the room freezes. */
+  activeCount(): number {
+    return this.order.length;
+  }
+
+  /**
+   * Story 8.1 (AC 3): a held player comes back between ticks (`returnPlayer`: F2 as held, F4
+   * placement and protection). The input queue restarts empty and accepts the client's next seq
+   * whatever it is (a reconnected phone keeps counting, a reloaded one starts at 1: no
+   * `seq_gap_suspect` for a legit return). False if not held.
+   */
+  returnPlayer(playerId: string, allowProtect = true): boolean {
+    const s = this.slots.get(playerId);
+    if (!s || !s.held || !returnPlayer(this.world, playerId, allowProtect)) return false;
+    s.held = false;
+    resetQueue(s);
+    this.heldSlots.delete(playerId);
+    this.insertInOrder(s);
+    return true;
+  }
+
+  /**
+   * Story 8.1 (F8): the hold ran out: the held state leaves the World and the controller and goes to
+   * the room's remembered seats (with the kills). Null if not held.
+   */
+  releaseHeld(playerId: string): { player: PlayerState; kills: number; buildIdx: number } | null {
+    const s = this.slots.get(playerId);
+    if (!s || !s.held) return null;
+    const held = releaseHeldPlayer(this.world, playerId);
+    this.slots.delete(playerId);
+    this.heldSlots.delete(playerId);
+    return held ? { player: held.player, kills: s.kills, buildIdx: held.buildIdx } : null;
+  }
+
+  /**
+   * Story 8.1 (F8): a remembered seat rejoins (build phase): back in the World as it was. Review H2:
+   * with the build-start index it was held at, so a Leave + rejoin in the same build heals nothing.
+   */
+  restoreSeat(player: PlayerState, kills: number, buildIdx: number): boolean {
+    if (this.slots.has(player.id) || !restoreSeat(this.world, player, buildIdx)) return false;
+    const s = new PlayerSlot(player.id);
+    s.kills = kills;
+    this.slots.set(player.id, s);
+    this.insertInOrder(s);
+    return true;
+  }
+
+  /** Back into the tick order by player id (`p0` < `p1` …), so the order never depends on who dropped first. */
+  private insertInOrder(s: PlayerSlot): void {
+    let i = 0;
+    while (i < this.order.length && (this.order[i] as PlayerSlot).playerId < s.playerId) i++;
+    this.order.splice(i, 0, s);
+  }
+
+  /**
+   * Story 8.1 (D1): a connected player with no input for QUIET_HOLD_TICKS in a wave (hidden tab, app
+   * switch, a dead spot) goes on hold. Build and vote phases: nothing can hurt them, they just stand.
+   */
+  private holdQuietPlayers(): void {
+    // Decision 8.1 B16: dropped bodies count down their 3 s (at once outside a wave), then vanish.
+    for (let i = this.order.length - 1; i >= 0; i--) {
+      const s = this.order[i] as PlayerSlot;
+      if (s.dropTicks === 0) continue;
+      if (this.world.run.phase === "wave" && --s.dropTicks > 0) continue;
+      // RR2-M2: the hold counts from the drop (its 3 s standing are already "away").
+      const away = this.world.balance.player.returnMinHoldTicks - s.dropTicks;
+      if (this.holdPlayer(s.playerId, away)) this.onDropHold?.(s.playerId);
+    }
+    if (this.onQuietHold === null || this.world.run.phase !== "wave") return;
+    for (let i = this.order.length - 1; i >= 0; i--) {
+      const s = this.order[i] as PlayerSlot;
+      if (s.quietTicks < QUIET_HOLD_TICKS || s.dropTicks > 0) continue;
+      // RR3-M1: like a drop, the quiet body already stood its 3 s: B15's "away" counts from the last input.
+      if (this.holdPlayer(s.playerId, s.quietTicks)) this.onQuietHold(s.playerId);
+    }
   }
 
   /** Story 2.12 review M1: feeds the newly applied input to the player's spread-cancel watch. */
@@ -548,10 +743,15 @@ export class RunController {
   /** One fixed step. Returns this tick's events (a reused array, valid until the next tick). */
   tick(): readonly SimEvent[] {
     this.events.length = 0;
+    this.holdQuietPlayers(); // Story 8.1 (D1), between steps: the hold is at this tick
+    const wave = this.world.run.phase === "wave";
     for (let i = 0; i < this.order.length; i++) {
       const s = this.order[i] as PlayerSlot;
       const cur = s.current;
       s.depthAtTick = s.count;
+      // Story 8.1 (D1): nothing queued for this wave tick (build and vote phases don't count: nothing hurts a
+      // standing player there, and a tab hidden across a build start is held 3 s into the wave).
+      if (s.count === 0 && wave) s.quietTicks++;
       if (s.count > INPUT_QUEUE_TARGET) {
         s.overTargetTicks++;
         if (s.overTargetTicks >= INPUT_DRAIN_AFTER_TICKS) {

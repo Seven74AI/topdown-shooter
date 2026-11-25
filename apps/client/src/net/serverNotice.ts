@@ -8,7 +8,8 @@ export const SERVER_RESTARTING_TEXT = "Server restarting. Try again in a moment.
 export const SERVER_SHUTDOWN_CLOSE_CODE = 4001;
 
 /** Why a joined room ended without the player leaving. */
-export type LostReason = "server_restarting" | "connection_lost";
+/** Story 8.1: `taken_over` — this seat was opened in another tab or by a reload (D5), which now has it. */
+export type LostReason = "server_restarting" | "connection_lost" | "taken_over";
 
 /**
  * The server announces a stop with `server.shutdown_started`, then closes with 4001

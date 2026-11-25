@@ -46,7 +46,7 @@ let pass: World | null = null;
 const usePlayer = (p: PlayerState): void => {
   const world = pass as World;
   // D7: the cooldown counts applied inputs only (a starved tick pauses it, like the weapon).
-  if (p.weaponsPaused) return;
+  if (p.weaponsPaused || p.protectTicks > 0) return; // Story 8.1 (D3)
   if (p.consumableCooldownTicks > 0) p.consumableCooldownTicks--;
   const input = world.inputs.get(p.id);
   rememberAim(world, p, input);
