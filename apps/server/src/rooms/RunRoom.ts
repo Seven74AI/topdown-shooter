@@ -1650,49 +1650,61 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const resume = this.resume;
     const resumedIds = new Set<string>();
     if (resume) for (const m of this.members.values()) if (this.savedSeatOf(m)?.playerId === m.playerId) resumedIds.add(m.playerId);
-    const controller = new RunController({
-      balance: serverBalance,
-      seed: resume ? resume.save.seed : runSeed,
-      players,
-      // Story 8.6 (AC 13): a resume restores the save (returning members' seats in the World; the rest away).
-      ...(resume ? { restore: { save: resume.save, present: (seat: SavedSeat) => resumedIds.has(seat.playerId), onDropped: (d: object) => this.log.warn(d, "save_item_dropped") } } : {}),
-      map,
-      pauseWaves: process.env.DEV_NO_WAVES === "1",
-      // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
-      waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
-      decayStageByWave: devDecayStages,
-      shopCards: shopPick.cards,
-      forceBlackoutPct: blackoutPick.pct,
-      bossWaves: bossPick.waves,
-      events: devEvents,
-      scenario: this.scenario,
-      startWave: startWavePick.wave,
-      lootSalt,
-      lootPrevVariant: lastLootVariant,
-      devLoot: lootPick.plan,
-      // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
-      devPlacedHpFraction: devPlacedHp,
-      // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
-      lagCompensation: !(devAllowed && process.env.DEV_NO_REWIND === "1"),
-      // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
-      onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
-      // Story 8.1 (D1): a connected player quiet for 3 s in a wave is held like a drop.
-      // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
-      onDropHold: (playerId) => {
-        this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
-        // RR2-M1: the body left the World now: teammates' chips and mirrors follow; the 120 s still run from the drop.
-        const hold = this.holds.get(playerId);
-        const s = this.state.players.get(playerId);
-        const w = this.controller?.world;
-        if (hold && s && w) s.heldUntilTick = w.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
-        this.updateFreeze();
-      },
-      onQuietHold: (playerId) => {
-        for (const m of this.members.values()) if (m.playerId === playerId) this.startHold(m, "quiet", null);
-      },
-      onSpreadCancelSuspect: (s) =>
-        this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
-    });
+    let controller: RunController;
+    try {
+      controller = new RunController({
+        balance: serverBalance,
+        seed: resume ? resume.save.seed : runSeed,
+        players,
+        // Story 8.6 (AC 13): a resume restores the save (returning members' seats in the World; the rest away).
+        ...(resume ? { restore: { save: resume.save, present: (seat: SavedSeat) => resumedIds.has(seat.playerId), onDropped: (d: object) => this.log.warn(d, "save_item_dropped") } } : {}),
+        map,
+        pauseWaves: process.env.DEV_NO_WAVES === "1",
+        // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
+        waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
+        decayStageByWave: devDecayStages,
+        shopCards: shopPick.cards,
+        forceBlackoutPct: blackoutPick.pct,
+        bossWaves: bossPick.waves,
+        events: devEvents,
+        scenario: this.scenario,
+        startWave: startWavePick.wave,
+        lootSalt,
+        lootPrevVariant: lastLootVariant,
+        devLoot: lootPick.plan,
+        // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
+        devPlacedHpFraction: devPlacedHp,
+        // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
+        lagCompensation: !(devAllowed && process.env.DEV_NO_REWIND === "1"),
+        // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
+        onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
+        // Story 8.1 (D1): a connected player quiet for 3 s in a wave is held like a drop.
+        // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
+        onDropHold: (playerId) => {
+          this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
+          // RR2-M1: the body left the World now: teammates' chips and mirrors follow; the 120 s still run from the drop.
+          const hold = this.holds.get(playerId);
+          const s = this.state.players.get(playerId);
+          const w = this.controller?.world;
+          if (hold && s && w) s.heldUntilTick = w.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
+          this.updateFreeze();
+        },
+        onQuietHold: (playerId) => {
+          for (const m of this.members.values()) if (m.playerId === playerId) this.startHold(m, "quiet", null);
+        },
+        onSpreadCancelSuspect: (s) =>
+          this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
+      });
+    } catch (e) {
+      if (!resume) throw e;
+      // Story 8.6: the save didn't restore (claimResume's trial passed, so a bug): never a crashed Start — the lobby
+      // stays (a plain one now) and the save is released (resumable again).
+      this.log.error({ runId: resume.save.runId, why: (e as Error).message }, "save_unreadable");
+      void roomSavesRepo()?.releaseOpen(resume.save.runId, this.roomId).catch(() => undefined);
+      this.resume = null; // a plain lobby from now on
+      this.state.resumeWave = 0;
+      return;
+    }
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (lootPick.plan !== null) this.log.warn({ plan: lootPick.plan }, "dev_loot");
     else if (lootPick.ignored !== null) this.log.warn({ value: process.env.DEV_LOOT, reason: lootPick.ignored }, "dev_loot_ignored");

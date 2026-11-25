@@ -201,11 +201,10 @@ export function restoreRunSave(save: RunSave, opts: RestoreOptions): Restored {
   for (const r of bySeat) (isPresent(r.seat) ? present : away).push(r);
   for (const r of present) world.players.set(r.player.id, r.player);
   const flame = world.flameSlots as (string | null)[];
-  for (let i = 0; i < flame.length; i++) {
-    const id = sw.flameSlots[i] ?? null;
-    flame[i] = id !== null && world.players.has(id) ? id : null;
-  }
+  for (let i = 0; i < flame.length; i++) flame[i] = sw.flameSlots[i] ?? null;
+  // The digest of the World exactly as saved (every seat's flame slot still claimed), then the away seats' slots free.
   if (sameBalance && saveDigest(world, away.map((r) => r.player)) !== save.digest) throw new SaveRestoreError("digest");
+  for (let i = 0; i < flame.length; i++) if (flame[i] !== null && !world.players.has(flame[i] as string)) flame[i] = null;
   return { world, present, away, digestChecked: sameBalance };
 }
 
