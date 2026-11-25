@@ -8,7 +8,12 @@ export interface NetOverlaySource {
   readonly netStats: HitCounts & {
     readonly rttMs: number;
     readonly delayMs: number;
-    readonly jitterMs: number;
+    /** Story 8.9: the delay's target, the p95 lateness, the playback rate, freezes and my queued inputs. */
+    readonly targetMs: number;
+    readonly lateP95Ms: number;
+    readonly rate: number;
+    readonly freezes: number;
+    readonly queued: number;
     readonly corrections: number;
     readonly snaps: number;
   };
@@ -20,6 +25,11 @@ export interface NetOverlaySource {
   readonly isHost: boolean;
   /** Story 4.4: the server's run seed (room state; 0 before the first patch). */
   readonly runSeed: number;
+}
+
+/** Story 8.9 (AC 7): `delay 140 ms (target 160) · late p95 60 · rate 1.00× · freezes 0 · queue 2`. */
+export function delayLine(n: NetOverlaySource["netStats"]): string {
+  return `delay ${Math.round(n.delayMs)} ms (target ${Math.round(n.targetMs)}) · late p95 ${Math.round(n.lateP95Ms)} · rate ${n.rate.toFixed(2)}× · freezes ${n.freezes} · queue ${n.queued}`;
 }
 
 /**

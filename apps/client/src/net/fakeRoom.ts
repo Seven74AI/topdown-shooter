@@ -43,6 +43,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     consumable: 255, // Story 5.12
     consumableCount: 0,
     vote: 0, // Story 6.11
+    inputQueued: 0, // Story 8.9
     ...over,
   };
 }

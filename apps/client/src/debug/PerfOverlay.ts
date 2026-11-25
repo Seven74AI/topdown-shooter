@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
-import { createPerfSnapshot, perf } from "./perfStats";
+import { createPerfSnapshot, delayLine, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
 import { hitsLine } from "./reversedHits";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
@@ -92,7 +92,8 @@ export class PerfOverlay {
       const n = net.netStats;
       if (net.scenario) lines.unshift(`TEST SCENARIO ${net.scenario}`);
       else if (urlOptions().scenario && net.isHost) lines.unshift(`scenario ${urlOptions().scenario} refused by the server`);
-      lines.push(`ping ${Math.round(n.rttMs)} ms · delay ${Math.round(n.delayMs)} ms · jitter ${Math.round(n.jitterMs)} ms${throttleLossText(activeThrottle.current)}`); // Story 8.8: + the lossy line
+      lines.push(`ping ${Math.round(n.rttMs)} ms${throttleLossText(activeThrottle.current)}`); // Story 8.8: + the lossy line
+      lines.push(delayLine(n)); // Story 8.9
       lines.push(
         `down ${netMeter.downKBps(now).toFixed(1)} KB/s (avg ${netMeter.avgDownKBps(now).toFixed(1)}, peak ${netMeter.peakDownKBps(now).toFixed(1)}) · up ${netMeter.upKBps(now).toFixed(1)} KB/s`,
       );
