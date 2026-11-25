@@ -285,3 +285,56 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 - The VPS: migration `0001_look` on the production PostgreSQL 18 (Hermes's deploy runs `db:migrate`); tested forward on PGlite with 7.1's schema and rows.
 - The lobby on a phone with a real notch (insets read from `env(safe-area-inset-*)`): tested by the layout function and desktop screenshots only.
 
+
+## Senior Developer Review (AI)
+
+### Re-review (narrow) 1
+
+Scope: only the fix commit 64e57a0 (`b907077..origin/story-7-9`). The merge items M2 (netProtocolVersion) and M3 (migration renumber) are left for landing and not reported. Typecheck passes; the 7 touched test files pass (75 tests).
+
+**Verdict: APPROVE with 1 Low and 1 nit** (no Medium or higher left). The fixes are correct; the Low is a pooled-sprite leak in the same blink path as M1.
+
+**Findings**
+
+- **[Low] RR1: the pooled propeller keeps a faded alpha (M1 not quite finished).** `PlayerView.update` sets the layer's alpha only when `protectBlinkAlpha` changes. `SurvivorLayerPool.release` only hides the sprite (`setVisible(false)`); it does not reset its alpha. Repro, a scratch test using the fakeScene testkit:
+  1. View A wears the propeller and blinks (`protectTicks: 30`, layer alpha 0.367).
+  2. A is destroyed (the player leaves while protected).
+  3. View B gets the same pooled sprite. B is unprotected, so `shownBlink` stays 1 and the alpha is never written.
+  4. Result: B's propeller stays at alpha 0.367 while its body is at 1.
+
+  Fix idea: reset alpha (and tint) in `release`/`acquire`, or apply `shownBlink` in `setAnimatedLayer`. The other paths are fine:
+  - The downed/slowed tint and visibility go to body, gun and layer together (a new body texture resets `shownStatus`).
+  - Out hides all three.
+  - The blackout depth moves all three.
+  - The gun's alpha is set even while hidden (atlas fallback), so it is right when it shows.
+  - PlayerView has no other alpha or tint path, such as a hit flash.
+- **[nit] RR2: the L6 test counts characters, not pixels.** `lobbyStore.test` checks `length ≤ 17`. Measured in Chromium at `500 11px system-ui`: "Waiting for Ready" is 93.0 px and "Need 1 player" is 71.0 px. The Start button is ≥ 112 px (`mainW` floor) minus its 4 px border, so the text fits at 568 and 800, even with notch insets. The check is right in practice, but a pixel check would be safer.
+
+**What I tried to break (L7, one bake per frame)**
+
+- **4 players join at once:** bodies bake on frames 1–4, in the Map's insertion order. Until then each shows the default atlas frame with the gun hidden, and the layer waits with the body.
+- **Build start in the same frame:** a build start's repaints share the budget, so the worst case is 8 frames.
+- **Wrong person's look:** not possible. Entries are keyed by playerId, a queued body has no entry, and `syncViewLook` returns before `setBodyTexture`.
+- **Flicker:** none. Once a view has its key it keeps it, and a spent budget on an existing entry returns the old key.
+- **Leaving while queued:** no entry and no texture, so `remove` is a no-op and nothing leaks.
+- **Context loss while queued:** only registered (baked) bodies are repainted; queued ones register later at their current look.
+- **Allocation:** the null path allocates nothing.
+- **`decaySynced` never arriving:** this gate is only for `NetSimHost`. Practice solo and `?solo` (LocalSimHost, starter look) bake at once. Online, a stage change makes `decaySynced` false for a tick, which only delays a bake: the old texture stays.
+- **L5:** the ⚙ comes back after leaving the lobby. The `uiStore.subscribe` sets `inLobby` from `sc.kind` each time the screen changes.
+
+**Mutations: 10, all caught**
+
+| Mutation | Caught by |
+|---|---|
+| M1: remove `gun.setAlpha(blink)` | SurvivorLookTextures.test |
+| L7: remove `return null` on a spent budget | SurvivorLookTextures.test |
+| L7: remove the `decaySynced` gate | lookWiring.test |
+| L5: `!inLobby` → `true` | lobbyWiring.test |
+| L6: the button shows `startHint` | lobbyWiring.test |
+| L6: longer short-hint text | lobbyStore.test |
+| L2: atlas plain gun painted at 0.9 r | raster test |
+| L1: snapshot drops `look` | lobbyStore.test |
+| M4: NetSimHost `info.look = ""` | playerInfo.test, 2 tests |
+| L4: server toggles `player.look` every tick | RunRoom.look.test, 2 tests |
+
+The L3 fuzz was not mutated: it is a rename plus count assertions.
