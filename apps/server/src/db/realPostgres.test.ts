@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
+import net from "node:net";
 import pg from "pg";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
 import { BANK_RETRY_MS, RunBank } from "../meta/banking";
 import { accountsRepo } from "./accountsRepo";
-import { openPostgres, type Database } from "./client";
+import { PG_QUERY_TIMEOUT_MS, openPostgres, type Database } from "./client";
 import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { countRunRewards } from "./testQueries";
@@ -168,4 +169,101 @@ describe.skipIf(!URL)("Story 7.2: banking on real PostgreSQL (TEST_DATABASE_URL)
       await c.end();
     }
   }, 20_000);
+
+  // Re-review 2 (from `7-2-review-probes/rereview2-realPostgres.probe.ts.txt`).
+  it("RR2-M1: the bank's backend is terminated mid-transaction → the server process survives, the retry runs, paid once, status matches", async () => {
+    const admin = new pg.Client({ connectionString: URL });
+    await admin.connect();
+    try {
+      const { a, repo, before } = await seeded();
+      await lockFor(a.id, 1200);
+      const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+      const p = bank.bank({ playerId: "p1", accountId: a.id, record: rec5, ending: "wiped" });
+      await sleep(500);
+      const k = await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`);
+      expect(k.rowCount).toBeGreaterThanOrEqual(1); // liveness: the bank's backend really was killed
+      const r = await p; // without the pool "connect" error handler the client's 'error' event crashes the process here
+      await sleep(1500);
+      const paid = (await countRunRewards(database, a.id)) - before;
+      expect(r.status).toBe("saved"); // the retry after 2 s
+      expect(paid).toBe(1);
+    } finally {
+      await admin.end();
+    }
+  }, 20_000);
+
+  /** A TCP proxy in front of PostgreSQL that can forward a COMMIT and drop its reply (a half-open connection). */
+  function proxy() {
+    const pgPort = Number(new globalThis.URL(URL as string).port || 5432);
+    const st = { mode: "pass" as "pass" | "blackholeAfterCommit", sockets: [] as net.Socket[], sawCommit: 0 };
+    const server = net.createServer((c) => {
+      const up = net.connect(pgPort, "127.0.0.1");
+      st.sockets.push(c, up);
+      let drop = false;
+      c.on("data", (d) => {
+        if (st.mode === "blackholeAfterCommit" && d.toString("latin1").toLowerCase().includes("commit")) {
+          st.sawCommit++;
+          drop = true;
+        }
+        up.write(d);
+      });
+      up.on("data", (d) => {
+        if (!drop) c.write(d);
+      });
+      c.on("error", () => {});
+      up.on("error", () => {});
+      c.on("close", () => up.destroy());
+      up.on("close", () => c.destroy());
+    });
+    return {
+      st,
+      listen: () => new Promise<number>((r) => server.listen(0, "127.0.0.1", () => r((server.address() as net.AddressInfo).port))),
+      cutAll: () => st.sockets.forEach((x) => x.destroy()),
+      close: () => new Promise<void>((r) => server.close(() => r())),
+    };
+  }
+
+  it("RR2-L1: a black-holed COMMIT reply settles (client query timeout) instead of 'Saving…' forever; the retry finds the row: saved, paid once", async () => {
+    const px = proxy();
+    const port = await px.listen();
+    const pgPort = new globalThis.URL(URL as string).port || "5432";
+    const db2 = openPostgres((URL as string).replace(`:${pgPort}/`, `:${port}/`));
+    try {
+      const a = await acct();
+      const repo2 = progressRepo(db2);
+      await repo2.addSupplies(randomUUID(), a.id, () => ({ supplies: 1000, breakdown: {} }));
+      const before = await countRunRewards(database, a.id);
+      const t0 = Date.now();
+      px.st.mode = "blackholeAfterCommit";
+      const first = await repo2.addSupplies(randomUUID(), a.id, () => ({ supplies: 77, breakdown: {} })).then(() => "resolved", () => "rejected");
+      const ms = Date.now() - t0;
+      expect(px.st.sawCommit).toBeGreaterThanOrEqual(1);
+      expect(first).toBe("rejected"); // the reply never came: settled by the client query timeout
+      expect(ms).toBeLessThan(2 * PG_QUERY_TIMEOUT_MS + 2000); // the COMMIT times out, then the ROLLBACK on the same dead line too
+      expect((await countRunRewards(database, a.id)) - before).toBe(1); // …although the COMMIT landed (documented case)
+      // Through RunBank (a fresh pool): the same lost reply on attempt 1, the line back before the retry → the retry
+      // finds the row (duplicate key) → saved, paid once.
+      const db3 = openPostgres((URL as string).replace(`:${pgPort}/`, `:${port}/`));
+      try {
+        const repo3 = progressRepo(db3);
+        const fails: number[] = [];
+        const bank = new RunBank(7, { repo: () => repo3, log: { info: () => {}, error: () => void fails.push(Date.now()) }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+        px.st.mode = "blackholeAfterCommit";
+        const p = bank.bank({ playerId: "p1", accountId: a.id, record: rec5, ending: "wiped" });
+        while (fails.length === 0) await sleep(50); // attempt 1 settled (rejected) after the client timeouts
+        px.st.mode = "pass";
+        px.cutAll(); // the half-open socket goes; the retry opens a fresh one
+        const r = await p;
+        expect(fails.length).toBe(1);
+        expect(r.status).toBe("saved");
+        expect((await countRunRewards(database, a.id)) - before).toBe(2); // the 77 above + this run, each once
+      } finally {
+        await db3.close().catch(() => {});
+      }
+    } finally {
+      px.cutAll();
+      await px.close();
+      await db2.close().catch(() => {});
+    }
+  }, 40_000);
 });

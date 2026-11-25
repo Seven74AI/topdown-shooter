@@ -80,6 +80,14 @@ describe("Story 7.2: rewardsStore", () => {
     expect(s.takeLeaveLine()).toBeNull();
   });
 
+  it("re-review 2 N-RR2-2: a Leave's answer is kept for the start screen even after the phone joined another run", () => {
+    const store = memory();
+    const s = new RewardsStore(() => store);
+    s.setRun({ runId: "1f1e2d3c-4b5a-4968-8776-655443322111" }); // already in a newer run
+    expect(s.receive(msg({ total: 90 }), true)).toBeNull(); // not shown on that run's Results…
+    expect(s.takeLeaveLine()).toBe("+90 Supplies banked from your last run"); // …but the start-screen line is kept
+  });
+
   it("D4: nothing to show for a failed / unsaved / empty bank, or an ordinary run end (not a Leave)", () => {
     const store = memory();
     const s = new RewardsStore(() => store);

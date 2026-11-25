@@ -21,11 +21,42 @@ export interface Database {
   close(): Promise<void>;
 }
 
+/**
+ * Story 7.2 re-review 2 (RR2-L1): every query the game server sends gives up after this long on the CLIENT side, so a
+ * half-open connection (a black-holed COMMIT reply) settles instead of leaving "Saving…" forever. Above every
+ * PostgreSQL-side bound of a bank (`db/boundedTx.ts`: 1.5 s statements, 1.8 s budget). Migrations pass 0 (none).
+ */
+export const PG_QUERY_TIMEOUT_MS = 3000;
+
+export interface PostgresOptions {
+  /** Client-side per-query timeout (ms); 0 = none (migrations). Default PG_QUERY_TIMEOUT_MS. */
+  queryTimeoutMs?: number;
+}
+
+/** A pool client got an `error` event (exported for the unit test). Logged, never thrown: the query in flight rejects on its own. */
+export function onClientError(e: Error): void {
+  log.error({ op: "client", err: e.message.slice(0, 200) }, "db_error");
+}
+
 /** PostgreSQL through a small `pg` pool. Never throws here: connection errors surface on the first query. */
-export function openPostgres(url: string): Database {
-  const pool = new pg.Pool({ connectionString: url, max: 5, connectionTimeoutMillis: 2000, idleTimeoutMillis: 30_000 });
+export function openPostgres(url: string, opts: PostgresOptions = {}): Database {
+  const queryTimeoutMs = opts.queryTimeoutMs ?? PG_QUERY_TIMEOUT_MS;
+  const pool = new pg.Pool({
+    connectionString: url,
+    max: 5,
+    connectionTimeoutMillis: 2000,
+    idleTimeoutMillis: 30_000,
+    keepAlive: true, // RR2-L1: TCP keepalive notices a dead peer on an idle-looking connection
+    keepAliveInitialDelayMillis: 5000,
+    ...(queryTimeoutMs > 0 ? { query_timeout: queryTimeoutMs } : {}),
+  });
   // An idle client losing its connection must not crash the process (P3): log it; the pool replaces the client.
   pool.on("error", (e) => log.error({ op: "pool", err: e.message }, "db_error"));
+  // Re-review 2 (RR2-M1): a CHECKED-OUT client losing its connection (e.g. pg_terminate_backend mid-bank) emits
+  // `error` on the client, which the pool does not listen to: without this handler Node crashes the whole server.
+  pool.on("connect", (c) => {
+    c.on("error", onClientError);
+  });
   const db = drizzlePg({ client: pool, schema }) as unknown as Db;
   return {
     kind: "postgres",
@@ -82,9 +113,9 @@ export interface DatabaseEnv {
  * The database for this process from its environment. Production without `DATABASE_URL` throws (index.ts logs
  * `database_url_missing` and exits). Dev without it: PGlite in `PGLITE_DIR` (default `apps/server/.data/pglite`).
  */
-export function databaseFromEnv(env: DatabaseEnv, defaultPgliteDir: string): Database {
+export function databaseFromEnv(env: DatabaseEnv, defaultPgliteDir: string, pgOpts: PostgresOptions = {}): Database {
   const url = env.DATABASE_URL?.trim();
-  if (url) return openPostgres(url);
+  if (url) return openPostgres(url, pgOpts);
   if (env.NODE_ENV === "production") throw new Error("DATABASE_URL is required in production");
   return openPglite(env.PGLITE_DIR?.trim() || defaultPgliteDir);
 }
