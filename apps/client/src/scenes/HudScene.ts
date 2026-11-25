@@ -1,4 +1,5 @@
-import { HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, hpRowText, reportHudTextWidths } from "./hudTopLayout";
+import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, hpRowText, layoutBanner, placeWaveText, reportHudTextWidths } from "./hudTopLayout";
+import { layoutBossBar } from "./bossBar";
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -103,7 +104,6 @@ const RELOAD_BAR_H = 6;
 /** Story 5.4: the fuel bar of a flame weapon (orange, under the fuel percent). */
 const FUEL_BAR_COLOR = 0xff8a2a;
 /** Wave panel (top-center) and banner. */
-const BANNER_TEXT_PX = 34;
 const BANNER_SHOW_MS = 1500;
 const BANNER_FADE_MS = 400;
 /** Edge arrows for off-screen rushers. */
@@ -432,6 +432,11 @@ export class HudScene extends Phaser.Scene {
   private shownRemaining = -1;
   private shownBanner = "";
   private shownBannerColor = "";
+  private shownBannerBoss = false;
+  /** Story 6.14: layout scratch (no allocation per frame). */
+  private readonly waveAt = { x: 0, scale: 1 };
+  private readonly bannerAt = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly bannerBoss = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
   private shownWeapon = "";
   private shownAmmo = Number.NaN;
   private shownMag = Number.NaN;
@@ -483,6 +488,7 @@ export class HudScene extends Phaser.Scene {
     this.shownOtherLevel = -1;
     this.shownWave = -1;
     this.shownBanner = "";
+    this.shownBannerBoss = false;
     this.shownStatus = "";
     this.shownSecs.fill(-1);
     this.shownNames.fill("");
@@ -2003,19 +2009,25 @@ export class HudScene extends Phaser.Scene {
       this.shownVoting = m.voting; // Story 6.11
       // Story 3.1: during a build the top line counts down to the next wave.
       const text = waveLine(m);
-      this.waveText
-        .setText(text)
-        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
+      this.waveText.setText(text);
+      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit).
+      const at = placeWaveText(this.scale.width, this.insets, dpr(), this.waveText.width, this.waveAt);
+      this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
-    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor) {
+    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor || m.bossVisible !== this.shownBannerBoss) {
       this.shownBanner = m.bannerText;
       this.shownBannerColor = m.bannerColor; // Stories 6.6 / 6.7: CRASH! / EVAC INBOUND amber, ENRAGED red
-      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it.
+      this.shownBannerBoss = m.bossVisible;
+      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it
+      // (Story 6.14: inside the safe area), and sits below the HP block, wave line and boss bar.
+      const k = dpr();
       this.bannerText
-        .setWordWrapWidth(this.scale.width * 0.92)
+        .setWordWrapWidth(bannerWrapWidth(this.scale.width, this.insets, k))
         .setText(m.bannerText)
-        .setColor(m.bannerColor || "#ffffff")
-        .setPosition(this.scale.width / 2, this.scale.height * 0.32);
+        .setColor(m.bannerColor || "#ffffff");
+      const boss = m.bossVisible ? layoutBossBar(this.scale.width, this.insets.left, this.insets.top, this.insets.right, k, this.bannerBoss) : null;
+      const r = layoutBanner(this.scale.width, this.scale.height, this.insets, k, this.bannerText.width, this.bannerText.height, boss, this.bannerAt);
+      this.bannerText.setPosition(this.scale.width / 2, r.y + r.h / 2);
     }
     const age = this.time.now - m.bannerAtMs;
     const showMs = m.bannerShowMs > 0 ? m.bannerShowMs : BANNER_SHOW_MS;

@@ -195,14 +195,16 @@ export function layoutEvacVote(w: number, h: number, insetBottom: number): VoteL
  *   once unless more than 3 went out in the last second; then the newest goes out on the next token;
  * - `urgent` (`voteUrgent`: the last `VOTE_URGENT_MS` of the vote, or everyone has voted — the 1 s
  *   hold) may BORROW one token when the bucket is empty (re-review 2, RR2-L2: urgent sends count
- *   against the bucket), at most one per `VOTE_URGENT_GAP_MS`. So at most 3 + 3 + 1 = 7 sends in the
- *   first second and 3/s after it — with ~1 pong/s still inside the server's shared 10/s;
+ *   against the bucket), the bucket never below −`VOTE_URGENT_DEBT` (the rate bound) and two borrows
+ *   at least `VOTE_URGENT_GAP_MS` apart. So at most 3 + 3 + 1 = 7 sends in the first second and
+ *   3/s after it — with ~1 pong/s still inside the server's shared 10/s;
  * - a resend after `VOTE_PENDING_MS` if the server still shows another vote (a dropped message).
  */
 export const VOTE_SEND_BURST = 3;
 export const VOTE_SEND_PER_S = 3;
 export const VOTE_URGENT_MS = 500;
-export const VOTE_URGENT_GAP_MS = 250;
+/** Story 6.14 (6.11 RR3-L2): 250 → 100 ms; `VOTE_URGENT_DEBT` is the rate bound, the gap only spaces two borrows. */
+export const VOTE_URGENT_GAP_MS = 100;
 /** Re-review 2 (RR2-L2): how far below zero an urgent send may take the bucket (one borrowed token). */
 export const VOTE_URGENT_DEBT = 1;
 

@@ -35,10 +35,10 @@ export const EVENT_ARROW_PAD_CSS_PX = 6;
 
 /**
  * What the arrow keeps off in a wave (the same layout functions / constants HudScene draws with), into
- * `out` (6 rects): ☰, swap, quick-use, then (re-review R1) the HP block (bar + HP row), the wave line
- * and (re-review 3 RR3-2) the money line.
+ * `out` (7 rects): ☰, swap, quick-use, then (re-review R1) the HP block (bar + HP row), the wave line,
+ * (re-review 3 RR3-2) the money line and (Story 6.14 review L3) the boss bar while it shows (`boss`).
  */
-export function waveControlRects(w: number, h: number, insets: Insets, k: number, out: ScreenRect[]): ScreenRect[] {
+export function waveControlRects(w: number, h: number, insets: Insets, k: number, out: ScreenRect[], boss: Readonly<ScreenRect> | null = null): ScreenRect[] {
   const ms = MENU_BUTTON_CSS_PX * k;
   const menu = out[0] as ScreenRect;
   menu.x = w - (MENU_BUTTON_INSET_CSS_PX + insets.right) * k - ms;
@@ -56,12 +56,19 @@ export function waveControlRects(w: number, h: number, insets: Insets, k: number
   layoutHpBlock(insets, k, out[3] as ScreenRect);
   layoutWaveLine(w, insets, k, out[4] as ScreenRect);
   layoutMoneyLine(insets, k, out[5] as ScreenRect); // re-review 3 RR3-2: its own short rect under the HP row
+  // Story 6.14 review L3: the boss bar while it shows (else a copy of ☰: same keep-offs, no allocation).
+  const b = out[6] as ScreenRect;
+  const src = boss ?? menu;
+  b.x = src.x;
+  b.y = src.y;
+  b.w = src.w;
+  b.h = src.h;
   return out;
 }
 const rightScratch = newRightButtonsLayout();
 
 export function newWaveControlRects(): ScreenRect[] {
-  return [0, 1, 2, 3, 4, 5].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
+  return [0, 1, 2, 3, 4, 5, 6].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
 }
 
 /** The arrow's placement (kept by the caller across frames: `side` is the hysteresis state). */

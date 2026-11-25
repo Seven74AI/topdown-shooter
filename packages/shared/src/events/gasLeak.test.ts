@@ -245,6 +245,22 @@ describe("Story 6.9 review L4 / L5", () => {
     expect(hp0 - t.world.boss.hp).toBe(cfg.bossDamage);
   });
 
+  it("story 6.14 (6.9 re-review 2 RR4 gap): a zombie right behind the tank is killed by the blast (weapon gas leak) — the bullet that blows the tank never reaches it", () => {
+    const t = eventWorld({ players: [[24, 16]], systems: noZombies }); // the zombie stands still on the bullet's line
+    t.world.decay.stage = 2;
+    const z = spawnZombie(t.world, "walker", TANK.x + 1.2, TANK.y, true); // inside the bullet's 3 m step, past the tank
+    startNext(t.world, "gas_leak");
+    tickN(t.world, ticks(cfg.armDelayS) + 2);
+    expect(isZombieAlive(t.world.zombies, z)).toBe(true);
+    spawnProjectile(t.world.projectiles, { x: TANK.x - 1, y: TANK.y, dirX: 1, dirY: 0, speedMps: 60, rangeM: 10, damage: 1000, pierce: 5, weaponIndex: 0, owner: "p0", building: 0, advanceM: 0 });
+    tickN(t.world, 1);
+    expect(t.world.special.log.gasBooms).toBe(1);
+    const kills = ofType(t.events, "zombie.killed").filter((e) => e.zombieId === z);
+    expect(kills).toHaveLength(1);
+    // The blast is credited to the shooter (G2), so tell the two apart by the weapon: the gas leak's, not the bullet's.
+    expect(kills[0]!.weapon, "the blast killed it, not p0's bullet").toBe(GAS_LEAK_WEAPON);
+  });
+
   it("L5: the bullet that blows the tank stops at the tank (a piercing round goes no further)", () => {
     const { world } = hissWorld();
     tickN(world, ticks(cfg.armDelayS) + 1);

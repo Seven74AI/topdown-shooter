@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evac Cockpit Rewards</title>
+<style>
+/*@FONTS@*/
+:root{
+  color-scheme:dark;
+  --bg:#0a0c0f; --card:#12161b; --line:#232a32; --ink:#e9edf1; --mute:#97a1ac; --faint:#66707b;
+  --amber:#ffb238; --steel:#a9c0d6;
+  --display:'Oswald','Arial Narrow',Impact,sans-serif;
+  --text:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg)}
+body{color:var(--ink);font:15px/1.5 var(--text);padding:28px 16px 64px;overflow-x:hidden;
+  background:radial-gradient(1200px 600px at 10% -10%,rgba(255,170,80,.07),transparent 60%),var(--bg)}
+header,main,footer{max-width:1300px;margin:0 auto}
+h1{font:700 clamp(30px,5vw,48px)/1.05 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0 0 10px}
+h1 span{color:var(--amber)}
+.intro{margin:0 0 8px;max-width:86ch}
+.note{margin:0 0 8px;color:var(--mute);font-size:13.5px;max-width:96ch}
+.rec{margin:14px 0 0;font-size:14.5px;max-width:96ch;border-left:3px solid var(--amber);padding:2px 0 2px 12px}
+.rec b{color:var(--amber)}
+section{margin-top:48px}
+h2{font:700 28px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+h2 .code{font:600 14px var(--mono);color:#140d02;background:var(--amber);border-radius:4px;padding:2px 8px;letter-spacing:0}
+h2 .tag{font:500 11px var(--mono);color:var(--amber);border:1px solid var(--amber);border-radius:999px;padding:1px 8px;text-transform:uppercase;letter-spacing:.06em}
+.diff{margin:2px 0 14px;color:var(--mute);font-size:14px;max-width:100ch}
+h3{font:600 15px/1.2 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin:22px 0 8px}
+.frames{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.ph{min-width:0;max-width:100%}
+.ph-box{position:relative;overflow:hidden;border-radius:12px;box-shadow:0 0 0 2px #262c33,0 0 0 7px #08090b,0 10px 30px rgba(0,0,0,.6);background:#000;touch-action:pan-y}
+.ph-box canvas{display:block;width:100%;height:100%}
+.ph-ins{position:absolute;inset:0;pointer-events:none}
+.ph-ins i{position:absolute;background:repeating-linear-gradient(-45deg,rgba(184,240,74,.11) 0 6px,transparent 6px 12px);outline:1px dashed rgba(184,240,74,.45);outline-offset:-1px}
+body.no-ins .ph-ins{display:none}
+.ph-lbl{font:400 11.5px var(--mono);color:var(--faint);padding:7px 2px 0;display:flex;justify-content:space-between;gap:8px}
+.ph-lbl b{color:var(--mute);font-weight:500}
+.ph.crop .ph-box{border-radius:6px;box-shadow:0 0 0 1px #262c33,0 6px 18px rgba(0,0,0,.5)}
+.strip{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.kf{display:flex;flex-direction:column;gap:4px;font:400 11px var(--mono);color:var(--faint)}
+.kf canvas{border-radius:6px;box-shadow:0 0 0 1px #262c33}
+.kit{display:flex;gap:10px;flex-wrap:wrap}
+.kit canvas{border-radius:8px;box-shadow:0 0 0 1px #262c33;max-width:100%;height:auto}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:rgba(10,12,15,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:8px 0;margin:18px auto 0;max-width:1300px}
+.bar button,.pick button{font:600 12px var(--mono);color:var(--ink);background:#1a1f25;border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;min-height:32px}
+.bar button[aria-pressed="true"],.pick button[aria-pressed="true"]{background:var(--amber);color:#140d02;border-color:var(--amber)}
+.bar .picked{font:500 12px var(--mono);color:var(--mute);flex:1;min-width:200px}
+.pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:18px 0 0;font:500 12px var(--mono);color:var(--mute)}
+.toc{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;font:500 12px var(--mono)}
+.toc a{color:var(--mute);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.toc a:hover{color:var(--ink);border-color:var(--amber)}
+table.cmp{border-collapse:collapse;font-size:13.5px;margin-top:12px;max-width:100%}
+table.cmp td,table.cmp th{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+table.cmp th{color:var(--mute);font-weight:500}
+table.cmp td:first-child{font:600 13px var(--mono);color:var(--amber);white-space:nowrap}
+code{font:500 12px var(--mono);color:#cfd5db}
+ul.diff{padding-left:20px}ul.diff li{margin:4px 0}
+footer{margin-top:52px;color:var(--mute);font-size:13px}
+.replay{font:600 12px var(--mono);color:var(--ink);background:#1a1f25;border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;min-height:30px;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Run rewards · <span>evac cockpit</span> round 2</h1>
+  <p class="intro">The designer liked the cockpit idea (PR4) but "we don't really see it" and the elements were "still very simple". Round 2 is the <b>evac cockpit only</b>, pushed much further, in three lights. Layout and row order are the approved RW1; the cockpit frames them, and every readable line and button stays inside the 568 × 320 safe area (gauges, lamps and switches sit in the hatched margins as decoration).</p>
+  <p class="note">All Canvas 2D, game code only: the ground far below is the real Downtown bake drawn as a perspective plane; the helmet, gas mask and cone are the real <code>drawSurvivor</code> parts relit by a port of the photoreal relight renderer (<code>photoreal-2/src/relight.ts</code>); Oswald embedded. <code>?static</code> or reduced motion stops all motion (bank, rotor shadow, rain, gauges). Colour rule kept: no red; amber = earned, white = items / people, slot colours for players.</p>
+  <p class="rec" id="rec"></p>
+  <nav class="toc" id="toc"></nav>
+</header>
+<div class="bar"><button id="copy">Copy my pick</button><button id="ins" aria-pressed="true">Safe edges</button><button id="motion" aria-pressed="true">Motion</button><span class="picked" id="picked">No pick yet: tap PC1, PC2 or PC3 under a variant.</span></div>
+<main id="main"></main>
+<footer>
+  <p>Performance (Xiaomi Mi 11i): every plate, texture, backdrop and item close-up is rendered once into a canvas (in the game: baked textures, like <code>hudWarnArt.ts</code>); per frame only the counter digits, one sweep band, a few glow strokes and the scroll offset change. One full-screen frame here ≈ 1–2 ms on a desktop; motion stops entirely with reduced motion. Source: <code>docs/art/epic-7/premium-src/</code>.</p>
+</footer>
+<script>/*@GAME@*/</script>
+<script>/*@MAIN@*/</script>
+</body>
+</html>

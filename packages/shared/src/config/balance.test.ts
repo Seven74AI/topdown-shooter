@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
 import { fxSchema } from "./balanceSchema";
 import { MAX_FIXED_PER_WAVE } from "./constants";
+import { knockStepMmOf } from "../player/knockback";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -620,6 +621,14 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
     const f = raw();
     (f.boss as { slam: { pushM: number } }).slam.pushM = 2.5; // 2.5 m over 4 ticks = 625 mm, the charge's step
     expect(() => loadBalance(f)).toThrow(/charge shove step 625 mm\/tick equals the slam push step/);
+    // Story 6.14 (6.6 R3): the check counts ticks like runtime (`ticksFor`): a Brute knock over 0.175 s is 3 ticks
+    // at runtime (round(3.4999…)), so 1.875 m makes 625 mm/tick, the charge's step (round(0.175 × 20) = 4 would miss it).
+    const g = raw();
+    const brute = (g.zombies as { types: Record<string, { hitKnockbackM?: number; knockbackS?: number }> }).types.brute as { hitKnockbackM?: number; knockbackS?: number };
+    brute.hitKnockbackM = 1.875;
+    brute.knockbackS = 0.175;
+    expect(knockStepMmOf(1.875, 0.175)).toBe(625);
+    expect(() => loadBalance(g)).toThrow(/charge shove step 625 mm\/tick equals the brute knockback step/);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   MENU_BUTTON_CSS_PX,
   MENU_BUTTON_INSET_CSS_PX,
 } from "../ui/sizes";
+import { HUD_BAND_GAP_CSS_PX, layoutHpBlock } from "./hudTopLayout";
 
 /**
  * Story 6.5 (D9, AC 13): where the boss bar sits — top centre, under the wave line, never over the
@@ -34,12 +35,20 @@ export function layoutBossBar(width: number, insetLeft: number, insetTop: number
   out.w = w;
   out.x = width / 2 - w / 2;
   out.y = (BOSS_BAR_TOP_CSS_PX + insetTop) * k;
+  // Story 6.14: below the HP block (bar + HP row at its widest) where they share columns, a band gap clear.
+  hpInsets.left = insetLeft;
+  hpInsets.top = insetTop;
+  const hp = layoutHpBlock(hpInsets, k, hpScratch);
+  if (out.x < hp.x + hp.w && hp.x < out.x + w) out.y = Math.max(out.y, hp.y + hp.h + HUD_BAND_GAP_CSS_PX * k);
   const nameH = (BOSS_BAR_NAME_CSS_PX + 4) * k;
   out.barY = out.y + nameH;
   out.barH = BOSS_BAR_H_CSS_PX * k;
   out.h = nameH + out.barH;
   return out;
 }
+
+const hpInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+const hpScratch = { x: 0, y: 0, w: 0, h: 0 };
 
 /** The gold notch at 50 % (D9). */
 export const BOSS_BAR_NOTCH = 0.5;

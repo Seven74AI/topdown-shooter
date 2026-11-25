@@ -4,6 +4,12 @@ import { dawnEndsAt } from "../ui/dawnModel";
 const TICK_MS = TICK_DT_S * 1000;
 /** Re-review 2: no dawn for a Results patch processed less than this after the page became visible (ms). */
 export const SHOWN_GRACE_MS = 1000;
+/**
+ * Story 6.14 (6.11 RR3-L1): slack (ms) for the vote's real-time length check. The vote lasts at least
+ * the 1 s all-voted hold of server time; a live client sees about that much time pass between the
+ * vote and Results patches, a backlog burst after an unlock sees ~0.
+ */
+export const VOTE_SEEN_SLACK_MS = 500;
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
 import { activeRun } from "./activeRun";
@@ -76,6 +82,9 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
   // last wave start (dropped server ticks during a long run would make a run-long minimum run ahead);
   // RL2: also reset when a new run is seen without its lobby patch (the tick restarts at 0).
   let minOffsetMs = Number.POSITIVE_INFINITY;
+  // Story 6.14 (RR3-L1): when (client clock) and at which server tick the vote phase was first seen.
+  let voteSeenAtMs = Number.NEGATIVE_INFINITY;
+  let voteTick = 0;
   return (phase) => {
     const last = prev;
     prev = phase;
@@ -84,6 +93,10 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
     const newRun = inRun(phase) && !(session && inRun(last));
     if (phase === "lobby" || newRun || (phase === "wave" && last !== "wave")) minOffsetMs = Number.POSITIVE_INFINITY;
     if (phase !== "lobby") minOffsetMs = Math.min(minOffsetMs, now - deps.state().tick * TICK_MS);
+    if (phase === "vote" && last !== "vote") {
+      voteSeenAtMs = now;
+      voteTick = deps.state().tick;
+    }
     if (phase === "build" || phase === "wave" || phase === "vote") {
       if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
@@ -103,7 +116,11 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       const hiddenNow = deps.pageHidden ? deps.pageHidden() : false;
       const shownAt = deps.lastShownMs ? deps.lastShownMs() : Number.NEGATIVE_INFINITY;
       const justShown = now - shownAt < SHOWN_GRACE_MS;
-      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown;
+      // Story 6.14 (RR3-L1): the vote → Results patches must be seen about as far apart as the server
+      // ticks between them (a backlog that lands > 1 s after an unlock has every sample equally late,
+      // so its age reads 0, but the two patches arrive together).
+      const sawVoteRun = now - voteSeenAtMs >= (st.tick - voteTick) * TICK_MS - VOTE_SEEN_SLACK_MS;
+      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown && sawVoteRun;
       deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS) });
     } else if (phase === "lobby") {
       session?.release();
