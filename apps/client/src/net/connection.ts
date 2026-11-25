@@ -15,7 +15,7 @@ import {
 } from "@topdown/shared";
 import { JOIN_ERROR_TEXT, joinErrorText } from "./joinErrors";
 import { clientBalance } from "../debug/clientBalance";
-import { recoveryTicket, sessionTicket } from "./account";
+import { joinAccount, recoveryAccount } from "./account";
 import { getGuestToken } from "./guestToken";
 import { serverUrl } from "./serverUrl";
 import { netMeter } from "./netMeter";
@@ -37,9 +37,10 @@ const clientBalanceVersion = (): string => (balanceVersion ??= clientBalance().v
  * Join options. Story 7.1: `ticket` is the fresh session ticket from `/api/account/session` (fetched right before
  * each Create / Join, after which the guest token is the server's copy); none when the save server is down (P3).
  */
-const options = (intent: JoinOptions["intent"], name: string, ticket?: string): JoinOptions => {
+const options = (intent: JoinOptions["intent"], name: string, account: { ticket?: string; look?: string } = {}): JoinOptions => {
   const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken: getGuestToken() };
-  if (ticket !== undefined) o.ticket = ticket;
+  if (account.ticket !== undefined) o.ticket = account.ticket;
+  if (account.look !== undefined) o.look = account.look; // Story 7.9: the server checks it (L1, L2)
   // Story 2.10: `?scenario=net150` on the host's create asks for the fixed test scenario.
   const scenario = urlOptions().scenario;
   if (intent === "create" && scenario) o.scenario = scenario;
@@ -58,7 +59,7 @@ const counted = (room: RunConnection): RunConnection => {
 /** Creates a run (Story 2.1). The error is player text from `joinErrorText`. */
 export async function createGame(name: string): Promise<Result<RunConnection, string>> {
   try {
-    const room = await sdk().create<RunStateView>(RUN_ROOM_NAME, options("create", name, await sessionTicket()));
+    const room = await sdk().create<RunStateView>(RUN_ROOM_NAME, options("create", name, await joinAccount()));
     return ok(counted(room as RunConnection));
   } catch (e) {
     return err(joinErrorText(e));
@@ -73,7 +74,7 @@ export async function joinGame(code: string, name: string): Promise<Result<RunCo
   const roomId = normalizeRoomCode(code);
   if (!isRoomCode(roomId)) return err(JOIN_ERROR_TEXT.notFound);
   try {
-    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await sessionTicket()));
+    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await joinAccount()));
     return ok(counted(room as RunConnection));
   } catch (e) {
     return err(joinErrorText(e));
@@ -103,7 +104,7 @@ export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
  */
 export async function rejoinGame(roomId: string, name: string): Promise<RecoveryJoin<RunConnection>> {
   try {
-    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await recoveryTicket()));
+    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await recoveryAccount()));
     return { ok: true, room: counted(room as RunConnection) };
   } catch (e) {
     return { ok: false, reason: recoveryFailure(e) };
@@ -132,7 +133,8 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
     $.listen("phase", onChange),
     $.listen("hostSlot", onChange),
     $.onAdd("players", (player: PlayerStateView) => {
-      perPlayer.set(player, [$.listen(player, "ready", onChange), $.listen(player, "name", onChange)]);
+      // Story 7.9: + look (set with the name at join; 7.10 D3 changes it in the lobby).
+      perPlayer.set(player, [$.listen(player, "ready", onChange), $.listen(player, "name", onChange), $.listen(player, "look", onChange)]);
       onChange();
     }),
     $.onRemove("players", (player: PlayerStateView) => {
@@ -151,7 +153,7 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
 /** The slice of the schema `StateCallbackStrategy` API `watchLobby` uses. */
 interface LobbyCallbacks {
   listen(property: "phase" | "hostSlot", handler: () => void): () => void;
-  listen(instance: PlayerStateView, property: "ready" | "name", handler: () => void): () => void;
+  listen(instance: PlayerStateView, property: "ready" | "name" | "look", handler: () => void): () => void;
   onAdd(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
   onRemove(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
 }

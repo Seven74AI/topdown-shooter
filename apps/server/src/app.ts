@@ -49,8 +49,9 @@ export function createGameServer({
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   const accounts = accountsRepo(database);
-  const { accountSession } = createAccountRoutes({ accounts, newGuestLimiter, sessionLimiter: accountSessionLimiter, logGate: rateLimitLogGate, sessionSecret, allowedOrigins });
-  setRoomAccounts({ sessionSecret, accounts, progress: progressRepo(database) }); // Story 7.2: banking
+  const progress = progressRepo(database);
+  const { accountSession } = createAccountRoutes({ accounts, progress, newGuestLimiter, sessionLimiter: accountSessionLimiter, logGate: rateLimitLogGate, sessionSecret, allowedOrigins }); // Story 7.9: + the look
+  setRoomAccounts({ sessionSecret, accounts, progress }); // Story 7.2: banking
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
     routes: createRouter({ health, accountSession }),

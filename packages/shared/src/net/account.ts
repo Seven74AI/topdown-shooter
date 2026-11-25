@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { guestTokenSchema } from "./messages";
+import { LOOK_CODE_MAX } from "../config/cosmetics";
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -26,6 +27,11 @@ export const accountSessionResponseSchema = z.discriminatedUnion("saved", [
       deviceToken: guestTokenSchema,
       ticket: sessionTicketSchema,
       account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable() }).strict(),
+      /**
+       * Story 7.9: the saved progress the client needs before a join: the survivor look code (canonical; null = the
+       * default look). Optional so a client copes with a server that sends none.
+       */
+      progress: z.object({ look: z.string().max(LOOK_CODE_MAX).nullable() }).strict().optional(),
     })
     .strict(),
   // The save server is down or the device is over the new-guest limit: play goes on unsaved (P3).

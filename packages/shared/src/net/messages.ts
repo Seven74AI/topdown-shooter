@@ -210,6 +210,12 @@ export const joinOptionsSchema = z
      * this, never an account id sent by the client; a bad or expired one means "no account", never a refusal (P3).
      */
     ticket: z.string().min(1).max(200).optional(),
+    /**
+     * Story 7.9: the survivor look code. `unknown` on purpose: it never refuses a join; `RunRoom.checkAuth` decodes it
+     * (`decodeLook` against what the account owns) and bad parts become default parts (L1). The whole-options size
+     * cap (`MAX_CLIENT_MESSAGE_BYTES`) still applies.
+     */
+    look: z.unknown().optional(),
   })
   .strict();
 

@@ -1,6 +1,7 @@
+import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
-import { START_HINT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
+import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
 import { FakeRoom, fakePlayer } from "./fakeRoom";
 
@@ -13,8 +14,8 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     hostSlot: 0,
     localPlayerId: "p0",
     players: [
-      { playerId: "p0", slot: 0, name: "Ana", ready: true },
-      { playerId: "p2", slot: 2, name: "Cid", ready: true },
+      { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
+      { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
     ],
     ...over,
   };
@@ -23,7 +24,7 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
 describe("snapshotLobby", () => {
   it("copies players in slot order as plain data", () => {
     const players = new Map<string, PlayerStateView>([
-      ["p2", player(2, "Cid", true)],
+      ["p2", fakePlayer(2, { name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" })], // Story 7.9 review L1: a real code
       ["p0", player(0, "Ana")],
     ]);
     const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0 };
@@ -34,8 +35,8 @@ describe("snapshotLobby", () => {
       hostSlot: 0,
       localPlayerId: "p2",
       players: [
-        { playerId: "p0", slot: 0, name: "Ana", ready: false },
-        { playerId: "p2", slot: 2, name: "Cid", ready: true },
+        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" },
+        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" },
       ],
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
@@ -53,13 +54,19 @@ describe("lobbyView", () => {
   });
 
   it("explains a disabled Start to the host", () => {
-    const notReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }, { playerId: "p1", slot: 1, name: "Bo", ready: false }] });
+    const notReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" }, { playerId: "p1", slot: 1, name: "Bo", ready: false, look: "" }] });
     expect(lobbyView(notReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
-    const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }] });
+    // Story 7.9 review L6: the Start button shows the short reason (fits its second line at 568 and 800 px wide)
+    expect(lobbyView(notReady, false).startHintShort).toBe(START_HINT_SHORT.notReady);
+    // re-review RR2: measured in px at the button's hint font (11 px), inside Start's ≥ 112 px minus border and padding
+    const g = createCanvas(10, 10).getContext("2d");
+    g.font = "500 11px sans-serif";
+    for (const t of Object.values(START_HINT_SHORT)) expect(g.measureText(t).width).toBeLessThanOrEqual(100);
+    const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" }] });
     // Designer 2026-11-23: a host alone may start a real online run in every build.
     expect(lobbyView(alone, false)).toMatchObject({ canStart: true, startHint: null });
     expect(lobbyView(alone, true)).toMatchObject({ canStart: true, startHint: null });
-    const aloneNotReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: false }] });
+    const aloneNotReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" }] });
     expect(lobbyView(aloneNotReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
   });
 

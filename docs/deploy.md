@@ -186,6 +186,8 @@ It prints `==> deployed <sha>`. A deploy ends every run in progress, so pick a m
 
 Deploy a branch or sha instead: `deploy/deploy.sh origin/some-branch` or `deploy/deploy.sh 1a2b3c4d5e6f`.
 
+**Server first, never the client alone** (Story 7.9 review L8): the join options are a strict schema. A release that adds a join option (7.9: `look`) works for old tabs on the new server, but a NEW client against an OLD server is refused as `invalid_options` (not "Please reload"). `deploy.sh` updates server and client together, which is fine; never publish the client (e.g. the GitHub Pages copy) ahead of the VPS server.
+
 **When a deploy fails**, `deploy.sh` does **not** roll back by itself, so the broken state can be looked at. It prints `docker compose ps`, the server container's state (exit code, restarts, OOM, health) and the last 100 log lines of both containers, then the exact command to go back, and exits 1:
 
 ```
