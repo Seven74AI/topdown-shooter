@@ -21,6 +21,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPVuhvoUCGWv6MWJvbS | Re-review asset art | rereview-asset-art |
 | session_01CgLgPV9Purq8QkvbmAAZbE | Review 8.1 | review-8-1 |
 | session_01CgLgPV7qu43H4ppJzsJrHo | Re-review 2 asset art | rereview2-asset-art |
+| session_01CgLgPWLddQgeqCSrK8Zq8e | Review 7.1 | review-7-1 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -36,6 +37,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-12 (= 8.9 B9): F1 "others never freeze" relaxed from ≤ 1 to ≤ 1.2 freezes per 30 s on every 1 % row (measured 0.9–1.2; before 6–6.9). Alternative: keep tuning until every row ≤ 1 (risk: more delay or clean-line cost). Asserted per row.
 - OR-13: 7.1 builds its join part (T6/T7) on 8.1's gated branch while 8.1 is in review, instead of waiting for master (merges master before its final gate).
 - OR-14 (= 8.1 B15, a new game rule): reconnect teleport + 2 s protection at most once per player per wave; later returns in that wave land in place with no protection; a hold shorter than 3 s returns in place with no protection. Alternative: no teleport/protection at all. Reason: review M1 — reload/close gave an instant escape + teleport + invulnerability on demand.
+- OR-15: 7.9 (T2/T3/T6) and 7.2 build on 7.1's gated branch (which carries 8.1) while 7.1 and 8.1 are in review/fixes, instead of waiting for master; each merges master before its final gate and says which tree it gated. Reason: Epic 7 critical path.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -69,3 +71,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 05:43 8.1 hand-back (db2cff2; gate 416 files / 3799 tests, load 3.54). Bot cut 8 s mid-wave back in ~0.3 s on the lossy line with HP/wallet/weapons kept; 130 s cut → restored at next build phase; phone shows 'reconnecting' after 3.1 s (was never); two-tab smoke found and fixed 3 bugs. Auto-accepted B1–B14 (docs/network-pass-decisions.md § 8.1). Open: app-switch escape is repeatable (no cooldown). Dispatched full review; 7.1 told to go on 8.1's branch; 8.10 told about reconnect keyframes.
 - 05:59 Asset round 2 (63a7ae2; gate 409 files / 3747 tests): bake moved to a Web Worker (OffscreenCanvas), atlas split in 4 sheets; main-thread max 5.5 ms (1×) / 17.7 ms (4× CPU); bake done 8 s / 15 s (inside the 30 s build phase); fallback sliced. R8 pushback: current pictures pixel-identical to the approved step-1 commit 583388c (digest pinned). Re-review 2 dispatched.
 - 06:02 Review 8.1 (90397dc): CHANGES REQUESTED 3 H / 3 M / 6 L. H1 drop in build + return mid-wave = free +50 % heal · H2 Leave + rejoin same build = repeatable heal · H3 held seats not counted for boss HP / wave size (boss 2400 vs 6000) · M1 escape/teleport/invulnerability by reload (→ B15) · M2 held seats drop out of the vote (should count as silent = Extract) · M3 client clock ahead by the freeze length after a solo drop · L1–L6. Blocked: wipe dodge, revive dodge, money/item dupe, stranger takeover, stale inputs, one player freezing others. Sent to builder.
+- 06:02 7.1 hand-back (827ea45; gate on 7.1 + 8.1 branch + master: 426 files / 3861 tests, load 3.32). Browser-checked cookie / localStorage wipe / prefill; no token in logs. Auto-accepted 7.1 B1–B9 (B8 sameSeat = seatKey OR same guest token). Dispatched full review 7.1; 7.9 unparked (T2/T3/T6); dispatched builder 7.2 (critical path).
