@@ -4,7 +4,7 @@ baseline_commit: 0ee0d6db
 
 # Story 8.7: Pings
 
-Status: review
+Status: done
 
 <!-- Designer 2026-11-25: ALL 33 Epic 8 story decisions (E8-J/H/S/R/P, docs/epic-8-story-decisions.md) ANSWERED: accepted as recommended. Built overnight 2026-11-25 on story-8-7 (gds-dev-story, autonomous); build-time decisions 8.7 B1–B13 auto-accepted overnight (same file). -->
 <!-- Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db. Kept separate (docs/story-merges-2026-11-25.md: "small, parallel"). Epic 8 D15 is the RULE (accepted 2026-11-24). New decisions: docs/epic-8-story-decisions.md (codes P…), "recommended, to accept". -->

@@ -193,7 +193,7 @@ development_status:
   8-4-autosave-at-every-build-phase: ready-for-dev  # merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
   8-5-save-and-quit: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
-  8-7-pings: review  # story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
+  8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio
