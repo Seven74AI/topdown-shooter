@@ -206,3 +206,17 @@ orange slot (#ff8a1f) never sits orange-on-orange next to the amber-orange accen
 - **Accounts:** errors are red. The designer allowed red in menus, and it keeps errors distinct from the orange accent.
 - **Loot bag, arrow and line (in play):** built with Lumen plates in neutral steel and white, without the orange accent, so the in-play rule (white = pick-ups) holds.
 - **Training at 568 × 320:** the line under each boost name is shortened (11.5 px, cut with "…" where needed) so the pips and Now / Next fit, as in round 1.
+
+## Loot bag round 2 (Story 7.12, 2026-11-25)
+
+Round 1 (LB1–LB3 sacks) was not picked: "a better item, more related to the game, or a better bag". `loot-bag-2.html`
+(self-contained, ~0.8 MB, Canvas 2D) draws six real objects with the photoreal relief renderer
+(`loot-bag-2-src/vendor/relief.ts` = `docs/art/photoreal-1/src/relief.ts` from `claude/dazzling-meitner-zhu5p0`), each 4× close,
+at game size on the real Downtown bake in rain (stage 3) and in the 5 % blackout with survivors and zombies, and next to
+S2 sandbags + the 6.9 supply crate (game code, read-only). Same pick-up signal on all: soft white ground ring + white
+up-left rim light + one glint. Rebuild: `node docs/art/epic-7/loot-bag-2-src/build.mjs`, then
+`node docs/art/epic-7/loot-bag-2-src/shots.cjs` (JPEGs in `loot-bag-2/`).
+
+| # | Item (story) | Codes | Recommended | Why |
+| --- | --- | --- | --- | --- |
+| 10 | Surprise loot object, round 2 (7.12) | LB4 dead hiker's backpack · LB5 tactical go-bag duffel · LB6 lockable field case · LB7 trauma bag · LB8 police evidence bag (item visible) · LB9 delivery rider's thermal backpack | **LB4** (LB9 second) | The zombie's own belongings: strongest story, unique silhouette (pack + rolled mat), blue-grey apart from olive cover and the green crate. LB9 has the best night read (reflective panel). LB6 too close to the crate/cover, LB7 promises healing, LB8 spoils the surprise. |
