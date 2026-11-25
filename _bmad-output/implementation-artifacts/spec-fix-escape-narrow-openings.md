@@ -38,7 +38,7 @@ Also from the re-review:
 
 ## Tasks & Acceptance
 
-- [x] `packages/shared/src/buildings/collision.ts`: `escapeClearPath` with grown boxes and a stepped clearance check (`PATH_STEP_M` 0.025 m); the open-area preference (`buildFlood`, 102 × 102 cells of 0.25 m over the whole escape reach since review M-A, used only during an escape); growable near-box arrays; a WeakRef World in the dead-end cache.
+- [x] `packages/shared/src/buildings/collision.ts`: `escapeClearPath` with grown boxes and a stepped clearance check (`PATH_STEP_M` 0.025 m); the open-area preference (`buildFlood`, 98 × 98 cells of 0.25 m over the whole escape reach since review M-A, used only during an escape); growable near-box arrays; a WeakRef World in the dead-end cache.
 - [x] `packages/shared/src/buildings/collision.test.ts`: probes (a) wedged outside the hole, (b) dropped into the hole (81 start spots), (c) next to a seam, (d) a centre in a box whose only near way out is a seam, (e) barely overlapping next to a 0.5 m gap with open ground on both sides, and N2 (96 posts ahead of the cars in map order).
 - [x] `packages/shared/src/zombies/crowdCorner.testkit.ts`: `neverMoved`, asserted empty in `carCorner.test.ts` (both crowd tests) and in the corner fuzz.
 
@@ -47,7 +47,7 @@ Each new test fails without its part of the fix: (a) and (b) without the open-ar
 ## Spec Change Log
 
 - Review round 1 (parent, 814e7ed: changes requested, 2 M / 2 L, all on the dev-spawn path):
-  - **M-A, deep forts counted as open.** The flood window was ±4 m round the start, so a fort deeper than about 3.5 m touched its edge. It now covers the whole escape reach (±12.5 m, 0.25 m cells, 102 × 102). New test: forts 6 and 10 m deep, with the outer 0.3 m gap and with a car against the wall over the hole. Nobody ends inside; it fails with the old window.
+  - **M-A, deep forts counted as open.** The flood window was ±4 m round the start, so a fort deeper than about 3.5 m touched its edge. It now covers the whole escape reach (±12.5 m, 0.25 m cells, 98 × 98). New test: forts 6 and 10 m deep, with the outer 0.3 m gap and with a car against the wall over the hole. Nobody ends inside; it fails with the old window.
   - **M-B, clearance stricter than the body needs.** A Downtown stage-4 Brute wedged between `parking_wall` and `parked_car_1` went 6.75 m north instead of PR #12's 0.55 m. The clearance now has 2 cm of slack (`CLEARANCE_SLACK_M`). Pinned: it lands within 1 m of #12's spot, and the test fails with no slack.
   - **L-C, a centre on a box face was a dead end.** The "start is inside this box" test used the ungrown box while the path test grew it. Both use the grown box now. Pinned with the reviewer's two boxes and a Brute at (4.3, 15).
   - **L-D, bodies frozen for good (round 1's "intended trade").** The escape now tries three passes: (1) clearance and open; (2) open, with clearance dropped (a squeeze as the last resort into open ground); (3) clearance, enclosed allowed.
@@ -64,6 +64,22 @@ Each new test fails without its part of the fix: (a) and (b) without the open-ar
     - Test: the reviewer's fort and crate, a player wedged at (19.875, 12.3), 13 and 13.7. It always stays inside, under 1 m from the starts at the crate's ends (12.3, 13.7) and under 1.6 m mid-crate (13). It fails with the open order for every start.
   - **L1:** `buildFlood` documents its cost (~1.4–3.9 ms per escape) and says to cache it per (World, versions, r) if the escape ever runs in real play.
   - **N1:** `buildFlood` documents the resolution condition 2 · minR + minWallDepth > 1.5 · √2 · FLOOD_CELL_M (1.2 m > 0.53 m today).
+
+- Final re-review (parent, 3d16578: 2 M / 1 nit; master merged, d559705e and later):
+  - **M-B:** `PASSES_ENCLOSED = [2, 3]`: an enclosed start takes the nearest spot either side, with clearance first. Test: a player in their own fort's murder hole, nearer its inner mouth, (21.6–21.9, 8.95), steps back inside in under 0.5 m. It fails with [0, 2, 3].
+  - **M-A:** the start's side is decided in three steps.
+    1. **Wedged in a slot:** the side is where the slot leads, its nearer end. A slot is two boxes it overlaps that face each other across its centre. A walk along the slot's axis finds the first free flood cell across it.
+    2. **Otherwise:** the nearest free cell it can reach, as the review asked: the straight path is centre-clear and keeps the body's clearance, less half a flood cell, since a cell centre lies up to 0.125 m off where the body would stand.
+    3. **A centre in a box (a car):** the body's full radius counts, only past the box it is in.
+
+    The plain nearest free cell is the last fallback. Why each step is needed:
+    - The review's plain "nearest reachable cell" broke its own earlier pins. From the 0.3 m outer gap outside a hole (M-A round 1, M1-new) the inside of the fort is the nearer reachable cell, so those bodies went in. The slot rule fixes that: they are in a slot running along the wall.
+    - A car-centre start over the hole needs step 3.
+    - The review's exact repro, the crate [20.5, 23] × [9.75, 10.5], needs the half-cell slack. Without it no inside cell is reachable on a straight path, and the plain fallback is the outside.
+    - Test: the review's fort and crate, a player at (21.35–21.85, 9.375): all stay inside. It fails on 3d16578, without reachability and without the slack. The slot rule is pinned by the M-A round-1 and M1-new fort tests, which fail without it.
+  - **(b) changed meaning, a conflict between reviews.** Round 1 asked that a body dropped into the hole always leave by the open side. M-B now makes the hole's inner half count as inside. (b) now asserts: it leaves by the mouth its centre is nearer, never through a wall. y 8.65–8.85, round the hole's middle, is left out, because the 0.25 m flood cells can't tell the mouths apart there.
+  - **Nit:** "102 × 102" → "98 × 98" (`FLOOD_N` = 98).
+  - The car-corner golden digest stays master's 3587910981 (re-pinned there for 9.13's balance keys): it passes on the merged tree with this fix, so the escape doesn't change it.
 
 ## Design Notes
 

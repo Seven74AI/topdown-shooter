@@ -417,7 +417,10 @@ describe("the escape never squeezes a body through an opening narrower than itse
     expect(bad).toEqual([]);
   });
 
-  it("(b) dropped into the hole: it leaves by the open side, never into the sealed fort", () => {
+  it("(b) dropped into the hole: it leaves by the mouth its centre is nearer (final review M-B), never through a wall", () => {
+    // Round 1 sent every one out (the open side). The final review (M-B) made the hole's inner half count as the fort's
+    // (a player standing in their own murder hole stays in), so the side is the hole's nearer mouth. Round the hole's
+    // middle (y 8.65–8.85) either mouth may come first: the flood's 0.25 m cells can't tell them apart there.
     const world = fortWorld();
     const bad: string[] = [];
     let tried = 0;
@@ -425,12 +428,53 @@ describe("the escape never squeezes a body through an opening narrower than itse
       for (let y = 8.55; y < 9; y += 0.05) {
         tried++;
         expect(pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true), `(${x.toFixed(2)}, ${y.toFixed(2)})`).toBe(PUSH_ESCAPED);
-        expect(clearOfAll(world, pushed.x, pushed.y, RZ_W)).toBe(true);
-        if ((inFort(pushed.x, pushed.y) || pushed.y > 9) && bad.length < 5) bad.push(`(${x.toFixed(2)}, ${y.toFixed(2)}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+        const at = `(${x.toFixed(2)}, ${y.toFixed(2)}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+        expect(clearOfAll(world, pushed.x, pushed.y, RZ_W), at).toBe(true);
+        for (const w of world.buildings.list) expect(segmentHitsBox(x, y, pushed.x - x, pushed.y - y, w.minX, w.minY, w.maxX, w.maxY), `${at}: through a wall`).toBe(false);
+        const out = pushed.y < 8.5;
+        if (y < 8.65 && !out && bad.length < 5) bad.push(`${at}: the outer mouth is nearer`);
+        if (y > 8.85 && out && bad.length < 5) bad.push(`${at}: the inner mouth is nearer`);
       }
     }
     expect(tried).toBe(81);
     expect(bad).toEqual([]);
+  });
+
+  it("final review M-A: a player wedged inside their fort between the wall under the murder hole and a crate stays inside (the hole is no way out for it)", () => {
+    // The M2-new fort (inside x (19.5, 24), y (9, 15), the 0.5 m hole at x [21.5, 22] in the north wall) with the crate
+    // [20.5, 23] × [9.75, 10.5]: 0.75 m between the wall's inner face and the crate, less than a player (0.8 m). Its plain
+    // nearest free cell is outside, across the hole; the nearest it can reach is inside.
+    const solids = [
+      { name: "n1", minX: 19.5, minY: 8.5, maxX: 21.5, maxY: 9 },
+      { name: "n2", minX: 22, minY: 8.5, maxX: 24, maxY: 9 },
+      { name: "w", minX: 19, minY: 8.5, maxX: 19.5, maxY: 15.5 },
+      { name: "e", minX: 24, minY: 8.5, maxX: 24.5, maxY: 15.5 },
+      { name: "s", minX: 19.5, minY: 15, maxX: 24, maxY: 15.5 },
+      { name: "crate", minX: 20.5, minY: 9.75, maxX: 23, maxY: 10.5 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    const bad: string[] = [];
+    let escapes = 0;
+    for (let x = 21.35; x <= 21.85 + 1e-9; x += 0.05) {
+      const e0 = pushEscapes.count;
+      expect([PUSH_MOVED, PUSH_ESCAPED]).toContain(pushOutOfBuildings(world, x, 9.375, R, x, 9.375, true, true)); // some starts the plain push-out places
+      escapes += pushEscapes.count - e0;
+      const inside = pushed.x > 19.5 && pushed.x < 24 && pushed.y > 9 && pushed.y < 15;
+      if (!inside && bad.length < 5) bad.push(`(${x.toFixed(2)}, 9.375) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+      expect(solids.every((q) => !circleOverlapsBox(pushed.x, pushed.y, R - 1e-6, q.minX, q.minY, q.maxX, q.maxY))).toBe(true);
+    }
+    expect(escapes, "liveness: most starts really wedged").toBeGreaterThan(5);
+    expect(bad).toEqual([]);
+  });
+
+  it("final review M-B: a player standing in their own fort's murder hole, nearer its inner mouth, steps back inside (< 0.5 m), not 0.8 m out", () => {
+    const world = fortWorld();
+    for (let x = 21.6; x <= 21.9 + 1e-9; x += 0.05) {
+      expect(pushOutOfBuildings(world, x, 8.95, R, x, 8.95, true, true)).toBe(PUSH_ESCAPED);
+      const at = `(${x.toFixed(2)}, 8.95) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+      expect(inFort(pushed.x, pushed.y), `${at}: went out`).toBe(true);
+      expect(Math.hypot(pushed.x - x, pushed.y - 8.95), at).toBeLessThan(0.5);
+    }
   });
 
   it("(c) next to a seam between two touching boxes: it never slides through the seam (the far side is nearer than the gap's ends)", () => {
