@@ -218,12 +218,12 @@ class LobbyStore {
             seatStore.clear();
             onLost("connection_lost");
           },
+          leaveForGood: (late) => void late.leave(true),
           onStatus: (status, sinceMs) => {
             if (this.room === room) linkStore.set(status, sinceMs);
             if (status === "ok") saveSeat(); // a reconnect gets a new token
           },
         },
-        (late) => void late.leave(true), // a takeover that landed after the token reconnect won
       );
       this.link = link;
       linkStore.set("ok", performance.now());
@@ -250,6 +250,8 @@ class LobbyStore {
       // Story 8.1 (brief 21): mid-run, an end that isn't a Leave or a shutdown is a drop the SDK
       // couldn't repair (it gave up, or the token was refused): take the seat over by guest token.
       const link = this.link;
+      // Our own takeover is in flight: this 4021 is it closing the token-reconnected socket; its room is adopted next.
+      if (link && code === CLOSE_TAKEN_OVER && link.recoveryInFlight) return;
       if (link && inRunPhase(room.state?.phase) && !shuttingDown && code !== CONSENTED && code !== SERVER_SHUTDOWN && code !== CLOSE_TAKEN_OVER) {
         link.sdkGaveUp();
         return;
@@ -285,6 +287,7 @@ class LobbyStore {
   leave(only?: RunConnection): boolean {
     if (only !== undefined && this.room !== only) return false;
     const room = this.room;
+    this.link?.close(true); // Story 8.1: a takeover landing after this Leave is left too, never adopted
     this.detach();
     this.set(EMPTY);
     seatStore.clear(); // Story 8.1: a Leave is for good (consented): a reload must not take the seat back

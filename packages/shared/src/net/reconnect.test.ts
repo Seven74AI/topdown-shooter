@@ -168,3 +168,27 @@ describe("Story 8.1 shouldRescueReload (AC 7, D6)", () => {
     expect(shouldRescueReload(30_000, 6000, false)).toBe(false);
   });
 });
+
+describe("Story 8.1 SeatRecovery: one attempt at a time (a cut line holds the request)", () => {
+  it("a hung attempt is never timed out or doubled: it answers when the line is whole and the seat is back at once", async () => {
+    const time = fakeTime();
+    const releases: ((r: RecoveryJoin<string>) => void)[] = [];
+    const got: string[] = [];
+    const rec = new SeatRecovery<string>({
+      join: () => new Promise((res) => releases.push(res)),
+      onRecovered: (r) => got.push(r),
+      onSeatKept: () => got.push("kept"),
+      onGone: () => got.push("gone"),
+      now: time.now,
+      schedule: time.schedule,
+    });
+    rec.start();
+    await time.advance(20_000);
+    expect(releases).toHaveLength(1);
+    expect(rec.inFlight).toBe(true);
+    releases[0]?.({ ok: true, room: "R" });
+    await time.advance(1);
+    expect(got).toEqual(["R"]);
+    expect(rec.inFlight).toBe(false);
+  });
+});

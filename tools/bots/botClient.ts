@@ -8,6 +8,11 @@ import {
   HORDE_MAX_RECORDS,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
+  CLOSE_TAKEN_OVER,
+  RECONNECT,
+  SeatRecovery,
+  Watchdog,
+  configureReconnection,
   RUN_ROOM_NAME,
   S2C,
   TICK_DT_S,
@@ -83,6 +88,9 @@ export interface BotClientOptions {
   /** One JSON object per line goes here (default: stdout). */
   log?: (line: Record<string, unknown>) => void;
 }
+
+/** Story 8.1: the bot's link (the phone's rules: shared `Watchdog` + `SeatRecovery`, `net/reconnect.ts`). */
+export type BotLinkStatus = "ok" | "reconnecting" | "seat_kept";
 
 /** What one bot measured over one wave (`wave.started` → `wave.ended`). */
 export interface BotWaveStats {
@@ -203,18 +211,78 @@ export class BotClient {
     m.status = p.status;
   };
 
+  /** Story 8.1: the room I play in (a takeover replaces it). */
+  room: Room<unknown, RunStateView>;
+  /** Story 8.1: the link status; inputs are sent only while "ok" (F7). */
+  link: BotLinkStatus = "ok";
+  /** Story 8.1 (AC 11 liveness): drops seen and how each came back. */
+  readonly reconnects: { afterMs: number; via: "token" | "guest" }[] = [];
+  private droppedAtMs = 0;
+  private readonly watchdog = new Watchdog();
+  private readonly recovery: SeatRecovery<Room<unknown, RunStateView>>;
+  private linkTimer: ReturnType<typeof setInterval> | null = null;
+
   private constructor(
-    readonly room: Room<unknown, RunStateView>,
+    room: Room<unknown, RunStateView>,
     readonly name: string,
     log: (line: Record<string, unknown>) => void,
     holdFireS: number,
+    /** Story 8.1: a fresh join of the same room with my guest token (the takeover, AC 6). */
+    private readonly rejoin: () => Promise<Room<unknown, RunStateView>>,
   ) {
+    this.room = room;
     this.holdFireMs = holdFireS * 1000;
     this.cfg = botConfigOf(balance);
     this.list = balance.bots.shoppingList;
     this.log = log;
+    this.recovery = new SeatRecovery<Room<unknown, RunStateView>>(
+      {
+        join: () =>
+          this.rejoin().then(
+            (r) => ({ ok: true as const, room: r }),
+            (e: unknown) => {
+              const m = String((e as { message?: unknown })?.message ?? "");
+              const code = (e as { code?: unknown })?.code;
+              return { ok: false as const, reason: m === "seat_kept" ? ("seat_kept" as const) : typeof code === "number" && (m === "run_started" || /not found/i.test(m)) ? ("gone" as const) : ("network" as const) };
+            },
+          ),
+        onRecovered: (r) => this.recovered(r),
+        onSeatKept: () => (this.link = "seat_kept"),
+        onGone: () => {
+          this.closed = { code: 0, reason: "seat gone" };
+          this.log({ msg: "bot_seat_gone", bot: name });
+        },
+        now: () => performance.now(),
+        schedule: (fn, ms) => {
+          const t = setTimeout(fn, ms);
+          return () => clearTimeout(t);
+        },
+      },
+      // A takeover that landed after the token reconnect won: it holds the seat now (D5: newest wins): adopt it.
+      (late) => (this.leaving ? void late.leave(true).catch(() => {}) : this.recovered(late)),
+    );
+    this.wire(room);
+    this.linkTimer = setInterval(() => this.checkLink(), 250);
+  }
+
+  /** Story 8.1: every handler on a room (the first one, and a room taken over after a cut). */
+  private wire(room: Room<unknown, RunStateView>): void {
     const now = (): number => performance.now();
+    configureReconnection(room.reconnection); // F7: no offline queue
     attachByteCounters(room as unknown as Parameters<typeof attachByteCounters>[0], this.down, this.up, now);
+    const heard = (): void => {
+      if (this.room === room && this.link === "ok") this.watchdog.heard(now());
+    };
+    room.onStateChange(heard);
+    room.onMessage(BYTES.HORDE_FRAME, heard);
+    room.onDrop(() => {
+      if (this.room === room) this.dropped();
+    });
+    room.onReconnect(() => {
+      if (this.room !== room) return;
+      this.recovery.cancel();
+      this.back("token");
+    });
     room.onMessage(S2C.RUN_JOINED, (m: RunJoined) => {
       this.playerId = m.playerId;
       this.slot = m.slot;
@@ -240,12 +308,66 @@ export class BotClient {
     room.onMessage(S2C.BUILDING_REPAIR_REFUSED, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
     room.onLeave((code: number, reason?: string) => {
+      if (this.room !== room || this.leaving) return;
+      if (code === CLOSE_TAKEN_OVER && this.recovery.inFlight) return; // our own takeover: its room is adopted next
+      // Story 8.1: mid-run, an end that is not a Leave, a shutdown or a takeover is a drop the SDK couldn't repair.
+      const phase = room.state?.phase;
+      if ((phase === "build" || phase === "wave" || phase === "vote") && code !== 4000 && code !== 4001 && code !== CLOSE_TAKEN_OVER) {
+        if (this.link === "ok") this.dropped();
+        this.recovery.start();
+        return;
+      }
       if (this.timer) clearInterval(this.timer);
       this.timer = null;
-      if (this.leaving) return;
       this.closed = { code, reason: reason ?? "" };
-      this.log({ msg: "bot_room_closed", bot: name, code, reason: reason ?? "" });
+      this.log({ msg: "bot_room_closed", bot: this.name, code, reason: reason ?? "" });
     });
+  }
+
+  /** Story 8.1 (AC 5): 3 s with no message in a run = a dead line: close the socket (non-consented) and reconnect. */
+  private checkLink(): void {
+    const now = performance.now();
+    const phase = this.room.state?.phase;
+    if (this.link === "ok") {
+      if (phase !== "build" && phase !== "wave" && phase !== "vote") return this.watchdog.disarm();
+      if (this.watchdog.fired(now)) {
+        this.dropped();
+        try {
+          (this.room as unknown as { connection?: { close(code?: number, reason?: string): void } }).connection?.close(4010, "no data");
+        } catch {
+          // the takeover path takes over
+        }
+      }
+      return;
+    }
+    if (!this.recovery.active && now - this.droppedAtMs >= RECONNECT.takeoverAfterMs) this.recovery.start();
+  }
+
+  private dropped(): void {
+    if (this.link !== "ok") return;
+    this.link = "reconnecting";
+    this.droppedAtMs = performance.now();
+    this.watchdog.disarm();
+    this.log({ msg: "bot_dropped", bot: this.name, playerId: this.playerId });
+  }
+
+  private back(via: "token" | "guest"): void {
+    const afterMs = Math.round(performance.now() - this.droppedAtMs);
+    this.link = "ok";
+    this.watchdog.heard(performance.now());
+    this.reconnects.push({ afterMs, via });
+    this.log({ msg: "bot_reconnected", bot: this.name, playerId: this.playerId, afterMs, via, text: `reconnected after ${afterMs} ms` });
+  }
+
+  /** Story 8.1: my seat came back on a new room (a takeover by guest token): play on in it. */
+  private recovered(room: Room<unknown, RunStateView>): void {
+    const old = this.room;
+    old.reconnection.enabled = false;
+    this.room = room;
+    this.wire(room);
+    void old.leave(false).catch(() => {}); // never consented (the seat is the new room's)
+    room.send(C2S.LOBBY_SET_READY, { ready: true });
+    this.back("guest");
   }
 
   /** Joins (or creates) and taps Ready. */
@@ -262,7 +384,9 @@ export class BotClient {
     const room = opts.roomId
       ? await client.joinById<RunStateView>(opts.roomId, options)
       : await client.create<RunStateView>(RUN_ROOM_NAME, options);
-    const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0);
+    // Story 8.1: the takeover joins the same room again with the same guest token (the seat's identity).
+    const rejoin = (): Promise<Room<unknown, RunStateView>> => client.joinById<RunStateView>(room.roomId, { ...options, intent: "join" });
+    const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0, rejoin);
     room.send(C2S.LOBBY_SET_READY, { ready: true });
     bot.timer = setInterval(() => bot.step(), INPUT_INTERVAL_MS);
     return bot;
@@ -281,6 +405,9 @@ export class BotClient {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.linkTimer) clearInterval(this.linkTimer);
+    this.linkTimer = null;
+    this.recovery.cancel();
     this.leaving = true;
     await this.room.leave(true).catch(() => {});
   }
@@ -357,6 +484,7 @@ export class BotClient {
       this.swapPending = false;
     }
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
+    if (this.link !== "ok") return; // Story 8.1 (F7): nothing sent while the link is down (and nothing late)
     this.room.send(C2S.INPUT_SEND, this.input);
   }
 

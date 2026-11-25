@@ -101,7 +101,7 @@ export interface RecoveryDeps<R> {
  * AC 6, 9: takes a seat back with fresh joins until it works. One attempt in flight at a time;
  * `seat_kept` retries every `seatRetryMs` (for as long as the player waits: D4), a network failure
  * every `retryMs` until `giveUpMs` after `start()`. `cancel()` (the token reconnect won, or Leave)
- * stops it; a result that arrives after `cancel()` is dropped (and its room handed to `onLate`).
+ * stops it; a successful join that arrives after `cancel()` is handed to `onLate` (see there).
  */
 export class SeatRecovery<R> {
   private running = false;
@@ -112,7 +112,13 @@ export class SeatRecovery<R> {
   attempts = 0;
   constructor(
     private readonly deps: RecoveryDeps<R>,
-    /** A room joined by an attempt that was cancelled meanwhile (leave it). */
+    /**
+     * A room joined by an attempt that was cancelled meanwhile (the SDK's token reconnect won first,
+     * or the player pressed Leave). The server's rule is "the newest connection takes the seat" (D5),
+     * and a takeover that succeeded is always the newest: it HOLDS the seat now (the token-reconnected
+     * socket was closed with 4021). Adopt it, unless the player left on purpose (then leave it,
+     * consented). Never close it non-consented and walk away (the seat would sit on hold).
+     */
     private readonly onLate: (room: R) => void = () => {},
   ) {}
 
@@ -134,14 +140,27 @@ export class SeatRecovery<R> {
     this.cancelTimer = null;
   }
 
+  /**
+   * An attempt is waiting for its answer. One at a time, and never timed out: a cut line holds the
+   * request until it is whole again (then it answers at once), and two takeovers in flight from the
+   * same phone would fight over the seat.
+   */
+  get inFlight(): boolean {
+    return this.pending;
+  }
+
+  private pending = false;
+
   private attempt(): void {
     const epoch = ++this.epoch;
     this.cancelTimer = null;
     this.attempts++;
-    void this.deps.join().then(
-      (r) => this.answer(epoch, r),
-      () => this.answer(epoch, { ok: false, reason: "network" }),
-    );
+    this.pending = true;
+    const settle = (r: RecoveryJoin<R>): void => {
+      this.pending = false;
+      this.answer(epoch, r);
+    };
+    void this.deps.join().then(settle, () => settle({ ok: false, reason: "network" }));
   }
 
   private answer(epoch: number, r: RecoveryJoin<R>): void {

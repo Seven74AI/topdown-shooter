@@ -138,7 +138,7 @@ describe("Story 8.1 hold and return: every PlayerState field (F2)", () => {
     const { world, players } = setup();
     const p = players[1] as PlayerState;
     scramble(world, p);
-    const before = structuredClone(p);
+    const before = JSON.parse(JSON.stringify(p)) as PlayerState;
     expect(holdPlayer(world, "p1")).toBe(true);
     run(world, 30); // time passes for the others
     expect(returnPlayer(world, "p1")).toBe(true);

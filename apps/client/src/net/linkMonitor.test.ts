@@ -23,6 +23,7 @@ function setup(join: () => Promise<RecoveryJoin<string>> = async () => ({ ok: fa
   const recovered: string[] = [];
   let gone = 0;
   let joins = 0;
+  const leftForGood: string[] = [];
   const f = fakeRoom();
   let inRun = true;
   const link = new LinkMonitor<string>(f.room, {
@@ -39,6 +40,7 @@ function setup(join: () => Promise<RecoveryJoin<string>> = async () => ({ ok: fa
     },
     onRecovered: (r) => recovered.push(r),
     onGone: () => gone++,
+    leaveForGood: (r) => leftForGood.push(r),
     onStatus: (s) => statuses.push(s),
   });
   /** Advances the clock in 1 ms steps (stateful sweep), ticking the monitor and firing timers. */
@@ -56,7 +58,7 @@ function setup(join: () => Promise<RecoveryJoin<string>> = async () => ({ ok: fa
     await Promise.resolve();
     await Promise.resolve();
   };
-  return { link, f, statuses, recovered, gone: () => gone, joins: () => joins, advance, setInRun: (v: boolean) => (inRun = v), now: () => now };
+  return { link, f, statuses, recovered, leftForGood, gone: () => gone, joins: () => joins, advance, setInRun: (v: boolean) => (inRun = v), now: () => now };
 }
 
 describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
@@ -125,6 +127,27 @@ describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
     t.link.sdkGaveUp();
     await t.advance(10);
     expect(t.gone()).toBe(1);
+  });
+
+  it("a takeover that lands AFTER the token reconnect won is adopted (it holds the seat now: newest wins); after Leave it is left", async () => {
+    let release: (r: RecoveryJoin<string>) => void = () => {};
+    const t = setup(() => new Promise((res) => (release = res)));
+    t.link.heard(0);
+    t.f.drop();
+    await t.advance(RECONNECT.takeoverAfterMs + 5);
+    expect(t.link.recoveryInFlight).toBe(true);
+    t.f.back(); // the SDK's token reconnect wins first …
+    release({ ok: true, room: "late" }); // … then the takeover lands
+    await t.advance(5);
+    expect(t.recovered).toEqual(["late"]);
+    const u = setup(() => new Promise((res) => (release = res)));
+    u.link.sdkGaveUp();
+    await u.advance(5);
+    u.link.close(true); // Leave
+    release({ ok: true, room: "late2" });
+    await u.advance(5);
+    expect(u.recovered).toEqual([]);
+    expect(u.leftForGood).toEqual(["late2"]);
   });
 
   it("close() (Leave during reconnecting) stops every retry", async () => {

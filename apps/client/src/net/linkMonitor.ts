@@ -51,6 +51,8 @@ export interface LinkDeps<R> {
   onRecovered(room: R): void;
   /** No seat to take back. */
   onGone(): void;
+  /** A late takeover's room after the player pressed Leave: leave it, consented (the Leave stands). */
+  leaveForGood(room: R): void;
   onStatus(status: LinkStatus, sinceMs: number): void;
 }
 
@@ -76,10 +78,12 @@ export class LinkMonitor<R> {
   /** Seat returns on the same room (SDK token reconnect). */
   reconnects = 0;
 
+  /** The player pressed Leave (a late takeover is then left, not adopted). */
+  private left = false;
+
   constructor(
     private readonly room: LinkRoom,
     private readonly deps: LinkDeps<R>,
-    onLateRoom: (room: R) => void = () => {},
   ) {
     configureReconnection(room.reconnection);
     room.onDrop(() => this.dropped(false));
@@ -87,11 +91,7 @@ export class LinkMonitor<R> {
     this.recovery = new SeatRecovery<R>(
       {
         join: () => this.deps.rejoin(),
-        onRecovered: (r) => {
-          this.set("ok");
-          this.close();
-          this.deps.onRecovered(r);
-        },
+        onRecovered: (r) => this.adopt(r),
         onSeatKept: () => this.set("seat_kept"),
         onGone: () => {
           this.close();
@@ -100,8 +100,22 @@ export class LinkMonitor<R> {
         now: () => this.deps.now(),
         schedule: (fn, ms) => this.deps.schedule(fn, ms),
       },
-      onLateRoom,
+      // A takeover that landed after the token reconnect won (or after Leave): it holds the seat now (D5: newest wins).
+      (late) => (this.left ? this.deps.leaveForGood(late) : this.adopt(late)),
     );
+  }
+
+  /** A takeover attempt is waiting for its answer (a 4021 on the current room is then our own takeover). */
+  get recoveryInFlight(): boolean {
+    return this.recovery.inFlight;
+  }
+
+  private adopt(r: R): void {
+    this.set("ok");
+    this.closed = true;
+    this.recovery.cancel();
+    this.watchdog.disarm();
+    this.deps.onRecovered(r);
   }
 
   get current(): LinkStatus {
@@ -133,8 +147,9 @@ export class LinkMonitor<R> {
     this.recovery.start();
   }
 
-  /** The owner is done with this room (Leave, a newer room, the end of the page). */
-  close(): void {
+  /** The owner is done with this room (`left`: the player pressed Leave; else a newer room, the end of the page). */
+  close(left = false): void {
+    if (left) this.left = true;
     this.closed = true;
     this.recovery.cancel();
     this.watchdog.disarm();

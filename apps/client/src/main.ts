@@ -105,7 +105,7 @@ function enterRoom(room: RunConnection, c: Connection): void {
       onRecovered: (next) => {
         room.reconnection.enabled = false; // the old room stops retrying; the new one has the seat
         enterRoom(next, c);
-        void room.leave(true); // after the attach: the store already follows `next`
+        void room.leave(false); // after the attach (the store follows `next`); never consented: the old session no longer owns the seat, and a consented leave must never free it
       },
       onLost: (reason, serverText) => {
         if (reason === "taken_over") {
