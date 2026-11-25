@@ -3,10 +3,12 @@ export interface PlayerSettings {
   screenShake: boolean;
   /** Story 5.23 (AC 5, D9): placement haptics (Android); every haptic has a visual twin. Story 10.1 shows it. */
   haptics: boolean;
+  /** Touch: any move-stick drag past the dead zone moves at full speed (default off: analog, FR2). */
+  alwaysFullSpeed: boolean;
 }
 
 const KEY = "topdown-shooter.settings";
-const DEFAULTS: PlayerSettings = { screenShake: true, haptics: true };
+const DEFAULTS: PlayerSettings = { screenShake: true, haptics: true, alwaysFullSpeed: false };
 
 let cached: PlayerSettings | null = null;
 
