@@ -472,6 +472,12 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 | RR1-N4 | While `state.frozen` both phone clocks hold still; when the freeze lifts the render clock moves on from where it stood (`AdaptiveDelay.rebase(true)`), so nothing drawn steps back; a link-up edge re-bases fully (the reconnecting panel covers it) | `NetSimHost.reconnect.test.ts` › "review M3" (render tick constant while frozen, monotonic across the lift) + "a phone that missed a whole freeze …" (link edge; fails without `delay.rebase` or without the link edge) |
 | RR1-N1/N2/N3 | Tests that bite: `everyoneVoted`'s held check (`hold.test.ts` › "N1", stepping the World), late flag only on a late adopt (`linkMonitor.test.ts` › "RR1-N2"), `net.rename` in `takeOver` (`RunRoom.reconnect.test.ts` › takeover of a connected seat checks the guard object), `playersInRun` counts held (`hold.test.ts` › "N3"), `delay.rebase` / link edge (above) | each mutation now fails a test |
 
+### Merge with Story 8.10 (2026-11-25, 8.1 lands second)
+
+- Merged master f67154d (8.10): conflicts kept both sides (sprint-status, NetSimHost — 8.10 moved `receiveHorde`, 8.1's clock re-base kept —, perf doc, `JoinRefusal` now has both `seat_kept` and `update_required`, bots `--kbps` and `--cut-*`).
+- `RunRoom.attachClient` calls `this.horde?.resetHordeStream(client)` (belt and braces: every caller passes a new Colyseus client); `takeOver` and `finalLeave` call `forgetClient` on the old socket.
+- New test `RunRoom.reconnect.test.ts` › "the first frame after a token reconnect, and after a takeover, is a keyframe and decodes with no error" (fresh `HordeStreamDecoder` decodes every frame; the frames carry the zombie). Join options in the 8.1 tests carry `netProtocolVersion`.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
@@ -480,3 +486,4 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 - 2026-11-25: review fixes H1–H3, M1 (decision 8.1 B15), M2, M3, L1–L6 (builder); 8.10 hooks left as comments.
 - 2026-11-25: narrow re-review 1: RR1-M1, B16–B18 auto-accepted, nits N1–N4.
 - 2026-11-25: re-review 1 fixes RR1-M1, B16 (dropped body stays 3 s), B17 (accepted), B18 (solo: 3-2-1 replaces protection), N1–N4 (builder).
+- 2026-11-25: merged master with Story 8.10; 8.10 hooks wired (resetHordeStream / forgetClient) and the keyframe-after-reconnect test (8.1 landed second).

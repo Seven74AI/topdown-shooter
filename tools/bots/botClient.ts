@@ -32,7 +32,8 @@ import {
   upgradeEntryWeapon,
   upgradePrice,
   loadBalance,
-  readHordeFrame,
+  HordeStreamDecoder,
+  NET_PROTOCOL_VERSION,
   type BotConfig,
   type BotMate,
   type BotShopSelf,
@@ -104,6 +105,10 @@ export interface BotWaveStats {
   rttMs: number;
   hordeFramesPerS: number;
   avgZombiesInFrame: number;
+  /** Story 8.10: horde stream bytes (payload + 2-byte Colyseus header) per s, keyframes per s, refused frames (wave). */
+  hordeKBps: number;
+  keyframesPerS: number;
+  hordeDecodeErrors: number;
   kills: number;
   downs: number;
   revives: number;
@@ -181,6 +186,12 @@ export class BotClient {
   private waveStartMs = 0;
   private waveFrames0 = 0;
   private waveRecords0 = 0;
+  /** Story 8.10 (brief 20): the same stream decoder as the phone's RunInbox. */
+  private readonly hordeStream = new HordeStreamDecoder();
+  private hordeBytes = 0;
+  private waveHordeBytes0 = 0;
+  private waveKeyframes0 = 0;
+  private waveHordeErrors0 = 0;
   private waveKills0 = 0;
   private downs = 0;
   private revives = 0;
@@ -291,7 +302,10 @@ export class BotClient {
       room.send(C2S.NET_PONG, { id: m.id });
       this.rttMs = m.rttMs;
     });
-    room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => void readHordeFrame(b, this.horde));
+    room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => {
+      this.hordeBytes += b.length + 2; // + [protocol][type], like the server's horde_stats
+      this.hordeStream.decode(b, this.horde);
+    });
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
     room.onMessage(S2C.SHOP_BOUGHT, (m: ShopBought) => this.shopBought(m));
@@ -388,6 +402,7 @@ export class BotClient {
       name: opts.name,
       balanceVersion: balance.version,
       mapVersion: DOWNTOWN_MAP.version,
+      netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10
       guestToken: guestToken(),
     };
     if (!opts.roomId && opts.scenario) options.scenario = opts.scenario;
@@ -668,6 +683,9 @@ export class BotClient {
     this.up.mark(now);
     this.waveFrames0 = this.horde.frames;
     this.waveRecords0 = this.horde.recordsSum;
+    this.waveHordeBytes0 = this.hordeBytes;
+    this.waveKeyframes0 = this.hordeStream.keyframes;
+    this.waveHordeErrors0 = this.hordeStream.decodeErrors + this.hordeStream.brokenChain;
     this.waveKills0 = this.kills();
     this.downs = 0;
     this.revives = 0;
@@ -692,6 +710,9 @@ export class BotClient {
       rttMs: Math.round(this.rttMs),
       hordeFramesPerS: seconds > 0 ? r1(frames / seconds) : 0,
       avgZombiesInFrame: frames > 0 ? r1((this.horde.recordsSum - this.waveRecords0) / frames) : 0,
+      hordeKBps: seconds > 0 ? r1((this.hordeBytes - this.waveHordeBytes0) / 1024 / seconds) : 0,
+      keyframesPerS: seconds > 0 ? Math.round(((this.hordeStream.keyframes - this.waveKeyframes0) / seconds) * 100) / 100 : 0,
+      hordeDecodeErrors: this.hordeStream.decodeErrors + this.hordeStream.brokenChain - this.waveHordeErrors0,
       kills: this.kills() - this.waveKills0,
       downs: this.downs,
       revives: this.revives,

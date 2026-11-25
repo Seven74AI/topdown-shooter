@@ -1,3 +1,5 @@
+import { HORDE_MAX_FRAME_BYTES } from "@topdown/shared";
+
 /**
  * Netcode feel (Story 2.6): how prediction corrects itself and how far behind the server the other
  * players and the horde are drawn. Not gameplay balance (that is balance JSON), so they live here.
@@ -96,8 +98,11 @@ export const INPUT_SLOW_STEP_RATE = 0.9;
 
 /** Dev throttle (`?lag=&jitter=`): messages in flight per direction; when full the oldest is delivered early. */
 export const THROTTLE_QUEUE_SIZE = 128;
-/** Pooled byte buffer per in-flight binary message: one full horde frame (6 + 8 × 256 bytes, Story 2.5). */
-export const THROTTLE_BYTES_MAX = 2054;
+/**
+ * Pooled byte buffer per in-flight binary message: one full horde keyframe (Story 8.10: 7 + 8 × 256
+ * = 2055 bytes; a delta is always smaller, else the server sends the keyframe).
+ */
+export const THROTTLE_BYTES_MAX = HORDE_MAX_FRAME_BYTES;
 
 /**
  * Story 3.6 review L1: when a backlog drains (after a hidden tab), turret shots and teammates' shots

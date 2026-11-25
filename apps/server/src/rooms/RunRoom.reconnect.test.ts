@@ -5,6 +5,10 @@ import { randomBytes } from "node:crypto";
 import {
   BYTES,
   C2S,
+  HORDE_KIND_KEY,
+  HordeStreamDecoder,
+  NET_PROTOCOL_VERSION,
+  spawnZombie,
   DOWNTOWN_MAP,
   NEUTRAL_INPUT,
   RUN_ROOM_NAME,
@@ -45,6 +49,7 @@ const options = (intent: "create" | "join", name: string, guestToken: string) =>
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10's join check
   guestToken,
 });
 
@@ -233,6 +238,41 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     expect(room.rememberedSeats.size).toBe(1);
     expect(world(room).players.has("p1")).toBe(false);
     expect(world(room).heldPlayers.has("p1")).toBe(false);
+  });
+});
+
+describe("Story 8.1 × 8.10: the horde stream after a reconnect and after a takeover", () => {
+  /** Collects horde frames on `c` and checks: the first is a keyframe, a fresh phone decoder reads every one. */
+  async function firstFramesOk(c: RunSdkRoom, zombieTick: number): Promise<void> {
+    const frames: Uint8Array[] = [];
+    c.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => frames.push(new Uint8Array(b)));
+    await vi.waitFor(() => expect(frames.length).toBeGreaterThan(5));
+    expect(frames[0]?.[4]).toBe(HORDE_KIND_KEY);
+    const phone = new HordeStreamDecoder();
+    let seen = 0;
+    for (const f of frames) expect(phone.decode(f, { begin: () => {}, record: () => void seen++, end: () => {} })).toBe(true);
+    expect(seen).toBeGreaterThan(0); // liveness: the frames carried the zombie
+    expect(zombieTick).toBeGreaterThanOrEqual(0);
+  }
+
+  it("the first frame after a token reconnect, and after a takeover, is a keyframe and decodes with no error", async () => {
+    const { clients, room, tokens } = await runOf(2);
+    const w = world(room);
+    w.debug.godMode = true;
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    spawnZombie(w, "walker", p1.x + 3, p1.y);
+    const t0 = w.tick;
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo); // build phase: held at once
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await firstFramesOk(back, t0);
+    const fresh = await colyseus.sdk.joinById<RunStateView>(back.roomId, options("join", "Bo", tokens[1] as string));
+    record(fresh);
+    await firstFramesOk(fresh, t0);
   });
 });
 

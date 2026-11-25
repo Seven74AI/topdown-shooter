@@ -2,7 +2,8 @@ import { request } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Client, MatchMakeError } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { DOWNTOWN_MAP, RUN_ROOM_NAME, type RunStateView } from "@topdown/shared";
+import {
+  NET_PROTOCOL_VERSION, DOWNTOWN_MAP, RUN_ROOM_NAME, type RunStateView } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { log } from "../ops/logger";
 import { JOIN_REFUSED_CODE, serverBalance } from "../rooms/RunRoom";
@@ -30,7 +31,7 @@ afterAll(async () => {
 });
 
 // guestToken: required since Story 2.3 (a fixed one is fine: every create makes its own room).
-const createOptions = { intent: "create", name: "Ana", balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, guestToken: "0123456789abcdef0123456789abcdef" };
+const createOptions = { intent: "create", name: "Ana", balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken: "0123456789abcdef0123456789abcdef" };
 
 /** An SDK client that sends these headers on matchmaking and on the WebSocket (Node only). */
 const sdkWith = (headers: Record<string, string>) => new Client(`http://127.0.0.1:${port}`, { headers });

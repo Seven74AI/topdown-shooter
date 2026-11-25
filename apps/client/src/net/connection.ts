@@ -1,6 +1,7 @@
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   RUN_ROOM_NAME,
   err,
   isRoomCode,
@@ -38,7 +39,7 @@ const sdk = (): Client => (client ??= new Client(serverUrl()));
 const clientBalanceVersion = (): string => (balanceVersion ??= clientBalance().version);
 
 const options = (intent: JoinOptions["intent"], name: string): JoinOptions => {
-  const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), mapVersion: DOWNTOWN_MAP.version, guestToken: getGuestToken() };
+  const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken: getGuestToken() };
   // Story 2.10: `?scenario=net150` on the host's create asks for the fixed test scenario.
   const scenario = urlOptions().scenario;
   if (intent === "create" && scenario) o.scenario = scenario;

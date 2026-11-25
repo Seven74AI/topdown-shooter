@@ -362,6 +362,44 @@ describe("NetSimHost", () => {
       expect(host.world.zombies.aliveCount).toBe(0);
     });
 
+    /** Story 8.10: a delta moving `slot` by (dx, dy) cm (TINY), on top of the frame `gap` ticks before. */
+    const delta = (tick: number, gap: number, moves: { slot: number; dx: number; dy: number }[]): Uint8Array =>
+      Uint8Array.from([tick & 0xff, (tick >> 8) & 0xff, 0, 0, 2, gap, 0, moves.length, 0, ...moves.flatMap((m) => [m.slot, 0x20, (m.dx & 0xf) | ((m.dy & 0xf) << 4)])]);
+
+    it("Story 8.10 (D4): frames before the Game scene are decoded in the background; the first delta after it starts draws the full set (no wait for a keyframe)", () => {
+      const room = new FakeRoom(fakeState([fakePlayer(1)]));
+      const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+      room.deliver(BYTES.HORDE_FRAME, frame(1, [{ netId: Z, x: 1, y: 1 }])); // the join keyframe, scene not up
+      room.deliver(BYTES.HORDE_FRAME, delta(2, 1, [{ slot: 9, dx: 5, dy: 0 }]));
+      expect(session.inbox.earlyHordeDropped).toBe(2);
+      expect(session.hordeStream.synced).toBe(true);
+      const host = new NetSimHost({ balance, session, now: () => 0 });
+      room.deliver(BYTES.HORDE_FRAME, delta(3, 1, [{ slot: 9, dx: 5, dy: -3 }]));
+      expect(host.hordeStats.framesReceived).toBe(1);
+      expect(host.hordeStats.decodeErrors).toBe(0);
+      expect(host.hordeStats.keyframes).toBe(1);
+      host.update(0);
+      expect(host.world.zombies.aliveCount).toBe(1);
+      expect(host.world.zombies.x[9]).toBeCloseTo(1.1, 5); // 1 m + 5 + 5 cm
+      expect(host.world.zombies.y[9]).toBeCloseTo(0.97, 5);
+    });
+
+    it("Story 8.10: a woken tab's burst (key + 40 deltas at once, in order) decodes without an error; a delta whose base was never held is refused and counted", () => {
+      const { host, room, arrive, setNow } = setup();
+      setNow(500 + 10 * 50);
+      room.deliver(BYTES.HORDE_FRAME, frame(10, [{ netId: Z, x: 3, y: 3 }]));
+      for (let t = 11; t <= 50; t++) room.deliver(BYTES.HORDE_FRAME, delta(t, 1, [{ slot: 9, dx: 2, dy: 0 }]));
+      setNow(500 + 50 * 50);
+      arrive(50);
+      expect(host.hordeStats.framesReceived).toBe(41);
+      expect(host.hordeStats.decodeErrors).toBe(0);
+      room.deliver(BYTES.HORDE_FRAME, delta(53, 2, [{ slot: 9, dx: 2, dy: 0 }])); // its base (51) never came
+      expect(host.hordeStats.decodeErrors).toBe(1);
+      expect(host.hordeStats.framesReceived).toBe(41);
+      room.deliver(BYTES.HORDE_FRAME, frame(54, [{ netId: Z, x: 4, y: 3 }])); // healed by the next keyframe
+      expect(host.hordeStats.framesReceived).toBe(42);
+    });
+
     it("horde frames before the host exists are dropped quietly", () => {
       const room = new FakeRoom(fakeState([fakePlayer(1)]));
       const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});

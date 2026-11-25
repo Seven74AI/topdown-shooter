@@ -20,6 +20,7 @@ import {
   buildSetReadySchema,
   evacVoteSchema,
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
@@ -203,6 +204,17 @@ export function randomUint32(): number {
 const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
+/**
+ * Story 8.10 (brief 19, D5): a client built for another wire format would decode garbage; it is
+ * refused at join. Review RM1 (like Story 4.1 M1): a pre-8.10 tab sends no version and only knows
+ * `balance_mismatch` ("Please refresh" + Refresh), so a MISSING version gets that; a present but
+ * different one (a tab from 8.10 on) gets `update_required` ("A new version is out. Please reload.").
+ * One small function so Story 8.1's onAuth/onJoin changes merge around it.
+ */
+export function checkNetProtocol(version: number | undefined): void {
+  if (version === undefined) throw refuse("balance_mismatch");
+  if (version !== NET_PROTOCOL_VERSION) throw refuse("update_required");
+}
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
 const authLog = roomLog("auth");
 
@@ -293,6 +305,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       if (absent && parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
       throw refuse("invalid_options");
     }
+    checkNetProtocol(parsed.data.netProtocolVersion); // Story 8.10
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
     // Story 4.1: a client built with another map would predict against other walls.
     if (parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
@@ -403,9 +416,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private attachClient(client: RunClient, member: Member): void {
     // Review L2: a reconnect (same sessionId) keeps its guard: buckets and drop counters carry over.
     this.net.add(client, member.playerId, true);
-    // Story 8.10 hook: every caller passes a NEW Colyseus client object (Colyseus 0.18 builds a new client on a
-    // reconnect, `_onJoin` › `reconnection.resolve(client)`), so 8.10's WeakMap-per-client encoder starts with a
-    // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
+    // Story 8.10 × 8.1: every caller passes a NEW Colyseus client object (0.18 builds a new client on a reconnect,
+    // `_onJoin` › `reconnection.resolve(client)`), so the WeakMap-per-client encoder starts with a keyframe by
+    // itself; resetting the stream here is belt and braces (first join, reconnect, takeover, restored seat).
+    this.horde?.resetHordeStream(client);
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
@@ -433,7 +447,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.netMeters.delete(old.sessionId);
     this.lastPongId.delete(old.sessionId);
     this.net.rename(old.sessionId, client.sessionId); // review L2: the seat's buckets and drop counters move with it
-    // Story 8.10 hook: delete old.sessionId's per-client horde baseline here.
+    const oldClient = this.clients.getById(old.sessionId);
+    if (oldClient) this.horde?.forgetClient(oldClient); // Story 8.10: the old socket's horde baseline goes with it
     const hold = this.holds.get(member.playerId);
     if (hold?.reconnection) {
       hold.reconnection.reject(new Error("taken_over"));
@@ -631,7 +646,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       controller?.removePlayer(playerId);
     }
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
-    // Story 8.10 hook: delete member.sessionId's per-client horde baseline here.
+    const gone = this.clients.getById(member.sessionId);
+    if (gone) this.horde?.forgetClient(gone); // Story 8.10: its horde baseline goes with it
     this.lastPongId.delete(member.sessionId);
     this.netMeters.delete(member.sessionId);
     const reason: PlayerLeftReason = why === "left" ? "left" : "disconnected";
@@ -666,7 +682,6 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   override onReconnect(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
-    // Story 8.10 hook: reset this sessionId's per-client horde baseline (the phone may have missed frames).
     this.lastPongId.delete(client.sessionId);
     this.attachClient(client, member);
     const hold = this.holds.get(member.playerId);
@@ -1179,6 +1194,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (const s of this.hordeStats.values()) {
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
     this.slowTicks?.takeWindow();
@@ -1229,9 +1245,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private logHordeStats(wave: number): void {
     for (const [playerId, s] of this.hordeStats) {
       const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
-      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, avgBytes }, "horde_stats");
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes }, "horde_stats");
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
   }
