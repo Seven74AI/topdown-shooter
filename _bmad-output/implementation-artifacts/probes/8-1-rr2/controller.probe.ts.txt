@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { NEUTRAL_INPUT, VIEW_TICK_SCALE, createExplosionSpec, explode, loadBalance, type PlayerInput } from "@topdown/shared";
+import { RunController } from "./RunController";
+import { QUIET_HOLD_TICKS, STALE_INPUT_TICKS } from "../net/limits";
+
+const balance = loadBalance();
+const TWO = [
+  { playerId: "p0", slot: 0 },
+  { playerId: "p1", slot: 1 },
+];
+const input = (seq: number, over: Partial<PlayerInput> = {}): PlayerInput => ({ ...NEUTRAL_INPUT, seq, ...over });
+
+function wave(c: RunController): void {
+  c.world.run.phase = "wave"; // one mechanic: no wave director needed (waves paused)
+}
+import { endWave } from "@topdown/shared";
+const log = (s: string) => console.log("RR2 " + s);
+const MIN = balance.player.returnMinHoldTicks;
+
+describe("RR2 controller probes", () => {
+  it("B15 after B16: vanished at +60, back 20 ticks later (4 s since the drop) → protected?", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    c.dropPlayer("p1");
+    let t = 0;
+    while (!c.isHeld("p1")) { c.queueInput("p0", input(++t)); c.tick(); }
+    for (let k = 0; k < 20; k++) { c.queueInput("p0", input(++t)); c.tick(); }
+    c.returnPlayer("p1");
+    log(`4 s away (3 s standing + 1 s held): protectTicks=${p1.protectTicks} protectedReturnWave=${p1.protectedReturnWave}`);
+    expect(p1.protectTicks).toBe(0); // documents the current behaviour (RR2-M1)
+  });
+
+  it("c: chained drops (drop 55 ticks, back, repeat ×10): never held, B15 never used, uncontrollable while dropping", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    let seq = 0;
+    let applied = 0;
+    for (let cycle = 0; cycle < 10; cycle++) {
+      c.dropPlayer("p1");
+      for (let k = 0; k < 55; k++) {
+        c.queueInput("p1", input(++seq, { moveX: 1 }));
+        const before = c.ackSeq("p1");
+        c.tick();
+        if (c.ackSeq("p1") !== before) applied++;
+      }
+      c.cancelDrop("p1");
+    }
+    log(`chain ×10: held=${c.isHeld("p1")} protectedReturnWave=${p1.protectedReturnWave} inputs applied while dropping=${applied}`);
+    expect(c.isHeld("p1")).toBe(false);
+    expect(applied).toBe(0);
+  });
+
+  it("wave ends while dropping: build heal on the body, then held at once; return in the build heals nothing more", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    p1.hp = 20;
+    c.dropPlayer("p1");
+    c.tick();
+    endWave(c.world);
+    c.tick(); // build phase tick
+    const hpAfterBuild = p1.hp;
+    const held = c.isHeld("p1");
+    c.tick();
+    c.returnPlayer("p1");
+    log(`wave end while dropping: phase=${c.world.run.phase} held=${held}/${c.isHeld("p1")} hp 20 → ${hpAfterBuild} → after return ${p1.hp}`);
+    expect(p1.hp).toBe(hpAfterBuild);
+  });
+});

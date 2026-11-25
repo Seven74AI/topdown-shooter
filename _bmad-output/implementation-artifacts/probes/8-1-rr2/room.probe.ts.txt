@@ -1,0 +1,296 @@
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
+import type { ColyseusTestServer } from "@colyseus/testing";
+import type { Room as SdkRoom } from "@colyseus/sdk";
+import { randomBytes } from "node:crypto";
+import {
+  BYTES,
+  C2S,
+  DOWNTOWN_MAP,
+  NEUTRAL_INPUT,
+  RUN_ROOM_NAME,
+  S2C,
+  downPlayer,
+  endWave,
+  startWave,
+  worldDigest,
+  type PlayerLeft,
+  type RunJoined,
+  type RunStateView,
+} from "@topdown/shared";
+import { bootTestServer } from "../test/bootTestServer";
+import { CLOSE_TAKEN_OVER, QUIET_HOLD_TICKS } from "../net/limits";
+import { RunRoom, serverBalance } from "./RunRoom";
+
+/** Story 8.1 integration: drop → hold → return, takeover, remembered seats, quiet holds, freeze. */
+let colyseus: ColyseusTestServer;
+
+beforeAll(async () => {
+  ({ colyseus } = await bootTestServer());
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  await colyseus.cleanup();
+});
+afterAll(async () => {
+  await colyseus.shutdown();
+});
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const NAMES = ["Ana", "Bo", "Cy", "Di"];
+const options = (intent: "create" | "join", name: string, guestToken: string) => ({
+  intent,
+  name,
+  balanceVersion: serverBalance.version,
+  mapVersion: DOWNTOWN_MAP.version,
+  guestToken,
+});
+
+interface Seen {
+  left: PlayerLeft[];
+  joined: RunJoined[];
+}
+
+function record(client: RunSdkRoom): Seen {
+  const seen: Seen = { left: [], joined: [] };
+  client.onMessage(S2C.RUN_JOINED, (m: RunJoined) => seen.joined.push(m));
+  client.onMessage(BYTES.HORDE_FRAME, () => {});
+  client.onMessage(S2C.SIM_EVENTS_FLUSHED, () => {});
+  client.onMessage(S2C.NET_PINGED, () => {});
+  client.onMessage(S2C.PLAYER_LEFT, (m: PlayerLeft) => seen.left.push(m));
+  client.onMessage(S2C.SHOP_OFFERED, () => {});
+  return seen;
+}
+
+/** A started run (waves paused: only what the test does happens). `tokens[i]` is player i's guest token. */
+async function runOf(n: number) {
+  vi.stubEnv("DEV_NO_WAVES", "1");
+  const tokens = Array.from({ length: n }, () => randomBytes(16).toString("hex"));
+  const clients: RunSdkRoom[] = [];
+  const seen: Seen[] = [];
+  for (let i = 0; i < n; i++) {
+    const c =
+      i === 0
+        ? await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", NAMES[i] as string, tokens[i] as string))
+        : await colyseus.sdk.joinById<RunStateView>((clients[0] as RunSdkRoom).roomId, options("join", NAMES[i] as string, tokens[i] as string));
+    seen.push(record(c));
+    await c.waitForInitialState();
+    clients.push(c);
+  }
+  const room = colyseus.getRoomById<RunRoom>((clients[0] as RunSdkRoom).roomId) as unknown as RunRoom;
+  await vi.waitFor(() => expect(room.members.size).toBe(n));
+  for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+  (clients[0] as RunSdkRoom).send(C2S.RUN_START, {});
+  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+  return { clients, seen, room, tokens };
+}
+
+const world = (room: RunRoom) => {
+  const w = room.controller?.world;
+  if (!w) throw new Error("no run");
+  return w;
+};
+
+/** Kills the player's socket on the server side without a close handshake (a lost phone signal). */
+function dropSocket(room: RunRoom, client: RunSdkRoom): void {
+  const server = room.clients.find((c) => c.sessionId === client.sessionId);
+  (server?.ref as unknown as { terminate(): void }).terminate();
+}
+
+/** The SDK's auto-reconnect, on (a real phone) or off (a phone that never comes back by token). */
+function reconnect(client: RunSdkRoom, on: boolean): void {
+  client.reconnection.enabled = on;
+  client.reconnection.minUptime = 0;
+  client.reconnection.minDelay = 50;
+  client.reconnection.maxDelay = 100;
+  client.reconnection.maxEnqueuedMessages = 0;
+}
+
+function logLines(room: RunRoom) {
+  const info = vi.spyOn(room.log, "info");
+  return (msg: string) => info.mock.calls.filter((c) => c[1] === msg).map((c) => c[0] as Record<string, unknown>);
+}
+
+const out: string[] = [];
+const note = (s: string) => { out.push(s); console.log("RR2 " + s); };
+
+/** Ana keeps sending inputs (present, no freeze); her body stays where it is. */
+function keepAlive(c: RunSdkRoom) {
+  let seq = 0;
+  const t = setInterval(() => c.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
+  onTestFinished(() => clearInterval(t));
+}
+
+async function dropReturnAfter(ms: number) {
+  const { clients, room } = await runOf(2);
+  const w = world(room);
+  startWave(w);
+  keepAlive(clients[0] as RunSdkRoom);
+  const p1 = w.players.get("p1");
+  const p0 = w.players.get("p0");
+  if (!p1 || !p0) throw new Error("no p1");
+  p1.x = p0.x + 6000; // away from Ana: a teleport is visible
+  await sleep(150);
+  const x0 = p1.x;
+  const y0 = p1.y;
+  const bo = clients[1] as RunSdkRoom;
+  reconnect(bo, false);
+  const t0 = w.tick;
+  dropSocket(room, bo);
+  await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+  await sleep(ms);
+  const vanished = w.heldPlayers.has("p1");
+  const heldAt = w.heldPlayers.get("p1")?.atTick ?? -1;
+  const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+  record(back);
+  await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
+  const moved = Math.hypot(p1.x - x0, p1.y - y0);
+  note(`  dist to Ana before ${Math.round(Math.hypot(x0 - p0.x, y0 - p0.y))} after ${Math.round(Math.hypot(p1.x - p0.x, p1.y - p0.y))}`);
+  note(`return after ${ms} ms (ticks since drop ${w.tick - t0}, held at +${heldAt < 0 ? "-" : heldAt - t0}): vanished=${vanished} moved=${Math.round(moved)} protect=${p1.protectTicks} protectedWave=${p1.protectedReturnWave}`);
+  return { moved, protect: p1.protectTicks, vanished };
+}
+
+describe("RR2 probes B16", () => {
+  it("b: return at 2.5 s / 4 s / 7 s", async () => {
+    const a = await dropReturnAfter(2500);
+    await colyseus.cleanup();
+    const b = await dropReturnAfter(4000);
+    await colyseus.cleanup();
+    const c = await dropReturnAfter(7000);
+    expect(a.vanished).toBe(false);
+    expect(b.vanished).toBe(true);
+    expect(c.vanished).toBe(true);
+  }, 30000);
+
+  it("h: solo drop: frozen when?", async () => {
+    const { clients, room } = await runOf(1);
+    const w = world(room);
+    startWave(w);
+    const ana = clients[0] as RunSdkRoom;
+    reconnect(ana, false);
+    const t0 = w.tick;
+    const ms0 = performance.now();
+    dropSocket(room, ana);
+    await vi.waitFor(() => expect(room.state.frozen).toBe(true), { timeout: 6000 });
+    note(`solo drop: frozen after ${Math.round(performance.now() - ms0)} ms, ${w.tick - t0} ticks of World ran`);
+    // 5: back → 3-2-1; drop again during the count
+    const back = await colyseus.sdk.reconnect<RunStateView>(ana.reconnectionToken);
+    record(back);
+    reconnect(back, false);
+    await vi.waitFor(() => expect(room.state.resumeIn).toBe(3));
+    await vi.waitFor(() => expect(room.clients.find((c) => c.sessionId === back.sessionId)).toBeTruthy());
+    note(`members=${room.members.size} clients=${room.clients.length} sess=${back.sessionId} ids=${room.clients.map((c) => c.sessionId)}`);
+    await sleep(0);
+    dropSocket(room, back);
+    await sleep(300);
+    note(`after redrop 300ms: holds=${[...room.holds.keys()]} members=${room.members.size} clients=${room.clients.length} frozen=${room.state.frozen} resumeIn=${room.state.resumeIn} order=${room.controller?.activeCount()}`);
+    await vi.waitFor(() => expect(room.holds.has("p0")).toBe(true), { timeout: 5000 });
+    note(`re-drop during 3-2-1: dropping=${room.controller?.isDropping("p0")} resumeIn=${room.state.resumeIn} frozen=${room.state.frozen}`);
+    const t1 = w.tick;
+    const ms1 = performance.now();
+    let unfrozeWithNobody = false;
+    while (performance.now() - ms1 < 7000) {
+      if (!room.state.frozen && room.holds.has("p0")) unfrozeWithNobody = true;
+      if (unfrozeWithNobody && room.state.frozen) break;
+      await sleep(20);
+    }
+    note(`after re-drop: unfroze with nobody connected=${unfrozeWithNobody}; World ran ${w.tick - t1} ticks; frozen again=${room.state.frozen} after ${Math.round(performance.now() - ms1)} ms`);
+  }, 30000);
+
+  it("e: both drop at once", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    for (const c of clients) reconnect(c, false);
+    const t0 = w.tick;
+    for (const c of clients) dropSocket(room, c);
+    await vi.waitFor(() => expect(room.holds.size).toBe(2));
+    const f1 = room.state.frozen;
+    await vi.waitFor(() => expect(room.state.frozen).toBe(true), { timeout: 6000 });
+    note(`both drop: frozen at once=${f1}; frozen after ${w.tick - t0} ticks; held both=${w.heldPlayers.size}`);
+  }, 20000);
+
+  it("f: drop in build: held at once", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    keepAlive(clients[0] as RunSdkRoom);
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    await sleep(100);
+    note(`build drop: held at once=${w.heldPlayers.has("p1")} phase=${w.run.phase}`);
+  }, 20000);
+
+  it("d: downed dropping body: revivable and bleeds out", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    keepAlive(clients[0] as RunSdkRoom);
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    downPlayer(w, p1);
+    const d0 = p1.downedTicksLeft;
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    await sleep(1000);
+    note(`downed dropping: status=${p1.status} downedTicksLeft ${d0} → ${p1.downedTicksLeft} (bleeds out: ${p1.downedTicksLeft < d0})`);
+  }, 20000);
+});
+
+describe("RR2 re-drop after a token return", () => {
+  for (const [label, waitMs, solo] of [["2p, 1 s after", 1000, false], ["2p, 100 ms after", 100, false], ["solo, after the 3-2-1", 0, true], ["solo, 300 ms into the 3-2-1", 300, true], ["solo, 0 ms into the 3-2-1", 0, true]] as const) {
+    it(label, async () => {
+      const { clients, room } = await runOf(solo ? 1 : 2);
+      const w = world(room);
+      startWave(w);
+      if (!solo) keepAlive(clients[0] as RunSdkRoom);
+      const pid = solo ? "p0" : "p1";
+      const bo = clients[solo ? 0 : 1] as RunSdkRoom;
+      reconnect(bo, false);
+      dropSocket(room, bo);
+      await vi.waitFor(() => expect(room.holds.has(pid)).toBe(true));
+      if (solo) await vi.waitFor(() => expect(room.state.frozen).toBe(true), { timeout: 5000 });
+      const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+      record(back);
+      reconnect(back, false);
+      await vi.waitFor(() => expect(room.holds.has(pid)).toBe(false));
+      if (solo && label.includes("after")) await vi.waitFor(() => expect(room.state.frozen).toBe(false), { timeout: 5000 });
+      await sleep(waitMs);
+      const ms1 = performance.now();
+      const t1 = w.tick;
+      const resumeAt = room.state.resumeIn;
+      dropSocket(room, back);
+      await sleep(400);
+      if (solo && !label.includes("after")) {
+        let unfroze = false;
+        while (performance.now() - ms1 < 8000) { if (!room.state.frozen) unfroze = true; if (unfroze && room.state.frozen) break; await sleep(20); }
+        note(`${label}: resumeIn at drop ${resumeAt}; unfroze with nobody connected=${unfroze}; World ran ${w.tick - t1} ticks; refrozen=${room.state.frozen} dropping→held=${w.heldPlayers.has(pid)}`);
+      }
+      note(`${label}: holds=${[...room.holds.keys()]} members=${room.members.size} controller=${!!room.controller}`);
+    }, 20000);
+  }
+  it("2p, SDK auto-reconnect twice (same Room object)", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    keepAlive(clients[0] as RunSdkRoom);
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, true);
+    let n = 0;
+    bo.onReconnect(() => n++);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(n).toBe(1), { timeout: 4000 });
+    await sleep(500);
+    dropSocket(room, bo);
+    await sleep(300);
+    note(`auto x2: holds=${[...room.holds.keys()]} members=${room.members.size}`);
+    await vi.waitFor(() => expect(n).toBe(2), { timeout: 4000 });
+    note(`auto x2 back: members=${room.members.size}`);
+  }, 20000);
+});

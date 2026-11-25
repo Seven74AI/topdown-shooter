@@ -1,0 +1,149 @@
+import { describe, expect, it } from "vitest";
+import { VOTE_EXTRACT, VOTE_NONE, VOTE_STAY, loadBalance } from "@topdown/shared";
+import { NetSession } from "../net/session";
+import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
+import { NetSimHost } from "./NetSimHost";
+import { addHeldVoters, layoutEvacVote, voteResultLine, voteUrgent, voteView, type VotePlayerIn } from "../ui/voteModel";
+
+const balance = loadBalance();
+const FRAME = 1 / 60;
+const log = (s: string) => console.log("RR2 " + s);
+
+describe("RR2 B16 client: a dropping teammate (server body still standing, heldUntilTick > 0 from the drop)", () => {
+  it("is it on the teammate's map?", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 })]));
+    const session = new NetSession(room, { playerId: "p0", slot: 0, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => 0 });
+    room.state.tick = 1;
+    room.state.phase = "wave";
+    room.patch();
+    host.update(FRAME);
+    const before = host.world.players.has("p1");
+    (room.state.players.get("p1") as { heldUntilTick: number }).heldUntilTick = 2400; // what startHold writes at the drop
+    room.state.tick = 2;
+    room.patch();
+    host.update(FRAME);
+    log(`dropping teammate on my map: before=${before} after drop=${host.world.players.has("p1")}`);
+    expect(host.world.players.has("p1")).toBe(true); // B16: the body stands 3 s on the server
+  });
+});
+
+const chip = (slot: number, vote: number, mine = false): VotePlayerIn => ({ slot, vote, standing: true, mine });
+const spare = (): VotePlayerIn => ({ slot: 0, vote: 0, standing: true, mine: false });
+
+describe("RR2 RR1-M1 vote probes", () => {
+  it("2 Stay + 2 held", () => {
+    const ps = [chip(0, VOTE_STAY, true), chip(1, VOTE_STAY), spare(), spare()];
+    const n = addHeldVoters(ps, 2, [2, 3]);
+    const v = voteView(true, 200, 300, 20, ps.slice(0, n), VOTE_STAY, false);
+    log(`2S+2H: n=${n} result="${v.result}" urgent=${voteUrgent(200, 20, ps, n)} final=${voteResultLine(ps.slice(0, n), VOTE_STAY)} dimmed=${v.chips.filter((c) => c.dimmed).length}`);
+    expect(v.result).toBe("");
+    expect(voteUrgent(200, 20, ps, n)).toBe(false);
+    expect(voteResultLine(ps.slice(0, n), VOTE_STAY)).toMatch(/^EXTRACT · 2 – 2/);
+  });
+  it("held seat returns mid-vote and votes Extract: 4 in, result shown, urgent", () => {
+    const ps = [chip(0, VOTE_STAY, true), chip(1, VOTE_STAY), chip(2, VOTE_EXTRACT), chip(3, VOTE_EXTRACT), spare()];
+    const n = addHeldVoters(ps, 4, []);
+    const v = voteView(true, 200, 300, 20, ps.slice(0, n), VOTE_STAY, false);
+    log(`returned+voted: result="${v.result}" urgent=${voteUrgent(200, 20, ps, n)}`);
+    expect(v.result).toBe("EXTRACT · 2 – 2");
+    expect(voteUrgent(200, 20, ps, n)).toBe(true);
+  });
+  it("last present vote while a seat is held: not urgent until the last 500 ms", () => {
+    const ps = [chip(0, VOTE_STAY, true), chip(1, VOTE_EXTRACT), spare(), spare()];
+    const n = addHeldVoters(ps, 2, [3]);
+    log(`last present vote, 1 held: urgent@10s=${voteUrgent(200, 20, ps, n)} urgent@0.5s=${voteUrgent(10, 20, ps, n)}`);
+    expect(voteUrgent(200, 20, ps, n)).toBe(false);
+    expect(voteUrgent(10, 20, ps, n)).toBe(true);
+  });
+  it("hold expires mid-vote (seat leaves the state): chip gone, count 3, everyone in → result + urgent (server: everyoneVoted too)", () => {
+    const ps = [chip(0, VOTE_STAY, true), chip(1, VOTE_STAY), chip(2, VOTE_EXTRACT), spare()];
+    const n = addHeldVoters(ps, 3, []);
+    const v = voteView(true, 200, 300, 20, ps.slice(0, n), VOTE_STAY, false);
+    log(`expired: n=${n} result="${v.result}" urgent=${voteUrgent(200, 20, ps, n)}`);
+    expect(v.result).toBe("STAY · 1 – 2");
+  });
+  it("568×320: never more than 4 chips (held is one of the 4 seats); the buttons fit", () => {
+    const ps = [chip(0, VOTE_STAY, true), chip(1, VOTE_STAY), chip(2, VOTE_EXTRACT), chip(3, VOTE_EXTRACT)];
+    expect(addHeldVoters(ps, 4, [3])).toBe(4);
+    const l = layoutEvacVote(568, 320, 0);
+    log(`568x320 layout: extract x=${l.extract.x}..${l.extract.x + l.extract.w} stay x=${l.stay.x}..${l.stay.x + l.stay.w} y=${l.stay.y}`);
+    expect(l.extract.x).toBeGreaterThanOrEqual(16);
+    expect(l.stay.x + l.stay.w).toBeLessThanOrEqual(568 - 16);
+  });
+});
+
+/** RR1-N4: a stateful sweep — freeze / lift / link edges at every 1 ms offset; the render tick never goes back except where the link-up panel covers it. */
+describe("RR2 RR1-N4 sweep", () => {
+  type Ev = "freeze" | "lift" | "down" | "up";
+  const run = (offsetMs: number, plan: [number, Ev][]) => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 })]));
+    let now = 0;
+    let up = true;
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => now, linkUp: () => up });
+    let tick = 0;
+    let base = 0;
+    let frozen = false;
+    let frozenAt = 0;
+    let last = Number.NEGATIVE_INFINITY;
+    let worstBack = 0;
+    let worstBackLink = 0;
+    let worstAt = "";
+    let lastUpAt = Number.NEGATIVE_INFINITY;
+    const events = plan.map(([t, e]) => [t + offsetMs, e] as [number, Ev]);
+    let ei = 0;
+    const end = (events[events.length - 1]?.[0] ?? 0) + 3000;
+    while (now < end) {
+      now += 1; // 1 ms steps; frames every ~16.7 ms
+      while (ei < events.length && now >= (events[ei] as [number, Ev])[0]) {
+        const e = (events[ei++] as [number, Ev])[1];
+        if (e === "freeze") { frozen = true; frozenAt = now; room.state.frozen = true; if (up) room.patch(); }
+        if (e === "lift") { frozen = false; base += now - frozenAt; room.state.frozen = false; if (up) room.patch(); }
+        if (e === "down") up = false;
+        if (e === "up") { up = true; lastUpAt = now; room.patch(); }
+      }
+      if (!frozen && now - base >= (tick + 1) * 50) {
+        tick++;
+        room.state.tick = tick;
+        if (up) room.patch();
+      }
+      if (Math.floor(now * 60 / 1000) !== Math.floor((now - 1) * 60 / 1000)) {
+        host.update(FRAME);
+        const r = host.renderTick;
+        if (!Number.isNaN(r)) {
+          if (r < last - 1e-9) {
+            if (now - lastUpAt < 100) worstBackLink = Math.max(worstBackLink, last - r);
+            else { if (last - r > worstBack) worstAt = `t=${now - offsetMs} frozen=${frozen} up=${up} r ${last.toFixed(2)}→${r.toFixed(2)} serverTick=${tick} est=${host.serverTick.toFixed(2)}`; worstBack = Math.max(worstBack, last - r); }
+          }
+          last = Math.max(last, r);
+        }
+      }
+    }
+    if (worstAt) log(`  off ${offsetMs}: ${worstAt}`);
+    return { worstBack, worstBackLink, liveness: host.renderTick > tick - 10 };
+  };
+  const plans: Record<string, [number, Ev][]> = {
+    "freeze/lift": [[3000, "freeze"], [9000, "lift"]],
+    "down in freeze, up after lift": [[3000, "freeze"], [4000, "down"], [9000, "lift"], [10000, "up"]],
+    "down before freeze, up inside it": [[3000, "down"], [4000, "freeze"], [6000, "up"], [9000, "lift"]],
+    "down, up in the same freeze it never saw start": [[3000, "down"], [3500, "freeze"], [8000, "lift"], [8200, "up"]],
+    "short freeze 120 ms": [[3000, "freeze"], [3120, "lift"]],
+    "lift and up same ms": [[3000, "down"], [3200, "freeze"], [7000, "lift"], [7000, "up"]],
+  };
+  for (const [name, plan] of Object.entries(plans)) {
+    it(name, () => {
+      let wb = 0;
+      let wl = 0;
+      let live = true;
+      for (let off = 0; off < 50; off++) {
+        const r = run(off, plan);
+        wb = Math.max(wb, r.worstBack);
+        wl = Math.max(wl, r.worstBackLink);
+        live &&= r.liveness;
+      }
+      log(`N4 sweep "${name}" (50 offsets × 1 ms): worst step back ${wb.toFixed(3)} ticks (outside link-up), at link-up ${wl.toFixed(3)} ticks, live=${live}`);
+      expect(wb).toBe(0);
+    }, 60000);
+  }
+});
