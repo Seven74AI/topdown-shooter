@@ -143,3 +143,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:05 dispatched builders 7.4+7.5 and 7.6 (early start on story-7-3, which carries 7.1 + 7.2), the Epic 8 merged story writer (docs only), and re-scoped the 7.12 builder to the merged 7.7+7.11+7.12 (waits for 7.2 + 7.9).
 - 09:10 7.7+7.11+7.12 prep (8482954): merged master (8.1); milestones.json + milestones.ts (7.11 T1, 7.10 must reuse it), pure milestonesReached/newMilestoneParts, pickLootItem (Collector when all owned); 586 nearby tests. Waits for 7.2 + 7.9.
 - 09:19 7.1 (0f679c4e: merged master with 8.1 + 8.10) gated as master + 7.1 (440 files / 3975 tests, load 3.37) → 7.1 DONE ON MASTER. First Epic 7 story landed.
+- 09:28 Epic 8 merged story files (91f419ec: 8.2+8.3 L, 8.4+8.5+8.6 XL, 8.7 M; 33 decisions in docs/epic-8-story-decisions.md, recommended) + HANDOFF re-review cap + story-merges doc + run log: docs gate 440 files / 3975 tests → on master.
