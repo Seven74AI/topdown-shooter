@@ -48,7 +48,7 @@ export interface NetSummaryEnv {
   userAgent: string;
   viewport: string;
   dpr: number;
-  /** `?lag=&jitter=` when the dev throttle is on, else "none". */
+  /** `?lag=&jitter=` (Story 8.8: `&loss=&stall=`) when the dev throttle is on, else "none". */
   throttle: string;
   /**
    * `navigator.connection.effectiveType` where the browser has it (Chrome on Android), else "?". An
@@ -181,12 +181,13 @@ function browserEnv(): NetSummaryEnv {
   const q = new URLSearchParams(location.search);
   const lag = q.get("lag");
   const jitter = q.get("jitter");
+  const loss = q.get("loss");
   const conn = (navigator as { connection?: { effectiveType?: unknown } }).connection?.effectiveType;
   return {
     userAgent: navigator.userAgent,
     viewport: `${window.innerWidth}×${window.innerHeight}`,
     dpr: Math.min(window.devicePixelRatio || 1, 2),
-    throttle: lag || jitter ? `?lag=${lag ?? 0}&jitter=${jitter ?? 0}` : "none",
+    throttle: lag || jitter || loss ? `?lag=${lag ?? 0}&jitter=${jitter ?? 0}${loss ? `&loss=${loss}&stall=${q.get("stall") ?? 200}` : ""}` : "none", // Story 8.8: + the lossy line
     connection: typeof conn === "string" ? conn : "?",
     renderer: gfxStatus.line(),
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { C2S, NEUTRAL_INPUT, S2C, createRng, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
-import { DevThrottle } from "./devThrottle";
+import { DEFAULT_STALL_MS, DevThrottle, throttleLossText } from "./devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "./fakeRoom";
 import { RunInbox } from "./session";
 import { THROTTLE_QUEUE_SIZE } from "./netConfig";
@@ -143,5 +143,105 @@ describe("DevThrottle", () => {
     throttle.close();
     expect(room.stateListeners.size).toBe(0);
     expect([...room.handlers.values()].every((l) => l.length === 0)).toBe(true);
+  });
+});
+
+/**
+ * Story 8.8 (AC 1, T6): the lossy line. A scripted `random` decides which message is "lost": the
+ * dueFrom draw comes first, the loss draw second (only when `lossPct` > 0).
+ */
+describe("DevThrottle: Story 8.8 lossy line (&loss, &stall)", () => {
+  /** `random` returns the queued values in order, then 0.5 (no jitter offset, never a loss at ≤ 50 %). */
+  function lossy(lossPct: number, stallMs?: number, lagMs = 100) {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 1, y: 2 })]));
+    let now = 0;
+    const script: number[] = [];
+    const throttle = new DevThrottle(room, { lagMs, jitterMs: 0, lossPct, ...(stallMs === undefined ? {} : { stallMs }), random: () => script.shift() ?? 0.5, now: () => now });
+    return { room, throttle, script, setNow: (ms: number) => (now = ms) };
+  }
+  const ticks = (throttle: DevThrottle) => {
+    const got: { tick: number; at: number }[] = [];
+    let at = 0;
+    throttle.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => got.push({ tick: m.tick, at }));
+    return { got, pumpTo: (from: number, to: number) => { for (at = from; at <= to; at++) throttle.pump(at); } };
+  };
+
+  it("a stalled incoming message waits the extra 200 ms, and every message behind it waits too, in order", () => {
+    const { room, throttle, script, setNow } = lossy(1);
+    const { got, pumpTo } = ticks(throttle);
+    setNow(0);
+    script.push(0.5, 0.001); // message 0: due draw, then a loss draw under 1 %
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 0, events: [] });
+    for (let i = 1; i < 6; i++) {
+      setNow(i * 50);
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: i, events: [] }); // not lost (0.5 × 100 ≥ 1)
+    }
+    pumpTo(0, 1000);
+    expect(got.map((g) => g.tick)).toEqual([0, 1, 2, 3, 4, 5]); // never a reorder, never a drop
+    expect(got[0]?.at).toBe(50 + DEFAULT_STALL_MS); // one-way 50 + the stall
+    // Head-of-line: 1..4 were due at 100..250 but wait behind message 0 (250); 5 is due at 300.
+    expect(got.slice(1, 5).every((g) => g.at === 250)).toBe(true);
+    expect(got[5]?.at).toBe(300);
+    expect(throttle.stallsIn).toBe(1);
+    expect(throttle.stallsOut).toBe(0);
+  });
+
+  it("outgoing inputs stall the same way (both directions), with &stall=400", () => {
+    const { room, throttle, script } = lossy(5, 400);
+    script.push(0.5, 0.01); // the first input is lost
+    throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
+    throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 2 });
+    throttle.pump(449);
+    expect(room.sentOf(C2S.INPUT_SEND)).toEqual([]);
+    throttle.pump(450);
+    expect(room.sentOf(C2S.INPUT_SEND).map((m) => (m as { seq: number }).seq)).toEqual([1, 2]);
+    expect(throttle.stallsOut).toBe(1);
+    expect(throttle.stallsIn).toBe(0);
+  });
+
+  it("a full queue still delivers its oldest at once while stalled (hidden tab)", () => {
+    const { room, throttle, script } = lossy(20, 1000, 1000);
+    const got: number[] = [];
+    throttle.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => got.push(m.tick));
+    for (let i = 0; i < THROTTLE_QUEUE_SIZE + 3; i++) {
+      script.push(0.5, 0); // every message lost
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: i, events: [] });
+    }
+    expect(got).toEqual([0, 1, 2]); // the oldest, early, in order (nothing is pumped)
+    expect(throttle.pending.incoming).toBe(THROTTLE_QUEUE_SIZE);
+    expect(throttle.stallsIn).toBe(THROTTLE_QUEUE_SIZE + 3);
+  });
+
+  it("loss 0 is the Story 2.6 throttle bit for bit: same arrivals, same random draws", () => {
+    const run = (opts: { lossPct?: number }) => {
+      const room = new FakeRoom(fakeState([fakePlayer(0, { x: 1, y: 2 })]));
+      let now = 0;
+      let draws = 0;
+      const rng = createRng(4);
+      const throttle = new DevThrottle(room, { lagMs: 150, jitterMs: 20, ...opts, random: () => (draws++, rng.next()), now: () => now });
+      const arrivals: number[] = [];
+      let t = 0;
+      throttle.onMessage(S2C.SIM_EVENTS_FLUSHED, () => arrivals.push(t));
+      for (let i = 0; i < 100; i++) {
+        now = i * 50;
+        room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: i, events: [] });
+        throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: i + 1 });
+        for (let f = 0; f < 50; f++) throttle.pump((t = i * 50 + f));
+      }
+      return { arrivals, draws, stalls: throttle.stallsIn + throttle.stallsOut };
+    };
+    const before = run({});
+    expect(run({ lossPct: 0 })).toEqual(before);
+    expect(before.draws).toBe(200); // one draw per message: no loss draw
+    const lossyRun = run({ lossPct: 20 });
+    expect(lossyRun.stalls).toBeGreaterThan(0); // liveness: the switch does stall
+    expect(lossyRun.draws).toBe(400);
+  });
+
+  it("the overlay suffix shows the line and counts the stalls; nothing when off", () => {
+    expect(throttleLossText(null)).toBe("");
+    expect(throttleLossText({ lossPct: 0, stallMs: 200, stallsIn: 0, stallsOut: 0 })).toBe("");
+    expect(throttleLossText({ lossPct: 1, stallMs: 200, stallsIn: 3, stallsOut: 2 })).toBe(" · loss 1 % × 200 (stalls ↓3 ↑2)");
+    expect(throttleLossText({ lossPct: 0.5, stallMs: 400, stallsIn: 0, stallsOut: 0 })).toBe(" · loss 0.5 % × 400 (stalls ↓0 ↑0)");
   });
 });

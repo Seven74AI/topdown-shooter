@@ -5,6 +5,7 @@ import { stressRun } from "./stressScenario";
 import { hitsLine } from "./reversedHits";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
 import { netMeter } from "../net/netMeter";
+import { activeThrottle, throttleLossText } from "../net/devThrottle";
 import { urlOptions } from "./urlOptions";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
@@ -91,7 +92,7 @@ export class PerfOverlay {
       const n = net.netStats;
       if (net.scenario) lines.unshift(`TEST SCENARIO ${net.scenario}`);
       else if (urlOptions().scenario && net.isHost) lines.unshift(`scenario ${urlOptions().scenario} refused by the server`);
-      lines.push(`ping ${Math.round(n.rttMs)} ms`);
+      lines.push(`ping ${Math.round(n.rttMs)} ms${throttleLossText(activeThrottle.current)}`); // Story 8.8: + the lossy line
       lines.push(delayLine(n)); // Story 8.9
       lines.push(
         `down ${netMeter.downKBps(now).toFixed(1)} KB/s (avg ${netMeter.avgDownKBps(now).toFixed(1)}, peak ${netMeter.peakDownKBps(now).toFixed(1)}) · up ${netMeter.upKBps(now).toFixed(1)} KB/s`,
