@@ -38,17 +38,28 @@ Also from the re-review:
 
 ## Tasks & Acceptance
 
-- [x] `packages/shared/src/buildings/collision.ts`: `escapeClearPath` with grown boxes and a stepped clearance check (`PATH_STEP_M` 0.025 m); the open-area preference (`buildFlood`, 80 × 80 cells of 0.1 m, used only during an escape); growable near-box arrays; a WeakRef World in the dead-end cache.
+- [x] `packages/shared/src/buildings/collision.ts`: `escapeClearPath` with grown boxes and a stepped clearance check (`PATH_STEP_M` 0.025 m); the open-area preference (`buildFlood`, 102 × 102 cells of 0.25 m over the whole escape reach since review M-A, used only during an escape); growable near-box arrays; a WeakRef World in the dead-end cache.
 - [x] `packages/shared/src/buildings/collision.test.ts`: probes (a) wedged outside the hole, (b) dropped into the hole (81 start spots), (c) next to a seam, (d) a centre in a box whose only near way out is a seam, (e) barely overlapping next to a 0.5 m gap with open ground on both sides, and N2 (96 posts ahead of the cars in map order).
 - [x] `packages/shared/src/zombies/crowdCorner.testkit.ts`: `neverMoved`, asserted empty in `carCorner.test.ts` (both crowd tests) and in the corner fuzz.
 
 Each new test fails without its part of the fix: (a) and (b) without the open-area preference; (c) on the old code; (d) without the seam growth; (e) without the clearance check; N2 without the growth.
 
+## Spec Change Log
+
+- Review round 1 (parent, 814e7ed: changes requested, 2 M / 2 L, all on the dev-spawn path):
+  - **M-A, deep forts counted as open.** The flood window was ±4 m round the start, so a fort deeper than about 3.5 m touched its edge. It now covers the whole escape reach (±12.5 m, 0.25 m cells, 102 × 102). New test: forts 6 and 10 m deep, with the outer 0.3 m gap and with a car against the wall over the hole. Nobody ends inside; it fails with the old window.
+  - **M-B, clearance stricter than the body needs.** A Downtown stage-4 Brute wedged between `parking_wall` and `parked_car_1` went 6.75 m north instead of PR #12's 0.55 m. The clearance now has 2 cm of slack (`CLEARANCE_SLACK_M`). Pinned: it lands within 1 m of #12's spot, and the test fails with no slack.
+  - **L-C, a centre on a box face was a dead end.** The "start is inside this box" test used the ungrown box while the path test grew it. Both use the grown box now. Pinned with the reviewer's two boxes and a Brute at (4.3, 15).
+  - **L-D, bodies frozen for good (round 1's "intended trade").** The escape now tries three passes: (1) clearance and open; (2) open, with clearance dropped (a squeeze as the last resort into open ground); (3) clearance, enclosed allowed.
+    - Test (e) is now "never frozen": real Walkers with the player in each of four places, all move more than 0.25 m within 20 ticks and end clear. It fails without pass 2.
+    - New test (e′) keeps the clearance rule pinned: a 0.68 m slot whose far exit keeps the body's clearance beats a nearer 0.5 m gap. It fails with clearance off.
+  - **Nit:** PR #12's golden digest is unchanged (its escapes don't change), so there was nothing to re-pin.
+
 ## Design Notes
 
-- Case (b) has no answer by distance (both mouths can be equally near), so the open-area preference decides it. The flood area is ±4 m round the start, so a pocket larger than that counts as open.
+- Case (b) has no answer by distance (both mouths can be equally near), so the open-area preference decides it. The flood area covers the escape's whole reach (±12.5 m, since review M-A), so only a pocket deeper than that counts as open.
 - Only if no open spot exists within reach is an enclosed one taken.
-- With the clearance rule a barely-overlapping body can stay stuck (a dead end, cached) where it used to squeeze through a narrower gap. That is the intended trade.
+- Round 1's trade (a barely-overlapping body stays stuck rather than squeeze) was withdrawn in review (L-D). The squeeze into open ground is now the last resort before an enclosed spot.
 
 ## Verification
 

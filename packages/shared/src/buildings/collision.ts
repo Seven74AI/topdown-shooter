@@ -279,7 +279,9 @@ function addNear(x: number, y: number, reach: number, b: BoxView): void {
   nearMinY[k] = b.minY;
   nearMaxX[k] = b.maxX;
   nearMaxY[k] = b.maxY;
-  nearHolds[k] = x > b.minX && x < b.maxX && y > b.minY && y < b.maxY ? 1 : 0;
+  // Review L-C: against the box grown by SEAM_EPS_M, as the path test sees it (a centre on a face is in it).
+  const e = SEAM_EPS_M;
+  nearHolds[k] = x > b.minX - e && x < b.maxX + e && y > b.minY - e && y < b.maxY + e ? 1 : 0;
 }
 
 /**
@@ -332,14 +334,20 @@ function rememberDeadEnd(x: number, y: number, r: number, withBuildings: boolean
  * - Seams: two touching boxes count as one wall on the centre line too (boxes grown by `SEAM_EPS_M`; the
  *   slab test alone lets a centre slide along the shared face).
  * - Open side first: when the start is equally near a sealed pocket (a fort's inside) and the open map,
- *   a spot whose free area (for this body, on a `FLOOD_CELL_M` grid within `FLOOD_HALF_M`) reaches the
- *   edge of that area wins; only when no such spot exists within reach does an enclosed one do.
+ *   a spot whose free area (for this body, on a `FLOOD_CELL_M` grid over the whole escape reach) reaches
+ *   the edge of that area wins (review M-A: a window round the start alone let a deep fort pass for open).
+ * - Passes (review L-D: a body is never frozen while an open way out exists): (1) clearance and open;
+ *   (2) open, clearance dropped (a squeeze as the last resort into open ground); (3) clearance, enclosed
+ *   allowed. Clearance has `CLEARANCE_SLACK_M` of slack (review M-B: without it a body wedged between a
+ *   wall and a car went 6.75 m round instead of 0.55 m out).
  */
 const SEAM_EPS_M = 1e-9;
+const CLEARANCE_SLACK_M = 0.02;
 const PATH_STEP_M = 0.025;
-const FLOOD_CELL_M = 0.1;
-const FLOOD_HALF_M = 4;
-const FLOOD_N = Math.round((2 * FLOOD_HALF_M) / FLOOD_CELL_M); // 80 × 80 cells
+const FLOOD_CELL_M = 0.25;
+/** Review M-A: the window covers the whole escape reach (and a cell), so a deep sealed pocket can't touch its edge and pass for open. */
+const FLOOD_HALF_M = ESCAPE_REACH_M + FLOOD_CELL_M;
+const FLOOD_N = Math.ceil((2 * FLOOD_HALF_M) / FLOOD_CELL_M); // 102 × 102 cells
 /** 0 = not computed / blocked, 1 = free, 2 = free and connected to the area's edge (open). */
 const flood = new Uint8Array(FLOOD_N * FLOOD_N);
 const floodQueue = new Int32Array(FLOOD_N * FLOOD_N);
@@ -423,10 +431,11 @@ function escape(world: Readonly<World>, x: number, y: number, r: number, withBui
   }
   floodReady = false;
   const clearance = Math.min(r, nearestBoxDistance(x, y)); // r minus its overlap at `from` (0 for a centre in a box)
-  for (let pass = 0; pass < 2; pass++) {
-    const openOnly = pass === 0;
-    for (let k = 1; k <= ESCAPE_FINE_RINGS; k++) if (escapeRing(world, x, y, r, clearance, openOnly, k * ESCAPE_FINE_STEP_M, ESCAPE_FINE_STEP_M)) return true;
-    for (let k = 1; k <= ESCAPE_COARSE_RINGS; k++) if (escapeRing(world, x, y, r, clearance, openOnly, ESCAPE_FINE_M + k * ESCAPE_COARSE_STEP_M, ESCAPE_COARSE_STEP_M)) return true;
+  for (let pass = 0; pass < 3; pass++) {
+    const openOnly = pass !== 2;
+    const need = pass === 1 ? 0 : clearance;
+    for (let k = 1; k <= ESCAPE_FINE_RINGS; k++) if (escapeRing(world, x, y, r, need, openOnly, k * ESCAPE_FINE_STEP_M, ESCAPE_FINE_STEP_M)) return true;
+    for (let k = 1; k <= ESCAPE_COARSE_RINGS; k++) if (escapeRing(world, x, y, r, need, openOnly, ESCAPE_FINE_M + k * ESCAPE_COARSE_STEP_M, ESCAPE_COARSE_STEP_M)) return true;
   }
   rememberDeadEnd(x, y, r, withBuildings);
   return false;
@@ -483,7 +492,7 @@ function escapeClearPath(x: number, y: number, px: number, py: number, clearance
   if (clearance <= 0) return true;
   const len = Math.sqrt(dx * dx + dy * dy);
   const steps = Math.ceil(len / PATH_STEP_M);
-  const need = clearance - 1e-9;
+  const need = clearance - CLEARANCE_SLACK_M;
   for (let s = 1; s < steps; s++) {
     const t = s / steps;
     if (nearestBoxDistance(x + dx * t, y + dy * t) < need) return false;

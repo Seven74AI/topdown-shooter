@@ -5,6 +5,7 @@ import type { SimEvent } from "../core/simEvents";
 import { PREDICTION_SYSTEMS } from "../core/systems";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import { addPlayer } from "../player/player";
@@ -465,26 +466,105 @@ describe("the escape never squeezes a body through an opening narrower than itse
     expect(pushed.x, `${at}: along the seam`).toBeLessThan(6);
   });
 
-  it("(e) barely overlapping two boxes next to a 0.5 m gap in a wall with open ground on both sides: never through the gap", () => {
+  it("(e) / review L-D: wedged where every way out is a squeeze (two boxes over a 0.5 m gap, open ground both sides): never frozen, it squeezes out within a second", () => {
     // Wall [10, 12] + [12.5, 14.5] × [10, 10.5] with a 0.5 m gap at x [12, 12.5]; K [11, 13.5] × [9, 9.425] north of it leaves
-    // 0.575 m, less than a Walker (0.7 m). Pressed in between over the gap, the body overlaps K and the gap's corners by ~1 cm:
-    // its clearance there is ~0.34 m, the gap's is 0.25 m, so the gap is no way out for it (both sides are open, so
-    // the open-side rule can't stop it).
+    // 0.575 m, less than a Walker (0.7 m). Pressed in between over the gap, the body overlaps K and the gap's corners by ~1 cm,
+    // and every way out is narrower than it. Round 1 left it there for good (a cached dead end); now the last-resort pass
+    // squeezes it out to open ground.
     const solids = [
       { name: "w1", minX: 10, minY: 10, maxX: 12, maxY: 10.5 },
       { name: "w2", minX: 12.5, minY: 10, maxX: 14.5, maxY: 10.5 },
       { name: "k", minX: 11, minY: 9, maxX: 13.5, maxY: 9.425 },
     ];
-    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
-    let stuckOrEscaped = 0;
-    for (let x = 12.15; x <= 12.35 + 1e-9; x += 0.05) {
-      const y = 9.765;
-      expect(solids.some((s) => circleOverlapsBox(x, y, RZ_W, s.minX, s.minY, s.maxX, s.maxY)), "liveness: the start overlaps").toBe(true);
-      const res = pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true);
-      if (res === PUSH_STUCK || res === PUSH_ESCAPED) stuckOrEscaped++;
-      expect(pushed.y, `(${x.toFixed(2)}, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)}): through the 0.5 m gap`).toBeLessThan(10);
+    for (const [px, py] of [[12.25, 4], [12.25, 16], [4, 9.7], [20, 9.7]] as const) {
+      const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+      world.debug.godMode = true;
+      addPlayer(world, "p0", px, py);
+      const ids: number[] = [];
+      for (let x = 12.15; x <= 12.35 + 1e-9; x += 0.1) {
+        expect(solids.some((s) => circleOverlapsBox(x, 9.765, RZ_W, s.minX, s.minY, s.maxX, s.maxY)), "liveness: the start overlaps").toBe(true);
+        ids.push(spawnZombie(world, "walker", x, 9.765));
+      }
+      const x0 = ids.map((id) => world.zombies.x[id] as number);
+      const y0 = ids.map((id) => world.zombies.y[id] as number);
+      for (let t = 0; t < 20; t++) step(world, TICK_DT_S);
+      for (let k = 0; k < ids.length; k++) {
+        const id = ids[k] as number;
+        const moved = Math.hypot((world.zombies.x[id] as number) - (x0[k] as number), (world.zombies.y[id] as number) - (y0[k] as number));
+        expect(moved, `player (${px}, ${py}): Walker ${k} frozen`).toBeGreaterThan(0.25);
+        expect(solids.every((s) => !circleOverlapsBox(world.zombies.x[id] as number, world.zombies.y[id] as number, RZ_W - 1e-5, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
+      }
     }
-    expect(stuckOrEscaped, "liveness: wedged (the ordinary push-out can't place it)").toBeGreaterThan(0);
+  });
+
+  it("(e′) the clearance rule: a 0.68 m slot (a body overlaps both sides by 1 cm) with a far exit up the slot and a near one through a 0.5 m gap: the slot wins", () => {
+    // KL [10, 11.66] and KR [12.34, 14] × [8, 12]: a slot 0.68 m wide, open to the north (y < 8). South of it, a wall
+    // [10, 11.75] + [12.25, 14] × [12.5, 13] with a 0.5 m gap, open ground beyond. From (12, 11.7) the gap is the nearer
+    // way out (~1.7 m) but only 0.25 m clear; up the slot (~3.8 m) it keeps the body's own 0.34 m.
+    const solids = [
+      { name: "kl", minX: 10, minY: 8, maxX: 11.66, maxY: 12 },
+      { name: "kr", minX: 12.34, minY: 8, maxX: 14, maxY: 12 },
+      { name: "w1", minX: 10, minY: 12.5, maxX: 11.75, maxY: 13 },
+      { name: "w2", minX: 12.25, minY: 12.5, maxX: 14, maxY: 13 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    for (const y of [11.5, 11.6, 11.7]) {
+      expect(pushOutOfBuildings(world, 12, y, RZ_W, 12, y, true, true)).toBe(PUSH_ESCAPED);
+      const at = `(12, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+      expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, RZ_W - 1e-6, s.minX, s.minY, s.maxX, s.maxY)), at).toBe(true);
+      expect(pushed.y, `${at}: through the 0.5 m gap instead of up the slot`).toBeLessThan(8);
+    }
+  });
+
+  it("review M-A: forts 6 and 10 m deep (a 0.5 m murder hole, a 0.3 m outer gap; and a car against the wall over the hole): nobody ends inside", () => {
+    for (const depth of [6, 10]) {
+      for (const car of [false, true]) {
+        const top = 9 + depth;
+        const solids = [
+          { name: "n1", minX: 19.5, minY: 8.5, maxX: 21.5, maxY: 9 },
+          { name: "n2", minX: 22, minY: 8.5, maxX: 24, maxY: 9 }, // the hole: x [21.5, 22]
+          { name: "w", minX: 19, minY: 8.5, maxX: 19.5, maxY: top + 0.5 },
+          { name: "e", minX: 24, minY: 8.5, maxX: 24.5, maxY: top + 0.5 },
+          { name: "s", minX: 19.5, minY: top, maxX: 24, maxY: top + 0.5 },
+          car ? { name: "car", minX: 20.5, minY: 6.5, maxX: 23, maxY: 8.5 } : { name: "bar", minX: 20.5, minY: 7.9, maxX: 22.5, maxY: 8.2 }, // the 0.3 m outer gap
+        ];
+        const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+        const bad: string[] = [];
+        let tried = 0;
+        // Outside the hole: in the 0.3 m gap, or (car) centres in the car's bottom metre over the hole.
+        for (let x = 20.6; x < 22.45; x += 0.05) {
+          for (const y of car ? [7.6, 7.9, 8.2, 8.4] : [8.35]) {
+            tried++;
+            pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true);
+            const inside = pushed.x > 19.5 && pushed.x < 24 && pushed.y > 9 && pushed.y < top;
+            if (inside && bad.length < 5) bad.push(`depth ${depth}${car ? " car" : ""}: (${x.toFixed(2)}, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+          }
+        }
+        expect(tried).toBeGreaterThan(30);
+        expect(bad).toEqual([]);
+      }
+    }
+  });
+
+  it("review M-B: Downtown stage 4, a Brute wedged between parking_wall and parked_car_1 escapes the short way (within 1 m of PR #12's 0.55 m spot)", () => {
+    const world = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    applyDecayStage(world, 4, world.decay.variants);
+    const rb = balance.zombies.types.brute?.radiusM ?? 0.6;
+    expect(pushOutOfBuildings(world, 11.04, 30.45, rb, 11.04, 30.45, true, true)).toBe(PUSH_ESCAPED);
+    // PR #12 (no per-step clearance) put it at (11.147, 30.989); round 1 of this fix sent it 6.75 m north to (11.04, 23.70).
+    expect(Math.hypot(pushed.x - 11.147, pushed.y - 30.989)).toBeLessThan(1);
+    expect(world.obstacles.solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, rb - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
+  });
+
+  it("review L-C: a centre on a box face (inside it by the seam margin) is not a dead end", () => {
+    const solids = [
+      { name: "a", minX: 4, minY: 13, maxX: 8.5, maxY: 15 },
+      { name: "b", minX: 2.5, minY: 16, maxX: 7, maxY: 18 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    const rb = balance.zombies.types.brute?.radiusM ?? 0.6;
+    expect(pushOutOfBuildings(world, 4.3, 15, rb, 4.3, 15, true, true)).toBe(PUSH_ESCAPED);
+    expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, rb - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });
 
   it("review N2: an escape with more boxes in reach than its arrays held (64) grows them and still checks every box", () => {
