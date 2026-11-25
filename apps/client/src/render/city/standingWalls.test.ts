@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance } from "@topdown/shared";
-import { BUILDINGS_PX_PER_M, textureOfFrame, BUILDING_SHEETS, sheetSpecs, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
+import { wallOccluderX, BUILDINGS_PX_PER_M, textureOfFrame, BUILDING_SHEETS, sheetSpecs, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
 import { CB, FRONT_BASE_Y, SIDE_C } from "./barricadeArt";
 import { ABOVE_STANDING_DEPTH, STAND_DEPTH, STAND_DEPTH_SPAN, cornerDepth, standDepth } from "../barricadeLook";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./atlasLayout";
@@ -108,5 +108,15 @@ describe("photoreal group 3: standing barricades (one picture per rotation, vari
     expect(cornerDepth(4.75, 3.5)).toBeGreaterThan(standDepth(4.75));
     expect(ABOVE_STANDING_DEPTH).toBeGreaterThan(cornerDepth(1000, 1000));
     expect(ABOVE_STANDING_DEPTH).toBeLessThan(11);
+  });
+
+  it("review L3: the solid band of each picture: front walls their whole width, side walls their strip, corners their post", () => {
+    expect(wallOccluderX(wallFrame("wood", "out", 0))).toEqual([0, 1]);
+    expect(wallOccluderX(wallFrame("mt", "in", 1))).toEqual([0, 1]);
+    const side = wallOccluderX(wallFrame("rf", "sidee", 0)) as readonly [number, number];
+    expect((side[1] - side[0]) * SIDE_W_M).toBeCloseTo(0.14);
+    const corner = wallOccluderX(wallFrame("wood", "cnw", 0)) as readonly [number, number];
+    expect((corner[1] - corner[0]) * CORNER_W_M).toBeCloseTo(0.18);
+    expect(wallOccluderX("building_mine_a")).toBeNull();
   });
 });
