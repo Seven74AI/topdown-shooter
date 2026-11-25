@@ -1,7 +1,7 @@
 /**
  * The guest token (Story 2.3): 16 random bytes as hex, made on a device's first online game and
  * kept in localStorage. It only tells players apart (the server keeps its SHA-256 in memory); it
- * is not a secret in Epic 2. Story 7.1: the server keeps a copy in the HttpOnly `tdg` cookie and finds the
+ * is not a secret in Epic 2. Story 7.1: the server keeps a copy in the HttpOnly `__Host-tdg` cookie and finds the
  * account from either copy (`account.ts` writes the server's `deviceToken` back here); Story 8.1 matches reconnects by it.
  */
 export const GUEST_TOKEN_KEY = "topdown.guestToken";

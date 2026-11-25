@@ -21,9 +21,12 @@ export function setRoomAccounts(next: RoomAccounts): void {
   current = next;
 }
 
-/** The account id of a valid ticket, else null (pure HMAC: no database, safe to await in `onAuth`). */
-export function ticketAccountId(ticket: string | undefined): string | null {
-  return ticket === undefined ? null : verifyTicket(ticket, current.sessionSecret);
+/**
+ * The account id of a valid ticket issued for this guest token (review M1), else null (pure HMAC: no database,
+ * safe in `onAuth`; never a refusal, P3).
+ */
+export function ticketAccountId(ticket: string | undefined, guestTokenHash: string): string | null {
+  return ticket === undefined ? null : verifyTicket(ticket, current.sessionSecret, guestTokenHash);
 }
 
 export function roomAccountsRepo(): AccountsRepo | null {

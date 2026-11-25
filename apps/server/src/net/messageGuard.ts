@@ -57,9 +57,21 @@ export class MessageGuard<C extends GuardClient> {
     private readonly log: GuardLogger,
   ) {}
 
-  /** Starts tracking a client (call in `onJoin`). */
-  add(client: C, playerId: string): void {
+  /**
+   * Starts tracking a client (call in `onJoin`). Story 8.1 review L2: with `keep`, an existing guard
+   * for the same session (a reconnect) is kept: its buckets and drop counters carry over.
+   */
+  add(client: C, playerId: string, keep = false): void {
+    if (keep && this.clients.has(client.sessionId)) return;
     this.clients.set(client.sessionId, new ClientGuard(playerId, this.now()));
+  }
+
+  /** Story 8.1 review L2: a seat taken over by a new session keeps its guard (no fresh buckets by reconnecting). */
+  rename(fromSessionId: string, toSessionId: string): void {
+    const g = this.clients.get(fromSessionId);
+    if (!g) return;
+    this.clients.delete(fromSessionId);
+    this.clients.set(toSessionId, g);
   }
 
   /** Stops tracking a client and logs drops not reported yet (call in `onLeave`). */

@@ -130,6 +130,11 @@ export interface PlayerState {
    */
   protectTicks: number;
   /**
+   * Review M1 / decision 8.1 B15: the wave of this player's last protected (teleported) return from a
+   * hold; −1 none. A second return in the same wave lands in place, unprotected. Server / solo only.
+   */
+  protectedReturnWave: number;
+  /**
    * Story 7.2 (S2, `meta/runRecord.ts`): the run record Supplies are paid from. Waves 1–`runWaves` that ended while this
    * player was in the run (present or held; the wave a team wipe falls in counts too, decision 7.2 D8), endless waves
    * the same way, Behemoths killed while present (the wave-10 one included) and the endless ones among them. Server
@@ -190,6 +195,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     lastAimM: -1,
     lastAimTicks: 0,
     protectTicks: 0, // Story 8.1
+    protectedReturnWave: -1, // review M1 (B15)
     wavesIn: 0, // Story 7.2
     endlessWavesIn: 0,
     bossesIn: 0,

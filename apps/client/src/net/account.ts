@@ -1,6 +1,6 @@
 /**
  * Story 7.1: the device's account (designer D9: no sign-up). `POST /api/account/session` with the `localStorage`
- * copy of the guest token; the server also reads its HttpOnly `tdg` cookie, picks the account (cookie first, 7.1 D3)
+ * copy of the guest token; the server also reads its HttpOnly `__Host-tdg` cookie, picks the account (cookie first, 7.1 D3)
  * and answers with the token to keep (written back here, P2), a 10-minute session ticket for the join options and
  * the display name. Called on start-up (name prefill) and right before every Create / Join.
  *

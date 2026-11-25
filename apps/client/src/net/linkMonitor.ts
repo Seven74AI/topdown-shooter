@@ -14,8 +14,12 @@ type LinkListener = (s: LinkSnapshot) => void;
 /** Story 8.1: the link status for the UI (one per page; the current room's monitor writes it). */
 class LinkStore {
   private snap: LinkSnapshot = { status: "ok", sinceMs: 0 };
-  /** When my seat last came back on a new room (a takeover): a 4021 soon after is my own crossed takeovers. */
-  recoveredAtMs = Number.NEGATIVE_INFINITY;
+  /**
+   * Review L3: when this tab last adopted a LATE takeover (an attempt that answered after a newer
+   * one, or after the token reconnect): only then can a 4021 soon after be its own crossed takeovers.
+   * A normal recovery never sets it, so a newly opened tab always wins (D5).
+   */
+  lateAdoptedAtMs = Number.NEGATIVE_INFINITY;
   private readonly listeners = new Set<LinkListener>();
   get(): LinkSnapshot {
     return this.snap;
@@ -93,7 +97,7 @@ export class LinkMonitor<R> {
     this.recovery = new SeatRecovery<R>(
       {
         join: () => this.deps.rejoin(),
-        onRecovered: (r) => this.adopt(r),
+        onRecovered: (r) => this.adopt(r, false),
         onSeatKept: () => this.set("seat_kept"),
         onGone: () => {
           this.close();
@@ -103,7 +107,7 @@ export class LinkMonitor<R> {
         schedule: (fn, ms) => this.deps.schedule(fn, ms),
       },
       // A takeover that landed after the token reconnect won (or after Leave): it holds the seat now (D5: newest wins).
-      (late) => (this.left ? this.deps.leaveForGood(late) : this.adopt(late)),
+      (late) => (this.left ? this.deps.leaveForGood(late) : this.adopt(late, true)),
     );
   }
 
@@ -112,8 +116,8 @@ export class LinkMonitor<R> {
     return this.recovery.inFlight;
   }
 
-  private adopt(r: R): void {
-    linkStore.recoveredAtMs = this.deps.now();
+  private adopt(r: R, late: boolean): void {
+    if (late) linkStore.lateAdoptedAtMs = this.deps.now();
     this.set("ok");
     this.closed = true;
     this.recovery.cancel();

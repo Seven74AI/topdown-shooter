@@ -152,9 +152,10 @@ export interface World {
 /** Story 8.1: a held player and when the hold began (to replay a build start they missed on return). */
 export interface HeldPlayer {
   readonly player: PlayerState;
-  /** `waves.number` and the run phase at the hold. */
-  readonly wave: number;
-  readonly phase: string;
+  /** Review H1: `buildStartIndex` at the hold (a build start was missed iff it grew). */
+  readonly buildIdx: number;
+  /** World tick of the hold (review M1 / B15: a hold shorter than `returnMinHoldTicks` returns in place, unprotected). */
+  readonly atTick: number;
 }
 
 export interface WorldDebug {

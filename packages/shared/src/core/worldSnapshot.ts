@@ -208,8 +208,8 @@ export function snapshotWorld(world: World) {
               [
                 id,
                 {
-                  wave: h.wave,
-                  phase: h.phase,
+                  buildIdx: h.buildIdx,
+                  atTick: h.atTick,
                   player: {
                     ...h.player,
                     loadout: { active: h.player.loadout.active, swapTicks: h.player.loadout.swapTicks, slots: h.player.loadout.slots.map((s) => (s ? { ...s } : null)) },

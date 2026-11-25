@@ -259,7 +259,7 @@ export class BotClient {
         },
       },
       // A takeover that landed after the token reconnect won: it holds the seat now (D5: newest wins): adopt it.
-      (late) => (this.leaving ? void late.leave(true).catch(() => {}) : this.recovered(late)),
+      (late) => (this.leaving ? void late.leave(true).catch(() => {}) : this.recovered(late, true)),
     );
     this.wire(room);
     this.linkTimer = setInterval(() => this.checkLink(), 250);
@@ -310,7 +310,7 @@ export class BotClient {
     room.onLeave((code: number, reason?: string) => {
       if (this.room !== room || this.leaving) return;
       if (code === CLOSE_TAKEN_OVER && this.recovery.inFlight) return; // our own takeover: its room is adopted next
-      if (code === CLOSE_TAKEN_OVER && performance.now() - this.recoveredAtMs < RECONNECT.ownTakeoverMs) {
+      if (code === CLOSE_TAKEN_OVER && performance.now() - this.lateAdoptedAtMs < RECONNECT.ownTakeoverMs) {
         // two of my own takeovers crossed (the server kept the other one): take the seat again
         if (this.link === "ok") this.dropped();
         this.recovery.start();
@@ -366,10 +366,11 @@ export class BotClient {
   }
 
   /** Story 8.1: my seat came back on a new room (a takeover by guest token): play on in it. */
-  private recoveredAtMs = Number.NEGATIVE_INFINITY;
+  /** Review L3: when a LATE takeover was adopted (only then is a 4021 soon after my own crossed takeovers). */
+  private lateAdoptedAtMs = Number.NEGATIVE_INFINITY;
 
-  private recovered(room: Room<unknown, RunStateView>): void {
-    this.recoveredAtMs = performance.now();
+  private recovered(room: Room<unknown, RunStateView>, late = false): void {
+    if (late) this.lateAdoptedAtMs = performance.now();
     const old = this.room;
     old.reconnection.enabled = false;
     this.room = room;

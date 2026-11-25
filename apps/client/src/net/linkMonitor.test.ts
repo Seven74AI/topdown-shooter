@@ -93,7 +93,7 @@ describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
     t.link.heard(0);
     t.f.drop();
     expect(t.statuses).toEqual(["reconnecting"]);
-    await t.advance(RECONNECT.takeoverAfterMs - 100);
+    await t.advance(2000 - 100);
     t.f.back();
     await t.advance(5000, 50);
     expect(t.statuses).toEqual(["reconnecting", "ok"]);
@@ -101,12 +101,12 @@ describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
     expect(t.link.reconnects).toBe(1);
   });
 
-  it("still down 2 s after the drop: the takeover by guest token starts and its room is handed over", async () => {
+  it("still down 2 s after the drop (pinned: review L4): the takeover by guest token starts and its room is handed over", async () => {
     let n = 0;
     const t = setup(async () => (++n < 3 ? { ok: false, reason: "network" } : { ok: true, room: "R2" }));
     t.link.heard(0);
     t.f.drop();
-    await t.advance(RECONNECT.takeoverAfterMs - 1);
+    await t.advance(2000 - 1);
     expect(t.joins()).toBe(0);
     await t.advance(1 + 2 * RECONNECT.retryMs + 10);
     expect(t.recovered).toEqual(["R2"]);
@@ -134,7 +134,7 @@ describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
     const t = setup(() => new Promise((res) => (release = res)));
     t.link.heard(0);
     t.f.drop();
-    await t.advance(RECONNECT.takeoverAfterMs + 5);
+    await t.advance(2000 + 5);
     expect(t.link.recoveryInFlight).toBe(true);
     t.f.back(); // the SDK's token reconnect wins first …
     release({ ok: true, room: "late" }); // … then the takeover lands

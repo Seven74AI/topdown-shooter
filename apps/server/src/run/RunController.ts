@@ -621,18 +621,21 @@ export class RunController {
    * Story 8.1 (F8): the hold ran out: the held state leaves the World and the controller and goes to
    * the room's remembered seats (with the kills). Null if not held.
    */
-  releaseHeld(playerId: string): { player: PlayerState; kills: number } | null {
+  releaseHeld(playerId: string): { player: PlayerState; kills: number; buildIdx: number } | null {
     const s = this.slots.get(playerId);
     if (!s || !s.held) return null;
-    const player = releaseHeldPlayer(this.world, playerId);
+    const held = releaseHeldPlayer(this.world, playerId);
     this.slots.delete(playerId);
     this.heldSlots.delete(playerId);
-    return player ? { player, kills: s.kills } : null;
+    return held ? { player: held.player, kills: s.kills, buildIdx: held.buildIdx } : null;
   }
 
-  /** Story 8.1 (F8): a remembered seat rejoins (build phase): back in the World as it was. */
-  restoreSeat(player: PlayerState, kills: number): boolean {
-    if (this.slots.has(player.id) || !restoreSeat(this.world, player, this.world.waves.number, "wave")) return false;
+  /**
+   * Story 8.1 (F8): a remembered seat rejoins (build phase): back in the World as it was. Review H2:
+   * with the build-start index it was held at, so a Leave + rejoin in the same build heals nothing.
+   */
+  restoreSeat(player: PlayerState, kills: number, buildIdx: number): boolean {
+    if (this.slots.has(player.id) || !restoreSeat(this.world, player, buildIdx)) return false;
     const s = new PlayerSlot(player.id);
     s.kills = kills;
     this.slots.set(player.id, s);

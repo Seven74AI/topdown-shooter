@@ -79,7 +79,7 @@ describe("Story 8.1 RunController hold, return and the quiet rule", () => {
     const seat = c.releaseHeld("p1");
     expect(seat).not.toBeNull();
     expect(c.world.heldPlayers.has("p1")).toBe(false);
-    expect(c.restoreSeat(seat?.player as never, seat?.kills ?? 0)).toBe(true);
+    expect(c.restoreSeat(seat?.player as never, seat?.kills ?? 0, seat?.buildIdx ?? 0)).toBe(true);
     expect(c.world.players.has("p1")).toBe(true);
     expect(c.activeCount()).toBe(2);
   });
