@@ -48,6 +48,7 @@ section.group { padding-top: 22px; scroll-margin-top: 70px; }
 .card[data-status=change] { border-color: var(--change); }
 .card[data-status=recheck] { border-color: var(--accent); }
 .badge { align-self: flex-start; font: 600 10px var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: var(--accent); color: #241703; margin-bottom: 3px; }
+.badge.anim { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .badge.prev { background: transparent; color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; font-weight: 400; }
 .pic { display: flex; align-items: center; justify-content: center; min-height: 120px; padding: 10px; background: var(--well); border-radius: 8px 8px 0 0; cursor: zoom-in; overflow: hidden; border: 0; width: 100%; }
 body[data-bg=checker] .pic, body[data-bg=checker] dialog .big { background: repeating-conic-gradient(#4a4f55 0 25%, #33373c 0 50%) 0 0 / 14px 14px; }
@@ -212,6 +213,12 @@ function card(a, zoom) {
   if (prev) prev.textContent = `Your earlier note: ${r.note}`;
   el.querySelector(".saved").textContent = r.note ? "Saved" : "";
   el.querySelector(".pic").addEventListener("click", () => enlarge(a));
+  if (ANIMATED.has(a.group)) {
+    el.querySelector(".meta").insertAdjacentHTML("afterbegin", `<span class="badge anim">Animated</span>`);
+    animIO.observe(el);
+    el.dataset.anim = a.name;
+    el.dataset.zoom = String(zoom);
+  }
   el.querySelector(".okb").addEventListener("click", () => save(a, { status: st === "ok" ? "todo" : "ok", note: ta.value }));
   el.querySelector(".chb").addEventListener("click", () => {
     if (st === "change") { save(a, { status: "todo", note: ta.value }); return; }
@@ -259,6 +266,31 @@ for (const b of document.querySelectorAll(".seg button")) b.addEventListener("cl
 });
 for (const id of ["q", "zoom", "bg"]) $(id).addEventListener("input", render);
 
+/**
+ * Animated looks (take 4): the card's still picture is replaced by the live animation (take4-anim.js, the take 4
+ * game code) the first time the card scrolls into view; the still stays if the script is missing.
+ */
+const ANIMATED = new Set(["approved_characters_take4"]);
+const animIO = new IntersectionObserver((es) => {
+  for (const e of es) {
+    if (!e.isIntersecting) continue;
+    const el = e.target;
+    animIO.unobserve(el);
+    const mount = window.T4 && window.T4.mount;
+    if (!mount) continue;
+    // let the page paint first: each animation takes a moment to draw
+    setTimeout(() => {
+      const c = mount(el.dataset.anim, Math.round(170 * Number(el.dataset.zoom || 1)));
+      if (!c) return;
+      c.style.maxWidth = "100%";
+      c.style.height = "auto";
+      c.style.display = "block";
+      const pic = el.querySelector(".pic");
+      pic.replaceChildren(c);
+    }, 0);
+  }
+}, { rootMargin: "200px" });
+
 fetch("assets.json").then((r) => r.json()).then((list) => { assets = list.filter((a) => !SUPERSEDED.has(a.group)); render(); })
   .catch(() => { $("grid").innerHTML = `<p class="empty">The asset list didn't load. Reload the page to try again.</p>`; });
 
@@ -278,3 +310,4 @@ fetch("assets.json").then((r) => r.json()).then((list) => { assets = list.filter
   }, () => notice("Saved notes couldn't be loaded right now. Reload the page to try again."));
 })();
 </script>
+<script src="take4-anim.js"></script>

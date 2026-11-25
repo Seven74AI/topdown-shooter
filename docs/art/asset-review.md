@@ -22,8 +22,11 @@ gallery, so new art can't skip the review.
    groups replaced by an accepted look are listed in `SUPERSEDED` in `review-page.html` (today: the current
    characters and street props). Then `npm run gallery:export` — draws everything, writes `tools/gallery/out/assets.json` (not committed) and
    updates `tools/gallery/manifest.json` (committed: a pixel hash and the date each asset was added/changed).
-2. Republish the page to the **same URL** with the Artifact tool: `url` = the link above,
-   `file_path` = `tools/gallery/review-page.html`, `files` = `{"assets.json": "tools/gallery/out/assets.json"}`.
+2. Build the animation script for the animated looks: `node docs/art/photoreal-2/src/build-t4lib.mjs`
+   (writes `tools/gallery/out/take4-anim.js`; the page plays take 4's animation on those cards).
+   Republish the page to the **same URL** with the Artifact tool: `url` = the link above,
+   `file_path` = `tools/gallery/review-page.html`, `files` = `{"assets.json": "tools/gallery/out/assets.json",
+   "take4-anim.js": "tools/gallery/out/take4-anim.js"}`.
    Read the artifact first if this session has not published it.
 3. Commit `tools/gallery/manifest.json`.
 

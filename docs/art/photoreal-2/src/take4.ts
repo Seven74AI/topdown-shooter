@@ -217,7 +217,7 @@ export interface Anim {
 
 const ZOMBIE: Anim = { breathe: 0.012, rate: 0.35, sway: 0.025, glowBase: 0.6, glowSwing: 0.4, glowRate: 1.2 };
 
-interface Row {
+export interface Row {
   group: string;
   name: string;
   extent: number;
@@ -229,11 +229,11 @@ interface Row {
 }
 
 /** Phases per animation loop (crossfaded, so 10 drawings read as smooth motion). */
-const LOOP_FRAMES = 10;
+export const LOOP_FRAMES = 10;
 
 const held = (w: string) => (c: G, r: number): void => WEAPON_ART[w]?.(c, "held", r);
 export const SURV: Anim = { breathe: 0.008, rate: 0.28, sway: 0.012, glowBase: 0.7, glowSwing: 0.3, glowRate: 6, flicker: true };
-const ROWS: Row[] = [
+export const ROWS: Row[] = [
   { group: "Survivor", name: "Pistol (also SMG, hunting rifle, machete)", extent: 2.7, zoom: 1.5, draw: (g, r) => drawSurvivor(g, r), anim: SURV },
   ...["shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch"].map((w) => ({ group: "Survivor", name: w.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), extent: 2.7, zoom: 1.2, draw: (g: G, r: number) => drawSurvivor(g, r, held(w), WEAPON_BACK_ART[w]), anim: SURV })),
   { group: "Survivor", name: "Chainsaw running", extent: 2.7, zoom: 1.2, draw: (g, r) => drawSurvivor(g, r, (c, rr) => drawChainsawRunning(c, "held", rr)), anim: { ...SURV, shake: 1.2 } },
@@ -273,7 +273,7 @@ interface BloaterFx {
  * The Bloater's veins and sacs, prepared once per frame picture: veins branch out from the belly across the body
  * (kept on the figure's opaque pixels), and the acid sacs are found from the drawing's glowing blobs.
  */
-function prepareBloater(lit: Lit, b: { s: number; look: number }, seed: number): BloaterFx {
+export function prepareBloater(lit: Lit, b: { s: number; look: number }, seed: number): BloaterFx {
   const N = lit.base.width;
   const a = ctx(lit.base).getImageData(0, 0, N, N).data;
   const headX = N / 2 + 0.45 * R * (1 + 0.35 * b.s); // veins stay off the head (it sits at the front, +x)
