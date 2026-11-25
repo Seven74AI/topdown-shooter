@@ -1,6 +1,7 @@
 import { Client, type Room } from "@colyseus/sdk";
 import type { Box } from "@topdown/shared";
 import { bulletBoxes, fillWireShot, type WireBuilding } from "./wireCover";
+import { WireMeter, wireRates, type WireCounts } from "./wireMeter";
 import {
   DOWNTOWN_MAP,
   MUZZLE_OFFSET_M,
@@ -9,7 +10,9 @@ import {
   C2S,
   PING_KINDS,
   HORDE_MAX_RECORDS,
+  INPUT_BYTES,
   NEUTRAL_INPUT,
+  encodeInput,
   NET_EVENT_KIND,
   CLOSE_TAKEN_OVER,
   CLOSE_RUN_SAVED,
@@ -65,7 +68,7 @@ import {
  * One headless bot player (Story 2.10, AC 4) in a real room, through the same SDK as the phones.
  * It does not render, predict or interpolate: each 50 ms it builds a `BotView` from the newest
  * state (players) and the newest horde frame (zombies), asks the shared `botInput` policy, and
- * sends `input.send` with seq + 1. It taps Ready, answers `net.pinged`, and counts its own payload
+ * sends its binary input (`BYTES.INPUT`, Story 8.11) with seq + 1. It taps Ready, answers `net.pinged`, and counts its own payload
  * bytes both ways with the same `ByteRate` the client overlay uses. One log line per wave.
  *
  * Story 3.10: in every build phase it first shops from `bots.json › shoppingList` with the shared
@@ -129,6 +132,8 @@ export interface BotWaveStats {
   kills: number;
   downs: number;
   revives: number;
+  /** Story 8.11 (T1): per-second wire numbers by kind (`wireMeter.ts › wireRates`). */
+  wire: Record<string, number | number[]>;
 }
 
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -182,6 +187,10 @@ interface PendingShop {
 
 export class BotClient {
   readonly down = new ByteRate();
+  /** Story 8.11 (T1): bytes by kind, patches per tick. */
+  readonly wireMeter = new WireMeter();
+  private wireMark: WireCounts = this.wireMeter.snapshot();
+  private waveTick0 = 0;
   readonly up = new ByteRate();
   /** Per-wave results, in order. */
   readonly waves: BotWaveStats[] = [];
@@ -207,6 +216,7 @@ export class BotClient {
   private readonly coverBoxes: Box[] = [];
   private readonly pushWireBuilding = (b: WireBuilding): void => void this.wireBuildings.push(b);
   private readonly input: PlayerInput = { ...NEUTRAL_INPUT };
+  private readonly inputBytes = new Uint8Array(INPUT_BYTES);
   private readonly horde = new HordeView();
   private seq = 0;
   private leaving = false;
@@ -314,6 +324,7 @@ export class BotClient {
     const now = (): number => performance.now();
     configureReconnection(room.reconnection); // F7: no offline queue
     attachByteCounters(room as unknown as Parameters<typeof attachByteCounters>[0], this.down, this.up, now);
+    this.attachWireMeter(room); // Story 8.11 (T1): bytes by kind, patches and their ticks
     const heard = (): void => {
       if (this.room === room && this.link === "ok") this.watchdog.heard(now());
     };
@@ -388,6 +399,21 @@ export class BotClient {
       this.timer = null;
       this.closed = { code, reason: reason ?? "" };
       this.log({ msg: "bot_room_closed", bot: this.name, code, reason: reason ?? "" });
+    });
+  }
+
+  /** Story 8.11 (T1): the wire meter sees every WebSocket message down and every frame up (`wireMeter.ts`). */
+  private attachWireMeter(room: Room<unknown, RunStateView>): void {
+    const conn = (room as unknown as { connection: { transport: unknown; send(data: Uint8Array): void } }).connection;
+    const ws = (conn.transport as { ws?: { addEventListener(t: "message", cb: (e: { data: unknown }) => void): void } } | null)?.ws;
+    ws?.addEventListener("message", (e) => this.wireMeter.down(e.data));
+    const send = conn.send;
+    conn.send = (data: Uint8Array): void => {
+      this.wireMeter.up(data);
+      send.call(conn, data);
+    };
+    room.onStateChange((s: RunStateView) => {
+      if (this.room === room) this.wireMeter.patch(s.tick, s.phase === "wave");
     });
   }
 
@@ -612,7 +638,8 @@ export class BotClient {
     }
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
     if (this.link !== "ok") return; // Story 8.1 (F7): nothing sent while the link is down (and nothing late)
-    this.room.send(C2S.INPUT_SEND, this.input);
+    encodeInput(this.input, this.inputBytes); // Story 8.11 (brief 20): the phone's binary input
+    this.room.sendBytes(BYTES.INPUT, this.inputBytes);
   }
 
   /** Buildings of `type` this bot owns (from the state). */
@@ -789,6 +816,8 @@ export class BotClient {
     this.waveKeyframes0 = this.hordeStream.keyframes;
     this.waveHordeErrors0 = this.hordeStream.decodeErrors + this.hordeStream.brokenChain;
     this.waveKills0 = this.kills();
+    this.wireMark = this.wireMeter.snapshot();
+    this.waveTick0 = this.room.state?.tick ?? 0;
     this.downs = 0;
     this.revives = 0;
   }
@@ -818,6 +847,7 @@ export class BotClient {
       kills: this.kills() - this.waveKills0,
       downs: this.downs,
       revives: this.revives,
+      wire: wireRates(this.wireMeter.snapshot(), this.wireMark, seconds, (this.room.state?.tick ?? 0) - this.waveTick0),
     };
     this.waves.push(stats);
     this.lastEndedWave = n;

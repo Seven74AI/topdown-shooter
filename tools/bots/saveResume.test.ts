@@ -54,6 +54,10 @@ describe("Stories 8.4–8.6 bots (T8)", () => {
     expect(await until(() => room.state.phase === "build", 30_000)).toBe(true);
     room.controller!.world.debug.bossWaves = [];
     expect(await until(() => room.state.phase === "wave", 120_000)).toBe(true);
+    // Story 8.11 (PR #19 CI): no Ready in the save build, like `npm run bots --save-quit-at` (run.ts). Since 8.11 the
+    // patch leaves in the tick that changed the phase, so the bots' Ready used to beat this test's poll and end the
+    // build (a `build_end` autosave, then `save_quit_refused: not_now`); before, the 0–50 ms patch lag hid the race.
+    for (const b of [host, b2]) b.holdReadyAfterWave = 1;
     skipWave(room.controller!.world); // wave 1 cleared (the bots fought in it)
     expect(await until(() => room.state.phase === "build", 10_000)).toBe(true);
     const runId = host.runId;

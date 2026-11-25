@@ -158,9 +158,56 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   if (!args.line) return { url: args.url, line: null };
   const u = new URL(args.url);
   const target = Number(u.port || (u.protocol === "https:" ? 443 : 80));
-  const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
+  const line = await startLagLine({
+    listen: 0,
+    targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""),
+    target,
+    ...args.line,
+    onConnection: () => ({
+      // Story 8.11 (T1): writes (TCP chunks) and bytes per direction, for `bots_line_wave`
+      onDown: (b) => {
+        lineWrites.down++;
+        lineWrites.downBytes += b.length;
+      },
+      onUp: (b) => {
+        lineWrites.up++;
+        lineWrites.upBytes += b.length;
+      },
+    }),
+  });
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
   return { url: lineUrl(args.url, line.port), line };
+}
+
+/** Story 8.11 (T1): every connection's chunks (one per server/client write on a local line) and bytes, both directions. */
+const lineWrites = { down: 0, up: 0, downBytes: 0, upBytes: 0 };
+
+/**
+ * Story 8.11 (T1): per wave (the host bot's phase "wave"), the line's writes and wire bytes per phone per second
+ * (`bots_line_wave`). Writes are the chunks the line read from each socket (TCP_NODELAY on both ends: one per write).
+ */
+function lineWaveWatch(bots: readonly BotClient[], log: (line: Record<string, unknown>) => void): () => void {
+  let mark: { wave: number; at: number; w: typeof lineWrites } | null = null;
+  return () => {
+    const s = bots[0]?.room.state;
+    const inWave = s?.phase === "wave";
+    if (inWave && !mark) mark = { wave: s?.wave ?? 0, at: performance.now(), w: { ...lineWrites } };
+    else if (!inWave && mark) {
+      const sec = (performance.now() - mark.at) / 1000;
+      const n = Math.max(1, bots.length);
+      const r2 = (x: number): number => Math.round(x * 100) / 100;
+      log({
+        msg: "bots_line_wave",
+        wave: mark.wave,
+        seconds: r2(sec),
+        downWritesPerPhonePerS: r2((lineWrites.down - mark.w.down) / n / sec),
+        upWritesPerPhonePerS: r2((lineWrites.up - mark.w.up) / n / sec),
+        downWireKBpsPerPhone: r2((lineWrites.downBytes - mark.w.downBytes) / 1024 / n / sec),
+        upWireKBpsPerPhone: r2((lineWrites.upBytes - mark.w.upBytes) / 1024 / n / sec),
+      });
+      mark = null;
+    }
+  };
 }
 
 /** Story 8.7 (review nit): `--ping-every` is a finite number of seconds ≥ 0 (0 = off). */
@@ -290,8 +337,10 @@ async function main(): Promise<void> {
   };
   process.on("SIGINT", () => void stop("interrupted"));
   let saveSent = false;
+  const watchLine = line ? lineWaveWatch(bots, log) : () => {};
   for (;;) {
     await sleep(250);
+    watchLine();
     const phase = bots[0]?.room.state?.phase;
     // Story 8.5: Save and quit in the build phase after wave --save-quit-at; the bots stop once the server closed them (4023).
     if (args.saveQuitAt > 0 && !saveSent && phase === "build" && bots.every((b) => b.lastEndedWave >= args.saveQuitAt)) {
