@@ -4,7 +4,7 @@ import { ensureBossTextures } from "../render/city/bossAtlas";
 import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize, type HudPlate } from "../render/city/hudWarnArt";
 import { bossMarker, type BossMarker } from "../render/bossMarker";
 import { BOSS_BAR_NAME_CSS_PX } from "../ui/sizes";
-import { BOSS_BAR_NOTCH, layoutBossBar, type BossBarLayout } from "./bossBar";
+import { BOSS_BAR_NOTCH, layoutBossBanner, layoutBossBar, type BossBarLayout } from "./bossBar";
 import type { HudModel } from "./hudModel";
 
 /**
@@ -26,9 +26,6 @@ const STUN_FLASH_HZ = 4;
 const MARKER_MARGIN_CSS_PX = 30;
 /** The edge panel and attack plates are shown at this share of their art size (CSS px). */
 const PANEL_SCALE = 0.75;
-/** The banner, at this share, below the boss bar (or the top inset). */
-const BANNER_SCALE = 0.7;
-const BANNER_GAP_CSS_PX = 8;
 /** The banner stays this long after the warning ends (the boss walks in under it). */
 const BANNER_HOLD_MS = 1500;
 /** How long the HUD's text banner shows (HudScene `BANNER_SHOW_MS`): the warning banner waits for it (e.g. "Wave 10"). */
@@ -121,13 +118,10 @@ export class BossHud {
     if (m.bossState === BOSS_STATE.WARNING) this.bannerUntilMs = nowMs + BANNER_HOLD_MS;
     const textBanner = m.bannerText !== "" && nowMs - m.bannerAtMs < TEXT_BANNER_MS;
     if (nowMs < this.bannerUntilMs && m.bossState !== BOSS_STATE.NONE && !textBanner) {
-      const bs = hudFrameCssSize("banner");
-      // below the boss bar's block (laid out even while the bar is hidden), so the wave line stays readable
-      const l = layoutBossBar(w, insets.left, insets.top, insets.right, k, this.layout);
-      const top = l.y + l.h + BANNER_GAP_CSS_PX * k;
+      const r = layoutBossBanner(w, insets.left, insets.top, insets.right, k, hudFrameCssSize("banner"), this.layout);
       this.banner
-        .setDisplaySize(bs.w * BANNER_SCALE * k, bs.h * BANNER_SCALE * k)
-        .setPosition(w / 2, top + (bs.h * BANNER_SCALE * k) / 2)
+        .setDisplaySize(r.w, r.h)
+        .setPosition(r.x + r.w / 2, r.y + r.h / 2)
         .setAlpha(fl * (0.85 + 0.15 * Math.sin(t * 6)))
         .setVisible(true);
     } else if (this.banner.visible) this.banner.setVisible(false);

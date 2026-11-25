@@ -52,3 +52,18 @@ const hpScratch = { x: 0, y: 0, w: 0, h: 0 };
 
 /** The gold notch at 50 % (D9). */
 export const BOSS_BAR_NOTCH = 0.5;
+
+/** The P1 arrival banner ("THE BEHEMOTH"): shown at this share of its art size, this far under the boss bar's block. */
+export const BOSS_BANNER_SCALE = 0.7;
+export const BOSS_BANNER_GAP_CSS_PX = 8;
+
+/**
+ * Where the arrival banner sits: centred, under the boss bar's block (laid out even while the bar is hidden), so
+ * the wave line stays readable. `artCss` = the banner plate's art size (CSS px). Pure; in the one HUD layout test.
+ */
+export function layoutBossBanner(width: number, insetLeft: number, insetTop: number, insetRight: number, k: number, artCss: { w: number; h: number }, bar: BossBarLayout): { x: number; y: number; w: number; h: number } {
+  const l = layoutBossBar(width, insetLeft, insetTop, insetRight, k, bar);
+  const bw = artCss.w * BOSS_BANNER_SCALE * k;
+  const bh = artCss.h * BOSS_BANNER_SCALE * k;
+  return { x: width / 2 - bw / 2, y: l.y + l.h + BOSS_BANNER_GAP_CSS_PX * k, w: bw, h: bh };
+}

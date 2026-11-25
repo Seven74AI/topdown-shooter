@@ -4,7 +4,8 @@ import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
-import { layoutBossBar } from "./bossBar";
+import { layoutBossBanner, layoutBossBar } from "./bossBar";
+import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
@@ -250,6 +251,11 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
         }
       }
       expect(banners).toBe(18);
+      // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar, clear of the whole top band.
+      const arrival: Box = { ...layoutBossBanner(w, INSET.left, INSET.top, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 }), id: "boss_arrival_banner" };
+      inSafe(arrival);
+      apart([...top, boss, arrival]);
+      expect(arrival.y + arrival.h, "the arrival banner stays in the upper half").toBeLessThan(h / 2);
     });
   }
 
