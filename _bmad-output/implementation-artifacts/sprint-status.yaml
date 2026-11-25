@@ -225,7 +225,7 @@ development_status:
   10-7-run-stats: backlog
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story
-  10-10-build-button: ready-for-dev  # added 2026-11-25 (designer: hybrid Build button); story file written; waits on the designer's layout pick BU-1 (A/B/C/D, recommended B), options docs/art/build-ui/index.html; key auto-accepted (Epic 5 closed)
+  10-10-build-button: ready-for-dev  # added 2026-11-25 (designer: hybrid Build button); story file written; designer picked BU-1 = B (2026-11-25), options docs/art/build-ui/index.html; key auto-accepted (Epic 5 closed)
   epic-10-retrospective: optional
 
   # Epic 11: Random city (post-v1; sprint-change-proposal-2026-11-24-random-city.md)

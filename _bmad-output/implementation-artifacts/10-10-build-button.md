@@ -2,7 +2,7 @@
 
 Status: ready-for-dev
 
-(Waiting on the designer's layout pick, **Decision BU-1** below. Building UX follow-up to Stories 5.15–5.21. Designer decision 2026-11-25: "hybrid" — a **Build** button plus the **last-placed building** as a one-tap quick tile; Build opens the full grid as a panel and a pick closes it. Options page: `docs/art/build-ui/index.html`. Written with `gds-create-story` (+ `gds-ux` for the layout thinking), headless.)
+(**Designer picked layout B (Decision BU-1, 2026-11-25).** Building UX follow-up to Stories 5.15–5.21. Designer decision 2026-11-25: "hybrid" — a **Build** button plus the **last-placed building** as a one-tap quick tile; Build opens the full grid as a panel and a pick closes it. Options page: `docs/art/build-ui/index.html`. Written with `gds-create-story` (+ `gds-ux` for the layout thinking), headless.)
 
 ## Story
 
@@ -53,7 +53,7 @@ The layout numbers below are for the recommended **B**; when the designer picks 
 
 ## Tasks / Subtasks
 
-- [ ] Designer picks BU-1 (and answers BU-3 / BU-5); copy the pick into this file's decision log, then set `ready-for-dev` (AC all)
+- [x] Designer picks BU-1 (and answers BU-3 / BU-5); copy the pick into this file's decision log, then set `ready-for-dev` (AC all) — B, 2026-11-25
 - [ ] `buildBar.ts`: `quickType(items, lastPlaced)`; `layoutBuildCluster` + `layoutBuildPanel` (pure, reused out objects); `buildPanelSlots` (reuse `buildBarSlots` with 9 cells: 8 + Close); keep `stepBuildBar`/`pickError`/`tileState` as they are (AC 1–5, 11)
 - [ ] `ui/sizes.ts`: `BUILD_BTN_*`, `SHOP_CHIP_*`, `BUILD_PANEL_*` constants; remove the 4 × 2 constants only if nothing else reads them (AC 1, 3)
 - [ ] `HudScene.ts`: replace the 8-slot grid drawing (`barTiles`, `layoutBuildBar`, `drawBuildBar`, `placeBarSlots`, `pressTile`) with the cluster + panel; button ids `build`, `quick`, `shopchip`, `ptile0…8`; the state-key redraw stays on-change only, no per-frame allocation (AC 1–7)

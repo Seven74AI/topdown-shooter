@@ -536,4 +536,4 @@ Designer decisions taken for this pass: **Q2** a saved Random city run from an o
 | U6 | 10.9 first-time build-phase observation; GDD open item |
 | Epic 10 NFR line | NFR3, NFR9 added |
 
-**Left for the designer:** in `10-10-build-button.md`, tick the task "Designer picks BU-1" and replace the opening "(Waiting on … BU-1)" line; in `sprint-status.yaml`, the 10-10 comment still says "waits on BU-1". The pick itself is already in the story's decision log. The recommended `gds-ux` pass is a separate workflow and was not run.
+**Designer follow-ups:** the 10.10 BU-1 lines (story file opening line, task checkbox, sprint-status comment) were updated to B with the designer's go-ahead. The recommended `gds-ux` pass is a separate workflow and was not run.
