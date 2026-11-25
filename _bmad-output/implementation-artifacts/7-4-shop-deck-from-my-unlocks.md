@@ -296,7 +296,76 @@ Claude (cloud builder session, story-7-4-5).
 - `tools/checks/progressionWiring.test.ts` (new)
 - `tools/checks/resultsDomLayout.test.ts` (modified)
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh cloud reviewer session (`gds-code-review`, full three layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor + beat the rule), 2026-11-25. **Tree:** `review-7-4-5` = `origin/story-7-4-5` 8d1afe21 merged with master (clean). **Own changes reviewed:** `git diff origin/story-7-3...origin/story-7-4-5` (7.3 and the 8.1 hunks from the master merge not reviewed). **Checks run (no full gate, HANDOFF §3):** `npm ci`, `npm run typecheck` green; the story's tests (`shopUnlocks`, `training`, `trainRoute`, `localFire`, `progressionWiring`, `unlocksTraining`, `hubTrainingDomLayout`, `resultsDomLayout`, `RunRoom.progress`, `replay`, `starterBotsSim`) green; `realPostgres.test.ts` + `realPg.test.ts` on a real PostgreSQL 16 (`TEST_DATABASE_URL`) 20/20 green; reviewer probes in `_bmad-output/implementation-artifacts/7-4-5-review-probes/` (shared 9, room 4, real PostgreSQL 6: all green; mutation script `mutations.py.txt`). Load ≈ 1–2 on 4 cores.
+
+### Verdict
+
+**Approved — no high, no medium.** The rules hold under every exploit tried: at most one borrowed card per offer, only from the build-start snapshot (incl. 8.1 holds), never something nobody present has; the server refuses locked buildings, consumables and barricade upgrades (placer / payer = owner); Training is bought exactly once per level on real PostgreSQL under races, applied in full, only to its owner, never to turrets; replays with `inits` reach the same digest. Nine lows / nits below (four are test gaps found by surviving mutations, one is a small HUD bug). Per the re-review cap these go to the main session (one-line or test-only fixes; L5 is a one-line client fix).
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| L1 | Low (test) | `packages/shared/src/economy/shopUnlocks.test.ts:195-201` | "a reroll that could change only the borrowed slot is still a new draw (canReroll)" is vacuous: the starter pool still has 2 unshown items, so `canReroll` is true without the borrow block. Mutation M3 (`if (false && fillBorrow(...))` in `rerollHasNew`) **survives** the story's tests. The code is right (probe P9: pool spent, only the borrow list has something new → `canReroll` true; M3 kills P9). | Replace the test body with probe P9 (`shared.probe.ts.txt`: pistol + SMG carried, Armor I / shoes / revive kit owned, Mo has chainsaw + assault rifle → 5 cards, `canReroll` true). |
+| L2 | Low (test) | `packages/shared/src/replay/inputLog.ts:123` (B10) | No test replays a log with `inits`. Mutation M20 (`replayRun` ignores `log.inits`) **survives** `replay.test.ts` + `starterBotsSim.test.ts`; brief 5 says a Training run must replay to the same digest. Probe P6: Training 5 + starter vs all-unlocked recording replays to the same digest with `inits`, and a different one without (kills M20). | Add P6 to `replay.test.ts`. |
+| L3 | Low (test) | `apps/server/src/auth/train.ts:68` | The request memo key is `accountId:requestId` (correct, curl-verified: the same id from account B is a new purchase). Mutation M18 (key = `requestId` only) **survives** `trainRoute.test.ts`; that regression would hand account B account A's answer (A's Supplies and levels: a privacy leak) and skip B's purchase. | One route test: two accounts, one `requestId` → both charged, each sees its own progress. |
+| L4 | Low (test) | `apps/server/src/rooms/RunRoom.ts` `startRun` (B6) | `DEV_STARTING_WALLET` zeroes Training start money on the server; mutation M23 (keep Training money) **survives** every test (the client side, `practicePool.ts:34`, is tested). Dev-only, so low. | A unit test of the init mapping (extract `playerInitsFor(members, inits, devMask, devWallet)` or a room test with the env set). |
+| L5 | Low | `apps/client/src/scenes/GameScene.ts:2198` | The HUD reload ring's total is the **untrained** `ticksFor(stats.reloadS)` while the server/predicted reload is trained (`reloadSecondsFor`). At Training reload 5 a 1.5 s reload is 29 ticks of 30: the ring starts at ~3–5 % and jumps; no gameplay effect, but it is the one reload read the "every reload site uses reloadSecondsFor" rule missed (`progressionWiring` greps `firing.ts` only). | `ticksFor(reloadSecondsFor(player, stats))`, and add `GameScene.ts` to the reload grep. |
+| L6 | Low (rule to confirm) | `packages/shared/src/economy/shopCards.ts:268-275` (D7) | Probe P2: buy the borrowed card, reroll, buy the next borrowed card → in **30/30 seeds** a starter player bought ≥ 2 borrowed items in one build (a loadout can end up entirely borrowed). The code meets the letter of D7/K2 ("one of my 6 cards", per offer; each reroll costs money); the proposal's "each build, 1 of your 6 cards" can also be read per build. | No code change unless the designer wants "one borrowed purchase per build"; log as a B-code (R7) so the reading is explicit. |
+| L7 | Low (visual) | `apps/client/src/ui/ShopScreen.tsx:204`, `overlay.css:877-896` | A lender in slot 2 (orange `#ff8a1f`) gets an orange badge on the amber tape (`#f59a23`): only a 1 px shadow separates them (visible in `7-4-5-shop-borrowed.png`, "2 FROM MO"). Brief 24: the orange player slot must not be confused with the orange accent. | A dark 2 px ring (or charcoal inset) around `.shop-card__lender`. |
+| L8 | Low (test / R9) | shop card, BT1 | The borrowed card is in no DOM layout test (Dev Agent Record "Not verified"); only the screenshot at 568×320. A 16-character lender name ellipsizes (`.shop-card__from`), unchecked at 640/800/844. | Add a borrowed-card case (16-char name) to the shop's DOM layout test at the four R9 sizes. |
+| N1 | Nit (docs) | `docs/art/epic-7/lumen/picks/bt1.png` | The BT1 pick sheet still shows **two** borrowed cards ("FROM MO" + "FROM KIT"); the rule is 1 (D7). The build is right (one). | Annotate or redraw the pick sheet so later builders don't copy the 2. |
+| N2 | Nit (visual) | `ProgressScreen.tsx` Training rows vs TR1 | "Next: +8 % max HP · 200" has no Supplies icon (TR1 and the Unlocks rows have one); the boost's line is a tooltip only (B5, accepted). | Add the Supplies icon before the price. |
+| N3 | Nit | `apps/server/src/auth/train.ts:66` | A replayed `requestId` with a different boost/level returns the first answer (`boost: "damage"` for a `max_hp` body). Same as 7.3's memo; only a modified client can hit it; nothing is charged. | None (or key the memo by the body too). |
+
+### Beat the rule (every attempt, result)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | More than one borrowed card: 20 seeds × 30 rerolls, three teammates with different extras (P1) | ≤ 1 per offer always; every borrowed card is a lender's extra and not in my pool; lender slot right (2 for the AR, 1 for Mo's) — **held** |
+| 2 | Two borrowed cards by code (M10: borrow on draws 0 and 1) | caught by 3 story tests — **held** |
+| 3 | Lender held at build start, returns mid-build (P3) | my offer unchanged; the lender's own offer borrows nothing — **held** |
+| 4 | I am held at build start, return mid-build: lazy offer (P4) | borrows from the snapshot, exactly 1 — **held** |
+| 5 | Lender leaves the room mid-build, I reroll (room probe RP3) | the reroll still borrows; `lenderName` still "Ana" — **held** (K3) |
+| 6 | Teammate joins mid-build | no change until the next build (story test) — **held** |
+| 7 | Borrow something nobody present owns | `fillBorrow` reads only snapshot slots; P1 + M9 (held players dropped from the snapshot) caught — **held** |
+| 8 | Reroll to farm borrowed cards (P2) | each reroll costs its price; one borrowed card per offer; a second borrowed buy per build is possible → **L6** (rule reading) |
+| 9 | Modified client: `shop.buy_item` molotovs, `building.place` spike trap, `shop.buy` chainsaw not on offer (RP4, with a positive control: wood barricade + medkit accepted) | all refused, wallet unchanged — **held** |
+| 10 | Upgrade a barricade without Barricade upgrades / a teammate's barricade | `not_unlocked` (payer = owner, D2/B5) / `not_owner`; Upgrade hidden in the action bar — **held** |
+| 11 | Supply drop locked weapon → Results line | `lockedUsed` set, `run.rewards.lockedUsed` "unlock it for 500" (room test); passed on the quit bank and the held-seat bank too — **held** |
+| 12 | `POST /account/training` by curl on real PostgreSQL: level 5 at 0; cost in body; unknown boost; level 0 / −1 / 1.5 / 11 / "1"; no / bad cookie | `already_trained` (nothing charged); 400 ×7; 401 ×2 — **held** |
+| 13 | Same `requestId` ×5 at once | one charge (600 → 550), five identical answers — **held** |
+| 14 | Same `requestId` from a second account | its own purchase (key includes the account) — **held** (untested → L3) |
+| 15 | Level 9 at 0; maxed at 5 (R6) | `maxed`, never charged — **held** |
+| 16 | 25 calls/min on one account | 19 answers then 429 (20/min), one `train_rate_limited` log line; no token in the log — **held** |
+| 17 | Real PostgreSQL races (R1–R5, ×10 each): 10 same-level trains; 4 boosts with Supplies for one; 4 boosts with Supplies for all (jsonb_set on the re-checked row keeps all four); train + unlock with Supplies for one; levels 1–5 at once | exactly one / one / all four kept / one / only level 1 — **held** |
+| 18 | Run-start read hangs (RP1) | run starts after 2.06 s with starter + Training 0; a second Start during the read ignored; one read — **held** (D3) |
+| 19 | Run-start read slow 1.5 s (RP2) | the real unlocks are used — **held** |
+| 20 | Training applied in full, only to me (P7, story tests; M14 "team lowest" caught) | 4 × max: 110 HP (160 with Armor II), $250, ×1.05 damage, ×0.95 reload each; a level-0 teammate untouched — **held** |
+| 21 | Bad saved levels (99, −3, 7.9, NaN) (P8) | clamped to 5/0/5/0 — **held** |
+| 22 | Turrets / traps / mines / thrown items trained? | turret damage reads `stats.damage`; no Training — **held** (D2) |
+| 23 | Every damage / reload site (grep + M11, M12 caught) | melee, bullets, flame (incl. ignite share), launcher, 5 reload starts — **held**; HUD reload ring missed → **L5** |
+| 24 | Predicted reload vs server (M19 caught by `localFire.test.ts`) | same ticks at Training 5; `?lag=150&loss=1` in a browser **not run** (unit-level only) |
+| 25 | `DEV_STARTING_WALLET` / `?wallet` vs Training money | server and practice zero Training money (dev wins, B6); server path untested → **L4** |
+| 26 | Replay with `inits` (P6) | same digest with inits, different without — **held** (untested in the story → **L2**) |
+| 27 | TR1 tab / TL3 column at 568×320 + 3 sizes | layout tests green and mutation-checked — **held** |
+
+### Mutations (each new test once)
+
+M1 borrow from my own pool — killed · M2 reroll reads the live room — killed · **M3 canReroll ignores the borrow list — survived the story's tests (L1)**, killed by P9 · M4 placement skips `not_unlocked` — killed · M5 upgrade skips it — killed · M6 consumable skips it — killed · M7 crate never sets `lockedUsed` — killed · M8 borrowed buy never sets it — killed · M9 snapshot skips held players — killed · M10 two borrowed cards — killed · M11 damage ignores Training — killed · M12 swap reload site untrained — killed (wiring grep) · M13 armor buy drops the trained base — killed · M14 team-lowest Training — killed · M15 start money ignores the level — killed · M16 train SQL without the level guard — killed · M17 without the Supplies guard — killed · **M18 memo key without the account — survived (L3)** · M19 predicted reload untrained — killed · **M20 replay ignores `inits` — survived the story's tests (L2)**, killed by P6 · M21 failed read → all unlocked — killed · M22 empty `lenderName` — killed · **M23 dev wallet keeps Training money — survived (L4)** · M24 action bar shows Upgrade without the unlock — killed · M25 build bar ignores my mask — killed · CSS: Training pips 56 → 156 px — 12/12 layout cases failed (killed) · Train column 12 → 9 px — 8/8 failed (killed).
+
+### Brief lines checked
+
+2 (all six fields: schema, syncState, stateView keys, fakeRoom, mirror, hold round trip; `progressionWiring` + `hold.test.ts`), 5 (replay with inits, L2), 7 (numbers in `progression.json`), 15 (route + room server truth), 16 (balance version bumped once `bbdd6c4d` → `760b0734`, `training.test.ts`), 18 (one bounded transaction, races on real PostgreSQL), 20 (2 s, off the tick, starter on failure), 22 (one borrowed card per offer; Training in full; L6 reading), 24 (BT1 / TR1 / TL3 vs picks: L7, N1, N2), R1 (every ticked task names tests; opened), R6 (Gate line present), R9 (TR1/TL3 in layout tests; the borrowed shop card is not: L8).
+
+### Not verified by the reviewer
+
+A real browser under `?lag=150&jitter=20&loss=1`, hidden tab, real phones / iOS Safari, `?stress`, PostgreSQL 18 (16 used).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built with 7.5 (merged story) on `story-7-4-5`; status review.
+- 2026-11-25: Senior Developer Review (AI): approved, 8 lows + 3 nits (no high/medium); probes in `7-4-5-review-probes/`.
