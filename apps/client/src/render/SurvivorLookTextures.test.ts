@@ -273,6 +273,39 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     expect((v.bodySprite as unknown as FakeObject).texture).toBe(ATLAS_CHARACTERS);
   });
 
+  it("re-review RR1: a propeller handed back by a blinking (or downed) wearer is clean for the next one", () => {
+    const fs = fakeScene();
+    const pool = new SurvivorLayerPool(fs.scene, napiCanvas);
+    const owners: PlayerView[] = [];
+    for (let i = 0; i < 4; i++) {
+      const a = new PlayerView(fs.scene, 0.4); // every pooled sprite gets faded and tinted once
+      a.setAnimatedLayer(pool, "propeller");
+      a.update(player({ protectTicks: 30, status: "downed" }), 1, 100);
+      expect((a.layerSprite as unknown as FakeObject).alpha).toBeLessThan(1);
+      owners.push(a);
+    }
+    for (const a of owners) a.destroy(); // they leave while protected / downed
+    const b = new PlayerView(fs.scene, 0.4);
+    b.setAnimatedLayer(pool, "propeller");
+    b.update(player(), 1, 200);
+    const img = b.layerSprite as unknown as FakeObject;
+    expect(img.alpha).toBe(1);
+    expect(img.tint).toBe((b.bodySprite as unknown as FakeObject).tint);
+    // the pool itself hands sprites back clean (alpha 1, no tint), whoever takes them next
+    const spare = pool.acquire("propeller") as unknown as FakeObject;
+    spare.setAlpha(0.2).setTint(0x123456);
+    pool.release("propeller", spare as never);
+    const again = pool.acquire("propeller") as unknown as FakeObject;
+    expect(again).toBe(spare);
+    expect([again.alpha, again.tint]).toEqual([1, 0xffffff]);
+    pool.release("propeller", again as never);
+    // and a protected wearer who gets the layer mid-blink fades it at once
+    const c = new PlayerView(fs.scene, 0.4);
+    c.update(player({ protectTicks: 30 }), 1, 100);
+    c.setAnimatedLayer(pool, "propeller");
+    expect((c.layerSprite as unknown as FakeObject).alpha).toBe((c.bodySprite as unknown as FakeObject).alpha);
+  });
+
   it("AC 10: a look with the propeller cap carries the pooled propeller sprite", () => {
     const fs = fakeScene();
     const pool = new SurvivorLayerPool(fs.scene, napiCanvas);

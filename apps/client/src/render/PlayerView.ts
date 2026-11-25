@@ -107,8 +107,9 @@ export class PlayerView {
     const img = pool.acquire(id);
     if (!img) return;
     const side = 2 * SURVIVOR_LAYERS[id].extentR * this.radiusM;
-    img.setDisplaySize(side, side).setDepth(this.body.depth + LAYER_DEPTH_STEP).setVisible(this.body.visible);
+    img.setDisplaySize(side, side).setDepth(this.body.depth + LAYER_DEPTH_STEP).setVisible(this.body.visible).setAlpha(this.shownBlink);
     this.layer = { id, img, pool };
+    this.shownStatus = null; // Story 7.9 re-review RR1: the status tint reaches the new sprite at the next update
   }
 
   /**

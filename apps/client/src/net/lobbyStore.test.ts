@@ -1,3 +1,4 @@
+import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
 import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
@@ -57,7 +58,10 @@ describe("lobbyView", () => {
     expect(lobbyView(notReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
     // Story 7.9 review L6: the Start button shows the short reason (fits its second line at 568 and 800 px wide)
     expect(lobbyView(notReady, false).startHintShort).toBe(START_HINT_SHORT.notReady);
-    for (const t of Object.values(START_HINT_SHORT)) expect(t.length).toBeLessThanOrEqual(17);
+    // re-review RR2: measured in px at the button's hint font (11 px), inside Start's ≥ 112 px minus border and padding
+    const g = createCanvas(10, 10).getContext("2d");
+    g.font = "500 11px sans-serif";
+    for (const t of Object.values(START_HINT_SHORT)) expect(g.measureText(t).width).toBeLessThanOrEqual(100);
     const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" }] });
     // Designer 2026-11-23: a host alone may start a real online run in every build.
     expect(lobbyView(alone, false)).toMatchObject({ canStart: true, startHint: null });
