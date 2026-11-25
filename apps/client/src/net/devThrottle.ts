@@ -49,6 +49,9 @@ type Fields = Record<string, unknown>;
  * Kept here, not in netConfig.ts (Story 8.9 owns that file in the same build round).
  */
 export const DEFAULT_STALL_MS = 200;
+/** Largest `?lag` / `?jitter` accepted (ms; Story 2.6, moved here from urlOptions.ts by Story 8.8 review N2). */
+export const MAX_THROTTLE_LAG_MS = 2000;
+export const MAX_THROTTLE_JITTER_MS = 1000;
 /** Story 8.8: largest `&loss` (%) and `&stall` (ms) accepted. */
 export const MAX_THROTTLE_LOSS_PCT = 20;
 export const MAX_THROTTLE_STALL_MS = 1000;

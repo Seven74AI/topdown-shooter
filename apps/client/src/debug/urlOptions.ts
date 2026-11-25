@@ -1,7 +1,7 @@
 import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 import { ANIMATED_LAYERS, type AnimatedLayerId } from "@topdown/shared";
-import { DEFAULT_STALL_MS, MAX_THROTTLE_LOSS_PCT, MAX_THROTTLE_STALL_MS } from "../net/devThrottle";
+import { DEFAULT_STALL_MS, MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS, MAX_THROTTLE_LOSS_PCT, MAX_THROTTLE_STALL_MS } from "../net/devThrottle";
 
 /**
  * Every URL switch the client reads, parsed in one place (Story 1.11; Story 1.12 adds `?loadout`
@@ -126,9 +126,8 @@ export interface UrlOptions {
   devLayer: AnimatedLayerId | null;
 }
 
-/** Largest `?lag` / `?jitter` accepted (ms). */
-export const MAX_THROTTLE_LAG_MS = 2000;
-export const MAX_THROTTLE_JITTER_MS = 1000;
+/** Largest `?lag` / `?jitter` accepted (ms); defined next to the throttle (Story 8.8 review N2: the bots share them). */
+export { MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS };
 
 /** Walkers when `?stress` has no number. */
 export const DEFAULT_STRESS_WALKERS = 150;

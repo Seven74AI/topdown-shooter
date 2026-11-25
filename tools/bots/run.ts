@@ -35,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
 import { startLagLine, type LagLine } from "../netaudit/lagLine";
-import { parseLine, type LineArgs } from "./lineArgs";
+import { lineUrl, parseLine, type LineArgs } from "./lineArgs";
 
 interface Args {
   url: string;
@@ -102,10 +102,8 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   const u = new URL(args.url);
   const target = Number(u.port || (u.protocol === "https:" ? 443 : 80));
   const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
-  u.hostname = "127.0.0.1";
-  u.port = String(line.port);
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
-  return { url: u.toString().replace(/\/$/, ""), line };
+  return { url: lineUrl(args.url, line.port), line };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
