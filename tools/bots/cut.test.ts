@@ -5,21 +5,23 @@ import { bootTestServer } from "../../apps/server/src/test/bootTestServer";
 import type { RunRoom } from "../../apps/server/src/rooms/RunRoom";
 import { BotClient } from "./botClient";
 import { startCutLine, type CutLine } from "../netaudit/cutLine";
+import { startLagLine, type LagLine } from "../netaudit/lagLine";
 
 /**
  * Story 8.1 AC 11 "the 8 s cut": 4 real bots on a real server, wave 3+, one bot's line cut both ways
  * for 8 s (no bytes, no close). The bot must be back in its seat — loadout, wallet and HP as at the
  * hold — within 10 s of the cut ending, through its own watchdog + token reconnect / guest-token
  * takeover (the shared `net/reconnect.ts` rules the phone uses), and the run must go on to the next
- * build phase. Liveness: the server really logged `player_held` and `player_returned`, the line
- * really held bytes, and the bot really logged a reconnect. Clean line here; the lossy-line run is
- * the `npm run bots -- … --loss 1 --cut-bot …` measurement in docs/perf (needs Story 8.8's line).
+ * build phase. All four bots play on Story 8.8's lossy line (150 ms ± 10, 1 % × 200 ms stalls both
+ * ways, `lagLine.ts`); the cut line sits in front of bot 2's connection to it. Liveness: the server
+ * really logged `player_held` and `player_returned`, the cut really held bytes, the lossy line
+ * really stalled, and the bot really logged a reconnect.
  */
 let colyseus: ColyseusTestServer;
 let port = 0;
 
 beforeAll(async () => {
-  ({ colyseus, port } = await bootTestServer());
+  ({ colyseus, port } = await bootTestServer({ allowTestScenarios: true }));
 });
 afterAll(async () => {
   vi.unstubAllEnvs();
@@ -38,13 +40,15 @@ async function until(ok: () => boolean, timeoutMs: number, stepMs = 50): Promise
 
 describe("Story 8.1 the 8 s cut (AC 11)", () => {
   it("a bot whose line is cut both ways for 8 s mid-wave is back in its seat within 10 s of the cut ending, as held, and the run goes on", async () => {
-    vi.stubEnv("DEV_START_WAVE", "3");
-    vi.stubEnv("DEV_ZOMBIE_DAMAGE_SCALE", ""); // the real balance
+    // The god-mode `net150` scenario (from wave 4): bots on the lossy line sometimes lose wave 3 outright
+    // (1 of 3 runs before this switch: a wipe, not a reconnect failure; bots are not difficulty
+    // evidence, brief 31), so the run's going on tests the reconnect, not the bots' aim.
     const lines: Record<string, unknown>[] = [];
     const log = (l: Record<string, unknown>): void => void lines.push(l);
-    const url = `http://127.0.0.1:${port}`;
-    const host = await BotClient.connect({ url, name: "Bot 1", log });
-    const cut: CutLine = await startCutLine({ target: port });
+    const lossy: LagLine = await startLagLine({ listen: 0, target: port, rttMs: 150, jitterMs: 20, lossPct: 1 });
+    const url = `http://127.0.0.1:${lossy.port}`;
+    const host = await BotClient.connect({ url, name: "Bot 1", log, scenario: "net150" });
+    const cut: CutLine = await startCutLine({ target: lossy.port });
     const bots = [host];
     for (let i = 2; i <= 4; i++) bots.push(await BotClient.connect({ url: i === 2 ? `http://127.0.0.1:${cut.port}` : url, name: `Bot ${i}`, roomId: host.roomId, log }));
     const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
@@ -96,10 +100,13 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
       expect(await until(() => room.state.phase === "build" || room.state.phase === "results", 150_000, 250)).toBe(true);
       expect(room.state.phase).toBe("build");
       expect(world.waves.number).toBe(wave);
-      console.log(JSON.stringify({ msg: "cut_test", backAfterCutEndMs: Math.round(backAfterMs), reconnects: cutBot.reconnects, held, wave }));
+      const st = lossy.stats();
+      expect(st.stallsUp + st.stallsDown).toBeGreaterThan(0); // the lossy line really stalled
+      console.log(JSON.stringify({ msg: "cut_test", backAfterCutEndMs: Math.round(backAfterMs), reconnects: cutBot.reconnects, held, wave, stalls: st }));
     } finally {
       await Promise.all(bots.map((b) => b.stop()));
       await cut.close();
+      await lossy.close();
     }
   }, 240_000);
 });
