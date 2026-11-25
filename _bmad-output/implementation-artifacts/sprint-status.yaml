@@ -154,8 +154,8 @@ development_status:
   6-6-behemoth-charge-and-throw: done  # 2026-11-24: review (1M perf + 4L) fixed, narrow re-review clean (R1 accepted: unreachable with room cap 4; R2 trampleGen test gap = follow-up); merged with 6.7: 'Behemoth charge, throw, enrage and end'
   6-7-enrage-and-the-end-of-the-behemoth: done  # merged into 6.6 (designer 2026-11-24)
   6-8-special-events-car-alarm-and-stampede: done  # 2026-11-25: review 2M+8L fixed; re-reviews 1–4 (event arrow readability → placement rewrite → hysteresis) clean; merged 6.11+6.12 (one endless scheduler); decisions 6.8 B1 bandwidth until 8.10, B2 runS 12; M1 wide-body Bloater stall = own follow-up story
-  6-9-gas-leak-and-supply-drop: review  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
-  6-10-power-failure-and-survivor: review  # merged into 6.9 (designer 2026-11-24)
+  6-9-gas-leak-and-supply-drop: done  # 2026-11-25: review 2M+11L fixed; re-review 1 (pair arrow medium) fixed; re-review 2 clean (RR2-1 flag bearing up to 32–36° at 568×320 vs 30° cap = follow-up); decisions 6.10 B1 survivor waitIgnoreM 5, B2 keep + playtest; merged with 6.10
+  6-10-power-failure-and-survivor: done  # merged into 6.9 (designer 2026-11-24)
   6-11-evacuation-vote: done  # 2026-11-25: review 3M+12L fixed; re-review found RM1 (fix-made), re-review 2 found RR2-M1 (fix-made), re-review 3 clean (RR3-L1 late dawn after a long lock, RR3-L2 urgent gap 250 → 0–100, N5, N6 = follow-ups); decisions 6.11 B1; merged with 6.12; pad = map point evac_pad
   6-12-endless-mode: done  # merged into 6.11 (designer 2026-11-24); endless events wired when 6.8 lands
   epic-6-retrospective: optional

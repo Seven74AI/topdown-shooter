@@ -1,6 +1,6 @@
 # Story 6.10: Power failure and survivor
 
-Status: review
+Status: done
 
 ## Story
 

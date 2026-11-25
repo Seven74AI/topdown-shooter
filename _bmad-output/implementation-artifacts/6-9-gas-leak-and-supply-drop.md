@@ -1,6 +1,6 @@
 # Story 6.9: Gas leak and supply drop
 
-Status: review
+Status: done
 
 ## Story
 
@@ -430,3 +430,8 @@ Changed: see "Notes for the merge".
 - `PAIR_HOLD_CSS_PX` 24 → 0 → the RR2 jitter test fails at 640×360 (7 flips); **passes at 568×320** (it bites on one size only).
 - `trySpot` always illegal (no beside spot) → the pair test fails at both sizes (overlap).
 - Not mutated: `hudTopLayout.test.ts` (6.8 code from the merge, context only). Test gap (low): RR4 has no zombie-behind-the-tank case, only the Behemoth.
+
+### Main session close-out (2026-11-25)
+
+- Re-review 2 approved (0 high/medium). Follow-ups for the Epic 6 tidy-up story: RR2-1 cap the pair "beside" spot at 30° and add a stateful 0.01° sweep to the pair test (today up to 32–36° at 568×320); RR4 test with a zombie (not only the Behemoth) behind the tank; nit ±0.1° single flip accepted.
+- Main-session full gate on story-6-9 31b9404 (master dfaefcb merged): typecheck, lint, 393 files / 3,615 tests passed (3 skipped), build OK; load → 2.77 (4 cores). Story done.
