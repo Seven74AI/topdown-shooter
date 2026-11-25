@@ -21,7 +21,7 @@ import type { Account } from "./accountsRepo";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 import type { Database } from "./client";
 import { readStats, type Progress } from "./progressRepo";
-import { accounts, deviceTokens, progress, type ProgressRow } from "./schema";
+import { accounts, deviceTokens, progress, savedRunPlayers, type ProgressRow } from "./schema";
 
 /** Compile-time half of the merge-writers check (`mergeRules.test.ts` is the runtime half): every column has a rule. */
 type MissingMergeRule = Exclude<keyof ProgressRow, keyof typeof import("../meta/merge").MERGE_RULES>;
@@ -95,6 +95,12 @@ async function mergeGuest(tx: Tx, accountId: string, guestId: string): Promise<{
   await tx.delete(progress).where(eq(progress.accountId, guestId));
   await tx.update(accounts).set({ mergedInto: accountId }).where(eq(accounts.id, guestId));
   await tx.delete(deviceTokens).where(eq(deviceTokens.accountId, guestId));
+  // Review M6 (Stories 8.4–8.6): the guest's saved runs follow it to the account (a run both played keeps one link).
+  const links = await tx.select().from(savedRunPlayers).where(eq(savedRunPlayers.accountId, guestId));
+  if (links.length > 0) {
+    await tx.insert(savedRunPlayers).values(links.map((l) => ({ savedRunId: l.savedRunId, accountId, seatKey: l.seatKey }))).onConflictDoNothing();
+    await tx.delete(savedRunPlayers).where(eq(savedRunPlayers.accountId, guestId));
+  }
   return { guestId, refunds };
 }
 

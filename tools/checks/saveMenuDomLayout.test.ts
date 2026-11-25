@@ -62,6 +62,10 @@ const CASES = [
   { name: "menu, wave (Save and quit greyed + note)", phase: "wave", screen: { kind: "playing", menu: "open", online: true }, sel: ".in-run-menu", rows: 0, saveDisabled: true, says: "You can save during the build phase" },
   { name: "Save confirm", phase: "build", screen: { kind: "playing", menu: "confirmSave", online: true }, sel: "[data-testid=save-confirm]", rows: 0, saveDisabled: null, says: "Anyone from this run can resume it for 7 days." },
   { name: "Save confirm, failed", phase: "build", screen: { kind: "playing", menu: "confirmSave", online: true }, sel: "[data-testid=save-confirm]", rows: 0, saveDisabled: null, says: "Couldn't save the run. Try again.", failed: true },
+  // Review M4: the "Saving…" state (Save greyed, Cancel usable).
+  { name: "Save confirm, saving", phase: "build", screen: { kind: "playing", menu: "confirmSave", online: true }, sel: "[data-testid=save-confirm]", rows: 0, saveDisabled: null, says: "Saving…", saving: true },
+  // Review L: the list couldn't load: "Couldn't load saved games" + Retry.
+  { name: "start screen, Saved games failed", phase: "lobby", screen: { kind: "start" }, sel: ".saved-games", rows: 0, saveDisabled: null, says: "Couldn't load saved games", start: true, listFails: true },
   { name: "start screen, Saved games", phase: "lobby", screen: { kind: "start" }, sel: "[data-testid=saved-games]", rows: 3, saveDisabled: null, says: "Downtown · Wave 6 · Ana, Bartholomew The Long, Theo, Dee", start: true },
 ];
 
@@ -104,9 +108,9 @@ describe.skipIf(!pw)("Stories 8.5 + 8.6 (R9): Save and quit and Saved games in a
           const ui = await import("/src/ui/uiState.ts");
           const ls = await import("/src/net/lobbyStore.ts");
           const realFetch = window.__realFetch || (window.__realFetch = window.fetch);
-          window.fetch = (u, o) => (String(u).endsWith("/saved-runs") ? Promise.resolve(new Response(JSON.stringify(k.saved), { status: 200, headers: { "content-type": "application/json" } })) : realFetch(u, o));
+          window.fetch = (u, o) => (String(u).endsWith("/saved-runs") ? Promise.resolve(k.listFails ? new Response("", { status: 503 }) : new Response(JSON.stringify(k.saved), { status: 200, headers: { "content-type": "application/json" } })) : realFetch(u, o));
           ls.lobbyStore.set({ code: "ABCD", phase: k.phase, hostSlot: 0, players: k.players, localPlayerId: "p0", district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: [], resumeWave: 0 });
-          ls.saveQuitStore.set(k.failed ? "failed" : "idle");
+          ls.saveQuitStore.set(k.failed ? "failed" : k.saving ? "saving" : "idle");
           ui.uiStore.set({ kind: "lobby", code: "ABCD" });
           await new Promise((r) => setTimeout(r, 50));
           ui.uiStore.set(k.screen);

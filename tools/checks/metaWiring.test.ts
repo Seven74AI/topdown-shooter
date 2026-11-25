@@ -27,7 +27,7 @@ describe("Stories 7.7 / 7.11 / 7.12 are wired in", () => {
     expect(room).toMatch(/this\.memberProgress\.delete\(playerId\);[^\n]*\n\s*if \(this\.state\.phase === "lobby"\) this\.recomputeDistricts\(\);/); // review M3: on every final leave
     expect(room).toContain("void this.reloadProgress(members);"); // review M3: after lobby.return
     expect(room).toContain("const map = DISTRICT_MAPS[this.state.district] ?? DOWNTOWN_MAP;");
-    expect(read("apps", "server", "src", "db", "progressRepo.ts")).toContain("const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;");
+    expect(read("apps", "server", "src", "db", "progressRepo.ts")).toContain("const grant = await oneBagPerRun(tx, runId, accountId, meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null);"); // Story 8.4–8.6 review H1: one bag per run
   });
 
   it("the client: Results rows from the message, the lobby's district line + sheet + notice", () => {

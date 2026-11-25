@@ -15,6 +15,10 @@ import { captureRunSave, loadBalance, playToBuild, DOWNTOWN_MAP, type RunSave } 
  * resumes at once: one wins) and S4 (a save's Supplies top-up raced against itself and the final bank: paid once).
  * Opt-in like `realPostgres.test.ts`: `TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/t86 npx vitest run realPostgresSaves`.
  */
+/**
+ * Review nit (Stories 8.4–8.6): the real-PostgreSQL files share one scratch database and each migrates it; run them
+ * one file at a time: `TEST_DATABASE_URL=… npx vitest run realPostgres --no-file-parallelism` (CI skips them).
+ */
 const URL = process.env.TEST_DATABASE_URL;
 log.level = process.env.LOG_LEVEL ?? "silent";
 let database: Database;
@@ -61,4 +65,18 @@ describe.skipIf(!URL)("Stories 8.4–8.6: saves on real PostgreSQL (TEST_DATABAS
     await bankSavedRun(save, deps);
     expect((await progress.get(a))!.supplies).toBe(each);
   });
+
+  it("review H1: two accounts banking a find for one run at once (separate connections) → exactly one owns it, ×10", async () => {
+    const progress = progressRepo(database);
+    const key = "pack:cat";
+    const meta = { statsDelta: { revives: 0, kills: 0, barricades: 0, runs: 1 }, grant: () => ({ cosmetics: [key], districts: [], breakdown: { loot: { wave: 3, key, name: "Cat" } } }) };
+    for (let round = 0; round < 10; round++) {
+      const [a, b] = [await acct(), await acct()];
+      const run = randomUUID();
+      await Promise.all([progress.addSupplies(run, a, () => ({ supplies: 5, breakdown: {} }), meta), progress.addSupplies(run, b, () => ({ supplies: 5, breakdown: {} }), meta)]);
+      const owners = [(await progress.get(a))!.cosmetics.includes(key), (await progress.get(b))!.cosmetics.includes(key)].filter(Boolean);
+      expect(owners).toHaveLength(1);
+    }
+  });
 });
+

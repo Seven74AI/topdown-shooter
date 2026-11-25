@@ -17,6 +17,7 @@ CREATE TABLE "saved_runs" (
 	"room_code" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"saved_at" timestamp with time zone,
 	"expires_at" timestamp with time zone,
 	CONSTRAINT "saved_runs_status" CHECK ("saved_runs"."status" in ('open', 'saved'))
 );

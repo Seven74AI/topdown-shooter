@@ -11,7 +11,7 @@
 import { and, desc, eq, gt, inArray, lt, notExists, sql } from "drizzle-orm";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 import type { Database } from "./client";
-import { accounts, savedRunPlayers, savedRuns } from "./schema";
+import { accounts, runRewards, savedRunPlayers, savedRuns } from "./schema";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
 /** D13: a saved run stays resumable this long after its last save. */
@@ -69,6 +69,13 @@ export interface SavedRunsRepo {
   releaseOpenOnBoot(expiresAt: Date): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
   /** E8-S11: the account keeps its newest `keep` resumable runs; older links go, a run nobody is linked to is deleted. Expired runs go too. */
   pruneAccount(accountId: string, keep?: number): Promise<{ unlinked: number; deleted: string[] }>;
+  /**
+   * Review M2: resumable runs (not expired) with a linked account that has no `run_rewards` row for the run yet — a save
+   * whose Supplies top-up was lost (a shutdown that closed the database first). The boot sweep banks them.
+   */
+  listUnbanked(): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
+  /** Review M6: the accounts among `ids` that were merged into another (a guest that logged in): id → the account now. */
+  mergedTargets(ids: readonly string[]): Promise<Map<string, string>>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,11 +96,13 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
   /** Insert or overwrite while this room holds the row (or nobody does yet). */
   const put = (op: string, s: SaveRow, status: "open" | "saved", expiresAt: Date | null): Promise<boolean> =>
     write(op, async (tx) => {
-      const values = { district: s.district, seed: s.seed, snapshot: s.snapshot, schemaVersion: s.schemaVersion, wave: s.wave, names: [...s.names], status, roomCode: status === "open" ? s.roomCode : null, expiresAt, updatedAt: sql`now()` };
+      const values = { district: s.district, seed: s.seed, snapshot: s.snapshot, schemaVersion: s.schemaVersion, wave: s.wave, names: [...s.names], status, roomCode: status === "open" ? s.roomCode : null, updatedAt: sql`now()` };
+      // Review L: an autosave never touches the expiry or saved_at (a claimed run keeps both); a resumable save sets them.
+      const ends = status === "saved" ? { expiresAt, savedAt: sql`now()` } : {};
       const done = await tx
         .insert(savedRuns)
-        .values({ id: s.id, ...values })
-        .onConflictDoUpdate({ target: savedRuns.id, set: values, setWhere: sql`${savedRuns.status} = 'open' and ${savedRuns.roomCode} = ${s.roomCode}` })
+        .values({ id: s.id, ...values, expiresAt, ...(status === "saved" ? { savedAt: sql`now()` } : {}) })
+        .onConflictDoUpdate({ target: savedRuns.id, set: { ...values, ...ends }, setWhere: sql`${savedRuns.status} = 'open' and ${savedRuns.roomCode} = ${s.roomCode}` })
         .returning({ id: savedRuns.id });
       if (done.length === 0) return false;
       await writeLinks(tx, s.id, s.links);
@@ -106,7 +115,7 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
       write("savedRuns.markSaved", async (tx) => {
         const r = await tx
           .update(savedRuns)
-          .set({ status: "saved", roomCode: null, expiresAt, updatedAt: sql`now()` })
+          .set({ status: "saved", roomCode: null, expiresAt, savedAt: sql`now()`, updatedAt: sql`now()` })
           .where(and(eq(savedRuns.id, id), eq(savedRuns.status, "open"), eq(savedRuns.roomCode, roomCode)))
           .returning({ id: savedRuns.id });
         return r.length > 0;
@@ -135,11 +144,11 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
           if (!isRunId(accountId)) return [];
           const db = await database.db();
           const rows = await db
-            .select({ id: savedRuns.id, district: savedRuns.district, wave: savedRuns.wave, names: savedRuns.names, savedAt: savedRuns.updatedAt, expiresAt: savedRuns.expiresAt })
+            .select({ id: savedRuns.id, district: savedRuns.district, wave: savedRuns.wave, names: savedRuns.names, savedAt: sql<Date>`coalesce(${savedRuns.savedAt}, ${savedRuns.updatedAt})`.mapWith(savedRuns.updatedAt), expiresAt: savedRuns.expiresAt })
             .from(savedRunPlayers)
             .innerJoin(savedRuns, eq(savedRuns.id, savedRunPlayers.savedRunId))
             .where(and(eq(savedRunPlayers.accountId, accountId), eq(savedRuns.status, "saved"), gt(savedRuns.expiresAt, sql`now()`)))
-            .orderBy(desc(savedRuns.updatedAt), desc(savedRuns.id))
+            .orderBy(desc(sql`coalesce(${savedRuns.savedAt}, ${savedRuns.updatedAt})`), desc(savedRuns.id))
             .limit(SAVES_PER_ACCOUNT);
           return rows.map((r) => ({ id: r.id, district: r.district, wave: r.wave, names: Array.isArray(r.names) ? r.names.map((n) => ({ name: String(n.name), slot: Number(n.slot) })) : [], savedAt: r.savedAt.toISOString(), expiresAt: (r.expiresAt ?? r.savedAt).toISOString() }));
         },
@@ -162,7 +171,12 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
       }),
     releaseOpenOnBoot: (expiresAt) =>
       write("savedRuns.releaseOpenOnBoot", async (tx) =>
-        tx.update(savedRuns).set({ status: "saved", roomCode: null, expiresAt, updatedAt: sql`now()` }).where(eq(savedRuns.status, "open")).returning({ id: savedRuns.id, snapshot: savedRuns.snapshot }),
+        // Review L: a claimed run keeps its expiry (coalesce); a run only ever autosaved gets one now.
+        tx
+          .update(savedRuns)
+          .set({ status: "saved", roomCode: null, expiresAt: sql`coalesce(${savedRuns.expiresAt}, ${expiresAt.toISOString()}::timestamptz)`, savedAt: sql`coalesce(${savedRuns.savedAt}, now())`, updatedAt: sql`now()` })
+          .where(eq(savedRuns.status, "open"))
+          .returning({ id: savedRuns.id, snapshot: savedRuns.snapshot }),
       ),
     pruneAccount: (accountId, keep = SAVES_PER_ACCOUNT) =>
       write("savedRuns.pruneAccount", async (tx) => {
@@ -172,7 +186,7 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
           .from(savedRunPlayers)
           .innerJoin(savedRuns, eq(savedRuns.id, savedRunPlayers.savedRunId))
           .where(and(eq(savedRunPlayers.accountId, accountId), eq(savedRuns.status, "saved")))
-          .orderBy(desc(savedRuns.updatedAt), desc(savedRuns.id));
+          .orderBy(desc(sql`coalesce(${savedRuns.savedAt}, ${savedRuns.updatedAt})`), desc(savedRuns.id));
         const old = mine.slice(keep).map((r) => r.id);
         if (old.length === 0) return { unlinked: 0, deleted: [] };
         await tx.delete(savedRunPlayers).where(and(eq(savedRunPlayers.accountId, accountId), inArray(savedRunPlayers.savedRunId, old)));
@@ -182,5 +196,27 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
           .returning({ id: savedRuns.id });
         return { unlinked: old.length, deleted: orphan.map((r) => r.id) };
       }),
+    listUnbanked: () =>
+      withDbTimeout(
+        "savedRuns.listUnbanked",
+        async () => {
+          const db = await database.db();
+          const unbanked = sql`exists (select 1 from ${savedRunPlayers} where ${savedRunPlayers.savedRunId} = ${savedRuns.id} and not exists (select 1 from ${runRewards} where ${runRewards.runId} = ${savedRuns.id} and ${runRewards.accountId} = ${savedRunPlayers.accountId}))`;
+          return db.select({ id: savedRuns.id, snapshot: savedRuns.snapshot }).from(savedRuns).where(and(eq(savedRuns.status, "saved"), gt(savedRuns.expiresAt, sql`now()`), unbanked));
+        },
+        timeoutMs * 5,
+      ),
+    mergedTargets: (ids) =>
+      withDbTimeout(
+        "savedRuns.mergedTargets",
+        async () => {
+          const wanted = ids.filter(isRunId);
+          if (wanted.length === 0) return new Map<string, string>();
+          const db = await database.db();
+          const rows = await db.select({ id: accounts.id, into: accounts.mergedInto }).from(accounts).where(inArray(accounts.id, wanted));
+          return new Map(rows.filter((r) => r.into !== null).map((r) => [r.id, r.into as string]));
+        },
+        timeoutMs,
+      ),
   };
 }

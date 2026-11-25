@@ -185,3 +185,49 @@ describe("Story 8.4 AC 3: size (D10 about 50 KB)", () => {
   });
 });
 
+
+describe("review L: the S1 round trip with car fires, a boss record, endless counters, a blackout and a bag on the ground", () => {
+  it("every one of them comes back exactly (snapshotWorld equal except the exclusion list)", async () => {
+    const { applyDecayStage } = await import("../decay/applyDecayStage");
+    const { world, seats } = playToBuild({ players: 2, waves: 3, buildings: 6 });
+    // car fires: the stage with ignites, two lit with their clocks
+    applyDecayStage(world, 3, world.decay.variants, 0);
+    for (let i = 0; i < world.decay.fireEndWave.length; i++) world.decay.fireEndWave[i] = 5 + i;
+    world.decay.burnTicks = 37;
+    // a boss record (between its waves: alive state is the wave's, the record stays)
+    Object.assign(world.boss, { number: 1, look: 2, wave: 3, hp: 1234, maxHp: 5000, enraged: true, crawlerTicks: 9, targetId: "p1", lastSwitchTick: 77 });
+    world.boss.threat[3] = 2.5;
+    // endless counters
+    Object.assign(world.run, { endless: true, endlessEvent: "stampede", lastEndlessEvent: "car_alarm" });
+    world.waves.hpMult = 1.25;
+    // a blackout
+    Object.assign(world.lights, { blackoutPct: 40, halfDark: true, powerFailure: true });
+    // a bag lying out (dropped, not found)
+    Object.assign(world.loot, { state: 1, x: 12.5, y: 8.25, dropTick: world.tick - 10, untilTick: world.tick + 300, variant: 2, killIndex: 14, killed: 14, counting: false });
+    world.loot.banked.add("p1");
+    expect(world.decay.fires.length).toBeGreaterThan(0); // the fires really burn
+    const save = json(captureRunSave(world, seats, meta));
+    const r = restoreRunSave(save, { balance, map: DOWNTOWN_MAP });
+    expect(r.digestChecked).toBe(true);
+    expect(comparable(r.world)).toEqual(comparable(world));
+    expect(r.world.decay.fires.map((f) => f.name)).toEqual(world.decay.fires.map((f) => f.name));
+    expect([...r.world.loot.banked]).toEqual(["p1"]);
+  });
+
+  it("an away seat's Ready / vote flags are cleared by resumeSavedRun too", () => {
+    const { world, seats } = playToBuild({ players: 2, waves: 1, buildings: 0 });
+    world.players.get("p1")!.buildReady = true;
+    world.players.get("p1")!.vote = 2;
+    const r = restoreRunSave(json(captureRunSave(world, seats, meta)), { balance, map: DOWNTOWN_MAP, present: (s) => s.playerId === "p0" });
+    resumeSavedRun(r.world, r.away.map((x) => x.player));
+    expect([r.away[0]!.player.buildReady, r.away[0]!.player.vote]).toEqual([false, 0]);
+  });
+
+  it("decision 8.6-B8: another code version restores without the digest check; another map version is refused", () => {
+    const { world, seats } = playToBuild({ players: 1, waves: 1, buildings: 2 });
+    const save = json(captureRunSave(world, seats, { ...meta, codeVersion: "build-a" }));
+    expect(restoreRunSave(save, { balance, map: DOWNTOWN_MAP, codeVersion: "build-a" }).digestChecked).toBe(true);
+    expect(restoreRunSave(save, { balance, map: DOWNTOWN_MAP, codeVersion: "build-b" }).digestChecked).toBe(false);
+    expect(() => restoreRunSave({ ...save, mapVersion: "older" }, { balance, map: DOWNTOWN_MAP })).toThrow(/map_version/);
+  });
+});

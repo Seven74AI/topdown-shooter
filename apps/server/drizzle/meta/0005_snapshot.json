@@ -1,5 +1,5 @@
 {
-  "id": "8864bd6c-040d-4e84-ae61-f0628250953b",
+  "id": "55b5fbce-4d86-4e35-ba72-66b02662b58d",
   "prevId": "3c794eb6-12fd-4910-8422-78dd63e1be07",
   "version": "7",
   "dialect": "postgresql",
@@ -510,6 +510,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "saved_at": {
+          "name": "saved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "expires_at": {
           "name": "expires_at",

@@ -28,6 +28,12 @@ import { rewardsStore } from "./rewardsStore";
  */
 export const LEAVE_REWARDS_WAIT_MS = 2500;
 
+/**
+ * Stories 8.5 review M4: how long "Saving…" waits for `run.saved` / `run.save_failed` before it says "Couldn't save the
+ * run" (the server's write is bounded at ≈ 2 s plus a lock wait; a lost answer must never strand the host).
+ */
+export const SAVE_QUIT_TIMEOUT_MS = 8000;
+
 /** Consented leave (4000) and server shutdown (4001): never a drop. */
 const CONSENTED = 4000;
 const SERVER_SHUTDOWN = 4001;
@@ -170,6 +176,8 @@ class LobbyStore {
   private runInbox: RunInbox | null = null;
   private fight: NetRoomLike | null = null;
   private snapshot: LobbySnapshot = EMPTY;
+  /** Review M4: Save and quit's answer timeout. */
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private unwatch: (() => void) | null = null;
   private readonly listeners = new Set<Listener>();
   /** Story 8.1: the current room's link (watchdog, drop, takeover); null without `rejoin`. */
@@ -383,6 +391,13 @@ class LobbyStore {
     if (!this.room || saveQuitStore.get() === "saving") return;
     saveQuitStore.set("saving");
     this.room.send(C2S.RUN_SAVE_QUIT, {});
+    // Review M4: no answer within SAVE_QUIT_TIMEOUT_MS → "Couldn't save the run" (the host can try again or Cancel).
+    const room = this.room;
+    if (this.saveTimer !== null) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      if (this.room === room && saveQuitStore.get() === "saving") saveQuitStore.set("failed");
+    }, SAVE_QUIT_TIMEOUT_MS);
   }
 
   /** Story 8.3 (H2): the host removes a player (the server checks host, phase and target; a refusal is only logged). */
@@ -419,6 +434,8 @@ class LobbyStore {
   }
 
   private detach(): void {
+    if (this.saveTimer !== null) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
     if (saveQuitStore.get() !== "saved") saveQuitStore.set("idle");
     this.link?.close();
     this.link = null;

@@ -14,16 +14,27 @@ import { playToBuild } from "./saveFixtures";
 import v1json from "./fixtures/runSave.v1.json";
 
 const v1 = v1json as unknown as Record<string, unknown>;
+/** The shape hash of every save version (append one per bump; never change an old one). */
+const SHAPES: Record<number, string> = { 1: "ce5075fe" };
 
-/** Every key path of a JSON value (array items as `[]`), sorted: the save's shape. */
-function shape(v: unknown, path = "", out = new Set<string>()): Set<string> {
+/** Every key path of a JSON value (array items as `[]`) with the value types seen there, sorted: the save's shape. */
+function shape(v: unknown, path = "", out = new Map<string, Set<string>>()): Map<string, Set<string>> {
+  const add = (p: string, t: string) => (out.get(p) ?? out.set(p, new Set()).get(p))!.add(t);
   if (Array.isArray(v)) {
+    add(path, "array");
     for (const x of v) shape(x, `${path}[]`, out);
-    if (v.length === 0) out.add(`${path}[]`);
   } else if (v !== null && typeof v === "object") {
+    add(path, "object");
     for (const k of Object.keys(v)) shape((v as Record<string, unknown>)[k], `${path}.${k}`, out);
-  } else out.add(`${path}:${v === null ? "null" : typeof v}`);
+  } else add(path, v === null ? "null" : typeof v);
   return out;
+}
+const shapeList = (v: unknown): string[] => [...shape(v).entries()].map(([p, t]) => `${p}:${[...t].sort().join("|")}`).sort();
+/** A stable fingerprint of a shape (FNV-1a of the joined list). */
+function shapeHash(list: readonly string[]): string {
+  let h = 0x811c9dc5;
+  for (const c of list.join("\n")) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, "0");
 }
 
 describe("Story 8.4 S6: save migrations", () => {
@@ -41,11 +52,15 @@ describe("Story 8.4 S6: save migrations", () => {
     expect(r.world.waves.number).toBe(2);
   });
 
-  it("the saved shape is the version-1 shape (changing it needs SAVE_SCHEMA_VERSION + 1 and a step in SAVE_MIGRATIONS)", () => {
+  it("review L: the saved shape (key paths AND value types) is the one recorded for SAVE_SCHEMA_VERSION — a change needs a version bump, a migration step and a new SHAPES entry", () => {
     const { world, seats } = playToBuild({ players: 2, waves: 2, buildings: 6 });
-    const now = JSON.parse(JSON.stringify(captureRunSave(world, seats, { runId: "x", district: "downtown" })));
-    const typeless = (s: Set<string>) => [...s].map((p) => p.replace(/:(number|string|boolean|null)$/, "")).filter((p, i, a) => a.indexOf(p) === i).sort();
-    if (SAVE_SCHEMA_VERSION === 1) expect(typeless(shape(now))).toEqual(typeless(shape(v1)));
+    const now = JSON.parse(JSON.stringify(captureRunSave(world, seats, { runId: "x", district: "downtown", lootFinderSeat: "p0#1" })));
+    for (let v = 1; v <= SAVE_SCHEMA_VERSION; v++) expect(SHAPES[v], `SHAPES[${v}] (the shape hash of version ${v})`).toMatch(/^[0-9a-f]{8}$/);
+    expect(shapeHash(shapeList(now)), "the save's shape changed: bump SAVE_SCHEMA_VERSION, add its migration step and record the new hash in SHAPES").toBe(SHAPES[SAVE_SCHEMA_VERSION]);
+  });
+
+  it("the committed fixture has the current version's shape (re-record it with the shape)", () => {
+    expect(shapeHash(shapeList(v1))).toBe(SHAPES[1]);
   });
 
   it("steps run in order, each stamped with its new version", () => {

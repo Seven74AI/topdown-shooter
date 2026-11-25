@@ -196,6 +196,11 @@ export class RunBank {
   /** Review H1: the seat that found the loot bag (`noteLootFinder`), so a reused player id is never taken for it. */
   private lootFinder: string | null = null;
 
+  /** Story 8.4–8.6 review H1: the finding seat (saved with the run, noted again by a resumed run's bank). */
+  get lootFinderSeat(): string | null {
+    return this.lootFinder;
+  }
+
   /** Review H1: the room tells the bank which SEAT found the bag (on `loot.found`). */
   noteLootFinder(seatId: string): void {
     this.lootFinder = seatId;

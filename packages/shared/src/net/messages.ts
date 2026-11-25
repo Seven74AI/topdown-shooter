@@ -188,7 +188,7 @@ export type { RunPhase } from "../run/runStateMachine";
  * or kept for a teammate's held or remembered seat (J3, decision E8-J3). Story 8.3: `removed` — the host removed this
  * seat from the room (H3, decision E8-H2: for the room's lifetime).
  */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed" | "save_busy" | "save_gone" | "save_unavailable";
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed" | "save_busy" | "save_gone" | "save_unavailable" | "save_too_old";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -647,8 +647,13 @@ export const runSaveQuitSchema = z.object({}).strict();
 export interface RunSaved {
   expiresAt: string;
 }
-/** `run.save_failed` payload (Story 8.5, E8-S8): nothing. */
-export type RunSaveFailed = Record<string, never>;
+/**
+ * `run.save_failed` payload (Story 8.5, E8-S8; review M4: every refusal answers): `failed` = the write failed, the rest
+ * are refusals (`not_host`, `not_now` = not a build phase or the vote, `saving` = already saving, `no_database`).
+ */
+export interface RunSaveFailed {
+  reason: "failed" | "not_host" | "not_now" | "saving" | "no_database";
+}
 /** Story 8.6: one row of `GET /api/saved-runs` (D13: newest first, at most 3). */
 export interface SavedRunSummary {
   id: string;

@@ -27,6 +27,8 @@ export interface PendingSave {
   readonly row: SaveRow;
   readonly bytes: number;
   readonly kind: string;
+  /** Review L: called once the row is really written (the room's "last autosave" is a STORED one). */
+  readonly onSaved?: () => void;
 }
 
 /**
@@ -38,6 +40,8 @@ export class SaveWriter {
   private queued: PendingSave | null = null;
   private scheduled = false;
   private chain: Promise<void> = Promise.resolve();
+  /** Review L (AC 5): a database that can't be reached is logged once per run (this writer is per run). */
+  private dbFailLogged = false;
 
   constructor(
     private readonly repo: SavedRunsRepo,
@@ -61,10 +65,13 @@ export class SaveWriter {
     const t0 = this.now();
     try {
       const ok = await this.repo.upsertOpen(s.row);
-      if (ok) this.log.info({ runId: s.row.id, bytes: s.bytes, ms: Math.round((this.now() - t0) * 10) / 10, kind: s.kind, wave: s.row.wave }, "run_saved");
-      else this.log.warn({ runId: s.row.id, kind: s.kind, why: "not_holder" }, "run_save_failed");
+      if (ok) {
+        this.log.info({ runId: s.row.id, bytes: s.bytes, ms: Math.round((this.now() - t0) * 10) / 10, kind: s.kind, wave: s.row.wave }, "run_saved");
+        s.onSaved?.();
+      } else this.log.warn({ runId: s.row.id, kind: s.kind, why: "not_holder" }, "run_save_failed");
     } catch {
-      this.log.error({ runId: s.row.id, kind: s.kind, why: "db" }, "run_save_failed");
+      if (!this.dbFailLogged) this.log.error({ runId: s.row.id, kind: s.kind, why: "db" }, "run_save_failed");
+      this.dbFailLogged = true;
     }
   }
 
@@ -99,11 +106,16 @@ export const saveExpiry = (nowMs = Date.now()): Date => new Date(nowMs + SAVE_KE
 export async function releaseSavesOnBoot(repo: SavedRunsRepo | null, log: SaveLog, onReleased?: (id: string, snapshot: Record<string, unknown>) => Promise<unknown>): Promise<number> {
   if (!repo) return 0;
   try {
-    const rows = await repo.releaseOpenOnBoot(saveExpiry());
-    log.info({ count: rows.length }, "saved_runs_released");
+    const released = await repo.releaseOpenOnBoot(saveExpiry());
+    log.info({ count: released.length }, "saved_runs_released");
+    // Review M2: resumable saves whose Supplies top-up never landed (idempotent top-ups: paying twice is impossible).
+    const unbanked = await repo.listUnbanked().catch(() => []);
+    const seen = new Set(released.map((r) => r.id));
+    const rows = [...released, ...unbanked.filter((r) => !seen.has(r.id))];
+    if (unbanked.length > 0) log.info({ count: unbanked.length }, "saved_runs_unbanked");
     // The top-ups run in the background (a slow bank never delays the server's start).
     if (onReleased) void rows.reduce<Promise<unknown>>((p, r) => p.then(() => onReleased(r.id, r.snapshot)).catch(() => undefined), Promise.resolve());
-    return rows.length;
+    return released.length;
   } catch {
     log.error({ why: "db" }, "saved_runs_release_failed");
     return 0;

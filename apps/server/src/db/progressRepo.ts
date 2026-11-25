@@ -8,7 +8,7 @@ import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema"
 import { PROGRESSION } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
-import { boundedTransaction, type BoundedOptions } from "./boundedTx";
+import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 
 /** Story 7.10 (review L2): what `saveLook`'s decider returns to leave the stored look as it is. */
 export const KEEP_LOOK: unique symbol = Symbol("keep_look");
@@ -44,6 +44,30 @@ export type { LifetimeStatsRow } from "./schema";
 export interface RunMetaWrites {
   readonly statsDelta: LifetimeStatsRow;
   grant(statsAfter: LifetimeStatsRow, owned: ReadonlySet<string>, districts: readonly string[]): { cosmetics: readonly string[]; districts: readonly string[]; breakdown: Record<string, unknown> };
+}
+
+type Grant = ReturnType<RunMetaWrites["grant"]>;
+
+/**
+ * Story 8.4–8.6 review H1: ONE loot bag per run, across every account and every night. A grant that carries a find is
+ * stripped of it when another account's `run_rewards` row of this run already holds one (a reused player id after a
+ * remove, a save banked by a fresh bank, a bag dropped again after a crash resume). Under a per-run advisory lock, so
+ * two banks at once can't both pay it.
+ */
+async function oneBagPerRun(tx: Tx, runId: string, accountId: string, grant: Grant | null): Promise<Grant | null> {
+  if (!grant) return grant;
+  const loot = grant.breakdown.loot as { key?: string | null } | undefined;
+  if (loot === undefined) return grant;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`bag:${runId}`}))`);
+  const other = await tx
+    .select({ x: sql`1` })
+    .from(runRewards)
+    .where(and(eq(runRewards.runId, runId), sql`${runRewards.accountId} <> ${accountId}`, sql`jsonb_exists(${runRewards.breakdown}, 'loot')`))
+    .limit(1);
+  if (other.length === 0) return grant;
+  const { loot: _paid, ...rest } = grant.breakdown;
+  void _paid;
+  return { ...grant, cosmetics: grant.cosmetics.filter((k) => k !== loot.key), breakdown: rest };
 }
 
 const statN = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
@@ -314,7 +338,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               const statsNow = extraDelta ? addStats(readStats(before.stats), extraDelta) : readStats(before.stats);
               const statsMoved = extraDelta !== null && (extraDelta.kills > 0 || extraDelta.revives > 0 || extraDelta.barricades > 0 || extraDelta.runs > 0);
               // …and the first bank's loot find is kept (never a second item).
-              const grant = meta ? meta.grant(statsNow, owned, districtsBefore) : null;
+              const grant = await oneBagPerRun(tx, runId, accountId, meta ? meta.grant(statsNow, owned, districtsBefore) : null);
               const earlierLoot = (earlier.breakdown as Record<string, unknown> | null)?.loot;
               const grantLootKey = (grant?.breakdown.loot as { key?: string | null } | undefined)?.key ?? null;
               const cosmeticsNow = grant ? grant.cosmetics.filter((k) => earlierLoot === undefined || k !== grantLootKey) : [];
@@ -345,7 +369,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           const supplies = Math.max(0, Math.floor(payout.supplies));
           // Stories 7.7 / 7.11 / 7.12: the meta writes, computed from the locked row (written below only if this bank is new).
           const statsAfter = meta ? addStats(readStats(before.stats), meta.statsDelta) : null;
-          const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;
+          const grant = await oneBagPerRun(tx, runId, accountId, meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null);
           // Re-review L3: the stats delta this bank counts rides in the row (a later top-up adds only what came after).
           const breakdown = grant && meta ? { ...payout.breakdown, ...grant.breakdown, statsDelta: meta.statsDelta } : payout.breakdown;
           const inserted = await tx

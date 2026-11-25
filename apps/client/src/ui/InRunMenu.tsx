@@ -41,7 +41,8 @@ export function InRunMenu() {
           <button type="button" class="btn" disabled={busy || !allowed} aria-busy={busy} onClick={() => !busy && allowed && lobbyStore.saveQuit()}>
             {busy ? SAVE_TEXT.saving : SAVE_TEXT.save}
           </button>
-          <button type="button" class="btn btn--secondary" autofocus disabled={busy} onClick={() => uiStore.request("menu", "cancel")}>
+          {/* Review M4: Cancel always works (it closes the confirm; the server's answer, if any, still lands). */}
+          <button type="button" class="btn btn--secondary" autofocus disabled={saving === "saved"} onClick={() => uiStore.request("menu", "cancel")}>
             {MENU_TEXT.cancel}
           </button>
         </div>

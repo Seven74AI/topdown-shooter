@@ -127,3 +127,24 @@ describe("lobbyStore.attach: the host saved and quit (Story 8.5 AC 9)", () => {
     lobbyStore.leave();
   });
 });
+
+describe("Story 8.5 review M4: Save and quit never strands the host on Saving…", () => {
+  it("no answer within SAVE_QUIT_TIMEOUT_MS → failed (the host can try again)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { saveQuitStore, SAVE_QUIT_TIMEOUT_MS } = await import("./lobbyStore");
+      const f = fakeRoom();
+      lobbyStore.attach(f.room, { watch: () => () => {}, onLost: vi.fn(), onPhase: () => {} });
+      lobbyStore.saveQuit();
+      expect(saveQuitStore.get()).toBe("saving");
+      vi.advanceTimersByTime(SAVE_QUIT_TIMEOUT_MS - 1);
+      expect(saveQuitStore.get()).toBe("saving");
+      vi.advanceTimersByTime(2);
+      expect(saveQuitStore.get()).toBe("failed");
+      lobbyStore.leave();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+

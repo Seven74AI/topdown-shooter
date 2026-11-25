@@ -110,6 +110,8 @@ export const savedRuns = pgTable("saved_runs", {
   roomCode: text("room_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Review L: when the run last became resumable (the list's "saved 2 days ago"); a claim or release never moves it. */
+  savedAt: timestamp("saved_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 }, (t) => [check("saved_runs_status", sql`${t.status} in ('open', 'saved')`)]);
 

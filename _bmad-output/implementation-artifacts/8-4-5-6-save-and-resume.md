@@ -152,6 +152,7 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 ### File List
 
 - `.gitignore`
+- `_bmad-output/implementation-artifacts/8-4-5-6-save-and-resume.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - `_bmad-output/planning-artifacts/epics.md`
 - `apps/client/src/main.ts`
@@ -184,7 +185,12 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 - `apps/server/src/app.ts`
 - `apps/server/src/auth/savedRunsRoute.ts`
 - `apps/server/src/db/db.test.ts`
+- `apps/server/src/db/deviceTokensRepo.ts`
+- `apps/server/src/db/mergeRules.test.ts`
 - `apps/server/src/db/metaBank.test.ts`
+- `apps/server/src/db/progressRepo.ts`
+- `apps/server/src/db/realPostgres.test.ts`
+- `apps/server/src/db/realPostgresAccounts.test.ts`
 - `apps/server/src/db/realPostgresSaves.test.ts`
 - `apps/server/src/db/savedRunsRepo.test.ts`
 - `apps/server/src/db/savedRunsRepo.ts`
@@ -192,11 +198,13 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 - `apps/server/src/index.ts`
 - `apps/server/src/meta/banking.ts`
 - `apps/server/src/meta/bankingMeta.test.ts`
+- `apps/server/src/meta/merge.ts`
 - `apps/server/src/meta/saveBank.ts`
 - `apps/server/src/net/limits.ts`
 - `apps/server/src/net/rateLimit.ts`
 - `apps/server/src/rooms/RunRoom.resume.test.ts`
 - `apps/server/src/rooms/RunRoom.save.test.ts`
+- `apps/server/src/rooms/RunRoom.saveReview.test.ts`
 - `apps/server/src/rooms/RunRoom.ts`
 - `apps/server/src/rooms/schema/RunState.ts`
 - `apps/server/src/run/RunController.ts`
@@ -226,10 +234,22 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 - `tools/bots/run.ts`
 - `tools/bots/saveResume.test.ts`
 - `tools/checks/accountUpgradeWiring.test.ts`
+- `tools/checks/lateJoinHostWiring.test.ts`
 - `tools/checks/metaWiring.test.ts`
 - `tools/checks/saveMenuDomLayout.test.ts`
 - `tools/checks/survivorEditorWiring.test.ts`
-- `_bmad-output/implementation-artifacts/8-4-5-6-save-and-resume.md`
+
+### Review round 1 (parent's review of 4dd949e: 1 H / 6 M / ~12 L) — fixes
+
+- **H1** one bag pays once: `RunSave.lootFinderSeat` noted by `bankSavedRun` and the resumed RunBank; a removed finder's find is cleared (`afterRemove`); the bank transaction strips a find another account of the run already holds (`progressRepo.oneBagPerRun`, advisory lock). Tests: room find → remove → reused p1 → save → resume → wipe (one owner); PGlite + real-PG race ×10.
+- **M1** vote-resume newcomers wait (8.2 path) and enter at the build start (test).
+- **M2** shutdown / tick-error saves await the Supplies top-up inside the bounded wait (test); the boot sweep also banks resumable saves with no `run_rewards` row (`listUnbanked`, test).
+- **M3** 8.6-B8: `codeVersion` + `mapVersion` check; cross-build best-effort restore; another map → `save_too_old`, row deleted, waves paid once (tests, shared + room).
+- **M4** every refused Save and quit answers `run.save_failed {reason}`; the client times out after 8 s; Cancel stays usable; "Saving…" in the layout test (tests).
+- **M5** no 'open' row outlives its room: all-left failure → last stored autosave, else delete (8.4-B5); delete retried; onDispose settles a held row; a resumed run's claimed row counts as its last save (early tick errors mark it). Tests.
+- **M6** a guest's saved runs follow the merge (`saved_run_players` re-pointed; a resume maps `acct:<guest>` seats by `mergedInto`); `ACCOUNT_TABLE_MERGES` + schema test (tests).
+- **Lows**: Remove refused while saving; Remove in a build autosaves at once (unlinks the account, no resurrection by an older autosave); `lastSave` only after the write; per-run token; a resumed lobby needs one of its own seats (the last one leaving releases the save); `saved_at` column (0005 regenerated, unreleased); away seats' flags reset; `seatCounter` saved; boot sweep uses the district map; a lost run logs "lost"; `run_save_failed` once per run on a dead database; route rate key (8.6-B11); tests for S1 extras (fires, boss record, endless, blackout, bag), the shape check (version-keyed hashes with value types), the resume wave size, "Couldn't load saved games" layout, the endless wave-15 size (23.6 KB).
+- **Nits**: realPostgres files documented for `--no-file-parallelism`; spec names: C2S `run.save_quit` / S2C `run.saved` / `run.save_failed` as specified; the list is `POST /api/saved-runs` (8.6-B2, story said GET); the refusal set adds `save_unavailable` and `save_too_old` to the story's two.
 
 ### Change Log
 

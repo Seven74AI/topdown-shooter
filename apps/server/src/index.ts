@@ -4,8 +4,8 @@ import { databaseFromEnv } from "./db/client";
 import { DEFAULT_PGLITE_DIR } from "./db/paths";
 import { parseAllowedOrigins } from "./net/origin";
 import { log } from "./ops/logger";
-import { serverBalance } from "./rooms/RunRoom";
-import { DOWNTOWN_MAP, migrateRunSave } from "@topdown/shared";
+import { SAVE_CODE_VERSION, mapForDistrict, serverBalance } from "./rooms/RunRoom";
+import { migrateRunSave } from "@topdown/shared";
 import { bankSavedRun } from "./meta/saveBank";
 import { progressRepo } from "./db/progressRepo";
 import { releaseSavesOnBoot } from "./run/roomSaves";
@@ -47,10 +47,11 @@ const server = createGameServer({
 // Story 8.4 (AC 8, E8-S6): a process that died without a clean stop left its runs 'open': they become resumable now
 // (their last autosave is the save) and top up their seats' Supplies (E8-S4). Before listening: no room exists yet.
 const progress = progressRepo(database);
+// Review M2: also every resumable save whose top-up never landed (a stop that closed the database under it).
 await releaseSavesOnBoot(server.saves, log, async (id, snapshot) => {
   const m = migrateRunSave(snapshot);
   if (!m.ok) return log.error({ runId: id, why: m.reason }, "save_unreadable");
-  return bankSavedRun(m.save, { balance: serverBalance, map: DOWNTOWN_MAP, repo: () => progress, log });
+  return bankSavedRun(m.save, { balance: serverBalance, map: mapForDistrict(m.save.district), repo: () => progress, log, codeVersion: SAVE_CODE_VERSION });
 });
 await server.listen(port, host);
 log.info(

@@ -13,6 +13,10 @@ import { progressRepo } from "./progressRepo";
  * connection and can't see a race). Opt-in like 7.2's `realPostgres.test.ts`: skipped unless `TEST_DATABASE_URL`
  * names an empty scratch database, e.g. `TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/t76 npx vitest run realPostgresAccounts`.
  */
+/**
+ * Review nit (Stories 8.4–8.6): the real-PostgreSQL files share one scratch database and each migrates it; run them
+ * one file at a time: `TEST_DATABASE_URL=… npx vitest run realPostgres --no-file-parallelism` (CI skips them).
+ */
 const URL = process.env.TEST_DATABASE_URL;
 log.level = process.env.LOG_LEVEL ?? "silent";
 let database: Database;

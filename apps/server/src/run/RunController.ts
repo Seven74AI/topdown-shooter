@@ -323,7 +323,7 @@ export interface RunControllerOptions {
    * World now (the rest are `restored.away`). The calm phase it was saved in opens with a fresh timer
    * (`resumeSavedRun`: no build-start heal, no offer redraw). Throws `SaveRestoreError` (the room refuses the resume).
    */
-  restore?: { save: RunSave; present: (seat: SavedSeat) => boolean; onDropped?: (d: { kind: string; id: string; owner: string | null; refund: number }) => void };
+  restore?: { save: RunSave; present: (seat: SavedSeat) => boolean; codeVersion?: string; onDropped?: (d: { kind: string; id: string; owner: string | null; refund: number }) => void };
 }
 
 /**
@@ -366,7 +366,7 @@ export class RunController {
     this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
     this.onSeqResync = opts.onSeqResync ?? null;
     const restored = opts.restore
-      ? restoreRunSave(opts.restore.save, { balance: opts.balance, map: opts.map ?? DOWNTOWN_MAP, present: opts.restore.present, ...(opts.systems ? { systems: opts.systems } : {}), ...(opts.restore.onDropped ? { onDropped: opts.restore.onDropped } : {}) })
+      ? restoreRunSave(opts.restore.save, { balance: opts.balance, map: opts.map ?? DOWNTOWN_MAP, present: opts.restore.present, ...(opts.restore.codeVersion !== undefined ? { codeVersion: opts.restore.codeVersion } : {}), ...(opts.systems ? { systems: opts.systems } : {}), ...(opts.restore.onDropped ? { onDropped: opts.restore.onDropped } : {}) })
       : null;
     this.restored = restored;
     this.world =
@@ -390,7 +390,7 @@ export class RunController {
         this.insertInOrder(s);
       }
       this.world.events.subscribe((e) => this.events.push(e));
-      resumeSavedRun(this.world); // tonight's calm phase: a fresh timer (E8-R4), Ready cleared, no take-back
+      resumeSavedRun(this.world, restored.away.map((r) => r.player)); // tonight's calm phase: a fresh timer (E8-R4), Ready cleared, no take-back
       return;
     }
     if (opts.devLoot) forceLootPlan(this.world, opts.devLoot[0], opts.devLoot[1]); // Story 7.12 dev switch

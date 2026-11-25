@@ -105,6 +105,15 @@ export interface RunSave {
   world: SavedWorld;
   seats: SavedSeat[];
   bannedSeats: SavedBan[];
+  /**
+   * Review M3 (decision 8.6-B8): the code that wrote the save (the server's build, e.g. its git sha). The digest is
+   * checked only when the restoring code is the same; another build restores best-effort (never blocks: D14).
+   */
+  codeVersion: string;
+  /** Review H1: the SEAT that found the loot bag (`playerId#gen`), so a reused player id is never taken for it; null none. */
+  lootFinderSeat: string | null;
+  /** Review L: the room's seat counter (a resumed room never hands out a generation twice). */
+  seatCounter: number;
 }
 
 /** What the room knows about a seat beyond the World (a remembered seat brings its own PlayerState). */
@@ -126,6 +135,11 @@ export interface SaveMeta {
   readonly runId: string;
   readonly district: string;
   readonly bannedSeats?: readonly SavedBan[];
+  /** Decision 8.6-B8: the writing code's version (default "dev"). */
+  readonly codeVersion?: string;
+  /** Review H1: the finding seat (`playerId#gen`) the room's bank noted. */
+  readonly lootFinderSeat?: string | null;
+  readonly seatCounter?: number;
 }
 
 /**
@@ -305,5 +319,8 @@ export function captureRunSave(world: Readonly<World>, seats: readonly SeatMeta[
     world: captureWorld(world),
     seats: saved,
     bannedSeats: (meta.bannedSeats ?? []).map((b) => ({ seatKey: b.seatKey, guestTokenHash: b.guestTokenHash })),
+    codeVersion: meta.codeVersion ?? "dev",
+    lootFinderSeat: meta.lootFinderSeat ?? null,
+    seatCounter: meta.seatCounter ?? Math.max(0, ...saved.map((x) => x.seatGen)),
   };
 }

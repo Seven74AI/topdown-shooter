@@ -51,7 +51,8 @@ export function createSavedRunsRoute(deps: SavedRunsRouteDeps) {
       throw ctx.error(403, { message: "forbidden" });
     }
     ctx.setHeader("cache-control", "no-store");
-    const ip = headers?.get("x-real-ip")?.trim() || headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    // Review L: the rate key is the IP Colyseus already resolved (X-Real-IP from Caddy), never a client-set header.
+    const ip = (ctx as { ip?: string }).ip ?? headers?.get("x-real-ip")?.trim() ?? "unknown";
     const body = (ctx.body ?? {}) as { deviceToken?: unknown };
     const cookie = ctx.getCookie(GUEST_COOKIE);
     const out = await listSavedRuns(cookie ?? (typeof body.deviceToken === "string" ? body.deviceToken : undefined), ip, deps);

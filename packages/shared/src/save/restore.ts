@@ -27,6 +27,11 @@ export interface RestoreOptions {
   readonly systems?: Partial<Systems>;
   /** Seats that come into the World now (by player id); every other saved seat is returned in `away`. Default: all. */
   readonly present?: (seat: SavedSeat) => boolean;
+  /**
+   * Decision 8.6-B8: the restoring code's version (default "dev"). The digest is checked only when it equals the save's
+   * `codeVersion` and the balance is the same; otherwise the restore is best-effort (the caller logs it).
+   */
+  readonly codeVersion?: string;
   /** Logs what E8-S9 dropped (an id the current balance no longer knows). */
   readonly onDropped?: (what: { kind: "building" | "weapon" | "consumable"; id: string; owner: string | null; refund: number }) => void;
 }
@@ -48,7 +53,7 @@ export interface Restored {
 
 /** A save that can't be restored (map mismatch, digest mismatch): the room refuses the resume, never throws into a tick. */
 export class SaveRestoreError extends Error {
-  constructor(readonly why: "map" | "digest" | "shape") {
+  constructor(readonly why: "map" | "map_version" | "digest" | "shape") {
     super(`restoreRunSave: ${why}`);
     this.name = "SaveRestoreError";
   }
@@ -121,6 +126,8 @@ function fitToBalance(balance: Balance, players: Map<string, PlayerState>, build
  */
 export function restoreRunSave(save: RunSave, opts: RestoreOptions): Restored {
   if (save.mapName !== opts.map.name) throw new SaveRestoreError("map");
+  // Review M3 (8.6-B8): never restore onto other map geometry (buildings, fires and spawns would not fit).
+  if (save.mapVersion !== opts.map.version) throw new SaveRestoreError("map_version");
   const sw = save.world;
   if (!sw || !Array.isArray(save.seats)) throw new SaveRestoreError("shape");
   const world = createWorld({ balance: opts.balance, seed: save.seed, map: opts.map, ...(opts.systems ? { systems: opts.systems } : {}), loot: { off: true } });
@@ -203,9 +210,11 @@ export function restoreRunSave(save: RunSave, opts: RestoreOptions): Restored {
   const flame = world.flameSlots as (string | null)[];
   for (let i = 0; i < flame.length; i++) flame[i] = sw.flameSlots[i] ?? null;
   // The digest of the World exactly as saved (every seat's flame slot still claimed), then the away seats' slots free.
-  if (sameBalance && saveDigest(world, away.map((r) => r.player)) !== save.digest) throw new SaveRestoreError("digest");
+  const sameCode = (save.codeVersion ?? "dev") === (opts.codeVersion ?? "dev");
+  const checked = sameBalance && sameCode;
+  if (checked && saveDigest(world, away.map((r) => r.player)) !== save.digest) throw new SaveRestoreError("digest");
   for (let i = 0; i < flame.length; i++) if (flame[i] !== null && !world.players.has(flame[i] as string)) flame[i] = null;
-  return { world, present, away, digestChecked: sameBalance };
+  return { world, present, away, digestChecked: checked };
 }
 
 /**
@@ -213,7 +222,7 @@ export function restoreRunSave(save: RunSave, opts: RestoreOptions): Restored {
  * cleared, no late-join extension used yet, and every building counts as placed in an earlier phase (5.20: no
  * take-back on resume). No `build.started` heal and no offer redraw: the saved offer stays.
  */
-export function resumeSavedRun(world: World): void {
+export function resumeSavedRun(world: World, away: readonly PlayerState[] = []): void {
   const run = world.run;
   run.joinExtendedBuild = false;
   run.joinPending = false;
@@ -225,7 +234,8 @@ export function resumeSavedRun(world: World): void {
     run.voteTicksLeft = 0;
     run.buildTicksLeft = ticksFor(world.balance.waves.buildPhaseS);
   }
-  for (const p of world.players.values()) {
+  // Review L: the away seats too (a remembered seat that comes back tonight is not Ready / voted from the last night).
+  for (const p of [...world.players.values(), ...away]) {
     p.buildReady = false;
     p.vote = VOTE_NONE;
   }
