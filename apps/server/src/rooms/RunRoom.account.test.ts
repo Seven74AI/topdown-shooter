@@ -302,10 +302,13 @@ describe("Story 7.1 AC 7: the join name becomes the display name", () => {
 describe("Story 7.1 AC 9: the tick never waits for the database", () => {
   it("onTick has no await and the room reaches the database only through roomAccountsRepo in saveDisplayName (and 7.6's ticketStillCurrent, in onAuth)", () => {
     const src = readFileSync(new URL("./RunRoom.ts", import.meta.url), "utf8");
-    const start = src.indexOf("  onTick(): void {");
-    expect(start).toBeGreaterThan(0);
-    const body = src.slice(start, src.indexOf("\n  }\n", start));
-    expect(body).not.toMatch(/\bawait\b|roomAccountsRepo|Repo\(/);
+    // Story 8.11: onTick = step() + the patch; both bodies are checked.
+    for (const head of ["  onTick(): void {", "  private step(): void {"]) {
+      const start = src.indexOf(head);
+      expect(start).toBeGreaterThan(0);
+      const body = src.slice(start, src.indexOf("\n  }\n", start));
+      expect(body).not.toMatch(/\bawait\b|roomAccountsRepo|Repo\(/);
+    }
     expect(src.match(/roomAccountsRepo\(\)/g)).toHaveLength(2); // saveDisplayName + ticketStillCurrent (onAuth, never the tick)
     expect(src).not.toMatch(/\.then\(|await accounts|await .*setDisplayName/);
   });

@@ -1,12 +1,10 @@
 import {
   BOSS_STATE_FIELDS,
   BUILDING_STATE_FIELDS,
-  C2S,
-  NEUTRAL_INPUT,
+  INPUT_BYTES,
   PLAYER_STATE_FIELDS,
   RUN_STATE_FIELDS,
   type BuildingStateView,
-  type PlayerInput,
   type PlayerStateView,
   type RunStateView,
 } from "@topdown/shared";
@@ -157,7 +155,9 @@ interface Outgoing {
   due: number;
   type: string;
   message: unknown;
-  readonly input: { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
+  /** Story 8.11: a binary message (the input): its type (-1 = none) and a pooled copy of its bytes. */
+  bytesType: number;
+  readonly bytes: Uint8Array;
 }
 
 type StateListener = (state: RunStateView) => void;
@@ -168,7 +168,7 @@ type MessageHandler = (message: unknown) => void;
  * the device that turns it on). Wraps the room the fight reads through, so NetSimHost and the
  * RunInbox don't know it exists:
  *
- * - outgoing `send` (inputs, pongs) is held `lag/2 ± jitter/2`;
+ * - outgoing `send` (pongs, other messages) and `sendBytes` (Story 8.11: the binary input) are held `lag/2 ± jitter/2`;
  * - incoming state patches, messages (event batches, pings) and binary frames (Story 2.5 horde)
  *   are held the same way. Patches are copied into pooled plain copies (`state` is the copy last
  *   handed on, so HP and positions are delayed alike), byte frames into pooled THROTTLE_BYTES_MAX (2055-byte, Story 8.10: one horde keyframe of 256) buffers;
@@ -232,7 +232,8 @@ export class DevThrottle implements NetRoomLike {
       due: 0,
       type: "",
       message: null,
-      input: { ...NEUTRAL_INPUT },
+      bytesType: -1,
+      bytes: new Uint8Array(INPUT_BYTES),
     }));
     const listeners = this.listeners;
     const on = (cb: StateListener): void => {
@@ -257,7 +258,29 @@ export class DevThrottle implements NetRoomLike {
   }
 
   send(type: string, message: unknown): void {
-    if (this.closed) return;
+    const e = this.queueOutgoing();
+    if (!e) return;
+    e.type = type;
+    e.bytesType = -1;
+    e.message = structuredClone(message); // rare (pongs 1/s, shop, ready…)
+  }
+
+  /** Story 8.11: the binary input, held like any outgoing message; its bytes are copied now (NetSimHost reuses them). */
+  sendBytes(type: number, bytes: Uint8Array): void {
+    if (bytes.length !== INPUT_BYTES) {
+      this.inner.sendBytes(type, bytes); // nothing else is sent as bytes; never held in a wrong-size slot
+      return;
+    }
+    const e = this.queueOutgoing();
+    if (!e) return;
+    e.bytesType = type;
+    e.bytes.set(bytes); // no allocation
+    e.message = null;
+  }
+
+  /** The next outgoing slot, its due time set (in order: never earlier than the one before), or null once closed. */
+  private queueOutgoing(): Outgoing | null {
+    if (this.closed) return null;
     if (this.outCount === THROTTLE_QUEUE_SIZE) this.deliverOutgoing();
     const e = this.outgoing[
       (this.outHead + this.outCount) % THROTTLE_QUEUE_SIZE
@@ -269,13 +292,7 @@ export class DevThrottle implements NetRoomLike {
       this.stallsOut++;
     }
     e.due = this.outLastDue = Math.max(this.outLastDue, due);
-    e.type = type;
-    if (type === C2S.INPUT_SEND) {
-      Object.assign(e.input, message); // NetSimHost reuses its send buffer: copy now (no allocation)
-      e.message = e.input;
-    } else {
-      e.message = structuredClone(message); // rare (pongs, 1/s)
-    }
+    return e;
   }
 
   onMessage<T>(type: string | number, cb: (message: T) => void): () => void {
@@ -386,6 +403,11 @@ export class DevThrottle implements NetRoomLike {
     const e = this.outgoing[this.outHead] as Outgoing;
     this.outHead = (this.outHead + 1) % THROTTLE_QUEUE_SIZE;
     this.outCount--;
+    if (e.bytesType >= 0) {
+      this.inner.sendBytes(e.bytesType, e.bytes); // copied synchronously by the SDK
+      e.bytesType = -1;
+      return;
+    }
     const m = e.message;
     e.message = null;
     this.inner.send(e.type, m); // encoded synchronously by the SDK

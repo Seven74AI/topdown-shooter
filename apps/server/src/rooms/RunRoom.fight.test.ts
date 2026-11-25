@@ -1,3 +1,4 @@
+import { sendInput } from "../test/sendInput";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
@@ -98,7 +99,7 @@ async function startTwo() {
 /** Sends `count` inputs, one per 50 ms step, like the client. */
 async function sendInputs(client: RunSdkRoom, count: number, over: Partial<PlayerInput>): Promise<void> {
   for (let seq = 1; seq <= count; seq++) {
-    client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq, ...over });
+    sendInput(client, { ...NEUTRAL_INPUT, seq, ...over });
     await new Promise((r) => setTimeout(r, TICK_DT_S * 1000));
   }
 }
