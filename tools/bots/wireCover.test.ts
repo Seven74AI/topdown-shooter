@@ -118,9 +118,12 @@ describe("tools/bots cover over the wire (cut-test stall)", () => {
     expect(standoff(true, 60)).toBe(0);
   });
 
-  it("net150 seed 3 (a stalled wave 4 headless): stuck past 300 s without cover; ends with it", () => {
-    expect(wave4Seconds(3, false, 300)).toBeNull();
+  it("net150 seed 3 (the wave 4 that stalled headless): ends with cover; and now without it too (Spitter deadlock fix A)", () => {
+    // Before fix A (designer 2026-11-25) the cover-blind bot stalled here past 300 s: 6+ Spitters held behind the bots'
+    // own barricades and the rush waited for ≤ 5 left. Fix A starts the rush once every one left is a holding
+    // Spitter, so the game itself ends the wave (brief R5: the bot fix no longer hides it either way).
     const s = wave4Seconds(3, true, 300);
     expect(s).not.toBeNull();
+    expect(wave4Seconds(3, false, 300)).not.toBeNull();
   }, 120_000);
 });

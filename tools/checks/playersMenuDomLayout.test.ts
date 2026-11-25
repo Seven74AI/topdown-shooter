@@ -101,7 +101,7 @@ describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms i
           const ui = await import("/src/ui/uiState.ts");
           const ls = await import("/src/net/lobbyStore.ts");
           const mi = await import("/src/ui/menuItems.ts");
-          ls.lobbyStore.set({ code: "ABCD", phase: k.phase, hostSlot: 0, players: k.players, localPlayerId: "p0", district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0 });
+          ls.lobbyStore.set({ code: "ABCD", phase: k.phase, hostSlot: 0, players: k.players, localPlayerId: "p0", district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: k.left ?? [] });
           mi.menuRemoveTarget.set({ playerId: "p1", name: "Bartholomew The Long" });
           ui.uiStore.set({ kind: "start" });
           await new Promise((r) => setTimeout(r, 50));
