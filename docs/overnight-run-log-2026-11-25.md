@@ -135,3 +135,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 08:45 designer: "Let's cap re review" → rule recorded in HANDOFF §3.
 - 08:45 Re-review 2 7.3 (25410024): CLEAN (2 nits, self-healing). 7.3 READY — lands after 7.1, 7.2, 7.9 (it merged story-7-1 + story-7-2).
 - 09:00 8.1 final fixes (7dff724) checked by the main session (RR3-M1 one-line mirror, tests) per the re-review cap; gated master + 8.1 (429 files / 3897 tests, load 4.23) → 8.1 DONE ON MASTER. Network pass core (8.8, 8.9, 8.10, 8.1) complete; 8.11 optional. Follow-up: cut.test 'run goes on' flake 1/37.
+- 09:02 7.2 round-3 fixes (e9cb004; gate 84263fe = 7.2 + story-7-1 5819a641 + master: 451 files / 4061 tests; realPostgres 14/14) checked by the main session per the re-review cap (diff read: 3 s client query_timeout, migrations 0; 7.1's pool guard kept; wording; Leave wait 2500 ms) → 7.2 APPROVED; lands right after 7.1.
