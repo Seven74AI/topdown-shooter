@@ -8,7 +8,7 @@ const nodeBuiltins = [...builtinModules, ...builtinModules.map((m) => `node:${m}
 const ENGINE_FREE = "packages/shared must stay engine-free (ADR-03).";
 
 export default defineConfig(
-  { ignores: ["**/dist/**", "**/node_modules/**", "_bmad/**", "_bmad-output/**", ".claude/**", "docs/art/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "_bmad/**", "_bmad-output/**", ".claude/**", "docs/art/**", "tools/gallery/out/**"] },
   js.configs.recommended,
   tseslint.configs.recommended,
   { files: ["apps/client/src/**/*.{ts,tsx}"], languageOptions: { globals: globals.browser } },

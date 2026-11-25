@@ -115,3 +115,19 @@ export function barricadePoolSize(maxPerPlayer: number | undefined, players: num
   if (maxPerPlayer === undefined || !(maxPerPlayer > 0)) return DEFAULT_BARRICADE_SPRITES;
   return Math.ceil(maxPerPlayer) * players;
 }
+
+/**
+ * Photoreal group 3: the depth of a standing barricade at footprint centre y (m). Above the bodies (10) and burning
+ * flames (≤ 10.3), below the heal plus (11) and the darkness (11.7); nearer the camera (larger y) draws over farther.
+ */
+export const STAND_DEPTH = 10.45;
+export const STAND_DEPTH_SPAN = 0.15;
+export function standDepth(y: number): number {
+  return STAND_DEPTH + (Math.min(1000, Math.max(0, y)) / 1000) * STAND_DEPTH_SPAN;
+}
+/** A corner piece draws over both walls it joins (its stubs cover their ends): the front line at its own row, the side line at `sideY`. */
+export function cornerDepth(y: number, sideY: number): number {
+  return Math.max(standDepth(y), standDepth(sideY)) + 1e-4;
+}
+/** Review M2: UI drawn on a standing barricade (the selection outline) sits above every standing picture. */
+export const ABOVE_STANDING_DEPTH = STAND_DEPTH + STAND_DEPTH_SPAN + 0.02;

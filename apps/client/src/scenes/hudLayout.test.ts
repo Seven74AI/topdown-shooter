@@ -4,7 +4,8 @@ import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
-import { layoutBossBar } from "./bossBar";
+import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
+import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
@@ -12,7 +13,7 @@ import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel";
 import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
-import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
+import { BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
  * EPIC 6 BRIEF line 31 — THE ONE HUD LAYOUT TEST (created by Story 6.3). Every on-screen control, in
@@ -277,6 +278,27 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
         }
       }
       expect(banners).toBe(18);
+      // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar (or, on a short screen, in its place
+      // while the bar is hidden), clear of the whole top band, and ≥ 48 px from the survivor (review M2, brief 31).
+      // review R7: also under a 20 px top inset (a notch or status bar on top)
+      for (const insetTop of [INSET.top, 20]) {
+        const ab = layoutBossBanner(w, h, INSET.left, insetTop, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 });
+        const arrival: Box = { x: ab.x, y: ab.y, w: ab.w, h: ab.h, id: `boss_arrival_banner (top inset ${insetTop})` };
+        expect(arrival.y, "below the top inset").toBeGreaterThanOrEqual(insetTop * K - 1e-6);
+        inSafe(arrival);
+        if (insetTop === INSET.top) apart([...top, ...(ab.overBar ? [] : [boss]), arrival]);
+        expect(rectCentreGap(arrival.x, arrival.y, arrival.w, arrival.h, w / 2, h / 2), `${w}x${h} inset ${insetTop}: the arrival banner keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+        // the plate's words stay readable: it reads "THE BEHEMOTH" in 34 px Oswald 700 at full size, and at the floor
+        // (35 % of its art) that's ≥ 11.9 px caps: at least the boss bar's own name (BOSS_BAR_NAME_CSS_PX, 11 px). The
+        // tightest case is 568 × 320 under a 20 px top inset (41 %); without the inset every size keeps ≥ 60 %.
+        expect(ab.w, "still readable").toBeGreaterThanOrEqual(hudFrameCssSize("banner").w * (insetTop === 0 ? 0.6 : 0.35) * K - 1e-6);
+        expect(34 * (ab.w / hudFrameCssSize("banner").w)).toBeGreaterThanOrEqual(BOSS_BAR_NAME_CSS_PX);
+      }
+      // review R6: the bar hides only while the banner shows in its place
+      expect(bossBarHidden(true, true, true)).toBe(true);
+      expect(bossBarHidden(true, true, false)).toBe(false);
+      expect(bossBarHidden(true, false, true)).toBe(false);
+      expect(bossBarHidden(false, false, false)).toBe(true);
     });
   }
 

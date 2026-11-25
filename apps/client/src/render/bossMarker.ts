@@ -3,9 +3,9 @@ import { edgeArrow } from "./edgeArrow";
 
 /**
  * Story 6.5 (F1, AC 13): the boss's edge marker. While the boss (or the warning's entry point) is off
- * screen, a red disc with a skull sits at the screen edge on the line from the centre, pulsing during
- * the WARNING and a TELEGRAPH, with an icon for the coming attack (rings = slam, arrow = charge, rock =
- * throw). Pure (tested); the view draws it with `ABOVE_DARK.marker`.
+ * screen, a marker sits at the screen edge on the line from the centre (asset fixes round 5: the P1
+ * DANGER panel with chevrons, `BossHud`), emphasised during the WARNING and a TELEGRAPH, with the coming
+ * attack's plate (SLAM / CHARGE / THROW). Pure (tested).
  */
 export interface BossMarker {
   visible: boolean;
