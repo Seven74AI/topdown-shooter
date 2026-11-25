@@ -32,11 +32,16 @@ describe("Run rewards: items (7.11, 7.12) and unlocks (7.7)", () => {
     expect(rewardsView({ ...base, loot: { wave: 4, key: null, name: "" } }, true, 7).items[0]?.text).toBe(COLLECTOR_TEXT);
     const t = rewardsView({ ...base, teamLoot: { playerId: "p2", wave: 4, key: "pack:cat", name: "Cat in the backpack" } }, true, 7, undefined, names).items[0];
     expect(t).toMatchObject({ kind: "team", text: "Cid found: Cat in the backpack", slot: 2, big: false });
-    // review M1: the finder's item unknown (wave 0) → "found the bag", no Collector line, no item guessed
-    const u = rewardsView({ ...base, teamLoot: { playerId: "p1", wave: 0, key: null, name: "" } }, true, 7, undefined, names).items[0];
-    expect(u).toMatchObject({ kind: "team", text: "Bo found the bag", sub: "", key: null });
     const c = rewardsView({ ...base, teamLoot: { playerId: "p1", wave: 5, key: null, name: "" } }, true, 7, undefined, names).items[0];
     expect(c?.sub).toBe("(Collector: they have every surprise item)");
+  });
+
+  it("B33 (designer override 2026-11-25): my bank failed → the find is a 'Couldn't save' row (7.2's wording), never 'Found in…'", () => {
+    const failed = { ...base, status: "failed" as const, loot: { wave: 6, key: "head:cone", name: "Traffic cone" } };
+    const v = rewardsView(failed, true, 7, undefined, names);
+    expect(v.status).toBe("Couldn't save this run");
+    expect(v.items).toEqual([{ kind: "lost", text: "Couldn't save the bag's item", sub: "(found in wave 6)", key: null, big: true, slot: -1 }]);
+    expect(rewardsView({ ...failed, status: "not_saved" }, true, 7, undefined, names).items[0]?.text).toBe("Found in wave 6: Traffic cone"); // B23: an unsaved guest still sees it
   });
 
   it("an unsaved bank still shows the find; nothing for a message of another run; empty groups take no rows", () => {

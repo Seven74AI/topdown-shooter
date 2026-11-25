@@ -282,6 +282,7 @@ export class RunBank {
       const breakdown: Breakdown = { ...s, ending: seat.ending, leftWave, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, record };
       return { supplies: s.total, breakdown: breakdown as unknown as Record<string, unknown> };
     };
+    let lastErr = "";
     for (let attempt = 1; attempt <= 2; attempt++) {
       const t0 = now();
       try {
@@ -297,12 +298,17 @@ export class RunBank {
         return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
         const err = dbErrText(e); // review L5: never a query's parameters
+        lastErr = err;
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
         // COMMIT reply with the database then unreachable can mean "failed" although paid: the retry's duplicate key
         // or the hand-grant check (run_rewards first, docs/deploy.md › Database) covers it.
         this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record, handGrant: HAND_GRANT_NOTE }, "supplies_bank_failed");
         if (attempt === 1) await new Promise((r) => setTimeout(r, this.deps.retryMs ?? BANK_RETRY_MS));
       }
+    }
+    // B33 (designer override 2026-11-25): a find whose bank failed is lost; one greppable line per failed find (no params).
+    if (seat.meta && seat.meta.facts.lootFoundBy === seat.playerId) {
+      this.deps.log.error({ playerId: seat.playerId, accountId, runId: this.runId, wave: seat.meta.facts.lootWave, err: lastErr }, "loot_bank_failed");
     }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
     return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
@@ -318,11 +324,12 @@ function lootOnly(m: MetaLines): MetaLines {
 }
 
 /**
- * 7.12 D1: the teammates' line from the finder's result. Review M1: with no find in it (the finder's bank failed or
- * was not saved), no item is guessed: `{key: null, wave: 0}` reads "<name> found the bag" (wave 0 = item unknown).
+ * 7.12 D1: the teammates' line from the finder's result. B33 (designer override 2026-11-25): when the finder's item
+ * isn't known — its bank failed (or timed out), or it never banked here — there is NO team line (no item is guessed,
+ * no nameless "found the bag"). An unsaved guest finder (`not_saved`) still names its find (B23).
  */
-function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot {
+function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot | undefined {
   const l = (r as { loot?: LootFind } | undefined)?.loot;
-  if (l) return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
-  return { playerId: finder, wave: 0, key: null, name: "" };
+  if (!l || r?.status === "failed") return undefined;
+  return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
 }

@@ -96,7 +96,7 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     }
   });
 
-  it("review M1: a finder who left (bank still in flight) is awaited; a finder never banked here → 'found the bag', no item guessed", async () => {
+  it("review M1: a finder who left (bank still in flight) is awaited; a finder never banked here → no team line (B33 override)", async () => {
     const { repo } = fakeRepo();
     const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
     const w = team(2, "wiped");
@@ -112,7 +112,33 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     w2.loot.foundBy = "p3"; // gone without a bank in this room
     w2.loot.foundWave = 3;
     const [r] = await bank2.bankRunEnd(w2, [{ playerId: "p0", accountId: ACCTS[1] as string }], []);
-    expect(r?.teamLoot).toEqual({ playerId: "p3", wave: 0, key: null, name: "" });
+    expect(r?.teamLoot).toBeUndefined();
+  });
+
+  it("B33 (designer override 2026-11-25): the finder's bank fails → no team line, the finder's row says so, one loot_bank_failed line without params", async () => {
+    const { repo } = fakeRepo();
+    const failing: ProgressRepo = {
+      ...repo,
+      addSupplies: async (runId, accountId, pay, meta) => {
+        if (accountId === ACCTS[0]) throw new Error('insert into "run_rewards" failed: timeout\nparams: 0f1e,secret-hash-123');
+        return repo.addSupplies(runId, accountId, pay, meta);
+      },
+    };
+    const error = vi.fn();
+    const bank = new RunBank(1, { repo: () => failing, log: { info: vi.fn(), error }, deliver: () => {}, retryMs: 1 });
+    const w = team(2, "wiped");
+    w.loot.foundBy = "p0";
+    w.loot.foundWave = 6;
+    w.loot.plan.itemRoll = 0;
+    const [f, t] = await bank.bankRunEnd(w, [0, 1].map((i) => ({ playerId: `p${i}`, accountId: ACCTS[i] as string })), []);
+    expect(f?.status).toBe("failed");
+    expect(f?.loot?.wave).toBe(6); // the finder's Results can say which find was lost
+    expect(t?.status).toBe("saved");
+    expect(t?.teamLoot).toBeUndefined();
+    const lines = error.mock.calls.filter((c) => c[1] === "loot_bank_failed");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.[0]).toEqual({ playerId: "p0", accountId: ACCTS[0], runId: bank.runId, wave: 6, err: 'insert into "run_rewards" failed: timeout' });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("secret-hash");
   });
 
   it("7.12: an unsaved finder (no account) still sees the find; nothing else is granted without a saved bank", async () => {

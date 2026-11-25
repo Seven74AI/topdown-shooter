@@ -380,3 +380,13 @@ Real PostgreSQL 16 (a throwaway local cluster): `apps/server/src/db` + `apps/ser
 **Full gate after the review fixes, commit 72fd4da on `story-7-12` merged with master c00713d (7.6 landed; migration regenerated as 0004): typecheck ✔, lint ✔, test ✔ — 512 files passed, 4 skipped; 4,603 tests passed, 31 skipped — build ✔. Load ≈ 2.9 (4 cores).** A first run on cd23bfc failed 7 tests in 3 files: the district room tests needed 7.6's `checkTicketRows: false` (B21), the 7.1 AC 9 source check forbade the M3 reload's `.then(` (now an async `reloadProgress`), and `metaWiring` still expected the pre-M3 delete. All fixed in 72fd4da. Real PostgreSQL 16 after the 7.6 merge: `apps/server/src/db` + `meta` + `auth`, 23 files, 197 tests, all pass, none skipped.
 
 For the narrow re-review: M1 (`lootBag.ts` `lootTaker`, `banking.ts` `bankRunEnd` / `teamLootOf`, `RunRoom.ts` `bankLeaver`), M2 (`milestoneRecord.ts`, `downed.ts`, `damage.ts`), M3 (`RunRoom.ts` `finalLeave` / `onLobbyReturn` / `loadMemberProgress`), and the `banking.ts` / `RunRoom.ts` merge resolutions.
+
+## Designer override of B33 (2026-11-25, live; for re-review round 2)
+
+Changes M1's fallback; listed separately from the round 1 fixes.
+
+- `meta/banking.ts › teamLootOf`: no find in the finder's result, or a `failed` result → `undefined` (no team line). The `{key: null, wave: 0}` "found the bag" fallback is gone (client: `rewardsModel.ts` no longer special-cases wave 0).
+- `meta/banking.ts › run`: after the second failed attempt, a finder's seat logs `loot_bank_failed {playerId, accountId, runId, wave, err}` once (`err` = `dbErrText`, cut at `\nparams:`).
+- `ui/rewardsModel.ts › metaRows`: a `failed` bank with a find → the row `{kind: "lost"}` "Couldn't save the bag's item" / "(found in wave N)" (`LOOT_FAILED_TEXT`, worded like `REWARDS_TEXT.failed`); `overlay.css` reuses `.rw-status--failed`'s red for `.rw-item--lost .rw-item__line` (one rule, no second error style). `not_saved` is unchanged (B23).
+- Tests (each mutated once, all killed): `bankingMeta.test.ts › B33 (designer override …)` (no teamLoot, finder `failed` with its loot, one log line equal to the cut `err`, no params anywhere in the logs), `› review M1 …` (never banked → no team line), `rewardsMeta.test.ts › B33 …` (the lost row; `not_saved` still "Found in…").
+- Decision B33 in `docs/epic-7-story-decisions-looks.md` marked "designer override 2026-11-25" with the new rule.

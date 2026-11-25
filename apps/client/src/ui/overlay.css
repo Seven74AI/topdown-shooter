@@ -1943,8 +1943,9 @@ p.in-run-menu__title {
   animation: rw-pulse 1.2s ease-in-out infinite;
 }
 
-.rw-status--failed {
-  color: #ff6b5e; /* red is fine in menus (7-UI-3) */
+.rw-status--failed,
+.rw-item--lost .rw-item__line {
+  color: #ff6b5e; /* red is fine in menus (7-UI-3); B33: the finder's lost item reads like "Couldn't save this run" */
 }
 
 @keyframes rw-pulse {

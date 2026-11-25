@@ -53,7 +53,7 @@ export interface RewardsView {
 
 /** One item row (group 2). `key` = the part (`slot:id`) for its picture; null = none (Collector). */
 export interface ItemRow {
-  readonly kind: "new" | "found" | "collector" | "team";
+  readonly kind: "new" | "found" | "collector" | "team" | "lost";
   readonly text: string;
   readonly sub: string;
   readonly key: string | null;
@@ -70,18 +70,22 @@ export interface UnlockRow {
 }
 
 export const COLLECTOR_TEXT = "Collector: you have every surprise item";
+/** B33 (designer override): the finder's bank failed (worded like `REWARDS_TEXT.failed`). */
+export const LOOT_FAILED_TEXT = "Couldn't save the bag's item";
 
 /** Groups 2 and 3 from the message (Stories 7.7, 7.11, 7.12). `nameOf(slot)` = the Results table's name. */
 export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string): { items: ItemRow[]; unlocks: UnlockRow[] } {
   const items: ItemRow[] = [];
   for (const n of rewards.newItems ?? []) items.push({ kind: "new", text: `New item: ${n.name}`, sub: n.reason ? `(${n.reason})` : "", key: n.key, big: false, slot: -1 });
   const l = rewards.loot;
-  if (l) items.push(l.key === null ? { kind: "collector", text: COLLECTOR_TEXT, sub: "", key: null, big: true, slot: -1 } : { kind: "found", text: `Found in wave ${l.wave}: ${l.name}`, sub: "", key: l.key, big: true, slot: -1 });
+  // B33 (designer override 2026-11-25): my bank failed → the bag's item is lost; said in 7.2's "Couldn't save" words and style
+  if (l && rewards.status === "failed") items.push({ kind: "lost", text: LOOT_FAILED_TEXT, sub: `(found in wave ${l.wave})`, key: null, big: true, slot: -1 });
+  else if (l) items.push(l.key === null ? { kind: "collector", text: COLLECTOR_TEXT, sub: "", key: null, big: true, slot: -1 } : { kind: "found", text: `Found in wave ${l.wave}: ${l.name}`, sub: "", key: l.key, big: true, slot: -1 });
   const t = rewards.teamLoot;
   if (t) {
     const slot = playerSlotOf(t.playerId);
     const who = (slot >= 0 && slot < 4 ? nameOf(slot) : "") || "A teammate";
-    items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: t.wave > 0 ? "(Collector: they have every surprise item)" : "", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
+    items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: "(Collector: they have every surprise item)", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
   }
   const unlocks: UnlockRow[] = (rewards.newDistricts ?? []).map((d) => {
     const playable = PROGRESSION.districts.find((x) => x.id === d.id)?.playable === true;
