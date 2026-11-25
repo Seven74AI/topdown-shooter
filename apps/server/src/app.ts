@@ -2,6 +2,7 @@ import { createRouter, defineRoom, defineServer } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { RUN_ROOM_NAME } from "@topdown/shared";
 import { createAccountRoutes } from "./auth/accountRoutes";
+import { setRoomAccounts } from "./auth/roomAccounts";
 import { randomSessionSecret } from "./auth/ticket";
 import { accountsRepo } from "./db/accountsRepo";
 import { type Database, openPglite } from "./db/client";
@@ -46,7 +47,9 @@ export function createGameServer({
   sessionSecret = randomSessionSecret(),
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
-  const { accountSession } = createAccountRoutes({ accounts: accountsRepo(database), newGuestLimiter, sessionSecret, allowedOrigins });
+  const accounts = accountsRepo(database);
+  const { accountSession } = createAccountRoutes({ accounts, newGuestLimiter, sessionSecret, allowedOrigins });
+  setRoomAccounts({ sessionSecret, accounts });
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
     routes: createRouter({ health, accountSession }),
