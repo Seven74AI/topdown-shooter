@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo } from "../db/progressRepo";
+import { dbErrText } from "../db/timeout";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
 export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
@@ -211,9 +212,10 @@ export class RunBank {
         const r = await repo.addSupplies(this.runId, accountId, pay);
         const b = storedBreakdown(r.breakdown, r.supplies);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
-        return message(this.runId, this.seed, "saved", b, r.newTotal, seat.lockedUsed);
+        const m = message(this.runId, this.seed, "saved", b, r.newTotal, seat.lockedUsed);
+        return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
-        const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
+        const err = dbErrText(e); // review L5: never a query's parameters
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
         // COMMIT reply with the database then unreachable can mean "failed" although paid: the retry's duplicate key
         // or the hand-grant check (run_rewards first, docs/deploy.md › Database) covers it.

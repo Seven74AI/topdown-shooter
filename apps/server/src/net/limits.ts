@@ -110,3 +110,30 @@ export const MAX_TRAIN_CALLS_PER_IP_PER_MIN = 60;
 export const UNLOCK_REQUEST_TTL_MS = 600_000;
 /** Story 7.3: the request-id map holds at most this many answers (oldest dropped first). */
 export const UNLOCK_REQUEST_CAP = 10_000;
+
+/** Story 7.6 (AC 8, A3, NFR12): login + forgot-password attempts per client IP per minute (right or wrong, shared). */
+export const MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN = 5;
+/**
+ * Story 7.6 (brief 19, decision 7.6 B3 as amended by review M1): WRONG login / forgot-password answers per USERNAME per
+ * minute from any address (names that don't exist count the same). Over it only the addresses that already failed for
+ * that name are refused: the owner, from a clean address, is never locked out (7.6 D6).
+ */
+export const MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN = 10;
+/** Story 7.6 (AC 8): upgrade / logout calls per account per minute (7.3's per-account limiter pattern). */
+export const MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN = 10;
+/** Story 7.6 (brief 15; the 7.3 B5 pattern): upgrade / logout calls per IP per minute, before any database or hashing work. */
+export const MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN = 30;
+export const LOGIN_WINDOW_MS = 60_000;
+/** Story 7.6 (D4): Argon2id at the OWASP minimum: 19 MiB, 2 passes, 1 lane (≈ 50 ms per hash on the VPS). */
+export const ARGON2_MEMORY_KIB = 19_456;
+export const ARGON2_PASSES = 2;
+export const ARGON2_LANES = 1;
+
+/** Story 7.6 review L1: how long a join waits for the ticket's device-row check before trusting the ticket (P3). */
+export const TICKET_ROW_CHECK_MS = 1000;
+
+/**
+ * Story 7.6 review L6 (decision 7.6 B18): Save my progress's name check ("That name is taken" tells a name exists)
+ * per client IP per minute: an enumeration costs one address a minute per 10 names.
+ */
+export const MAX_NAME_CHECKS_PER_IP_PER_MIN = 10;

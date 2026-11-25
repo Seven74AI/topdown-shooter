@@ -4,7 +4,8 @@
  */
 import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "./client";
-import { progress, runRewards } from "./schema";
+import { accounts, progress, runRewards } from "./schema";
+import { PROGRESSION } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
 import { boundedTransaction, type BoundedOptions } from "./boundedTx";
@@ -37,6 +38,8 @@ export interface BankResult {
   /** `progress.supplies` after this bank (or now, for an earlier one). */
   newTotal: number;
   breakdown: Record<string, unknown>;
+  /** Story 7.6 (AC 10, D9): this bank is a guest's first of ≥ `account.saveNudgeSupplies`: show "Save my progress" once. */
+  nudge: boolean;
 }
 
 /**
@@ -199,11 +202,20 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
         database,
         "progress.addSupplies",
         async (tx) => {
-          await tx.insert(progress).values({ accountId }).onConflictDoNothing(); // a missing row is an empty one
+          // Story 7.6: the seat's account row first (FOR NO KEY UPDATE: a login merge holds FOR UPDATE, so a bank and a
+          // merge of one guest run one after the other). A guest merged into an account pays that account (its
+          // `run_rewards` row keeps the seat's id: the (run, seat account) guard is unchanged).
+          const acc = await tx
+            .select({ mergedInto: accounts.mergedInto, username: accounts.username, saveNudged: accounts.saveNudged })
+            .from(accounts)
+            .where(eq(accounts.id, accountId))
+            .for("no key update");
+          const payee = acc[0]?.mergedInto ?? accountId;
+          await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx
             .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies })
             .from(progress)
-            .where(eq(progress.accountId, accountId))
+            .where(eq(progress.accountId, payee))
             .for("update");
           const before = locked[0];
           if (!before) throw new Error("progress row missing");
@@ -221,7 +233,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               .where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)))
               .limit(1);
             const row = earlier[0];
-            return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {} };
+            return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
           }
           const updated = await tx
             .update(progress)
@@ -230,9 +242,16 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${supplies}`,
               updatedAt: sql`now()`,
             })
-            .where(eq(progress.accountId, accountId))
+            .where(eq(progress.accountId, payee))
             .returning({ supplies: progress.supplies });
-          return { banked: true, supplies, newTotal: updated[0]?.supplies ?? before.supplies + supplies, breakdown: payout.breakdown };
+          // Story 7.6 (AC 10): a guest (not merged) whose bank reaches the nudge line for the first time.
+          let nudge = false;
+          const a = acc[0];
+          if (a && payee === accountId && a.username === null && !a.saveNudged && supplies >= PROGRESSION.account.saveNudgeSupplies) {
+            await tx.update(accounts).set({ saveNudged: true }).where(eq(accounts.id, accountId));
+            nudge = true;
+          }
+          return { banked: true, supplies, newTotal: updated[0]?.supplies ?? before.supplies + supplies, breakdown: payout.breakdown, nudge };
         },
         bankOptions,
       ),

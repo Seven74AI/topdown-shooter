@@ -198,5 +198,8 @@
         "line": "Reload a little faster"
       }
     ]
+  },
+  "account": {
+    "saveNudgeSupplies": 200
   }
 }

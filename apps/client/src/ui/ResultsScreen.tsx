@@ -6,6 +6,9 @@ import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 import { formatSupplies, rewardsStore } from "../net/rewardsStore";
 import type { RunRewards } from "@topdown/shared";
 import { lineAmount, rewardsView, trainingCell, type RewardsView } from "./rewardsModel";
+import { ACCOUNT_TEXT, showNudge } from "./accountModel";
+import { accountStore, type AccountSnapshot } from "../net/accountStore";
+import { openAccount } from "./uiState";
 
 /**
  * Results after a team wipe (Story 2.8, FR11): the wave reached, then color dot, name and kills per
@@ -27,6 +30,8 @@ export function ResultsScreen() {
   const [rewards, setRewards] = useState<RunRewards | null>(rewardsStore.get());
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => rewardsStore.subscribe(setRewards), []);
+  const [account, setAccount] = useState<AccountSnapshot>(accountStore.get());
+  useEffect(() => accountStore.subscribe(setAccount), []);
   useEffect(() => {
     setSent(false);
     setSkipped(false);
@@ -130,7 +135,7 @@ export function ResultsScreen() {
             )}
           </div>
         </section>
-        <RunRewardsCard view={view} />
+        <RunRewardsCard view={view} nudge={screen.online && rewards?.seed === screen.seed && showNudge(rewards, account) ? screen : null} />
       </div>
     </div>
   );
@@ -156,7 +161,7 @@ function TrainCell({ r }: { r: { training?: Parameters<typeof trainingCell>[0] }
 }
 
 /** Story 7.2 (AC 5, RW1): the "Run rewards" card. One scrolling column; rows in the fixed order of brief 26. */
-export function RunRewardsCard({ view }: { view: RewardsView }) {
+export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** Story 7.6 (AC 10): the Results screen to come back to, when the nudge shows. */ nudge?: UiScreen | null }) {
   return (
     <section class={`rw-card rw-card--rewards rw--${view.state}`} aria-labelledby="rw-title" data-testid="run-rewards" data-state={view.state}>
       <header class="rw-card__head rw-card__head--rewards">
@@ -220,6 +225,14 @@ export function RunRewardsCard({ view }: { view: RewardsView }) {
               {view.unlockLine}
             </p>
           </div>
+        ) : null}
+        {nudge ? (
+          <p class="rw-nudge" data-testid="rewards-nudge">
+            <span class="rw-nudge__text">{ACCOUNT_TEXT.nudgeLine}</span>
+            <button type="button" class="ph-btn rw-nudge__btn" onClick={() => uiStore.set(openAccount("save", nudge))}>
+              {ACCOUNT_TEXT.save}
+            </button>
+          </p>
         ) : null}
       </div>
     </section>

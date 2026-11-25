@@ -26,7 +26,7 @@ function fakeRepo(lifetime = 10_000) {
       if (earlier) return { ...earlier, banked: false };
       const p = pay(lifetime + supplies);
       supplies += p.supplies;
-      const r = { banked: true, supplies: p.supplies, newTotal: supplies, breakdown: p.breakdown };
+      const r = { banked: true, supplies: p.supplies, newTotal: supplies, breakdown: p.breakdown, nudge: false };
       rows.set(key, r);
       return r;
     },
@@ -113,7 +113,7 @@ describe("Story 7.2: RunBank", () => {
           log.push(`end${k}@${Date.now()}`);
           if (k === 1) throw new DbUnavailableError("progress.addSupplies", "error");
           const p = pay(10_000);
-          return { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: p.breakdown };
+          return { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: p.breakdown, nudge: false };
         },
       } as unknown as ProgressRepo;
       const t0 = Date.now();
@@ -141,7 +141,7 @@ describe("Story 7.2: RunBank", () => {
   it("a retry after a write that DID commit (the timeout fired late) finds the row: saved, paid once", async () => {
     const { repo, state, rows } = fakeRepo();
     const { bank } = bankWith(repo);
-    rows.set(`${bank.runId}/${ACCT}`, { banked: true, supplies: 60, newTotal: 60, breakdown: { waves: 60, waveCount: 6, rookie: false } });
+    rows.set(`${bank.runId}/${ACCT}`, { banked: true, supplies: 60, newTotal: 60, breakdown: { waves: 60, waveCount: 6, rookie: false }, nudge: false });
     const m = await bank.bank({ playerId: "p0", accountId: ACCT, record: rec(6), ending: "wiped" });
     expect(state.calls).toBe(1);
     expect(m).toMatchObject({ status: "saved", total: 60, newTotal: 60, lines: { waves: 60 }, waveCount: 6 });

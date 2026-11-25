@@ -47,8 +47,10 @@ describe("progress.look (Story 7.9 AC 1)", () => {
     const dir = mkdtempSync(join(tmpdir(), "td-mig-"));
     try {
       const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
-      const before = journal.entries.filter((e) => `${e.tag}.sql` !== look7);
-      expect(before.length).toBe(journal.entries.length - 1);
+      // Story 7.6: later migrations (0003_accounts_devices) follow the look one: keep only the ones BEFORE it.
+      const lookAt = journal.entries.findIndex((e) => `${e.tag}.sql` === look7);
+      expect(lookAt).toBeGreaterThan(0);
+      const before = journal.entries.slice(0, lookAt);
       cpSync(MIGRATIONS_FOLDER, dir, { recursive: true });
       for (const f of readdirSync(dir)) if (f === look7) rmSync(join(dir, f));
       writeFileSync(join(dir, "meta", "_journal.json"), JSON.stringify({ ...journal, entries: before }));
@@ -56,7 +58,7 @@ describe("progress.look (Story 7.9 AC 1)", () => {
       const db = drizzle({ client });
       await migrate(db, { migrationsFolder: dir });
       const applied = (await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`)) as unknown as { rows: { n: number }[] };
-      expect(applied.rows[0]?.n).toBe(journal.entries.length - 1); // 0000 and 7.2's 0001 applied, not the look
+      expect(applied.rows[0]?.n).toBe(lookAt); // 0000 and 7.2's 0001 applied, not the look
       const noLook = (await db.execute(sql`select count(*)::int as n from information_schema.columns where table_name = 'progress' and column_name = 'look'`)) as unknown as { rows: { n: number }[] };
       expect(noLook.rows[0]?.n).toBe(0);
       await db.execute(sql`insert into accounts (guest_token_hash, display_name) values (${"c".repeat(64)}, 'Ana')`);
