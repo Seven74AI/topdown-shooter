@@ -187,7 +187,7 @@ Claude (builder child session of the overnight orchestrator), skill `gds-dev-sto
 
 ### Gate
 
-GATE_LINE_PLACEHOLDER
+Gate (2026-11-25): branch story-7-10 at merge commit b79f6083 (origin/master db0beb7f merged in, no conflicts): typecheck ✓, lint ✓, test ✓ (479 files passed / 3 skipped; 4355 tests passed / 23 skipped), build ✓; load average during the test run ≈ 2.8–3.0 (1-min 2.97 at the end, 0.20 before).
 
 ### Task → test (R1: "file > test name")
 
