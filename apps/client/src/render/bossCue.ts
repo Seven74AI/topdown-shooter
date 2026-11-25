@@ -5,8 +5,12 @@ import type { SimEvent } from "@topdown/shared";
  * (`ageS` past `BOSS_STALE_S`) plays no banner and no sound; the state (bar, telegraph, marker) shows
  * the truth anyway. Pure (tested).
  */
-export const BOSS_WARNING_BANNER = "Something big is coming";
-export const BOSS_ARRIVED_BANNER = "THE BEHEMOTH";
+/**
+ * Asset fixes round 5 (P1): the warning and the arrival show the HUD's THE BEHEMOTH warning banner
+ * (`BossHud`, from the boss state: a woken tab shows the truth too), so neither plays a text banner any more.
+ */
+export const BOSS_WARNING_BANNER = "";
+export const BOSS_ARRIVED_BANNER = "";
 export const BOSS_STALE_S = 1.0;
 /** Story 6.6 (D6): the crash banner (amber: the stun is your window), 1.2 s. */
 export const BOSS_CRASH_BANNER = "CRASH!";
