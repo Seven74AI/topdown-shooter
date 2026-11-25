@@ -8,7 +8,7 @@ import { serverBalance } from "../rooms/RunRoom";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
 import { MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN, MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN } from "../net/limits";
-import { verifyCount } from "./passwords";
+import { dummyHashStarted, verifyCount } from "./passwords";
 import { beginSwitch, deviceInRoom, endSwitch } from "./devicesInRooms";
 import { roomAccountsRepo } from "./roomAccounts";
 import { RunRoom, ticketStillCurrent } from "../rooms/RunRoom";
@@ -170,6 +170,7 @@ describe("Story 7.6: log in (POST /account/login)", () => {
   });
 
   it("A3: wrong name and wrong password give byte-identical answers; a missing name still runs one Argon2 verify", async () => {
+    expect(dummyHashStarted()).toBe(true); // review N3: built when the server started, not on the first missing name
     const a = await account();
     const before = verifyCount();
     const wrongPass = await post("/account/login", { username: a.username, password: "wrong password" });

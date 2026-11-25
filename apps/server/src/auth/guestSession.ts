@@ -94,6 +94,7 @@ export async function resolveGuestSession(
       const account = await deps.accounts.findByTokenHash(hashGuestToken(token));
       if (account !== null) {
         log.info({ accountId: account.id, source }, "account_session");
+        void deps.accounts.touchDevice(hashGuestToken(token)).catch(() => undefined); // review N2 (logged by the repo)
         return { response: { ...saved(token, account, deps.sessionSecret, now()), ...(await progressOf(account.id)) }, source };
       }
     }

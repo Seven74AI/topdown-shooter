@@ -195,6 +195,20 @@ describe("Story 7.6: accounts and devices (PGlite)", () => {
     expect((await repo.addSupplies("5f1e2d3c-4b5a-4968-8776-655443322115", full.id, pays(500))).nudge).toBe(false);
   });
 
+  it("review N2: a device row is marked used at most once a day (so spare rows can be cleaned)", async () => {
+    const database = fresh();
+    await setup(database, H("a"), {}, "ana");
+    const db = await database.db();
+    await db.execute(sql`update device_tokens set last_seen_at = now() - interval '3 days' where token_hash = ${H("a")}`);
+    const acc = accountsRepo(database);
+    await acc.touchDevice(H("a"));
+    const after = await rows<{ fresh: boolean }>(db, sql`select last_seen_at > now() - interval '1 minute' as fresh from device_tokens where token_hash = ${H("a")}`);
+    expect(after).toEqual([{ fresh: true }]);
+    await db.execute(sql`update device_tokens set last_seen_at = now() - interval '2 hours' where token_hash = ${H("a")}`);
+    await acc.touchDevice(H("a")); // within the day: no write
+    expect(await rows(db, sql`select last_seen_at < now() - interval '1 hour' as old from device_tokens where token_hash = ${H("a")}`)).toEqual([{ old: true }]);
+  });
+
   it("brief 21: the 7.6 migration runs forward on a copy of the previous schema with guests in it: each token becomes a device row", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mig76-"));
     try {

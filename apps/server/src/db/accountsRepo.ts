@@ -3,7 +3,7 @@
  * Every call: async, 2 s timeout, `db_error {op}` on failure (`withDbTimeout`). Story 7.6: a device is found through
  * `device_tokens` (one account, several devices); usernames, password and recovery-code hashes.
  */
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "./client";
 import { accounts, deviceTokens, progress } from "./schema";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
@@ -35,6 +35,11 @@ export interface AccountsRepo {
    */
   createGuest(tokenHash: string, displayName: string): Promise<Account>;
   setDisplayName(accountId: string, displayName: string): Promise<void>;
+  /**
+   * Review N2: marks a device row as used (at most once a day: one write per device per day), so rows no phone holds
+   * any more (a double-submitted login's spare row, a lost phone) can be told apart and cleaned (docs/deploy.md).
+   */
+  touchDevice(tokenHash: string): Promise<void>;
   /** Story 7.6: the full account with this lower-cased username, or null. */
   findByUsernameLower(usernameLower: string): Promise<AccountCredentials | null>;
   /**
@@ -101,6 +106,18 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
         async () => {
           const db = await database.db();
           await db.update(accounts).set({ displayName }).where(eq(accounts.id, accountId));
+        },
+        timeoutMs,
+      ),
+    touchDevice: (tokenHash) =>
+      withDbTimeout(
+        "accounts.touchDevice",
+        async () => {
+          const db = await database.db();
+          await db
+            .update(deviceTokens)
+            .set({ lastSeenAt: sql`now()` })
+            .where(and(eq(deviceTokens.tokenHash, tokenHash), sql`${deviceTokens.lastSeenAt} < now() - interval '1 day'`));
         },
         timeoutMs,
       ),

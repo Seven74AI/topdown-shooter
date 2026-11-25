@@ -12,6 +12,7 @@ import { MAX_CLIENT_MESSAGE_BYTES, TRANSPORT_PING_INTERVAL_MS, TRANSPORT_PING_MA
 import { originAllowed } from "./net/origin";
 import { accountActionIpLimiter, accountActionLimiter, accountSessionLimiter, nameCheckIpLimiter, loginIpLimiter, loginNameLimiter, newGuestLimiter, rateLimitLogGate, unlockAccountLimiter, unlockIpLimiter } from "./net/rateLimit";
 import { deviceTokensRepo } from "./db/deviceTokensRepo";
+import { warmDummyHash } from "./auth/passwords";
 import { unlockRequests } from "./auth/unlock";
 import { health } from "./ops/health";
 import { log } from "./ops/logger";
@@ -67,6 +68,7 @@ export function createGameServer({
     // Story 7.6: upgrade / login / recover / logout
     auth: { devices: deviceTokensRepo(database), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter, nameCheckIpLimiter },
   });
+  void warmDummyHash(); // Story 7.6 review N3: the missing-name verify costs the same from the first login
   setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },

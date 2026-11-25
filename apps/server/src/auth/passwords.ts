@@ -23,6 +23,19 @@ export function verifyCount(): number {
   return verifies;
 }
 
+/**
+ * Review N3: builds the dummy hash now (the server calls this at start), so the first missing-name login after a boot
+ * costs one verify like every other answer, not a hash + a verify.
+ */
+export function warmDummyHash(): Promise<string> {
+  return dummyHash();
+}
+
+/** Tests: whether the dummy hash has been started. */
+export function dummyHashStarted(): boolean {
+  return dummy !== null;
+}
+
 /** The dummy hash a missing account is verified against (same cost; made once per process, off the tick). */
 let dummy: Promise<string> | null = null;
 function dummyHash(): Promise<string> {
