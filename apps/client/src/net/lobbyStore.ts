@@ -16,6 +16,10 @@ import { lostReason, type LostReason } from "./serverNotice";
 import { RunInbox, type NetRoomLike } from "./session";
 import { LinkMonitor, linkStore, type LinkRoom } from "./linkMonitor";
 import { seatStore } from "./seatStore";
+import { rewardsStore } from "./rewardsStore";
+
+/** Story 7.2 (D4): how long a Leave mid-run keeps the socket open for its `run.rewards` (the bank is one transaction: ms normally). */
+export const LEAVE_REWARDS_WAIT_MS = 1500;
 
 /** Consented leave (4000) and server shutdown (4001): never a drop. */
 const CONSENTED = 4000;
@@ -297,7 +301,7 @@ class LobbyStore {
     this.detach();
     this.set(EMPTY);
     seatStore.clear(); // Story 8.1: a Leave is for good (consented): a reload must not take the seat back
-    void room?.leave(true);
+    if (room) leaveAfterRewards(room);
     return room !== null;
   }
 
@@ -328,4 +332,36 @@ export const lobbyStore = new LobbyStore();
 function isLinkRoom(room: unknown): room is LinkRoom {
   const r = room as Partial<LinkRoom> | null;
   return !!r && typeof r.onDrop === "function" && typeof r.onReconnect === "function" && typeof r.reconnection === "object" && r.reconnection !== null;
+}
+
+/**
+ * Story 7.2 (S3, D4): a Leave mid-run first sends `run.leave` (the server banks this seat now, ending `quit`) and keeps
+ * the socket open until `run.rewards` arrives (kept for the start screen's one-time line) or LEAVE_REWARDS_WAIT_MS
+ * passes; then the consented leave as before. Outside a run (lobby, Results) it leaves at once. The screen has already
+ * moved on: nothing waits for this.
+ */
+export function leaveAfterRewards(room: Pick<RunConnection, "leave" | "send" | "onMessage" | "state">, waitMs = LEAVE_REWARDS_WAIT_MS): void {
+  if (!inRunPhase(room.state?.phase)) {
+    void room.leave(true);
+    return;
+  }
+  let done = false;
+  let off: (() => void) | undefined;
+  const finish = (): void => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    off?.();
+    void room.leave(true);
+  };
+  const timer = setTimeout(finish, waitMs);
+  off = room.onMessage(S2C.RUN_REWARDS, (m: unknown) => {
+    rewardsStore.receive(m, true);
+    finish();
+  }) as (() => void) | undefined;
+  try {
+    room.send(C2S.RUN_LEAVE, {});
+  } catch {
+    finish();
+  }
 }
