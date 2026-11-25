@@ -320,6 +320,28 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
  */
 const hunt = { world: null as World | null, tick: -1, dist: new Int32Array(0), queue: new Int32Array(0) };
 
+/**
+ * Fix bloater-car-corner (review round 2, the six-wave sim's timeout): a survivor (0.8 m) centred on a
+ * 0.5 m cell reaches into all 8 neighbours, so the hunt's cell must be free with them, as its comment
+ * always said. The code checked the cell alone, so the way led through slots one cell wide that no
+ * survivor fits (two bots pressed for 32 minutes into a 0.5 m slot between a car and their own
+ * barricade, while the Behemoth, which can't reach them, stood and threw).
+ */
+function huntCellClear(nav: World["pathing"]["nav"], cx: number, cy: number): boolean {
+  const { cols, rows } = nav;
+  for (let dy = -1; dy <= 1; dy++) {
+    const y = cy + dy;
+    if (y < 0 || y >= rows) return false;
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx;
+      if (x < 0 || x >= cols) return false;
+      const n = y * cols + x;
+      if (nav.wallAt[n] !== 0 || nav.buildingAt[n] !== 0) return false;
+    }
+  }
+  return true;
+}
+
 function huntStep(world: World, x: number, y: number, out: BotView): void {
   const nav = world.pathing.nav;
   if (nav.cells <= 1) return;
@@ -350,7 +372,7 @@ function huntStep(world: World, x: number, y: number, out: BotView): void {
         if (dist[n] !== -1) continue;
         // The boss's own body cells are open (the search starts inside it); elsewhere a cell must keep a
         // survivor's body clear of walls and buildings (it and its 8 neighbours free).
-        if ((dist[c] as number) > 8 && (nav.wallAt[n] !== 0 || nav.buildingAt[n] !== 0 || flowEdgeClosed(nav, c, n))) continue;
+        if ((dist[c] as number) > 8 && (!huntCellClear(nav, nx, ny) || flowEdgeClosed(nav, c, n))) continue;
         dist[n] = (dist[c] as number) + 1;
         hunt.queue[tail++] = n;
       }

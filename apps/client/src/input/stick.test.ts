@@ -31,6 +31,17 @@ describe("stickVector", () => {
     expect(v.y / v.magnitude).toBeCloseTo(-0.8, 9);
   });
 
+  it("Always full speed: magnitude 1 past the dead zone, direction kept, still zero inside it", () => {
+    const half = stickVector(0, 0, 30, -40, R, DZ, undefined, true); // 50 % of the radius
+    expect(half.magnitude).toBe(1);
+    expect(half.x).toBeCloseTo(0.6, 9);
+    expect(half.y).toBeCloseTo(-0.8, 9);
+    expect(stickVector(0, 0, 5, 0, R, DZ, undefined, true)).toEqual({ x: 0, y: 0, magnitude: 0 });
+    expect(stickVector(0, 0, 0, 0, R, DZ, undefined, true).magnitude).toBe(0);
+    expect(stickVector(0, 0, 200, 0, R, DZ, undefined, true).magnitude).toBe(1);
+    expect(stickVector(0, 0, 50, 0, R, DZ, undefined, false).magnitude).toBeCloseTo(0.4 / 0.9, 9); // off = analog
+  });
+
   it("reports raw deflection without a dead zone", () => {
     expect(stickDeflection(0, 0, 25, 0, R)).toBeCloseTo(0.25, 9);
     expect(stickDeflection(0, 0, 250, 0, R)).toBe(1);

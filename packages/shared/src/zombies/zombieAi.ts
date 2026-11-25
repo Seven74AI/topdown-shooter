@@ -473,7 +473,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
       // Story 3.4: buildings (and the map edge) have the last word: they slide along, never pass a
       // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
       // it came from (its position at the start of the tick, outside every box; review H1, M1).
-      pushStuck = pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number) === PUSH_STUCK;
+      pushStuck = pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number, true, true) === PUSH_STUCK; // fix bloater-car-corner: escape an illegal start
       x = pushed.x;
       y = pushed.y;
     } else {
