@@ -50,25 +50,25 @@ so that I can find myself and they can recognise me.
 - [x] **T1 Look code (shared)** (AC 2–4, L1)
   - [x] `packages/shared/src/cosmetics/lookCode.ts`: `encodeLook(look)`, `decodeLook(input, owned) → { look, replaced }`, `ownedParts(cosmetics?)`, `LOOK_CODE_MAX = 96` (in `config/cosmetics.ts`), `partKey(slot, id)`. Pure, no allocation concerns (runs at join / bake only). Export from `packages/shared/src/index.ts` next to the 7.8 cosmetics block.
   - [x] `lookCode.test.ts`: round trip for all 51 parts, random colours, longest-id bound, junk fuzz, unowned replaced, per-slot fallback, `head:none` vs `pack:none`.
-- [ ] **T2 Database and session** (AC 1) — waits for Story 7.1 on master
-  - [ ] Drizzle schema: `look` text nullable on `progress`; `npm run db:migrate` migration file; the 7.1 progress repository returns it; the 7.1 session/progress response includes `look` (null → the client uses `DEFAULT_LOOK`).
-  - [ ] Repository test (7.1's DB test pattern): null by default, a stored code reads back unchanged.
-- [ ] **T3 Join and room state** (AC 5, 6, L1, L2)
-  - [ ] `messages.ts`: `look: z.unknown().optional()` in `joinOptionsSchema` (comment: "never refuses a join: decoded in checkAuth").
-  - [ ] `RunRoom.checkAuth` (`RunRoom.ts:240`): decode with the account's `owned` (7.1 puts the account on `RunAuth`; until 7.11 `ownedParts()`), add `look` (canonical code) to `RunAuth`; `RunRoom.join` (`:327`) sets `PlayerState.look` with `name` (`:344`).
-  - [ ] Schema field + every copy (brief 2): `RunState.ts`, `stateView.ts` (`PlayerStateView.look`, `PLAYER_STATE_FIELDS.look`), `fakeRoom.ts`, `devThrottle.ts` StateCopy, `resetRunFields` keeps it (`syncState.ts:217`), the 8.1 held seat / remembered seat keep it (check at build time).
-  - [ ] Room tests: a bad look joins; an unowned part is replaced; look survives `lobby.return`; bandwidth per tick unchanged.
+- [x] **T2 Database and session** (AC 1) — waits for Story 7.1 on master
+  - [x] Drizzle schema: `look` text nullable on `progress`; `npm run db:migrate` migration file; the 7.1 progress repository returns it; the 7.1 session/progress response includes `look` (null → the client uses `DEFAULT_LOOK`).
+  - [x] Repository test (7.1's DB test pattern): null by default, a stored code reads back unchanged.
+- [x] **T3 Join and room state** (AC 5, 6, L1, L2)
+  - [x] `messages.ts`: `look: z.unknown().optional()` in `joinOptionsSchema` (comment: "never refuses a join: decoded in checkAuth").
+  - [x] `RunRoom.checkAuth` (`RunRoom.ts:240`): decode with the account's `owned` (7.1 puts the account on `RunAuth`; until 7.11 `ownedParts()`), add `look` (canonical code) to `RunAuth`; `RunRoom.join` (`:327`) sets `PlayerState.look` with `name` (`:344`).
+  - [x] Schema field + every copy (brief 2): `RunState.ts`, `stateView.ts` (`PlayerStateView.look`, `PLAYER_STATE_FIELDS.look`), `fakeRoom.ts`, `devThrottle.ts` StateCopy, `resetRunFields` keeps it (`syncState.ts:217`), the 8.1 held seat / remembered seat keep it (check at build time).
+  - [x] Room tests: a bad look joins; an unowned part is replaced; look survives `lobby.return`; bandwidth per tick unchanged.
 - [x] **T4 Gun under the body** (AC 7, 8) — decision 7.9 D2
   - [x] `spriteAtlas.ts`: gun-only frames `survivorgun_<weapon>_a` for each `WEAPON_ART` weapon (with `WEAPON_BACK_ART` drawn first for the flamethrower), `survivorgun_plain_a` (today's `CHAR.gun` bar) and `survivorgun_chainsaw_b` (running chain); `survivorGunFrameFor(weapon, running)` beside `survivorFrameFor` (`:53`). Same frame size as `survivor_body_a` and same centre, so gun and body line up with one position and rotation. Keep the existing `survivor_*` frames (7.8's digest pin); note them as unused in the game for a later cleanup.
   - [x] `spriteArt.ts`: a `drawSurvivorBody(c, r, look, withPack)` that draws what `drawSurvivor` draws after the gun (arms → pack → top → skin → hair → headgear, `layers = false`), with the same line-state sequence.
   - [x] Raster test (`@napi-rs/canvas`, 7.8 pattern): for every survivor frame, gun frame + body frame composed ≈ the 7.8 frame (AC 8).
-- [ ] **T5 Per-player textures and PlayerView** (AC 7, 9–11, L3, L4)
+- [x] **T5 Per-player textures and PlayerView** (AC 7, 9–11, L3, L4)
   - [x] `apps/client/src/render/SurvivorLookTextures.ts`: one canvas per player id (2 frames side by side), registered once through `addGeneratedTexture` with a paint callback that reads the player's current resolved look (so a lost context repaints the current look); `setLook(playerId, code, stage)` repaints only when the code or stage changed (`tex.refresh()`); on scene `create` remove leftover `survivorlook_*` textures and unregister them (the `DarknessView.ts:136` / `:209` pattern: Phaser keeps textures across a scene restart); `dispose` on scene shutdown.
   - [x] `PlayerView.ts`: a second image for the gun (depth just under the body), both turned and placed together, both tinted (downed / slowed / `BODY_TINT`), both moved by `setAboveDark`; `setBody(textureKey, withPack)` switches the body frame only when the weapon's back piece changes (a swap or a buy), never per frame. The ring keeps `SLOT_COLORS` (AC 11).
-  - [ ] (early part done; `NetSimHost` reads `state.look` once T3 adds it) `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
+  - [x] `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
   - [x] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
-- [ ] **T6 Lobby card** (AC 12) — after the designer's pick
-  - [ ] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
+- [x] **T6 Lobby card** (AC 12) — after the designer's pick
+  - [x] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
 - [ ] **T7 Perf and gate** (AC 9, 14)
   - [ ] Bake timing (4 bodies) headless with and without a 4× CPU throttle; `?stress=150` before/after with `&devlooks=4`; load recorded; `docs/perf/epic-7-looks.md`.
   - [ ] Full gate on the branch merged with current master; "Notes for the merge"; "Not verified".

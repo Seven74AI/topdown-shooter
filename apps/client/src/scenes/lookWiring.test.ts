@@ -34,4 +34,7 @@ describe("GameScene look wiring (Story 7.9)", () => {
   it("practice solo draws my own look from this phone's copy (AC 13, D4)", () => {
     expect(src).toMatch(/new LocalSimHost\(\{ [^}]*look: deviceLook\.get\(\) \}\)/);
   });
+  it("the per-frame repaint budget is reset once per frame (AC 9: a build start's repaints spread over frames)", () => {
+    expect(src).toMatch(/this\.lookTextures\?\.beginFrame\(\);/);
+  });
 });

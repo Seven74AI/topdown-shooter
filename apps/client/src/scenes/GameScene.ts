@@ -1756,6 +1756,7 @@ export class GameScene extends Phaser.Scene {
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
   private syncPlayerViews(world: Readonly<World>, dtS: number): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
+    this.lookTextures?.beginFrame(); // Story 7.9: one body repaint per frame (a build start's stage dim, D1)
     this.burnView?.begin(dtS, this.time.now / 1000);
     this.flameView?.begin(dtS, this.time.now / 1000, world);
     world.players.forEach(this.syncPlayerView);

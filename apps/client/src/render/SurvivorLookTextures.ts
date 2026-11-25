@@ -47,6 +47,12 @@ export class SurvivorLookTextures {
   private readonly entries = new Map<string, Entry>();
   /** Bakes done (tests and the perf note): one per new player, one per look or stage change. */
   bakes = 0;
+  /**
+   * Story 7.9 (AC 9, perf note): repaints of EXISTING bodies allowed this frame. A build start (D1) changes every
+   * body's stage at once; one repaint per frame spreads the ~2 ms (4× throttled: ~9 ms) over 4 frames. A new player's
+   * body is painted at once (it has nothing to show before); the scene calls `beginFrame` once per frame.
+   */
+  private repaintBudget = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -62,6 +68,8 @@ export class SurvivorLookTextures {
     const e = this.entries.get(playerId);
     if (e) {
       if (e.code === code && e.stage === stage) return e.key;
+      if (this.repaintBudget <= 0) return e.key; // next frame (the old picture stays until then)
+      this.repaintBudget--;
       e.code = code;
       e.stage = stage;
       e.look = resolveLook(decodeLook(code, DRAWABLE).look, stage);
@@ -91,6 +99,11 @@ export class SurvivorLookTextures {
     this.entries.set(playerId, entry);
     this.bakes++;
     return key;
+  }
+
+  /** Once per frame, before the views sync: one repaint of an existing body is allowed again. */
+  beginFrame(): void {
+    this.repaintBudget = 1;
   }
 
   /** A player left: their texture goes (so 50 rejoins never keep 50 textures). */

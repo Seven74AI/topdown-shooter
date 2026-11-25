@@ -77,6 +77,7 @@ describe("per-player survivor textures (Story 7.9 AC 7, 9; D1)", () => {
     tx.setLook("p1", DEFAULT_CODE, 1);
     const c = canvases[0] as HTMLCanvasElement;
     const evening = sum(pixels(c));
+    tx.beginFrame();
     tx.setLook("p1", DEFAULT_CODE, 5);
     tx.setLook("p1", DEFAULT_CODE, 5);
     expect(tx.bakes).toBe(2);
@@ -85,9 +86,23 @@ describe("per-player survivor textures (Story 7.9 AC 7, 9; D1)", () => {
     tx.dispose();
   });
 
+  it("AC 9: a build start repaints at most one existing body per frame; all 4 are done after 4 frames", () => {
+    const { fs, tx } = setup();
+    for (const id of ["p0", "p1", "p2", "p3"]) tx.setLook(id, DEFAULT_CODE, 1); // new bodies: painted at once
+    expect(tx.bakes).toBe(4);
+    for (let frame = 1; frame <= 6; frame++) {
+      tx.beginFrame();
+      for (const id of ["p0", "p1", "p2", "p3"]) tx.setLook(id, DEFAULT_CODE, 2);
+      expect(tx.bakes).toBe(4 + Math.min(frame, 4));
+    }
+    expect(fs.refreshes).toBe(4);
+    tx.dispose();
+  });
+
   it("brief 20: a lost context repaints the CURRENT look and stage, not the first one", () => {
     const { tx, canvases } = setup();
     tx.setLook("p1", DEFAULT_CODE, 1);
+    tx.beginFrame();
     tx.setLook("p1", RED, 3);
     const c = canvases[0] as HTMLCanvasElement;
     const now = pixels(c).slice();
@@ -269,6 +284,7 @@ describe("GameScene's look hookup: syncViewLook (Story 7.9 AC 7, 10; R2)", () =>
     expect(v.layerSprite).toBeNull();
     expect(pool).toBeNull(); // no layer: no pool made
     frame(DEFAULT_CODE, 1);
+    tx.beginFrame();
     frame(DEFAULT_CODE, 2); // a build start
     expect(tx.bakes).toBe(2);
     frame("v1|head:prop", 2); // a look with the propeller cap (owned in a later story)

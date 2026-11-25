@@ -13,8 +13,8 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     hostSlot: 0,
     localPlayerId: "p0",
     players: [
-      { playerId: "p0", slot: 0, name: "Ana", ready: true },
-      { playerId: "p2", slot: 2, name: "Cid", ready: true },
+      { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
+      { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
     ],
     ...over,
   };
@@ -34,8 +34,8 @@ describe("snapshotLobby", () => {
       hostSlot: 0,
       localPlayerId: "p2",
       players: [
-        { playerId: "p0", slot: 0, name: "Ana", ready: false },
-        { playerId: "p2", slot: 2, name: "Cid", ready: true },
+        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" },
+        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
       ],
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
@@ -53,13 +53,13 @@ describe("lobbyView", () => {
   });
 
   it("explains a disabled Start to the host", () => {
-    const notReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }, { playerId: "p1", slot: 1, name: "Bo", ready: false }] });
+    const notReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" }, { playerId: "p1", slot: 1, name: "Bo", ready: false, look: "" }] });
     expect(lobbyView(notReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
-    const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }] });
+    const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" }] });
     // Designer 2026-11-23: a host alone may start a real online run in every build.
     expect(lobbyView(alone, false)).toMatchObject({ canStart: true, startHint: null });
     expect(lobbyView(alone, true)).toMatchObject({ canStart: true, startHint: null });
-    const aloneNotReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: false }] });
+    const aloneNotReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" }] });
     expect(lobbyView(aloneNotReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
   });
 

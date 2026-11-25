@@ -29,6 +29,8 @@ export interface LobbyPlayer {
   readonly slot: number;
   readonly name: string;
   readonly ready: boolean;
+  /** Story 7.9: the look code from the room state (the lobby card's survivor picture). */
+  readonly look: string;
 }
 
 /** Plain data for the lobby screen (never schema instances in Preact state). */
@@ -46,7 +48,7 @@ const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
-  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready }));
+  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look }));
   players.sort((a, b) => a.slot - b.slot);
   return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId };
 }
