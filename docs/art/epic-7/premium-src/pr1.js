@@ -50,7 +50,6 @@ const PR1 = (() => {
       const lx = bx + bs + 8, ly = y + h + 3;
       const gr = g.createLinearGradient(lx, 0, x + w - 10, 0); gr.addColorStop(0, 'rgba(255,178,56,0.8)'); gr.addColorStop(1, 'rgba(255,178,56,0)');
       g.fillStyle = gr; g.fillRect(x + 9, ly, w - 20, 1);
-      hazard(g, x + w - 70, by + 4, 50, bs - 8, 'rgba(255,178,56,0.22)', 3);
     },
     title(g, x, y, w, t, wave, L) {
       const tw0 = tw(g, wave.toUpperCase(), 14, 600, 1.5) + 14, tx = x + w - tw0, ty = y - 19;
@@ -124,6 +123,27 @@ const PR1 = (() => {
       const gap = 3 + (1 - a.p) * 8;
       g.save(); g.strokeStyle = lineCol; g.lineWidth = 1.6; g.globalAlpha *= 0.75 + 0.25 * a.pulse;
       neon(g, () => brackets(g, x, y, s, s, 7, gap), glow, 4 + 8 * a.pulse + 14 * a.flash); g.restore();
+      // boss-signal language: a tick ring lighting clockwise with a white-hot head, ending exactly on the landing flash
+      if (a.isNew) {
+        const N = 28, k = a.lt >= 99 ? 1 : clamp(a.lt / 0.6), dimK = a.lt >= 99 ? 1 : clamp((a.lt - 0.6) / 0.5), o = 5.5, P = 4 * (s + o * 2);
+        const pt = (u) => { let d = u * P; const L0 = s + o * 2; if (d < L0) return [x - o + d, y - o, 0, -1]; d -= L0; if (d < L0) return [x + s + o, y - o + d, 1, 0]; d -= L0; if (d < L0) return [x + s + o - d, y + s + o, 0, 1]; d -= L0; return [x - o, y + s + o - d, -1, 0]; };
+        g.save(); g.globalCompositeOperation = 'lighter'; g.lineWidth = 1.2;
+        for (let i = 0; i < N; i++) {
+          const u = (i + 0.5) / N, [px, py, nx, ny] = pt(u);
+          const lit = u <= k ? 1 : 0;
+          const al = lit ? lerp(0.95, 0.28 + 0.12 * a.pulse, dimK) : 0.12;
+          g.strokeStyle = `rgba(255,178,56,${al})`; g.beginPath(); g.moveTo(px, py); g.lineTo(px + nx * 2.5, py + ny * 2.5); g.stroke();
+        }
+        if (k > 0 && k < 1) { const [hx, hy] = pt(k); bloom(g, hx, hy, 9, 'rgba(255,200,110,0.9)'); g.fillStyle = '#fff6e0'; g.beginPath(); g.arc(hx, hy, 1.6, 0, TAU); g.fill(); }
+        // sparks drifting in (hashed per index, no allocation)
+        if (a.lt < 0.65) for (let i = 0; i < 9; i++) {
+          const h = Math.sin(i * 12.9898) * 43758.5453, fr = h - Math.floor(h), ang = fr * TAU, st = (i % 3) * 0.12, q = clamp((a.lt - st) / 0.45);
+          if (q <= 0 || q >= 1) continue;
+          const R = s * (1.05 - 0.6 * ease(q)), sx = x + s / 2 + Math.cos(ang) * R, sy = y + s / 2 + Math.sin(ang) * R;
+          g.fillStyle = `rgba(255,${200 + (i % 3) * 18},140,${Math.sin(q * Math.PI)})`; g.beginPath(); g.arc(sx, sy, 0.9 + (i % 2) * 0.5, 0, TAU); g.fill();
+        }
+        g.restore();
+      }
       if (a.flash > 0.01) bloom(g, x + s / 2, y + s / 2, s, `rgba(255,190,90,${0.45 * a.flash})`);
     },
     tag(g, x, y, label, kind, a, L, slot) {
@@ -146,6 +166,7 @@ const PR1 = (() => {
       const s = '+' + fmt(v);
       const flick = tt < 2.1 && tt > 0.4 ? 0.8 + 0.2 * Math.sin(tt * 90) : 1;
       text(g, s, x, y, { px, wt: 700, fill: goldFill(g, y, px * 0.75), glow: 'rgba(255,150,30,0.75)', blur: 14, alpha: flick });
+      g.save(); g.globalCompositeOperation = 'lighter'; text(g, s, x, y, { px, wt: 700, col: 'rgba(255,248,230,0.32)', shadow: false, alpha: flick }); g.restore(); // white-hot core
       return tw(g, s, px, 700);
     },
     rookie(g, xr, y, sp, L) {
@@ -215,6 +236,11 @@ const PR1 = (() => {
       if (pos < 0.98) { const gr = g.createLinearGradient(0, V.y + V.h - 22, 0, V.y + V.h); gr.addColorStop(0, 'rgba(8,11,15,0)'); gr.addColorStop(1, 'rgba(8,11,15,0.92)'); g.fillStyle = gr; g.fillRect(V.x - 4, V.y + V.h - 22, V.w + 4, 22); }
     },
     overlay(g, L, t, still) {
+      // marching chevrons in the header (BossHud language), amber; static when motion is off
+      const cx0 = L.right.x + L.right.w - 74, cy = L.right.y + 6 + (L.hdr - 6) / 2, off = still ? 0 : (t * 14) % 10;
+      g.save(); g.beginPath(); g.rect(cx0, cy - 8, 56, 16); g.clip(); g.lineWidth = 2; g.lineCap = 'square';
+      for (let i = -1; i < 6; i++) { const xx = cx0 + i * 10 + off, al = 0.25 + 0.5 * clamp((xx - cx0) / 56); g.strokeStyle = `rgba(255,178,56,${al})`; g.beginPath(); g.moveTo(xx, cy - 5); g.lineTo(xx + 4, cy); g.lineTo(xx, cy + 5); g.stroke(); }
+      g.restore();
       if (still) return;
       const r = L.right, band = (t * 0.35) % 1.3 - 0.15;
       g.save(); chamfer(g, r.x, r.y, r.w, r.h, [12, 3, 12, 3]); g.clip(); g.globalCompositeOperation = 'lighter';
