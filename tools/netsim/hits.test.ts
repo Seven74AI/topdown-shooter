@@ -169,6 +169,7 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
       expect(r.stalls).toEqual({ up: 0, down: 0 });
       expect(pct(r)).toBeLessThanOrEqual(0.5);
       expect(overCapPct(r)).toBe(0);
+      expect(r.viewOffsets.filter((v) => v > 6)).toEqual([]); // review R1: the control for the lossy rows' "> 6 ticks" share
     });
     for (const lossPct of [1, 2]) {
       it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 500 ms window)`, () => {
@@ -180,6 +181,11 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
         expect(pct(r)).toBeLessThan(5);
         // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none do.
         expect(overCapPct(r)).toBeLessThan(5);
+        // Review R1: the stalls really hurt the shots (not only counted): many ask for a view older than
+        // 6 ticks (300 ms), which never happens on the clean line (0 %).
+        const oldPct = (100 * r.viewOffsets.filter((v) => v > 6).length) / r.viewOffsets.length;
+        console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: shots asking > 6 ticks back ${oldPct.toFixed(1)} %`);
+        expect(oldPct).toBeGreaterThan(20);
         expect(REWIND_CAP_TICKS).toBe(10);
       });
     }
