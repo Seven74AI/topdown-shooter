@@ -10,12 +10,23 @@ import { TokenBucket } from "./tokenBucket";
 export type DropReason = "invalid" | "unknown_type" | "rate" | "too_large";
 const DROP_REASONS: readonly DropReason[] = ["invalid", "unknown_type", "rate", "too_large"];
 
-/** `input.send` has its own bucket, Story 5.24's `building.ghost` and Story 8.7's `ping.send` too; every other type shares one. */
+/** The input (`BYTES.INPUT`, Story 8.11) has its own bucket, Story 5.24's `building.ghost` and Story 8.7's `ping.send` too; every other type shares one. */
 export type MessageBucket = "input" | "other" | "ghost" | "ping";
 
 /** The part of a zod schema the guard uses (zod's `safeParse` result fits it). */
 export interface SafeParser<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
+}
+
+/**
+ * Story 8.11 (F2): a binary message's parser for `guard`: `decode` fills the preallocated `out` (no allocation per
+ * message) and says whether the bytes are valid. Anything that is not a byte array, or that `decode` refuses, is
+ * `invalid` (dropped and counted, like a schema refusal). The handler gets `out` itself: it must copy what it keeps.
+ */
+export function bytesParser<T>(decode: (bytes: Uint8Array, out: T) => boolean, out: T): SafeParser<T> {
+  const ok = { success: true as const, data: out };
+  const bad = { success: false as const };
+  return { safeParse: (value) => (value instanceof Uint8Array && decode(value, out) ? ok : bad) };
 }
 
 export interface GuardLogger {
