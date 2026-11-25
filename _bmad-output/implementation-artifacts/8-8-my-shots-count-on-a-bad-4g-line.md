@@ -222,7 +222,79 @@ Claude (builder cloud session, `gds-dev-story` flow), 2026-11-25 overnight auton
 - `apps/client/src/net/devThrottle.ts`, `apps/client/src/net/devThrottle.test.ts`, `apps/client/src/debug/urlOptions.ts`, `apps/client/src/debug/urlOptions.test.ts`, `apps/client/src/main.ts`, `apps/client/src/debug/PerfOverlay.ts`, `apps/client/src/debug/netSummary.ts`
 - `docs/perf/network-pass-2026-11.md` (new), `docs/perf/network-pass-smoke-2026-11-25.md` (new) + 2 screenshots, `_bmad-output/planning-artifacts/game-architecture.md`, `_bmad-output/planning-artifacts/epics.md`, `HANDOFF.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
+## Senior Developer Review (AI)
+
+Reviewer: fresh reviewer cloud session (gds-code-review: Blind Hunter / Edge Case Hunter / Acceptance Auditor passes run inline), 2026-11-25. Reviewed the merged tree `review-8-8` = `origin/story-8-8` c1c5ef1 + `origin/master` b0e491a (already contained: "Already up to date"), diff `git diff origin/master...HEAD` (31 files). `npm ci`, `npm run typecheck` green; probed/mutated tests only (no full gate, HANDOFF §3).
+
+**Verdict: findings (2 medium, 4 low, 3 nits).** The rule itself holds: the 500 ms window is clamped, only zombies and the Behemoth are rewound, present cover/death/generation rules are kept, and the measurements reproduce bit for bit. The mediums are in the test evidence and the shared test line, not in the game rule.
+
+### Findings
+
+| Id | Sev | File:line | Failure scenario | Suggested minimal fix |
+| --- | --- | --- | --- | --- |
+| R1 | medium | `tools/netsim/hits.test.ts:177-183` (liveness), `tools/netsim/hitsSim.ts:149-151` | The lossy rows' liveness only checks that stalls were *counted*. Mutation M19 (stall counted but not added to `due`, i.e. the lossy line silently becomes the clean line) leaves all 6 Story 8.8 rows green: reversed < 5 % and over-cap < 5 % are both true on a clean line. If 8.9 (which edits this harness next) breaks the stall term, the AC 5 rows keep passing while measuring nothing (brief 6). | In each lossy row also assert the stalls really hurt the shots, e.g. `viewOffsets.filter(v => v > 6).length / viewOffsets.length > 0.2` (before evidence: 38–73 % asked past 300 ms) or lossy p95 view offset ≥ clean p95 + 2 ticks. |
+| R2 | medium | `tools/netaudit/lagLine.ts:154-160` (`close`) | When either side closes, `close()` destroys both sockets and `stop()` clears both queues: every byte still in flight is lost, contradicting "never a lost byte". Probe: target server `s.end("bye-from-server")`, client `c.end("bye-from-client")`, rtt 200 → client received `""`, server received `""`. A server's last frames + WebSocket close frame (close code/reason) never reach the bot → it sees 1006. Brief 14 makes this THE test line and the story puts 8.1's drop/leave cut switch on it (brief 21: drop vs leave is decided by close codes); 8.10/8.11 `update_required` closes would be mis-measured. (Master's `lagProxy.ts` had the same flaw; now it's the shared line.) | Half-close in order: on `end` of a side, push an end marker into that direction's `OrderedDelay` and call `dest.end()` when it is delivered; only `destroy` on `error` or `LagLine.close()`. Add a `lagLine.test.ts` case: server writes then ends → client gets the bytes, then `end`, after ~rtt/2. |
+| R3 | low | `apps/client/src/main.ts:133-134` | Brief 26 (wiring test per hookup): deleting `lossPct: o.lossPct, stallMs: o.stallMs` (or `activeThrottle.current = throttle`) fails no test; `&loss=1` would silently run a clean line on the designer's Wi-Fi phones (the overlay would only lose its suffix). Self-declared under Not verified. | A `tools/checks/throttleWiring.test.ts` source check (like `fogWiring.test.ts`) for both lines in `throttled()`. |
+| R4 | low | `packages/shared/src/combat/rewind.test.ts` (barricade test comment) / story T5 / `buildings/buildings.ts:444-450` | T5's premise "buildings only change in a build phase, so now and then agree mid-wave" is false: `damageBuilding` removes a barricade at 0 HP mid-wave (mines are removed too). A rewound shot (now up to 500 ms, was 300) fired just after a barricade broke passes where the barricade was and hits the zombie at its old spot behind it, though the shooter's screen still drew the barricade (brief 15 "never pass through cover the shooter saw"). Gain: only against zombies, for the team; existed at 300 ms. | Fix the text (comment + story: "cover is tested as it is now; a barricade broken in the last 500 ms no longer blocks a rewound shot") and log it as accepted; no code change unless the designer wants strictness. |
+| R5 | low | `apps/client/src/debug/netSummary.ts:190` | The net-summary line (bug reports, the 4-phone test sheet) prints the raw query: `?loss=abc` (parsed off) reports `&loss=abc&stall=200`; `?loss=99` reports 99 though 20 is applied; `?loss=1&stall=x` reports `stall=x` though 200 is used. The report can claim a line that isn't the one running. | Build the string from `urlOptions().throttle` (parsed values). |
+| R6 | low | `docs/perf/network-pass-smoke-2026-11-25.md` (Setup) | "Script: kept out of the repo (scratch), the story file says how to rebuild it" — the story file does not say how; the two-tab smoke (brief 34) can't be re-run by 8.1, which must repeat it. | Commit the smoke script under `tools/` (or `docs/perf/…/smoke.py`) or write its steps in the report. |
+| N1 | nit | `rewind.test.ts` › "…a teammate standing on that spot now is not hurt" | The teammate assertion cannot fail: bullets have no player-hit code path at all, so it doesn't test "players are never rewound". Harmless documentation. | Say so in the test comment. |
+| N2 | nit | `tools/bots/lineArgs.ts:12-14`, `tools/bots/run.ts` `startLine` | Caps 20 / 1000 / 2000 duplicated from `devThrottle.ts`/`urlOptions.ts` (brief 7/20 "one place"); an `https://localhost` `--url` through the line is rewritten to `127.0.0.1` → TLS hostname mismatch. | Import the client constants (or a shared one); keep the hostname for https. |
+| N3 | nit | T8 table row | Before (master `lagProxy`, stalls down only) and after (in-process line, both ways) are not the same line (brief 13). Fine as liveness evidence only; label it so. | Label "different line, liveness only". |
+
+### Beat the rule (brief 4)
+
+| # | Attempt (player / modified client) | Result |
+| --- | --- | --- |
+| 1 | `viewTick` = 0, 12 ticks old, or 2^31 (future) | Clamped to 10 / 0 (`rewindTicksFor`, test F4; M2 kills it). Not logged: no telemetry for a clamped view (story asked "Logged?": no; F4 doesn't require it). Shot advance past the cap still ≤ `SHOT_ADVANCE_CAP_MS` (unchanged formula `firing.ts:244`). |
+| 2 | Shoot from behind a car at where a zombie was 450 ms ago | Blocked: `bulletBlockT` / gas tank / map boxes use present geometry (M5 kills the barricade test). |
+| 2b | Shoot through a barricade that broke < 500 ms ago at a zombie behind it (old view) | **Passes** (R4): present cover = no barricade. Team-only gain. |
+| 3 | Zombie dies; slot reused within 500 ms; old-view shot | Not hit: `rewoundView` includes only zombies alive *now* whose history generation matches (M4 kills it). Removing the projectile's own `isZombieAlive` guard (M3) changes nothing — the view already excludes dead ones (equivalent second guard). |
+| 4 | Shoot at a teammate's 400 ms-old spot where a zombie was | No damage: bullets never test players (N1), FF 50 % is explosion-only/present. |
+| 5 | Rewound touch aim assist onto a zombie now dead / behind cover | Not locked: `assistAim` keeps `isZombieAlive` + `bulletLineClear` (present cover) against the rewound view (code unchanged). |
+| 6 | Behemoth: shoot where it was 8–10 ticks ago mid-charge | Hit (D3, M6/M7 kill the test); present `bossBodyOn` still required (a dead/leaving boss is not hit at its old spot: `bossCircleHitBySegment` checks it first). Boss attacks use live positions (untouched). |
+| 7 | Flood inputs during a stall to fit more shots in the window | Bounded: seq+1 rule, input bucket, `INPUT_QUEUE_MAX` 6 unchanged; harness lossy rows show overflow drops, not extra shots (server shots ≤ local shots in every row). |
+| 8 | `&loss=20&stall=1000` in a release build | Only that tab's `DevThrottle` changes (client only, no new message, 0 B/s); its inputs arrive in bursts → its own overflow drops; other players see that player stutter exactly as with `?lag` today. Server tick unaffected. |
+| 9 | Melee / flamer with a 500 ms-old view | Reaches zombies where they were up to 500 ms ago (a Runner ~3 m back): team-only gain, as accepted in D1. |
+| 10 | Kill-steal: old view kills a zombie a teammate is shooting now | Same as at 300 ms (both hit the present zombie; first kill wins); no new harm to a player. |
+| 11 | Event objects (armed car 6.8, gas tank 6.9), stampede Runners, survivor NPC | Levers static, not rewound; stampede = ordinary zombies; no NPC hit path in `firing.ts`/`aimAssist.ts`. |
+| 12 | `?loss=abc` / `?loss=1.25` / `?stall=-3` / `?stall=400` alone | Off / off / default 200 / nothing on (tests); only the net-summary text lies (R5). |
+| 13 | Bots `--loss 1 --url https://hordes.sevend.io/api` | Refused with a clear message (M13 kills the test). |
+
+### Mutations (brief 6: each new test mutated once, reverted after)
+
+| Id | Mutation | Result |
+| --- | --- | --- |
+| M1 | `REWIND_MAX_TICKS` 10 → 6 | 4 / 4 Story 8.8 fairness tests fail |
+| M2 | drop the clamp in `rewindTicksFor` | 3 fail (F4 + two 2.12 tests) |
+| M3 | drop `isZombieAlive` in `updateProjectiles` | **survives** — equivalent (rewoundView holds alive-now zombies only) |
+| M4 | drop the generation check in `rewoundView` | 1 fails (the 2.12 generation test); the new 8.8 "slot reused since" case does **not** catch it on its own (low value, covered by 2.12) |
+| M5 | rewound shots ignore `bulletBlockT` | 1 fails (barricade test) |
+| M6 | boss tested at its live position | 1 fails (Behemoth test) |
+| M7 | boss history 8 rows | 1 fails (Behemoth test) |
+| M8 / M22 | throttle counts but doesn't add the stall (out / in) | 1 fails each |
+| M9 | loss draw even at `lossPct` 0 | 1 fails (bit-for-bit test) |
+| M10 | throttle incoming without `max(lastDue, …)` | **survives** — equivalent (the FIFO ring's pump already holds later messages behind the head) |
+| M11 / M20 / M21 | lag line: no up stall / up stall counted not delayed / down stall counted not delayed | 1 fails each |
+| M12 | lag line without `max(lastAt, …)` | **survives** — equivalent (FIFO queue, head-only scheduling) |
+| M13 | remote `--url` accepted | 1 fails |
+| M14 / M16 | `&loss` two decimals / no 20 % cap | 1 fails each |
+| M15 | default stall 400 | 4 fail |
+| M17 | `REWIND_MAX_TICKS` 6, netsim lossy rows | 4 / 4 lossy rows fail (Runners on reversed %, Walkers on over-cap / the cap pin); clean rows pass (correct) |
+| M18 | loss pct 0 in the lossy rows | 4 / 4 fail (stalls > 0) |
+| M19 | harness stall counted but not applied | **survives — all 6 rows pass (R1)** |
+| M23 | `REWIND_CAP_MS` 300 | RunController cap test fails |
+
+### Measurements re-run (brief 13)
+
+`npx tsx tools/netaudit/runHits.ts 60 3`, before on `origin/master` b0e491a (worktree), after on `review-8-8`, run side by side, load 0.1–0.6 (4 cores): **all 12 rows reproduce exactly** the story's table (e.g. Runners 1 % × 200: 7.6 % (31/410) → 2.0 % (8/406); 2 %: 11.9 % (48/404) → 1.3 % (5/398); Walkers kiting 2.3 / 3.5 → 1.8 / 2.1 %; clean 0.2 / 0.2; over-cap 50 / 73.3 → 0 / 0 %; 1 % × 400 Walkers kiting 10.0 → 12.6 % recorded). `PERF_ASSERT=1 tickCostRewind.test.ts`: passes, added work p99 0.066 ms (load ≈ 3 at the time, a background job of mine: not a clean-load number; builder's 0.060 ms at 0.01 stands).
+
+### Brief check (network pass brief lines)
+
+1 ok (ports, gate on merge) · 2 n/a (no state/wire field) · 3 ok (F1–F5 each a test) · 4 above · 5 ok (no sim change; boss history length follows the constant, same-build digests) · 6 **R1** · 7 ok (constants.ts / limits.ts with story comments; throttle caps in devThrottle.ts by the story's instruction; N2) · 8 ok (0 B/s) · 9 ok (smoke on lossy line; vote/reconnect not reached, declared) · 10 ok (recorded with load) · 11 ok (Not verified lists phones / 4G / iOS) · 12 ok (Notes for the merge) · 13 ok (reproduced; N3) · 14 ok, but **R2** for the line's close · 15 ok except **R4** (broken barricades) · 16–19, 21 n/a · 17 ok (clean rows unchanged) · 18 ok (no new client message) · 20 ok (hitsLossSim deleted, runHits imports the real harness and `REWIND_CAP_TICKS`) · 22 ok (6.8/6.9 levers static; no numeric 6-tick pins left: grep) · 23 ok · 24 ok (overlay suffix only) · **25** ok: every [x] task names tests that exist (T1/T8/T9/T10 are measurement/doc tasks with evidence; T6's `main.ts` wiring has none → R3) · 26 **R3** · 30 ok (Gate line: ddce305, master b0e491a, 398 files / 3679 tests, load 0.34–3.98) · 32 ok (HANDOFF, epics, architecture say 500 ms / 12 rows) · 33 ok (no pacing change) · 34 partial (vote, reconnect not reached; R6).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built (500 ms rewind, lossy line in harness / dev throttle / bots, fairness and lossy netsim tests, two-tab smoke); status review.
+- 2026-11-25: Senior Developer Review (AI): findings (2 medium, 4 low, 3 nits); status stays review.
