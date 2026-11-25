@@ -1,6 +1,6 @@
 # Story 6.8: Special events, car alarm and stampede
 
-Status: review
+Status: done
 
 ## Story
 
@@ -601,3 +601,8 @@ Every layout: 0 overlaps with ☰, swap, quick-use, the HP block or the wave lin
 - 2026-11-25: re-review 2 fixes: RR1 arrow on its ray (notched safe rect, obstacles, ≤ 30° fallback with hysteresis), RR2/RR3 wave-line and HP-row reserves, RR4 forced event wins over the endless pick, fakeRoom order.
 - 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes: changes requested (1 medium RR3-1 arrow flicker at obstacle corners, 3 low, 1 nit).
 - 2026-11-25: re-review 3 fixes: RR3-1 arrow jump hysteresis (no strobe), RR3-2 money line split from the HP block, RR3-3 measured HUD reserves, RR3-4 forced endless kind remembered.
+
+### Main session close-out (2026-11-25)
+
+- Re-review 4 approved (0 high/medium). Follow-ups: resize/rotation case for the RR3-1 hold (`legalAt(prev…)` untested), `reportHudTextWidths` doc says DPR/font change but only create calls it; review M1 (pre-existing wide-body RUSH Bloater stall at a 0.5 m diagonal barricade gap) is its own small story; the bot strafe flip stays.
+- Main-session full gate on story-6-8 ac867a6 (master 58ab0b7 merged): typecheck, lint, 385 files / 3,547 tests passed (3 skipped), build OK; load 0.29 → see gate log (4 cores). Story done.
