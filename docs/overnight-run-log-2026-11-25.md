@@ -146,3 +146,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:19 7.1 (0f679c4e: merged master with 8.1 + 8.10) gated as master + 7.1 (440 files / 3975 tests, load 3.37) → 7.1 DONE ON MASTER. First Epic 7 story landed.
 - 09:28 Epic 8 merged story files (91f419ec: 8.2+8.3 L, 8.4+8.5+8.6 XL, 8.7 M; 33 decisions in docs/epic-8-story-decisions.md, recommended) + HANDOFF re-review cap + story-merges doc + run log: docs gate 440 files / 3975 tests → on master.
 - 09:39 7.2 (d27ccbc) + master docs gated (451 files / 4079 tests, load 3.23) → 7.2 DONE ON MASTER.
+- 09:49 Asset session: wall silhouettes (designer picked C) on 002eaa7 (gate 453 files / 4085 tests). Light review dispatched (colour rule: zombie silhouette is red 0xff5c48 vs 'red = boss danger only' in play; mask-filter phone cost; darkness leak).
