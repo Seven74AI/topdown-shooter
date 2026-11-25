@@ -185,7 +185,7 @@ development_status:
   8-8-my-shots-count-on-a-bad-4g-line: done  # 2026-11-25 overnight: 500 ms rewind (8.9 raises to 600) + lossy line; review 2M+4L fixed, narrow re-review 3L test gaps fixed
 
   8-9-smooth-through-hiccups: done  # 2026-11-25 overnight: adaptive 100-250 ms delay, render clock 0.9-1.1x, 600 ms rewind (B8), B7 starved ticks, B9 F1 <= 1.2/30 s; review 2M+4L fixed, re-review 1M (B9) + 2L text
-  8-1-reconnect-within-2-minutes: in-progress  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
+  8-1-reconnect-within-2-minutes: review  # 2026-11-25 overnight: hold 120 s (drop + quiet 3 s), takeover by guest token, remembered seats, freeze + 3-2-1, phone watchdog 3 s; 8 s cut back in 0.3 s on the lossy line; B1-B14 auto-accepted
   8-10-half-size-horde-stream: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 4: delta horde stream
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: backlog

@@ -153,14 +153,18 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     const bo = clients[1] as RunSdkRoom;
     reconnect(bo, true);
     let reconnected = 0;
+    let frames = 0;
     bo.onReconnect(() => reconnected++);
+    bo.onMessage(BYTES.HORDE_FRAME, () => frames++); // T4: the handlers registered at the join survive the reconnect
     dropSocket(room, bo);
     await vi.waitFor(() => expect(reconnected).toBe(1), { timeout: 4000 });
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
     expect(world(room).players.has("p1")).toBe(true);
-    // The reconnected client is JOINED again: it gets state patches (and horde frames) at once.
+    // The reconnected client is JOINED again: it gets state patches and horde frames at once (HordeEncoder sends to JOINED only).
     const tick = bo.state.tick;
+    const f0 = frames;
     await vi.waitFor(() => expect(bo.state.tick).toBeGreaterThan(tick + 2));
+    await vi.waitFor(() => expect(frames).toBeGreaterThan(f0 + 2));
   });
 
   it("downed when dropped → out after the return (F1), mid-wave", async () => {
