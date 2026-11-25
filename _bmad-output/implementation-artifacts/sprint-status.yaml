@@ -202,10 +202,10 @@ development_status:
   9-2-downtown-in-five-decay-states: backlog
   9-3-survivor-animations: backlog
   9-4-zombie-and-behemoth-animations: backlog
-  9-5-gore-and-dismemberment: backlog
-  9-6-effects: backlog
+  9-5-gore-and-dismemberment: backlog  # needs 10.1 (gore toggle) first (readiness 2026-11-25 Q3)
+  9-6-effects: backlog  # needs 10.1 (quality settings) first
   9-7-ui-art: backlog
-  9-8-ambience-and-audio-buses: backlog
+  9-8-ambience-and-audio-buses: backlog  # needs 10.1 (volume sliders) first
   9-9-adaptive-music: backlog
   9-10-weapon-and-zombie-sounds: backlog
   9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
@@ -216,7 +216,7 @@ development_status:
 
   # Epic 10: Performance and polish
   epic-10: backlog
-  10-1-settings-screen: backlog
+  10-1-settings-screen: backlog  # build BEFORE 9.5, 9.6, 9.8 (readiness 2026-11-25 Q3)
   10-2-frame-rate-pass-on-reference-phones: backlog
   10-3-memory-and-battery-pass: backlog
   10-4-fast-loading: backlog

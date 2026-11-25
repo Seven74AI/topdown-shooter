@@ -100,5 +100,6 @@ The layout numbers below are for the recommended **B**; when the designer picks 
 ### Completion Notes List
 
 - 2026-11-25: story written (gds-create-story, headless); status `backlog` until the designer picks BU-1.
+- 2026-11-25 (readiness check): the quick tile is client-only, so after a page reload, reconnect, resume or late join it falls back to the first unlocked type (BU-5); moves, sells and take-backs don't change it.
 
 ### File List

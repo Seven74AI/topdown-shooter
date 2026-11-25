@@ -196,7 +196,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 
 ### Data Persistence
 
-- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, recovery code hash, guest token hash, display name, created), `progress` (account id, supplies, lifetime supplies, unlocks, training levels, districts; `look` from Story 7.9; `cosmetics`, `stats` from Story 7.11), `saved_runs` + `saved_run_players` (Story 8.4). Each story's migration adds only its own columns.
+- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, recovery code hash, guest token hash, display name, created), `progress` (account id, supplies, lifetime supplies, unlocks, training levels, districts; `look` from Story 7.9; `cosmetics`, `stats` from Story 7.11), `saved_runs` + `saved_run_players` (Story 8.4); `progress.settings` (Story 10.1); `problem_reports` (Story 10.6: id, account id nullable, created, note, payload JSON; kept 30 days); `run_results` + `run_result_players` (Story 10.7). Each story's migration adds only its own columns.
 - **Migrations:** Drizzle Kit, versioned in the repo.
 - **What is not persisted:** live wave state; a run can only be saved and resumed from a Build phase.
 
@@ -211,7 +211,7 @@ Texture atlases per district and per character set; audio sprites for SFX; ambie
 - **ADR-03 Shared simulation package.** One implementation of movement, combat and collision used by the server (authority), the client (prediction) and tests. Rule: no Phaser or Colyseus imports inside it.
 - **ADR-04 Single PostgreSQL on the existing VPS.** Simplicity over scale; backups by nightly dump.
 - **ADR-05 Tiled or generated maps with decay layers.** Decay is data (mutation groups with `pick N`), not code paths per district, so neither a new district nor a generated city needs new decay code.
-- **ADR-06 City generator in shared code (Random city, Epic 11; `sprint-change-proposal-2026-11-24-random-city.md`).** `packages/shared/src/map/gen/` turns `(citySeed, generatorVersion)` into a `DistrictMap`; the server sends the pair and every client builds the same map. Chosen over sending a generated map from the server (a download per join, harder replays) and over hand-made block assemblies (rejected in the forge). Rules: no randomness outside the `city` PRNG; the join checks the generator version and the map digest (mismatch → "Please refresh"); every city passes checks A–G and the anchor check, or is regenerated; saved runs store `citySeed` + `generatorVersion`. Cost: generator code and checks that must hold for every seed.
+- **ADR-06 City generator in shared code (Random city, Epic 11; `sprint-change-proposal-2026-11-24-random-city.md`).** `packages/shared/src/map/gen/` turns `(citySeed, generatorVersion)` into a `DistrictMap`; the server sends the pair and every client builds the same map. Chosen over sending a generated map from the server (a download per join, harder replays) and over hand-made block assemblies (rejected in the forge). Rules: no randomness outside the `city` PRNG; the join checks the generator version and the map digest (mismatch → "Please refresh"); every city passes checks A–G and the anchor check, or is regenerated; saved runs store `citySeed` + `generatorVersion`, and a save from an older generator version can't be resumed (Saved games shows "This city is from an older version" with Delete only; designer 2026-11-25); the generator uses only integer/fixed-point maths or shared lookup tables (no transcendental `Math.*`, which engines may round differently), checked by lint and a cross-browser digest fixture. Cost: generator code and checks that must hold for every seed.
 
 ## Cross-cutting Concerns
 
@@ -266,7 +266,7 @@ log.warn({ roomId, playerId, reason: "invalid_aim_vector" }, "client_message_rej
 | --- | --- | --- |
 | Game constants | `packages/shared/src/config/constants.ts` | tick rate 20 Hz, grid cell 2 m |
 | Balance values | `packages/shared/src/config/balance/*.json`, typed and validated at load | weapon table, zombie table, wave curve, prices, decay timings |
-| Player settings | client localStorage (try/catch), synced to the account when logged in | volumes, quality, gore toggle, aim assist |
+| Player settings | client localStorage (try/catch), synced to the account when logged in | volumes, quality, gore toggle, aim assist, haptics (Story 10.1; guest merge keeps the account's settings) |
 | Environment / deployment | environment variables read once at server start | database URL, public URL, log level |
 
 **Rules:** no gameplay number is written inline in code; systems read balance values through one typed `Balance` object. The server and client load the same balance files; the server sends the balance version on join and refuses mismatched clients ("Please refresh").
@@ -574,10 +574,10 @@ const world = createWorld({ balance, seed, district });
 
 - **Transport:** HTTPS and WSS only, terminated at the Cloudflare edge (Caddy is plain HTTP on 127.0.0.1 behind the tunnel); WebSocket origin check against the game's subdomain.
 - **Accounts:** Argon2id password hashes; guest tokens stored hashed; rate limits on login (5/min per IP) and room creation (10/min per IP).
-- **Input hardening:** inbound message size limit of 1 KB (clients never send binary), server-side input rate cap (25/s per client), zod validation.
+- **Input hardening:** inbound message size limit of 1 KB, server-side input rate cap (25/s per client), zod validation of every JSON message. The only binary client message is the compact input from Story 8.11, decoded strictly (exact length, every field range-checked, fuzz-tested; malformed → dropped and logged); `NET_PROTOCOL_VERSION` is checked on join like the balance version ("Please refresh").
 - **Backups:** nightly `pg_dump` container, 14 days kept, copied off the VPS; restore tested once per milestone.
 - **Deploys:** graceful shutdown autosaves every running room's last Build snapshot; Caddy serves `index.html` with no-cache and hashed assets with long cache; CI typechecks, lints, tests and builds the Docker images.
-- **Run stats:** `run_results` table (district, wave reached, extracted, loadouts per player) for the success metrics.
+- **Run stats:** `run_results` (district or `random:<code>`, seed, player count, wave reached, extracted, started, ended, nights played) and `run_result_players` (run id, account id, slot, loadout, waves in) for the success metrics (Story 10.7).
 
 ### Development Environment
 

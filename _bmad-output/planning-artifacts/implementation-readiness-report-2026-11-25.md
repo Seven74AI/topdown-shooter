@@ -507,3 +507,33 @@ Scope note: per `sprint-status.yaml`, Epics 1–7 are done (except the human pla
 This assessment found **37 issues across 4 categories**: 4 inventory-drift items (D1–D4), 6 GDD inconsistencies (G1–G6), 6 UX gaps (U1–U6) and 21 epic/story quality findings (Q1–Q21: 5 critical/high, 8 major, 8 minor). No requirement is missing. The risk is concentrated in the stories still to come: the photoreal pass, Epic 10's data stories, 8.11 and Random city. Address the critical items before building those stories; the rest can be fixed as they come up, or you can choose to proceed as-is.
 
 *Assessor: GDS implementation-readiness workflow (Game Producer / Scrum Master role), 2026-11-25. Inputs read in full: `gdd.md`, `epics.md` (all 141 stories), relevant sections of `game-architecture.md`, `sprint-status.yaml`, and spot checks of `packages/shared` balance JSON and code.*
+
+## 7. Fixes applied (2026-11-25, same session)
+
+Designer decisions taken for this pass: **Q2** a saved Random city run from an older generator is shown as "This city is from an older version" with Delete only; **Q12** a Random city extraction grants the "first extraction" milestone (M2) but not District 2; **Q3** Story 10.1 is built before 9.5, 9.6 and 9.8.
+
+**Corrections to this report:** Q10/U2 were partly wrong. The 10.10 story file already records BU-1 = **B** (designer, 2026-11-25), and BU-5 covers the quick tile before the first placement; only `epics.md` and a comment in `sprint-status.yaml` were stale. Q5 was also mostly covered: the 8.11 story file already has strict decoding (F2) and a `NET_PROTOCOL_VERSION` bump. Only the `epics.md` AC and the architecture's "clients never send binary" line lagged.
+
+| Finding | Fixed in |
+|---|---|
+| D1–D4, Q19 | `epics.md` FR31, FR45, FR48, FR52, FR78, Story 7.2 |
+| G1–G6 | `gdd.md` (economy join money, solo boss wording, 150–700, header date, Build button in *Controls*, wave 10 clear before the helicopter); Supplies table gains endless Behemoths |
+| Q1, Q2, Q12, Q20, Q21 | `epics.md` 11.1, 11.2, 11.6, 11.7, FR94; `gdd.md` *Level Types*/*Pacing*; architecture ADR-06 |
+| Q3 | `epics.md` epic order line, Epic 9 intro, 9.5, 9.6, 9.8, 10.1; `sprint-status.yaml` comments |
+| Q4, Q7 | `epics.md` 9.14 (silhouettes for every standing prop, drawn top vs collision, decay and event states, FPS/memory) |
+| Q5 | `epics.md` 8.11; architecture input hardening |
+| Q6 | `epics.md` 9.13 and story file AC 9 (blackout eyes, holds, memory, scope to 9.3/9.4/9.5); heading now "(in progress)" |
+| Q8, Q9, Q11 | `epics.md` 10.7, 10.1, 10.6; architecture tables and settings row |
+| Q10, U2 | `epics.md` 10.10 (B recorded, quick-tile fallback rules); 10.10 story file completion note |
+| Q13, Q14 | `epics.md` Additional Requirements (resume by anyone, 600 ms rewind, Network-pass stream changes); Epic 5/6 headings |
+| Q15 | 9.13 heading |
+| Q17 | "Current rule" notes on Stories 2.3, 2.8, 3.2, 3.4, 4.2, 4.5, 5.2, 5.3, 5.5, 5.9, 5.11, 5.12, 6.1, 8.6 |
+| Q18 | `epics.md` 10.8 reworded to "re-check" |
+| U1 | `ux-spec.md` note, 9.7 build cluster, UX Design Requirements line |
+| U3 | 8.7 (no minimap) |
+| U4 | 9.7 Results layout AC |
+| U5 | 10.1 haptics toggle |
+| U6 | 10.9 first-time build-phase observation; GDD open item |
+| Epic 10 NFR line | NFR3, NFR9 added |
+
+**Left for the designer:** in `10-10-build-button.md`, tick the task "Designer picks BU-1" and replace the opening "(Waiting on … BU-1)" line; in `sprint-status.yaml`, the 10-10 comment still says "waits on BU-1". The pick itself is already in the story's decision log. The recommended `gds-ux` pass is a separate workflow and was not run.

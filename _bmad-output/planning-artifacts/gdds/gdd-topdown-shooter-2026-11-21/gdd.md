@@ -4,7 +4,7 @@ game_type: shooter (with roguelike run structure and tower-defense building)
 platforms: [mobile web browser, desktop web browser]
 status: final
 created: 2026-11-21
-updated: 2026-11-23
+updated: 2026-11-25
 source_brief: ../../briefs/brief-topdown-shooter-2026-11-21/brief.md
 ---
 
@@ -57,7 +57,7 @@ Each pillar is a decision rule. When a feature or tuning choice is unclear, thes
 ### Win/Loss Conditions
 - **Loss:** no player is standing (everyone is downed or out). The run ends.
 - **Downed state:** a player at 0 HP goes down. A standing teammate within **2.0 m** (centre to centre) for **3 s** revives them; the downed countdown pauses while someone revives, and the downed player's gun keeps reloading. If no one does within **20 s**, they are out until the next build phase, when they return automatically.
-- **Win:** survive wave 10. An evacuation helicopter arrives and the team votes:
+- **Win:** survive wave 10. The Behemoth's death calls the evacuation helicopter; it lands once the rest of wave 10 is cleared (the last-5 rule still applies), and the team votes:
   - **Vote rules:** 15 s to vote; majority wins; a tie or no votes means extract.
   - **Extract:** the run is won; all rewards are kept. The helicopter lifts off into 4 s of dawn, then Results.
   - **Stay:** endless waves in the collapsed city. A new evacuation comes every 5 waves (15, 20, 25…). If the team is wiped before extracting, it loses the rewards earned after wave 10 and keeps everything from waves 1–10.
@@ -85,7 +85,7 @@ Numbers for each are in the sections below.
 - **Reload:** automatic when the magazine is empty.
 - **Open risk:** melee under twin-stick worked in browser probes but needs a playtest on real phones (Epic 1).
 - **Desktop (bonus):** WASD to move, mouse to aim, hold left click to fire, Q to swap.
-- **Build phase:** pick a building in the build bar, carry its ghost and drag to place it ("B · Carry + drag", 0.5 m lattice); the ghost turns red at once when blocked and green only after 250 ms clear. Weapons, upgrades, gear and consumables come from the shop. Details in *Buildings and Defenses* and `docs/ideas/building-ux/ux-spec.md`.
+- **Build phase:** tap the last-placed building's quick tile (one tap to repeat) or open the **Build** panel (Story 10.10, layout B; a round Shop chip sits above Build), then carry the ghost and drag to place it ("B · Carry + drag", 0.5 m lattice); the ghost turns red at once when blocked and green only after 250 ms clear. Weapons, upgrades, gear and consumables come from the shop. Details in *Buildings and Defenses* and `docs/ideas/building-ux/ux-spec.md`.
 
 ## Shooter Specific Design
 ### Weapon Systems
@@ -198,7 +198,7 @@ Placed during build phases on a 0.5 m lattice (anchored by the building's min co
 **Decay interaction:** fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings. Brutes deal 3× damage to buildings.
 ### Enemy Wave Design
 **Wave size (4 players):** wave 1 ≈ 40 zombies, growing by ≈ 40 per wave to ≈ 400 in wave 10; at most ≈ 150 alive at once (110 while the Behemoth lives; the rest queue at spawn points).
-**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. **Solo (1 player) online runs are allowed** (designer, 2026-11-23): × **0.35** (Epic 5 balance pass, 2026-11-24; was 0.4); going down alone ends the run (team wipe). Balance targets stay tuned for 2–4.
+**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. **Solo (1 player) online runs are allowed** (designer, 2026-11-23): zombie count × **0.35** (Epic 5 balance pass, 2026-11-24; was 0.4), Behemoth HP × **0.4**; going down alone ends the run (team wipe). Balance targets stay tuned for 2–4.
 
 **Wave 10 boss: The Behemoth.** Arrives when 50% of wave 10's zombies have spawned, with the horde still active.
 - Size 5× a walker (radius 2 m); speed 1.3 m/s; immune to knockback. HP **6,000** at 4 players (≈ 40 s of focused team fire; scaled by player count).
@@ -230,9 +230,10 @@ District-specific events are planned per district later (e.g. hospital quarantin
 | Source | Supplies |
 |---|---|
 | Each wave survived | +10 |
-| Behemoth killed | +50 |
+| Behemoth killed (wave 10, once per run) | +50 |
 | Extract (run won) | +100 |
 | Each endless wave | +20, kept only if the team extracts |
+| Each endless Behemoth | +50, kept only if the team extracts |
 
 A wave counts for every player still in the run when it ends, downed or out, and only waves the player was in (none before a late join or after leaving); a quitter keeps what they earned. **Rookie lift:** a player's Supplies are doubled while their lifetime Supplies are below 300 (about the first 3 runs).
 
@@ -245,7 +246,7 @@ A wave counts for every player still in the run when it ends, downed or out, and
 
 Unlocks are bought in any order and add cards to the player's shop deck and tiles to their build bar: more options, not more power. **Borrowed card:** when a teammate in the room has unlocked weapons or gear the player hasn't, one of the player's 6 cards is drawn from those and marked "Borrowed from <name>" (bought with run money, gone after the run).
 **Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency +50 (200 → 250) · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
-**Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it.
+**Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it. A Random city extraction counts for the "first extraction" milestone item but not for District 2 (designer 2026-11-25).
 **Survivor look (cosmetic only):** each player builds their survivor from code-drawn parts and free colours; extra parts come from 10 milestones (earned once) and a rare loot bag (1 run in 5), never from Supplies (FR89; `docs/ideas/customization/proposal.md`).
 ### Difficulty Curve
 | Waves | Feel | Why |
@@ -260,18 +261,18 @@ Unlocks are bought in any order and add cards to the player's shop deck and tile
 Build phases are the breathers between waves. Difficulty grows through zombie count, mix, map changes and darkness, never through zombie stats (pillar 1; only endless beyond wave 15 adds HP).
 ### Economy and Resources
 - **Personal wallets.** Each player earns and spends their own currency.
-- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with the team's average currency.
+- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with 100 + 60 % of the team's average earnings so far (Epic 8 D7).
 - **Start of run:** pistol + 200 currency (designer 2026-11-24, with the card shop).
 - **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 15 × wave number** (Epic 5 balance pass; was 10 × N) to every player in the run, including downed and out players.
 - **Target:** ≈ **2,500–3,000 currency per player** over a full 10-wave run at any player count (bot sims, 10 waves: kill + assist money ≈ 1,470 (4p) to 1,910 (2p) per player + 825 wave bonus + 200 start; human assists add more): enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).
 - **Earnings decision (Epic 5 balance pass, designer 2026-11-24):** wave bonus **15 × N** (the long-standing fallback), start money stays 200. Seeded 10-wave bot runs then give ≈ 2,500 (4p), 2,710 (3p), 2,930 (2p) per player, inside the target; before, 3–4 players were 2–11 % short. Re-check with Story 6.1's 10-wave sim. Details: `docs/balance/epic-5-balance-pass.md`.
-- **Spending:** weapons 150–800, upgrades 60% of base price per level, gear 120–350, buildings 40–400, consumables 60–100, reroll 20.
+- **Spending:** weapons 150–700, upgrades 60% of base price per level, gear 120–350, buildings 40–400, consumables 60–100, reroll 20.
 
 ## Level Design Framework
 ### Level Types
 **Districts** are hand-made maps. Players pick one at the start of a run; it decays around them over the run. v1 ships **Downtown**. Later candidates [NOTE FOR DESIGNER: pick order later]: Hospital, Suburbs, Port, Subway station, Shopping mall, Military checkpoint. Each future district brings its own landmarks and 1–2 district events. Unused art probes can return as special content: a **CCTV-footage intro** and a **Blood Moon cemetery** special district.
 
-**Random city** (Epic 11, post-v1; `sprint-change-proposal-2026-11-24-random-city.md`): a new 70 × 70 m city generated from rules on every run (street plan, blocks, building footprints, cars, barriers, and landmark recipes, first the gas station), open from the start with no unlock. It decays by generic rules through all 5 stages, every city passes fairness checks A–G and the anchor check, and Results shows a city code that replays the layout (FR90–FR94). It is not a district unlock: the District 2 rule is unchanged.
+**Random city** (Epic 11, post-v1; `sprint-change-proposal-2026-11-24-random-city.md`): a new 70 × 70 m city generated from rules on every run (street plan, blocks, building footprints, cars, barriers, and landmark recipes, first the gas station), open from the start with no unlock. It decays by generic rules through all 5 stages, every city passes fairness checks A–G and the anchor check, and Results shows a city code that replays the layout (FR90–FR94). A saved Random city run can't be resumed after a generator update: it shows "This city is from an older version" and can only be deleted (designer 2026-11-25). The generator uses integer/fixed-point maths so every browser builds the same city. It is not a district unlock: the District 2 rule is unchanged.
 ### Level Progression
 Decay advances one stage every 2 waves and changes play, not only looks (pillar 3):
 
@@ -368,4 +369,5 @@ This is a game for a group of friends, so success is simple and honest.
 - ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 (designer 2026-11-24); the solo zombie count became × 0.35 in the Epic 5 balance pass, the Behemoth's number stays its own.
 - [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
 - [NOTE FOR DESIGNER] New players may skip Downtown, the hand-made first city, since Random city is open from the start: Downtown is the default pick (Story 11.7); revisit after playtests.
+- [NOTE FOR DESIGNER] No first-run tutorial: the build phase has many touch actions (carry, drag-to-pin, long-press move, undo, Build panel). Story 10.9 watches a first-time player; add hints only if they get stuck.
 - Working title.
