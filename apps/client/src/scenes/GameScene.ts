@@ -1,3 +1,4 @@
+import { linkStore } from "../net/linkMonitor";
 import * as Phaser from "phaser";
 import { MolotovView } from "../render/MolotovView";
 import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
@@ -568,7 +569,8 @@ export class GameScene extends Phaser.Scene {
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
-    const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn }) : null;
+    // Story 8.1 (F7): no input while the link is down (`linkStore`, written by the room's LinkMonitor).
+    const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn, linkUp: () => linkStore.get().status === "ok" }) : null;
     // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
     const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
     const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave });
@@ -631,6 +633,11 @@ export class GameScene extends Phaser.Scene {
     if (session) {
       // Online game over → Back to start, or the connection dropped: leave the run (Story 2.4).
       uiStore.handle("leaveRun", (error) => this.scene.start("Boot", (error ? { error } : {}) satisfies BootSceneData));
+      // Story 8.1 (AC 4, 6): my seat came back on a new room (a takeover or a reload's seat): the run goes on in a
+      // restarted Game scene with the new session (the late-scene-start path; a same-room reconnect never gets here).
+      uiStore.handle("startOnline", (next) => {
+        if (this.scene.isActive()) this.scene.restart({ mode: "online", session: next } satisfies GameSceneData);
+      });
       // Story 2.8: the room went back to the lobby; this device stays in it (the session was released).
       uiStore.handle("backToLobby", () => this.scene.start("Boot", { lobby: true } satisfies BootSceneData));
     } else {

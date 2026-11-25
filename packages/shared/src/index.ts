@@ -662,3 +662,5 @@ export { powerFailureWave } from "./events/powerFailure";
 export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
 export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";
+
+export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, RECONNECT, SeatRecovery, Watchdog, configureReconnection, shouldRescueReload, type RecoveryDeps, type RecoveryJoin, type ReconnectionLike } from "./net/reconnect"; // Story 8.1

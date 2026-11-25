@@ -127,6 +127,11 @@ export interface NetSimHostOptions {
   measureHits?: () => boolean;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the server's; tests may pass `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
+  /**
+   * Story 8.1 (AC 4, F7): false while the link is down (dropped, reconnecting, seat kept): no input
+   * is sent or predicted then (nothing pressed offline happens late). Default: always up.
+   */
+  linkUp?: () => boolean;
 }
 
 /**
@@ -272,10 +277,14 @@ export class NetSimHost implements SimHost {
   private sellRefusal: SellError | null = null;
   /** Story 5.22: move refusals until the scene takes them (oldest first; a few at most). */
   private readonly moveRefusals: MoveRefusal[] = [];
+  // Story 8.1 (AC 1): a held teammate (`heldUntilTick > 0`) has no body on the map: out of the mirror
+  // World like on the server (no ring, no arrow, no aim-assist target); it comes back when the hold ends.
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
-    if (!this.latest?.players.has(id)) removePlayer(this.world, id);
+    const s = this.latest?.players.get(id);
+    if (!s || (s.heldUntilTick > 0 && id !== this.localPlayerId)) removePlayer(this.world, id);
   };
   private readonly addMissing = (p: PlayerStateView, id: string): void => {
+    if (p.heldUntilTick > 0 && id !== this.localPlayerId) return;
     if (!this.world.players.has(id)) addPlayer(this.world, id, p.x, p.y);
   };
   private readonly writePlayer = (p: PlayerState): void => this.applyPlayer(p);
@@ -288,8 +297,12 @@ export class NetSimHost implements SimHost {
   /** Story 5.6 review M1: an acid puddle's life (s); older splashes in a drained backlog are dropped. */
   private readonly puddleS: number;
 
+  /** Story 8.1: the link is up (see `NetSimHostOptions.linkUp`). */
+  private readonly linkUp: () => boolean;
+
   constructor(opts: NetSimHostOptions) {
     this.session = opts.session;
+    this.linkUp = opts.linkUp ?? (() => true);
     this.localPlayerId = opts.session.playerId;
     this.flames.predictLocal(this.localPlayerId); // Story 5.4
     this.now = opts.now ?? (() => performance.now());
@@ -711,6 +724,13 @@ export class NetSimHost implements SimHost {
 
   /** One input per 50 ms step, like LocalSimHost; at most 5 per frame, the rest dropped. */
   private stepInputs(frameDtS: number): void {
+    if (!this.linkUp()) {
+      // Story 8.1 (F7): offline steps are never sent or predicted (and never sent late as a burst).
+      this.accumulatorS = 0;
+      this.latchedSwap = false;
+      this.latchedConsumable = false;
+      return;
+    }
     this.accumulatorS += frameDtS;
     let steps = 0;
     const room = this.session.room;
@@ -913,6 +933,7 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.gear = s.gear; // Story 5.11: HUD icons, shop "Owned", the reviver's kit (the predictor has its own copy)
+    p.protectTicks = s.protectTicks; // Story 8.1 (D3): the renderer blinks a spawn-protected body
     p.consumable = consumableAt(this.world.balance, s.consumable); // Story 5.12: the slot is server truth (never predicted)
     p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;

@@ -640,7 +640,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * seat is held for HOLD_S. In the lobby and on Results nothing is held (D7): Colyseus calls
    * `onLeave` right after (no reconnection allowed), as before.
    */
-  override onDrop(client: RunClient, _code?: number): void {
+  override onDrop(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member || !this.inRun()) return;
     this.startHold(member, "drop", client);

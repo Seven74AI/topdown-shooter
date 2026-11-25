@@ -63,6 +63,5 @@ export const RESUME_COUNT_S = 3;
  */
 export const TRANSPORT_PING_INTERVAL_MS = 3000;
 export const TRANSPORT_PING_MAX_RETRIES = 4;
-/** Story 8.1: close codes for a seat that moved (never 4000 consented, never 4010 MAY_TRY_RECONNECT: the SDK must NOT auto-reconnect; the client shows "opened in another tab" / "seat kept"). Mirrored in the client (netConfig). */
-export const CLOSE_TAKEN_OVER = 4021;
-export const CLOSE_SEAT_KEPT = 4020;
+/** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). */
+export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
