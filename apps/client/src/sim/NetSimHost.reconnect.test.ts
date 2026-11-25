@@ -169,3 +169,21 @@ describe("Story 8.1 RR1-N3/N4: a phone that missed a whole freeze (its link was 
     expect(host.renderTick).toBeLessThanOrEqual(tick); // the render clock restarted too (delay.rebase on the link edge): never ahead of the data
   });
 });
+
+describe("Story 8.1 RR2-M1: the mirror keeps a teammate's body until heldUntilTick is written (the vanish)", () => {
+  it("heldUntilTick 0 (a B16 dropping body): drawn; > 0 (vanished into the hold): gone", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 })]));
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => 0 });
+    room.state.phase = "wave";
+    room.state.tick = 1;
+    room.patch();
+    host.update(FRAME);
+    expect(host.world.players.has("p0")).toBe(true);
+    (room.state.players.get("p0") as { heldUntilTick: number }).heldUntilTick = 2400;
+    room.state.tick = 2;
+    room.patch();
+    host.update(FRAME);
+    expect(host.world.players.has("p0")).toBe(false);
+  });
+});

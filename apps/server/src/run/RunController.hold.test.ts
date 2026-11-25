@@ -146,3 +146,32 @@ describe("Story 8.1 decision B16: a dropped body stays 3 s before it vanishes", 
     expect(c.world.players.has("p1")).toBe(false);
   });
 });
+
+describe("Story 8.1 re-review RR2-M2: B15's 3 s count from the DROP, not from the vanish", () => {
+  const MIN = balance.player.returnMinHoldTicks;
+  function farDropped() {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    p1.x = 40;
+    p1.y = 30;
+    p1.prevX = 40;
+    p1.prevY = 30;
+    c.dropPlayer("p1");
+    return { c, p1 };
+  }
+  it("back 4 s after the drop (1 s after the vanish): the wave's one teleport + protection", () => {
+    const { c, p1 } = farDropped();
+    for (let t = 0; t < MIN + 20; t++) c.tick(); // 3 s standing, then 1 s held
+    expect(c.isHeld("p1")).toBe(true);
+    expect(c.returnPlayer("p1")).toBe(true);
+    expect(p1.protectTicks).toBe(balance.player.returnProtectTicks);
+    expect(Math.hypot(p1.x - 40, p1.y - 30)).toBeGreaterThan(5); // next to Ana
+  });
+  it("back 2.5 s after the drop: the body never left — in place, unprotected", () => {
+    const { c, p1 } = farDropped();
+    for (let t = 0; t < 50; t++) c.tick();
+    expect(c.cancelDrop("p1")).toBe(true);
+    expect([p1.x, p1.y, p1.protectTicks]).toEqual([40, 30, 0]);
+  });
+});

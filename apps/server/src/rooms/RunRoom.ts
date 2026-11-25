@@ -524,7 +524,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       hold.timer = this.clock.setTimeout(() => this.expireQuiet(member.playerId), leftS * 1000);
     }
     const s = this.state.players.get(member.playerId);
-    if (s && fresh) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
+    // Re-review RR2-M1: `heldUntilTick` (the chip, the vote panel, and the mirror hiding the body) only once the body
+    // has really left the World — a B16 dropping body stays visible for its 3 s; `onDropHold` writes it at the vanish.
+    if (s && fresh && !controller.isDropping(member.playerId)) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
     this.log.info({ playerId: member.playerId, reason, wave: controller.world.waves.number, phase: this.state.phase }, "player_held");
     this.updateFreeze();
   }
@@ -536,7 +538,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     hold.timer?.clear();
     this.holds.delete(member.playerId);
     // B16: back while the dropped body still stands: it plays on in place (no return placement, no protection).
-    if (!this.controller?.returnPlayer(member.playerId)) this.controller?.cancelDrop(member.playerId);
+    // Decision 8.1 B18: back into a frozen World, the 3-2-1 replaces the return protection (and placement).
+    if (!this.controller?.returnPlayer(member.playerId, !this.state.frozen)) this.controller?.cancelDrop(member.playerId);
     const s = this.state.players.get(member.playerId);
     if (s) s.heldUntilTick = 0;
     if (this.controller) syncState(this.state, this.controller); // the placed body and protection in the next patch
@@ -559,7 +562,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /**
    * Story 8.1 (F6, Epic 8 D5): nobody present in the World (all dropped or quiet) → the World
    * freezes (`onTick` stops stepping; tick-counted timers wait by construction). The first one back
-   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it.
+   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it — decision 8.1 B19: a B16
+   * dropping body counts as present, so a solo drop (or a re-drop during the 3-2-1) first runs its 3 s in a
+   * stepped World (the count finishes, the body stands hittable) and only then freezes.
    */
   private updateFreeze(): void {
     const controller = this.controller;
@@ -1006,6 +1011,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
       onDropHold: (playerId) => {
         this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
+        // RR2-M1: the body left the World now: teammates' chips and mirrors follow; the 120 s still run from the drop.
+        const hold = this.holds.get(playerId);
+        const s = this.state.players.get(playerId);
+        const w = this.controller?.world;
+        if (hold && s && w) s.heldUntilTick = w.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
         this.updateFreeze();
       },
       onQuietHold: (playerId) => {

@@ -138,6 +138,9 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
     expect(w.players.has("p1")).toBe(true); // B16: the dropped body stands for 3 s first …
+    // RR2-M1: … and teammates still see it (no heldUntilTick yet: their mirror keeps the body, no chip) …
+    await sleep(300);
+    expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0);
     await vi.waitFor(() => expect(w.players.has("p1")).toBe(false), { timeout: 5000 }); // … then vanishes into the hold
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBeGreaterThan(w.tick));
     expect(lines("player_held")).toEqual([expect.objectContaining({ playerId: "p1", reason: "drop" })]);
@@ -148,7 +151,7 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     expect(w.players.get("p1")).toBe(p1);
     expect(p1.wallet).toBe(321);
     expect(p1.hp).toBe(44);
-    expect(p1.protectTicks).toBe(0); // B15: a hold shorter than 3 s (a reload) returns in place, unprotected
+    expect(p1.protectTicks).toBeGreaterThan(0); // RR2-M2: away > 3 s since the DROP (B16 3 s + the hold): the wave's one protected return
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0));
     expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "token", reason: "drop" })]);
     expect(seen[0]?.left).toEqual([]);
@@ -416,24 +419,34 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
   it("a quiet seat that then drops keeps its 120 s clock (the hold never restarts): it runs out from the first hold", async () => {
     const { clients, room, seen } = await runOf(2);
     room.holdS = 3.6;
+    // Flake fix (re-review 2): assert the window the room asks Colyseus for, not wall time (timers drift under load).
+    const windows: number[] = [];
+    const allow = room.allowReconnection.bind(room);
+    vi.spyOn(room, "allowReconnection").mockImplementation((c, s) => {
+      windows.push(Number(s));
+      return allow(c, s);
+    });
     const w = world(room);
     startWave(w);
     const ana = clients[0] as RunSdkRoom;
     let seq = 0;
     const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
     try {
-      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 6000 });
-      const heldAt = performance.now();
+      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 10_000 });
       const until = room.state.players.get("p1")?.heldUntilTick;
+      const heldAtMs = room.holds.get("p1")?.atMs ?? 0;
       await sleep(1500);
       const bo = clients[1] as RunSdkRoom;
       reconnect(bo, false);
       dropSocket(room, bo);
       await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
       expect(room.state.players.get("p1")?.heldUntilTick).toBe(until); // the chip's countdown doesn't jump back
-      await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]), { timeout: 6000 });
-      const heldForMs = performance.now() - heldAt;
-      expect(heldForMs).toBeLessThan(3600 + 800); // from the FIRST hold, not 3.6 s after the drop (that would be ≥ 5.1 s)
+      // The window is what is left of the FIRST hold's 3.6 s (≤ 3.6 − the ≥ 1.5 s already held), never a fresh 3.6 s.
+      expect(windows).toHaveLength(1);
+      const elapsedS = (performance.now() - heldAtMs) / 1000;
+      expect(windows[0]).toBeLessThanOrEqual(3.6 - 1.5 + 0.01);
+      expect(windows[0]).toBeGreaterThanOrEqual(Math.max(1, 3.6 - elapsedS) - 0.01);
+      await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]), { timeout: 15_000 });
     } finally {
       clearInterval(keepAlive);
     }

@@ -578,9 +578,9 @@ export class RunController {
    * → out, inputs dropped). Its input queue is emptied (F7) and it leaves the tick order. False if
    * unknown or already held.
    */
-  holdPlayer(playerId: string): boolean {
+  holdPlayer(playerId: string, awayTicks = 0): boolean {
     const s = this.slots.get(playerId);
-    if (!s || s.held || !holdPlayer(this.world, playerId)) return false;
+    if (!s || s.held || !holdPlayer(this.world, playerId, awayTicks)) return false;
     s.held = true;
     s.dropTicks = 0;
     this.order.splice(this.order.indexOf(s), 1);
@@ -648,9 +648,9 @@ export class RunController {
    * whatever it is (a reconnected phone keeps counting, a reloaded one starts at 1: no
    * `seq_gap_suspect` for a legit return). False if not held.
    */
-  returnPlayer(playerId: string): boolean {
+  returnPlayer(playerId: string, allowProtect = true): boolean {
     const s = this.slots.get(playerId);
-    if (!s || !s.held || !returnPlayer(this.world, playerId)) return false;
+    if (!s || !s.held || !returnPlayer(this.world, playerId, allowProtect)) return false;
     s.held = false;
     resetQueue(s);
     this.heldSlots.delete(playerId);
@@ -701,7 +701,9 @@ export class RunController {
       const s = this.order[i] as PlayerSlot;
       if (s.dropTicks === 0) continue;
       if (this.world.run.phase === "wave" && --s.dropTicks > 0) continue;
-      if (this.holdPlayer(s.playerId)) this.onDropHold?.(s.playerId);
+      // RR2-M2: the hold counts from the drop (its 3 s standing are already "away").
+      const away = this.world.balance.player.returnMinHoldTicks - s.dropTicks;
+      if (this.holdPlayer(s.playerId, away)) this.onDropHold?.(s.playerId);
     }
     if (this.onQuietHold === null || this.world.run.phase !== "wave") return;
     for (let i = this.order.length - 1; i >= 0; i--) {

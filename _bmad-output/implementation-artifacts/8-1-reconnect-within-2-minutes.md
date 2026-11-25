@@ -480,6 +480,65 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 - `RunRoom.attachClient` calls `this.horde?.resetHordeStream(client)` (belt and braces: every caller passes a new Colyseus client); `takeOver` and `finalLeave` call `forgetClient` on the old socket.
 - New test `RunRoom.reconnect.test.ts` › "the first frame after a token reconnect, and after a takeover, is a keyframe and decodes with no error" (fresh `HordeStreamDecoder` decodes every frame; the frames carry the zombie). Join options in the 8.1 tests carry `netProtocolVersion`.
 
+### Re-review (narrow) 2
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY 06654ed (RR1-M1), babd790 (B16), 01de5bb (B17/B18, RR1-N4, N1–N3). Tree: `rereview2-8-1` = `origin/story-8-1` bd05dfa merged with `origin/master` ad9388f — **no conflicts**. Checks: `npm ci`; `npm run typecheck` green; touched tests (`RunRoom.reconnect`, `RunController.hold`, `hold`, `NetSimHost.reconnect`, `connectionModel`, `linkMonitor`, `reconnectWiring`) + `tools/bots/cut.test.ts`: 8 files, 88 tests green. Probes: live Colyseus rooms (test server, OS-picked port), RunController, NetSimHost on the FakeRoom; kept (not run by the gate) in `_bmad-output/implementation-artifacts/probes/8-1-rr2/*.probe.ts.txt`.
+
+**Verdict: FINDINGS — 0 high, 2 medium, 1 low, 1 nit.** RR1-M1 holds under every vote probe; B16's server side does what it says (hittable, a target, 3 s, in place within 3 s, build/vote at once, chained drops give nothing); the two mediums are B16's edges: what teammates SEE during the 3 s, and B15's 3 s clock now starting at the vanish.
+
+| ID | Severity | Where | Finding | Minimal fix |
+| --- | --- | --- | --- | --- |
+| RR2-M1 | medium | `apps/server/src/rooms/RunRoom.ts:512` (sets `heldUntilTick` at the drop) × `apps/client/src/sim/NetSimHost.ts:297-303` (`dropMissing` / `addMissing` remove any teammate with `heldUntilTick > 0`) | **The 3 s dropping body is invisible to the team.** B16 keeps the body in the server World (standing, hittable, a target), but `startHold` writes `heldUntilTick` at once, and every teammate's mirror removes a body with `heldUntilTick > 0`. Probe (NetSimHost, FakeRoom): teammate on my map before = true, after the drop patch = **false**. For 3 s zombies (and a Behemoth telegraph) converge on an empty spot; a DOWNED dropping teammate is revivable on the server (probe: still `downed`, bleed-out 400 → 379 in 1 s) but shows no body, no ring, no revive prompt; on a return within 3 s the body pops back in place. | Write `heldUntilTick` only when the body actually leaves the World: skip it in `startHold` while `controller.isDropping(id)`, set it in `onDropHold` (end time from `hold.atMs`, the 120 s unchanged). The chips, the vote panel (RR1-M1) and the mirror follow. (Or a separate `dropping` schema flag: chip yes, body kept.) |
+| RR2-M2 | medium | `packages/shared/src/player/hold.ts:54` (`atTick` = the vanish tick) × `hold.ts:87` (`longHold`) | **B15's "hold ≥ 3 s" now counts from the vanish, so the safe return needs ≥ 6 s away.** Live room (teammate present): back after 2.5 s → not vanished, in place, protect 0 ✔ (B16); after **4 s** → vanished at +59 ticks, returned **in place, protect 0, `protectedReturnWave` −1**; after 7 s → teleported next to Ana, protect 40. An honest phone back in 3–6 s (the common Wi-Fi blip) lands, unprotected, where its body stood 3 s while the horde converged — F4 "coming back mid-wave is safe" no longer holds for it. Not an escape either way. | Count the hold from the drop: the B16 vanish holds with `atTick = world.tick − returnMinHoldTicks` (e.g. `holdPlayer(world, id, sinceTick)` from the countdown in `RunController.holdQuietPlayers`), so a return after the vanish is ≥ 3 s by construction. Escape check with the fix: a 3.1 s return teleports + protects at most once per wave (B15 unchanged) after 3 s standing hittable — no new loop. |
+| RR2-L1 | low (designer note on B16 (h)) | `apps/server/src/rooms/RunRoom.ts:546-552` (`updateFreeze`: `activeCount() === 0`) × `RunController.ts:703` (the countdown runs only in a stepped wave) | **Solo: a re-drop during the 3-2-1 no longer cancels it.** Live: solo back → `resumeIn` 3 → drops again (0 ms and 300 ms into the count): the dropping body counts as present, its 3 s can't run while frozen, so the count finishes, the World **resumes with nobody connected**, runs 60 ticks (the body eaten), then refreezes. The doc line "everyone gone again cancels it" is now false. Also the plain solo drop: World ran **60 ticks (3.0 s) before `frozen`** with the phone gone — what B16 says ("a dropping body counts"), so intended; a flapping solo phone pays 3 s per flap. | Accept and fix the doc line, or while frozen treat a dropping body as absent (cancel the 3-2-1 and hold it at once: `if (state.frozen && isDropping) holdPlayer`). |
+| RR2-N1 | nit | `apps/client/src/sim/NetSimHost.ts:1089` × the `wasFrozen` guard in `update` | Link up **while** frozen (down before the freeze began): the full re-base sets the render tick NaN and the held clocks keep it NaN for the rest of the freeze; at the lift it anchors **0.34 tick (17 ms) below** the last frame drawn before the link loss (sweep, 50/50 offsets). Covered by the paused overlay; every other ordering 0. | Accept (or advance once on the link-up frame so the held value is a number). |
+
+#### Attempts
+
+| # | Area | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | RR1-M1 | 2 Stay + 1 Extract + 1 held | no result line, not urgent, final EXTRACT · 2 – 2 ✔ |
+| 2 | RR1-M1 | 2 Stay + 2 held | 4 chips (2 dimmed), no line, not urgent, EXTRACT · 2 – 2 (= server `voteOutcome(2, 4)`) ✔ |
+| 3 | RR1-M1 | held seat returns mid-vote and votes Extract | 4 in → "EXTRACT · 2 – 2", urgent ✔ (server: `returnPlayer` in vote, `castVote` accepted) |
+| 4 | RR1-M1 | last present vote while a seat is held | urgent false until the last 500 ms ✔ (server `everyoneVoted` false, waits) |
+| 5 | RR1-M1 | hold expires during the vote | seat leaves the state → chip gone, 3 chips, all in → "STAY · 1 – 2" + urgent; server `releaseHeld` drops it from `countVotes` too ✔ |
+| 6 | RR1-M1 | 568×320 with 4 chips + held | a held seat is one of the 4 seats: `addHeldVoters` caps at 4 (preallocated); buttons 96–236 / 332–472 ✔. No double chip for a seat dropped in a wave's last 3 s (the mirror already dropped its body — RR2-M1's other side) |
+| 7 | B16 (a) | blast on a dropping body | hit ✔ (builder test, re-run); a blast on the exact vanish tick misses (hold before step — inherent) |
+| 8 | B16 (b) | live: back at 2.5 s / 4 s / 7 s | in place unprotected / **in place unprotected (vanished)** / teleport + protect 40 → RR2-M2 |
+| 9 | B16 (b) | 3.1 s escape loop? | no: today 3–6 s is in place unprotected, ≥ 6 s once per wave; with RR2-M2's fix once per wave after 3 s hittable ✔ |
+| 10 | B16 (c) | chained drops: drop 55 ticks, back, ×10 (controller) | never held, B15 never used, **0 inputs applied while dropping**: a decoy that can't move or shoot — no gain over standing still connected ✔ |
+| 11 | B16 (d) | downed dropping (live) | stays downed, bleed-out runs (400 → 379 in 1 s), revivable on the server — invisible to the reviver (RR2-M1); vanish → out (F1) ✔; back < 3 s → downed in place ✔ |
+| 12 | B16 (e) | both drop at once (live) | not frozen at the drop; frozen after 60 ticks, both held ✔ |
+| 13 | B16 (f) | drop in build (live) | held at once ✔. Wave ends while dropping (controller): build heal on the body (20 → 70), held at once, return in the build heals nothing more ✔ |
+| 14 | B16 (g) | Behemoth telegraph on a dropping body | it is in `world.players`: targeted for 3 s; the vanish clears the threat slot (`holdPlayer`) → retarget ✔ (shown as aiming at nothing: RR2-M1) |
+| 15 | B16 (h) | solo drop (live) | World runs 60 ticks (3.0 s), then frozen — as B16 decided → RR2-L1 note |
+| 16 | B16 (h) | solo re-drop at 0 / 300 ms into the 3-2-1 (live) | count completes, World resumes with nobody connected 60 ticks, refreezes → RR2-L1 |
+| 17 | B16 | re-drop after a token return (2p 100 ms / 1 s, solo after the 3-2-1, SDK auto-reconnect ×2) | held each time ✔ (a socket killed in the same JS turn as the reconnect frees the seat — test artifact, a real close is a later I/O event) |
+| 18 | RR1-N4 | stateful 1 ms sweep (50 offsets): freeze/lift; down in freeze → up after lift; down → up inside a freeze it never saw start; 120 ms freeze; lift + up same ms; down before freeze → up inside it | 0 step back in 5 orderings (the lift + up same ms one: 0.34 at the covered link-up edge, allowed); **0.34 tick at the lift** in the last → RR2-N1 |
+
+#### Mutations (each reverted; one per new probe)
+
+| Mutation | Result |
+| --- | --- |
+| `longHold = true` | controller B15 probe fails ✔ |
+| `queueInput` accepts a dropping seat | chained-drop probe fails ✔ |
+| catch-up on `>=` build index | wave-end probe fails ✔ |
+| mirror keeps held teammates | client B16 probe flips to pass ✔ (it asserts the B16 intent) |
+| `addHeldVoters` adds nothing | vote probe fails ✔ |
+| `delay.rebase(false)` on the lift | N4 sweep fails ✔ |
+| `dropPlayer` holds at once mid-wave | live room probe fails ✔ |
+
+### Re-review 2 fixes (2026-11-25, builder)
+
+| ID | Fix | Test |
+| --- | --- | --- |
+| RR2-M1 | `heldUntilTick` is written only when the body really leaves the World: not in `startHold` while `controller.isDropping`, but in `onDropHold` at the vanish (end time still from the drop: `hold.atMs` + 120 s). Teammates' mirrors keep the B16 dropping body (and a downed one's ring and revive prompt) for its 3 s; the chip and the vote panel follow at the vanish | `RunRoom.reconnect.test.ts` › "a drop mid-wave …" (teammate's state `heldUntilTick` 0 while the body stands, then vanished); `NetSimHost.reconnect.test.ts` › "RR2-M1: the mirror keeps a teammate's body until heldUntilTick is written" |
+| RR2-M2 | The B16 vanish holds with `atTick` backdated by the 3 s already away (`holdPlayer(world, id, awayTicks)`), so B15's "away ≥ 3 s" counts from the DROP | `RunController.hold.test.ts` › "RR2-M2" ×2 (back at 4 s → the wave's one teleport + protection; back at 2.5 s → in place, unprotected); the room drop test now expects the protected return |
+| B18 kept | With RR2-M2 a solo return after the vanish would count as long: `returnPlayer(…, allowProtect)` — the room passes `!state.frozen`, so a frozen World's return stays in place and unprotected (the 3-2-1 replaces it) | `RunRoom.reconnect.test.ts` › solo freeze (protectTicks 0 while the 3-2-1 shows) |
+| RR2-L1 | **Decision 8.1 B19** (auto-accepted overnight): a dropping body counts as present, so a solo drop (or a re-drop during the 3-2-1) first runs its 3 s in a stepped World, then freezes; the stale doc line in `RunRoom.updateFreeze` fixed | — (doc) |
+| RR2-N1 | Accepted (the paused overlay covers the 17 ms) | — |
+| Flakes | `RunRoom.reconnect.test.ts` › "a quiet seat that then drops keeps its 120 s clock": asserts the window the room passes to `allowReconnection` (≤ 3.6 − 1.5 s: what is left of the first hold), not wall time; waits 10 s / 15 s. `tools/bots/cut.test.ts`: waits on conditions with more room (ready 30 s, ack 15 s, back 15 s × slack), the AC's 10 s bound × `max(1, load/2)` (exactly 10 s at load ≤ 2), timeout 360 s | both green together with the server suite + the economy sims in parallel (load 4.69) |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
@@ -489,3 +548,4 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 - 2026-11-25: narrow re-review 1: RR1-M1, B16–B18 auto-accepted, nits N1–N4.
 - 2026-11-25: re-review 1 fixes RR1-M1, B16 (dropped body stays 3 s), B17 (accepted), B18 (solo: 3-2-1 replaces protection), N1–N4 (builder).
 - 2026-11-25: merged master with Story 8.10; 8.10 hooks wired (resetHordeStream / forgetClient) and the keyframe-after-reconnect test (8.1 landed second).
+- 2026-11-25: re-review 2 fixes RR2-M1, RR2-M2 (+ B18 kept via allowProtect), B19 recorded, two flaky tests hardened (builder).
