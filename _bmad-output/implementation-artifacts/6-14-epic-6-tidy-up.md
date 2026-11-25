@@ -38,6 +38,10 @@ Claude (builder, own cloud session), 2026-11-25.
 7. **AC 7 [B].** `hudTopLayout.ts`: `layoutHpBar`, `layoutHpRow`; `layoutWaveLine` starts 6 px right of the HP bar where centring would touch it and ends 6 px before ☰ at most; `placeWaveText` keeps the text centred when it fits and scales it down only if it is wider than that span (only long endless lines at 568 wide: ≈ 0.7 for the widest string, insets 44); `bannerWrapWidth` (inside the safe area, 8 px in; was 92 % of the width, past the side insets) and `layoutBanner` (32 % of the height, pushed below any top-band block it crosses: HP block, money line, wave line, and the boss bar while it shows). `bossBar.ts`: the bar sits below the HP block (6 px) where they share columns: **y 46 → 60 on every phone size** (the HP row's reserve, with five gear icons, reached under the name). HudScene: wave text placed / scaled by `placeWaveText`; the banner wraps at `bannerWrapWidth` and is placed by `layoutBanner` (re-placed when the boss bar shows or hides); scratch objects, no per-frame allocation. Browser check (Chromium, 568 × 320, `?solo=1&bosswave=1`, headless insets 0): wave line right of the HP bar, boss bar under the HP row / money, "Wave 1" banner unchanged.
 8. **AC 8.** Removed (no other reference in the client or tools).
 
+### Gate
+
+One full gate on story-6-14-tidy (origin/master 62dd2ef already contained; fix-bloater-stall not on master yet): typecheck, lint, 394 files / 3,630 tests passed (3 skipped), build OK; load 0.60 → 2.83 (4 cores).
+
 ### Mutations (each applied alone, its tests run, reverted)
 
 | AC | Mutation | Result |
