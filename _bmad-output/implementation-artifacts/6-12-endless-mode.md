@@ -1,6 +1,6 @@
 # Story 6.12: Endless mode
 
-Status: review
+Status: done
 
 ## Story
 

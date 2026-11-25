@@ -1,6 +1,6 @@
 # Story 6.11: Evacuation vote
 
-Status: review
+Status: done
 
 ## Story
 
@@ -517,3 +517,9 @@ Behaviour changes: **RR2-M1** (when the online dawn plays). RR2-L2 changes the v
 - 2026-11-24: Re-review 2 (AI) of the re-review fixes on `c61e0d7`: approve with follow-ups (1 medium RR2-M1, 2 low, 2 nit).
 - 2026-11-24: re-review 2 fixes RR2-M1 (+L1), RR2-L2, N3, N4.
 - 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes on `e070c94`: approve (0 high, 0 medium, 2 low RR3-L1/L2, 2 nit N5/N6).
+
+### Main session close-out (2026-11-25)
+
+- Re-review 3 approved (0 high/medium). Follow-ups for the Epic 6 tidy-up story: RR3-L1 (late dawn when a backlog lands > 1 s after unlocking; cosmetic, skippable), RR3-L2 (VOTE_URGENT_GAP_MS 250 → 0–100, keep VOTE_URGENT_DEBT as the rate bound: 6.8 % → ~2 % lost final taps under frantic tapping), N5 (VOTE_URGENT_DEBT untested), N6 (GameScene bypassing pollVote untested).
+- Lands on master BEFORE 6.8: endlessEventCandidates returns [] and HeliView falls back to the map centre until 6.8 merges and wires them (6.8's builder owns that merge).
+- Main-session full gate on story-6-11 e070c94 + rereview3 docs on master 7385b47: typecheck, lint, 373 files / 3,451 tests passed (3 skipped), build OK; load → 2.52 (4 cores). Story done.
