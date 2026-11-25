@@ -256,3 +256,98 @@ Early part only (no full gate yet, per dispatch), on `story-7-12` from master f6
 
 - 2026-11-25: early part T0–T4 built (stream, plan, bag in the World, network record + events, client view, badge, line, sounds, art); T5 held.
 - 2026-11-25: scope change — the merged story 7.7 + 7.11 + 7.12; built after 7.2 / 7.9 / 7.3 landed: milestone counters, migration 0003, meta writes in 7.2's bank, loot item + Collector, districts (data, lobby pick, R3, Start), Results rows, hub line. Status → review.
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer session, 2026-11-25. Full three-layer `gds-code-review` (Blind Hunter, Edge Case Hunter and Acceptance Auditor, run in parallel), plus the reviewer's own probes and mutations.
+**Scope:** `git diff 99ac898...origin/story-7-12`, head 6c2a16a.
+**Tree reviewed:** story-7-12 merged with 99ac898 ONLY. Merging the current master (c549a05: 7.4+7.5 and the wall silhouettes) gives **18 conflicted files, 37 hunks**, which is more than trivial. The worst are `banking.ts` (×7), `unlockRoute.test.ts` (×7), `RunRoom.ts` (×3), `ResultsScreen.tsx`/`rewardsModel.ts` (×3 each), the `player.ts` field block and `progression.json/ts`. **The builder must do that merge and re-gate. The banking.ts and RunRoom.ts merges need a narrow re-review.**
+**Checks run:** `npm ci`, typecheck (exit 0), and the 25 new or probed test files: 157/157 green on real PostgreSQL 16 (TEST_DATABASE_URL). No full gate was run.
+
+**Verdict: CHANGES REQUESTED.** No high findings. Six mediums and nine lows. Banking exactly once, concurrency, salt secrecy and the pick-up rules all held.
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+|---|---|---|---|---|
+| **M1** | Medium | `packages/shared/src/loot/lootBag.ts:156-162` (`lootTaker`), `apps/server/src/meta/banking.ts:212, 296-301` (`teamLootOf` fallback), `apps/server/src/rooms/RunRoom.ts:717-719` | **A seat that already banked can take the bag.** The item is lost, and teammates are shown an item nobody got. **(A) honest player:** P Leaves with consent and banks `quit`. P rejoins via the remembered seat with the same playerId, then takes the bag. At run end, `bank(finderSeat)` returns P's earlier result, which has no `loot`. P gets no item, and `teamLootOf` falls back to `pickLootItem(new Set(), roll)`, so every teammate reads "P found: Traffic cone". **(B) griefer with a modified client:** sends `run.leave` (`onRunLeave` banks at once) but keeps the socket open, then walks onto the bag and destroys the team's only drop of the run. **(C):** the finder Leaves and its leave-bank is still in flight at `bankRunEnd`. `this.done.get(finder)` is undefined (`done` is filled only on settle), so the same phantom fallback is used. | Skip seats whose bank has started in `lootTaker`: the room marks the PlayerState in `bankLeaver`, or the World gets a `banked` set. In `bankRunEnd`, await `this.banks.get(finder)` (the promise) instead of `done.get`. When the finder's result has no `loot`, send `teamLoot` with `key: null` ("P found the bag"), never an invented item. Add tests for A and B. |
+| **M2** | Medium (designer call) | `packages/shared/src/meta/milestoneRecord.ts:56-59` (and `combat.json` `friendlyFire.canDown: true`, `combat/damage.ts:40-56`, which has no phase gate) | **M5 revive farm with no risk.** In build phase 1 (no zombies), A downs B with a grenade or molotov (friendly fire, 50 %, can down) and revives them. Repeating that ~25 times in one or a few runs banks M5 (Headband). The 7.11 Beat-the-rule 1 accepted "a friend stands in a crowd" (real risk), not self-made downs. M-F2 says "You can't farm a milestone". The cost is grenade money only. | Count `player.revived` only when the down was not caused by a player (carry `byPlayer` on the downed state). Or count revives only in phase `wave`. Otherwise the designer accepts it and it gets logged in the decisions file. |
+| **M3** | Medium (latent: low while only Downtown is playable) | `apps/server/src/rooms/RunRoom.ts:741-744, 1309-1326` and `:470` (loaded once, at join) | **The lobby's district and look data go stale across runs.** `memberProgress` is deleted only on a leave in the lobby, and `onLobbyReturn` neither reloads nor recomputes. playerIds are `p${slot}`, so they are reused. (a) Host H, the only member owning D, picks D and quits mid-run. The others return to the lobby. `districtsOpen` and `state.district` still hold D, which breaks R3, and a guest taking slot H inherits H's districts in the mask. (b) The team extracts and unlocks District 2, or earns a milestone part. Back in the lobby the picker still shows it locked and the part's look is not re-checked until they rejoin the room. | Delete `memberProgress` on every final leave. On `onLobbyReturn`, reload progress for the current members and call `recomputeDistricts()`. Add a room test for each case. |
+| **M4** | Medium | `apps/client/src/ui/ProgressScreen.tsx:135-146`, `overlay.css:2388-2396` | **The hub "Districts" line sits inside `role="tablist"`** as a non-tab span, at 11 px, `nowrap` with an ellipsis. At 568×320 the space beside the tabs is far below the ~230 px "District 2: extract from Downtown to unlock" needs, so the text is cut off (R9 says nothing cut off). It also contradicts B29 ("in the hub's rule line") and 7.7 AC 7 ("header or under the Supplies total"), and hurts a11y. | Move it out of the tablist, under the Supplies total or the rule line, let it wrap, use the house minimum text size, and have `hubDomLayout` require the full text to be visible. |
+| **M5** | Medium | `tools/checks/resultsDomLayout.test.ts`, `apps/client/src/ui/districtModel.test.ts:36`, `lobbyLayout.test.ts` | **R9 / brief 13 layout coverage is missing for the new UI.** No Results fixture has `newItems`, `loot`, `teamLoot` or `newDistricts`, so the `rw-item`/`rw-unlock` rows (pictures, 13–15 px text, ellipsis) are never measured at the 4 sizes. The DP2 district sheet is checked only as model rectangles, with no text size or "not cut" check. The Dev Agent Record discloses this, but it is still a brief violation. | Add an items+unlock fixture to `resultsDomLayout` (4 sizes), and a DOM check of the district sheet at 568×320 that includes 7.3's Progress button. |
+| **M6** | Low-Medium | `apps/server/src/rooms/RunRoom.ts:223, 1193` | **"Never the same look twice in a row" (brief 25, 7-UI-6) is only partly true.** `lastLootVariant` is one global per process, updated when a run *plans* a bag, not when one drops. If a planned bag never drops (team wipe first, or the wave never reached), the next two bags players actually see can share a look. Parallel rooms also overwrite each other. | Update it on `loot.dropped`, or at run end when `loot.state !== NONE`. Add a wiring assertion. Log "per process, per server" in the decisions file. |
+| L1 | Low | `packages/shared/src/combat/explosion.ts:217` → `boss/death.ts:33` → `milestoneRecord.ts:51-54` | When a mine (or a mine-popped Bloater blast) finishes the Behemoth, `boss.killed.killerId` is the mine's owner, so they get +1 lifetime kill. D6 says "not a turret's or a mine's" (turret bullets already pass null). | Pass `buildingId > 0 ? null : source` as the boss credit, or carry `buildingId` on `boss.killed`. |
+| L2 | Low | `milestoneRecord.ts:61-64` | `downs10` counts any down while `waves.number ≤ runWaves`, including build-phase downs and the build/evac after wave 10 ended. A teammate's grenade after wave 10 can grief someone's M10. D7 says "downs during waves 1…runWaves". | Also require `world.run.phase === "wave"`. |
+| L3 | Low | `apps/server/src/meta/banking.ts:212-219` | Every teammate's bank is chained after the finder's bank (2 bounded attempts + retry wait, ~6 s worst case on "Saving…"). B22 says "they wait one bank" but not how long. | Bank in parallel and send `teamLoot` as a small follow-up, or write down the worst case in B22. |
+| L4 | Low (test gap: surviving mutant) | `lootBag.ts` `<= r2` | Mutant `<` instead of `<=` survived. B3 "boundary inclusive" has no test. | Add a player exactly at `pickRadiusM`. |
+| L5 | Low (test gap: surviving mutant; R1 claim) | `apps/server/src/meta/runMeta.ts` `statsDelta` | Mutant `runs: 1` (ignoring D4's wave-1 rule) survived. M-F2's promised test "20 runs quit in build 1 → +0 runs" does not exist. | Add the test, on `statsDelta` plus a bank. |
+| L6 | Low (test gap: surviving mutant) | `runMeta.ts:30` | Mutant that drops `heldPlayers.size === 0` survived. 7.11 Beat-the-rule 5 (a held seat at the extract tick → no M8) has no test. | Add the test. |
+| L7 | Low (test gap: surviving mutant) | `runMeta.ts` `grant` (`after.add`) | Mutant that picks the loot item WITHOUT this run's milestone parts survived. Beat-the-rule 6 (the loot item never equals a milestone part granted in the same bank) is untested. | Add a case where the roll would hit the just-granted part's index. |
+| L8 | Low | `apps/server/src/meta/milestones.ts:51`, `runMeta.ts:30` | Inline numbers: `w <= 10` for M10, `=== 4` for M8 (brief 7). | Put `n` in the `milestones.json` rules, or read `runWaves` / `MAX_PLAYERS`. |
+| L9 | Low (R1 / M-F6) | `7-11-milestone-items.md:57`, 7.12 AC 9/T5; no M-F6 test | T2 and AC 9 name `grantCosmetics`/`addStats`, but the writes are inline in `progressRepo.addSupplies`. No test proves "cosmetic only" (M-F6) by replaying a run with all milestone parts worn and comparing digests with the default look. | Fix the wording and add that digest test. |
+
+### Beat the rule: attempts and results
+
+| # | Attempt | Result |
+|---|---|---|
+| 1 | Barricades: 100 place/take-back cycles in one build | **Held** (0; the taken-back id is not in `buildings.list`; tests). |
+| 2 | Barricades: sell after the wave starts and rebuild each build | Counts +1 per wave at 50 % cost each time. Accepted by the story (Beat-the-rule 1). |
+| 3 | Barricades: id reuse after a sell, or an upgrade/move counted as a placement | **Held** (`nextId` only increases; `building.placed` comes only from `placeBuilding`). |
+| 4 | Kills by an owned turret or mine vs own kills | **Held** for zombies (`buildingId`, mutant killed). **Broken** for a mine finishing the boss (L1). |
+| 5 | Boss finisher double count (zombie.killed + boss.killed) | **Held** (the boss emits only `boss.killed`; mutant killed). |
+| 6 | Revive farm with a friend (friendly-fire downs in build) | **Broken** (M2). |
+| 7 | Downs outside waves 1–10 / M10 griefing | **Partly broken** (L2). |
+| 8 | A milestone item twice (two runs, retry, 12 concurrent banks) | **Held.** Real-PG probe: `head:fire` once, stats exact (12 runs), a retry replays the same breakdown. |
+| 9 | A loot item twice (12 concurrent banks, one account, each a finder) | **Held.** Real PG: all 10 loot parts distinct, then Collector (null) for the rest. |
+| 10 | Choose or predict the loot item (client) | **Held.** The salt is `randomUint32()`, server-only (in the `run_started` log line only, per D3). The plan is never on room state. `lootBag*` is written only from the drop on. Solo/practice make no plan. `DEV_LOOT` is ignored in production. No client message claims the bag. |
+| 11 | Pick up the bag while downed, out or held | **Held** (status `alive` and in `world.players` only; mutant killed). |
+| 12 | Pick up the bag after this seat already banked (Leave, then rejoin / `run.leave` without closing) | **Broken** (M1). |
+| 13 | Two players on the bag the same tick | **Held** (lowest flame slot = the seat slot from `p${slot}`, fixed scan). The boundary-inclusive rule is untested (L4). |
+| 14 | Bag inside a wall or solid | **Held** (`boxBlocked` → rings → `findBoxFreeSpot`; the final clamp is unreachable in practice). |
+| 15 | Bag expiry / the run ending while the bag is out | **Held** (`tick >= untilTick` and `results` are checked before the pick-up; mutant killed). |
+| 16 | Collector (all 10 owned) | **Held** (null key; mutant killed). |
+| 17 | An unsaved (guest) finder | A preview item is shown, nothing written (accepted for the finder, B23). Teammates get the invented item too (part of M1's fix). |
+| 18 | The finder leaving before Results (D1) | Works when the finder's leave-bank has settled. In flight → phantom item (M1 C). |
+| 19 | District unlock without extracting, or for a leaver | **Held** (`extracted` only for seats banking `extracted`; mutant killed). |
+| 20 | District pick by a non-host, outside the lobby, a locked pick, `lobby.district` spam | **Held** (`pickRefusal`, lobby-only guard, write only on change, guard rate limit; 4 mutants killed). |
+| 21 | Host picks a locked or unplayable district with a modified client | **Held** (`locked` / `coming_soon` refusals; `DISTRICT_MAPS` falls back to Downtown). |
+| 22 | R3 reset notice when the member who opened the pick leaves | **Held in the lobby** (mutant killed). **Broken across a run** (M3). |
+| 23 | A rejoining or held seat's counters (8.1) | **Held** (counters live on PlayerState; held seats keep counting through `seat()`; remembered seats bank with their own state). |
+| 24 | Two runs of one account ending at once: stats | **Held on real PostgreSQL** (`FOR UPDATE`; 12-way probe exact; the row-lock mutant is killed by `metaBank` + realPostgres). |
+| 25 | Migration 0003 forward on a DB with rows | **Held** (0000–0002 + 3 accounts/progress rows → 0003: columns added with the defaults, rows kept). |
+| 26 | Replay determinism with the bag (digests) | **Held** (the loot record is in `snapshotWorld`; `lootRunSim`/fuzz tests green; no stored golden digest to regenerate). |
+| 27 | Bandwidth claim of 39 B/run | **True** (`lootBandwidth.test.ts`: events 20 B + record 19 B; expired 37 B). |
+| 28 | Results group order (brief 26) | **Correct** (supplies → items [new, my find/Collector, teammate's find] → unlocks). R9 layout is unmeasured (M5). |
+| 29 | Lobby DP2 sheet at 568×320 with the Progress button | Geometry fits by the model (line x183 w125, Progress x314, Leave x424). There is no DOM text check (M5). |
+| 30 | Hub Districts line | **Cut off / misplaced** (M4). |
+
+### Mutations (each new or probed test mutated once; 23 total)
+
+**Killed (19):**
+- Pick-up: `alive` gate.
+- Expiry: `>=` → `>`.
+- No bag after a team wipe.
+- Kill index off by one.
+- Variant: "never the previous".
+- Plan wave clamped to `runWaves`.
+- Turret-kill exclusion.
+- `downs10` wave gate.
+- Barricade "still standing" check.
+- District only on extract.
+- Meta writes only when the run_rewards row is new.
+- M5 `>=` → `>`.
+- Collector returns null.
+- `not_host` refusal.
+- `locked` refusal.
+- `lobby.district` lobby-only.
+- R3 recompute on a lobby leave.
+- `FOR UPDATE` row lock.
+- Boss finisher +1.
+
+**Survived (4):** pick radius `<=` → `<` (L4), runs D4 (L5), M8 held check (L6), loot after milestone parts (L7).
+
+Script: `7-12-review-probes/mut.sh.txt`. Real-PG probe: `7-12-review-probes/realPgMeta.probe.ts.txt`.
+
+### R1 / R6
+- **R1 (claims vs code):** 39 B is true. The row order is true. "Never twice in a row" is overstated (M6). The hub line's placement contradicts B29 (M4). The repository function names are wrong (L9). M-F2's quit test does not exist (L5).
+- **R6 (mutate each new test once):** done (23). Four gaps (L4–L7).
