@@ -160,8 +160,11 @@ export async function logIn(
       return fail(401, "wrong_login");
     }
     const token = mintGuestToken();
-    const r = await deps.devices.logIn({ oldTokenHash: pre.oldHash, newTokenHash: hashGuestToken(token), accountId: creds.id });
-    if (r.outcome !== "ok") return fail(503, "save_unavailable");
+    const r = await deps.devices.logIn({ oldTokenHash: pre.oldHash, newTokenHash: hashGuestToken(token), accountId: creds.id, expectPasswordHash: creds.passwordHash ?? "" });
+    if (r.outcome !== "ok") {
+      log.warn({ ip: input.ip }, "login_failed"); // the password was reset meanwhile: the old one no longer works
+      return fail(401, "wrong_login");
+    }
     logMerge(r);
     log.info({ accountId: r.account.id, merged: r.merged !== null }, "login_ok");
     return { status: 200, body: sessionOf(r, token, deps), deviceToken: token };

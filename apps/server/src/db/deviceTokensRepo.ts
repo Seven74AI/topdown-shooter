@@ -3,13 +3,15 @@
  *
  * - `logIn`: the device (its current token) becomes the account. If the device was a guest, the guest is MERGED into
  *   the account (`meta/merge.ts`), all in ONE `boundedTransaction` (7.2's bounds: a login reported as failed never
- *   commits later): both `accounts` rows locked FOR UPDATE in id order, then both `progress` rows in id order (no
- *   deadlock between two merges, and a bank of either account waits or is redirected: `progressRepo.addSupplies`),
- *   the merged row written to the account, the guest's progress row deleted, `merged_into` set, the guest's device
- *   rows deleted. The device gets a FRESH token row (decision 7.6 B1: the old token dies, so a copy of the guest key
- *   or an old ticket can never reach the account). A forgotten-password reset passes `credentials`: the new hashes are
- *   written in the same transaction, conditional on the recovery hash still being the one that was verified (two
- *   resets with one code: only one wins).
+ *   commits later). One lock order for every switch (review L4): the device row FOR UPDATE, then the target account
+ *   row FOR UPDATE, then the guest's `accounts` row and both `progress` rows (a bank of the guest waits or is
+ *   redirected: `progressRepo.addSupplies`); the merged row is written to the account, the guest's progress row
+ *   deleted, `merged_into` set, the guest's device rows deleted. The device gets a FRESH token row (decision 7.6 B1:
+ *   the old token dies with its row; review L1: the room re-checks a ticket's token row at join, so an old ticket
+ *   stops seating). A plain login re-checks under the lock that the verified password hash is still current. A
+ *   forgotten-password reset passes `credentials`: the new hashes are written in the same transaction, conditional
+ *   on the recovery hash still being the verified one (two resets with one code: one wins), and EVERY device row of
+ *   the account is deleted first (review M2: a reset logs out every other phone).
  * - `logOut`: the device's row is deleted and a new guest (account + device row + empty progress) is made; the
  *   account is untouched.
  */
@@ -33,13 +35,18 @@ export interface LogInInput {
   newTokenHash: string;
   /** The account whose password (or recovery code) was verified. */
   accountId: string;
-  /** Forgot password: the new hashes, written only if the recovery hash is still `expectRecoveryHash`. */
+  /**
+   * Forgot password: the new hashes, written only if the recovery hash is still `expectRecoveryHash`; every device row
+   * of the account is deleted first (review M2: a reset logs out every other phone).
+   */
   credentials?: { expectRecoveryHash: string; passwordHash: string; recoveryCodeHash: string };
+  /** A plain login: the password hash that was verified; a different one in the transaction (a reset won) → stale. */
+  expectPasswordHash?: string;
 }
 
 export type LogInResult =
   | { outcome: "ok"; account: Account; progress: Progress; merged: { guestId: string; refunds: MergeRefunds } | null }
-  /** `credentials` given and the recovery hash changed meanwhile (another reset won): nothing written. */
+  /** The verified recovery hash (reset) or password hash (login) changed meanwhile (another reset won): nothing written. */
   | { outcome: "stale_credentials" };
 
 export interface DeviceTokensRepo {
@@ -61,6 +68,7 @@ const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplie
   districts: r.districts,
 });
 
+/** The account row is already locked by the caller (device → account → guest: review L4); the guest is locked here. */
 async function mergeGuest(tx: Tx, accountId: string, guestId: string): Promise<{ guestId: string; refunds: MergeRefunds } | null> {
   const [lo, hi] = accountId < guestId ? [accountId, guestId] : [guestId, accountId];
   const locked = await tx
@@ -94,22 +102,38 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
         database,
         "devices.logIn",
         async (tx): Promise<LogInResult> => {
-          if (input.credentials) {
-            const changed = await tx
-              .update(accounts)
-              .set({ passwordHash: input.credentials.passwordHash, recoveryCodeHash: input.credentials.recoveryCodeHash })
-              .where(and(eq(accounts.id, input.accountId), eq(accounts.recoveryCodeHash, input.credentials.expectRecoveryHash)))
-              .returning({ id: accounts.id });
-            if (changed.length === 0) return { outcome: "stale_credentials" };
-          }
-          let merged: { guestId: string; refunds: MergeRefunds } | null = null;
+          // Review L4: one lock order for every account switch — the device row, then the account row, then the guest.
+          let current: string | undefined;
           if (input.oldTokenHash !== null) {
             const dev = await tx
               .select({ accountId: deviceTokens.accountId })
               .from(deviceTokens)
               .where(eq(deviceTokens.tokenHash, input.oldTokenHash))
               .for("update");
-            const current = dev[0]?.accountId;
+            current = dev[0]?.accountId;
+          }
+          const target = await tx
+            .select({ passwordHash: accounts.passwordHash, recoveryCodeHash: accounts.recoveryCodeHash })
+            .from(accounts)
+            .where(eq(accounts.id, input.accountId))
+            .for("update");
+          const t = target[0];
+          if (!t) throw new Error("account missing at login");
+          if (input.credentials) {
+            // A reset: only if the recovery hash is still the one that was verified (two resets, one code: one wins).
+            if (t.recoveryCodeHash !== input.credentials.expectRecoveryHash) return { outcome: "stale_credentials" };
+            await tx
+              .update(accounts)
+              .set({ passwordHash: input.credentials.passwordHash, recoveryCodeHash: input.credentials.recoveryCodeHash })
+              .where(eq(accounts.id, input.accountId));
+            // Review M2: a reset logs out EVERY other device of the account (a thief who knew the old password included).
+            await tx.delete(deviceTokens).where(eq(deviceTokens.accountId, input.accountId));
+          } else if (input.expectPasswordHash !== undefined && t.passwordHash !== input.expectPasswordHash) {
+            // The password changed (a reset) between the verify and this transaction: the old password no longer logs in.
+            return { outcome: "stale_credentials" };
+          }
+          let merged: { guestId: string; refunds: MergeRefunds } | null = null;
+          if (input.oldTokenHash !== null) {
             if (current !== undefined && current !== input.accountId) {
               const isGuest = await tx
                 .select({ id: accounts.id })

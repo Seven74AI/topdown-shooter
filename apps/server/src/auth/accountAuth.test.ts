@@ -238,6 +238,25 @@ describe("Story 7.6: forgot password (POST /account/recover)", () => {
     expect((await post("/account/recover", { username: a.username, code: body.recoveryCode, newPassword: "again new 1" })).status).toBe(200);
   });
 
+  it("review M2: a reset logs out every other phone — the thief's cookie becomes a stranger (a new empty guest), the owner's new phone works", async () => {
+    const a = await account();
+    await setSupplies(a.id, 60);
+    const thief = await post("/account/login", { username: a.username, password: PASSWORD }); // the thief knew the password
+    const thiefToken = String(thief.body.deviceToken);
+    expect(readTicket((await post("/account/session", {}, { cookie: thiefToken })).body.ticket, SECRET)?.accountId).toBe(a.id);
+    const reset = await post("/account/recover", { username: a.username, code: a.code, newPassword: "owner again 1" });
+    expect(reset.status).toBe(200);
+    const after = await post("/account/session", {}, { cookie: thiefToken });
+    expect(readTicket(after.body.ticket, SECRET)?.accountId).not.toBe(a.id);
+    expect(after.body.account).toEqual({ displayName: "", username: null });
+    expect(after.body.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
+    // the account's first phone (from the upgrade) is logged out too; the resetting phone is the account
+    expect(readTicket((await post("/account/session", {}, { cookie: a.token })).body.ticket, SECRET)?.accountId).not.toBe(a.id);
+    const owner = await post("/account/session", {}, { cookie: String(reset.body.deviceToken) });
+    expect(readTicket(owner.body.ticket, SECRET)?.accountId).toBe(a.id);
+    expect(owner.body.progress).toMatchObject({ supplies: 60 });
+  });
+
   it("a too-short new password is refused before the code is checked (the answer says nothing about the code)", async () => {
     const a = await account();
     expect(await post("/account/recover", { username: a.username, code: a.code, newPassword: "short" })).toMatchObject({ status: 400, body: { message: "bad_password" } });

@@ -96,6 +96,27 @@ describe.skipIf(!URL)("Story 7.6: accounts on real PostgreSQL (TEST_DATABASE_URL
     }
   });
 
+  it("review L4: a reset and a login from ONE device at the same moment never deadlock (both settle, ×10)", async () => {
+    for (let k = 0; k < 10; k++) {
+      const acct = await device(0, name());
+      const phone = await device(3);
+      const devices = deviceTokensRepo(database);
+      const rs = await Promise.allSettled([
+        devices.logIn({ oldTokenHash: phone.token, newTokenHash: hex(), accountId: acct.id, credentials: { expectRecoveryHash: "r", passwordHash: "p2", recoveryCodeHash: "r2" } }),
+        devices.logIn({ oldTokenHash: phone.token, newTokenHash: hex(), accountId: acct.id, expectPasswordHash: "p" }),
+      ]);
+      expect(rs.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+      expect((await progressRepo(database).get(acct.id))?.supplies).toBe(3); // the guest merged exactly once
+    }
+  });
+
+  it("review M2 race: a login that verified the OLD password and commits after a reset is refused (the thief stays out)", async () => {
+    const acct = await device(0, name());
+    const devices = deviceTokensRepo(database);
+    await devices.logIn({ oldTokenHash: null, newTokenHash: hex(), accountId: acct.id, credentials: { expectRecoveryHash: "r", passwordHash: "p2", recoveryCodeHash: "r2" } });
+    expect((await devices.logIn({ oldTokenHash: null, newTokenHash: hex(), accountId: acct.id, expectPasswordHash: "p" })).outcome).toBe("stale_credentials");
+  });
+
   it("two resets with the same recovery code at once: one wins, the other writes nothing", async () => {
     const acct = await device(0, name());
     const devices = deviceTokensRepo(database);

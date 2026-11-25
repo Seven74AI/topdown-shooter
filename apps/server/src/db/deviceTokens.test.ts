@@ -114,6 +114,27 @@ describe("Story 7.6: accounts and devices (PGlite)", () => {
     expect(await accountsRepo(database).findByTokenHash(H("d"))).toBeNull(); // the losing reset logged nothing in
   });
 
+  it("review M2: a reset deletes every device row of the account (other phones logged out) and keeps only the resetting phone", async () => {
+    const database = fresh();
+    const a = await setup(database, H("a"), {}, "ana");
+    const devices = deviceTokensRepo(database);
+    await devices.logIn({ oldTokenHash: null, newTokenHash: H("b"), accountId: a.id });
+    await devices.logIn({ oldTokenHash: null, newTokenHash: H("c"), accountId: a.id, credentials: { expectRecoveryHash: "$argon2id$r", passwordHash: "p2", recoveryCodeHash: "r2" } });
+    const acc = accountsRepo(database);
+    expect(await acc.findByTokenHash(H("a"))).toBeNull();
+    expect(await acc.findByTokenHash(H("b"))).toBeNull();
+    expect((await acc.findByTokenHash(H("c")))?.id).toBe(a.id);
+  });
+
+  it("a login whose verified password hash changed meanwhile (a reset won) is stale: nothing written, the old password no longer logs in", async () => {
+    const database = fresh();
+    const a = await setup(database, H("a"), {}, "ana");
+    const devices = deviceTokensRepo(database);
+    expect(await devices.logIn({ oldTokenHash: null, newTokenHash: H("b"), accountId: a.id, expectPasswordHash: "old-hash" })).toEqual({ outcome: "stale_credentials" });
+    expect(await accountsRepo(database).findByTokenHash(H("b"))).toBeNull();
+    expect((await devices.logIn({ oldTokenHash: null, newTokenHash: H("b"), accountId: a.id, expectPasswordHash: "$argon2id$p" })).outcome).toBe("ok");
+  });
+
   it("A5 / AC 7: logging out makes the device a new empty guest; the account and its other device are untouched; a guest can't log out", async () => {
     const database = fresh();
     const a = await setup(database, H("a"), { supplies: 77 }, "ana");
