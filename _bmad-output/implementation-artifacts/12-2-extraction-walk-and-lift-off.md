@@ -6,7 +6,7 @@ baseline_commit: e13f439
 
 Status: ready-for-dev
 
-<!-- Quick story 2026-11-25 from the party-mode session on cinematics. Needs 12.1 (players walk through buildings) and 8.12 (vote counting). The camera work is 12.3; this story already looks right with the normal camera. -->
+<!-- Quick story 2026-11-25 from the party-mode session on cinematics. Needs 12.1 (buildings never close a path) and 8.12 (vote counting). The camera work is 12.3; this story already looks right with the normal camera. -->
 
 ## Story
 
@@ -30,11 +30,11 @@ so that the end of a won run feels like an ending, not a cut to a menu.
 
 ### The walk
 
-5. **Autopilot.** Each tick, every standing player gets a synthesized input inside the sim (not from the client) that moves them at normal walk speed toward the `evac_pad` centre. Routing uses a flow field seeded at the pad (`zombies/flowField.ts`, the field the bots already follow), with player buildings ignored (12.1). The autopilot is part of `step()`, so the replay digest stays the same without new replay commands.
+5. **Autopilot.** Each tick, every standing player gets a synthesized input inside the sim (not from the client) that moves them at normal walk speed toward the `evac_pad` centre. Routing uses a flow field seeded at the pad (`zombies/flowField.ts`, the field the bots already follow), with buildings as walls. Story 12.1 guarantees a player-sized path to the pad from anywhere walkable. The autopilot is part of `step()`, so the replay digest stays the same without new replay commands.
 6. **Downed players stand up** at the start of the phase, at their current spot, and walk too (decision CN-3).
 7. **Out players and held seats board on their own** (decision CN-4): they have no body to walk. The helicopter crew climbs out and "pulls them in" (a client visual in 12.3; in the sim they're boarded at the phase start).
 8. **Boarding.** A player within `evac.padRadiusM` (3 m, today drawn only) of the pad centre **after the helicopter has landed** is boarded: `p.boarded = true`, their body stops and isn't drawn, and a `player.boarded { slot }` event is emitted. Boarding waits for the landing (the descent takes `DESCEND_S` 2 s from when the vote opens, and a vote can resolve sooner).
-   - **Timeout.** After `evac.walkTimeoutS` (new, default 8 s) any player who hasn't boarded is boarded anyway, with a `run.extract_cut` event (12.3 fades through black for it). This covers a path the flow field can't solve.
+   - **Timeout.** After `evac.walkTimeoutS` (new, default 8 s) any player who hasn't boarded is boarded anyway, with a `run.extract_cut` event (12.3 fades through black for it). This is a safety net (a body stuck on a corner, a path made longer by the layout); 12.1 means a sealed pad shouldn't happen.
 
 ### Lift-off and fly-out
 
@@ -51,7 +51,7 @@ so that the end of a won run feels like an ending, not a cut to a menu.
 16. **Tests.**
    - A 4-player world: vote Extract, every player boards within `walkTimeoutS`, `run.lifted`, then `endRun` after `flyOutS`.
    - Downed stands up; out and held seats board at the start.
-   - A pad fully walled in by map solids → timeout cut.
+   - A survivor held up past the timeout (test hook) → timeout cut.
    - No damage during the phase.
    - The horde spawns only after lift-off and counts for nothing.
    - Replay digest with an extraction.

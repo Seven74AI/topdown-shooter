@@ -239,7 +239,7 @@ development_status:
   # Epic 12: Extraction cinematic (party-mode session 2026-11-25, designer decisions; quick stories)
   # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
   epic-12: in-progress
-  12-1-players-walk-through-their-buildings: ready-for-dev  # no forts: players pass through every player building; zombies unchanged
+  12-1-buildings-never-close-a-path: ready-for-dev  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
   12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
   12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
   epic-12-retrospective: optional
