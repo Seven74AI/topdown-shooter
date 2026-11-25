@@ -4,7 +4,7 @@ baseline_commit: b0e491a9e10eb5acb73fbbecb7f30aba93ab8172
 
 # Story 8.1: Reconnect within 2 minutes
 
-Status: review
+Status: done
 
 <!-- Network pass story 3 of 5 (pulled forward from Epic 8 by the designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Accepted Epic 8 decisions D1–D5 (docs/ideas/epic-8/decisions.md) are already rules here. -->
 
@@ -611,3 +611,8 @@ Gate (re-review 3, 2026-11-25 08:44–08:51 UTC, story-8-1 merged with origin/ma
 - 2026-11-25: merged master with Story 8.10; 8.10 hooks wired (resetHordeStream / forgetClient) and the keyframe-after-reconnect test (8.1 landed second).
 - 2026-11-25: re-review 2 fixes RR2-M1, RR2-M2 (+ B18 kept via allowProtect), B19 recorded, two flaky tests hardened (builder).
 - 2026-11-25: re-review 3 fixes RR3-M1 (quiet hold backdated), RR3-L1 (cut.test 10 s bound fixed), RR3-N1 test, RR3-N2 probes (builder).
+
+
+### Main session close-out (2026-11-25)
+
+Re-review cap (designer 2026-11-25): the re-review-3 fixes (ef8674c RR3-M1 one-line mirror of RR2-M2, RR3-L1, RR3-N1, RR3-N2; 13b4095 cut.test diagnostic; 1f9e151 F3 wipe-test input) were checked by the main session (diff read, touched tests) instead of a 4th re-review. Open follow-up: cut.test 'the run goes on' flake (1 in 37 standalone runs: wave 4 never ended in 150 s; reconnect itself fine; logs cut_test_stuck now; suspected bot hunting).
