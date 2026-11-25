@@ -11,8 +11,15 @@
  *   PostgreSQL ≥ 17 (production 18, PGlite 18), `transaction_timeout` (BANK_TX_TIMEOUT_MS);
  * - on every version: the elapsed time is checked right before COMMIT; over BANK_TX_BUDGET_MS → ROLLBACK (the
  *   PostgreSQL < 17 case where each statement is under its timeout but the sum is not).
- * Worst case ≈ 2 s (checkout) + 1.8 s (budget) + the COMMIT round trip. A failure is logged `db_error {op}` and
- * thrown as `DbUnavailableError`; only then may the caller retry (the first attempt has definitively rolled back).
+ * COMMIT itself is not cut by `statement_timeout`; a COMMIT (or a ROLLBACK) whose reply never comes is settled by
+ * the client query timeout (`PG_QUERY_TIMEOUT_MS` 3 s, `db/client.ts`) and TCP keepalive. Worst case per attempt ≈
+ * 2 s (checkout) + 1.8 s (budget) + 3 s (an unanswered COMMIT) + 3 s (the ROLLBACK on the same dead line) ≈ 10 s;
+ * normally a few ms. A failure is logged `db_error {op}` and thrown as `DbUnavailableError`; only then does the
+ * caller retry.
+ *
+ * One case stays (re-review 2, documented): a COMMIT that LANDED but whose reply was lost with the database then
+ * unreachable is reported as failed although paid. The next attempt (duplicate key → "saved") or, after two
+ * failures, the hand-grant check (`docs/deploy.md` › Database: look in `run_rewards` first) covers it.
  *
  * Reusable: 7.3 (unlock purchase), 7.5 (Training), 7.7 / 7.11 / 7.12 (writers in the bank) can wrap their own money
  * transactions in it.
