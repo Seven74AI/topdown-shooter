@@ -539,6 +539,9 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 | RR2-N1 | Accepted (the paused overlay covers the 17 ms) | — |
 | Flakes | `RunRoom.reconnect.test.ts` › "a quiet seat that then drops keeps its 120 s clock": asserts the window the room passes to `allowReconnection` (≤ 3.6 − 1.5 s: what is left of the first hold), not wall time; waits 10 s / 15 s. `tools/bots/cut.test.ts`: waits on conditions with more room (ready 30 s, ack 15 s, back 15 s × slack), the AC's 10 s bound × `max(1, load/2)` (exactly 10 s at load ≤ 2), timeout 360 s | both green together with the server suite + the economy sims in parallel (load 4.69) |
 
+
+Gate (re-review 2, 2026-11-25 07:34–07:41 UTC, after merging origin/master — already up to date): `npm run typecheck && npm run lint && npm test && npm run build` → EXIT 0; 429 test files passed / 1 skipped, 3896 tests passed / 3 skipped; build ok. Load 0.71 at start, 4.30 at end.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
