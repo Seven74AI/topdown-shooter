@@ -3,7 +3,7 @@ import { EVENT_KINDS, EVENT_PHASE, type StampedeLane, type World } from "@topdow
 import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, ensureEventTextures } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook } from "./eventMarkers";
-import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
+import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -54,7 +54,7 @@ export class EventView {
   private clockS = 0;
   private readonly look = createEventMarkerLook();
   private readonly controls = newWaveControlRects();
-  private readonly arrowAt = { x: 0, y: 0, angle: 0 };
+  private readonly arrowAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // `side`: the placement's hysteresis (re-review 2 RR1)
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 

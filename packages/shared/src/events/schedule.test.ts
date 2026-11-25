@@ -6,6 +6,7 @@ import { stageForWave } from "../decay/decayState";
 import { addPlayer } from "../player/player";
 import { EVENT_KINDS } from "./eventState";
 import { eventFits, scheduleRunEvents } from "./schedule";
+import { forceEvent } from "./specialEvents";
 import { applyStartWave } from "../run/devStartWave";
 import { endlessEventCandidates } from "../run/endlessEvents";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
@@ -157,4 +158,30 @@ describe("Story 6.8 × 6.12: an even endless wave starts its event through 6.12'
       expect(seen[0]).not.toBe(seen[1]); // 6.12 D4: never the same twice in a row
     });
   }
+});
+
+describe("Story 6.8 re-review 2 RR4: a forced event pending for the coming endless wave wins over the endless pick", () => {
+  it("forced in wave 11 for wave 12: startBuild keeps the forced kind, endlessEvent '' and the no-repeat memory unchanged; forced after startBuild replaces the pick", () => {
+    const w = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
+    addPlayer(w, "p0", 24, 16);
+    applyStartWave(w, 11);
+    startBuild(w);
+    startWave(w); // wave 11
+    w.run.lastEndlessEvent = "car_alarm";
+    expect(forceEvent(w, "stampede")).toBe(true); // → wave 12
+    skipWave(w); // → the build before wave 12
+    expect(w.run.phase).toBe("build");
+    expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf("stampede"), wave: 12 });
+    expect(w.special.extraDone).toBe(false);
+    expect(w.run.endlessEvent).toBe("");
+    expect(w.run.lastEndlessEvent).toBe("car_alarm"); // only what really armed is remembered
+    // the other order: the pick armed, then a force in the build replaces it
+    const v = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
+    addPlayer(v, "p0", 24, 16);
+    applyStartWave(v, 12);
+    startBuild(v);
+    expect(["car_alarm", "stampede"]).toContain(v.run.endlessEvent);
+    forceEvent(v, "car_alarm");
+    expect(v.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf("car_alarm"), wave: 12 });
+  });
 });

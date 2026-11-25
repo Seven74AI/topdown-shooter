@@ -529,6 +529,16 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 - `waveControlRects` with a zero-width HP block → hudLayout 2 failed; the same with the wave line → 2 failed.
 - On-screen test without `underAny` (R2) → hudLayout 2 failed.
 
+### Re-review 2 fixes (builder, 2026-11-25, after merging `rereview2-6-8` d136cb3 and master 5bdb847)
+
+| # | Fix | Test / measured |
+| --- | --- | --- |
+| RR1 [BEHAVIOUR] | `placeEventArrow` no longer walks the perimeter. The arrow sits on the bearing's own ray, at its exit from a notched safe rect: wide HUD bands along an edge (the HP block, the wave line: span ≥ 2 × depth) are cut out as notches, chamfered so the region is star-shaped from the centre, and the exit is found by bisection. The compact controls (☰, swap, quick-use) are obstacles: an exit inside one is pulled back along the ray to where the ray enters it. When that point is within 48 px of the survivor (the swap / quick-use pair sits across the centre row), the arrow takes the nearest clear ray each way, at most 30° off. Hysteresis keeps whichever of the two is nearer last frame's spot (`EventArrowPlace.side`, kept by EventView). | `hudLayout.test`, every 0.1° both ways at 568×320, 640×360, 800×360 and 844×390, k 1 and 3; every keep-off assertion holds. Max bearing error: **30.0° at 568×320, 0.0° at 640×360 and wider**. Neighbouring steps move ≤ 4.4 CSS px, except ≤ 3 jumps per turn where the legal spots part. At 568×320 those are straight up (51 px: the HP row reserve reaches past the centre column), up-right (86 px: the HP block meets quick-use) and right (111 px, across the swap / quick-use pair). Wider screens have one, at a corner of the swap / quick-use pair (≤ 173 px). Max jump 173 CSS px (was 370–500). No jump > 40 px under ±0.1° jitter at any degree (hysteresis). |
+| RR2 | `WAVE_LINE_RESERVE_CSS_PX` 240 → **280**: the widest line, "Wave 99 · Endless · Zombies 9999", measures 261.5 px at 16 px system-ui (Chromium canvas). | the layout tests above use it. |
+| RR3 | New `HP_ROW_RESERVE_CSS_PX` **306**: "HP 175 / 175   Burning" measures 143.4 px at 14 px, plus 8 px and 5 gear icons × 28 px = 291.4 px, plus a margin. `layoutHpBlock` is 308 wide. | ditto |
+| RR4 | `armEndlessEvent(world, previousLast)`: if an un-done forced extra is pending for the coming wave, it wins. The endless pick is dropped (`run.endlessEvent` ""), and `run.lastEndlessEvent` goes back to what was last really armed. A force during the build still replaces the pick. | `schedule.test` "RR4": forced in wave 11 for wave 12 → kept, no-repeat memory unchanged; forced after `startBuild` → replaces it. |
+| nit | `fakeRoom` field order: event*, then voteTicksLeft / endless (schema order). | typecheck |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -540,3 +550,4 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 - 2026-11-25: re-review fixes R1–R4 (arrow off the HP block and the wave line, safe-rect on-screen test, drawn-extent test, runS 12 / ≤ 15 s docs and the hold test).
 - 2026-11-25: merged 6.11 + 6.12 from master: one endless scheduler (6.12) feeding the framework (`armEndlessEvent`); HeliView pad from `evac_pad`.
 - 2026-11-25: Re-review 2 (AI) of R1–R4 + the 6.11/6.12 merge: approve with notes (1 medium RR1 arrow bearing / jump, 3 low).
+- 2026-11-25: re-review 2 fixes: RR1 arrow on its ray (notched safe rect, obstacles, ≤ 30° fallback with hysteresis), RR2/RR3 wave-line and HP-row reserves, RR4 forced event wins over the endless pick, fakeRoom order.

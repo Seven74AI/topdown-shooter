@@ -1,4 +1,4 @@
-import { layoutRightButtons, newRightButtonsLayout } from "../scenes/consumableButton";
+import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
 import { layoutHpBlock, layoutWaveLine } from "../scenes/hudTopLayout";
 
@@ -8,9 +8,14 @@ import { layoutHpBlock, layoutWaveLine } from "../scenes/hudTopLayout";
  * off the HP block and the wave line (readable), and ≥ 48 px from the survivor at the centre — the one HUD layout test checks it (`scenes/hudLayout.test.ts`). Pure, no
  * allocation per call (the caller passes the records).
  *
- * The arrow (a square of side `size` px, disc + tip) goes on the line from the centre toward the
- * event's screen point (sx, sy), on the safe-area rectangle shrunk by size / 2 + `pad`; a point that
- * lands on a control slides along its edge to the nearer side of that control.
+ * Re-review 2 RR1: the arrow (a square of side `size` px, disc + tip) sits ON the ray from the centre
+ * toward the event's screen point (sx, sy) — its bearing is the true one — at the ray's exit from a
+ * NOTCHED safe rectangle: the safe area shrunk by size / 2 + `pad`, with every wide HUD band along an
+ * edge (the HP block, the wave line; inflated by the same amount) cut out as a notch, its depth the
+ * band's far side. Compact controls (☰, swap, quick-use) are obstacles (below). The
+ * notch's ends are chamfered so that every piece of the boundary faces the centre: the region is
+ * star-shaped from the centre, so the exit point moves continuously with the bearing (no jump, no
+ * hysteresis needed) and one bisection finds it.
  */
 export interface ScreenRect {
   x: number;
@@ -57,76 +62,227 @@ export function newWaveControlRects(): ScreenRect[] {
   return [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
 }
 
+/** The arrow's placement (kept by the caller across frames: `side` is the hysteresis state). */
+export interface EventArrowPlace {
+  x: number;
+  y: number;
+  /** The true bearing to the event (the tip points along it). */
+  angle: number;
+  /** Hysteresis state: 1 once placed (x, y are last frame's), 0 before / after an on-screen frame. */
+  side?: number;
+}
+
+/** Re-review 2 RR1: the most the arrow's bearing (from the survivor) may differ from the event's. */
+export const EVENT_ARROW_MAX_BEARING_ERR_RAD = (30 * Math.PI) / 180;
+const SEARCH_STEP_RAD = (0.25 * Math.PI) / 180;
+
 /**
  * The arrow's centre for an event at screen point (sx, sy) into `out`; false (no arrow) when the
- * point is on screen. `avoid`: the controls (`waveControlRects`).
+ * point is on screen. `avoid`: the HUD rects (`waveControlRects`).
+ *
+ * On the bearing's own ray when its exit point keeps the drawn arrow ≥ `CENTRE_CLEAR_CSS_PX` from the
+ * survivor and stays off the compact blocks. Where one straddles the bearing (the swap / quick-use
+ * pair sits across the centre row), no point of that ray qualifies: the arrow takes the nearest ray that
+ * does, at most 30° off. Hysteresis: of the nearest clear ray each way, it takes the one nearer
+ * where it was last frame, so it crosses a blocked fan with one jump instead of flickering at its middle.
  */
-export function placeEventArrow(sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: { x: number; y: number; angle: number }): boolean {
+export function placeEventArrow(sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace): boolean {
   // Re-review R2: "on screen" = inside the SAFE rectangle and not under a HUD block (a point under the
   // notch inset, ☰ or the HP block can't be seen: it gets an arrow).
-  if (sx >= insets.left * k && sx <= w - insets.right * k && sy >= insets.top * k && sy <= h - insets.bottom * k && !underAny(sx, sy, avoid)) return false;
-  const half = size / 2 + EVENT_ARROW_PAD_CSS_PX * k;
-  const L = insets.left * k + half;
-  const R = w - insets.right * k - half;
-  const T = insets.top * k + half;
-  const B = h - insets.bottom * k - half;
-  const cx = w / 2;
-  const cy = h / 2;
-  const dx = sx - cx;
-  const dy = sy - cy;
-  out.angle = Math.atan2(dy, dx);
-  const s = Math.min(dx > 0 ? (R - cx) / dx : dx < 0 ? (L - cx) / dx : Infinity, dy > 0 ? (B - cy) / dy : dy < 0 ? (T - cy) / dy : Infinity);
-  const hx = cx + dx * s;
-  const hy = cy + dy * s;
-  // Re-review R1: walk the inner rectangle's perimeter outward from the ray's hit point (both ways,
-  // 1 px steps) to the nearest spot clear of every avoid rect (inflated by `half`). A walk, not a
-  // slide: two neighbouring blocks (HP block + wave line) can't push it back and forth.
-  const tw = R - L;
-  const th = B - T;
-  const per = 2 * (tw + th);
-  const t0 = perimeterT(hx, hy, L, R, T, B);
-  const step = Math.max(1, k);
-  for (let d = 0; d <= per / 2; d += step) {
-    if (tryAt(t0 + d, L, T, tw, th, per, avoid, half, out) || tryAt(t0 - d, L, T, tw, th, per, avoid, half, out)) return true;
+  if (sx >= insets.left * k && sx <= w - insets.right * k && sy >= insets.top * k && sy <= h - insets.bottom * k && !underAny(sx, sy, avoid)) {
+    out.side = 0;
+    return false;
   }
-  out.x = hx; // nowhere clear (can't happen on a phone layout: test): the ray's hit point
-  out.y = hy;
+  const half = size / 2 + EVENT_ARROW_PAD_CSS_PX * k;
+  rg.L = insets.left * k + half;
+  rg.R = w - insets.right * k - half;
+  rg.T = insets.top * k + half;
+  rg.B = h - insets.bottom * k - half;
+  rg.cx = w / 2;
+  rg.cy = h / 2;
+  rg.size = size;
+  rg.clear = CENTRE_CLEAR_CSS_PX * k;
+  const bearing = Math.atan2(sy - rg.cy, sx - rg.cx);
+  out.angle = bearing;
+  buildNotches(avoid, half, rg.L, rg.R, rg.T, rg.B, rg.cx, rg.cy, Math.max(4, NOTCH_CHAMFER_MARGIN_CSS_PX * k));
+  const hadPrev = out.side === 1;
+  const prevX = out.x;
+  const prevY = out.y;
+  out.side = 1;
+  if (exitClear(bearing, bearing)) {
+    out.x = rg.x;
+    out.y = rg.y;
+    return true;
+  }
+  // the nearest clear ray each way (≤ 30°); hysteresis: the one nearer where the arrow was last frame
+  const max = EVENT_ARROW_MAX_BEARING_ERR_RAD;
+  const dp = searchSide(bearing, 1, max);
+  const px = rg.x;
+  const py = rg.y;
+  const dm = searchSide(bearing, -1, max);
+  if (dp < 0 && dm < 0) {
+    // never on a phone layout (test): the nearest clear ray anywhere
+    for (let d = SEARCH_STEP_RAD; d <= Math.PI; d += SEARCH_STEP_RAD) if (exitClear(bearing + d, bearing) || exitClear(bearing - d, bearing)) break;
+  } else if (dm < 0 || (dp >= 0 && (hadPrev ? Math.hypot(px - prevX, py - prevY) <= Math.hypot(rg.x - prevX, rg.y - prevY) : dp <= dm))) {
+    rg.x = px;
+    rg.y = py;
+  }
+  out.x = rg.x;
+  out.y = rg.y;
   return true;
 }
 
-/** Perimeter parameter of a point on the inner rect: top edge L→R, right edge T→B, bottom R→L, left B→T. */
-function perimeterT(x: number, y: number, L: number, R: number, T: number, B: number): number {
-  const tw = R - L;
-  const th = B - T;
-  if (Math.abs(y - T) < 1e-6) return x - L;
-  if (Math.abs(x - R) < 1e-6) return tw + (y - T);
-  if (Math.abs(y - B) < 1e-6) return tw + th + (R - x);
-  return 2 * tw + th + (B - y);
+/** Scratch for one placement (no allocation per call). */
+const rg = { L: 0, R: 0, T: 0, B: 0, cx: 0, cy: 0, size: 0, clear: 0, x: 0, y: 0 };
+const drawnScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
+const atScratch = { x: 0, y: 0, angle: 0 };
+
+/** The smallest offset d ≤ max (radians) whose ray `bearing + side·d` is clear (its exit in rg.x / rg.y), or −1. */
+function searchSide(bearing: number, side: number, max: number): number {
+  for (let d = SEARCH_STEP_RAD; d <= max + 1e-9; d += SEARCH_STEP_RAD) if (exitClear(bearing + side * d, bearing)) return d;
+  return -1;
 }
 
-function tryAt(t: number, L: number, T: number, tw: number, th: number, per: number, avoid: readonly ScreenRect[], half: number, out: { x: number; y: number }): boolean {
-  t = ((t % per) + per) % per;
-  let x: number;
-  let y: number;
-  if (t <= tw) {
-    x = L + t;
-    y = T;
-  } else if (t <= tw + th) {
-    x = L + tw;
-    y = T + (t - tw);
-  } else if (t <= 2 * tw + th) {
-    x = L + tw - (t - tw - th);
-    y = T + th;
-  } else {
-    x = L;
-    y = T + th - (t - 2 * tw - th);
+/**
+ * Where the arrow goes on the ray at `ray`, into rg.x / rg.y: the exit of the notched region (star-
+ * shaped from the centre; bisection), pulled back out of any obstacle; true when the arrow drawn there
+ * (tip along `tipAngle`) clears the survivor.
+ */
+function exitClear(ray: number, tipAngle: number): boolean {
+  const dx = Math.cos(ray);
+  const dy = Math.sin(ray);
+  const s = Math.min(dx > 1e-12 ? (rg.R - rg.cx) / dx : dx < -1e-12 ? (rg.L - rg.cx) / dx : Infinity, dy > 1e-12 ? (rg.B - rg.cy) / dy : dy < -1e-12 ? (rg.T - rg.cy) / dy : Infinity);
+  let lo = 0;
+  let hi = s;
+  for (let it = 0; it < 40; it++) {
+    const m = (lo + hi) / 2;
+    if (insideRegion(rg.cx + dx * m, rg.cy + dy * m)) lo = m;
+    else hi = m;
   }
-  for (let i = 0; i < avoid.length; i++) {
+  // the farthest point of the ray, up to the exit, outside every obstacle: an obstacle holding the
+  // point pushes it back to where the ray enters that obstacle (repeat: obstacles can chain)
+  let t = lo;
+  for (let pass = 0; pass <= obstacleCount; pass++) {
+    let moved = false;
+    for (let i = 0; i < obstacleCount; i++) {
+      const o = obstacles[i] as ScreenRect;
+      const x = rg.cx + dx * t;
+      const y = rg.cy + dy * t;
+      if (!(x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h)) continue;
+      // entry t of the ray into o (slab method; the centre is never inside an obstacle on a phone layout: test)
+      const tx0 = Math.abs(dx) < 1e-12 ? -Infinity : ((dx > 0 ? o.x : o.x + o.w) - rg.cx) / dx;
+      const ty0 = Math.abs(dy) < 1e-12 ? -Infinity : ((dy > 0 ? o.y : o.y + o.h) - rg.cy) / dy;
+      t = Math.max(0, Math.max(tx0, ty0) - 1e-6);
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  rg.x = rg.cx + dx * t;
+  rg.y = rg.cy + dy * t;
+  atScratch.x = rg.x;
+  atScratch.y = rg.y;
+  atScratch.angle = tipAngle;
+  for (let i = 0; i < obstacleCount; i++) {
+    const o = obstacles[i] as ScreenRect;
+    if (rg.x > o.x && rg.x < o.x + o.w && rg.y > o.y && rg.y < o.y + o.h) return false;
+  }
+  const r = eventArrowDrawnRect(atScratch, rg.size, drawnScratch);
+  return rectCentreGap(r.x, r.y, r.w, r.h, rg.cx, rg.cy) >= rg.clear - 1e-6;
+}
+
+/** A block is cut as a notch only when its span along the edge is at least this × its depth. */
+const NOTCH_MIN_ASPECT = 2;
+/** Extra length of a notch's chamfer past the ray through its corner (CSS px × k). */
+export const NOTCH_CHAMFER_MARGIN_CSS_PX = 48;
+
+/** A notch: edge 0 top, 1 right, 2 bottom, 3 left; span [a0, a1] along it, depth d inward, chamfers c0 / c1 (0: runs past the corner). */
+interface Notch {
+  edge: number;
+  a0: number;
+  a1: number;
+  d: number;
+  c0: number;
+  c1: number;
+}
+const MAX_NOTCHES = 8;
+const notches: Notch[] = Array.from({ length: MAX_NOTCHES }, () => ({ edge: 0, a0: 0, a1: 0, d: 0, c0: 0, c1: 0 }));
+let notchCount = 0;
+/** Floating blocks (inflated by `half`): the arrow's centre stays out of them. */
+const obstacles: ScreenRect[] = Array.from({ length: MAX_NOTCHES }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+let obstacleCount = 0;
+const nb = { L: 0, R: 0, T: 0, B: 0 };
+
+/**
+ * Each avoid rect, inflated by `half`, that lies along an edge as a wide band becomes a notch of that
+ * edge (the shallowest such cut); any other becomes an obstacle. Edge coordinates: u along
+ * the edge, v inward.
+ */
+function buildNotches(avoid: readonly ScreenRect[], half: number, L: number, R: number, T: number, B: number, cx: number, cy: number, margin: number): void {
+  nb.L = L;
+  nb.R = R;
+  nb.T = T;
+  nb.B = B;
+  notchCount = 0;
+  obstacleCount = 0;
+  for (let i = 0; i < avoid.length && notchCount < MAX_NOTCHES; i++) {
     const a = avoid[i] as ScreenRect;
-    if (x > a.x - half && x < a.x + a.w + half && y > a.y - half && y < a.y + a.h + half) return false;
+    const x0 = a.x - half;
+    const x1 = a.x + a.w + half;
+    const y0 = a.y - half;
+    const y1 = a.y + a.h + half;
+    if (x1 <= L || x0 >= R || y1 <= T || y0 >= B) continue; // clear of the arrow's rectangle
+    // a wide band along an edge (the HP block, the wave line: span ≥ 2 × depth) is cut from it; a
+    // compact block (☰, swap, quick-use) is an obstacle the arrow keeps off — cut out to the edge it
+    // would shadow a wide fan of bearings (and the gaps round it)
+    let best = -1;
+    let bestD = Infinity;
+    for (let e = 0; e < 4; e++) {
+      const gap = e === 0 ? y0 - T : e === 1 ? R - x1 : e === 2 ? B - y1 : x0 - L;
+      const d = e === 0 ? y1 - T : e === 1 ? R - x0 : e === 2 ? B - y0 : x1 - L;
+      const span = e === 0 || e === 2 ? x1 - x0 : y1 - y0;
+      if (gap <= 0 && span >= NOTCH_MIN_ASPECT * d && d < bestD) {
+        best = e;
+        bestD = d;
+      }
+    }
+    if (best < 0) {
+      if (obstacleCount < MAX_NOTCHES) {
+        const o = obstacles[obstacleCount++] as ScreenRect;
+        o.x = x0;
+        o.y = y0;
+        o.w = x1 - x0;
+        o.h = y1 - y0;
+      }
+      continue;
+    }
+    const n = notches[notchCount++] as Notch;
+    n.edge = best;
+    n.d = bestD;
+    const horiz = best === 0 || best === 2;
+    n.a0 = horiz ? x0 : y0;
+    n.a1 = horiz ? x1 : y1;
+    const lo = horiz ? L : T;
+    const hi = horiz ? R : B;
+    const uc = horiz ? cx : cy;
+    const vc = best === 0 ? cy - T : best === 1 ? R - cx : best === 2 ? B - cy : cx - L;
+    const k = vc / Math.max(1e-6, vc - n.d); // a ray from the centre through the notch's corner meets the edge line at uc + (a − uc)·k
+    n.c0 = n.a0 <= lo ? 0 : Math.max(0, n.a0 - (uc + (n.a0 - uc) * k)) + margin;
+    n.c1 = n.a1 >= hi ? 0 : Math.max(0, uc + (n.a1 - uc) * k - n.a1) + margin;
   }
-  out.x = x;
-  out.y = y;
+}
+
+function insideRegion(x: number, y: number): boolean {
+  if (x > nb.R || x < nb.L || y > nb.B || y < nb.T) return false;
+  for (let i = 0; i < notchCount; i++) {
+    const n = notches[i] as Notch;
+    const u = n.edge === 0 || n.edge === 2 ? x : y;
+    const v = n.edge === 0 ? y - nb.T : n.edge === 1 ? nb.R - x : n.edge === 2 ? nb.B - y : x - nb.L;
+    let depth: number;
+    if (u >= n.a0 && u <= n.a1) depth = n.d;
+    else if (u < n.a0) depth = n.c0 > 0 && u > n.a0 - n.c0 ? (n.d * (u - (n.a0 - n.c0))) / n.c0 : 0;
+    else depth = n.c1 > 0 && u < n.a1 + n.c1 ? (n.d * (n.a1 + n.c1 - u)) / n.c1 : 0;
+    if (v < depth) return false;
+  }
   return true;
 }
 
