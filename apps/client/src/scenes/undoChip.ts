@@ -1,5 +1,5 @@
 import { buildingById, type World } from "@topdown/shared";
-import { BUILD_TILE_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
+import { BUILD_TILE_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_CLUSTER_GAP_CSS_PX, UNDO_HAND } from "../ui/sizes";
 
 /**
  * Story 5.20 (BX-6, ux-spec §4/§5): the undo chip ↶ (Phaser-free, unit-tested). Shown for
@@ -128,18 +128,18 @@ export class UndoChip {
 }
 
 /**
- * Story 5.20 (D4; ux-spec §4) + Story 10.10 (BU-1 = B, AC 8): where ↶ goes (canvas px, top-left + size;
+ * Story 5.20 (D4; ux-spec §4) + Story 10.10 (AC 8, review 1): where ↶ goes (canvas px, top-left + size;
  * insets in CSS px, `k` = dpr):
  *
- * - **hands empty** (the Build cluster up): above the quick tile, centred on it, level with the Shop
- *   chip (`clusterLeft` = the quick tile's left edge, `clusterTop` = the chip's top: the cluster box of
- *   `layoutBuildCluster`) — B's still. 5.12's row (consumable, swap) sits 12 px above that line;
+ * - **hands empty** (the Build cluster up): 12 px left of the quick tile, centred on its row
+ *   (`quickX`, `quickY` of `layoutBuildCluster`) — outside the hand cluster's Place and ✕ (B's still had
+ *   it above the quick tile, inside Place: a stray Place tap after the chain ended sold the building);
  * - **holding** (Ready, the cluster and 5.12's row are hidden): the spec's hand-cluster spot, centre
  *   (270, 64) from the bottom-right safe-area corner, left of ⟳ — away from the survivor and the ghost.
  *
  * Pure (`undoChip.test.ts`, `hudLayout.test.ts`).
  */
-export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, clusterLeft: number, clusterTop: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
+export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, quickX: number, quickY: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
   const size = UNDO_CHIP_CSS_PX * k;
   out.size = size;
   if (holding) {
@@ -147,7 +147,7 @@ export function layoutUndoChip(width: number, height: number, insetRight: number
     out.y = height - (UNDO_HAND.bottomCss + insetBottom) * k - size / 2;
     return out;
   }
-  out.x = clusterLeft + (BUILD_TILE_CSS_PX * k - size) / 2;
-  out.y = clusterTop;
+  out.x = quickX - UNDO_CLUSTER_GAP_CSS_PX * k - size;
+  out.y = quickY + (BUILD_TILE_CSS_PX * k - size) / 2;
   return out;
 }

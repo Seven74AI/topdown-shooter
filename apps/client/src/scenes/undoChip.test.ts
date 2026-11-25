@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, startBuild, startWave, type SystemFn } from "@topdown/shared";
 import { UndoChip, layoutUndoChip, type UndoPendingView } from "./undoChip";
-import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyLeftX } from "./buildBar";
+import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { CENTRE_CLEAR_CSS_PX, layoutRowAboveCluster, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
@@ -165,7 +165,7 @@ describe("Story 5.20 review L1 / L3", () => {
   });
 });
 
-describe("Story 5.20 / 10.10: where ↶ sits (D4; BU-1 = B: above the quick tile, level with the Shop chip)", () => {
+describe("Story 5.20 / 10.10: where ↶ sits (D4; review 1: 12 px left of the quick tile, outside Place and ✕)", () => {
   type R = { x: number; y: number; w: number; h: number };
   const sq = (r: { x: number; y: number; size: number }): R => ({ x: r.x, y: r.y, w: r.size, h: r.size });
   /** Rect gap (≥ 0 when apart; the larger of the two axis gaps). */
@@ -182,11 +182,11 @@ describe("Story 5.20 / 10.10: where ↶ sits (D4; BU-1 = B: above the quick tile
       [0, 0],
       [44, 21],
     ] as const) {
-      it(`${W} × ${H}, insets ${R0}/${B0}: ≥ 12 px from 5.12's row, the Shop chip, the quick tile, Build, Ready, ☰; the hand-cluster spot while holding; clear of the screen centre`, () => {
+      it(`${W} × ${H}, insets ${R0}/${B0}: ≥ 12 px from 5.12's row, the Shop chip, the quick tile, Build, Ready, ☰; outside the hand cluster's Place and ✕; the hand-cluster spot while holding; clear of the screen centre`, () => {
         const k = 1;
         const c = layoutBuildCluster(W, H, R0, B0, k, newBuildClusterLayout());
         const hand = layoutHandCluster(W, H, R0, B0, k, newHandLayout());
-        const readyX = readyLeftX(W, READY_BUTTON_W_CSS_PX * k, layoutBuildPanel(W, H, R0, B0, k, newBuildPanelLayout()).cardX, k);
+        const readyX = readyLeftX(W, READY_BUTTON_W_CSS_PX * k, readyClearLeft(c, layoutBuildPanel(W, H, R0, B0, k, newBuildPanelLayout()), k), k);
         const ready: R = { x: readyX, y: H - (READY_BUTTON_BOTTOM_CSS_PX + B0 + READY_BUTTON_H_CSS_PX) * k, w: READY_BUTTON_W_CSS_PX * k, h: READY_BUTTON_H_CSS_PX * k };
         const menu: R = { x: W - (MENU_BUTTON_INSET_CSS_PX + R0 + MENU_BUTTON_CSS_PX) * k, y: MENU_BUTTON_INSET_CSS_PX * k, w: MENU_BUTTON_CSS_PX * k, h: MENU_BUTTON_CSS_PX * k };
         const row = layoutRowAboveCluster(W, H, R0, B0, k, c.top, c.right, newRightButtonsLayout());
@@ -196,16 +196,19 @@ describe("Story 5.20 / 10.10: where ↶ sits (D4; BU-1 = B: above the quick tile
         const quick: R = { x: c.quickX, y: c.quickY, w: c.tile, h: c.tile };
         const build: R = { x: c.buildX, y: c.buildY, w: c.tile, h: c.tile };
 
-        const up = sq(layoutUndoChip(W, H, R0, B0, c.left, c.top, k, false, { x: 0, y: 0, size: 0 }));
+        const up = sq(layoutUndoChip(W, H, R0, B0, c.quickX, c.quickY, k, false, { x: 0, y: 0, size: 0 }));
         expect(up.w).toBe(48);
-        expect([up.x, up.y]).toEqual([c.quickX + 4, c.chipY]); // B's still: above the quick tile, centred, level with the chip
+        expect([up.x + up.w + 12, up.y]).toEqual([c.quickX, c.quickY + 4]); // review 1: 12 px left of the quick tile, centred on its row
+        const place = sq(hand.place);
+        const cancel = sq(hand.cancel);
+        for (const o of [place, cancel]) expect(gap(up, o), "outside Place and ✕").toBeGreaterThan(0);
         expect(cgap(up, cons)).toBeGreaterThanOrEqual(12);
         expect(cgap(up, chip)).toBeGreaterThanOrEqual(12);
         for (const o of [cons, swap, ready, menu, chip, quick, build]) expect(gap(up, o)).toBeGreaterThanOrEqual(12);
         expect(rectCentreGap(up.x, up.y, up.w, up.h, W / 2, H / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX); // the survivor stands there
 
         // Holding: Ready, the cluster and 5.12's row are hidden (5.15 / 5.12), so only the hand cluster, the chip and ☰ count.
-        const held = sq(layoutUndoChip(W, H, R0, B0, c.left, c.top, k, true, { x: 0, y: 0, size: 0 }));
+        const held = sq(layoutUndoChip(W, H, R0, B0, c.quickX, c.quickY, k, true, { x: 0, y: 0, size: 0 }));
         expect([held.x + 24, H - (held.y + 24)]).toEqual([W - 270 - R0, 64 + B0]); // ux-spec §4: centre (270, 64) from the bottom-right safe-area corner
         for (const o of [hand.place, hand.rotate, hand.cancel]) expect(cgap(held, sq(o))).toBeGreaterThanOrEqual(12);
         for (const o of [menu, hand.chip]) expect(gap(held, o)).toBeGreaterThanOrEqual(12);

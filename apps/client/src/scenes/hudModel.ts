@@ -147,6 +147,8 @@ export interface HudModel {
    * GameScene closes it on a pick, the shop, the menu, the ping wheel, the phase's end, downed, a selection).
    */
   buildPanelOpen: boolean;
+  /** Story 10.10: Build / Close was tapped this frame; the GameScene toggles the panel (not in 5.18's quiet window). */
+  buildPanelPressed: boolean;
   /** Story 10.10 (BU-5): the quick tile's type id (`quickType`: last placed, else the first unlocked; "" = none). */
   buildQuick: string;
   /** Set by the HUD when the build bar's Shop tile is tapped (Story 3.3's shop); the GameScene consumes it. */
@@ -385,6 +387,7 @@ export const createHudModel = (): HudModel => ({
   buildCap: 0,
   buildPick: "",
   buildPanelOpen: false,
+  buildPanelPressed: false,
   buildQuick: "",
   shopPressed: false,
   tapsEnabled: false,

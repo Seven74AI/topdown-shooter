@@ -21,6 +21,7 @@ import {
   BUILD_COUNT_TEXT_CSS_PX,
   BUILD_PANEL_PAD_CSS_PX,
   BUILD_PRICE_TEXT_CSS_PX,
+  BUILD_TILE_CSS_PX,
   HAND_CHIP_PAD_CSS_PX,
   HAND_CHIP_TEXT_CSS_PX,
   UNDO_GLYPH_CSS_PX,
@@ -41,7 +42,7 @@ import { BUTTON_TOLERANCE_PX } from "../input/routePointer";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
-import { BUILD_BAR_SLOTS, PANEL_CELLS, PANEL_TAP_CONSUME, PANEL_TAP_NONE, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, buildBarSlots, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, panelAllowed, panelTapOutside, readyLeftX, tileState, type BuildTile } from "./buildBar";
+import { BUILD_BAR_SLOTS, PANEL_CELLS, PANEL_TAP_CONSUME, PANEL_TAP_KEEP, PANEL_TAP_NONE, buildPanelSlots, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, onPanelCard, panelAllowed, panelTapOutside, readyClearLeft, readyLeftX, tileState, type BuildTile } from "./buildBar";
 import { FRAME_WOOD, buildingFrame, ensureBuildingsAtlas, textureOfFrame } from "../render/city/buildingsAtlas";
 import { BUILD_ICON_FRAME_H, BUILD_ICON_FRAME_W, BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y, BUILD_ICON_TEXTURE, buildIconFrame, ensureBuildIcons } from "../render/city/buildIcons";
 import { drawPlankIcon } from "../render/BuildingView";
@@ -704,7 +705,7 @@ export class HudScene extends Phaser.Scene {
     this.buildIcon = this.add.graphics().setDepth(1002).setVisible(false);
     this.buildLabel = this.add.text(0, 0, "Build", { ...this.outlinedStyle(BUILD_LABEL_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.buttons.set({ id: "build", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.buildPanelOpen = !this.model.buildPanelOpen;
+      this.model.buildPanelPressed = true; // the GameScene toggles the panel (review 1: not in 5.18's quiet window)
     });
     this.shopChip = this.add.graphics().setDepth(1001).setVisible(false);
     this.shopChipGlyph = this.add.text(0, 0, "🛒", this.outlinedStyle(SHOP_CHIP_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
@@ -851,10 +852,12 @@ export class HudScene extends Phaser.Scene {
       this.pingHud.pointerDown(this.buttons.hit(p.x, p.y, this.scale.width)); // Story 8.7: a tap off the wheel closes it
       // Story 10.10 (AC 6): a touch outside the open Build panel closes it; off every button it is consumed
       // (no stick, no fire, no building selected), on another button (Ready, ping, ☰) that button still gets it.
-      const outside = panelTapOutside(this.shownBarMode === BAR_OPEN, this.buttons.hit(p.x, p.y, this.scale.width));
+      // Review 4, 5: a touch on the card itself keeps it open (consumed); a move-stick-half touch closes it and still walks.
+      const open = this.shownBarMode === BAR_OPEN;
+      const outside = panelTapOutside(open, this.buttons.hit(p.x, p.y, this.scale.width), open && onPanelCard(this.panel, p.x, p.y), p.wasTouch && p.x < this.scale.width / 2);
       if (outside !== PANEL_TAP_NONE) {
-        this.model.buildPanelOpen = false;
-        if (outside === PANEL_TAP_CONSUME) {
+        if (outside !== PANEL_TAP_KEEP) this.model.buildPanelOpen = false;
+        if (outside === PANEL_TAP_CONSUME || outside === PANEL_TAP_KEEP) {
           this.buttons.claim(p.id);
           this.router.pointerDown(p.id, p.x, p.y, p.wasTouch, p.button, true, this.scale.width);
           return;
@@ -1151,7 +1154,7 @@ export class HudScene extends Phaser.Scene {
   /** Story 5.20 (D4): ↶ above the build bar's top-left (`layoutUndoChip`), the bar's or the hand's spot. */
   private layoutUndo(): void {
     const k = dpr();
-    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.cluster.left, this.cluster.top, k, this.model.undoHolding, this.undoRect);
+    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.cluster.quickX, this.cluster.quickY, k, this.model.undoHolding, this.undoRect);
     const rect = this.buttons.get("undo");
     if (rect) Object.assign(rect, { x: l.x, y: l.y, w: l.size, h: l.size });
     const g = this.undoBg;
@@ -1593,7 +1596,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const w = READY_BUTTON_W_CSS_PX * k;
     const h = READY_BUTTON_H_CSS_PX * k;
-    const x = readyLeftX(this.scale.width, w, this.panel.cardX, k); // Story 10.10: clear of the open panel's card too (it never jumps)
+    const x = readyLeftX(this.scale.width, w, readyClearLeft(this.cluster, this.panel, k), k); // Story 10.10 (B4): clear of the open card and ↶ (it never jumps)
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
@@ -1788,8 +1791,9 @@ export class HudScene extends Phaser.Scene {
     const rect = this.buttons.get("build");
     if (rect) Object.assign(rect, { x, y, w: t, h: t });
     this.buildBtn.setPosition(x, y);
-    this.buildIcon.setPosition(x + t / 2, y + TILE_ICON_Y_PX * k);
-    this.buildLabel.setPosition(x + t / 2, y + TILE_PRICE_Y_PX * k);
+    const f = t / (BUILD_TILE_CSS_PX * k); // review 6: a shrunk cell (10.10-B3)
+    this.buildIcon.setPosition(x + t / 2, y + TILE_ICON_Y_PX * k * f);
+    this.buildLabel.setPosition(x + t / 2, y + TILE_PRICE_Y_PX * k * f);
     const g = this.buildBtn.clear();
     g.fillStyle(READY_BG, READY_BG_ALPHA).fillRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
     g.lineStyle(TILE_BORDER_PX * 1.4 * k, READY_BORDER, 0.95).strokeRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
@@ -1829,15 +1833,17 @@ export class HudScene extends Phaser.Scene {
     const c = this.cluster;
     const p = this.panel;
     this.tileSlot.fill(SLOT_EMPTY);
+    let quick = -1;
+    for (let i = 0; i < items.length; i++) if ((items[i] as BuildTile).id === this.model.buildQuick) quick = i;
     if (mode === BAR_OPEN) {
-      buildBarSlots(items.length, this.barPage, this.barSlots);
+      buildPanelSlots(items.length, quick, this.barPage, this.barSlots); // review 9 (B13): the quick type on the quick tile's own spot
       for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
         this.tileSlot[s] = this.barSlots[s] as number;
         this.tileX[s] = p.x[s] as number;
         this.tileY[s] = p.y[s] as number;
       }
     } else if (mode === BAR_CLOSED) {
-      for (let i = 0; i < items.length; i++) if ((items[i] as BuildTile).id === this.model.buildQuick) this.tileSlot[T_QUICK] = i;
+      this.tileSlot[T_QUICK] = quick;
     } else if (mode === BAR_SHORT) {
       if (items.length === 2) this.tileSlot[T_QUICK] = 0;
       if (items.length >= 1) this.tileSlot[T_SHORT2] = items.length - 1;
@@ -1848,8 +1854,9 @@ export class HudScene extends Phaser.Scene {
     this.tileY[T_SHORT2] = c.buildY;
     const k = dpr();
     const t = mode === BAR_OPEN ? p.tile : c.tile;
-    const boxW = TILE_ICON_W_PX * k;
-    const boxH = TILE_ICON_H_PX * k;
+    const f = t / (BUILD_TILE_CSS_PX * k); // review 6: a shrunk cell (10.10-B3) scales its icon and label spots
+    const boxW = TILE_ICON_W_PX * k * f;
+    const boxH = TILE_ICON_H_PX * k * f;
     for (let s = 0; s < TILE_COUNT; s++) {
       const slot = this.tileSlot[s] as number;
       const x = this.tileX[s] as number;
@@ -1858,8 +1865,8 @@ export class HudScene extends Phaser.Scene {
       if (rect) Object.assign(rect, { x, y, w: t, h: t });
       (this.barTiles[s] as Phaser.GameObjects.Graphics).setPosition(x, y);
       const cx = x + t / 2;
-      const cy = y + TILE_ICON_Y_PX * k;
-      const price = (this.barPrices[s] as Phaser.GameObjects.Text).setPosition(cx, y + TILE_PRICE_Y_PX * k);
+      const cy = y + TILE_ICON_Y_PX * k * f;
+      const price = (this.barPrices[s] as Phaser.GameObjects.Text).setPosition(cx, y + TILE_PRICE_Y_PX * k * f);
       const glyph = (this.barGlyphs[s] as Phaser.GameObjects.Text).setPosition(cx, cy);
       const gfx = (this.barIconGfx[s] as Phaser.GameObjects.Graphics).clear();
       if (slot === SLOT_SHOP || slot === SLOT_MORE) {
@@ -1879,7 +1886,7 @@ export class HudScene extends Phaser.Scene {
           .setTexture(BUILD_ICON_TEXTURE, icon)
           .setOrigin(BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y)
           .setPosition(cx, cy)
-          .setDisplaySize(BUILD_ICON_FRAME_W * k, BUILD_ICON_FRAME_H * k);
+          .setDisplaySize(BUILD_ICON_FRAME_W * k * f, BUILD_ICON_FRAME_H * k * f);
       } else if (art) {
         // No icon yet (e.g. 5.10's types): the same code-drawn frame as in the world (rot 0), fitted into the icon box.
         const img = (this.barIcons[s] as Phaser.GameObjects.Image).setTexture(art.texture, art.frame).setOrigin(0.5);

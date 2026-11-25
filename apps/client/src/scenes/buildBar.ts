@@ -18,6 +18,8 @@ import {
   READY_SHIFT_LEFT_CSS_PX,
   SHOP_CHIP_CSS_PX,
   SHOP_CHIP_GAP_CSS_PX,
+  UNDO_CHIP_CSS_PX,
+  UNDO_CLUSTER_GAP_CSS_PX,
 } from "../ui/sizes";
 import { CENTRE_CLEAR_CSS_PX } from "./consumableButton";
 
@@ -107,6 +109,35 @@ export function buildBarSlots(count: number, page: number, out: Int16Array): Int
     if (item < count) out[i] = item;
   }
   out[BUILD_BAR_SLOTS - 2] = SLOT_MORE;
+  return out;
+}
+
+/**
+ * Story 10.10 (review 9, B13): what the open panel's first 8 cells show (row by row from the top-left;
+ * the 9th is Close). Cell 7 — the quick tile's own spot — always holds the quick type, so the same spot
+ * repeats the last building whether the panel is open or not; the other types fill cells 0–5 in balance
+ * order and Shop takes cell 6. More than 6 other types page five at a time with "More ▸" in cell 5.
+ * Without a quick type (`quick` < 0) it is Story 5.16's order (`buildBarSlots`). `page` wraps.
+ */
+export const PANEL_QUICK_CELL = 7;
+const PANEL_SHOP_CELL = 6;
+const PANEL_OTHER_CELLS = 6;
+
+export function buildPanelSlots(count: number, quick: number, page: number, out: Int16Array): Int16Array {
+  if (quick < 0 || quick >= count) return buildBarSlots(count, page, out);
+  out.fill(SLOT_EMPTY);
+  out[PANEL_QUICK_CELL] = quick;
+  out[PANEL_SHOP_CELL] = SLOT_SHOP;
+  const others = count - 1;
+  const perPage = others <= PANEL_OTHER_CELLS ? PANEL_OTHER_CELLS : PANEL_OTHER_CELLS - 1;
+  const pages = Math.max(1, Math.ceil(others / perPage));
+  const p = ((page % pages) + pages) % pages;
+  for (let i = 0; i < perPage; i++) {
+    const n = p * perPage + i; // the n-th type that isn't the quick one
+    if (n >= others) break;
+    out[i] = n < quick ? n : n + 1;
+  }
+  if (pages > 1) out[PANEL_OTHER_CELLS - 1] = SLOT_MORE;
   return out;
 }
 
@@ -202,8 +233,9 @@ export function newBuildPanelLayout(): BuildPanelLayout {
 /**
  * Story 10.10 (BU-4, AC 3, 5): the 3 × 3 panel over the thumb corner — 56 px cells, 8 px gaps, the
  * bottom-right cell on Build's own spot (Close), the same cells on every phone. Only where 3 × 56 px
- * (or the card round them) would come within 48 px of the screen centre (568 × 320 with 44 px side insets) the cells shrink to
- * fit, never under 48 px (B-code 10.10-B3). The card pads the cells by 8 px and carries a 24 px header
+ * (or the card round them) would come within 48 px of the screen centre (568 × 320 with 44 px side
+ * insets), or the card would come within 12 px of ping / ☰ (a short screen with a top inset), the
+ * cells shrink to fit, never under 48 px (B-code 10.10-B3). The card pads the cells by 8 px and carries a 24 px header
  * (Build · n/6), shrunk to keep 12 px below ping / ☰ (min 18 px).
  */
 export function layoutBuildPanel(width: number, height: number, insetRight: number, insetBottom: number, k: number, out: BuildPanelLayout, insetTop = 0): BuildPanelLayout {
@@ -211,7 +243,11 @@ export function layoutBuildPanel(width: number, height: number, insetRight: numb
   const right = width - (BUILD_BAR_INSET_CSS_PX + insetRight) * k;
   const bottom = height - (BUILD_BAR_INSET_CSS_PX + insetBottom) * k;
   const room = (right - (width / 2 + (CENTRE_CLEAR_CSS_PX + BUILD_PANEL_PAD_CSS_PX) * k) - (BUILD_PANEL_COLS - 1) * gap) / BUILD_PANEL_COLS; // the card too keeps the survivor's 48 px
-  const tile = Math.max(MIN_PANEL_CELL_CSS_PX * k, Math.min(BUILD_TILE_CSS_PX * k, Math.floor(room)));
+  const pad = BUILD_PANEL_PAD_CSS_PX * k;
+  const topRow = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BUILD_PANEL_TOP_CLEAR_CSS_PX) * k;
+  // Review 7: and the card (with its smallest header) keeps 12 px under ping / ☰ (a short screen with a top inset).
+  const roomV = (bottom - topRow - pad - BUILD_PANEL_HEADER_MIN_CSS_PX * k - (BUILD_PANEL_ROWS - 1) * gap) / BUILD_PANEL_ROWS;
+  const tile = Math.max(MIN_PANEL_CELL_CSS_PX * k, Math.min(BUILD_TILE_CSS_PX * k, Math.floor(room), Math.floor(roomV)));
   const left = right - BUILD_PANEL_COLS * tile - (BUILD_PANEL_COLS - 1) * gap;
   const top = bottom - BUILD_PANEL_ROWS * tile - (BUILD_PANEL_ROWS - 1) * gap;
   out.tile = tile;
@@ -219,8 +255,6 @@ export function layoutBuildPanel(width: number, height: number, insetRight: numb
     out.x[c] = left + (c % BUILD_PANEL_COLS) * (tile + gap);
     out.y[c] = top + Math.floor(c / BUILD_PANEL_COLS) * (tile + gap);
   }
-  const pad = BUILD_PANEL_PAD_CSS_PX * k;
-  const topRow = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BUILD_PANEL_TOP_CLEAR_CSS_PX) * k;
   const header = Math.max(BUILD_PANEL_HEADER_MIN_CSS_PX * k, Math.min(BUILD_PANEL_HEADER_CSS_PX * k, top - pad - topRow));
   out.cardX = left - pad;
   out.cardY = top - pad - header;
@@ -238,6 +272,14 @@ export function layoutBuildPanel(width: number, height: number, insetRight: numb
 export function readyLeftX(width: number, readyW: number, gridLeft: number, k: number): number {
   const centred = (width - readyW) / 2 - READY_SHIFT_LEFT_CSS_PX * k;
   return Math.min(centred, gridLeft - READY_BAR_GAP_CSS_PX * k - readyW);
+}
+
+/**
+ * Story 10.10 (B4, review 1): the left edge Ready keeps 12 px from — the open panel's card or ↶ beside
+ * the quick tile, whichever is further left (fixed per layout, so Ready never jumps when either shows).
+ */
+export function readyClearLeft(c: Readonly<BuildClusterLayout>, p: Readonly<BuildPanelLayout>, k: number): number {
+  return Math.min(p.cardX, c.quickX - (UNDO_CLUSTER_GAP_CSS_PX + UNDO_CHIP_CSS_PX) * k);
 }
 
 /** Why a tile can't be picked now, or null. The cap first, then money (`placementError`'s order). */
@@ -318,19 +360,40 @@ export function stepBuildBar(
 }
 
 /**
- * Story 10.10 (AC 6): a touch while the panel is open. On a panel cell or Close (`ptile…`, `build`):
- * nothing here (the button handles it). On another HUD button (Ready, ping, ☰, …): the panel closes and
- * the button still gets the press. Off every button: the panel closes and the touch is consumed (no
- * stick, no fire, no building selected that frame).
+ * Story 10.10 (AC 6; review 4, 5): a touch while the panel is open.
+ * - On a panel cell or Close (`ptile…`, `build`): nothing here (the button handles it).
+ * - On the card itself (header, padding, an empty cell): consumed, the panel stays open.
+ * - On another HUD button (Ready, ping, ☰, …): the panel closes and the button still gets the press.
+ * - A touch in the move-stick half: the panel closes and the touch still starts the move stick.
+ * - Anything else (a right-half touch, a world tap, a mouse click): the panel closes and the touch is
+ *   consumed (no aim stick, no fire, no building selected).
  */
 export const PANEL_TAP_NONE = 0;
 export const PANEL_TAP_CLOSE = 1;
 export const PANEL_TAP_CONSUME = 2;
+export const PANEL_TAP_KEEP = 3;
 
-export function panelTapOutside(open: boolean, hitId: string | null): number {
+export function panelTapOutside(open: boolean, hitId: string | null, onCard = false, moveStickTouch = false): number {
   if (!open) return PANEL_TAP_NONE;
-  if (hitId === null) return PANEL_TAP_CONSUME;
-  return hitId === "build" || hitId.startsWith("ptile") ? PANEL_TAP_NONE : PANEL_TAP_CLOSE;
+  if (hitId !== null && (hitId === "build" || hitId.startsWith("ptile"))) return PANEL_TAP_NONE;
+  if (onCard) return PANEL_TAP_KEEP;
+  if (hitId !== null || moveStickTouch) return PANEL_TAP_CLOSE;
+  return PANEL_TAP_CONSUME;
+}
+
+/** Story 10.10 (review 5): (x, y) on the open panel's card (canvas px). */
+export function onPanelCard(p: Readonly<BuildPanelLayout>, x: number, y: number): boolean {
+  return x >= p.cardX && x <= p.cardX + p.cardW && y >= p.cardY && y <= p.cardY + p.cardH;
+}
+
+/**
+ * Story 10.10 (review 1, 2): right after a Place or ✕ empties my hands (5.18's `barQuietMs`), the next
+ * thumb tap was meant for the hand cluster: ↶, swap, quick-use and Build sit where Place and ✕ were, so
+ * their presses are dropped then — like the build tiles' (`stepBuildBar`'s `quiet`) and the Shop chip's.
+ */
+export function dropQuietPresses(m: { undoPressed: boolean; swapPressed: boolean; consumablePressed: boolean; buildPanelPressed: boolean }, quiet: boolean): void {
+  if (!quiet) return;
+  m.undoPressed = m.swapPressed = m.consumablePressed = m.buildPanelPressed = false;
 }
 
 /**

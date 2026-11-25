@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, rectCentreGap, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
-import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyLeftX } from "./buildBar";
+import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
 import { BUILD_COUNT_TEXT_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 const base: ConsumableButtonInput = { item: "grenades", count: 3, kind: "grenade", alive: true, running: true, placement: false, shopOpen: false, menuOpen: false, phase: "wave", hp: 100, maxHp: 100 };
@@ -76,7 +76,7 @@ describe("swap + consumable above the build bar (Story 5.12, main-session decisi
         others.push({ name: "settings", x: set.x, y: set.y, w: set.s, h: set.s });
         const rw = READY_BUTTON_W_CSS_PX * k;
         const rh = READY_BUTTON_H_CSS_PX * k;
-        others.push({ name: "ready", x: readyLeftX(w, rw, layoutBuildPanel(w, h, 0, 0, k, newBuildPanelLayout()).cardX, k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
+        others.push({ name: "ready", x: readyLeftX(w, rw, readyClearLeft(c, layoutBuildPanel(w, h, 0, 0, k, newBuildPanelLayout()), k), k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
         const ms = MENU_BUTTON_CSS_PX * k;
         others.push({ name: "menu", x: w - MENU_BUTTON_INSET_CSS_PX * k - ms, y: MENU_BUTTON_INSET_CSS_PX * k, w: ms, h: ms });
         for (const b of [cons, swap]) {

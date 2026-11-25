@@ -116,17 +116,21 @@ Claude Code (gds-dev-story, autonomous builder session).
   - `npm run gate:fast`: typecheck, lint, 4677 unit tests, release:check all green. No slow test is affected by the changed files (`vitest --project slow --changed origin/master`: none).
 - B-codes (autonomous build, auto-accepted; the designer can overturn any):
   - **10.10-B1** Shop stays in the open panel as its 8th cell (BU-2) and the 5.16 paging rule ("More ▸" past 7 types) is kept unchanged in the panel.
-  - **10.10-B2** ↶ sits above the quick tile, level with the Shop chip (B's still); 5.12's consumable + swap row sits right-aligned 12 px above that line (AC 8 "the cluster's box").
-  - **10.10-B3** The panel's cells shrink (never below 48 px) only where 3 × 56 px plus the card would come within 48 px of the survivor: of the tested sizes only 568 × 320 with 44 px side insets (50 px cells). Close stays the 9th cell on Build's corner.
-  - **10.10-B4** Ready keeps 12 px from the open card's left edge (not the closed cluster's), so it never jumps when the panel opens; without insets that is today's "40 px left of centre" at every size.
+  - **10.10-B2** (revised after review 1, 2) ↶ sits 12 px left of the quick tile, centred on its row: outside the hand cluster's Place and ✕ (B's still had it above the quick tile, inside Place's footprint). 5.12's consumable + swap row sits left of ✕ and above Place, 12 px clear of both, wherever the survivor's 48 px allows (800 × 360 and up, 640 × 360 without insets); on 568 × 320 and 640 × 360 with insets it stays right-aligned 12 px above the Shop chip, under ✕'s spot, and its presses are dropped in 5.18's quiet window.
+  - **10.10-B3** The panel's cells shrink (never below 48 px) only where 3 × 56 px plus the card would come within 48 px of the survivor (of the tested sizes only 568 × 320 with 44 px side insets: 50 px cells), or the card would come within 12 px of ping / ☰ (review 7: a short screen with a top inset; 568 × 320 with insets 44/21 and top 20: 49 px). Icons and labels scale with the cell (review 6). Close stays the 9th cell on Build's corner.
+  - **10.10-B4** (accepted) Ready keeps 12 px from the open card's left edge and from ↶'s spot, whichever is further left (fixed per layout), so it never jumps when the panel or ↶ appears; without insets that is "40 px left of centre" at every size; at 568 × 320 with insets its move-stick-half baseline is 52 px (was 120).
   - **10.10-B5** While the panel is open, 5.12's consumable / swap and 5.20's ↶ hide (they would sit under the card); they return when it closes.
-  - **10.10-B6** A tap outside the open panel: off every button it closes the panel and is consumed (no stick, no fire, no selection); on another HUD button (Ready, ping, ☰) the panel closes and that button still gets the press.
+  - **10.10-B6** (revised after review 4, 5) A touch while the panel is open: on the card itself (header, padding, an empty cell) it is consumed and the panel stays open; in the move-stick half it closes the panel and still starts the stick; on another HUD button (Ready, ping, ☰) the panel closes and that button still gets the press; anything else (a right-half touch, a world tap, a mouse click) closes it and is consumed.
   - **10.10-B7** BU-3 layout: 1 type → its tile on Build's spot; 2 types → balance order left to right on the quick tile's and Build's spots; the count badge on the corner tile; Shop chip above; no ↻ mark (they are not "again" tiles).
-  - **10.10-B8** Button ids: one `build` id for Build and Close (toggle), `quick`, `quick2` (BU-3's 2nd tile), `shopchip`, `ptile0…7`; the story's `ptile8` (Close) is `build`.
-  - **10.10-B9** "Last placed" = the type of my last Place queued (5.18's pending box, `queuePlace`), set before the server answers; a later refusal does not roll it back. Reset per run, kept across phases; a type no longer unlocked falls back to the first.
+  - **10.10-B8** Button ids: one `build` id for Build and Close (the press goes through the model, so the quiet window gates it), `quick`, `quick2` (BU-3's 2nd tile), `shopchip`, `ptile0…7`; the story's `ptile8` (Close) is `build`.
+  - **10.10-B9** (revised after review 3) "Last placed" = the type of my last **confirmed** building: the server's (solo: the sim's) `building.placed` event for my building, never the Place itself, so a refused Place never becomes the quick tile. Reset per run, kept across phases; a type no longer unlocked falls back to the first.
   - **10.10-B10** B does nothing while holding a building or while blocked (wave, menu, shop); Esc closes the panel before it opens the menu (like the ping wheel).
   - **10.10-B11** Build's hammer and Close's ✕ are drawn with Graphics (no emoji font); the Shop chip reuses the 5.16 Shop tile's 🛒 glyph.
-  - **10.10-B12** The count badge (a dark pill) uses today's `COUNT_OK` / `COUNT_FULL` colours as AC 4 says; `COUNT_FULL` is the same red tint as the short price (#ff8a80). Flagged for the designer against "red = danger" (kept, as built in 5.16).
+  - **10.10-B12** (kept, review 10) The count badge (a dark pill) uses today's `COUNT_OK` / `COUNT_FULL` colours as AC 4 says; `COUNT_FULL` (#ff8a80) carries over 5.16's agreed exception.
+  - **10.10-B13** (review 9) The open panel's cell on the quick tile's own spot (cell 7) holds the quick type, so the same spot repeats the last building whether the panel is open or not; the other types fill cells 0–5 in balance order and Shop takes cell 6 (bottom left). More than 6 other types would page five at a time with "More ▸" in cell 5.
+  - **10.10-B14** (review 1, 2) In 5.18's quiet window (`barQuietMs`, 300 ms after Place / ✕ empties my hands) presses on ↶, swap, quick-use and Build are dropped (`dropQuietPresses`), as the tiles' and the Shop chip's already were. The tiles (quick, Build, Shop chip) still overlap Place's footprint, as the 5.16 grid did; the cross-mode test lists exactly which closed-cluster controls may overlap Place / ✕.
+
+- 2026-11-25 (review fixes, PR #20 review of 816bd2f): 1 ↶ out of Place's footprint + quiet gate; 2 the row left of ✕ where it fits + quiet gate for swap / quick-use / Build; cross-mode test (holding Place / ✕ vs the closed cluster, every size and inset); 3 the quick tile from the confirmed `building.placed`; 4 a move-stick-half touch closes the panel and still walks; 5 the card itself keeps the panel open; 6 icons / labels scale with a shrunk cell; 7 the cells shrink for a top inset (test); 8 historical notes on the BU-1 option scripts, `BUILD_BADGE_TEXT_CSS_PX` removed, test box `ptile8` → `build`; 9 B13 (the quick type on the quick tile's spot in the panel; repeat stills); 10 B12 kept, B4 accepted. Wiring test `tools/checks/buildButtonWiring.test.ts`.
 
 ### File List
 
@@ -145,7 +149,9 @@ Claude Code (gds-dev-story, autonomous builder session).
 - apps/client/src/scenes/undoChip.ts
 - apps/client/src/scenes/undoChip.test.ts
 - apps/client/src/ui/sizes.ts
-- docs/art/10-10/README.md, docs/art/10-10/stills.cjs, docs/art/10-10/10-10-{568,844}-{closed,open,money,cap,cap-open,short}.png
+- tools/checks/buildButtonWiring.test.ts
+- docs/art/10-10/README.md, docs/art/10-10/stills.cjs, docs/art/10-10/10-10-{568,844}-{closed,open,money,cap,cap-open,short,repeat,repeat-open}.png
+- docs/art/build-ui/src/tile-crops.cjs, docs/art/build-ui/src/base-shots.cjs (historical notes)
 - _bmad-output/implementation-artifacts/10-10-build-button.md, _bmad-output/implementation-artifacts/sprint-status.yaml
 
 ### Change Log

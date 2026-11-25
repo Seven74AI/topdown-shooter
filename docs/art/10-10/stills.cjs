@@ -3,7 +3,8 @@
 // Run a dev client first (solo practice needs no server): (cd apps/client && npx vite --port 5310 --strictPort)
 //   node docs/art/10-10/stills.cjs docs/art/10-10
 // States, each at 568 × 320 and 844 × 390: closed, open (Build tapped), money (?wallet=60: short of money),
-// cap (six wood barricades placed with 1 + Space: 6/6; the quick tile then repeats the barricade), short (?unlocks=starter: BU-3).
+// cap (six wood barricades placed with 1 + Space: 6/6), short (?unlocks=starter: BU-3), repeat (one mine placed: the quick
+// tile and the open panel's cell on its spot show the mine — review 9, B13).
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled)
 const { chromium } = require("playwright");
 const out = process.argv[2] || "docs/art/10-10";
@@ -50,6 +51,7 @@ async function state(page) {
     ["money", "?solo=1&wallet=60&unlocks=all"],
     ["cap", "?solo=1&wallet=1000&unlocks=all"],
     ["short", "?solo=1&wallet=200&unlocks=starter"],
+    ["repeat", "?solo=1&wallet=400&unlocks=all"],
   ];
   for (const [w, h] of [
     [568, 320],
@@ -89,6 +91,15 @@ async function state(page) {
         }
         await sleep(900);
       }
+      if (name === "repeat") {
+        // review 9 (B13): one mine placed → the quick tile is the mine, and so is the open panel's cell on that spot.
+        await page.keyboard.press("Digit4");
+        await sleep(400);
+        await page.keyboard.press("Space");
+        await sleep(900);
+        if (await page.evaluate(() => window.__game.scene.getScene("Hud").model.placementActive)) await page.keyboard.press("Escape");
+        await sleep(900);
+      }
       if (name === "open" || name === "money") {
         await tapButton(page, "build");
         await sleep(400);
@@ -96,11 +107,11 @@ async function state(page) {
       const s = await state(page);
       console.log(w, h, name, JSON.stringify(s));
       await page.screenshot({ path: `${out}/10-10-${w}-${name}.png` });
-      if (name === "cap") {
+      if (name === "cap" || name === "repeat") {
         await tapButton(page, "build");
         await sleep(400);
-        console.log(w, h, "cap-open", JSON.stringify(await state(page)));
-        await page.screenshot({ path: `${out}/10-10-${w}-cap-open.png` });
+        console.log(w, h, `${name}-open`, JSON.stringify(await state(page)));
+        await page.screenshot({ path: `${out}/10-10-${w}-${name}-open.png` });
       }
       await page.close();
     }

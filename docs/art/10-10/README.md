@@ -9,9 +9,13 @@ Script: `stills.cjs` (run a dev client on port 5310 first; see its header). Comp
 | Closed: quick tile + Build (count badge) + Shop chip | `10-10-568-closed.png` | `10-10-844-closed.png` | `?solo=1&wallet=400&unlocks=all` |
 | Open: 3 × 3 panel, Close on Build's spot | `10-10-568-open.png` | `10-10-844-open.png` | as closed, then a tap on Build |
 | Short of money (open; 40 % + red price, the agreed 5.16 exception) | `10-10-568-money.png` | `10-10-844-money.png` | `?wallet=60`, Build tapped |
-| At the cap: closed (6/6 badge, dimmed quick tile, ↶ above the quick tile) | `10-10-568-cap.png` | `10-10-844-cap.png` | six wood barricades placed with `1` + Space |
+| At the cap: closed (6/6 badge, dimmed quick tile, ↶ 12 px left of the quick tile — review 1) | `10-10-568-cap.png` | `10-10-844-cap.png` | six wood barricades placed with `1` + Space |
 | At the cap: open (every tile at 40 %) | `10-10-568-cap-open.png` | `10-10-844-cap-open.png` | then a tap on Build |
 | ≤ 2 types (BU-3): the 2 tiles in the corner, Shop chip, no Build, no panel | `10-10-568-short.png` | `10-10-844-short.png` | `?unlocks=starter` (a new account) |
+| Repeat (review 9, B13): one mine placed — the quick tile is the mine | `10-10-568-repeat.png` | `10-10-844-repeat.png` | `4` + Space, hands emptied |
+| Repeat, open: the cell on the quick tile's spot holds the mine; Shop moved to the bottom-left cell | `10-10-568-repeat-open.png` | `10-10-844-repeat-open.png` | then a tap on Build |
 
 Measured hit rects (CSS px) match B's mock exactly: at 568 × 320 Build 496,248 · quick 432,248 · Shop chip 500,188 (48) ·
-panel cells 368…552 × 120…304; at 844 × 390 Build 772,318 · panel 644…828 × 190…374.
+panel cells 368…552 × 120…304; at 844 × 390 Build 772,318 · panel 644…828 × 190…374. After the review, ↶ moved from B's
+spot above the quick tile (inside the hand cluster's Place) to 12 px left of the quick tile; the stills were retaken on head
+after the review fixes.

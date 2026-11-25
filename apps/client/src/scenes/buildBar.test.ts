@@ -17,7 +17,12 @@ import {
   PANEL_CELLS,
   PANEL_TAP_CLOSE,
   PANEL_TAP_CONSUME,
+  PANEL_TAP_KEEP,
   PANEL_TAP_NONE,
+  buildPanelSlots,
+  dropQuietPresses,
+  onPanelCard,
+  readyClearLeft,
   panelAllowed,
   panelStaysOpen,
   panelTapOutside,
@@ -146,6 +151,20 @@ describe("Story 10.10: layoutBuildPanel (BU-4, AC 3, 5)", () => {
     expect([p.x[0], p.y[0], p.x[8]! + p.tile, p.y[8]! + p.tile]).toEqual([644, 190, 828, 374]);
   });
 
+  it("review 7: with a top inset on a short screen the cells shrink so the card keeps 12 px under ping / ☰ (never below 48 px)", () => {
+    for (const [w, h, b] of [
+      [568, 320, 21],
+      [568, 320, 0],
+      [640, 360, 21],
+    ] as const) {
+      const p = layoutBuildPanel(w, h, 44, b, 1, newBuildPanelLayout(), 20);
+      expect(p.cardY, `${w}x${h} bottom ${b}`).toBeGreaterThanOrEqual(20 + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 12 - 1e-6);
+      expect(p.tile).toBeGreaterThanOrEqual(48);
+    }
+    expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout(), 20).tile).toBe(49);
+    expect(layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout(), 20).tile).toBe(56); // room to spare
+  });
+
   it("10.10-B3: only 568 × 320 with 44 px side insets shrinks the cells (≥ 48 px) to keep the survivor's 48 px; dpr scales alike", () => {
     expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout()).tile).toBe(50);
     expect(layoutBuildPanel(640, 360, 44, 21, 1, newBuildPanelLayout()).tile).toBe(56);
@@ -154,7 +173,7 @@ describe("Story 10.10: layoutBuildPanel (BU-4, AC 3, 5)", () => {
 
   it("Ready: 40 px left of centre where it fits, else ≥ 12 px left of the open card (it never jumps when the panel opens)", () => {
     const w = READY_BUTTON_W_CSS_PX;
-    const at = (W: number) => readyLeftX(W, w, layoutBuildPanel(W, 320, 0, 0, 1, newBuildPanelLayout()).cardX, 1);
+    const at = (W: number) => readyLeftX(W, w, readyClearLeft(layoutBuildCluster(W, 320, 0, 0, 1, newBuildClusterLayout()), layoutBuildPanel(W, 320, 0, 0, 1, newBuildPanelLayout()), 1), 1);
     expect(at(800)).toBe(276);
     expect(at(1024)).toBe(388);
     expect(at(568) + w / 2).toBe(244); // back to 40 px left of centre (5.16's grid pushed it to 208)
@@ -191,11 +210,43 @@ describe("Story 10.10: the quick tile, BU-3 and the panel's open / close rules",
     expect(panelStaysOpen(true, true, false, false, 2)).toBe(false);
   });
 
-  it("AC 6: a touch outside — off every button consumed, on another button closes and passes it on, on a cell / Close nothing", () => {
+  it("AC 6 (review 4, 5): a touch while open — right half / world consumed; move-stick half closes and still walks; another button closes and passes it on; the card itself keeps it open; a cell / Close nothing", () => {
     expect(panelTapOutside(false, null)).toBe(PANEL_TAP_NONE);
+    expect(panelTapOutside(false, null, false, true)).toBe(PANEL_TAP_NONE);
     expect(panelTapOutside(true, null)).toBe(PANEL_TAP_CONSUME);
+    expect(panelTapOutside(true, null, false, true)).toBe(PANEL_TAP_CLOSE); // review 4: the move stick still starts
     for (const id of ["ready", "menu", "ping", "consumable"]) expect(panelTapOutside(true, id)).toBe(PANEL_TAP_CLOSE);
-    for (const id of ["ptile0", "ptile7", "build"]) expect(panelTapOutside(true, id)).toBe(PANEL_TAP_NONE);
+    for (const id of ["ptile0", "ptile7", "build"]) expect(panelTapOutside(true, id, true)).toBe(PANEL_TAP_NONE);
+    expect(panelTapOutside(true, null, true)).toBe(PANEL_TAP_KEEP); // review 5: the header, the padding, an empty cell
+    const p = layoutBuildPanel(568, 320, 0, 0, 1, newBuildPanelLayout());
+    expect(onPanelCard(p, p.cardX + 20, p.cardY + 6)).toBe(true); // the header
+    expect(onPanelCard(p, p.cardX + p.cardW - 2, p.cardY + p.cardH - 2)).toBe(true); // the padding by Close
+    expect(onPanelCard(p, p.cardX - 1, p.cardY + 40)).toBe(false);
+    expect(onPanelCard(p, 284, 160)).toBe(false); // the survivor
+  });
+
+  it("review 9 (B13): the open panel's cell 7 — the quick tile's own spot — holds the quick type; Shop in cell 6; the rest in balance order; paging past 6 others", () => {
+    const out = new Int16Array(BUILD_BAR_SLOTS);
+    expect(Array.from(buildPanelSlots(7, 0, 0, out))).toEqual([1, 2, 3, 4, 5, 6, SLOT_SHOP, 0]);
+    expect(Array.from(buildPanelSlots(7, 3, 0, out))).toEqual([0, 1, 2, 4, 5, 6, SLOT_SHOP, 3]);
+    expect(Array.from(buildPanelSlots(7, 6, 0, out))).toEqual([0, 1, 2, 3, 4, 5, SLOT_SHOP, 6]);
+    expect(Array.from(buildPanelSlots(4, 1, 0, out))).toEqual([0, 2, 3, SLOT_EMPTY, SLOT_EMPTY, SLOT_EMPTY, SLOT_SHOP, 1]);
+    expect(Array.from(buildPanelSlots(9, 0, 0, out))).toEqual([1, 2, 3, 4, 5, SLOT_MORE, SLOT_SHOP, 0]); // 8 others: five a page
+    expect(Array.from(buildPanelSlots(9, 0, 1, out))).toEqual([6, 7, 8, SLOT_EMPTY, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, 0]);
+    expect(Array.from(buildPanelSlots(9, 0, 2, out))).toEqual(Array.from(buildPanelSlots(9, 0, 0, new Int16Array(BUILD_BAR_SLOTS)))); // wraps
+    expect(Array.from(buildPanelSlots(7, -1, 0, out))).toEqual([0, 1, 2, 3, 4, 5, 6, SLOT_SHOP]); // no quick type: 5.16's order
+    // cell 7 sits exactly on the quick tile's spot (56 px cells)
+    const p = layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout());
+    const c = layoutBuildCluster(844, 390, 0, 0, 1, newBuildClusterLayout());
+    expect([p.x[7], p.y[7]]).toEqual([c.quickX, c.quickY]);
+  });
+
+  it("review 1, 2: in 5.18's quiet window ↶, swap, quick-use and Build presses are dropped; outside it they stay", () => {
+    const m = { undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true };
+    dropQuietPresses(m, false);
+    expect(m).toEqual({ undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true });
+    dropQuietPresses(m, true);
+    expect(m).toEqual({ undoPressed: false, swapPressed: false, consumablePressed: false, buildPanelPressed: false });
   });
 
   it("AC 9: B toggles the panel only while the cluster is up and there is a panel", () => {

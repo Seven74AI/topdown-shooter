@@ -150,7 +150,7 @@ import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from ".
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { cachedProgress, practiceInit } from "../net/practicePool";
 import { progressStore } from "../net/progressStore";
-import { buildBarItems, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
+import { buildBarItems, dropQuietPresses, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { HOST_TOAST_TEXT, HostToastWatch } from "../ui/hostToast";
 import { getSettings } from "../settings/settings";
@@ -1379,7 +1379,6 @@ export class GameScene extends Phaser.Scene {
     const stats = buildingStats(world.balance, req.type);
     if (!stats) return;
     footprint(stats, req.gx, req.gy, req.rot, this.pendingBox);
-    this.lastPlacedType = req.type; // Story 10.10 (AC 2): the quick tile repeats my last Place
     if (!this.pending.add(req, stats.price, this.pendingBox, newestBuildingId(world), world.run.phase, world.waves.number)) host.placeBuilding(req); // pool full (never with 6 counted): send unpaced
     else this.undo.placed(this.pending.lastOrder, this.time.now, world.waves.number); // Story 5.20: ↶ for 10 s
   }
@@ -1824,6 +1823,10 @@ export class GameScene extends Phaser.Scene {
     }
     m.buildBar = r.show && !m.watching; // Story 8.2: nothing to build while waiting
     m.buildQuick = quickType(m.buildItems, this.lastPlacedType); // Story 10.10 (BU-5)
+    if (m.buildPanelPressed) {
+      m.buildPanelPressed = false; // Build / Close (its quiet-window press was dropped by `dropQuietPresses`)
+      togglePanelKey(m);
+    }
     m.buildPanelOpen = panelStaysOpen(m.buildPanelOpen, m.buildBar, r.pick !== "", m.ping.open, m.buildItems.length); // Story 10.10 (AC 6)
   }
 
@@ -2078,6 +2081,7 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     // Story 5.5: with the launcher in hand the aim's length carries the lob distance (FR-A, D1).
     // Story 5.12 (D11): with no launcher in hand, a throwable in my slot sets the aim length (its throw range).
+    dropQuietPresses(this.hudModel, this.barQuiet(host)); // Story 10.10 (review 1, 2): a stray Place / ✕ tap lands on ↶, swap, quick-use or Build
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed, this.localThrow(host));
     this.hudModel.swapPressed = false;
     this.hudModel.consumablePressed = false;
@@ -2187,6 +2191,7 @@ export class GameScene extends Phaser.Scene {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
       } else if (e.type === "building.placed") {
+        if (e.ownerId === localId) this.lastPlacedType = e.buildingType; // Story 10.10 (AC 2, review 3): the quick tile repeats my last building that went down (server truth; a refused Place never counts)
         this.placedFeel(host, e);
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
