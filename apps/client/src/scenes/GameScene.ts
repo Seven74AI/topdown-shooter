@@ -167,7 +167,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -782,6 +782,7 @@ export class GameScene extends Phaser.Scene {
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       if (opts.stressLights) placeStressLights(world, localId, cx, cy); // Story 5.10: 8 floodlights + 4 med stations
+      if (opts.stressFort) placeStressFort(world, localId, cx, cy); // photoreal group 3: standing barricades
       if (opts.stressBear) placeStressFloor(world, localId, cx, cy, STRESS_FLOOR_BUILDINGS, ["bear_trap"]); // Story 5.14
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
