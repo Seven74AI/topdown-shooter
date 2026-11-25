@@ -2,7 +2,7 @@
 
 Status: ready-for-dev
 
-<!-- Epic 12 story 3 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y. Depends on 12.1 (GamepadState, the "gamepad" source). Can be built before or after 12.4. If it comes first, 12.4 adds its bindings to the table this story creates. Sources: forge `_bmad-output/forge/controller-support/forged-idea.md` (HUD lock); `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D6 at the end: pending the designer's approval. -->
+<!-- Epic 12 story 3 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y. Depends on 12.1 (GamepadState, the "gamepad" source). Can be built before or after 12.4. If it comes first, 12.4 adds its bindings to the table this story creates. Sources: forge `_bmad-output/forge/controller-support/forged-idea.md` (HUD lock); `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D6 accepted by the designer 2026-11-25 ("Okay", all recommendations). -->
 
 ## Story
 
@@ -131,9 +131,9 @@ Vitest in `node`, with pure helpers (`padFamily`, `badgeSpec`, badge visibility,
 - [Source: _bmad-output/implementation-artifacts/12-2-menus-with-the-controller.md (pad layers, ring)]
 - [Source: _bmad-output/implementation-artifacts/5-21-building-action-bar.md; 5-15-carry-the-ghost-and-keep-moving.md; 9.7 UI art (epics.md)]
 
-## Decisions (pending the designer)
+## Decisions (accepted by the designer 2026-11-25: all recommendations are rules)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 | --- | --- | --- |
 | D1 | Badge position | **The button's top-left corner**, small: the button's own icon stays readable |
 | D2 | Badge colours | **The controllers' familiar colours** (Xbox's coloured letters, PlayStation's coloured shapes): recognised at a glance in a fight |

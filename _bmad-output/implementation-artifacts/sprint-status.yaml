@@ -234,9 +234,9 @@ development_status:
 
   # Epic 12: Controller on the phone (sprint-change-proposal-2026-11-25-controller.md)
   # Build order: 12.1 -> 12.2 after the Network pass, before Epic 7's screen stories (7.3, 7.6, 7.10); 12.3 || 12.4 any time after 12.1
-  epic-12: in-progress  # story files 12.1-12.4 ready-for-dev 2026-11-25; 12.1-12.2 decisions accepted, 12.3-12.4 pending
+  epic-12: in-progress  # story files 12.1-12.4 ready-for-dev 2026-11-25; all decisions accepted 2026-11-25
   12-1-controller-in-the-fight: ready-for-dev  # story file 2026-11-25, decisions D1-D6 accepted 2026-11-25
   12-2-menus-with-the-controller: ready-for-dev  # story file 2026-11-25, decisions D1-D7 accepted 2026-11-25; T0 real-phone spike first
-  12-3-controller-prompts-on-the-hud: ready-for-dev  # story file 2026-11-25; decisions D1-D6 pending
-  12-4-build-phase-with-the-controller: ready-for-dev  # story file 2026-11-25; decisions D1-D8 pending; real-phone playtest AC 8
+  12-3-controller-prompts-on-the-hud: ready-for-dev  # story file 2026-11-25, decisions D1-D6 accepted 2026-11-25
+  12-4-build-phase-with-the-controller: ready-for-dev  # story file 2026-11-25, decisions D1-D8 accepted 2026-11-25; real-phone playtest AC 8
   epic-12-retrospective: optional

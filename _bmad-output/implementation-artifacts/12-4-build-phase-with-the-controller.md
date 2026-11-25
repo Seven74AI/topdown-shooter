@@ -2,7 +2,7 @@
 
 Status: ready-for-dev
 
-<!-- Epic 12 story 4 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y. Depends on 12.1 (GamepadState, source) and 12.2 (pad layers: A/B belong to a DOM screen when one is on top). It uses 12.3's binding table and badges if 12.3 is built first; otherwise it creates the table itself and 12.3 adds the badges. Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D8 at the end: pending the designer's approval. -->
+<!-- Epic 12 story 4 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y. Depends on 12.1 (GamepadState, source) and 12.2 (pad layers: A/B belong to a DOM screen when one is on top). It uses 12.3's binding table and badges if 12.3 is built first; otherwise it creates the table itself and 12.3 adds the badges. Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D8 accepted by the designer 2026-11-25 ("Okay", all recommendations). -->
 
 ## Story
 
@@ -188,9 +188,9 @@ Vitest in `node`; pure helpers in `padBuild.ts`; reuse the `placement.test.ts` a
 - [Source: docs/ideas/building-ux/ux-spec.md]
 - [Source: _bmad-output/implementation-artifacts/12-1-…, 12-2-…, 12-3-… story files]
 
-## Decisions (pending the designer)
+## Decisions (accepted by the designer 2026-11-25: all recommendations are rules)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 | --- | --- | --- |
 | D1 | How to pick a building type | **LB/RB move the bar focus; A picks**. Holding a building, LB/RB switch type directly (like the keys 1–7) |
 | D2 | Rotate | **RT clockwise, LT counter-clockwise** |
