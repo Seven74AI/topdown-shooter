@@ -54,6 +54,7 @@ Also worth a glance: **8.8 D1** the server may look back 500 ms for your shots (
 | 8.9 B6 | When my survivor slows | **Exactly D5: 3 reports over 2 → 90 % until a report says 2** (two "smarter" variants measured no better) |
 | 8.9 B7 | Starved ticks (AC 6 said "no worse ± 10 %") | **Accepted: +41–61 % on the lossy line (D5 as built: 0 server skips, 0 lost shots), bounded by `smooth.test.ts` ≤ 1.7 × a never-slowing client** (main session 2026-11-25, retro default A7; designer may revisit D5: e.g. slow only after ~1 s of backlog) |
 | 8.9 B8 | Rewind window with 8.9's 250 ms lossy-line delay | **600 ms / 12 ticks (8.8 D1's fallback)**: at 500 ms 16–33 % of kiting shots were over the cap; at 600 ms 0 %, reversed Runners 0.7 % / 1.4 % (1 % / 2 % loss) (500 ms: reversed 1.8 % / 4.2 %, shots over the cap clamped) |
+| 8.9 B9 | How often the picture may still freeze on a 1 % lossy line | **At most 1.2 freezes per 30 s on every 1 % row** (measured 1.2 / 0.9 / 0.9; before 6–6.9) (main session 2026-11-25, retro default A7) (tune until every row ≤ 1) |
 
 ## 8.1 Reconnect within 2 minutes
 

@@ -235,7 +235,7 @@ describe("AdaptiveDelay (Story 8.9: delay from lateness, a render clock that str
       }
       if (!c.ready) continue;
       const est = c.estimateTick(now);
-      const rt = d.advance(now, est, newest, c.rawTick(now));
+      const rt = d.advance(now, est, newest);
       expect(rt).toBeGreaterThanOrEqual(prev);
       expect(d.rate).toBeGreaterThanOrEqual(0.9 - EPS);
       expect(d.rate).toBeLessThanOrEqual(1.1 + EPS);
@@ -292,7 +292,7 @@ describe("AdaptiveDelay (Story 8.9: delay from lateness, a render clock that str
         due = Math.max(due, (tick + 1) * 50 + 30 + (tick % 100 === 0 ? 700 : 0)); // 700 ms stalls: past the stretch cap
       }
       if (!clock.ready) continue;
-      d.advance(now, clock.estimateTick(now), tick, clock.rawTick(now));
+      d.advance(now, clock.estimateTick(now), tick);
       const dr = d.rate - prevRate;
       maxJump = Math.max(maxJump, Math.abs(dr));
       const dir = Math.sign(Math.round(dr * 1e6));
