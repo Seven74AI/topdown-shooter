@@ -18,16 +18,16 @@ describe("hudTopLayout: the widest HUD strings", () => {
     for (const hp of [0, 1, 50.5, 100, 175, 9999]) for (const max of [100, 150, 175, 9999]) for (const [b, a] of [[false, false], [true, false], [false, true], [true, true]] as const) expect(hpRowText(hp, max, b, a).length).toBeLessThanOrEqual(WIDEST_HP_TEXT.length);
   });
 
-  it("a measurement wider than the fallback widens the keep-off rects (HudScene reports at create)", () => {
+  it("a measurement wider than the fallback widens the keep-off rects (HudScene reports at create; a wide screen: on a phone the wave line is capped at the room right of the HP bar, Story 6.14)", () => {
     const before = { ...hudTextWidths };
     try {
       reportHudTextWidths(0, 0, 0);
-      const w0 = layoutWaveLine(568, INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w;
+      const w0 = layoutWaveLine(1600, INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w;
       const h0 = layoutHpBlock(INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w;
       const m0 = layoutMoneyLine(INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w;
       expect(h0).toBeGreaterThanOrEqual(HP_ROW_RESERVE_CSS_PX);
       reportHudTextWidths(400, 300, 200);
-      expect(layoutWaveLine(568, INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w).toBeGreaterThan(Math.max(w0, 400));
+      expect(layoutWaveLine(1600, INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w).toBeGreaterThan(Math.max(w0, 400));
       expect(layoutHpBlock(INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w).toBeGreaterThan(Math.max(h0, 300 + 8 + 5 * 28));
       expect(layoutMoneyLine(INSET, 1, { x: 0, y: 0, w: 0, h: 0 }).w).toBeGreaterThan(Math.max(m0, 200));
     } finally {

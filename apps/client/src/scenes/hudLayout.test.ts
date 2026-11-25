@@ -6,7 +6,8 @@ import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { layoutBossBar } from "./bossBar";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
-import { layoutHpBlock, layoutMoneyLine, layoutWaveLine } from "./hudTopLayout";
+import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
+import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
@@ -198,6 +199,59 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
       }
     }
   });
+
+  // Story 6.14: the top band (not pressable, but read at a glance) — the HP bar, the HP row at its
+  // widest, the money line, the wave line, the boss bar, ☰ and the centre banner — never overlap each
+  // other and stay inside the safe area (568 × 320 had the HP bar over the wave line's start).
+  for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
+    it(`Story 6.14: ${w} × ${h}: the HP bar, HP row, money line, wave line, boss bar, ☰ and the banners (1–3 lines, with and without the boss bar) never overlap; all inside the safe area`, () => {
+      const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
+      const top: Box[] = [
+        menu(w),
+        { ...layoutHpBar(INSET, K, r0()), id: "hp_bar" },
+        { ...layoutHpRow(INSET, K, r0()), id: "hp_row" },
+        { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
+        { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
+      ];
+      const boss = bossBar(w);
+      const inSafe = (b: Box): void => {
+        expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+        expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+        expect(b.y, `${b.id} top`).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
+        expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+      };
+      const apart = (list: Box[]): void => {
+        for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) expect(overlaps(list[i]!, list[j]!), `${w}x${h}: ${list[i]!.id} overlaps ${list[j]!.id}`).toBe(false);
+      };
+      for (const b of [...top, boss]) inSafe(b);
+      apart([...top, boss]);
+      expect(boss.y + boss.h, "the boss bar stays in the upper third").toBeLessThan(h / 3);
+      // The drawn wave text (a 10-wave line, an endless line, the widest one) stays inside its rect.
+      const wave = top[4]!;
+      for (const textW of [150, 200, 261.5]) {
+        const at = placeWaveText(w, INSET, K, textW, { x: 0, scale: 1 });
+        expect(at.x - (textW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
+        expect(at.x + (textW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
+        expect(at.scale).toBeGreaterThan(0.6);
+      }
+      expect(waveLine({ wave: 10, remaining: 400, buildSecs: -1, endless: false, voting: false }).length).toBeLessThan(WIDEST_WAVE_LINE.length);
+      // Banners: short / wide / the wrap width, 1–3 lines, with and without the boss bar.
+      const wrap = bannerWrapWidth(w, INSET, K);
+      let banners = 0;
+      for (const textW of [90, 240, wrap]) {
+        for (const lines of [1, 2, 3]) {
+          for (const shown of [false, true]) {
+            const r = layoutBanner(w, h, INSET, K, textW, lines * BANNER_TEXT_PX * LINE_HEIGHT * K, shown ? boss : null, r0());
+            const b: Box = { ...r, id: `banner ${Math.round(textW)}px × ${lines}${shown ? " + boss" : ""}` };
+            inSafe(b);
+            apart([...top, ...(shown ? [boss] : []), b]);
+            banners++;
+          }
+        }
+      }
+      expect(banners).toBe(18);
+    });
+  }
 
   it("the checks bite: a box at the centre is caught (self-check)", () => {
     expect(rectCentreGap(284 - 10, 160 - 10, 20, 20, 284, 160)).toBe(0);

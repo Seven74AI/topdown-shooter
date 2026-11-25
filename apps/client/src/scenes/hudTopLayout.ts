@@ -4,6 +4,7 @@
  * event edge arrow off them and the one HUD layout test checks it. No Phaser here (tests import it).
  */
 import { waveLine } from "./hudModel";
+import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
 export const HP_MARGIN = 16;
 export const HP_BAR_W = 200;
 export const HP_BAR_H = 16;
@@ -94,11 +95,94 @@ export function layoutMoneyLine(insets: HudInsets, k: number, out: HudRect): Hud
   return out;
 }
 
-/** The wave line ("Wave n · Zombies m"), centred at the top. */
+/** Story 6.14: the gap kept between two top-band blocks (HP bar, wave line, boss bar, banner; CSS px). */
+export const HUD_BAND_GAP_CSS_PX = 6;
+/** The centre banner (HudScene): 34 px bold, centred at 32 % of the screen height unless pushed down (Story 6.14). */
+export const BANNER_TEXT_PX = 34;
+export const BANNER_Y_FRAC = 0.32;
+/** The banner's side margin inside the safe area (CSS px; it wraps there, Story 6.14). */
+export const BANNER_SIDE_CSS_PX = 8;
+
+/** The HP bar with its 2 px backing (top left). */
+export function layoutHpBar(insets: HudInsets, k: number, out: HudRect): HudRect {
+  out.x = (HP_MARGIN + insets.left - 2) * k;
+  out.y = (HP_MARGIN + insets.top - 2) * k;
+  out.w = (HP_BAR_W + 4) * k;
+  out.h = (HP_BAR_H + 4) * k;
+  return out;
+}
+
+/** Story 6.14: the HP row under the bar (HP text + gear icons, at its widest). */
+export function layoutHpRow(insets: HudInsets, k: number, out: HudRect): HudRect {
+  layoutHpBlock(insets, k, out);
+  const top = (HP_MARGIN + insets.top + HP_BAR_H + 2) * k;
+  out.h = out.y + out.h - top;
+  out.y = top;
+  return out;
+}
+
+const barScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
+
+/**
+ * The wave line ("Wave n · Zombies m"): centred at the top; Story 6.14 — where that would touch the
+ * HP bar (568 × 320, 640 × 360, 800 × 360), its rect starts `HUD_BAND_GAP_CSS_PX` right of the bar and
+ * ends that far before ☰ at most (HudScene shrinks a line wider than that: `placeWaveText`).
+ */
 export function layoutWaveLine(width: number, insets: HudInsets, k: number, out: HudRect): HudRect {
-  out.w = waveLineW() * k;
-  out.x = width / 2 - out.w / 2;
+  const reserve = waveLineW() * k;
+  const gap = HUD_BAND_GAP_CSS_PX * k;
+  const bar = layoutHpBar(insets, k, barScratch);
+  const left = Math.max(width / 2 - reserve / 2, bar.x + bar.w + gap);
+  const menuLeft = width - (MENU_BUTTON_INSET_CSS_PX + insets.right + MENU_BUTTON_CSS_PX) * k;
+  out.x = left;
+  out.w = Math.max(0, Math.min(reserve, menuLeft - gap - left));
   out.y = (WAVE_TOP_PX + insets.top) * k;
   out.h = WAVE_TEXT_PX * LINE_HEIGHT * k;
+  return out;
+}
+
+const waveScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
+
+/**
+ * Story 6.14: where HudScene draws a wave line `textW` px wide (unscaled): its centre x (the text's
+ * origin is 0.5, 0) — the screen's centre when the line fits there — and a scale ≤ 1 so it fits the rect.
+ */
+export function placeWaveText(width: number, insets: HudInsets, k: number, textW: number, out: { x: number; scale: number }): { x: number; scale: number } {
+  const r = layoutWaveLine(width, insets, k, waveScratch);
+  out.scale = textW > r.w && textW > 0 ? r.w / textW : 1;
+  const dw = textW * out.scale;
+  out.x = Math.min(Math.max(width / 2, r.x + dw / 2), r.x + r.w - dw / 2);
+  return out;
+}
+
+/** Story 6.14: the banner's wrap width — inside the safe area, `BANNER_SIDE_CSS_PX` from its sides. */
+export function bannerWrapWidth(width: number, insets: HudInsets, k: number): number {
+  return Math.min(width * 0.92, width - (insets.left + insets.right + 2 * BANNER_SIDE_CSS_PX) * k);
+}
+
+const bandScratch: HudRect[] = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
+
+/**
+ * Story 6.14: the banner (`textW` × `textH` px, centred) at 32 % of the height, pushed down below every
+ * top-band block it would cross (HP block, money line, wave line and — while it shows — the boss bar:
+ * `boss`, its rect), `HUD_BAND_GAP_CSS_PX` clear.
+ */
+export function layoutBanner(width: number, height: number, insets: HudInsets, k: number, textW: number, textH: number, boss: Readonly<HudRect> | null, out: HudRect): HudRect {
+  out.w = textW;
+  out.h = textH;
+  out.x = width / 2 - textW / 2;
+  let top = height * BANNER_Y_FRAC - textH / 2;
+  const gap = HUD_BAND_GAP_CSS_PX * k;
+  const band = bandScratch;
+  layoutHpBlock(insets, k, band[0] as HudRect);
+  layoutMoneyLine(insets, k, band[1] as HudRect);
+  layoutWaveLine(width, insets, k, band[2] as HudRect);
+  const n = boss ? 4 : 3;
+  if (boss) Object.assign(band[3] as HudRect, boss);
+  for (let i = 0; i < n; i++) {
+    const r = band[i] as HudRect;
+    if (out.x < r.x + r.w + gap && r.x < out.x + out.w + gap && top < r.y + r.h + gap) top = r.y + r.h + gap;
+  }
+  out.y = top;
   return out;
 }
