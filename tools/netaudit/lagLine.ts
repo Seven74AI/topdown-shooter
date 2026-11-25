@@ -77,10 +77,12 @@ export interface LagLine {
 /** Decision 8.8 D2: one lost packet costs a 200 ms stall (about one 4G retransmit). */
 export const LAG_LINE_DEFAULT_STALL_MS = 200;
 
-/** Delivers chunks in order, each no earlier than its own delayed time; `buf: null` = end (FIN). */
-class OrderedDelay {
+/** Delivers chunks in order, each no earlier than its own delayed time; `buf: null` = end (FIN). Exported for tests. */
+export class OrderedDelay {
   private lastAt = 0;
   private ended = false;
+  /** Re-review 1 nit: after `stop()` nothing is queued or timed any more (no timer writing to a destroyed socket). */
+  private stopped = false;
   private readonly queue: { at: number; buf: Buffer | null }[] = [];
   private timer: NodeJS.Timeout | null = null;
   constructor(
@@ -88,12 +90,12 @@ class OrderedDelay {
     private readonly onDeliver: (buf: Buffer) => void,
   ) {}
   push(buf: Buffer, delayMs: number): void {
-    if (this.ended) return;
+    if (this.ended || this.stopped) return;
     this.enqueue(buf, delayMs);
   }
   /** Review R2: end the destination after everything queued before it (once). */
   pushEnd(delayMs: number): void {
-    if (this.ended) return;
+    if (this.ended || this.stopped) return;
     this.ended = true;
     this.enqueue(null, delayMs);
   }
@@ -103,7 +105,12 @@ class OrderedDelay {
     this.queue.push({ at, buf });
     this.schedule();
   }
+  /** A timer is waiting to deliver (tests). */
+  get armed(): boolean {
+    return this.timer !== null;
+  }
   stop(): void {
+    this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.queue.length = 0;

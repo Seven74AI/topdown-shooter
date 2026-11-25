@@ -1,7 +1,7 @@
 /** Story 8.8 (T7): the lossy TCP line used by the bots and the audit proxy. Real sockets on 127.0.0.1. */
 import { afterEach, describe, expect, it } from "vitest";
-import { connect, createServer, type Server, type Socket } from "node:net";
-import { startLagLine, type LagLine } from "./lagLine";
+import { Socket, connect, createServer, type Server } from "node:net";
+import { OrderedDelay, startLagLine, type LagLine } from "./lagLine";
 
 /** A target server: records what it receives (with arrival times) and lets the test write back. */
 async function target(): Promise<{ port: number; got: { at: number; buf: Buffer }[]; peer: () => Socket | null; close: () => Promise<void> }> {
@@ -150,6 +150,39 @@ describe("lagLine (Story 8.8: ordered delay + head-of-line stalls, both directio
     expect([...Buffer.concat(got)]).toEqual([0x82, 0x02, 0x01, 0x02, 0x88, 0x02, 0x0f, 0xa0]);
     expect(Buffer.concat(got).readUInt16BE(6)).toBe(4000);
     expect(line.stats().stallsDown).toBe(1);
+  });
+
+  it("re-review 1: the half-open path — the client ends, the server answers after the FIN, and the answer arrives", async () => {
+    const t = await target();
+    cleanups.push(t.close);
+    const line = await startLagLine({ listen: 0, target: t.port, rttMs: 60, jitterMs: 0 });
+    cleanups.push(line.close);
+    const c = await open(line.port);
+    cleanups.push(() => void c.destroy());
+    await until(() => t.peer() !== null);
+    const peer = t.peer() as Socket;
+    peer.on("end", () => peer.end("reply-after-your-fin")); // the server replies once the client's FIN arrived
+    const got: Buffer[] = [];
+    let ended = false;
+    c.on("data", (b: Buffer) => got.push(b));
+    c.on("end", () => (ended = true));
+    c.end("bye");
+    await until(() => ended);
+    expect(Buffer.concat(got).toString()).toBe("reply-after-your-fin");
+    expect(Buffer.concat(t.got.map((g) => g.buf)).toString()).toBe("bye");
+  });
+
+  it("re-review 1 nit: a stopped queue takes nothing more and arms no timer", () => {
+    const s = new Socket();
+    const q = new OrderedDelay(s, () => {});
+    q.push(Buffer.from("a"), 1000);
+    expect(q.armed).toBe(true);
+    q.stop();
+    expect(q.armed).toBe(false);
+    q.push(Buffer.from("b"), 10);
+    q.pushEnd(10);
+    expect(q.armed).toBe(false);
+    s.destroy();
   });
 
   it("close frees the port and drops the connections", async () => {

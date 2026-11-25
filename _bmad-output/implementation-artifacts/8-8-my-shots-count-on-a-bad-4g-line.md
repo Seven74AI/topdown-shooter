@@ -1,6 +1,6 @@
 # Story 8.8: My shots count on a bad 4G line
 
-Status: review
+Status: done
 
 <!-- Network pass story 1 of 5 (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). -->
 
@@ -307,8 +307,46 @@ Reviewer: fresh reviewer cloud session (gds-code-review: Blind Hunter / Edge Cas
 | N1 | c0533ab | Teammate assert commented as documentation (no player-hit path) | — |
 | N2 | 351aa4f | Bots' caps imported from `devThrottle.ts` (`MAX_THROTTLE_LAG_MS` / `JITTER` moved there, re-exported by `urlOptions.ts`); `lineUrl()` keeps scheme, host name and path (only `[::1]` → 127.0.0.1); `--jitter` cap is now the client's 1000 | `tools/bots/lineArgs.test.ts` › "review N2: the caps are the client's; …" |
 | N3 | 61ffbf0 | T8 bot rows labelled "liveness only, different lines" (story + perf doc) | — |
+| RR1-a (low) | 8285bab | Test of the half-open path: client ends, server replies on `end`, the reply arrives through the line | `tools/netaudit/lagLine.test.ts` › "re-review 1: the half-open path …" (removing both `allowHalfOpen` fails it) |
+| RR1-b (low) | 7af3a01 | `throttleWiring.test.ts` strips `//` and `/* */` comments before matching | commenting out `activeThrottle.current = throttle`, `lossPct: 0 /* was … */`, or moving the overlay suffix into a `//` comment each fail it; self-check test of the stripper |
+| RR1-c (low) | 7af3a01 | Wiring check: `netSummary.ts › browserEnv()` uses `throttleLabel(urlOptions().throttle)` and no `location.search` / `URLSearchParams` | reverting to the raw query fails it |
+| RR1-d (nit) | 8285bab | `OrderedDelay.stop()` sets `stopped`: `push` / `pushEnd` are no-ops after it (no timer re-armed onto a destroyed socket) | `tools/netaudit/lagLine.test.ts` › "re-review 1 nit: a stopped queue takes nothing more and arms no timer" (removing the flag fails it) |
 
 Checks after the fixes: typecheck, lint, touched tests (see the hand-back message); no full gate (not asked).
+
+### Re-review (narrow) 1 (2026-11-25, fix range d6e042b..008df68)
+
+Verdict: **findings (0 high, 0 medium, 3 low, 1 nit)**. R1, R2, R3, R5, N2 close their findings; R4/N1/N3/R6 are text/script only (not exercised). No fix creates a correctness bug; the lows are test gaps plus one benign timer leftover.
+
+| Sev | Where | Finding | Failure scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| Low | `tools/netaudit/lagLine.test.ts` (R2 tests); `lagLine.ts:145,147` | The half-open part of R2 (`allowHalfOpen`) is untested: removing both `allowHalfOpen: true` keeps all 5 lagLine tests green | Client sends FIN, server answers after it (`s.on("end", () => s.end("reply"))`): with the fix the client gets `"reply-after-your-fin"`; with the mutation it gets `""`. The tests only send in one direction per connection | One test: client `end("bye")`, server replies on `end`, assert the reply arrives through the line |
+| Low | `tools/checks/throttleWiring.test.ts:17-23` | R3's source check is satisfied by commented-out code | `// activeThrottle.current = throttle;` (overlay never shows loss), `lossPct: 0 /* was lossPct: o.lossPct */` (clean line on `?loss=1`), and moving the overlay's `${throttleLossText(...)}` into a trailing `//` comment all pass. Deletion does fail (M3a/b/c/f/h) | Strip `//…` and `/*…*/` from `body` / the `ping` line before matching |
+| Low | `apps/client/src/debug/netSummary.ts:197` | R5's wiring has no test: only `throttleLabel()` is tested | Reverting `browserEnv()` to read the raw query (`location.search`) keeps every test green: the exact R5 bug can come back silently | Add to `throttleWiring.test.ts`: netSummary.ts contains `throttle: throttleLabel(urlOptions().throttle)` (comment-stripped) |
+| Nit | `tools/netaudit/lagLine.ts:106,192-199` | After an error (`destroyBoth` → `stop()`) or `LagLine.close()`, the `close` handlers call `pushEnd()`, which re-arms a timer at the stopped queue's `lastAt` (up to stall + one-way) writing to a destroyed socket | Probe: stall 1000 ms pending, `await line.close()` → process exits 1051 ms later (RST mid-stall: 950 ms; 2 timers alive). No hang (bots `process.exit`, vitest unaffected: lagLine suite 1.54 s ×3) | `stop()` sets a `stopped` flag that makes `push`/`pushEnd` no-ops (or skip when `dest.destroyed`) |
+
+**Exploit attempts**
+
+| Fix | Attempt | Result |
+| --- | --- | --- |
+| R1 | Mutation "stall counted but not added to due" (`hitsSim.ts:151` drop `stall +`) | All 4 lossy rows fail (`expected 0 to be greater than 20`); clean rows pass. Closed |
+| R1 | Seeds 1–10 × runners/walkers × 0/1/2 %: share of shots > 6 ticks | Clean 0 % every seed; lossy per seed 23–99 %, 3-seed sums ≥ 44 % vs > 20 %: not flaky (seeded, deterministic) |
+| R1 | shots = 0 | `viewOffsets` empty → `oldPct` NaN → `toBeGreaterThan(20)` fails (no silent pass); clean `toEqual([])` guarded by `apparentHits > 300` |
+| R2 | write-then-end both directions; WS close frame 4000 through a stall | Covered by the 2 new tests; old destroy-on-end mutation fails both |
+| R2 | Client RST mid-stall | Line gets ECONNRESET → `destroyBoth`, server sees FIN at once (same as before the fix, `destroy()` is a FIN); `line.close()` resolves in 0 ms; leftover timer (Nit) |
+| R2 | Client half-closed, then server RST | Client destroyed, `end` seen, 0 timers, `line.close()` 0 ms |
+| R2 | `LagLine.close()` with a half-open connection / stalled data | Resolves in 0–1 ms; process exits 650–1050 ms later (Nit) |
+| R2 | Half-open reply after client FIN | Delivered (`"reply-after-your-fin"`); untested (Low 1) |
+| R2 | `lagProxy.ts` | Same `startLagLine` path; only `closedAt` on client `close`, now at the real close: fine |
+| R3 | Delete lossPct / stallMs / activeThrottle set / overlay suffix; rename `throttled` | All fail |
+| R3 | Comment them out | Pass (Low 2) |
+| R5 | `?loss=abc`, `?loss=99&stall=5000`, `&stall=x`, `?stall=400` | Tested; clamped/applied values printed |
+| N2 | `tsx` import of `lineArgs.ts` (client `devThrottle.ts` in node) | Loads (imports are shared/type/netConfig only); typecheck ok |
+| N2 | `https://localhost/api` → `https://localhost:<port>/api`; `[::1]` → 127.0.0.1; `http://localhost:2567` now keeps `localhost` (was 127.0.0.1) | As intended; with `::1 localhost` added to /etc/hosts, fetch via `localhost` to the IPv4-only line still works (Node 22; this resolver ordered IPv4 first, so a ::1-first host was not reproduced) |
+
+**Mutations of the new tests** (each reverted): R1 hitsSim stall → 4 fail · R2 end→destroy → 2 fail · R2 FIN not ordered by `lastAt` → pass (equivalent: the queue is FIFO) · R2 no `allowHalfOpen` → **pass** · R3 deletions (5 kinds) → fail · R3 comment-outs (3 kinds) → **pass** · R5 label always prints loss → fail · R5 `browserEnv` raw query → **pass** · N2 jitter cap = lag cap → fail · N2 no `[::1]` mapping → fail · N2 old hostname 127.0.0.1 → fail.
+
+Checks: `npm ci`, `npm run typecheck` ok; touched tests (lagLine, throttleWiring, netSummary, lineArgs, rewind, hits 8.8) 25 passed. No full gate.
 
 ## Change Log
 
@@ -316,3 +354,5 @@ Checks after the fixes: typecheck, lint, touched tests (see the hand-back messag
 - 2026-11-25: built (500 ms rewind, lossy line in harness / dev throttle / bots, fairness and lossy netsim tests, two-tab smoke); status review.
 - 2026-11-25: Senior Developer Review (AI): findings (2 medium, 4 low, 3 nits); status stays review.
 - 2026-11-25: review fixes R1–R6, N1–N3 (builder); decision 8.8 B1 auto-accepted; status stays review.
+- 2026-11-25: Re-review (narrow) 1: 3 low, 1 nit (test gaps for R2 half-open / R3 comments / R5 wiring; timer leftover after close); status stays review.
+- 2026-11-25: re-review 1 fixes (a–d, test-only + one nit) by the builder; status stays review.
