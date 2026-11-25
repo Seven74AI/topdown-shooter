@@ -97,6 +97,8 @@ const playerFields = {
   trainDmg: t.uint8().default(0),
   trainMoney: t.uint8().default(0),
   trainReload: t.uint8().default(0),
+  // Story 8.2 (J4): a late joiner watching a wave (or the vote) until the next build start; not in the World. Appended last.
+  waiting: t.boolean().default(false),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;

@@ -778,3 +778,4 @@ export { addLatePlayer } from "./player/lateJoin";
 export { addBuildTime } from "./run/runStateMachine";
 export { disownBuildings } from "./buildings/buildings";
 export { hostRemoveSchema, type HostRemove, type PlayerRemoved } from "./net/messages";
+export { CLOSE_REMOVED } from "./net/reconnect";

@@ -52,6 +52,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     trainDmg: 0,
     trainMoney: 0,
     trainReload: 0,
+    waiting: false, // Story 8.2
     ...over,
   };
 }

@@ -228,3 +228,8 @@ export function shouldRescueReload(hiddenForMs: number, shownForMs: number, reco
 /** Close codes (mirrors `apps/server/src/net/limits.ts`): not consented, and not ones the SDK auto-reconnects on. */
 export const CLOSE_SEAT_KEPT = 4020;
 export const CLOSE_TAKEN_OVER = 4021;
+/**
+ * Story 8.3 (H3, decision E8-H2): the host removed this seat. Terminal like 4020/4021: no reconnect (never 4000);
+ * the phone shows "You were removed from this run" with OK.
+ */
+export const CLOSE_REMOVED = 4022;
