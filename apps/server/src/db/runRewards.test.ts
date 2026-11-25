@@ -78,6 +78,33 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     expect(await repo.get(acct.id)).toMatchObject({ supplies: 150, lifetimeSupplies: 150 });
   });
 
+  it("Story 8.2 (AC 13, E8-J6): a top-up raises the run's row to the new total and pays only the difference (never negative)", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    await repo.addSupplies(RUN_A, acct.id, pays(60)); // the Leave at wave 3
+    const up = await repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true); // back, played to the end
+    expect(up).toMatchObject({ banked: true, supplies: 200, newTotal: 200 });
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 }); // = one uninterrupted run
+    const lower = await repo.addSupplies(RUN_A, acct.id, pays(150), undefined, true); // never pays back down
+    expect(lower).toMatchObject({ banked: false, supplies: 200 });
+    const noTop = await repo.addSupplies(RUN_A, acct.id, pays(900)); // without the flag: once per run, as 7.2
+    expect(noTop.banked).toBe(false);
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 });
+    const db = await database.db();
+    expect((await rows<{ n: number; s: number }>(db, sql`select count(*)::int as n, max(supplies)::int as s from run_rewards`))[0]).toEqual({ n: 1, s: 200 });
+  });
+
+  it("Story 8.2 (brief 18): a concurrent double-submit of one top-up pays the difference once", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    await repo.addSupplies(RUN_A, acct.id, pays(60));
+    const both = await Promise.all([repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true), repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true)]);
+    expect(both.filter((r) => r.banked)).toHaveLength(1);
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 });
+  });
+
   it("an account with no progress row gets one (empty) before the bank; an unknown account is refused (foreign key)", async () => {
     const database = fresh();
     const acct = await account(database);

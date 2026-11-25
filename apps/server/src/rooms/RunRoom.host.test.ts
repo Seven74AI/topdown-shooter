@@ -195,6 +195,17 @@ describe("Story 8.3 H3: removed means gone for this room", () => {
     await expect(colyseus.sdk.joinById(room.roomId, options("join", "Cy", tokens[2] as string))).rejects.toThrow("removed");
   });
 
+  it("E8-H4: a seat removed mid-run banks like a Leave (ending quit, before it leaves the World)", async () => {
+    const { clients, room } = await runOf(2);
+    const bank = room.bank;
+    if (!bank) throw new Error("no bank");
+    const spy = vi.spyOn(bank, "bank");
+    world(room).players.get("p1")!.wavesIn = 2;
+    (clients[0] as RunSdkRoom).send(C2S.HOST_REMOVE, { playerId: "p1" });
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy.mock.calls[0]?.[0]).toMatchObject({ playerId: "p1", ending: "quit", record: expect.objectContaining({ wavesIn: 2 }) });
+  });
+
   it("lobby: the removed player can't rejoin the lobby; a stranger with a fresh token still can (the host removes again)", async () => {
     const { clients, seen, room, tokens } = await lobbyOf(2);
     (clients[0] as RunSdkRoom).send(C2S.HOST_REMOVE, { playerId: "p1" });
