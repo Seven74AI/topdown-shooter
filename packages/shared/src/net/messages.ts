@@ -471,6 +471,10 @@ export const runRewardsSchema = z
     rookie: z.boolean(),
     total: supplyAmount,
     newTotal: supplyAmount,
+    /** Review L4: how this seat banked (`quit` = when it left mid-run; a seat that came back still sees that bank). */
+    ending: z.enum(["wiped", "extracted", "lost", "quit"]).optional(),
+    /** Review L4: the wave a `quit` bank was made in (0 / absent otherwise). */
+    leftWave: z.number().int().min(0).max(0xffff).optional(),
   })
   .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
 export type RunRewards = z.infer<typeof runRewardsSchema>;

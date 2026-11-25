@@ -39,6 +39,8 @@ export interface RewardsView {
   readonly total: string;
   /** The status line for every state but `saved` ("" when saved). */
   readonly status: string;
+  /** Review L4: "Banked when you left (wave N)" when this seat banked on a Leave and came back ("" otherwise). */
+  readonly note: string;
   /** Brief 26: the four row groups in their fixed order; groups 2–4 are filled by later stories. */
   readonly groups: readonly ["supplies", "items", "unlocks", "nudge"];
 }
@@ -50,7 +52,7 @@ export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
  * `rewards` null = not arrived yet ("Saving…"); a message whose seed is not this run's is treated as not arrived.
  */
 export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies): RewardsView {
-  const base = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", groups: REWARD_GROUPS };
+  const base = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS };
   if (!online) return { ...base, state: "practice", status: REWARDS_TEXT.practice };
   if (rewards === null || rewards.seed !== seed) return { ...base, state: "saving", status: REWARDS_TEXT.saving };
   if (rewards.status !== "saved") return { ...base, state: rewards.status, status: REWARDS_TEXT[rewards.status] };
@@ -72,6 +74,7 @@ export function rewardsView(rewards: RunRewards | null, online: boolean, seed: n
     rookie: rewards.rookie,
     total: formatSupplies(rewards.newTotal),
     status: "",
+    note: rewards.ending === "quit" && (rewards.leftWave ?? 0) > 0 ? `Banked when you left (wave ${rewards.leftWave})` : "",
   };
 }
 

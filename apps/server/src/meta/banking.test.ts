@@ -51,6 +51,15 @@ describe("Story 7.2: RunBank", () => {
     expect(log.info).toHaveBeenCalledWith(expect.objectContaining({ runId: bank.runId, accountId: ACCT, total: 250, already: false, ms: expect.any(Number) }), "supplies_banked");
   });
 
+  it("review L4: a Leave's bank says ending quit and the wave it was made in; a run-end bank says its ending, leftWave 0", async () => {
+    const { repo } = fakeRepo();
+    const { bank } = bankWith(repo);
+    const q = await bank.bank({ playerId: "p0", accountId: ACCT, record: rec(3), ending: "quit", wave: 4 });
+    expect(q).toMatchObject({ ending: "quit", leftWave: 4 });
+    const e = await bank.bank({ playerId: "p1", accountId: ACCT2, record: rec(10, 1), ending: "extracted", wave: 10 });
+    expect(e).toMatchObject({ ending: "extracted", leftWave: 0 });
+  });
+
   it("S5: a rookie (lifetime < 300) gets × 2 and the flag", async () => {
     const { repo } = fakeRepo(0);
     const { bank } = bankWith(repo);

@@ -1316,6 +1316,7 @@ p.in-run-menu__title {
 .results.rw .results__table {
   width: 100%;
   min-width: 0;
+  table-layout: fixed; /* review L2: a 16-character name never pushes Kills / Earned out of the card */
   margin-top: 4px;
   font-size: 13px;
 }
@@ -1335,6 +1336,93 @@ p.in-run-menu__title {
   font-weight: 700;
 }
 
+.results.rw .rw-col--kills {
+  width: 3.4em;
+}
+
+.results.rw .rw-col--earned {
+  width: 6.2em;
+}
+
+.results.rw .results__name {
+  display: table-cell; /* a flex cell breaks the row borders; the chip and the name sit inline */
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.results.rw .rw-slot {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.rw-name {
+  display: inline-flex;
+  flex-direction: column;
+  max-width: calc(100% - 22px); /* the chip (16 px) and its gap */
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.rw-name__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rw-you {
+  color: #fff; /* white, not the orange accent (7-UI-4: never confused with the orange slot) */
+  font: 800 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.results.rw tr.rw-row--me td {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.results.rw tr.rw-row--me td:first-child {
+  box-shadow: inset 3px 0 0 #fff;
+}
+
+.results.rw .results__kills,
+.results.rw .results__earned {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rw-card__head--team {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rw-head__main {
+  min-width: 0;
+}
+
+.rw-wave {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: 0;
+}
+
+.rw-wave__label {
+  color: var(--rw-dim);
+  font: 700 11px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rw-wave__n {
+  color: #fff;
+  font: 800 22px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 .rw-slot {
   display: inline-grid;
   place-items: center;
@@ -1346,6 +1434,15 @@ p.in-run-menu__title {
   color: #fff;
   font: 800 11px/1 system-ui, sans-serif;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+
+.rw-table-wrap {
+  /* review L2: four tall rows (long names + "YOU") under a two-line title scroll here; the button never leaves the card */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .rw-card__foot {
@@ -1415,6 +1512,7 @@ p.in-run-menu__title {
 
 .rw-big {
   display: flex;
+  flex-wrap: wrap; /* review L2: a long run total pushes "Supplies" to the next line, never out of the card */
   align-items: baseline;
   gap: 8px;
   margin: 0 0 4px;
@@ -1425,6 +1523,10 @@ p.in-run-menu__title {
   font: 800 40px/1 system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 14px rgba(255, 196, 107, 0.35);
+}
+
+.rw-big__n--long {
+  font-size: 28px; /* review L2: 7+ digit runs stay inside the card */
 }
 
 .rw-big__unit {
@@ -1521,6 +1623,10 @@ p.in-run-menu__title {
   grid-column: 1 / 3;
 }
 
+.rw-total__n--long {
+  font-size: 16px; /* review L2: a 7-digit account total ("1,234,567") fits beside the rookie badge */
+}
+
 .rw-total .rw-crate {
   width: 16px;
   height: 13px;
@@ -1534,9 +1640,19 @@ p.in-run-menu__title {
 }
 
 .rw-total__n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #fff;
   font: 800 22px/1 system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
+}
+
+.rw-note {
+  margin: 2px 0 4px;
+  color: var(--rw-dim);
+  font: 600 12px/1.3 system-ui, sans-serif;
 }
 
 .rw-status {
@@ -1798,8 +1914,9 @@ p.in-run-menu__title {
 
 .ph-name {
   display: flex;
+  flex-wrap: wrap; /* the "Good next pick" tag goes under a long name on a narrow screen (hubDomLayout test) */
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   min-width: 0;
   color: var(--ph-ink);
   font: 700 15px/1.2 system-ui, sans-serif;

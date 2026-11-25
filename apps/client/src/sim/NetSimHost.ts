@@ -1052,12 +1052,6 @@ export class NetSimHost implements SimHost {
     this.sampleClock(now, state.tick); // arrival after the dev throttle, if on
   }
 
-  /** Story 8.9 (D7): a horde frame into the buffer; an accepted one is a clock and lateness sample too. */
-  private receiveHorde(bytes: unknown): void {
-    if (this.disposed || !this.hordeStats.receive(bytes)) return;
-    this.sampleClock(this.now(), this.horde.latestTick);
-  }
-
   /** Story 8.1 review M3: the last frame's `state.frozen` and link status (edges re-base the clocks). */
   private wasFrozen = false;
   private wasLinkUp = true;

@@ -21,6 +21,9 @@ import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { runSupplies, suppliesEnding, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo } from "../db/progressRepo";
 
+/** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
+export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
+
 /** AC 4: the one retry waits this long. */
 export const BANK_RETRY_MS = 2000;
 
@@ -29,6 +32,8 @@ export interface BankSeat {
   readonly accountId: string | null;
   readonly record: RunRecord;
   readonly ending: SuppliesEnding;
+  /** Review L4: the wave a Leave banked in (shown as "Banked when you left (wave N)" if the seat comes back). */
+  readonly wave?: number;
 }
 
 export interface RunBankDeps {
@@ -44,6 +49,7 @@ export interface RunBankDeps {
 /** What `run_rewards.breakdown` keeps: the payout, the ending and the record it came from (hand grants, later stories). */
 interface Breakdown extends RunSupplies {
   ending: SuppliesEnding;
+  leftWave: number;
   waveCount: number;
   endlessWaveCount: number;
   record: RunRecord;
@@ -51,8 +57,10 @@ interface Breakdown extends RunSupplies {
 
 const copyRecord = (r: RunRecord): RunRecord => ({ wavesIn: r.wavesIn, endlessWavesIn: r.endlessWavesIn, bossesIn: r.bossesIn, endlessBossesIn: r.endlessBossesIn });
 
-function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "ending" | "record">, newTotal: number): RunRewards {
+function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number): RunRewards {
   return {
+    ending: b.ending,
+    leftWave: b.leftWave,
     runId,
     seed,
     status,
@@ -66,7 +74,7 @@ function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<
 }
 
 /** A stored breakdown read back (an earlier bank of the same run): numbers only, anything missing is 0. */
-function storedBreakdown(raw: Record<string, unknown>, supplies: number): Omit<Breakdown, "ending" | "record"> {
+function storedBreakdown(raw: Record<string, unknown>, supplies: number): Omit<Breakdown, "record"> {
   const n = (k: string): number => (typeof raw[k] === "number" && Number.isInteger(raw[k]) && (raw[k] as number) >= 0 ? (raw[k] as number) : 0);
   return {
     waves: n("waves"),
@@ -78,6 +86,8 @@ function storedBreakdown(raw: Record<string, unknown>, supplies: number): Omit<B
     total: supplies,
     waveCount: n("waveCount"),
     endlessWaveCount: n("endlessWaveCount"),
+    ending: (["wiped", "extracted", "lost", "quit"] as const).find((e) => e === raw.ending) ?? "quit",
+    leftWave: n("leftWave"),
   };
 }
 
@@ -158,16 +168,17 @@ export class RunBank {
 
   private async run(seat: BankSeat): Promise<RunRewards> {
     const record = copyRecord(seat.record);
+    const leftWave = seat.ending === "quit" ? Math.max(0, Math.floor(seat.wave ?? 0)) : 0;
     const repo = this.deps.repo();
     if (seat.accountId === null || repo === null) {
       const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY); // no rookie guess: the lifetime is unknown
-      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn }, 0);
+      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0);
     }
     const accountId = seat.accountId;
     const now = this.deps.nowMs ?? (() => performance.now());
     const pay = (lifetimeBefore: number) => {
       const s = runSupplies(record, seat.ending, lifetimeBefore);
-      const breakdown: Breakdown = { ...s, ending: seat.ending, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, record };
+      const breakdown: Breakdown = { ...s, ending: seat.ending, leftWave, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, record };
       return { supplies: s.total, breakdown: breakdown as unknown as Record<string, unknown> };
     };
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -179,11 +190,13 @@ export class RunBank {
         return message(this.runId, this.seed, "saved", b, r.newTotal);
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
-        this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record }, "supplies_bank_failed");
+        // Review M1: a failed bank never commits later (progressRepo bounds it inside PostgreSQL); still, a hand grant
+        // checks run_rewards first (docs/deploy.md › Database).
+        this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record, handGrant: HAND_GRANT_NOTE }, "supplies_bank_failed");
         if (attempt === 1) await new Promise((r) => setTimeout(r, this.deps.retryMs ?? BANK_RETRY_MS));
       }
     }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
-    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn }, 0);
+    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0);
   }
 }

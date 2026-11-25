@@ -669,7 +669,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!world || !this.inRun() || !this.bank) return;
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
-    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit" });
+    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number });
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */

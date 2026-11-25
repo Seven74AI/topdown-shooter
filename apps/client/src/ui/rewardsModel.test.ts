@@ -32,6 +32,18 @@ describe("Story 7.2: rewardsView", () => {
     expect(v.status).toBe("");
   });
 
+  it("review L3 (B9): a saved run with 0 waves still lists the Waves line (Waves 0 × 10, +0)", () => {
+    const v = rewardsView(msg({ lines: { waves: 0, boss: 0, extract: 0, endless: 0, endlessBoss: 0 }, waveCount: 0, total: 0 }), true, 2207);
+    expect(v.lines.map((l) => [l.label, l.amount])).toEqual([["Waves 0 × 10", 0]]);
+    expect(v.headline).toBe("+0");
+  });
+
+  it("review L4 (B5): a seat that banked on a Leave and came back reads 'Banked when you left (wave N)'; otherwise no note", () => {
+    expect(rewardsView(msg({ ending: "quit", leftWave: 4 }), true, 2207).note).toBe("Banked when you left (wave 4)");
+    expect(rewardsView(msg({ ending: "extracted", leftWave: 0 }), true, 2207).note).toBe("");
+    expect(rewardsView(msg(), true, 2207).note).toBe(""); // an older server without the fields
+  });
+
   it("S5: the rookie badge shows when the server says so; the lines stay unscaled", () => {
     const v = rewardsView(msg({ rookie: true, total: 480 }), true, 2207);
     expect(v.rookie).toBe(true);

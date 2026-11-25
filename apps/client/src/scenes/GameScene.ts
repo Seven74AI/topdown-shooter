@@ -1044,7 +1044,7 @@ export class GameScene extends Phaser.Scene {
     const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
     // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
     const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs });
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
   }
 
   /**
