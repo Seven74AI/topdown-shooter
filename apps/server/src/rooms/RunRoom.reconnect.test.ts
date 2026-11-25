@@ -519,11 +519,16 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     startWave(w);
     const bo = clients[1] as RunSdkRoom;
     w.players.get("p1")!.earned = 77;
+    // Flake fix: Ana keeps sending (else D1's quiet rule can hold her ~3 s in and freeze the room before Bo's body vanishes).
+    const ana = clients[0] as RunSdkRoom;
+    let anaSeq = 0;
+    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50);
+    onTestFinished(() => clearInterval(keepAlive));
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
     downPlayer(w, w.players.get("p0") as never);
-    await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 6000 }); // B16: once the dropped body vanished
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 10_000 }); // B16: once the dropped body vanished
     // Review L1: the held seat is in run_ended too.
     expect(lines("run_ended")[0]).toMatchObject({ earned: { p0: 0, p1: 77 } });
   });
