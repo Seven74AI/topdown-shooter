@@ -1,14 +1,32 @@
 name: CI
 
+# Designer 2026-11-25: code reaches master through PRs, and the PR run is the gate (it tests the PR merged with
+# master). Master runs once per landing to confirm. Other branches get no push runs (builders test locally; open a
+# draft PR for CI earlier). Docs / BMAD-only changes skip CI: they go straight to master, no PR. Nothing under
+# these paths is linted, typechecked or tested (eslint ignores _bmad*, docs/art; no docs code is in a tsconfig or
+# vitest include).
 on:
   push:
-    branches: ["**"]
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "_bmad/**"
+      - "_bmad-output/**"
+      - ".claude/**"
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "_bmad/**"
+      - "_bmad-output/**"
+      - ".claude/**"
+      - "**/*.md"
   workflow_dispatch:
 
+# A new push to a PR cancels its older run; a master run is never cancelled (each landed commit gets its result).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
