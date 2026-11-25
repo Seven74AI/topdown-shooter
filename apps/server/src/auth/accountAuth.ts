@@ -26,7 +26,7 @@ import {
 } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
 import type { DeviceTokensRepo, LogInResult } from "../db/deviceTokensRepo";
-import { ipKey, type SlidingWindowLimiter } from "../net/rateLimit";
+import { ipKey, type NameFailureLimiter, type SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
 import { deviceInRoom } from "./devicesInRooms";
@@ -41,8 +41,8 @@ export interface AccountAuthDeps {
   devices: DeviceTokensRepo;
   /** AC 8: login + recover, per IP (shared, every attempt). */
   loginIpLimiter: SlidingWindowLimiter;
-  /** Brief 19 (B3): login + recover, per lower-cased username. */
-  loginNameLimiter: SlidingWindowLimiter;
+  /** Brief 19 (B3, review M1): wrong login / recover answers per lower-cased username; refuses only addresses that failed. */
+  loginNameLimiter: NameFailureLimiter;
   /** Upgrade + logout, per IP (before any work) and per account. */
   actionIpLimiter: SlidingWindowLimiter;
   actionLimiter: SlidingWindowLimiter;
@@ -134,7 +134,7 @@ function logMerge(r: Extract<LogInResult, { outcome: "ok" }>): void {
 
 /** Shared by login and recover after the IP limit: the name limit and the room guard. */
 function precheck(cookieToken: string | null | undefined, username: string, ip: string, kind: "login" | "recover", deps: AccountAuthDeps): { oldHash: string | null } | ReturnType<typeof fail> {
-  if (!deps.loginNameLimiter.allow(username.toLowerCase())) {
+  if (deps.loginNameLimiter.blocked(username.toLowerCase(), ip)) {
     gateWarn(deps, `${kind}_name`, ip, {}, `${kind}_rate_limited`);
     return fail(429, "rate_limited");
   }
@@ -155,6 +155,7 @@ export async function logIn(
     const creds = USERNAME_RE.test(input.username) ? await deps.accounts.findByUsernameLower(input.username.toLowerCase()) : null;
     const ok = await verifySecret(creds?.passwordHash ?? null, input.password); // a missing name still pays one verify
     if (!ok || creds === null) {
+      deps.loginNameLimiter.fail(input.username.toLowerCase(), input.ip); // review M1: only wrong answers count
       log.warn({ ip: input.ip }, "login_failed");
       return fail(401, "wrong_login");
     }
@@ -181,6 +182,7 @@ export async function recoverAccount(
     const creds = USERNAME_RE.test(input.username) ? await deps.accounts.findByUsernameLower(input.username.toLowerCase()) : null;
     const ok = await verifySecret(creds?.recoveryCodeHash ?? null, normaliseRecoveryCode(input.code));
     if (!ok || creds === null || creds.recoveryCodeHash === null) {
+      deps.loginNameLimiter.fail(input.username.toLowerCase(), input.ip); // review M1: only wrong answers count
       log.warn({ ip: input.ip }, "recover_failed");
       return fail(401, "wrong_code");
     }

@@ -110,8 +110,9 @@ export const UNLOCK_REQUEST_CAP = 10_000;
 /** Story 7.6 (AC 8, A3, NFR12): login + forgot-password attempts per client IP per minute (right or wrong, shared). */
 export const MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN = 5;
 /**
- * Story 7.6 (brief 19, decision 7.6 B3): login + forgot-password attempts per USERNAME per minute, from any address
- * (counted for names that don't exist too, so the answer never tells). One minute only: no long lock-out (7.6 D6).
+ * Story 7.6 (brief 19, decision 7.6 B3 as amended by review M1): WRONG login / forgot-password answers per USERNAME per
+ * minute from any address (names that don't exist count the same). Over it only the addresses that already failed for
+ * that name are refused: the owner, from a clean address, is never locked out (7.6 D6).
  */
 export const MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN = 10;
 /** Story 7.6 (AC 8): upgrade / logout calls per account per minute (7.3's per-account limiter pattern). */

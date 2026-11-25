@@ -171,14 +171,30 @@ describe("Story 7.6: log in (POST /account/login)", () => {
     expect((await post("/account/login", { username: a.username, password: PASSWORD }, { ip: "2001:db8:5:6::99" })).status).toBe(429);
   });
 
-  it("A3: six attempts from six addresses are all evaluated; brief 19: one name gets at most 10 a minute from anywhere", async () => {
+  it("A3: six attempts from six addresses are all evaluated; brief 19: over 10 wrong a minute, an address that failed for the name is refused", async () => {
     const a = await account();
     for (let i = 0; i < 6; i++) expect((await post("/account/login", { username: a.username, password: "wrong one!" })).status).toBe(401);
-    for (let i = 6; i < MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN; i++) await post("/account/login", { username: a.username, password: "wrong one!" });
-    expect(await post("/account/login", { username: a.username, password: PASSWORD })).toMatchObject({ status: 429, body: { message: "rate_limited" } });
-    // the same per-name limit for a name that doesn't exist (the answer never says whether it does)
-    for (let i = 0; i < MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN; i++) await post("/account/login", { username: "ghost_name", password: "x".repeat(8) });
-    expect((await post("/account/login", { username: "GHOST_NAME", password: "x".repeat(8) })).status).toBe(429);
+    const repeat = "10.66.0.9";
+    expect((await post("/account/login", { username: a.username, password: "wrong one!" }, { ip: repeat })).status).toBe(401);
+    for (let i = 7; i < MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN; i++) await post("/account/login", { username: a.username, password: "wrong one!" });
+    // over the name's budget: the address that already failed for it gets 429, even with the right password
+    expect(await post("/account/login", { username: a.username, password: PASSWORD }, { ip: repeat })).toMatchObject({ status: 429, body: { message: "rate_limited" } });
+    // the same for a name that doesn't exist (the answer never says whether it does)
+    for (let i = 0; i < MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN; i++) await post("/account/login", { username: "ghost_name", password: "x".repeat(8) }, { ip: `10.67.0.${i % 2}` });
+    expect((await post("/account/login", { username: "GHOST_NAME", password: "x".repeat(8) }, { ip: "10.67.0.1" })).status).toBe(429);
+  });
+
+  it("review M1: 2 addresses × 5 wrong guesses can't lock the owner out: the right password (and recovery) from a clean address → 200", async () => {
+    const a = await account();
+    for (const ip of ["10.70.0.1", "10.70.0.2"]) for (let i = 0; i < 5; i++) expect((await post("/account/login", { username: a.username, password: "guess guess" }, { ip })).status).toBe(401);
+    expect((await post("/account/login", { username: a.username, password: PASSWORD }, { ip: "10.70.0.3" })).status).toBe(200);
+    expect((await post("/account/recover", { username: a.username.toUpperCase(), code: a.code, newPassword: "fresh pass 9" }, { ip: "10.70.0.4" })).status).toBe(200);
+    // a fresh attacking address still gets ONE evaluated guess, then it is refused for this name
+    expect((await post("/account/login", { username: a.username, password: "guess again" }, { ip: "10.70.0.5" })).status).toBe(401);
+    expect((await post("/account/login", { username: a.username, password: "guess more" }, { ip: "10.70.0.5" })).status).toBe(429);
+    // right answers never count toward the name budget
+    const b = await account();
+    for (let i = 0; i < MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN + 2; i++) expect((await post("/account/login", { username: b.username, password: PASSWORD })).status).toBe(200);
   });
 
   it("AC 9: log in while the phone is in a lobby → 409 in_room (nothing changed); Save my progress is allowed there", async () => {
