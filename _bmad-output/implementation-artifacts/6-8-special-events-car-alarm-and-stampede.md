@@ -1,6 +1,6 @@
 # Story 6.8: Special events, car alarm and stampede
 
-Status: review
+Status: done
 
 ## Story
 
@@ -577,6 +577,16 @@ Every layout: 0 overlaps with ☰, swap, quick-use, the HP block or the wave lin
 | RR3-4 | `forceEvent` in endless sets `run.endlessEvent` and `run.lastEndlessEvent` to the forced kind (dev). | `schedule.test`: forced in wave 11 → kept, last = forced; a pending forced entry for another wave, or a done one for the same wave, doesn't stop the pick; a force in the build replaces the pick, and wave 14 doesn't repeat it. |
 | nit | The jitter test runs at fractional angles (+0.37°). | — |
 
+### Re-review 4 (AI) (fresh agent, 2026-11-25, narrow: re-review 3 fixes d26ac60..26c2e53, at ac867a6)
+
+**Outcome: approve — no medium/high findings.** `npm run typecheck` clean; `hudLayout.test`, `hudTopLayout.test` (29) and `schedule.test` (15) pass.
+
+- **RR3-1 jump hysteresis — holds.** Probe at 568×320, 640×360, 800×360, 844×390, 390×844 (k 1 and 3), every fresh-placement jump of a 0.01° sweep (568×320: 356.71°; 640×360: 13.77°/349.26°; 800×360: 10.55°/351.8°; 844×390: 12.24°/354.69°; 390×844: 67.17°): oscillations of ±0.5° and ±2° each frame across a jump flip ≤ 1 time in 60 frames; 5 noisy random walks (±0.75°/frame) per jump stay quiet; slow sweeps (0.1 / 1°/frame, two turns) jump exactly once per jump per turn. Not stuck: the hold lets go once the old spot is > 10° off (worst held lag 100 frames at 0.1°/frame = the 10° window), so the arrow is never > 10° off on the hold (568×320's 28.5° is the ≤ 30° fresh fallback, as before). Larger per-frame swings (≥ ±5°/frame) move the arrow > 40 px every frame, but a perfect tracker does the same there (10° at the edge ≈ 55+ px), and such bearing rates don't happen with a following camera. Drawn arrow: 0 overlaps with ☰/swap/quick-use/HP block/money line/wave line or outside the safe area; ≥ 70.9 px from the survivor. No per-frame allocation in the hold path.
+- **RR3-2/RR3-3 — fine.** `hpRowText` is the old expression verbatim. The HUD texts are `system-ui` (no web-font swap — Oswald is only the boss bar / boss art), so one measurement at create is right; the widths are stored in CSS px, so a DPR change (font sizes re-rounded) moves them by < 1 px. Nit: the `reportHudTextWidths` doc says "create, and on a DPR / font change", but only create calls it.
+- **RR3-4 — fine (dev only).** A force during the wave (for the next one) sets `endlessEvent` early; the next `startBuild` re-picks it, and `armEndlessEvent` keeps the forced kind, with no-repeat memory = the forced kind.
+- **Low (test gap, not player-visible):** removing `legalAt(prev…)` from the hold doesn't fail any test, since the region doesn't change between frames there. It matters on a resize/rotation: with it removed, a probe going 844×390 → 800×360 left 149 of 720 bearings off screen; with it, 0. A resize case in the RR3-1 test would pin it.
+- **Mutations (each reverted):** hold radius 0 → killed (8); hold without `legalAt` → survived (see above); money line dropped from `waveControlRects` → killed; money rect at the fallback width only → killed; HP / wave measurement ignored → killed; `WIDEST_WAVE_LINE` from wave 99 → killed; `WIDEST_HP_TEXT` with Acid → killed; RR3-4 block removed → killed (3); only `lastEndlessEvent` removed → killed (3). Money width 0 survives `hudLayout.test` alone (the rect and the check share the layout function) but is killed by `hudTopLayout.test`.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -591,3 +601,8 @@ Every layout: 0 overlaps with ☰, swap, quick-use, the HP block or the wave lin
 - 2026-11-25: re-review 2 fixes: RR1 arrow on its ray (notched safe rect, obstacles, ≤ 30° fallback with hysteresis), RR2/RR3 wave-line and HP-row reserves, RR4 forced event wins over the endless pick, fakeRoom order.
 - 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes: changes requested (1 medium RR3-1 arrow flicker at obstacle corners, 3 low, 1 nit).
 - 2026-11-25: re-review 3 fixes: RR3-1 arrow jump hysteresis (no strobe), RR3-2 money line split from the HP block, RR3-3 measured HUD reserves, RR3-4 forced endless kind remembered.
+
+### Main session close-out (2026-11-25)
+
+- Re-review 4 approved (0 high/medium). Follow-ups: resize/rotation case for the RR3-1 hold (`legalAt(prev…)` untested), `reportHudTextWidths` doc says DPR/font change but only create calls it; review M1 (pre-existing wide-body RUSH Bloater stall at a 0.5 m diagonal barricade gap) is its own small story; the bot strafe flip stays.
+- Main-session full gate on story-6-8 ac867a6 (master 58ab0b7 merged): typecheck, lint, 385 files / 3,547 tests passed (3 skipped), build OK; load 0.29 → see gate log (4 cores). Story done.
