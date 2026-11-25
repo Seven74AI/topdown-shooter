@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, VIEW_TICK_SCALE, loadBalance, type PlayerInput } from "@topdown/shared";
+import { NEUTRAL_INPUT, VIEW_TICK_SCALE, createExplosionSpec, explode, loadBalance, type PlayerInput } from "@topdown/shared";
 import { RunController } from "./RunController";
 import { QUIET_HOLD_TICKS, STALE_INPUT_TICKS } from "../net/limits";
 
@@ -82,5 +82,67 @@ describe("Story 8.1 RunController hold, return and the quiet rule", () => {
     expect(c.restoreSeat(seat?.player as never, seat?.kills ?? 0, seat?.buildIdx ?? 0)).toBe(true);
     expect(c.world.players.has("p1")).toBe(true);
     expect(c.activeCount()).toBe(2);
+  });
+});
+
+describe("Story 8.1 decision B16: a dropped body stays 3 s before it vanishes", () => {
+  const MIN = balance.player.returnMinHoldTicks;
+  it("mid-wave: in the World (hittable, a target) for 60 ticks, then held with onDropHold once", () => {
+    const vanished: string[] = [];
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true, onDropHold: (id) => vanished.push(id) });
+    wave(c);
+    expect(c.dropPlayer("p1")).toBe("dropping");
+    const p1 = c.world.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    for (let t = 1; t < MIN; t++) {
+      c.queueInput("p0", input(t));
+      c.tick();
+      expect(c.world.players.has("p1")).toBe(true);
+    }
+    expect(c.activeCount()).toBe(2); // still present: no freeze yet
+    c.tick();
+    expect(vanished).toEqual(["p1"]);
+    expect(c.isHeld("p1")).toBe(true);
+    expect(c.world.players.has("p1")).toBe(false);
+  });
+
+  it("a reload at a blast takes the blast: the dropping body is hurt like a present one", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    c.dropPlayer("p1");
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    const hp = p1.hp;
+    const spec = createExplosionSpec();
+    spec.x = p1.x;
+    spec.y = p1.y;
+    spec.radiusM = 3;
+    spec.playerDamage = 30;
+    spec.kind = "bloater";
+    explode(c.world, spec);
+    expect(p1.hp).toBeLessThan(hp);
+  });
+
+  it("back within the 3 s: plays on in place, no teleport, no protection; its next input is applied", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    const x = p1.x;
+    c.dropPlayer("p1");
+    for (let t = 0; t < 20; t++) c.tick();
+    expect(c.returnPlayer("p1")).toBe(false); // never held
+    expect(c.cancelDrop("p1")).toBe(true);
+    expect(c.world.players.get("p1")).toBe(p1);
+    expect([p1.x, p1.protectTicks]).toEqual([x, 0]);
+    c.queueInput("p1", input(700));
+    c.tick();
+    expect(c.ackSeq("p1")).toBe(700);
+    for (let t = 0; t < 2 * MIN; t++) c.tick();
+    expect(c.isHeld("p1")).toBe(false); // the countdown really stopped
+  });
+
+  it("a drop in a build phase is held at once (nothing hurts there)", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true });
+    expect(c.dropPlayer("p1")).toBe("held");
+    expect(c.world.players.has("p1")).toBe(false);
   });
 });

@@ -486,7 +486,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private startHold(member: Member, reason: HoldReason, client: RunClient | null): void {
     const controller = this.controller;
     if (!controller) return;
-    controller.holdPlayer(member.playerId); // false when already held (quiet → drop)
+    // Decision 8.1 B16: a drop leaves the body standing for 3 s mid-wave (it vanishes then, `onDropHold`); a quiet seat
+    // is already out of the World (the controller held it); either is a no-op when already held (quiet → drop).
+    if (reason === "drop") controller.dropPlayer(member.playerId);
+    else controller.holdPlayer(member.playerId);
     let hold = this.holds.get(member.playerId);
     const fresh = !hold;
     if (!hold) {
@@ -517,7 +520,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!hold) return;
     hold.timer?.clear();
     this.holds.delete(member.playerId);
-    this.controller?.returnPlayer(member.playerId);
+    // B16: back while the dropped body still stands: it plays on in place (no return placement, no protection).
+    if (!this.controller?.returnPlayer(member.playerId)) this.controller?.cancelDrop(member.playerId);
     const s = this.state.players.get(member.playerId);
     if (s) s.heldUntilTick = 0;
     if (this.controller) syncState(this.state, this.controller); // the placed body and protection in the next patch
@@ -984,6 +988,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
       onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
       // Story 8.1 (D1): a connected player quiet for 3 s in a wave is held like a drop.
+      // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
+      onDropHold: (playerId) => {
+        this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
+        this.updateFreeze();
+      },
       onQuietHold: (playerId) => {
         for (const m of this.members.values()) if (m.playerId === playerId) this.startHold(m, "quiet", null);
       },

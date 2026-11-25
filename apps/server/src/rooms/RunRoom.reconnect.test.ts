@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
@@ -124,11 +124,16 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     if (!p1) throw new Error("no p1");
     p1.wallet = 321;
     p1.hp = 44;
+    const ana = clients[0] as RunSdkRoom;
+    let anaSeq = 0;
+    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50); // Ana stays present (no freeze)
+    onTestFinished(() => clearInterval(keepAlive));
     const bo = clients[1] as RunSdkRoom;
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
-    expect(w.players.has("p1")).toBe(false);
+    expect(w.players.has("p1")).toBe(true); // B16: the dropped body stands for 3 s first …
+    await vi.waitFor(() => expect(w.players.has("p1")).toBe(false), { timeout: 5000 }); // … then vanishes into the hold
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBeGreaterThan(w.tick));
     expect(lines("player_held")).toEqual([expect.objectContaining({ playerId: "p1", reason: "drop" })]);
     // Back with the SDK's token, on a fresh client object (what `client.reconnect(token)` does after a reload).
@@ -175,11 +180,34 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     if (!p1) throw new Error("no p1");
     downPlayer(w, p1);
     const bo = clients[1] as RunSdkRoom;
-    reconnect(bo, true);
+    reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
-    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false), { timeout: 4000 });
+    await vi.waitFor(() => expect(w.heldPlayers.has("p1")).toBe(true), { timeout: 5000 }); // B16: vanished after 3 s
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
     expect(p1.status).toBe("out");
+  });
+
+  it("B16: downed and back within the 3 s: still downed in place (no free revive, no escape)", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    downPlayer(w, p1);
+    const x = p1.x;
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
+    expect(w.heldPlayers.has("p1")).toBe(false);
+    expect(p1.status).toBe("downed");
+    expect(p1.x).toBe(x);
   });
 
   it("a drop in the lobby is a leave, as today (D7)", async () => {
@@ -398,7 +426,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     const ana = clients[0] as RunSdkRoom;
     reconnect(ana, false);
     dropSocket(room, ana);
-    await vi.waitFor(() => expect(room.state.frozen).toBe(true));
+    await vi.waitFor(() => expect(room.state.frozen).toBe(true), { timeout: 5000 }); // B16: after the body's 3 s
     const tick = w.tick;
     const digest = worldDigest(w);
     await sleep(400);
@@ -430,7 +458,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
     downPlayer(w, w.players.get("p0") as never);
-    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 6000 }); // B16: once the dropped body vanished
     // Review L1: the held seat is in run_ended too.
     expect(lines("run_ended")[0]).toMatchObject({ earned: { p0: 0, p1: 77 } });
   });
