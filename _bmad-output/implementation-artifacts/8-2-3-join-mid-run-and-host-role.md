@@ -4,7 +4,7 @@ baseline_commit: 0ee0d6db
 
 # Story 8.2+8.3 (merged): Join mid-run at a build phase · Host role and removing a player
 
-Status: review
+Status: done
 
 <!-- Merged story (designer 2026-11-25, docs/story-merges-2026-11-25.md): ONE builder, ONE full fresh review (≤ 2 narrow re-reviews, then main-session checks). Both parts extend 8.1's seat code in RunRoom (seatKey, members, holds, rememberedSeats, finalLeave/nextHost). Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db (8.1 + 8.8/8.9/8.10 done). Epic 8 D1–D15 (docs/ideas/epic-8/decisions.md, accepted 2026-11-24) are RULES here. New decisions: docs/epic-8-story-decisions.md (codes J…, H…), recommended values written in. DESIGNER 2026-11-25: all 33 Epic 8 story decisions accepted as recommended (docs/epic-8-story-decisions.md › Designer answers); builder decisions 8.2-B1…8.3-B13 auto-accepted overnight (same file). Ride-along: Spitter deadlock fix A (designer 2026-11-25). -->
 

@@ -188,8 +188,8 @@ development_status:
   8-1-reconnect-within-2-minutes: done  # 2026-11-25 overnight: hold 120 s, 3 s dropping body (B16), once-per-wave protected return (B15), held seats counted (H3) and silent in the vote; review 3H/3M/6L + 3 narrow re-reviews (+ main-session check of the last fix, re-review cap)
   8-10-half-size-horde-stream: done  # 2026-11-25 overnight: delta horde stream 18.6 -> 8.2 KB/s, stampede 28.2 -> 13.5 (6.8 B1 closed); B7 all zombies 20 Hz (supersedes D1); review 2M+3L fixed, re-review approved
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
-  8-2-join-mid-run-at-a-build-phase: review  # merged 8.2+8.3: story file 8-2-3-join-mid-run-and-host-role.md; built 2026-11-25 on story-8-2-3 (+ Spitter deadlock fix A); decisions E8-* accepted 2026-11-25, builder B1-B13 auto-accepted
-  8-3-host-migration: review  # merged into 8.2+8.3: see 8-2-3-join-mid-run-and-host-role.md (branch story-8-2-3)
+  8-2-join-mid-run-at-a-build-phase: done  # PR #9 merged 2026-11-25 (e56a0855) after review 3H/6M/6L + 2 narrow re-reviews; merged 8.2+8.3: story file 8-2-3-join-mid-run-and-host-role.md; built 2026-11-25 on story-8-2-3 (+ Spitter deadlock fix A); decisions E8-* accepted 2026-11-25, builder B1-B13 auto-accepted
+  8-3-host-migration: done  # merged into 8.2+8.3, PR #9; merged into 8.2+8.3: see 8-2-3-join-mid-run-and-host-role.md (branch story-8-2-3)
   8-4-autosave-at-every-build-phase: ready-for-dev  # merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
   8-5-save-and-quit: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
