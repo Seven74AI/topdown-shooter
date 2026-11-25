@@ -168,6 +168,8 @@ Claude (builder child session, gds-dev-story; autonomous overnight run).
 
 ### Gate
 
+**Gate after merging Story 8.10** 2026-11-25 07:17–07:25 on story-8-1 @ 056935a (master f67154d merged): typecheck && lint && test && build → **green**: 429 files passed (1 skipped), **3893 tests passed** (3 skipped), build ✓. Load 0.73 at the start, 3.09 at the end.
+
 **Re-review-1 fix gate** 2026-11-25 06:51–06:59 on story-8-1 @ 01de5bb (master 02e7d8c merged): typecheck ✓, lint ✓, test ✓ — 423 files passed (1 skipped), **3861 tests passed** (3 skipped); build failed at first only because master's new gallery needs `@fontsource/oswald` from the merged lockfile → `npm ci` (no code change) → build ✓ (06:59). Load 0.67 at the start, 3.79 at the end.
 
 **Review-fix gate** 2026-11-25 06:13–06:20 on story-8-1 @ ae23fbd (master d8d44d0 already merged: `git merge origin/master` → up to date): typecheck && lint && test && build → **green**: 417 files passed (1 skipped), **3821 tests passed** (3 skipped), build ✓. Load 0.97 at the start, 3.90 at the end.
