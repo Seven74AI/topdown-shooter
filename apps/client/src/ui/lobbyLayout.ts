@@ -58,6 +58,8 @@ export interface LobbyLayout {
   readonly ready: Rect;
   /** Start (host) or the "The host starts the game" line (guests): the bottom-right place. */
   readonly start: Rect;
+  /** Story 7.7: the DP2 district sheet (over the cards while open). */
+  readonly sheet: { readonly panel: Rect; readonly cards: readonly Rect[] };
 }
 
 const r = (x: number, y: number, w: number, h: number): Rect => ({ x: Math.round(x), y: Math.round(y), w: Math.floor(w), h: Math.floor(h) });
@@ -95,10 +97,23 @@ export function lobbyLayout(width: number, height: number, inset: Insets): Lobby
     const name = r(card.x, card.y + picH + CARD_BAR_H, card.w, CARD_NAME_H);
     cards.push({ card, picture, bar, name });
   }
-  return { content, code, district, leave, cards, copy, share, ready, start };
+  return { content, code, district, leave, cards, copy, share, ready, start, sheet: districtSheet(r(x0, cy, cw, cardH)) };
+}
+
+/** Story 7.7 (DP2 sheet): district cards a row can hold (Downtown, District 2, Epic 11's Random city). */
+export const DISTRICT_SHEET_SLOTS = 3;
+export const DISTRICT_SHEET_PAD = 8;
+
+/** Story 7.7: the DP2 sheet over the card area — a panel and up to three district cards side by side. */
+export function districtSheet(area: Rect): { panel: Rect; cards: Rect[] } {
+  const inner = r(area.x + DISTRICT_SHEET_PAD, area.y + DISTRICT_SHEET_PAD, area.w - 2 * DISTRICT_SHEET_PAD, area.h - 2 * DISTRICT_SHEET_PAD);
+  const w = (inner.w - (DISTRICT_SHEET_SLOTS - 1) * LOBBY_GAP) / DISTRICT_SHEET_SLOTS;
+  const cards: Rect[] = [];
+  for (let i = 0; i < DISTRICT_SHEET_SLOTS; i++) cards.push(r(inner.x + i * (w + LOBBY_GAP), inner.y, w, inner.h));
+  return { panel: area, cards };
 }
 
 /** Every tap target of the layout (the R9 test checks each is ≥ 44 px). */
-export const lobbyButtons = (l: LobbyLayout): Rect[] => [l.leave, l.copy, l.share, l.ready, l.start];
+export const lobbyButtons = (l: LobbyLayout): Rect[] => [l.leave, l.copy, l.share, l.ready, l.start, l.district]; // Story 7.7: the district line opens the sheet
 
 export const MIN_LOBBY_BUTTON = MIN_BUTTON_CSS_PX;

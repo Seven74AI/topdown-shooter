@@ -804,7 +804,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private async loadMemberProgress(member: Member, rawLook: unknown): Promise<void> {
     const repo = roomProgressRepo();
     if (!repo || member.accountId === null) return;
-    let row: Awaited<ReturnType<typeof repo.get>> = null;
+    let row: Awaited<ReturnType<typeof repo.get>>;
     try {
       row = await repo.get(member.accountId);
     } catch (e) {

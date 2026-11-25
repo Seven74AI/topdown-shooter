@@ -1,0 +1,129 @@
+import { randomBytes } from "node:crypto";
+import type { Room as SdkRoom } from "@colyseus/sdk";
+import type { ColyseusTestServer } from "@colyseus/testing";
+import { sql } from "drizzle-orm";
+import { C2S, DEFAULT_LOOK, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { signTicket } from "../auth/ticket";
+import { accountsRepo } from "../db/accountsRepo";
+import { type Database, openPglite } from "../db/client";
+import { hashGuestToken } from "../run/lobby";
+import { bootTestServer } from "../test/bootTestServer";
+import { RunRoom, serverBalance } from "./RunRoom";
+
+/**
+ * Story 7.7 (AC 3–5; R2–R5) and Story 7.11 (AC 2) in a real room with a PGlite database: each member's saved progress
+ * is loaded at join (never awaited by the join) — its districts open the lobby's picker, its owned parts keep the
+ * milestone / loot parts of the look it asked for. The host's pick: refused from a non-host, outside the lobby and for
+ * "coming soon" District 2 (v1); the pick goes back to Downtown when its last holder leaves (R3), with a notice.
+ */
+const SECRET = "district-secret-".padEnd(48, "d");
+let colyseus: ColyseusTestServer;
+let database: Database;
+beforeAll(async () => {
+  database = openPglite();
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await colyseus.cleanup();
+});
+afterAll(async () => {
+  await colyseus.shutdown();
+});
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const hex = (): string => randomBytes(16).toString("hex");
+async function newAccount(districts: string[] = [], cosmetics: string[] = []): Promise<string> {
+  const id = (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
+  const db = await database.db();
+  await db.execute(sql`update progress set districts = ${JSON.stringify(districts)}::jsonb, cosmetics = ${`{${cosmetics.join(",")}}`}::text[] where account_id = ${id}`);
+  return id;
+}
+const options = (intent: "create" | "join", name: string, accountId: string | null, look?: unknown) => {
+  const guestToken = hex();
+  return {
+    intent,
+    name,
+    balanceVersion: serverBalance.version,
+    mapVersion: DOWNTOWN_MAP.version,
+    netProtocolVersion: NET_PROTOCOL_VERSION,
+    guestToken,
+    ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
+    ...(look === undefined ? {} : { look }),
+  };
+};
+function quiet(c: RunSdkRoom): string[] {
+  const resets: string[] = [];
+  for (const t of [S2C.RUN_JOINED, S2C.PLAYER_LEFT]) c.onMessage(t, () => {});
+  c.onMessage(S2C.LOBBY_DISTRICT_RESET, (m: { from: string }) => resets.push(m.from));
+  return resets;
+}
+
+describe("Story 7.7: the lobby district picker (server)", () => {
+  it("R2: the open mask is the union of the members' districts (loaded at join); R3: the last holder leaves → back to Downtown + notice", async () => {
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Newbie", await newAccount()));
+    const resets = quiet(host);
+    await host.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b01));
+    const vet = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Vet", await newAccount(["district_2"])));
+    quiet(vet);
+    await vet.waitForInitialState();
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
+    // R5: in v1 District 2 is "coming soon": the host's pick is refused (logged), Downtown stays
+    const info = vi.spyOn(room.log, "info");
+    host.send(C2S.LOBBY_DISTRICT, { id: "district_2" });
+    await vi.waitFor(() => expect(info).toHaveBeenCalledWith(expect.objectContaining({ reason: "coming_soon" }), "district_pick_refused"));
+    expect(room.state.district).toBe("downtown");
+    // R3 with a pick a playable progression would allow (set as the pick handler would): the veteran leaves
+    room.state.district = "district_2";
+    await vet.leave();
+    await vi.waitFor(() => expect(room.state.district).toBe("downtown"));
+    expect(room.state.districtsOpen).toBe(0b01);
+    await vi.waitFor(() => expect(resets).toEqual(["district_2"]));
+  });
+
+  it("R4: a non-host's pick, an unknown id and a pick mid-run are refused or ignored; Start always plays Downtown (AC 5)", async () => {
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Host", null));
+    quiet(host);
+    await host.waitForInitialState();
+    const guest = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Guest", await newAccount(["district_2"])));
+    quiet(guest);
+    await guest.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
+    const info = vi.spyOn(room.log, "info");
+    guest.send(C2S.LOBBY_DISTRICT, { id: "downtown" });
+    await vi.waitFor(() => expect(info).toHaveBeenCalledWith(expect.objectContaining({ reason: "not_host" }), "district_pick_refused"));
+    host.send(C2S.LOBBY_DISTRICT, { id: "moon" });
+    await vi.waitFor(() => expect(info).toHaveBeenCalledWith(expect.objectContaining({ reason: "unknown" }), "district_pick_refused"));
+    for (const c of [host, guest]) c.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    host.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    expect(room.controller?.world.map.name).toBe("downtown");
+    info.mockClear();
+    host.send(C2S.LOBBY_DISTRICT, { id: "district_2" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(info).not.toHaveBeenCalledWith(expect.anything(), "district_pick_refused"); // ignored outside the lobby
+    expect(room.state.district).toBe("downtown");
+  });
+});
+
+describe("Story 7.11 AC 2: owned milestone parts survive the join's look check", () => {
+  it("an account that owns the riot helmet keeps it in its look (after the progress load); one that doesn't gets the default head", async () => {
+    const riotLook = encodeLook({ ...DEFAULT_LOOK, head: "riot" });
+    const owner = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Owner", await newAccount([], ["head:riot"]), riotLook));
+    quiet(owner);
+    await owner.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(owner.roomId) as unknown as RunRoom;
+    const other = await colyseus.sdk.joinById<RunStateView>(owner.roomId, options("join", "Other", await newAccount(), riotLook));
+    quiet(other);
+    await other.waitForInitialState();
+    const headOf = (playerId: string) => decodeLook(room.state.players.get(playerId)?.look ?? "", catalogueParts()).look.head;
+    await vi.waitFor(() => expect(headOf("p0")).toBe("riot"));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(headOf("p1")).toBe(DEFAULT_LOOK.head);
+  });
+});

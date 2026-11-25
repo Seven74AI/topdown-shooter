@@ -13,6 +13,10 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     phase: "lobby",
     hostSlot: 0,
     localPlayerId: "p0",
+    district: "downtown", // Story 7.7
+    districtsOpen: 1,
+    districtReset: "",
+    districtResetSeq: 0,
     players: [
       { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
       { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
@@ -38,6 +42,10 @@ describe("snapshotLobby", () => {
         { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" },
         { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" },
       ],
+      district: "downtown", // Story 7.7
+      districtsOpen: 1,
+      districtReset: "",
+      districtResetSeq: 0,
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
   });

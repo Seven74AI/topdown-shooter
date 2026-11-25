@@ -1,4 +1,5 @@
 import {
+  districtName,
   BYTES,
   C2S,
   CLOSE_TAKEN_OVER,
@@ -49,16 +50,22 @@ export interface LobbySnapshot {
   readonly players: readonly LobbyPlayer[];
   /** This client's player id from `run.joined`; null until it arrives. */
   readonly localPlayerId: string | null;
+  /** Story 7.7: the run's district (the host's pick) and the open districts' bitmask (bit i = list index). */
+  readonly district: string;
+  readonly districtsOpen: number;
+  /** Story 7.7 R3: the last "back to Downtown" notice (its district's name; "" none) and a counter that changes with each. */
+  readonly districtReset: string;
+  readonly districtResetSeq: number;
 }
 
-const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null };
+const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0 };
 
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
   state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look }));
   players.sort((a, b) => a.slot - b.slot);
-  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId };
+  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0 };
 }
 
 /** Text under the host's Start button (AC 4). */
@@ -192,7 +199,7 @@ class LobbyStore {
       queued = false;
       // The SDK decodes state by reflection: until the first full state arrives, `state` is empty.
       if (this.room !== room || !room.state?.players) return;
-      this.set(snapshotLobby(room.roomId, room.state, this.joined?.playerId ?? null));
+      this.set({ ...snapshotLobby(room.roomId, room.state, this.joined?.playerId ?? null), districtReset: resetName, districtResetSeq: resetSeq });
       // Story 8.1: a room joined mid-run (a recovered seat) reports its run phase only once `run.joined`
       // is here (the session needs my player id); the full state arrives just before it.
       if (room.state.phase !== phase && (this.joined !== null || !inRunPhase(room.state.phase))) {
@@ -206,6 +213,15 @@ class LobbyStore {
       queued = true;
       queueMicrotask(update);
     };
+    // Story 7.7 R3: "Back to Downtown: nobody here has District 2" (shown in the lobby's notice line).
+    let resetName = "";
+    let resetSeq = 0;
+    room.onMessage(S2C.LOBBY_DISTRICT_RESET, (m: { from?: unknown }) => {
+      if (this.room !== room) return;
+      resetName = typeof m?.from === "string" ? districtName(m.from.slice(0, 32)) : "";
+      resetSeq++;
+      schedule();
+    });
     room.onMessage(S2C.RUN_JOINED, (m: RunJoined) => {
       if (this.room !== room) return;
       this.joined = m;
@@ -291,6 +307,11 @@ class LobbyStore {
   /** Sets this player's Ready flag (lobby only; the server ignores it otherwise). */
   setReady(ready: boolean): void {
     this.room?.send(C2S.LOBBY_SET_READY, { ready });
+  }
+
+  /** Story 7.7: the host picks the run's district (the server checks host, lobby and the open rule). */
+  pickDistrict(id: string): void {
+    this.room?.send(C2S.LOBBY_DISTRICT, { id });
   }
 
   /** Results (Story 2.8): Back to lobby, for the whole room (the server takes it from any member). */

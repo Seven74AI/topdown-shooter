@@ -1,0 +1,133 @@
+import { addPlayer, createWorld, loadBalance, lootPartKeys, type RunRewards, type World } from "@topdown/shared";
+import { describe, expect, it, vi } from "vitest";
+import type { BankResult, LifetimeStatsRow, ProgressRepo, RunMetaWrites, RunPayout } from "../db/progressRepo";
+import { RunBank } from "./banking";
+
+/**
+ * Stories 7.7 + 7.11 + 7.12 in 7.2's RunBank (a fake repository that runs the meta writes like the SQL one does —
+ * the SQL side is db/metaBank.test.ts): every ending, the finder banks first and every teammate's Results names the
+ * item (7.12 D1), a leaver banks with what it had then, an unsaved finder still sees the find, M8 needs all four.
+ */
+const balance = loadBalance();
+const ACCTS = ["0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c0", "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c1", "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c2", "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c3"];
+
+function fakeRepo() {
+  const rows = new Map<string, BankResult>();
+  const owned = new Map<string, Set<string>>();
+  const order: string[] = [];
+  const repo: Pick<ProgressRepo, "addSupplies"> = {
+    addSupplies: async (runId: string, accountId: string, pay: (l: number) => RunPayout, meta?: RunMetaWrites) => {
+      await new Promise((r) => setTimeout(r, accountId === ACCTS[0] ? 5 : 0)); // the finder's write is the slow one
+      order.push(accountId);
+      const key = `${runId}/${accountId}`;
+      const earlier = rows.get(key);
+      if (earlier) return { ...earlier, banked: false };
+      const p = pay(10_000);
+      const mine = owned.get(accountId) ?? new Set<string>();
+      owned.set(accountId, mine);
+      const stats: LifetimeStatsRow = meta ? meta.statsDelta : { revives: 0, kills: 0, barricades: 0, runs: 0 };
+      const g = meta?.grant(stats, mine, []);
+      for (const k of g?.cosmetics ?? []) mine.add(k);
+      const r = { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: { ...p.breakdown, ...(g?.breakdown ?? {}) } };
+      rows.set(key, r);
+      return r;
+    },
+  };
+  return { repo: repo as ProgressRepo, owned, order };
+}
+
+function team(n: number, ending: "wiped" | "extracted" | "lost"): World {
+  const w = createWorld({ balance, seed: 3, loot: { off: true } });
+  for (let i = 0; i < n; i++) {
+    const p = addPlayer(w, `p${i}`, 10 + i, 10);
+    p.wavesIn = 5;
+    p.waveMask = 0b11111; // waves 1–5 ended while in
+  }
+  w.run.ending = ending;
+  return w;
+}
+
+describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
+  it("M-F4: M1 is granted on every ending (wipe, extract, endless loss) and for a quitter", async () => {
+    for (const ending of ["wiped", "extracted", "lost"] as const) {
+      const { repo } = fakeRepo();
+      const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+      const w = team(1, ending);
+      const [m] = await bank.bankRunEnd(w, [{ playerId: "p0", accountId: ACCTS[0] as string }], []);
+      expect((m as RunRewards).newItems?.map((i) => i.key), ending).toContain("head:fire");
+    }
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(1, "wiped");
+    const p = w.players.get("p0")!;
+    const q = await bank.bank({ playerId: "p0", accountId: ACCTS[0] as string, record: p, ending: "quit", wave: 6, meta: bank.seatMetaNow(w, p) });
+    expect(q.newItems?.map((i) => i.key)).toContain("head:fire");
+  });
+
+  it("7.11 AC 6: a leaver banks with what it had at the Leave (later counters don't change its bank)", async () => {
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(1, "wiped");
+    const p = w.players.get("p0")!;
+    p.waveMask = 0b1111; // left after wave 4
+    const pending = bank.bank({ playerId: "p0", accountId: ACCTS[0] as string, record: p, ending: "quit", wave: 5, meta: bank.seatMetaNow(w, p) });
+    p.waveMask = 0b11111; // the World moves on before the write lands
+    expect((await pending).newItems ?? []).toEqual([]);
+  });
+
+  it("7.12 D1: the finder banks first; every teammate's Results names the find; the finder's own line is the loot", async () => {
+    const { repo, order } = fakeRepo();
+    const delivered: [string, RunRewards][] = [];
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: (id, m) => delivered.push([id, m]), retryMs: 1 });
+    const w = team(3, "wiped");
+    w.loot.foundBy = "p0";
+    w.loot.foundWave = 6;
+    w.loot.plan.itemRoll = 0;
+    const res = await bank.bankRunEnd(w, [0, 1, 2].map((i) => ({ playerId: `p${i}`, accountId: ACCTS[i] as string })), []);
+    expect(order[0]).toBe(ACCTS[0]); // the finder's (slower) write still came first
+    const loot = lootPartKeys();
+    expect(res[0]?.loot).toEqual({ wave: 6, key: loot[0], name: "Floral shirt" });
+    expect(res[0]?.teamLoot).toBeUndefined();
+    for (const r of res.slice(1)) {
+      expect(r.teamLoot).toEqual({ playerId: "p0", wave: 6, key: loot[0], name: "Floral shirt" });
+      expect(r.loot).toBeUndefined();
+    }
+  });
+
+  it("7.12: an unsaved finder (no account) still sees the find; nothing else is granted without a saved bank", async () => {
+    const bank = new RunBank(1, { repo: () => null, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(2, "extracted");
+    w.loot.foundBy = "p1";
+    w.loot.foundWave = 4;
+    const [a, b] = await bank.bankRunEnd(w, [{ playerId: "p0", accountId: null }, { playerId: "p1", accountId: null }], []);
+    expect(b?.loot?.key).toBe(lootPartKeys()[0]);
+    expect(a?.teamLoot?.playerId).toBe("p1");
+    expect(a?.newItems).toBeUndefined();
+    expect(a?.newDistricts).toBeUndefined();
+  });
+
+  it("M8: extracting with exactly four all standing grants the laurel to all four; three, or one downed, doesn't", async () => {
+    const run = async (n: number, downed: boolean) => {
+      const { repo } = fakeRepo();
+      const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+      const w = team(n, "extracted");
+      if (downed) w.players.get("p1")!.status = "downed";
+      const res = await bank.bankRunEnd(w, Array.from({ length: n }, (_, i) => ({ playerId: `p${i}`, accountId: ACCTS[i] as string })), []);
+      return res.map((r) => (r.newItems ?? []).some((i) => i.key === "head:laurel"));
+    };
+    expect(await run(4, false)).toEqual([true, true, true, true]);
+    expect(await run(3, false)).toEqual([false, false, false]);
+    expect((await run(4, true)).some(Boolean)).toBe(false);
+  });
+
+  it("7.7 R1: District 2 for the seats at the extract; a quitter (remembered seat) gets nothing", async () => {
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(1, "extracted");
+    const gone = addPlayer(w, "p3", 1, 1);
+    w.players.delete("p3");
+    const [a, q] = await bank.bankRunEnd(w, [{ playerId: "p0", accountId: ACCTS[0] as string }], [{ playerId: "p3", accountId: ACCTS[3] as string, player: gone }]);
+    expect(a?.newDistricts).toEqual([{ id: "district_2", name: "District 2" }]);
+    expect(q?.newDistricts).toBeUndefined();
+  });
+});

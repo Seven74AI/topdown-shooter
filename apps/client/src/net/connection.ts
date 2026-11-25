@@ -132,6 +132,8 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
   const offs = [
     $.listen("phase", onChange),
     $.listen("hostSlot", onChange),
+    $.listen("district", onChange), // Story 7.7
+    $.listen("districtsOpen", onChange),
     $.onAdd("players", (player: PlayerStateView) => {
       // Story 7.9: + look (set with the name at join; 7.10 D3 changes it in the lobby).
       perPlayer.set(player, [$.listen(player, "ready", onChange), $.listen(player, "name", onChange), $.listen(player, "look", onChange)]);
@@ -152,7 +154,7 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
 
 /** The slice of the schema `StateCallbackStrategy` API `watchLobby` uses. */
 interface LobbyCallbacks {
-  listen(property: "phase" | "hostSlot", handler: () => void): () => void;
+  listen(property: "phase" | "hostSlot" | "district" | "districtsOpen", handler: () => void): () => void;
   listen(instance: PlayerStateView, property: "ready" | "name" | "look", handler: () => void): () => void;
   onAdd(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
   onRemove(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;

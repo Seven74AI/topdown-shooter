@@ -1869,3 +1869,135 @@ p.in-run-menu__title {
   color: #ffd9a3;
   font: 700 14px/1.3 system-ui, sans-serif;
 }
+
+/* Story 7.7 (DP2): the district line is a button that opens the sheet of district cards (Lumen LF5). */
+button.lobby__district {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.district-sheet {
+  position: absolute;
+  z-index: 5;
+  padding: 0;
+}
+.district-sheet__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.district-card {
+  position: absolute;
+}
+.district-card__btn {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: inherit;
+  color: #fff;
+  background: linear-gradient(180deg, #23272d 0%, #16191d 100%);
+  border: 1px solid var(--lumen-frame-hi);
+  cursor: pointer;
+}
+.district-card__btn:disabled {
+  cursor: default;
+}
+.district-card--selected .district-card__btn {
+  border-color: var(--lumen-accent, #ff9a3c);
+  box-shadow: inset 0 0 0 1px var(--lumen-accent, #ff9a3c);
+}
+.district-card--locked .district-card__btn,
+.district-card--soon .district-card__btn {
+  color: #9aa0a8;
+}
+.district-card__thumb {
+  width: 64%;
+  max-width: 120px;
+  aspect-ratio: 52 / 36;
+  border: 1px solid var(--lumen-frame-hi);
+  background: linear-gradient(180deg, #2a2f36 0%, #15181c 55%, #0f1114 100%);
+}
+.district-card--locked .district-card__thumb {
+  filter: grayscale(1) brightness(0.5);
+}
+.district-card__name {
+  font-size: 16px;
+  font-weight: 600;
+}
+.district-card__line {
+  font-size: 11px;
+  color: #c9ced6;
+  text-align: center;
+  padding: 0 6px;
+}
+
+/* Stories 7.11 / 7.12 / 7.7 (brief 26): the Run rewards card's items and unlocks groups, Lumen LF5. */
+.rw-group--items,
+.rw-group--unlocks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--lumen-frame-hi, #3a4048);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rw-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.rw-item__pic {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: radial-gradient(circle at 50% 40%, #2a2f36 0%, #121417 100%);
+  object-fit: cover;
+}
+.rw-item__pic--bag {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 55%, rgba(255, 255, 255, 0.7) 60%, transparent 66%),
+    linear-gradient(180deg, #23272d 0%, #16191d 100%);
+}
+.rw-item--big .rw-item__pic {
+  width: 48px;
+  height: 48px;
+}
+.rw-item__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rw-item__line {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rw-item--big .rw-item__line {
+  font-size: 15px;
+}
+.rw-item__sub,
+.rw-unlock__sub {
+  font-size: 11px;
+  color: #c9ced6;
+}
+.rw-unlock {
+  display: flex;
+  flex-direction: column;
+}
+.rw-unlock__line {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-accent, #ff9a3c);
+}

@@ -22,7 +22,7 @@ describe("Story 7.2 wiring", () => {
   it("Results reads the store and draws the panel from rewardsView", () => {
     const r = read("ui/ResultsScreen.tsx");
     expect(r).toMatch(/rewardsStore\.subscribe\(setRewards\)/);
-    expect(r).toMatch(/rewardsView\(rewards, screen\.online, screen\.seed\)/);
+    expect(r).toMatch(/rewardsView\(rewards, screen\.online, screen\.seed[,)]/); // Story 7.12 adds the names (teammates' finds)
     expect(r).toMatch(/<RunRewardsCard view=\{view\} \/>/);
   });
 
