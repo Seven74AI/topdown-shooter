@@ -194,7 +194,7 @@ development_status:
   8-5-save-and-quit: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: ready-for-dev  # story file 8-7-pings.md (2026-11-25; parallel with 8.2+8.3; decisions docs/epic-8-story-decisions.md)
-  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): held seats leave the evac vote count; reverses 8.1 review M2
+  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): held seats and downed players leave the evac vote count, tie = Extract; reverses 8.1 review M2
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio
@@ -235,3 +235,11 @@ development_status:
   11-6-art-drawn-by-type: backlog
   11-7-pick-random-city-share-its-code: backlog
   epic-11-retrospective: optional
+
+  # Epic 12: Extraction cinematic (party-mode session 2026-11-25, designer decisions; quick stories)
+  # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
+  epic-12: in-progress
+  12-1-players-walk-through-their-buildings: ready-for-dev  # no forts: players pass through every player building; zombies unchanged
+  12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
+  12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
+  epic-12-retrospective: optional
