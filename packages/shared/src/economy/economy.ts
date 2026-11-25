@@ -78,7 +78,8 @@ export function clearDamagers(world: World, zombieId: number): void {
  */
 export function earn(world: World, playerId: string, amount: number, reason: MoneyReason): void {
   if (!(amount > 0)) return;
-  const p = world.players.get(playerId);
+  // Story 8.1 (F5): a held player's turrets (and shots still in flight) pay into the held wallet.
+  const p = world.players.get(playerId) ?? world.heldPlayers.get(playerId)?.player;
   if (!p) return;
   p.wallet += amount;
   p.earned += amount;

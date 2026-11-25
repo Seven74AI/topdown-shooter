@@ -66,6 +66,15 @@ Each phone: open **https://hordes.sevend.io/?stress=150** and wait 60 s without 
 
 If a phone has no mobile data, it stays on Wi-Fi and adds `&lag=150&jitter=20` to fake 4G. Write down which phones did that.
 
+#### Reconnect checks (Story 8.1, during run A, one iPhone and one Android)
+
+These can only be checked on real phones (the cloud session has no iPhone; brief line 23). In a wave, with teammates around:
+
+1. **Lock the phone for 30 s mid-wave, then unlock it.** Expected: after ~3 s the teammates see a grey chip "<name> · reconnecting 1:5x" (top left) and no body on the map; the locked phone, when unlocked, shows "Connection lost, reconnecting…" for a moment (or nothing, if it was quick), then the survivor is back next to a teammate, blinking for 2 s (can't be hurt, can't shoot), with the same HP, money, weapons and ammo. The teammates see "<name> is back". Write down how many seconds the phone needed after unlocking.
+2. **Airplane mode for 10 s mid-wave, then off.** Same as 1. Also check: nothing tapped while offline (shop, Ready, a consumable) happened late.
+3. If either phone shows the "reconnecting" screen for more than ~15 s after the signal is back, note the phone and browser (iPhone Safari: the page should reload by itself after 5 s and take the seat back).
+4. Bonus (one phone): while held, the others keep fighting; if **everyone** locks their phone at once, the night waits ("Paused: nobody connected") and the first one back gets a 3-2-1.
+
 ### Part 4: readability sheet (Epic 4, Epic 3)
 
 Right after run A, **each player alone, without talking**, opens the readability sheet and writes for each picture: what it is, and whether bullets go through it. Collect the answers before anyone discusses them.

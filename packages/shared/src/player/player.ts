@@ -123,6 +123,17 @@ export interface PlayerState {
   /** Metres (< 0: unknown, nothing to decode it with: a throw then goes full range). */
   lastAimM: number;
   lastAimTicks: number;
+  /**
+   * Story 8.1 (F4, decision 8.1 D3): spawn-protection ticks left after a mid-wave return from a hold
+   * (`player.json › returnProtectTicks`): nothing hurts the body and its weapons don't run. Counted
+   * down by `movePlayers`; 0 = none. On the wire (uint8): the phone blinks the body and holds its fire.
+   */
+  protectTicks: number;
+  /**
+   * Review M1 / decision 8.1 B15: the wave of this player's last protected (teleported) return from a
+   * hold; −1 none. A second return in the same wave lands in place, unprotected. Server / solo only.
+   */
+  protectedReturnWave: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -173,6 +184,8 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     lastAimY: 0,
     lastAimM: -1,
     lastAimTicks: 0,
+    protectTicks: 0, // Story 8.1
+    protectedReturnWave: -1, // review M1 (B15)
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);
@@ -187,6 +200,7 @@ export function removePlayer(world: World, id: string): void {
   clearBossThreatSlot(world, bossSlotOf(world, id)); // Story 6.5 (F7): a player who left has no threat (the target switches at once)
   releaseFlameSlot(world, id); // Story 5.4
   world.players.delete(id);
+  world.heldPlayers.delete(id); // Story 8.1: a final leave while held
   world.pendingInputs.delete(id);
   world.inputs.delete(id);
   world.lastAppliedSeq.delete(id);

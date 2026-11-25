@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+import { NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
+import { RunController } from "./RunController";
+import { QUIET_HOLD_TICKS } from "../net/limits";
+
+const balance = loadBalance();
+const MIN = balance.player.returnMinHoldTicks;
+const TWO = [{ playerId: "p0", slot: 0 }, { playerId: "p1", slot: 1 }];
+const input = (seq: number, over: Partial<PlayerInput> = {}): PlayerInput => ({ ...NEUTRAL_INPUT, seq, ...over });
+let seq = 0;
+function mk(onQuiet?: (id: string) => void) {
+  const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true, onQuietHold: onQuiet ?? (() => {}) });
+  c.world.run.phase = "wave";
+  const p1 = c.world.players.get("p1")!;
+  p1.x = p1.prevX = 40; p1.y = p1.prevY = 30;
+  return { c, p1 };
+}
+function step(c: RunController, n: number, p1Live = false) {
+  for (let i = 0; i < n; i++) { c.queueInput("p0", input(++seq)); if (p1Live) c.queueInput("p1", input(++seq)); c.tick(); }
+}
+const far = (p1: { x: number; y: number }) => Math.hypot(p1.x - 40, p1.y - 30) > 5;
+
+describe("RR3 probes", () => {
+  it("2.9 s: still dropping, in place", () => {
+    const { c, p1 } = mk(); c.dropPlayer("p1"); step(c, 58);
+    expect(c.isDropping("p1")).toBe(true);
+    expect(c.returnPlayer("p1")).toBe(false); expect(c.cancelDrop("p1")).toBe(true);
+    console.log("2.9s", { far: far(p1), prot: p1.protectTicks });
+  });
+  it("exact vanish tick + 0: protected", () => {
+    const { c, p1 } = mk(); c.dropPlayer("p1"); step(c, MIN);
+    const h = c.world.heldPlayers.get("p1")!;
+    console.log("vanish", { held: c.isHeld("p1"), away: c.world.tick - h.atTick });
+    expect(c.returnPlayer("p1")).toBe(true);
+    console.log("vanish+0", { far: far(p1), prot: p1.protectTicks });
+  });
+  it("3.1 s / 4 s / second in wave", () => {
+    const { c, p1 } = mk(); c.dropPlayer("p1"); step(c, 62);
+    expect(c.returnPlayer("p1")).toBe(true);
+    console.log("3.1s", { far: far(p1), prot: p1.protectTicks, wave: p1.protectedReturnWave });
+    step(c, 50, true);
+    p1.x = p1.prevX = 40; p1.y = p1.prevY = 30;
+    c.dropPlayer("p1"); step(c, 80);
+    expect(c.returnPlayer("p1")).toBe(true);
+    console.log("2nd 4s", { far: far(p1), prot: p1.protectTicks });
+  });
+  it("drop → back at 1 s → drop → vanish: away counted from the 2nd drop only", () => {
+    const { c } = mk(); c.dropPlayer("p1"); step(c, 20); c.cancelDrop("p1");
+    step(c, 5, true); c.dropPlayer("p1"); step(c, 59);
+    console.log("redrop", { dropping: c.isDropping("p1"), held: c.isHeld("p1") });
+    step(c, 1);
+    const h = c.world.heldPlayers.get("p1")!;
+    console.log("redrop vanish away", c.world.tick - h.atTick);
+  });
+  it("drop then wave ends at 1 s: held at once in build, away = 20", () => {
+    const { c } = mk(); c.dropPlayer("p1"); step(c, 20); c.world.run.phase = "build"; step(c, 1);
+    const h = c.world.heldPlayers.get("p1");
+    console.log("waveend", { held: c.isHeld("p1"), away: h ? c.world.tick - h.atTick : null });
+  });
+  it("QUIET path: silent 3 s → held; inputs 1 s later (4 s silent)", () => {
+    const { c, p1 } = mk(); step(c, QUIET_HOLD_TICKS + 1);
+    expect(c.isHeld("p1")).toBe(true);
+    step(c, 20);
+    expect(c.returnPlayer("p1")).toBe(true);
+    console.log("quiet 4s", { far: far(p1), prot: p1.protectTicks });
+  });
+  it("frozen return (allowProtect false): unprotected, wave's protection not consumed", () => {
+    const { c, p1 } = mk(); c.dropPlayer("p1"); step(c, 80);
+    expect(c.returnPlayer("p1", false)).toBe(true);
+    console.log("frozen", { far: far(p1), prot: p1.protectTicks, wave: p1.protectedReturnWave });
+  });
+});

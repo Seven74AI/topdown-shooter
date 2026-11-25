@@ -60,6 +60,20 @@ export class ServerClock {
     this.minOffsetMs = min;
   }
 
+  /**
+   * Story 8.1 review M3: forget every sample and the slewed estimate. Only while the reconnecting /
+   * paused overlay covers the picture (a freeze ended, or the same room reconnected): the server tick
+   * stood still (F6) or jumped while the phone's estimate ran on, and slewing back at 10 % would keep
+   * the picture ahead of the data for up to a minute. The next sample starts it again.
+   */
+  rebase(): void {
+    this.head = 0;
+    this.count = 0;
+    this.minOffsetMs = Number.NaN;
+    this.estTick = Number.NaN;
+    this.estAtMs = Number.NaN;
+  }
+
   /** The measured server tick at `nowMs` (unslewed: may step back; tests and the overlay). */
   rawTick(nowMs: number): number {
     return (nowMs - this.minOffsetMs) / TICK_MS;

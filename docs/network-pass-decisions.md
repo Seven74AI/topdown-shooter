@@ -117,3 +117,29 @@ Estimated effort: 8.8 S, 8.9 M, 8.1 L, 8.10 M, 8.11 S–M (≈ 4–5 builder ses
 - Epic 6 rounds 2–3 (6.8–6.12) are still landing: each story names its "check at build time" list (new player state for 8.1's hold, new phases, the 6.8 bandwidth test for 8.10).
 - A before/after preview link for 8.9's feel change needs a deploy the designer can open (Hermes); without it, 8.9's hand-back says "not verified on a phone".
 - 8.1's guest-token takeover (D5) makes the guest token the identity until Story 7.1's accounts: anyone with a copied token could take the seat. Acceptable for a friends' game; flagged for 7.1.
+
+## 8.1 build-time decisions (auto-accepted overnight; designer: follow the GDS recommendation)
+
+Logged by the 8.1 builder 2026-11-25 (brief 31 B-codes). Each: the value built, the alternative.
+
+| Code | Decision | Built (alternative) |
+| --- | --- | --- |
+| 8.1 B1 | When the quiet counter runs (D1) | **Wave ticks only**: build and vote phases don't count (nothing hurts a standing player there); a tab hidden across a build start is held 3 s into the wave (count every phase: an idle shopper would vanish from the build phase) |
+| 8.1 B2 | Close codes for a seat that moved | **4020 seat kept, 4021 taken over** (Colyseus 4010 is MAY_TRY_RECONNECT: the SDK would auto-reconnect a tab that was taken over) |
+| 8.1 B3 | Where the grey "reconnecting" chips sit | **Top left, under the money line** (the top right is full of buttons at 568 × 320; the story said "team list", which has no panel today) (top centre under the boss bar: crowds the survivor) |
+| 8.1 B4 | Inputs made while the line was down that arrive late | **Dropped when their view tick is > 2 s behind the server** (seq counts, nothing applies, never ends a quiet hold); bots send no view tick, so for them at most the 6-input ring (0.3 s) applies (no server rule) |
+| 8.1 B5 | A deliberate Leave mid-run | **Also remembered** (Epic 8 D4 "stops quit-and-rejoin for fresh cash"): back only at a build phase with its own stuff (forget the seat on Leave: a new join later would get late-joiner money, 8.2) |
+| 8.1 B6 | A held seat in a full 4-player run blocks a takeover (Colyseus keeps its reserved seat) | **maxClients 8 during a run** (joins that are not one of the run's seats are refused in `join()` anyway); back to 4 in the lobby |
+| 8.1 B7 | Pay that loops over present players (wave-clear bonus, boss and survivor-event pay) while held | **Not paid to a held player** (they weren't there); kill, assist, turret and refund pay go to the held wallet (F5) (pay everyone in the seat list) |
+| 8.1 B8 | The chip's countdown while the World is frozen | **Counts World ticks** (stops while frozen: only the first one back sees it, during the 3-2-1) (a wall-clock field: a second synced number) |
+| 8.1 B9 | A quiet hold that then drops | **Keeps its clock**: 120 s from the first hold, the chip never jumps back (restart the 120 s on the drop: up to 135 s) |
+| 8.1 B10 | Spawn protection (D3) and the quick-use slot | **Blocks consumables too** ("can't shoot" read as "can't attack") (medkits allowed) |
+| 8.1 B11 | The automated 8 s cut test's run | **The god-mode `net150` scenario on 8.8's 1 % line**: bots on the lossy line lost wave 3 outright in 1 of 3 runs (a wipe, not a reconnect failure; bots are not difficulty evidence) (real damage, flaky) |
+| 8.1 B12 | A takeover that lands after the SDK's own token reconnect (both from this phone) | **Adopted** (the server's "newest wins" rule means it holds the seat); a 4021 within 15 s of my own recovery = my own crossed takeovers → take the seat again (close it non-consented: the seat would sit on hold) |
+| 8.1 B13 | A watchdog check that comes > 1 s late (scene restart, throttled hidden-tab timer) | **Re-arm, don't fire** (found by the two-tab smoke: a false reconnect after every Game scene restart) |
+| 8.1 B15 | Review M1: the mid-wave return as an escape / teleport / invulnerability on demand (a reload or a socket loop) | **Teleport + 2 s protection at most once per player per wave, and only after a hold of ≥ 3 s; any other mid-wave return lands where they vanished, unprotected** (the reviewer's minimal rule; RR2-M2 / RR3-M1: the ≥ 3 s count from the drop or the last input, the 3 s standing body included) (no teleport or protection at all) |
+| 8.1 B16 | Re-review RR1-L1: vanishing on a drop dodges a blast (a reload / socket close at the right moment) | **A dropped body stays in the World for 3 s mid-wave (standing still, hittable, a target — like D1's quiet phone), then vanishes into the hold; back within those 3 s = it plays on in place (no teleport, no protection); build / vote phases hold at once** (accept vanish-on-drop and correct B15's "never an invulnerability" text) |
+| 8.1 B17 | Re-review RR1-L2: a held seat that never comes back still sizes the wave / Behemoth that starts within its 120 s | **Accepted as is** (bounded by the hold: the count drops when it expires; the intended trade against H3's cheese); no boss HP rescale |
+| 8.1 B18 | Re-review RR1-L3: solo (a frozen World: no tick passes while held) never gets the return protection | **The 3-2-1 resume countdown replaces protection** in a frozen World (zombies stood still too) (measure the hold in room ms instead) |
+| 8.1 B19 | Re-review RR2-L1: a solo drop (or a re-drop during the 3-2-1) with B16's 3 s standing body | **Accepted: the dropping body counts as present — the World runs its 3 s (the 3-2-1 finishes, the body stands hittable), then freezes** (while frozen, hold a dropping body at once) |
+| 8.1 B14 | Seat identity | **One function `seatKey()` = `guest:<hash>`** (`apps/server/src/run/lobby.ts`); Story 7.1 switches it to `acct:<id>` |

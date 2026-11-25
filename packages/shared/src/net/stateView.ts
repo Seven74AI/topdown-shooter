@@ -67,6 +67,13 @@ export interface PlayerStateView {
   readonly vote: number;
   /** Story 8.9: my inputs queued on the server when its last tick started; my steps run at 0.9× above 2 (D5, D6). */
   readonly inputQueued: number;
+  /**
+   * Story 8.1: 0 = connected; else the World tick at which this player's 120 s hold runs out (the
+   * team list's grey chip counts down from it; no body is drawn while held). Written on change only.
+   */
+  readonly heldUntilTick: number;
+  /** Story 8.1 (D3): spawn-protection ticks left after a mid-wave return (the body blinks; no fire). */
+  readonly protectTicks: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -173,6 +180,10 @@ export interface RunStateView {
   readonly npcLeaderSlot: number;
   readonly safeX: number;
   readonly safeY: number;
+  /** Story 8.1 (F6, D5): nobody is connected (or the 3-2-1 is running): the World does not step. */
+  readonly frozen: boolean;
+  /** Story 8.1: the restart count after a freeze, 3 → 2 → 1 (0 = none). */
+  readonly resumeIn: number;
 }
 
 /**
@@ -258,6 +269,8 @@ export const PLAYER_STATE_FIELDS = {
   consumableCount: true,
   vote: true, // Story 6.11
   inputQueued: true, // Story 8.9
+  heldUntilTick: true, // Story 8.1
+  protectTicks: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -309,6 +322,8 @@ export const RUN_STATE_FIELDS = {
   npcLeaderSlot: true,
   safeX: true,
   safeY: true,
+  frozen: true, // Story 8.1
+  resumeIn: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

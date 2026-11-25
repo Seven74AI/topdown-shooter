@@ -220,6 +220,7 @@ export function countVotes(world: World): typeof voteTally {
   voteTally.stay = 0;
   voteTally.silent = 0;
   world.players.forEach(tallyOne);
+  voteTally.silent += world.heldPlayers.size; // Story 8.1 review M2: a held seat is silent (6.11 D1: silent = Extract)
   return voteTally;
 }
 
@@ -231,6 +232,7 @@ export function voteOutcome(stay: number, players: number): EvacChoice {
 const markEvac = (p: PlayerState): void => {
   p.earnedAtEvac = p.earned;
 };
+const markHeldEvac = (h: { readonly player: PlayerState }): void => markEvac(h.player);
 
 /**
  * Story 6.11: Vote → Results ("extracted") or Vote → Build (Stay, F3 / F7). `run.vote_resolved`
@@ -240,7 +242,7 @@ const markEvac = (p: PlayerState): void => {
 export function resolveEvacVote(world: World): void {
   expectPhase(world, "resolveEvacVote", "vote");
   const t = countVotes(world);
-  const choice = voteOutcome(t.stay, world.players.size);
+  const choice = voteOutcome(t.stay, world.players.size + world.heldPlayers.size); // review M2: held seats count (silent)
   world.events.emit({ type: "run.vote_resolved", choice, extract: t.extract, stay: t.stay, silent: t.silent });
   const run = world.run;
   run.voteTicksLeft = 0;
@@ -250,7 +252,10 @@ export function resolveEvacVote(world: World): void {
     endRun(world);
     return;
   }
-  if (!run.endless) world.players.forEach(markEvac);
+  if (!run.endless) {
+    world.players.forEach(markEvac);
+    world.heldPlayers.forEach(markHeldEvac); // review M2: a held seat at the first Stay keeps its pre-endless earnings too
+  }
   run.endless = true;
   startBuild(world);
 }
@@ -261,7 +266,7 @@ const checkVoted = (p: PlayerState): void => {
 };
 
 function everyoneVoted(world: World): boolean {
-  if (world.players.size === 0) return false;
+  if (world.players.size === 0 || world.heldPlayers.size > 0) return false; // review M2: a held seat hasn't voted (silent)
   allVoted = true;
   world.players.forEach(checkVoted);
   return allVoted;

@@ -120,7 +120,11 @@ export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 export type { RunPhase } from "../run/runStateMachine";
 
 /** Why the server refused a join (sent as the `ServerError` message). */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "update_required";
+/**
+ * Story 8.1: `seat_kept` — this player's seat in a started run is remembered (their hold ran out),
+ * but it can come back only in a build phase with its slot free: the phone waits and retries (D4).
+ */
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
