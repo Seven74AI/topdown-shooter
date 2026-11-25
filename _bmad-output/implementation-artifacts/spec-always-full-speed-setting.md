@@ -2,7 +2,7 @@
 title: 'Always full speed: a move-stick setting in the in-run menu'
 type: 'feature'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '2a88929d9a1c248b20e5cdb88900eaa0955504d8'
 context: []
 ---
@@ -77,3 +77,41 @@ Calling `getSettings()` per frame is cheap (cached object). Putting the flag int
 
 **Manual checks (if no CLI):**
 - `npm run dev`, phone emulation in Chromium: toggle on, small drag moves at full speed; toggle off restores analog.
+
+## Suggested Review Order
+
+**Full-speed move math**
+
+- Entry point: one flag forces magnitude 1 past the dead zone; direction and dead zone unchanged.
+  [`stick.ts:34`](../../apps/client/src/input/stick.ts#L34)
+
+- Setting read every frame, strict `=== true` so a hand-edited value counts as off.
+  [`TouchSticks.ts:125`](../../apps/client/src/input/TouchSticks.ts#L125)
+
+- New stored setting, default off; old saved JSON merges to off.
+  [`settings.ts:11`](../../apps/client/src/settings/settings.ts#L11)
+
+**Settings view in the in-run menu**
+
+- State machine: open → settings; Back/Cancel → open; Esc/☰/Resume close.
+  [`uiState.ts:109`](../../apps/client/src/ui/uiState.ts#L109)
+
+- Menu item between Players and Leave game, plus wording.
+  [`menuItems.ts:32`](../../apps/client/src/ui/menuItems.ts#L32)
+
+- Switch reads the stored value at render (single source of truth), saves on tap.
+  [`InRunMenu.tsx:68`](../../apps/client/src/ui/InRunMenu.tsx#L68)
+
+- Switch styles: 48 px row, yellow when on.
+  [`overlay.css:438`](../../apps/client/src/ui/overlay.css#L438)
+
+**Tests**
+
+- Wiring: half drag goes full speed when on, analog when off.
+  [`TouchSticks.test.ts:10`](../../apps/client/src/input/TouchSticks.test.ts#L10)
+
+- Matrix rows on the pure math.
+  [`stick.test.ts:34`](../../apps/client/src/input/stick.test.ts#L34)
+
+- Menu transitions.
+  [`uiState.test.ts:69`](../../apps/client/src/ui/uiState.test.ts#L69)

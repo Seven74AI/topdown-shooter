@@ -122,6 +122,6 @@ export class TouchSticks {
       this.moveVec.magnitude = 0;
       return this.moveVec;
     }
-    return stickVector(m.originX, m.originY, m.x, m.y, this.radiusPx, this.moveDeadZone, this.moveVec, getSettings().alwaysFullSpeed);
+    return stickVector(m.originX, m.originY, m.x, m.y, this.radiusPx, this.moveDeadZone, this.moveVec, getSettings().alwaysFullSpeed === true);
   }
 }

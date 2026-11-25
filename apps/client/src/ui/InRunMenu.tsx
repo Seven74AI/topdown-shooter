@@ -17,7 +17,7 @@ export function InRunMenu() {
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => lobbyStore.subscribe(setLobby), []);
-  const [fullSpeed, setFullSpeed] = useState<boolean>(getSettings().alwaysFullSpeed);
+  const [, rerender] = useState(0); // the switch reads the stored setting; this only redraws after a toggle
   if (screen.kind !== "playing" || screen.menu === "closed") return null;
   const online = screen.online;
   if (screen.menu === "confirmLeave") {
@@ -65,10 +65,10 @@ export function InRunMenu() {
     );
   }
   if (screen.menu === "settings") {
+    const fullSpeed = getSettings().alwaysFullSpeed === true;
     const toggle = (): void => {
-      const next = !getSettings().alwaysFullSpeed;
-      saveSettings({ alwaysFullSpeed: next });
-      setFullSpeed(next);
+      saveSettings({ alwaysFullSpeed: !fullSpeed });
+      rerender((n) => n + 1);
     };
     return (
       <div class="in-run-menu in-run-menu--list" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="settings-menu">
