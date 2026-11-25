@@ -1,6 +1,6 @@
 # Story 8.8: My shots count on a bad 4G line
 
-Status: ready-for-dev
+Status: review
 
 <!-- Network pass story 1 of 5 (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). -->
 
@@ -39,16 +39,16 @@ so that I'm not cheated out of kills I clearly made.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Before numbers** (AC 5; brief 13): on the master you branched from, run `npx tsx tools/netaudit/runHits.ts 60 3` (it already has the loss model) and keep the table. Record load.
-- [ ] **T2 Harness loss model** (AC 3): add `loss` to `tools/netsim/hitsSim.ts` (the diff against `hitsLossSim.ts` is ~6 lines: `Options.loss`, the `Link` constructor arg, the `stall` term in `due`); switch `runHits.ts` to it; delete `hitsLossSim.ts`; update `tools/netaudit/README.md`. Existing `tools/netsim/hits.test.ts` runs unchanged (no `loss` = today).
-- [ ] **T3 Rewind 500 ms** (AC 4, F1–F4): the two constants + comments; update `RunController.test.ts:536` (`REWIND_CAP_TICKS` 6 → 10) and `tools/netsim/hits.test.ts:122` (view-offset p95 < 6 → < 10, comment: "fits the 500 ms cap"). Grep for other pins: `grep -rn "REWIND_MAX_TICKS\|REWIND_CAP\|toBe(6)" packages apps tools` (rewind, spread, shotgun, flame, cosmeticProjectiles tests use the constant, not the number: they follow).
-- [ ] **T4 New netsim tests** (AC 5, F1, F5; brief 6): in `tools/netsim/hits.test.ts` a `describe("Story 8.8: lossy line")` with the Runner 1 % / 2 %, Walker 1 % / 2 % and clean rows asserting the numbers above; liveness: stalls injected > 0 per run, apparent hits > 300 per row, and over-cap shots (shots whose asked view was older than the cap) are reported and **fewer** than before. Mark the 2 % rows `.concurrent` only if the file already does; keep the `testTimeout` budget (30 s per test; split seeds if needed).
-- [ ] **T5 Fairness tests** (F2–F4): in `packages/shared/src/combat/rewind.test.ts`: a `viewTick` 12 ticks old is clamped to 10; a teammate standing where a zombie was 8 ticks ago is not hit by the rewound shot; a zombie killed 3 ticks ago is not hit at its 8-ticks-ago spot; a shot rewound 9 ticks still stops at a barricade present now (buildings only change in a build phase, so "now" and "then" agree mid-wave); the Behemoth is hit at its 8-ticks-ago position (boss history row) when the view says so.
-- [ ] **T6 Dev throttle `&loss`** (AC 1): `urlOptions.ts › parseThrottle` reads `loss` (0–20, one decimal) and `stall` (0–1000 ms, default 200); `DevThrottleOptions` gains `lossPct`, `stallMs`; in `DevThrottle` both directions draw `random() * 100 < lossPct` per message and add `stallMs` to that message's `dueFrom`; the ordered `max(lastDue, …)` makes everything behind it wait (that IS the head-of-line model: no extra code). Count `stallsIn`/`stallsOut`; overlay text. Tests in `devThrottle.test.ts` with an injected `random`/`now`: a stall delays the stalled message and the next ones, order kept, a 128-queue overflow still delivers the oldest early (hidden tab), `loss=0` is today's behaviour bit for bit.
-- [ ] **T7 Bots `--lag/--jitter/--loss/--stall`** (AC 2): move `lagProxy.ts`'s proxy core (ordered delay + stall, no stream parsing) into `tools/netaudit/lagLine.ts` (exported `startLagLine({ listen: 0, target, rttMs, jitterMs, lossPct, stallMs })` → `{ port, stats(), close() }`), with stalls in **both** directions (today only server→client); `lagProxy.ts` keeps its CLI and report on top of it; `tools/bots/run.ts` adds the four flags to `FLAGS`, starts the line on an ephemeral port in front of a localhost `--url` and points the bots at it. A small test (`tools/netaudit/lagLine.test.ts`) pipes bytes through it: order kept, a forced stall delays later chunks, close frees the port.
-- [ ] **T8 Bot run on the lossy line** (brief 13, 14): 4 bots, `--scenario net150 --until-wave 5 --hold-fire 45 --lag 150 --jitter 20 --loss 1`, before and after: record `net_stats`, `horde_stats` (`framesSkipped`) and the server's `spread_cancel_suspect` / `seq_gap_suspect` counts (must not rise). Bots don't count reversed hits (the harness does); this run proves the switch works end to end.
-- [ ] **T9 Docs** : `docs/perf/network-pass-2026-11.md` § 8.8 (before/after table, load, commands); `game-architecture.md` lag-compensation line already has a Network pass note: change "300 ms" to "500 ms (Story 8.8)"; HANDOFF §2 "What the game does today" online line: `?lag=&jitter=&loss=`.
-- [ ] **T10 Gate + hand-back** (brief 1, 12).
+- [x] **T1 Before numbers** (AC 5; brief 13): on the master you branched from, run `npx tsx tools/netaudit/runHits.ts 60 3` (it already has the loss model) and keep the table. Record load.
+- [x] **T2 Harness loss model** (AC 3): add `loss` to `tools/netsim/hitsSim.ts` (the diff against `hitsLossSim.ts` is ~6 lines: `Options.loss`, the `Link` constructor arg, the `stall` term in `due`); switch `runHits.ts` to it; delete `hitsLossSim.ts`; update `tools/netaudit/README.md`. Existing `tools/netsim/hits.test.ts` runs unchanged (no `loss` = today).
+- [x] **T3 Rewind 500 ms** (AC 4, F1–F4): the two constants + comments; update `RunController.test.ts:536` (`REWIND_CAP_TICKS` 6 → 10) and `tools/netsim/hits.test.ts:122` (view-offset p95 < 6 → < 10, comment: "fits the 500 ms cap"). Grep for other pins: `grep -rn "REWIND_MAX_TICKS\|REWIND_CAP\|toBe(6)" packages apps tools` (rewind, spread, shotgun, flame, cosmeticProjectiles tests use the constant, not the number: they follow).
+- [x] **T4 New netsim tests** (AC 5, F1, F5; brief 6): in `tools/netsim/hits.test.ts` a `describe("Story 8.8: lossy line")` with the Runner 1 % / 2 %, Walker 1 % / 2 % and clean rows asserting the numbers above; liveness: stalls injected > 0 per run, apparent hits > 300 per row, and over-cap shots (shots whose asked view was older than the cap) are reported and **fewer** than before. Mark the 2 % rows `.concurrent` only if the file already does; keep the `testTimeout` budget (30 s per test; split seeds if needed).
+- [x] **T5 Fairness tests** (F2–F4): in `packages/shared/src/combat/rewind.test.ts`: a `viewTick` 12 ticks old is clamped to 10; a teammate standing where a zombie was 8 ticks ago is not hit by the rewound shot; a zombie killed 3 ticks ago is not hit at its 8-ticks-ago spot; a shot rewound 9 ticks still stops at a barricade present now (buildings only change in a build phase, so "now" and "then" agree mid-wave); the Behemoth is hit at its 8-ticks-ago position (boss history row) when the view says so.
+- [x] **T6 Dev throttle `&loss`** (AC 1): `urlOptions.ts › parseThrottle` reads `loss` (0–20, one decimal) and `stall` (0–1000 ms, default 200); `DevThrottleOptions` gains `lossPct`, `stallMs`; in `DevThrottle` both directions draw `random() * 100 < lossPct` per message and add `stallMs` to that message's `dueFrom`; the ordered `max(lastDue, …)` makes everything behind it wait (that IS the head-of-line model: no extra code). Count `stallsIn`/`stallsOut`; overlay text. Tests in `devThrottle.test.ts` with an injected `random`/`now`: a stall delays the stalled message and the next ones, order kept, a 128-queue overflow still delivers the oldest early (hidden tab), `loss=0` is today's behaviour bit for bit.
+- [x] **T7 Bots `--lag/--jitter/--loss/--stall`** (AC 2): move `lagProxy.ts`'s proxy core (ordered delay + stall, no stream parsing) into `tools/netaudit/lagLine.ts` (exported `startLagLine({ listen: 0, target, rttMs, jitterMs, lossPct, stallMs })` → `{ port, stats(), close() }`), with stalls in **both** directions (today only server→client); `lagProxy.ts` keeps its CLI and report on top of it; `tools/bots/run.ts` adds the four flags to `FLAGS`, starts the line on an ephemeral port in front of a localhost `--url` and points the bots at it. A small test (`tools/netaudit/lagLine.test.ts`) pipes bytes through it: order kept, a forced stall delays later chunks, close frees the port.
+- [x] **T8 Bot run on the lossy line** (brief 13, 14): 4 bots, `--scenario net150 --until-wave 5 --hold-fire 45 --lag 150 --jitter 20 --loss 1`, before and after: record `net_stats`, `horde_stats` (`framesSkipped`) and the server's `spread_cancel_suspect` / `seq_gap_suspect` counts (must not rise). Bots don't count reversed hits (the harness does); this run proves the switch works end to end.
+- [x] **T9 Docs** : `docs/perf/network-pass-2026-11.md` § 8.8 (before/after table, load, commands); `game-architecture.md` lag-compensation line already has a Network pass note: change "300 ms" to "500 ms (Story 8.8)"; HANDOFF §2 "What the game does today" online line: `?lag=&jitter=&loss=`.
+- [x] **T10 Gate + hand-back** (brief 1, 12).
 
 ## Dev Notes
 
@@ -74,6 +74,8 @@ so that I'm not cheated out of kills I clearly made.
 
 ### Decisions to confirm (designer: "ok" or by code; recommended value first)
 
+All five accepted by the designer on 2026-11-24 ("I'm okay with everything", `docs/network-pass-decisions.md`): built with the recommended values.
+
 | Code | Decision | Recommended (alternative) |
 | --- | --- | --- |
 | 8.8 D1 | How far back the server may look for a shot | **500 ms** (measured: Runners 7.6 → 2.0 %, 11.9 → 1.3 %); Story 8.9 may raise it to 600 ms if its longer render delay needs it (600 ms now, before 8.9 measures) |
@@ -98,14 +100,22 @@ so that I'm not cheated out of kills I clearly made.
 
 | Case (150 ms ± 10 ms, Pistol, 3 × 60 s) | Line | Before (master) | After |
 | --- | --- | --- | --- |
-| 20 Runners kiting | clean | (audit 0.2 %) | ≤ 0.5 % |
-| | 1 % × 200 ms | (audit 7.6 %) | < 5 % (one-off 2.0 %) |
-| | 2 % × 200 ms | (audit 11.9 %) | < 5 % (one-off 1.3 %) |
-| | 1 % × 400 ms | (audit 12.7 %) | record |
-| 150 Walkers kiting | clean / 1 % / 2 % | (0.2 / 2.3 / 3.5 %) | ≤ 0.5 / < 5 / < 5 % |
-| 150 Walkers standing | clean / 1 % / 2 % | (0.0 / 1.6 / 1.8 %) | record |
-| Shots over the cap | 1 % × 200 ms Runners | (audit 50 %) | record (lower) |
-| tickCostRewind p99 added | — | record | ≤ 1 ms |
+Measured 2026-11-25, `npx tsx tools/netaudit/runHits.ts 60 3`; before on master `c57c1cc` (identical to the audit's numbers), after on `story-8-8`; load 0.1–0.6 on 4 cores both times. Full table: `docs/perf/network-pass-2026-11.md` § 8.8.
+
+| Case (150 ms ± 10 ms, Pistol, 3 × 60 s) | Line | Before (master c57c1cc) | After (story-8-8) |
+| --- | --- | --- | --- |
+| 20 Runners kiting | clean | 0.2 % | **0.2 %** |
+| | 1 % × 200 ms | 7.6 % | **2.0 %** |
+| | 2 % × 200 ms | 11.9 % | **1.3 %** |
+| | 1 % × 400 ms | 12.7 % | 7.2 % (record) |
+| 150 Walkers kiting | clean / 1 % / 2 % | 0.2 / 2.3 / 3.5 % | **0.2 / 1.8 / 2.1 %** |
+| | 1 % × 400 ms | 10.0 % | 12.6 % (record; see Completion Notes) |
+| 150 Walkers standing | clean / 1 % / 2 % | 0.0 / 1.6 / 1.8 % | 0.0 / 2.2 / 2.0 % (record) |
+| | 1 % × 400 ms | 6.3 % | 8.9 % (record) |
+| Shots over the cap | 1 % × 200 ms Runners | 50 % (cap 6) | **0 %** (cap 10); 2 %: 73.3 → 0 %; 1 % × 400: 64.3 → 4.7 % |
+| tickCostRewind added work p99 (`PERF_ASSERT=1`) | — | 0.054 ms (load 0.01) | **0.060 ms** (load 0.01); rewind ON p99 0.674 → 0.771 ms vs OFF 0.681 → 0.719 ms (noise ±0.1) |
+| Bots, 4 × net150 waves 4–5, lossy line | — | master `lagProxy.ts` 1 % × 200 ms server→client only: 299 stalls; 0 `spread_cancel_suspect`, 0 `seq_gap_suspect`, `framesSkipped` 0 | `--lag 150 --jitter 20 --loss 1`: 97 up / 236 down stalls; 0 / 0 suspect logs, `framesSkipped` 0 |
+| History memory | — | 8 rows ≈ 16 KB / room | 12 rows ≈ 24 KB / room (256 × 12 × 2 × 4 B) + 12 boss rows |
 
 ### Files (expected)
 
