@@ -67,3 +67,11 @@ The propeller cap's propeller **spins**. It is the first animated piece of equip
 - **Rule (for every later animated item):** a part may declare an **animated layer** in `cosmetics.json` (`animated: { layer, spinRevPerS }`, one part per layer). The baked body leaves the layer out; the game draws it as **its own small sprite on top of the survivor**: one texture per layer through `addGeneratedTexture` (with a redraw callback), **pooled** sprites (4 per layer), placed on the head and turned every frame with **no per-frame allocation**. Still pictures (editor tiles, Results, pick pages) draw the layer in at a fixed angle.
 - Propeller: 2 turns per second (`cosmetics.json`), texture `survivorlayer_propeller_a`. Dev check: `?devlayer=propeller` (dev builds) puts it on every survivor until Story 7.9 draws per-player looks.
 - Applied to the stories by `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-survivor-parts.md`.
+
+## Epic 7 UI look (designer, 2026-11-25)
+
+| Code | Decision | Picked |
+| --- | --- | --- |
+| 7-UI-1 | First Epic 7 UI proposals (RW/PH/BT/TR/AC/DP/SC/ED/LB, `docs/art/epic-7/looks.html`) | **Layout and ordering OK; design "too simple, not premium AAA"** → iterate one group (Results + Run rewards) first, then apply to every Epic 7 screen |
+| 7-UI-2 | Premium rounds: PR1–PR6 (`premium-rewards.html`), cockpit PC1–PC3 (`premium-rewards-cockpit.html`, backdrop study only), interface languages PI1–PI3 (`premium-rewards-2.html`) | **PI1 Lumen** (Destiny 2 / Halo Infinite post-game reference: bevelled-steel frames around glass, one accent colour, display numerals, rarity cards with white-hot edges); new items land as 2–3 rarity cards (whole card = tap target). Colour theme being explored next (gold = current reference) |
+| 7-UI-3 | Colour rule in menus | **Red is allowed in menu/Results/hub screens** (designer: "it seems strange to avoid red in the interface just because we use it for boss danger"). The rule "red = boss danger only" keeps applying to what the player sees during play (world + in-game HUD signals) |
