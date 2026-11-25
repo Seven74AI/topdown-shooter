@@ -12,6 +12,7 @@ import {
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
   CLOSE_TAKEN_OVER,
+  CLOSE_RUN_SAVED,
   RECONNECT,
   SeatRecovery,
   Watchdog,
@@ -96,6 +97,14 @@ export interface BotClientOptions {
   pingEveryS?: number;
   /** One JSON object per line goes here (default: stdout). */
   log?: (line: Record<string, unknown>) => void;
+  /**
+   * Stories 8.4–8.6: play as an account (`POST /account/session`, like a phone: the ticket goes with the join) with this
+   * device token (a fresh one when absent; the bot's `deviceToken` after the call). Saves need an account seat.
+   */
+  account?: boolean;
+  deviceToken?: string;
+  /** Story 8.6: create the room by resuming this saved run (needs `account`). */
+  resume?: string;
 }
 
 /** Story 8.1: the bot's link (the phone's rules: shared `Watchdog` + `SeatRecovery`, `net/reconnect.ts`). */
@@ -181,6 +190,14 @@ export class BotClient {
   rttMs = 0;
   /** The last wave whose `wave.ended` this bot saw (0 = none yet). */
   lastEndedWave = 0;
+  /** Stories 8.4–8.6: the device token this bot joined with (an account bot resumes with it), the run id, the save. */
+  deviceToken = "";
+  runId = "";
+  /** Story 8.5 (`--save-quit-at`): no Ready once this wave ended (the build runs its timer: time to Save and quit). 0 = off. */
+  holdReadyAfterWave = 0;
+  /** Story 8.5: the server saved the run (`run.saved`, then the 4023 close). */
+  saved = false;
+  closeCode = 0;
   /** Set when the room closed under the bot (server stop, room error, kicked): `code` and reason. */
   closed: { code: number; reason: string } | null = null;
   private readonly cfg: BotConfig;
@@ -324,6 +341,15 @@ export class BotClient {
     });
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
+    room.onMessage(S2C.RUN_STARTED, (m: { runId: string }) => {
+      this.runId = m.runId; // Story 7.2: the run id (= the save id, Story 8.4)
+    });
+    room.onMessage(S2C.RUN_REWARDS, () => {});
+    room.onMessage(S2C.RUN_SAVED, () => {
+      this.saved = true; // Story 8.5: the 4023 close follows
+      this.log({ msg: "bot_run_saved", bot: this.name, runId: this.runId });
+    });
+    room.onMessage(S2C.RUN_SAVE_FAILED, () => this.log({ msg: "bot_save_failed", bot: this.name }));
     room.onMessage(S2C.PING_SHOWN, (m: unknown) => {
       if (Array.isArray(m) && this.pingsSeen.length < 10_000) this.pingsSeen.push([Number(m[0]), Number(m[1])]); // Story 8.7
     });
@@ -341,6 +367,8 @@ export class BotClient {
     room.onMessage(S2C.BUILDING_REPAIR_REFUSED, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
     room.onLeave((code: number, reason?: string) => {
+      if (this.room === room) this.closeCode = code;
+      if (this.room === room && (this.saved || code === CLOSE_RUN_SAVED)) return this.stopSending(); // Story 8.5: terminal
       if (this.room !== room || this.leaving) return;
       if (code === CLOSE_TAKEN_OVER && this.recovery.inFlight) return; // our own takeover: its room is adopted next
       if (code === CLOSE_TAKEN_OVER && performance.now() - this.lateAdoptedAtMs < RECONNECT.ownTakeoverMs) {
@@ -416,13 +444,17 @@ export class BotClient {
   /** Joins (or creates) and taps Ready. */
   static async connect(opts: BotClientOptions): Promise<BotClient> {
     const client = new Client(opts.url, opts.origin ? { headers: { Origin: opts.origin } } : undefined);
+    // Stories 8.4–8.6: an account, like a phone's (the session renews the device token and signs a ticket).
+    const session = opts.account ? await botSession(opts.url, opts.deviceToken ?? guestToken(), opts.origin) : null;
     const options: JoinOptions = {
-      intent: opts.roomId ? "join" : "create",
+      intent: opts.roomId ? "join" : opts.resume ? "resume" : "create",
       name: opts.name,
       balanceVersion: balance.version,
       mapVersion: DOWNTOWN_MAP.version,
       netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10
-      guestToken: guestToken(),
+      guestToken: session?.deviceToken ?? opts.deviceToken ?? guestToken(),
+      ...(session ? { ticket: session.ticket } : {}),
+      ...(!opts.roomId && opts.resume ? { savedRunId: opts.resume } : {}),
     };
     if (!opts.roomId && opts.scenario) options.scenario = opts.scenario;
     const room = opts.roomId
@@ -431,6 +463,7 @@ export class BotClient {
     // Story 8.1: the takeover joins the same room again with the same guest token (the seat's identity).
     const rejoin = (): Promise<Room<unknown, RunStateView>> => client.joinById<RunStateView>(room.roomId, { ...options, intent: "join" });
     const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0, rejoin);
+    bot.deviceToken = options.guestToken;
     bot.pingEveryMs = Math.max(0, (opts.pingEveryS ?? 0) * 1000); // Story 8.7
     room.send(C2S.LOBBY_SET_READY, { ready: true });
     bot.timer = setInterval(() => bot.step(), INPUT_INTERVAL_MS);
@@ -444,6 +477,18 @@ export class BotClient {
   /** This bot is the room's host (slot = `hostSlot`). */
   get isHost(): boolean {
     return this.slot >= 0 && this.room.state?.hostSlot === this.slot;
+  }
+
+  /** Story 8.5: the host's Save and quit (the server checks host and phase). */
+  saveQuit(): void {
+    this.room.send(C2S.RUN_SAVE_QUIT, {});
+  }
+
+  /** Story 8.5: the room closed for good (saved): no more inputs, no recovery. */
+  private stopSending(): void {
+    this.leaving = true;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
   }
 
   /** Stops sending and leaves the room. */
@@ -515,7 +560,7 @@ export class BotClient {
     if (state.phase === "build" && !this.shopDone) this.shopStep(state, me);
     // Once per build, retried after ~1 s if the server still hasn't got it (3.1 review: it shares
     // the 10/s "other" bucket with pongs).
-    if (state.phase === "build" && this.shopDone && !me.buildReady && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
+    if (state.phase === "build" && this.shopDone && !me.buildReady && !(this.holdReadyAfterWave > 0 && this.lastEndedWave >= this.holdReadyAfterWave) && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
       this.readyAtTick = state.tick;
       this.room.send(C2S.BUILD_SET_READY, { ready: true });
     }
@@ -787,4 +832,16 @@ function guestToken(): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Stories 8.4–8.6: the bot's account session (7.1's `POST /account/session`): the device token back and a join ticket. */
+async function botSession(url: string, deviceToken: string, origin?: string): Promise<{ deviceToken: string; ticket: string } | null> {
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/account/session`, { method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify({ deviceToken }) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { deviceToken?: unknown; ticket?: unknown };
+    return typeof body.deviceToken === "string" && typeof body.ticket === "string" ? { deviceToken: body.deviceToken, ticket: body.ticket } : null;
+  } catch {
+    return null;
+  }
 }
