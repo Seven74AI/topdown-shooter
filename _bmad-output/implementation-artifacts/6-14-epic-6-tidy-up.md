@@ -1,6 +1,6 @@
 # Story 6.14: Epic 6 tidy-up (review follow-ups)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -167,3 +167,8 @@ Not re-mutated (the dev's table covers them): AC 1, 2, 5, the gas-leak test, and
 - 2026-11-25: Senior Developer Review (AI): approve; 1 medium, 6 low (test bite gaps, minor layout notes).
 - 2026-11-25: review fixes M1, L1, L3, L4 (+ the fan flicker L4's test found); L6 noted; L2, L5 left.
 - 2026-11-25: Re-review (AI) of the fixes: approve; 2 low (forced-fan residual jitter, 36.75° boss-bar trade-off).
+
+### Main session close-out (2026-11-25)
+
+- Re-review approved (0 high/medium). Accepted lows: RL1 residual flicker only in the artificially forced fan (unforced counts equal master), RL2 up to 36.75° at 568×320 straight up with the boss bar shown (only reachable with dev-forced events; scheduled events never run on boss waves). Review L2 (wave line off centre on small screens) and the boss bar at y 60 are for the designer to see.
+- Main-session full gate on story-6-14-tidy e607fda: typecheck, lint, 394 files / 3,638 tests passed (3 skipped), build OK; load → 3.01 (4 cores). Later master commits merged here are docs/art only. Story done.
