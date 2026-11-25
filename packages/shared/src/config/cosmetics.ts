@@ -65,6 +65,8 @@ export const cosmeticsSchema = z
         nightMute: z.object({ lightness: z.number().gt(0).max(1), saturation: z.number().min(0).max(1) }).strict(),
         /** Extra lightness factor per decay stage 1..5; stage 1 is 1 (no extra dim). */
         stageDim: z.array(z.number().gt(0).max(1)).length(5),
+        /** Story 7.10 (D1): the editor's 12 quick colours beside the phone's own picker. A look value, not gameplay. */
+        swatches: z.array(hex).length(12).optional(),
       })
       .strict(),
     /** Today's survivor. Its colours are the client's `CHAR` night colours, so they are never muted again. */
@@ -78,7 +80,7 @@ export type CosmeticColours = Readonly<z.output<typeof colourSet>>;
 /** A survivor look: one part id per slot and the three picker colours (chosen, not yet muted). */
 export type SurvivorLook = Readonly<z.output<typeof lookSchema>>;
 export type Cosmetics = {
-  readonly look: { readonly nightMute: { readonly lightness: number; readonly saturation: number }; readonly stageDim: readonly number[] };
+  readonly look: { readonly nightMute: { readonly lightness: number; readonly saturation: number }; readonly stageDim: readonly number[]; readonly swatches?: readonly string[] | undefined };
   readonly defaultLook: SurvivorLook;
   readonly parts: readonly CosmeticPart[];
 };

@@ -313,6 +313,8 @@ export {
   guestTokenSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
+  lobbySetLookSchema, // Story 7.10 (D3)
+  type LobbySetLook,
   netPongSchema,
   playerNameSchema,
   runStartSchema,
@@ -380,6 +382,12 @@ export {
   ACCOUNT_SESSION_PATH,
   ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
+  ACCOUNT_LOOK_PATH, // Story 7.10
+  LOOK_SAVE_MAX_BODY_BYTES,
+  lookSaveRequestSchema,
+  lookSaveResponseSchema,
+  type LookSaveRequest,
+  type LookSaveResponse,
   GUEST_COOKIE,
   accountSessionRequestSchema,
   accountSessionResponseSchema,
@@ -754,3 +762,5 @@ export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";
 
 export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, RECONNECT, SeatRecovery, Watchdog, configureReconnection, shouldRescueReload, type RecoveryDeps, type RecoveryJoin, type ReconnectionLike } from "./net/reconnect"; // Story 8.1
+// Stories 7.10 / 7.11 / 7.12: milestone data and the loot parts list
+export { MILESTONES, MILESTONE_IDS, MilestonesError, loadMilestones, lootPartKeys, milestonePartKey, type Milestone, type MilestoneId, type MilestoneRule } from "./config/milestones";

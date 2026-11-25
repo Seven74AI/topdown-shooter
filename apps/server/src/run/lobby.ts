@@ -18,8 +18,11 @@ export interface Member {
   readonly guestTokenHash: string;
   /** Story 7.1: the account behind this seat (a valid session ticket), or null (unsaved play). 7.2–7.7 read it. */
   readonly accountId: string | null;
-  /** Story 7.9: the seat's canonical look code (set at join; a takeover keeps it, the new connection's look is ignored). */
-  readonly look: string;
+  /**
+   * Story 7.9: the seat's canonical look code (set at join; a takeover keeps it, the new connection's look is ignored).
+   * Story 7.10 (D3): `lobby.set_look` replaces it in the lobby phase only (never during a run).
+   */
+  look: string;
   /**
    * Story 8.1: the seat identity (`seatKey`): who this member IS across sockets. Every seat match
    * (already_joined, takeover, remembered seats) compares this key, never the hash directly.

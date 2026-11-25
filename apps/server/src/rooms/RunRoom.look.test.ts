@@ -223,3 +223,73 @@ describe("AC 6: one string on the room state, set once", () => {
     expect(Math.abs(custom.perTick - plain.perTick) / plain.perTick).toBeLessThan(0.05); // same run, only the looks differ
   }, 60_000);
 });
+
+describe("Story 7.10 D3: lobby.set_look — my card changes for everyone before Start, never during a run", () => {
+  const OTHER = "v1|top:puffer|head:hood|hair:curly|pack:duffel|skin:2|c:112233,445566,778899";
+
+  it("in the lobby: the new look is canonical on the room state, the member and the other player's copy", async () => {
+    const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), STARTER)));
+    const bo = quiet(await colyseus.sdk.joinById<RunStateView>(host.roomId, opts("join", "Bo", token())));
+    const room = roomOf(host);
+    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    host.send(C2S.LOBBY_SET_LOOK, { look: OTHER });
+    await vi.waitFor(() => expect(bo.state.players.get("p0")?.look).toBe(OTHER));
+    expect(room.state.players.get("p0")?.look).toBe(OTHER);
+    expect([...room.members.values()].find((m) => m.playerId === "p0")?.look).toBe(OTHER);
+    expect(room.state.players.get("p1")?.look).toBe(DEFAULT_CODE); // only the sender changes
+  });
+
+  it("unowned parts become the default parts (the same rule as the join)", async () => {
+    const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token())));
+    const room = roomOf(host);
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    host.send(C2S.LOBBY_SET_LOOK, { look: STARTER.replace("head:beanie", "head:riot") });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.look).toBe(STARTER.replace("head:beanie", "head:cap")));
+  });
+
+  it("build or wave: ignored (the run keeps the look it started with)", async () => {
+    const { host, room, bo } = await startedTwo([STARTER, DEFAULT_CODE]);
+    host.send(C2S.LOBBY_SET_LOOK, { look: OTHER });
+    bo.send(C2S.LOBBY_SET_READY, { ready: false }); // a later message from the other client: ours was handled before it
+    await new Promise((r) => setTimeout(r, 200));
+    expect(room.state.players.get("p0")?.look).toBe(STARTER);
+    expect([...room.members.values()].find((m) => m.playerId === "p0")?.look).toBe(STARTER);
+  });
+
+  it("review L1: a look sent right after Start (same tick, before the phase changes) is ignored: the run keeps the look it started with", async () => {
+    vi.stubEnv("DEV_NO_WAVES", "1");
+    const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), STARTER)));
+    const room = roomOf(host);
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    host.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.ready).toBe(true));
+    const seen = vi.spyOn(room, "onSetLook");
+    host.send(C2S.RUN_START, {});
+    host.send(C2S.LOBBY_SET_LOOK, { look: OTHER }); // handled before the next tick: phase still "lobby", controller built
+    await vi.waitFor(() => expect(host.state.phase).toBe("build"));
+    expect(seen).toHaveBeenCalled(); // liveness: the message did reach the handler
+    expect(room.state.players.get("p0")?.look).toBe(STARTER);
+  });
+
+  it("spam: 8 looks at once → at most 2 per second applied, no kick, the client stays joined", async () => {
+    const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token())));
+    const room = roomOf(host);
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    const seen = new Set<string>();
+    const orig = room.onSetLook.bind(room);
+    let applied = 0;
+    vi.spyOn(room, "onSetLook").mockImplementation((c, look) => {
+      const before = room.state.players.get("p0")?.look;
+      orig(c, look);
+      if (room.state.players.get("p0")?.look !== before) applied++;
+      seen.add(look);
+    });
+    const looks = Array.from({ length: 8 }, (_, i) => STARTER.replace("skin:4", `skin:${(i % 6) + 1}`).replace("aa0000", `aa00${String(i).padStart(2, "0")}`));
+    for (const l of looks) host.send(C2S.LOBBY_SET_LOOK, { look: l });
+    await vi.waitFor(() => expect(seen.size).toBeGreaterThanOrEqual(3));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(applied).toBeLessThanOrEqual(2);
+    expect(applied).toBeGreaterThanOrEqual(1);
+    expect(room.members.size).toBe(1); // never refused into a kick
+  });
+});
