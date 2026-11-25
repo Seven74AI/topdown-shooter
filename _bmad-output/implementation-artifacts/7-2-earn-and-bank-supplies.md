@@ -48,13 +48,13 @@ so that every run moves me forward.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Counters** (AC 1; S2): `PlayerState` fields + every copy (EPIC 6 brief 2: `snapshotWorld`, 8.1's hold round-trip test, `createPlayer` defaults). They are server bookkeeping: **not** in the Colyseus schema (no bytes), not mirrored. Tests in `economy.test.ts` / new `meta/runRecord.test.ts`.
-- [ ] **T2 `progression.json › supplies` + `runSupplies`** (AC 2; S1, S4, S5): table-driven tests for every row of the test plan.
-- [ ] **T3 Migration 0002** `run_rewards` (AC 4) + `meta/banking.ts` + `progressRepo.addSupplies` (transaction, `FOR UPDATE`, duplicate key = no-op).
-- [ ] **T4 Room** (AC 3, 4, 8): `runId` at Start; `endRun` banks all members with accounts; `onLeave` banks a consented leaver first; send `run.rewards` to each owner; logs. Message constant + type in `packages/shared/src/net/messages.ts` (S2C list near `:85`).
-- [ ] **T5 Client** (AC 5, 6, 7): `uiState.ts` results gains `rewards` (`ResultRow`/screen type at `uiState.ts:8-24, 58-64`); `onlineFlow.ts` stores the `run.rewards` message (it may arrive before or after the phase change: handle both orders); `ResultsScreen` panel; solo practice line (`GameScene.showSoloResults`, `GameScene.ts:979-984`); start-screen "banked" line; EvacVote line.
-- [ ] **T6 Sims** (brief 9): the 10-wave sim (`economy/tenWaveSim.test.ts` / `tools/sims`) records each bot's `wavesIn` and `runSupplies` and asserts they match the waves that really ended (≥ 1 run wiping, ≥ 1 run extracting once 6.11 is in).
-- [ ] **T7 Gate + hand-back.**
+- [x] **T1 Counters** (AC 1; S2): `PlayerState` fields + every copy (EPIC 6 brief 2: `snapshotWorld`, 8.1's hold round-trip test, `createPlayer` defaults). They are server bookkeeping: **not** in the Colyseus schema (no bytes), not mirrored. Tests in `economy.test.ts` / new `meta/runRecord.test.ts`.
+- [x] **T2 `progression.json › supplies` + `runSupplies`** (AC 2; S1, S4, S5): table-driven tests for every row of the test plan.
+- [x] **T3 Migration 0002** `run_rewards` (AC 4) + `meta/banking.ts` + `progressRepo.addSupplies` (transaction, `FOR UPDATE`, duplicate key = no-op).
+- [x] **T4 Room** (AC 3, 4, 8): `runId` at Start; `endRun` banks all members with accounts; `onLeave` banks a consented leaver first; send `run.rewards` to each owner; logs. Message constant + type in `packages/shared/src/net/messages.ts` (S2C list near `:85`).
+- [x] **T5 Client** (AC 5, 6, 7): `uiState.ts` results gains `rewards` (`ResultRow`/screen type at `uiState.ts:8-24, 58-64`); `onlineFlow.ts` stores the `run.rewards` message (it may arrive before or after the phase change: handle both orders); `ResultsScreen` panel; solo practice line (`GameScene.showSoloResults`, `GameScene.ts:979-984`); start-screen "banked" line; EvacVote line.
+- [x] **T6 Sims** (brief 9): the 10-wave sim (`economy/tenWaveSim.test.ts` / `tools/sims`) records each bot's `wavesIn` and `runSupplies` and asserts they match the waves that really ended (≥ 1 run wiping, ≥ 1 run extracting once 6.11 is in).
+- [x] **T7 Gate + hand-back.**
 
 ## Dev Notes
 
@@ -134,14 +134,89 @@ so that every run moves me forward.
 
 ### Agent Model Used
 
+Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
+
 ### Debug Log References
+
+- Early start (brief 29): branched from `story-7-1` 827ea45 (7.1 + 8.1, neither on master yet); before the gate merged `origin/story-7-1` 7519791 (7.1 review fixes: tickets bound to the guest token, 8.1 `HeldPlayer {buildIdx, atTick}`, `protectedReturnWave`) and `origin/master` 02e7d8c (asset session art). Conflicts: `player.ts` / `hold.test.ts` / `app.ts` (both sides additive, kept both), `.gitignore` and `hudLayout.test.ts` imports (7.1 vs master, kept both).
+- Epic 6's 6.11 + 6.12 (vote, extract, endless, `run.ending`) and 8.1's hold were already on the base: built against the real `run.extracted` / `RunEnding`, no `heldOut` mapping.
+- `boss.killed.number` is the Behemoth COUNT, not the wave (B2): endless Behemoths are counted by `waves.number > runWaves`.
+- The economy system runs after the run system: on a wipe tick `endRun` has already set phase "results" when the economy reads `team.wiped`, so the D8 wave is counted in `checkTeamWipe` (B1).
+- Browser (Chromium, server 2721 with PGlite in the scratchpad, Vite 5721 with `VITE_SERVER_URL`): Create → solo Start → wiped in wave 1 after 47 s → panel "+20 Supplies · Waves 1 × 10 +10 · Rookie bonus × 2 · Total 20"; log `run_ended {runId}`, `supplies_banked {total 20, ms 6.8}`, `run_supplies`. In-run menu Leave → the phone sent `run.leave`, `supplies_banked {ms 4.5}`, then `player_left` 15 ms later (code 4000). Start screen with a stored bank → "+40 Supplies banked from your last run", gone on the next load.
+- R9 layout, real DOM at 568×320, 640×360, 800×360, 844×390 with insets 44/21, states saved / endless / wipe / saving / failed / not_saved / practice (28 shots): both cards inside the safe area, no horizontal overflow in any card, smallest text 11 px, button 160 × 44, no panel scroll needed for 5 breakdown rows. Card rects equal `layoutResults` exactly (568: team x 44 w 236 h 291, rewards x 288).
+- The start menu already scrolled 25 px at 568×320 before this story; the one-time banked line makes it 63 px (menu is `overflow-y: auto`).
+- Mutations (brief 6), 8 of 9 caught: count only alive players (2 failed), skip held players (3), D8 wipe wave not counted (1), no duplicate-key guard (2), no bank on a consented `onLeave` (1), no retry delay (1), rookie at exactly 300 (3), Leave without `run.leave` (1). **Survived: dropping `FOR UPDATE`** — PGlite has one connection, so transactions serialize anyway (see Not verified).
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.2 D1–D7 pending.
+- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.2 D1–D8 accepted by the designer 2026-11-25 ("ok" for all, `docs/epic-7-story-decisions-progress.md`).
+- **Practice solo earns nothing** (decision 7.2 D1): no Supplies, no milestone items (7.11), no loot bag (7.12); Results says "Practice runs don't earn rewards". A one-player ONLINE game earns in full (S7). 7.11 and 7.12 follow this rule.
+- **T1:** `PlayerState.wavesIn / endlessWavesIn / bossesIn / endlessBossesIn` (defaults 0 in `addPlayer`; kept by the hold; in `snapshotWorld` via the player spread, held players too). Not in the schema (0 bytes on the wire). Counting in `meta/runRecord.ts` (players AND `heldPlayers`), called from `economy.ts` (`wave.ended`, `boss.killed`) and `downed.ts › checkTeamWipe` (D8).
+- **T2:** `progression.json › supplies` {10, 50, 100, 20, 50, rookie 300 × 2} (zod, integers, frozen; not in `balanceVersion`: no bump); `meta/supplies.ts › runSupplies` + `suppliesEnding`.
+- **T3:** migration `apps/server/drizzle/0001_run_rewards.sql` (the story's "0002": Drizzle numbering, 7.1 B1): `run_rewards (run_id, account_id → accounts, supplies ≥ 0, breakdown jsonb, created_at)`, primary key (run_id, account_id). `progressRepo.addSupplies(runId, accountId, pay)`: one transaction — empty progress row if missing (B13), `SELECT … FOR UPDATE`, `pay(lifetimeBefore)`, insert … on conflict do nothing (duplicate = "already banked", returns the earlier row), then `supplies` / `lifetime_supplies` += n. `apps/server/src/meta/banking.ts › RunBank`: once per seat per run, `not_saved` without an account, one retry after 2 s, `failed` after two, `supplies_banked` / `supplies_bank_failed` / `run_supplies` logs.
+- **T4:** `RunBank` made at Start (`runId` = random UUID); `endRun` → ONE call `bank.bankRunEnd(world, members, rememberedSeats)` (members in the World or held get the run's ending, remembered seats `quit`); `onLeave` code 4000 → `bankLeaver` before `finalLeave`; new C2S `run.leave` (guarded, `{}` only) → `bankLeaver` (B4); `run_abandoned` banks remembered seats (B6); a seat attaching on Results gets its rewards again. `S2C.RUN_REWARDS`, `C2S.RUN_LEAVE`, `runRewardsSchema` (passthrough) in `messages.ts`.
+- **T5:** `net/rewardsStore.ts` (latest message, matched by seed: both arrival orders, B8; the Leave's result kept in localStorage for the start screen, try/catch); `RunInbox` → store; `lobbyStore.leave` → `leaveAfterRewards` (sends `run.leave`, leaves after the answer or 1.5 s); `ui/rewardsModel.ts` (panel view + `layoutResults`); `ResultsScreen` in RW1 / Lumen LF5 (team card + Run rewards card, CSS only, fixed row groups of brief 26); start-screen line; vote line `voteStakesLine()` above the vote buttons (B3).
+- **T6:** ten-wave sim (a): every god-mode bot `wavesIn` 10, `bossesIn` 1, 250 Supplies extracted; (b): every mortal run, every bot `wavesIn` = waves ended + the wave a wipe fell in, and its Supplies; endless sim (a): `[1, 20, 5, 4]` and 760 extracted; (b): endless lost on a wipe after Stay.
+- Build-time choices 7.2 B1–B15: `docs/epic-7-decisions.md` › Story 7.2 build-time choices (auto-accepted overnight (designer: follow the GDS recommendation)).
+- Bandwidth: `run.rewards` once per player per run (~300 B), `run.leave` once per Leave: ≈ 0 B/s added. No new sprites or textures (CSS only).
+
+### Test evidence per task (brief R1: file > test name)
+
+- **T1:** `packages/shared/src/meta/runRecord.test.ts` > "S2: every ended wave counts once for each player in the run, alive, downed and out"; > "S2: a player downed on wave 3's last tick still has wavesIn 3 …"; > "D8: a team wipe during wave 5 counts wave 5; a wipe in the build phase after wave 4 adds nothing"; > "S3: a player who leaves after wave 4 keeps 4 waves in their state; the team's counters are not touched"; > "S2 (8.1): a held player across a wave end is counted; after returning the count goes on"; > "a late joiner starts at 0 and counts only the waves after joining"; > "S1/S4: the wave-10 Behemoth counts in bossesIn only; endless waves and an endless Behemoth count apart"; > "S2 (mutation guard): the counters read no status …"; > "brief 2: the counters are in snapshotWorld (players and held players) …". `packages/shared/src/player/hold.test.ts` (round-trip lists the four fields "kept").
+- **T2:** `packages/shared/src/meta/supplies.test.ts` > the 15 table rows (wipe in wave 5 / 9 / build after 4, wave-10 extract 250, endless extract 310, endless wipe 150, wave-15 Behemoth extract / wipe, quitter during wave 6, quitter after the boss, rookie 290 → 200, rookie exactly 300, new player wave-5 wipe, wave-1 wipe, nothing); > "S1 Every run pays, even a loss …"; > "S4 Staying is a bet …"; > "S5 New friends catch up …"; > "S7 Solo online pays the same …"; > "every number comes from progression.json …"; > "garbage counters … count as 0". `packages/shared/src/config/progression.test.ts` > "Story 7.2: supplies are the FR78 / D1 / D3 / D5 numbers, integers only, all present".
+- **T3:** `apps/server/src/db/runRewards.test.ts` > "banks once: Supplies and lifetime grow, one run_rewards row; the same (run, account) again pays nothing"; > "the payout sees lifetime Supplies read inside the transaction …"; > "brief 18: two rooms ending at once for one account both bank and add up; a concurrent double-submit of ONE run pays once"; > "an account with no progress row gets one …"; > "a negative payout is clamped to 0 …"; > "brief 21: migration 0001 runs forward on a copy of the 0000 schema with rows in it (rows kept)". `apps/server/src/db/db.test.ts` > "the committed SQL creates exactly three tables …". `apps/server/src/meta/banking.test.ts` > "S6: banks a seat with the server's record …"; > "S5: a rookie …"; > "each seat banks once per run …"; > "AC 4: a failed write is logged and retried once after BANK_RETRY_MS (2 s) → saved"; > "AC 4: two failures → logged twice, no third try, status failed …"; > "a retry after a write that DID commit … paid once"; > "no account (unsaved play) or no database → not_saved …"; > "AC 3: at the run end, members in the World or held get the run's ending; remembered seats bank quit; run_supplies logged"; > "the record is copied when the bank starts …".
+- **T4:** `apps/server/src/rooms/RunRoom.rewards.test.ts` > "S1/S6: a wipe in wave 1 banks each member once from the server's record (rookie × 2), sends run.rewards, wallets untouched" (also the double `endRun` → one row, `run_ended {runId}`, `run_supplies`); > "a member without an account gets not_saved at once; the account member is saved"; > "S3/D4: run.leave mid-wave banks at once (quit) and the reply reaches the leaver; after the Leave the run end banks nothing more for them"; > "S3: a consented Leave without run.leave still banks at once …"; > "run.leave outside a run (lobby) or from a client with a garbage body does nothing"; > "the database down at the run end: retried once, then failed (Couldn't save), nothing banked, the room carries on".
+- **T5:** `apps/client/src/net/rewardsStore.test.ts` > "keeps the latest valid message, tells listeners, and matches it to a run by seed (either arrival order)"; > "ignores garbage …"; > "D4: a Leave's saved bank becomes the start screen's line once, then is gone"; > "D4: nothing to show for a failed / unsaved / empty bank, or an ordinary run end"; > "storage that throws …"; > "mid-run: sends run.leave, keeps the socket until run.rewards arrives, then the consented leave"; > "mid-run with no answer: leaves after the wait anyway"; > "lobby or Results: leaves at once, sends nothing". `apps/client/src/ui/rewardsModel.test.ts` > "saved: +N headline, the breakdown rows …"; > "S5: the rookie badge …"; > "endless lines appear …"; > "states: Saving…, Couldn't save, Not saved, Practice"; > "S7 / D1: practice solo never shows Supplies …"; > "brief 26: the row groups are in the fixed order …"; > the four R9 size tests "568×320 / 640×360 / 800×360 / 844×390: both cards inside the safe area …"; > "a fine width sweep (1 px, 568 → 1400) …"; > "text ≥ 11 px everywhere …"; > "reads 'Extract now: +100 · Stay: +20 a wave, lost if you wipe' from progression.json". `tools/checks/resultsLayoutCss.test.ts` (CSS twin of the layout numbers, no font < 11 px). Wiring (R2): `tools/checks/rewardsWiring.test.ts` > "the RunInbox hands run.rewards to the rewards store"; > "a Leave goes through leaveAfterRewards …"; > "Results reads the store and draws the panel from rewardsView"; > "the start screen shows the Leave line … and the vote shows the stakes"; > "practice solo Results stay offline …". `tools/checks/evacVoteCss.test.ts` and `apps/client/src/scenes/hudLayout.test.ts` unchanged and green (the vote buttons did not move).
+- **T6:** `packages/shared/src/economy/tenWaveSim.test.ts` > "(a) god-mode bots, 4 players, seeds 1–3 …" (wavesIn 10, bossesIn 1, 250 each); > "(b) mortal bots …" (every bot's wavesIn and Supplies; ≥ 1 wiped run); `packages/shared/src/economy/endlessSim.test.ts` > "(a) flow …" ([1, 20, 5, 4], 760); > "(b) wipe …" (endless lost).
+- **T7:** gate below; screenshot `docs/art/epic-7/built/7-2-results.png` (568 × 320, deviceScaleFactor 2) and `7-2-results-states.png` (all states + 800 × 360).
+
+### Gate (brief R6)
+
+GATE_LINE
+
+### Notes for the merge
+
+- `apps/server/src/rooms/RunRoom.ts`: `endRun` gains ONE call (`void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values())`) and `runId` in the `run_ended` line — 8.1's review fixes adding held players' kills/earnings to `run_ended` touch the lines above it; keep the call last. `onLeave`: one line before `finalLeave` (`if (code === CloseCode.CONSENTED) this.bankLeaver(member)`); `finalLeave`'s `run_abandoned` branch: one line. New: `bank`, `bankRetryMs`, `bankLeaver`, `onRunLeave`, `deliverRewards`, a `run.rewards` resend in `attachClient`, `this.bank = new RunBank(…)` in `startRun`, `this.bank = null` in `onLobbyReturn`. 8.2 (late joins): a new seat reusing a leaver's player id would be found "already banked" by `RunBank` — key it by seat then.
+- `apps/server/src/meta/banking.ts`: 7.7 (district), 7.11 (milestones), 7.12 (loot) add their writes to `progressRepo.addSupplies`'s transaction (pass writers into the repo, `db/` only: brief 21) and their fields to `run.rewards` / `breakdown`.
+- `apps/server/src/db/{schema,progressRepo}.ts`, `drizzle/0001_run_rewards.sql` + `meta/0001_snapshot.json` + `_journal.json`: the next migration is 0002.
+- `apps/server/src/auth/roomAccounts.ts` (`progress`), `apps/server/src/app.ts` (`progress: progressRepo(database)` in `setRoomAccounts`).
+- `packages/shared/src/player/player.ts`: four fields after 8.1's `protectedReturnWave`; `hold.test.ts` lists them. 6.12 / 7.4 / 7.5 add more: additive.
+- `packages/shared/src/economy/economy.ts`: `wave.ended` handler counts beside the money; new `boss.killed` case. `player/downed.ts › checkTeamWipe`: one line.
+- `packages/shared/src/net/messages.ts`: `C2S.RUN_LEAVE`, `S2C.RUN_REWARDS`, `runLeaveSchema`, `runRewardsSchema`; `index.ts` exports. No netEvents kind used (110–119 untouched); no readability-sheet item.
+- `packages/shared/src/config/progression.{json,ts}`: `supplies` key (7.3 adds `unlocks`, 7.5 `training`): different keys. Balance version: unchanged (progression.json is not in it).
+- `apps/client/src/ui/ResultsScreen.tsx` / `overlay.css` (`.rw*` block at the end): later stories append rows inside `RunRewardsCard` after the supplies group, in brief 26's order; 7.5 adds the TL3 Training column to the team table (room left: the table is full-width of its card). 6.11/6.12's title / sub lines kept.
+- `apps/client/src/net/lobbyStore.ts` (`leave` → `leaveAfterRewards`), `net/session.ts` (one handler), `ui/StartScreen.tsx` (one effect + one line; 7.3 Progress button, 7.6 account row elsewhere), `ui/EvacVote.tsx` (one line above the buttons).
+- `.gitignore` / `apps/client/src/scenes/hudLayout.test.ts`: merge conflicts between `story-7-1` and master resolved here (both kept); the main session will see the same when 7.1 lands.
+
+### Not verified
+
+- **`FOR UPDATE` under real PostgreSQL**: every DB test runs on PGlite (one connection: two transactions never interleave), so the two-rooms-at-once test passes with or without the lock (mutation survived). The lock is in the SQL; a Postgres concurrency test needs a real server (VPS / CI).
+- The `pg` driver path of `addSupplies` (PostgreSQL 18) never ran here; the timeout path is the shared `withDbTimeout`.
+- A bank whose first attempt times out but commits later: covered with a fake repository (the retry finds the row); not reproduced on a real slow database.
+- Real phones / iOS Safari: the panel at 568 × 320 is Chromium with injected 44/21 paddings (env insets can't be emulated headless). The "Saving…" → saved transition was seen live; the 2 s retry → "Couldn't save" only in tests.
+- `?lag=150&jitter=20&loss=1`, a hidden tab and a reconnect across the run end (brief 9): not run in a browser. By construction `run.rewards` is resent to a seat that attaches on Results, and the client matches by seed; the bank itself is server-side (once per run whatever the line does).
+- A remembered seat (hold ran out) banked at the run end and the abandoned-run bank are tested at the `RunBank` level (and wired by one line each), not through a full 120 s room hold.
+- Endless extract in a real room: covered by `RunBank` (held + extracted) and the endless sim, not by a room test through the vote.
+- The start-screen line after a REAL Leave with Supplies > 0 (my browser Leave was in wave 1 with 0 Supplies, so no line, as designed); the line itself was checked with a stored bank.
 
 ### File List
+
+- `packages/shared/src/meta/{runRecord,supplies}.ts`, `packages/shared/src/meta/{runRecord,supplies}.test.ts`
+- `packages/shared/src/player/player.ts`, `packages/shared/src/player/downed.ts`, `packages/shared/src/player/hold.test.ts`, `packages/shared/src/economy/economy.ts`
+- `packages/shared/src/config/progression.{json,ts,test.ts}`, `packages/shared/src/net/messages.ts`, `packages/shared/src/index.ts`
+- `packages/shared/src/economy/{tenWaveSim,endlessSim}.test.ts`
+- `apps/server/src/db/schema.ts`, `apps/server/src/db/progressRepo.ts`, `apps/server/src/db/runRewards.test.ts`, `apps/server/src/db/db.test.ts`
+- `apps/server/drizzle/0001_run_rewards.sql`, `apps/server/drizzle/meta/0001_snapshot.json`, `apps/server/drizzle/meta/_journal.json`
+- `apps/server/src/meta/banking.ts`, `apps/server/src/meta/banking.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/RunRoom.rewards.test.ts`, `apps/server/src/auth/roomAccounts.ts`, `apps/server/src/app.ts`
+- `apps/client/src/net/rewardsStore.ts`, `apps/client/src/net/rewardsStore.test.ts`, `apps/client/src/net/lobbyStore.ts`, `apps/client/src/net/session.ts`
+- `apps/client/src/ui/rewardsModel.ts`, `apps/client/src/ui/rewardsModel.test.ts`, `apps/client/src/ui/ResultsScreen.tsx`, `apps/client/src/ui/StartScreen.tsx`, `apps/client/src/ui/EvacVote.tsx`, `apps/client/src/ui/overlay.css`
+- `tools/checks/resultsLayoutCss.test.ts`, `tools/checks/rewardsWiring.test.ts`
+- `docs/art/epic-7/built/7-2-results.png`, `docs/art/epic-7/built/7-2-results-states.png`
+- `docs/epic-7-decisions.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- Merges: `.gitignore`, `apps/client/src/scenes/hudLayout.test.ts` (conflicts between story-7-1 and master)
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+- 2026-11-25: built on `story-7-2` (early start from `story-7-1`): T1–T7; build-time choices B1–B15; full gate green; status review.
