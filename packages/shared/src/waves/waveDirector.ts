@@ -8,7 +8,10 @@ import { bossActive } from "../boss/bossState";
 import { bossPending } from "../boss/behemoth";
 import { stampedeRunnersAlive } from "../events/stampede";
 import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
-import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
+import { ZOMBIE_STATE, ZOMBIE_TYPES, zombieTypeIndex, type ZombieTypeId } from "../zombies/zombieTypes";
+
+/** Story 6.12: the Brute's type index (endless fixed Brutes and their alive cap). */
+const BRUTE_INDEX = zombieTypeIndex("brute");
 
 /**
  * Wave director state. Story 3.1: the run's phase (build / wave) lives in `world.run`
@@ -49,6 +52,21 @@ export interface WaveState extends SpawnPickState {
   fixedTotal: number;
   /** Story 5.7: Brutes spawned this run (the "Brute!" banner shows for the first only). */
   brutesSpawned: number;
+  /**
+   * Story 6.12 (F2): every zombie spawned during this wave has `stats.hp × hpMult` HP (1 except
+   * endless waves past `endless.hpGrowthFromWave`); set by `beginWave`, read once at spawn.
+   */
+  hpMult: number;
+  /**
+   * Story 6.12 (F3): an endless wave's fixed Brutes use spawn points by formula (no list that grows,
+   * brief 25): the k-th waits for `fixedFromSpawn + round((fixedToSpawn − fixedFromSpawn) × k /
+   * (fixedTotal − 1))` spawned wave zombies; at most `endless.brutesMaxAlive` alive (D2).
+   */
+  fixedFormula: boolean;
+  fixedFromSpawn: number;
+  fixedToSpawn: number;
+  /** Story 6.12: the endless Brute alive cap of this wave (0 = none). */
+  brutesMaxAlive: number;
 }
 
 export function createWaveState(): WaveState {
@@ -68,6 +86,11 @@ export function createWaveState(): WaveState {
     fixedServed: 0,
     fixedTotal: 0,
     brutesSpawned: 0,
+    hpMult: 1, // Story 6.12
+    fixedFormula: false,
+    fixedFromSpawn: 0,
+    fixedToSpawn: 0,
+    brutesMaxAlive: 0,
     ...createSpawnPickState(), // Story 4.3
   };
 }
@@ -76,17 +99,43 @@ export function createWaveState(): WaveState {
  * Zombies in wave `number` for `playerCount` players (FR28, FR31): `number × zombiesPerWave` at 4
  * players, × `playerCountScale[players − 1]` (0.4 / 0.6 / 0.8 / 1.0), rounded, at least 1.
  */
-export function waveSize(balance: Balance, number: number, playerCount: number): number {
+export function waveSize(balance: Balance, number: number, playerCount: number, endless = false): number {
   const b = balance.waves;
   const scales = b.playerCountScale;
   const i = Math.min(scales.length, Math.max(1, playerCount)) - 1;
-  return Math.max(1, Math.round(number * b.zombiesPerWave * (scales[i] as number)));
+  let base = number * b.zombiesPerWave;
+  if (isEndlessNumber(balance, number, endless)) base = Math.min(base, b.endless.maxZombiesPerWave); // Story 6.12 (F1): 600 at 4 players
+  return Math.max(1, Math.round(base * (scales[i] as number)));
 }
 
-/** The `waves.json › mix` entry of wave `number` (waves past the list use the last entry). */
-export function waveMixOf(balance: Balance, number: number): Readonly<Record<string, number>> {
+/** Story 6.12: wave `number` is an endless wave (past `runWaves`, after Stay). */
+export function isEndlessNumber(balance: Balance, number: number, endless: boolean): boolean {
+  return endless && number > balance.waves.runWaves;
+}
+
+/**
+ * The `waves.json › mix` entry of wave `number` (waves past the list use the last entry). Story 6.12
+ * (D5): endless odd waves use wave `endless.oddWaveMix`'s mix (9), even waves `evenWaveMix`'s (10).
+ */
+export function waveMixOf(balance: Balance, number: number, endless = false): Readonly<Record<string, number>> {
   const mix = balance.waves.mix;
-  return mix[Math.min(mix.length, Math.max(1, number)) - 1] as Readonly<Record<string, number>>;
+  let n = number;
+  if (isEndlessNumber(balance, number, endless)) n = number % 2 === 1 ? balance.waves.endless.oddWaveMix : balance.waves.endless.evenWaveMix;
+  return mix[Math.min(mix.length, Math.max(1, n)) - 1] as Readonly<Record<string, number>>;
+}
+
+/** Story 6.12 (F2): the HP multiplier of zombies spawned in wave `number`: `1 + hpGrowthPerWave × (N − hpGrowthFromWave)` past it in endless, else 1. */
+export function waveHpMult(balance: Balance, number: number, endless = false): number {
+  const e = balance.waves.endless;
+  if (!isEndlessNumber(balance, number, endless) || number <= e.hpGrowthFromWave) return 1;
+  return 1 + e.hpGrowthPerWave * (number - e.hpGrowthFromWave);
+}
+
+/** Story 6.12 (F3): endless wave `number`'s Brutes (`brutesAtFirstWave + brutesPerWave × (N − brutesFirstWave)`; not scaled by party size), else 0. */
+export function endlessBrutes(balance: Balance, number: number, endless = false): number {
+  const e = balance.waves.endless;
+  if (!isEndlessNumber(balance, number, endless) || number < e.brutesFirstWave) return 0;
+  return e.brutesAtFirstWave + e.brutesPerWave * (number - e.brutesFirstWave);
 }
 
 /**
@@ -124,15 +173,22 @@ export function waveTypeCounts(mix: Readonly<Record<string, number>>, size: numb
  * share, Walkers first, then the type with the largest share (ties: the earlier type). The wave size
  * is unchanged. Waves past the list have none.
  */
-export function applyFixedCounts(balance: Balance, number: number, size: number, typeTarget: Uint16Array, fixedOut: Uint16Array): void {
+export function applyFixedCounts(balance: Balance, number: number, size: number, typeTarget: Uint16Array, fixedOut: Uint16Array, endless = false): void {
   fixedOut.fill(0);
-  const fixed = balance.waves.fixed[number - 1];
-  if (!fixed) return;
   let total = 0;
-  for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
-    const c = Math.min(fixed[ZOMBIE_TYPES[t] as string] ?? 0, size - total);
-    fixedOut[t] = c;
-    total += c;
+  if (isEndlessNumber(balance, number, endless)) {
+    // Story 6.12 (F3): the endless Brutes (computed, never a list entry).
+    const c = Math.min(endlessBrutes(balance, number, true), size);
+    fixedOut[BRUTE_INDEX] = c;
+    total = c;
+  } else {
+    const fixed = balance.waves.fixed[number - 1];
+    if (!fixed) return;
+    for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
+      const c = Math.min(fixed[ZOMBIE_TYPES[t] as string] ?? 0, size - total);
+      fixedOut[t] = c;
+      total += c;
+    }
   }
   if (total === 0) return;
   // Take `total` slots off the mix's share (Walkers first, then the largest share).
@@ -171,7 +227,8 @@ function waveZombieType(world: World): number {
   if (dev && dev.length > 0) return ZOMBIE_TYPES.indexOf(dev[(w.size - w.queued) % dev.length] as ZombieTypeId);
   // Story 5.7 / 6.1: a fixed zombie whose point has come goes first (the Brutes at 25 % and 65 %).
   const fixed = nextFixedType(w);
-  if (fixed >= 0) return fixed;
+  // Story 6.12 (F3, D2): an endless Brute waits while `brutesMaxAlive` are alive (it stays owed in the queue).
+  if (fixed >= 0 && !(fixed === BRUTE_INDEX && w.brutesMaxAlive > 0 && brutesAlive(world) >= w.brutesMaxAlive)) return fixed;
   let best = -1;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
     // The mix's share only (fixed zombies are held above).
@@ -186,7 +243,24 @@ function waveZombieType(world: World): number {
     const bd = (w.typeSpawned[best] as number) - (w.fixedSpawned[best] as number);
     if ((done + 1) * bt < (bd + 1) * target) best = t;
   }
+  if (best < 0 && fixed >= 0) return -1; // Story 6.12: only held Brutes are left: nothing spawns now
   return best < 0 ? 0 : best;
+}
+
+/** Story 6.12: Brutes alive now (counted only when an endless Brute is due: no per-tick scan). */
+function brutesAlive(world: World): number {
+  const z = world.zombies;
+  let n = 0;
+  for (let i = 0; i < z.aliveCount; i++) if (z.type[z.aliveIds[i] as number] === BRUTE_INDEX) n++;
+  return n;
+}
+
+/** Story 6.1 / 6.12: the spawn point (spawned wave zombies) of the k-th fixed zombie of the wave. */
+function fixedAt(w: WaveState, k: number): number {
+  if (!w.fixedFormula) return w.fixedAtList[k] as number;
+  const span = w.fixedToSpawn - w.fixedFromSpawn;
+  const at = w.fixedFromSpawn + (w.fixedTotal > 1 ? Math.round((span * k) / (w.fixedTotal - 1)) : 0);
+  return Math.min(at, w.size - w.fixedTotal + k); // every fixed zombie still has a slot
 }
 
 /**
@@ -194,7 +268,7 @@ function waveZombieType(world: World): number {
  * fixedAtList[fixedServed]`), else −1. Types in `ZOMBIE_TYPES` order. No RNG draw.
  */
 function nextFixedType(w: WaveState): number {
-  if (w.fixedServed >= w.fixedTotal || w.size - w.queued < (w.fixedAtList[w.fixedServed] as number)) return -1;
+  if (w.fixedServed >= w.fixedTotal || w.size - w.queued < fixedAt(w, w.fixedServed)) return -1;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) if ((w.fixedSpawned[t] as number) < (w.fixedTarget[t] as number)) return t;
   return -1; // unreachable: fixedTotal is the sum of fixedTarget
 }
@@ -260,9 +334,10 @@ export function jitteredSpawn(
 
 /** False when no zombie spawned (held by the spawn pick, Story 4.3, or the pool is full): the queue keeps it. */
 function spawnWaveZombie(world: World): boolean {
+  const typeIndex = waveZombieType(world); // no RNG draw, no state change (decided before the spawn pick)
+  if (typeIndex < 0) return false; // Story 6.12: an owed Brute waits for the alive cap
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
-  const typeIndex = waveZombieType(world); // no RNG draw
   const type = ZOMBIE_TYPES[typeIndex] as ZombieTypeId;
   const stats = world.balance.zombies.types[type];
   if (!stats) throw new Error(`waves: no balance for ${type}`);
@@ -301,15 +376,30 @@ export function beginWave(world: World): void {
   playerCount = 0;
   world.players.forEach(countPlayer);
   w.number += 1;
-  w.size = waveSize(world.balance, w.number, Math.max(1, playerCount));
-  waveTypeCounts(waveMixOf(world.balance, w.number), w.size, w.typeTarget);
-  applyFixedCounts(world.balance, w.number, w.size, w.typeTarget, w.fixedTarget); // Story 5.7
+  const endless = world.run.endless; // Story 6.12: endless rules only past runWaves after Stay
+  w.size = waveSize(world.balance, w.number, Math.max(1, playerCount), endless);
+  waveTypeCounts(waveMixOf(world.balance, w.number, endless), w.size, w.typeTarget);
+  applyFixedCounts(world.balance, w.number, w.size, w.typeTarget, w.fixedTarget, endless); // Story 5.7
   w.fixedSpawned.fill(0);
   let fixedTotal = 0;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) fixedTotal += w.fixedTarget[t] as number;
   w.fixedTotal = fixedTotal;
   w.fixedServed = 0;
-  fillFixedAtList(world.balance, w.size, fixedTotal, w.fixedAtList); // Story 6.1 (D1)
+  w.hpMult = waveHpMult(world.balance, w.number, endless); // Story 6.12 (F2)
+  w.fixedFormula = isEndlessNumber(world.balance, w.number, endless);
+  if (w.fixedFormula) {
+    // Story 6.12 (F3): the endless Brutes between 25 % and 90 % of the wave, at most 6 alive.
+    const e = world.balance.waves.endless;
+    w.fixedFromSpawn = Math.round(w.size * e.bruteFromFraction);
+    w.fixedToSpawn = Math.round(w.size * e.bruteToFraction);
+    w.brutesMaxAlive = e.brutesMaxAlive;
+    w.fixedAtList.fill(0);
+  } else {
+    w.fixedFromSpawn = 0;
+    w.fixedToSpawn = 0;
+    w.brutesMaxAlive = 0;
+    fillFixedAtList(world.balance, w.size, fixedTotal, w.fixedAtList); // Story 6.1 (D1)
+  }
   w.typeSpawned.fill(0);
   w.queued = w.size;
   w.remaining = w.size;

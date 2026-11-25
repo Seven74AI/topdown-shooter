@@ -88,6 +88,19 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   const wv = parsed.waves as { zombiesPerWave: number; runWaves: number; playerCountScale: readonly number[] };
   const biggest = Math.round(wv.runWaves * wv.zombiesPerWave * Math.max(1, ...wv.playerCountScale));
   if (biggest > 65535) issues.push(`waves.json: the last wave would hold ${biggest} zombies, more than the 65,535 a wave can count`);
+  // Story 6.12: the endless size cap and Brute cap fit.
+  const wx = parsed.waves as {
+    mix: readonly unknown[];
+    evac: { everyWaves: number };
+    endless: { maxZombiesPerWave: number; oddWaveMix: number; evenWaveMix: number; bossEveryWaves: number };
+  };
+  // Review L5: a vote after every endless Behemoth wave (6.11 F6 / 6.12 F4): the two cadences are one.
+  if (wx.evac.everyWaves !== wx.endless.bossEveryWaves) issues.push(`waves.json: evac.everyWaves ${wx.evac.everyWaves} must equal endless.bossEveryWaves ${wx.endless.bossEveryWaves} (a vote opens after every endless Behemoth wave)`);
+  // (No "≥ wave 10's size" check: tests shorten or lengthen the run with `runWaves` overrides; the cap only applies past runWaves.)
+  if (Math.round(wx.endless.maxZombiesPerWave * Math.max(1, ...wv.playerCountScale)) > 65535) issues.push(`waves.json: endless.maxZombiesPerWave would hold more than the 65,535 a wave can count`);
+  for (const k of ["oddWaveMix", "evenWaveMix"] as const) {
+    if (wx.endless[k] > wx.mix.length) issues.push(`waves.json: endless.${k} ${wx.endless[k]} names a wave past the ${wx.mix.length} mix entries`);
+  }
   const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
   // 3.5 re-review: the flow field's pinch rule assumes a body fits a free cell diagonal (0.354 m
   // clearance past two corners). Story 5.7 (D1): a `wideBody` type paths on the wide grid, whose

@@ -287,10 +287,21 @@ export class BotClient {
 
   /** Server tick of the last build-phase Ready sent (Story 3.1). */
   private readyAtTick = -1;
+  /** Story 6.11: server tick of the last evacuation vote sent. */
+  private voteAtTick = -1;
 
   /** One input: the policy on the newest data, every 50 ms while the room fights. */
   private step(): void {
     const state = this.room.state;
+    // Story 6.11: in the evacuation vote every bot votes Extract (once; retried like Ready if it didn't arrive).
+    if (state?.players && state.phase === "vote" && this.playerId) {
+      const me = state.players.get(this.playerId);
+      if (me && me.vote !== 1 && (this.voteAtTick < 0 || state.tick - this.voteAtTick >= READY_RETRY_TICKS)) {
+        this.voteAtTick = state.tick;
+        this.room.send(C2S.EVAC_VOTE, { choice: "extract" });
+      }
+      return;
+    }
     // Story 3.1: the fight runs in build and wave phases; a bot taps Ready in every build phase.
     if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);

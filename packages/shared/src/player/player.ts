@@ -55,6 +55,16 @@ export interface PlayerState {
   wallet: number;
   /** Story 3.2: everything earned this run (never reduced by spending; Story 3.10 logs it). */
   earned: number;
+  /**
+   * Story 6.11: this player's evacuation vote while the run is in phase "vote": 0 none, 1 extract,
+   * 2 stay (`EVAC_VOTE`). Cleared at every vote open; changeable until the vote ends (D2).
+   */
+  vote: number;
+  /**
+   * Story 6.12 (F7): `earned` at the moment the team first chose Stay (the end of wave 10): the
+   * part of the run's earnings that a later wipe in endless never loses. 0 until then.
+   */
+  earnedAtEvac: number;
   /** Story 3.9 (`player/slow.ts`): movement ticks left at reduced speed; 0 = not slowed. */
   slowTicksLeft: number;
   /** Speed reduction in integer percent while `slowTicksLeft > 0`; 0 otherwise. */
@@ -142,6 +152,8 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     buildReady: false,
     wallet: world.balance.economy.startingWallet,
     earned: 0,
+    vote: 0, // Story 6.11
+    earnedAtEvac: 0, // Story 6.12
     slowTicksLeft: 0,
     fireTicks: 0,
     acidTicks: 0, // Story 5.6

@@ -9,7 +9,7 @@ import { buyCard, reroll } from "../economy/shopCards";
 import { placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
-import { setBuildReady, startBuild } from "../run/runStateMachine";
+import { castVote, setBuildReady, startBuild, type EvacChoice } from "../run/runStateMachine";
 
 /**
  * Story 4.4 (NFR10): headless replay. A run is its seed plus an input log: every player input and
@@ -28,7 +28,9 @@ export type BuildCommand =
   /** Story 5.1: a weapon upgrade (`upgradeWeapon`). */
   | { kind: "upgrade"; playerId: string; weapon: string }
   /** Story 5.11: a shop item (`buyItem`: gear; Story 5.12 consumables). */
-  | { kind: "item"; playerId: string; item: string };
+  | { kind: "item"; playerId: string; item: string }
+  /** Story 6.11: an evacuation vote (`castVote`). */
+  | { kind: "vote"; playerId: string; choice: EvacChoice };
 
 export type ReplayCommand = ({ kind: "input"; playerId: string; input: PlayerInput } | BuildCommand) & { tick: number };
 
@@ -86,6 +88,9 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       break;
     case "item":
       buyItem(world, cmd.playerId, cmd.item);
+      break;
+    case "vote":
+      castVote(world, cmd.playerId, cmd.choice);
       break;
   }
 }

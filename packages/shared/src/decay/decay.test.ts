@@ -330,7 +330,7 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     w.events.subscribe((e) => {
       if (e.type === "decay.stage_changed") changes.push({ tick: w.tick, stage: e.stage, phase: w.run.phase, wave: w.waves.number + 1 });
       if (e.type === "wave.started") stageAtWaveStart.push(w.decay.stage);
-      if (e.type === "run.held_out") held = true;
+      if (e.type === "run.vote_opened") held = true; // Story 6.11: the vote replaces 3.10's held-out ending
     });
     stageAtWaveStart = [];
     for (let t = 0; t < 20 * 60 * 20 && !held; t++) {

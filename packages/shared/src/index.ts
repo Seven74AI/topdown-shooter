@@ -234,17 +234,43 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { applyFixedCounts, spawnJitterFor, spawnReachM, jitteredSpawn, updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
 export {
+  applyFixedCounts,
+  endlessBrutes,
+  isEndlessNumber,
+  spawnJitterFor,
+  spawnReachM,
+  jitteredSpawn,
+  updateWaves,
+  waveHpMult,
+  waveMixOf,
+  waveSize,
+  waveTypeCounts,
+  type WaveState,
+} from "./waves/waveDirector";
+export {
+  castVote,
+  countVotes,
   endRun,
   endWave,
+  isEvacWave,
+  openEvacVote,
+  resolveEvacVote,
+  RUN_ENDINGS,
   setBuildReady,
   skipWave,
   startBuild,
   startWave,
   updateRun,
+  VOTE_EXTRACT,
+  VOTE_NONE,
+  VOTE_STAY,
+  voteOutcome,
+  type EvacChoice,
+  type RunEnding,
   type RunState,
 } from "./run/runStateMachine";
+export { endlessEventCandidates, isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./run/endlessEvents";
 export {
   BYTES,
   C2S,
@@ -260,6 +286,7 @@ export {
   runStartSchema,
   lobbyReturnSchema,
   buildSetReadySchema,
+  evacVoteSchema,
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
@@ -565,6 +592,7 @@ export {
   bossBodyOn,
   bossMaxHp,
   createBossState,
+  endlessBossHpMult,
   isBossWave,
   pushPlayerOutOfBoss,
   resetBoss,
@@ -588,7 +616,7 @@ export { maxAliveNow } from "./waves/waveDirector";
 export { chargeKnockStepMm, knockPlayerBy, knockPlayerDir, knockStepMmOf } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
-export { applyStartWave, parseStartWave } from "./run/devStartWave";
+export { applyStartWave, MAX_START_WAVE, parseStartWave } from "./run/devStartWave";
 // Story 6.2 (Ruins) / 6.4 (Collapse): look picks and the fog / power-out rules (shared, pure).
 export { RUINS_LOOKS, RUINS_LOOK_GUTTED, RUINS_LOOK_GROUP, isEndlessWave, lookPick, ruinsLookAt, type RuinsLook } from "./decay/ruinsLook";
 export {
@@ -621,7 +649,7 @@ export {
   type SpecialEventState,
 } from "./events/eventState";
 export { endSpecialEvent, eventHoldsWave, forceEvent, specialShotTarget, triggerPointReached, updateSpecialEvents } from "./events/specialEvents";
-export { eventFits, scheduleEndlessEvent, scheduleRunEvents } from "./events/schedule";
+export { eventFits, scheduleRunEvents } from "./events/schedule"; // 6.8's endless draw stays internal (6.11's run/endlessEvents owns the endless rule)
 export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
 export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
 export { parseDevEvents } from "./events/devEvents";

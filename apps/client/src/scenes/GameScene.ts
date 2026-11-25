@@ -130,9 +130,12 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { CLOSED_VOTE, VoteRequest, VoteSender, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { dawnEndsAt } from "../ui/dawnModel";
+import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
+import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -302,6 +305,24 @@ export class GameScene extends Phaser.Scene {
   private zombieView: ZombieView | null = null;
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
+  /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
+  private heliView: HeliView | null = null;
+  private readonly voteReq = new VoteRequest();
+  private readonly voteSend = new VoteSender();
+  /** Review L8: four reused voter records, filled by a callback made once; the panel is rebuilt only when its key changes. */
+  private readonly votePlayers: VotePlayerIn[] = [0, 1, 2, 3].map(() => ({ slot: 0, vote: 0, standing: true, mine: false }));
+  private voteCount = 0;
+  private voteKey = -1;
+  private voteCollectHost: SceneHost | null = null;
+  private readonly collectVoter = (p: PlayerState, id: string): void => {
+    const h = this.voteCollectHost;
+    if (!h || this.voteCount >= this.votePlayers.length) return;
+    const o = this.votePlayers[this.voteCount++] as VotePlayerIn;
+    o.slot = h.playerInfo(id).slot;
+    o.vote = p.vote;
+    o.standing = p.status === "alive";
+    o.mine = id === h.localPlayerId;
+  };
   private bossMusic = false;
   /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
   private eventView: EventView | null = null;
@@ -642,6 +663,17 @@ export class GameScene extends Phaser.Scene {
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.eventView = new EventView(this, host.world); // Story 6.8
     this.eventInsets = { ...safeArea() };
+    this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
+    this.voteReq.reset();
+    this.voteSend.reset();
+    this.voteKey = -1;
+    voteStore.set(CLOSED_VOTE);
+    voteStore.handle((choice) => {
+      // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
+      const h = this.host;
+      if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
+      this.voteSend.want(this.voteReq.tap(choice, this.time.now)); // review M1: paced in updateVote
+    });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -813,6 +845,9 @@ export class GameScene extends Phaser.Scene {
       this.bossView = null; // Story 6.5: its objects go with the scene
       this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
       this.eventView = null;
+      this.heliView = null; // Story 6.11: its images go with the scene
+      voteStore.handle(null);
+      voteStore.set(CLOSED_VOTE);
       if (this.bossMusic) stopBossLoop();
       this.bossMusic = false;
       this.trailView?.destroy();
@@ -983,6 +1018,8 @@ export class GameScene extends Phaser.Scene {
     m.camY = cy - halfH;
     m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
+    m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
+    m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
     m.remaining = host.world.waves.remaining;
   }
 
@@ -992,10 +1029,53 @@ export class GameScene extends Phaser.Scene {
    * when `phase` becomes "results" (every player's kills and earnings). `earned` is read from the
    * World after the step, so it includes the last wave's bonus (paid later in the same tick).
    */
-  private showSoloResults(host: SceneHost, wave: number, heldOut: boolean): void {
+  private showSoloResults(host: SceneHost, wave: number): void {
     this.gameOver = true;
     const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed });
+    const run = host.world.run;
+    const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
+    // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
+    const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs });
+  }
+
+  /**
+   * Story 6.11 (EX1, F1–F4): the vote panel each frame from the World (server truth online: phase,
+   * ticks left, each player's `vote`) and my pending tap; the helicopter on the pad. A woken tab or a
+   * late scene start during the vote finds the helicopter landed (no replayed descent).
+   */
+  private updateVote(host: SceneHost): void {
+    const run = host.world.run;
+    const open = run.phase === "vote" && !this.gameOver;
+    const nowS = this.time.now / 1000;
+    if (open && this.heliView && this.heliView.phase === "gone") {
+      const total = ticksFor(host.world.balance.waves.evac.voteS);
+      this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
+    }
+    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
+    this.heliView?.update(nowS);
+    if (!open) {
+      if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);
+      this.voteKey = -1;
+      return;
+    }
+    const me = host.world.players.get(host.localPlayerId);
+    this.voteCount = 0;
+    this.voteCollectHost = host;
+    host.world.players.forEach(this.collectVoter);
+    this.voteCollectHost = null;
+    // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
+    // a change of mind goes out at once even with the bucket empty.
+    // Review M1 / re-review 2 (N3): paced, newest choice last, urgent near the end (one shared step with the netsim test).
+    const send = pollVote(this.voteSend, host.world.waves.number, me?.vote ?? 0, this.time.now, run.voteTicksLeft, TICK_RATE_HZ, this.votePlayers, this.voteCount);
+    if (send) host.castVote(send);
+    const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
+    const total = ticksFor(host.world.balance.waves.evac.voteS);
+    const pending = this.voteReq.isPending();
+    const key = voteFrameKey(run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers, this.voteCount, shown, pending);
+    if (key === this.voteKey) return; // review L8: nothing visible changed, nothing built
+    this.voteKey = key;
+    voteStore.set(voteView(true, run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers.slice(0, this.voteCount), shown, pending));
   }
 
   /**
@@ -1853,7 +1933,9 @@ export class GameScene extends Phaser.Scene {
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
-    if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
+    // everything; neutral moves keep the Predictor standing still too).
+    if (standsStill(menuOpen, shopOpen, host.world.run.phase)) neutralizeInput(this.input_);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
@@ -1906,8 +1988,10 @@ export class GameScene extends Phaser.Scene {
         this.fireCue.clear();
         this.acidCue.clear();
       }
-      if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
-        this.showSoloResults(host, e.wave, e.type === "run.held_out");
+      if (e.type === "run.vote_opened") this.heliView?.opened(this.time.now / 1000);
+      else if (e.type === "run.vote_resolved") this.heliView?.left(this.time.now / 1000, e.choice === "extract");
+      if ((e.type === "team.wiped" || e.type === "run.extracted") && !host.online && !this.gameOver) {
+        this.showSoloResults(host, e.wave);
       } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
         // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
         // with an alert; the pulsing edge arrow shows where and how long they have.
@@ -1997,6 +2081,7 @@ export class GameScene extends Phaser.Scene {
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
     const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
+    this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;

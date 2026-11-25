@@ -9,7 +9,7 @@ import { bossStats } from "./telegraph";
  * Story 6.5 (T10, brief 9 / 15): the real 10-wave run (Story 6.1) with its real wave-10 Behemoth and
  * every real system, 4 god-mode bots (brief 15: bot survival is not difficulty evidence; god mode
  * lets them reach wave 10). Liveness: the boss arrived in wave 10, slammed, took damage from ≥ 3
- * sources and died; wave 10 ended only once it was dead (F11); every run held out (Results).
+ * sources and died; wave 10 ended only once it was dead (F11); every run extracted (Results).
  */
 const balance = loadBalance();
 
@@ -51,7 +51,7 @@ describe("Behemoth run sim (Story 6.5)", () => {
         },
       });
       expect(r.timedOut).toBe(false);
-      expect(r.heldOut).toBe(true);
+      expect((r.ending === "extracted")).toBe(true);
       if (sawBoss) arrived++;
       if (paid.size === 4 && [...paid.values()].every((v) => v === balance.boss.killPay)) paidOk++;
     }

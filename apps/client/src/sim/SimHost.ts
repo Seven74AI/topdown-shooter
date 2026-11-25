@@ -1,5 +1,5 @@
 import type { FlameCues } from "../render/flameCues";
-import type { MoveRequest, PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
+import type { EvacChoice, MoveRequest, PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 import type { MoveRefusal } from "../net/session";
 import type { TeammateGhosts } from "../net/teammateGhosts";
 
@@ -62,6 +62,12 @@ export interface SimHost {
    * applies before the next step; online it is sent as `build.set_ready` and comes back in the state.
    */
   setBuildReady(ready: boolean): void;
+  /**
+   * Story 6.11: the local player's evacuation vote (changeable; ignored outside phase "vote"). Solo
+   * it applies before the next step (the same `castVote` as the server); online it is sent as
+   * `evac.vote` and comes back in the state. The choice is latched on the tap (brief 30).
+   */
+  castVote(choice: EvacChoice): void;
   /**
    * Story 3.4: ask to place a building (the server validates; solo runs the same check now). A
    * refusal comes back through `takePlaceRefusal` (solo at once, online a round trip later).

@@ -156,24 +156,24 @@ development_status:
   6-8-special-events-car-alarm-and-stampede: review
   6-9-gas-leak-and-supply-drop: review  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
   6-10-power-failure-and-survivor: review  # merged into 6.9 (designer 2026-11-24)
-  6-11-evacuation-vote: ready-for-dev  # merged with 6.12 (designer 2026-11-24): one story 'Evacuation vote and endless mode'. Pad = map point evac_pad, not waves.json (random-city CCP 2026-11-24)
-  6-12-endless-mode: ready-for-dev  # merged into 6.11 (designer 2026-11-24)
+  6-11-evacuation-vote: done  # 2026-11-25: review 3M+12L fixed; re-review found RM1 (fix-made), re-review 2 found RR2-M1 (fix-made), re-review 3 clean (RR3-L1 late dawn after a long lock, RR3-L2 urgent gap 250 → 0–100, N5, N6 = follow-ups); decisions 6.11 B1; merged with 6.12; pad = map point evac_pad
+  6-12-endless-mode: done  # merged into 6.11 (designer 2026-11-24); endless events wired when 6.8 lands
   epic-6-retrospective: optional
 
   # Epic 7: Accounts and meta-progression
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
-  7-1-progress-saved-on-the-server: backlog
-  7-2-earn-and-bank-supplies: backlog
-  7-3-unlock-screen: backlog
-  7-4-shop-deck-from-my-unlocks: backlog
-  7-5-training-boosts: backlog
-  7-6-upgrade-to-an-account: backlog
-  7-7-district-unlock-rule: backlog  # Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
+  7-1-progress-saved-on-the-server: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-2-earn-and-bank-supplies: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-3-unlock-screen: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-4-shop-deck-from-my-unlocks: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-5-training-boosts: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). 
+  7-7-district-unlock-rule: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
-  7-9-my-look-in-the-game: backlog  # customization (docs/ideas/customization)
-  7-10-survivor-editor: backlog  # customization (docs/ideas/customization)
-  7-11-milestone-items: backlog  # customization (docs/ideas/customization)
-  7-12-surprise-loot-bag: backlog  # customization (docs/ideas/customization)
+  7-9-my-look-in-the-game: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). customization (docs/ideas/customization)
+  7-10-survivor-editor: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). customization (docs/ideas/customization)
+  7-11-milestone-items: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). customization (docs/ideas/customization)
+  7-12-surprise-loot-bag: ready-for-dev  # story file 2026-11-25, decisions pending (docs/epic-7-story-decisions-progress.md + -looks.md). customization (docs/ideas/customization)
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience

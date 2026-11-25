@@ -47,7 +47,7 @@ console.log(`${balance.waves.runWaves} waves${god ? ", god mode" : ""}; GDD targ
 for (const players of teamSizes) {
   const runs = seeds.map((seed) => runHeadless({ balance, seed, players, god, ...(list ? { list } : {}) }));
   for (const r of runs) console.log(`${formatRunLine(r)} | Bloater bursts by wave ${r.bloaters.burstsInWave.join("/") || "-"}, chains ${r.bloaters.chains}, blast hits on players ${r.bloaters.playerHits}`);
-  const held = runs.filter((r) => r.heldOut).length;
+  const held = runs.filter((r) => r.ending === "extracted").length; // Story 6.11
   const cleared = runs.map((r) => r.wavesCleared);
   const earned = runs.flatMap((r) => r.earned);
   const mean = earned.reduce((a, b) => a + b, 0) / Math.max(1, earned.length);

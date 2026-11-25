@@ -5,6 +5,7 @@ import { DOWNTOWN_MAP } from "../map/downtown";
 import { snapshotWorld } from "../core/worldSnapshot";
 import { EVENT_KINDS, EVENT_PHASE } from "./eventState";
 import { powerFailureWave } from "./powerFailure";
+import { endlessEventCandidates } from "../run/endlessEvents";
 import { balance, eventWorld, ofType, startNext, tickN } from "./testEvents";
 
 /** Story 6.10 (P1–P3, AC 1–2): the power failure. */
@@ -69,5 +70,19 @@ describe("Story 6.10 P3: only in waves 6–8, never in a wave that is already a 
     for (const w of [6, 7, 8]) expect(powerFailureWave(world, w)).toBe(balance.decay.blackout.lightPctByWave[w - 1]! <= 0);
     for (const w of [3, 4, 9, 10]) expect(powerFailureWave(world, w)).toBe(false);
     expect([6, 7, 8].some((w) => powerFailureWave(world, w))).toBe(true);
+  });
+
+  it("6.10 D7 / 6.12 D6: even endless waves qualify (odd ones are pitch black: never); not without endless; it then goes 20 % moonlit (6.12 D8)", () => {
+    const { world } = eventWorld({ wave: 12, systems: noZombies });
+    expect(powerFailureWave(world, 12)).toBe(false); // not endless
+    world.run.endless = true;
+    expect(powerFailureWave(world, 12)).toBe(true);
+    expect(powerFailureWave(world, 13)).toBe(false);
+    expect(endlessEventCandidates(world, 12)).toContain("power_failure");
+    startNext(world, "power_failure");
+    tickN(world, FLICKER + 2);
+    expect(world.special.active.phase).toBe(EVENT_PHASE.DARK);
+    expect(world.lights.blackoutPct).toBe(PCT);
+    expect(world.lights.halfDark).toBe(false);
   });
 });

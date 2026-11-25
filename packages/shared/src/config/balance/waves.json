@@ -24,5 +24,22 @@
   ],
   "fixed": [{}, {}, {}, {}, { "brute": 1 }, { "brute": 1 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }],
   "fixedAtFraction": 0.25,
-  "fixedAtFractions": [0.25, 0.65]
+  "fixedAtFractions": [0.25, 0.65],
+  "evac": { "voteS": 15, "allVotedHoldS": 1, "dawnS": 4, "everyWaves": 5, "padRadiusM": 3 },
+  "endless": {
+    "maxZombiesPerWave": 600,
+    "hpGrowthFromWave": 15,
+    "hpGrowthPerWave": 0.06,
+    "brutesFirstWave": 11,
+    "brutesAtFirstWave": 3,
+    "brutesPerWave": 1,
+    "brutesMaxAlive": 6,
+    "bruteFromFraction": 0.25,
+    "bruteToFraction": 0.9,
+    "bossEveryWaves": 5,
+    "bossHpGrowthPerBoss": 0.25,
+    "eventEvenWaves": true,
+    "oddWaveMix": 9,
+    "evenWaveMix": 10
+  }
 }

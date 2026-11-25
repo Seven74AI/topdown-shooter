@@ -17,8 +17,10 @@ export function pickDevBossWaves(env: { readonly NODE_ENV?: string | undefined; 
   return waves === null ? { waves: null, ignored: "invalid" } : { waves, ignored: null };
 }
 
+/** … or `none` (re-review N1): no Behemoth at all, endless included (`[]`). */
 export function parseDevBossWaves(raw: string | null | undefined): readonly number[] | null {
   if (raw === null || raw === undefined || raw.trim() === "") return null;
+  if (raw.trim().toLowerCase() === "none") return Object.freeze([]);
   const parts = raw.split(",").map((s) => s.trim());
   if (parts.length > MAX_DEV_BOSS_WAVES || !parts.every((s) => /^\d{1,3}$/.test(s))) return null;
   const waves = parts.map(Number);

@@ -43,7 +43,7 @@ export const NET_EVENT_KIND = {
   BUILDING_DESTROYED: 22, // Story 3.5
   TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
-  RUN_HELD_OUT: 25, // Story 3.10
+  // 25 was RUN_HELD_OUT (Story 3.10; replaced by Story 6.11's vote): never reuse a kind number.
   DECAY_STAGE_CHANGED: 26, // Story 4.5
   // Story 5.9 (next free numbers at merge; never reuse):
   BUILDING_UPGRADED: 27,
@@ -84,6 +84,10 @@ export const NET_EVENT_KIND = {
   EVENT_PHASE_CHANGED: 56,
   EVENT_ENDED: 57,
   EVENT_SKIPPED: 58,
+  // Stories 6.11 + 6.12 (kinds 65–74 reserved; 55–64 are 6.8's; never reuse)
+  RUN_VOTE_OPENED: 65,
+  RUN_VOTE_RESOLVED: 66,
+  RUN_EXTRACTED: 67,
   // Stories 6.9 + 6.10 (75–84 are theirs; never reuse)
   WEAPON_CRATE_TAKEN: 75,
 } as const;
@@ -200,8 +204,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.PLAYER_RETURNED, playerSlotOf(e.playerId), cm(e.x), cm(e.y)];
     case "team.wiped":
       return [K.TEAM_WIPED, e.wave];
-    case "run.held_out":
-      return [K.RUN_HELD_OUT, e.wave];
+    case "run.vote_opened":
+      return [K.RUN_VOTE_OPENED, e.wave, e.ticks];
+    case "run.vote_resolved":
+      return [K.RUN_VOTE_RESOLVED, e.choice === "stay" ? 1 : 0, e.extract, e.stay, e.silent];
+    case "run.extracted":
+      return [K.RUN_EXTRACTED, e.wave, e.endless ? 1 : 0];
     case "wave.started":
       return [K.WAVE_STARTED, e.number, e.size];
     case "wave.ended":
@@ -441,8 +449,12 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "player.returned", playerId: pid(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.TEAM_WIPED:
       return { type: "team.wiped", wave: n(t, 1) };
-    case K.RUN_HELD_OUT:
-      return { type: "run.held_out", wave: n(t, 1) };
+    case K.RUN_VOTE_OPENED:
+      return { type: "run.vote_opened", wave: n(t, 1), ticks: n(t, 2) };
+    case K.RUN_VOTE_RESOLVED:
+      return { type: "run.vote_resolved", choice: n(t, 1) === 1 ? "stay" : "extract", extract: n(t, 2), stay: n(t, 3), silent: n(t, 4) };
+    case K.RUN_EXTRACTED:
+      return { type: "run.extracted", wave: n(t, 1), endless: n(t, 2) === 1 };
     case K.WAVE_STARTED:
       return { type: "wave.started", number: n(t, 1), size: n(t, 2) };
     case K.WAVE_ENDED:

@@ -20,7 +20,9 @@ import { setEventPhase, type EventModule } from "./common";
 
 /** P3: wave `wave` may have a power failure (6.12 calls this for endless). */
 export function powerFailureWave(world: Readonly<World>, wave: number): boolean {
-  return world.balance.events.powerFailure.waves.includes(wave) && wavePct(world, wave) <= 0;
+  if (world.balance.events.powerFailure.waves.includes(wave)) return wavePct(world, wave) <= 0;
+  // 6.10 D7 / 6.12 D6: an even endless wave (half dark, not a full blackout) — 20 % moonlit (6.12 D8, `refreshBlackout`).
+  return world.run.endless && wave > world.balance.waves.runWaves && wave % 2 === 0;
 }
 
 export const powerFailureModule: EventModule = {

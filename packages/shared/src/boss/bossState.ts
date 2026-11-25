@@ -207,12 +207,28 @@ export function resetBoss(b: BossState): void {
 
 /**
  * The one helper that says whether wave `wave` is a boss wave (`boss.json › bossWaves`, or the dev
- * override `DEV_BOSS_WAVES` / `?bosswave=`). 6.12 extends it for endless (`endless` = true).
+ * override `DEV_BOSS_WAVES` / `?bosswave=`, which replaces every rule). Story 6.12: in endless also every
+ * `endless.bossEveryWaves`-th wave past the run.
  */
 export function isBossWave(balance: Balance, wave: number, endless = false, override: readonly number[] | null = null): boolean {
-  void endless; // Story 6.12
-  const list = override ?? balance.boss.bossWaves;
-  return list.includes(wave);
+  // Review L7: a dev override (`DEV_BOSS_WAVES` / `?bosswave=`) is the whole list, endless included ([] = no Behemoth at all).
+  if (override) return override.includes(wave);
+  if (balance.boss.bossWaves.includes(wave)) return true;
+  // Story 6.12 (F4): in endless, every `endless.bossEveryWaves`-th wave past the run (15, 20, 25…).
+  const runWaves = balance.waves.runWaves;
+  return endless && wave > runWaves && (wave - runWaves) % balance.waves.endless.bossEveryWaves === 0;
+}
+
+/**
+ * Story 6.12 (F4, D1): the k-th endless Behemoth (k = (wave − runWaves) / bossEveryWaves) has
+ * `1 + bossHpGrowthPerBoss × k` × its HP; 1 for the wave-10 one. Its HP only: telegraphs, zones,
+ * damage and gaps never change (brief 21e), and the zombies' `hpMult` never applies to it.
+ */
+export function endlessBossHpMult(balance: Balance, wave: number, endless = false): number {
+  const runWaves = balance.waves.runWaves;
+  if (!endless || wave <= runWaves) return 1;
+  const k = Math.floor((wave - runWaves) / balance.waves.endless.bossEveryWaves);
+  return 1 + balance.waves.endless.bossHpGrowthPerBoss * k;
 }
 
 /** The boss warns or lives (WARNING…ROAR): the alive cap is 110 (D6, D11) and the wave can't end (F11). */
@@ -230,10 +246,10 @@ export function bossBodyOn(b: Readonly<BossState>): boolean {
  * solo × `soloHpScale` (0.4: designer 2026-11-24; the solo wave size has its own 0.35), and the dev
  * `?bosshp=` scale (tests only).
  */
-export function bossMaxHp(balance: Balance, players: number, devScale = 1): number {
+export function bossMaxHp(balance: Balance, players: number, devScale = 1, growth = 1): number {
   const n = Math.min(4, Math.max(1, players));
   const scale = n === 1 ? balance.boss.soloHpScale : (balance.waves.playerCountScale[n - 1] as number);
-  return Math.max(1, Math.round(balance.boss.hp * scale * devScale));
+  return Math.max(1, Math.round(balance.boss.hp * growth * scale * devScale)); // Story 6.12: `growth` = endlessBossHpMult
 }
 
 /** Records the boss position for this tick (`step()`, after the systems; row = `world.tick`). */
