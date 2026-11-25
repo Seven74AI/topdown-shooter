@@ -125,12 +125,6 @@ export function ProgressScreen() {
         </header>
         <p class="ph-rule">
           {HUB_TEXT.rule}
-          {districtsLine(progress) ? (
-            <span class="ph-districts" data-testid="hub-districts">
-              {" · "}
-              {districtsLine(progress)}
-            </span>
-          ) : null}
           {offline && !snap.loading ? (
             <span class="ph-offline" role="status" data-testid="hub-offline">
               {" "}
@@ -138,12 +132,18 @@ export function ProgressScreen() {
             </span>
           ) : null}
         </p>
+        {/* Story 7.7 (AC 7, D2): the Districts line, right of the tabs (one line, cut with … if it can't fit). */}
         <div class="ph-tabs" role="tablist">
           {HUB_TABS.map((t) => (
             <button key={t.id} type="button" role="tab" class={`ph-tab${t.id === tab ? " ph-tab--on" : ""}`} aria-selected={t.id === tab}>
               {t.label}
             </button>
           ))}
+          {districtsLine(progress) ? (
+            <span class="ph-districts" data-testid="hub-districts">
+              {districtsLine(progress)}
+            </span>
+          ) : null}
         </div>
         <div class="ph-list" role="tabpanel">
           {progress === null && snap.loading ? <p class="ph-note">{HUB_TEXT.loading}</p> : null}

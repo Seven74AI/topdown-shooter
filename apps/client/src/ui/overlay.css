@@ -2383,3 +2383,17 @@ button.lobby__district {
   font-weight: 600;
   color: var(--lumen-accent, #ff9a3c);
 }
+
+/* Story 7.7 (AC 7, D2): the hub's Districts line beside the tabs: one line, ellipsis, never wider than the tab bar. */
+.ph-districts {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 12px;
+  align-self: center;
+  font-size: 11px;
+  color: #c9ced6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}

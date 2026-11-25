@@ -85,7 +85,7 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     const r = await unlock(port, { token: a.token, unlockId: "chainsaw" });
     expect(r.status).toBe(200);
     const body = unlockResponseSchema.parse(r.body);
-    expect(body).toEqual({ ok: true, unlockId: "chainsaw", progress: { supplies: 40, lifetimeSupplies: 340, unlocks: ["chainsaw"] } });
+    expect(body).toEqual({ ok: true, unlockId: "chainsaw", progress: { supplies: 40, lifetimeSupplies: 340, unlocks: ["chainsaw"], districts: [], cosmetics: [] } });
     expect(await row(a.id)).toMatchObject({ supplies: 40, lifetimeSupplies: 340, unlocks: ["chainsaw"] });
     const lines = info.mock.calls.filter((c) => c[1] === "unlocked");
     expect(lines).toEqual([[{ accountId: a.id, unlockId: "chainsaw", price: 300, suppliesAfter: 40 }, "unlocked"]]);
@@ -100,14 +100,14 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
       body: "{}",
     });
     const s = accountSessionResponseSchema.parse(await res.json());
-    expect(s.saved && s.progress).toEqual({ supplies: 50, lifetimeSupplies: 150, unlocks: ["spike_trap"], look: null }); // + 7.9's look
+    expect(s.saved && s.progress).toEqual({ supplies: 50, lifetimeSupplies: 150, unlocks: ["spike_trap"], look: null, districts: [], cosmetics: [] }); // + 7.9's look, 7.7 / 7.11's lists
   });
 
   it("U3: not enough → not_enough with `need`, the row unchanged", async () => {
     const a = await account(340);
     const r = await unlock(port, { token: a.token, unlockId: "flamethrower" });
     expect(r.status).toBe(200);
-    expect(unlockResponseSchema.parse(r.body)).toEqual({ ok: false, unlockId: "flamethrower", reason: "not_enough", need: 60, progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] } });
+    expect(unlockResponseSchema.parse(r.body)).toEqual({ ok: false, unlockId: "flamethrower", reason: "not_enough", need: 60, progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [], districts: [], cosmetics: [] } });
     expect(await row(a.id)).toMatchObject({ supplies: 340, unlocks: [] });
     // a brand-new account (0 Supplies): need = the whole price
     const b = await account(0);
@@ -118,7 +118,7 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     const a = await account(1000);
     expect((await unlock(port, { token: a.token, unlockId: "mine" })).body.ok).toBe(true);
     const again = await unlock(port, { token: a.token, unlockId: "mine" });
-    expect(again.body).toEqual({ ok: false, unlockId: "mine", reason: "already_unlocked", progress: { supplies: 900, lifetimeSupplies: 1000, unlocks: ["mine"] } });
+    expect(again.body).toEqual({ ok: false, unlockId: "mine", reason: "already_unlocked", progress: { supplies: 900, lifetimeSupplies: 1000, unlocks: ["mine"], districts: [], cosmetics: [] } });
     expect(await row(a.id)).toMatchObject({ supplies: 900, unlocks: ["mine"] });
   });
 
@@ -127,7 +127,7 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     const requestId = randomUUID();
     const [x, y] = await Promise.all([unlock(port, { token: a.token, unlockId: "bear_trap", requestId }), unlock(port, { token: a.token, unlockId: "bear_trap", requestId })]);
     const z = await unlock(port, { token: a.token, unlockId: "bear_trap", requestId });
-    for (const r of [x, y, z]) expect(r.body).toEqual({ ok: true, unlockId: "bear_trap", progress: { supplies: 400, lifetimeSupplies: 500, unlocks: ["bear_trap"] } });
+    for (const r of [x, y, z]) expect(r.body).toEqual({ ok: true, unlockId: "bear_trap", progress: { supplies: 400, lifetimeSupplies: 500, unlocks: ["bear_trap"], districts: [], cosmetics: [] } });
     expect(await row(a.id)).toMatchObject({ supplies: 400, unlocks: ["bear_trap"] });
   });
 
@@ -189,8 +189,8 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     const requestId = randomUUID();
     const ra = await unlock(port, { token: a.token, unlockId: "mine", requestId });
     const rb = await unlock(port, { token: b.token, unlockId: "mine", requestId });
-    expect(ra.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 400, lifetimeSupplies: 500, unlocks: ["mine"] } });
-    expect(rb.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"] } });
+    expect(ra.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 400, lifetimeSupplies: 500, unlocks: ["mine"], districts: [], cosmetics: [] } });
+    expect(rb.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"], districts: [], cosmetics: [] } });
     expect(await row(b.id)).toMatchObject({ supplies: 150, unlocks: ["mine"] });
     // and B replaying A's id for another item never sees A's numbers
     const rb2 = await unlock(port, { token: b.token, unlockId: "bear_trap", requestId: randomUUID() });
@@ -229,7 +229,7 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     expect(first.status).toBe(503);
     spy.mockRestore();
     const retry = await unlock(port, { token: a.token, unlockId: "floodlight", requestId });
-    expect(retry.body).toEqual({ ok: true, unlockId: "floodlight", progress: { supplies: 380, lifetimeSupplies: 500, unlocks: ["floodlight"] } });
+    expect(retry.body).toEqual({ ok: true, unlockId: "floodlight", progress: { supplies: 380, lifetimeSupplies: 500, unlocks: ["floodlight"], districts: [], cosmetics: [] } });
   });
 
   it("the database down → 503, never a fake ok", async () => {

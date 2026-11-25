@@ -38,7 +38,7 @@ describe("session response look (Story 7.9 AC 1)", () => {
     const database = openPglite();
     open.push(database);
     const r = await session(database);
-    expect(r.saved && r.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null }); // Story 7.3 merge: one progress object
+    expect(r.saved && r.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null, districts: [], cosmetics: [] }); // Story 7.3 merge: one progress object (+ 7.7 / 7.11 lists)
   });
 
   it("a stored look comes back as saved; junk in the column comes back canonical (never a client parse failure)", async () => {

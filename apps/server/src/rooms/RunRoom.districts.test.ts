@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { sql } from "drizzle-orm";
 import { C2S, DEFAULT_LOOK, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
+import { setProgressListsForTest } from "../db/testQueries";
 import { type Database, openPglite } from "../db/client";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
@@ -36,8 +36,7 @@ type RunSdkRoom = SdkRoom<unknown, RunStateView>;
 const hex = (): string => randomBytes(16).toString("hex");
 async function newAccount(districts: string[] = [], cosmetics: string[] = []): Promise<string> {
   const id = (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
-  const db = await database.db();
-  await db.execute(sql`update progress set districts = ${JSON.stringify(districts)}::jsonb, cosmetics = ${`{${cosmetics.join(",")}}`}::text[] where account_id = ${id}`);
+  await setProgressListsForTest(database, id, districts, cosmetics);
   return id;
 }
 const options = (intent: "create" | "join", name: string, accountId: string | null, look?: unknown) => {

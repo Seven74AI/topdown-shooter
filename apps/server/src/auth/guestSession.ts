@@ -115,7 +115,7 @@ export async function resolveGuestSession(
     if (!deps.progress) return {};
     try {
       const row = await deps.progress.get(accountId);
-      if (!row) return { progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null } };
+      if (!row) return { progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null, districts: [], cosmetics: [] } };
       return { progress: { ...toView(row), look: canonicalLook(row.look) } };
     } catch {
       return { progress: null }; // logged as db_error by the repository
