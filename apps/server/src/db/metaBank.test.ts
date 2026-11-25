@@ -144,8 +144,9 @@ describe("Stories 7.7 / 7.11 / 7.12: the bank's meta writes (PGlite)", () => {
       cpSync(MIGRATIONS_FOLDER, dir, { recursive: true });
       const journalPath = join(dir, "meta", "_journal.json");
       const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
-      expect(journal.entries.map((e) => e.tag).slice(-3)).toEqual(["0002_look", "0003_accounts_devices", "0004_milestones_loot"]); // after 7.6
-      writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.filter((e) => e.tag !== "0004_milestones_loot") }));
+      const tags = journal.entries.map((e) => e.tag);
+      expect(tags.slice(2, 5)).toEqual(["0002_look", "0003_accounts_devices", "0004_milestones_loot"]); // after 7.6
+      writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.slice(0, tags.indexOf("0004_milestones_loot")) })); // the 0003 schema
       const [{ PGlite }, { drizzle }, { migrate }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite"), import("drizzle-orm/pglite/migrator")]);
       const client = new PGlite();
       try {
@@ -158,7 +159,7 @@ describe("Stories 7.7 / 7.11 / 7.12: the bank's meta writes (PGlite)", () => {
         await db.execute(sql`insert into device_tokens (token_hash, account_id) select ${"e".repeat(64)}, id from accounts`);
         await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
         const applied = (await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`)) as unknown as { rows: { n: number }[] };
-        expect(applied.rows[0]?.n).toBe(5); // 0004 really ran (not skipped as older)
+        expect(applied.rows[0]?.n).toBe(journal.entries.length); // 0004 (and every later one) really ran (not skipped as older)
         const r = await db.execute(sql`select supplies, look, cosmetics, stats from progress`);
         expect((r as unknown as { rows: unknown[] }).rows).toEqual([{ supplies: 77, look: "v1", cosmetics: [], stats: { revives: 0, kills: 0, barricades: 0, runs: 0 } }]);
         const tokens = (await db.execute(sql`select count(*)::int as n from device_tokens`)) as unknown as { rows: { n: number }[] };

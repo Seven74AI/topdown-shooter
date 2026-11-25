@@ -51,6 +51,6 @@ describe("Stories 8.2 + 8.3 client wiring", () => {
     expect(client("main.ts")).toMatch(/if \(reason === "removed"\) \{[\s\S]*?serverNotice\.show\(JOIN_ERROR_TEXT\.removed\);/);
     // Review M3: a reload of a removed held/remembered seat shows the removed text (resumeSavedSeat).
     expect(client("main.ts")).toMatch(/if \(!r\.ok && r\.reason === "removed"\) removed = true;[\s\S]*?if \(removed\) serverNotice\.show\(JOIN_ERROR_TEXT\.removed\);/);
-    expect(client("ui", "ServerNotice.tsx")).toMatch(/text === JOIN_ERROR_TEXT\.removed \? "OK" : "Back to start"/);
+    expect(client("ui", "ServerNotice.tsx")).toMatch(/text === JOIN_ERROR_TEXT\.removed( \|\| text === RUN_SAVED_TEXT)? \? "OK" : "Back to start"/); // Story 8.5: + Run saved
   });
 });

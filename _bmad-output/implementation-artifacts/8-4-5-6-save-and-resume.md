@@ -4,7 +4,7 @@ baseline_commit: 0ee0d6db
 
 # Story 8.4+8.5+8.6 (merged): Autosave at every build phase · Save and quit · Resume a saved run
 
-Status: ready-for-dev
+Status: review
 
 <!-- Merged story (designer 2026-11-25, docs/story-merges-2026-11-25.md): one save format, one storage table, one restore path; ONE builder, ONE full fresh review (≤ 2 narrow re-reviews, then main-session checks). Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db and the Epic 7 branches story-7-1 / story-7-2 (NOT on master yet: this story starts only after 7.1 and 7.2 are on master). Epic 8 D10–D14 are RULES. New decisions: docs/epic-8-story-decisions.md (codes S…, R…), "recommended, to accept". -->
 
@@ -50,16 +50,16 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Fairness tests first** (S1–S9): `packages/shared/src/save/runSave.test.ts` (round trip, size), `runSave.coverage.test.ts`, `migrations.test.ts`; `apps/server/src/rooms/RunRoom.save.test.ts` (autosave twice per build, Save and quit, mid-wave leave = lost, shutdown in build/wave, tick-error), `RunRoom.resume.test.ts` (claim twice, returning/newcomer/missing seats, wave size, bans); `apps/server/src/db/savedRunsRepo.test.ts` (PGlite) + a `realPostgres.test.ts` case (two concurrent claims → one wins).
-- [ ] **T2 Save format + restore** (AC 3, 4, 13): `packages/shared/src/save/{runSave,migrations,restore}.ts`; small per-system helpers next to their owners (`buildings/`, `economy/shopCards.ts` `restoreShop`, `boss/bossState.ts`, `events/eventState.ts`, `core/seedStreams.ts` `restoreSeedStreams` from `RngState` (`rng.ts` `createRngFromState`), `decay/applyDecayStage.ts` no-side-effect use), exported from `packages/shared/src/index.ts`.
-- [ ] **T3 Database** (AC 1, 2, 8): `apps/server/src/db/schema.ts`, `drizzle/NNNN_saved_runs.sql` + meta, `db/savedRunsRepo.ts`, boot sweep in `apps/server/src/index.ts` / `app.ts` (`setRoomAccounts`-style injection: `setRoomSaves(repo)` in `auth/roomAccounts.ts` or a sibling `run/roomSaves.ts`).
-- [ ] **T4 Autosave + resumable rules** (AC 5, 6, 7): `apps/server/src/run/saveWriter.ts`, `RunRoom.ts` (`onTick`, `finalLeave`, `onBeforeShutdown`, `onUncaughtException`), `buildEndsThisTick` in `packages/shared/src/run/runStateMachine.ts`.
-- [ ] **T5 Save and quit** (AC 9, 10): `messages.ts` (`RUN_SAVE_QUIT`, `RUN_SAVED`, `RUN_SAVE_FAILED`), `net/limits.ts` `CLOSE_RUN_SAVED = 4023`, `RunRoom.onSaveQuit`; client `ui/menuItems.ts`, `ui/uiState.ts`, `ui/InRunMenu.tsx`, `net/linkMonitor.ts`/`connection.ts` (4023 terminal), a saved screen (`ui/ConnectionOverlay.tsx` or a small `ui/RunSavedScreen.tsx`).
-- [ ] **T6 Supplies across nights** (AC S4): `apps/server/src/meta/banking.ts` — ending `"saved"` (no extract bonus) at every `markSaved`, top-up at the end (8.2+8.3's E8-J6; if T9 of 8.2+8.3 was not built, build it here first).
-- [ ] **T7 Saved games + resume** (AC 11, 12, 13): route `GET /api/saved-runs`; `joinOptionsSchema` `intent: "resume"`, `savedRunId`; `RunRoom.onCreate` claim; `startRun` restore branch (`RunController` gains `fromSave(save)` static); `JoinRefusal` `save_busy`, `save_gone`; client `ui/StartScreen.tsx`, `net/` fetch, `net/joinErrors.ts`, `ui/LobbyScreen.tsx` resume line.
-- [ ] **T8 Bots/tools**: `npm run bots -- --save-quit-at 3` then `--resume <id>` (bots resume and finish the run) with a liveness test (saved, claimed, restored digest == saved digest, waves continued, Results, row deleted).
-- [ ] **T9 Docs**: `docs/deploy.md` + `docs/hermes-go-live.md` (migration NNNN runs in `deploy.sh`; saves survive deploys; rollback note: an older server image ignores `saved_runs`), `epics.md` Epic 8 intro sentence → "the coverage test in Story 8.4" (R8).
-- [ ] **T10 Gate** (R6) + measurements: save bytes (2p wave 3, 4p wave 10 + 60 buildings, endless 15), capture ms p99, write ms on PGlite; dated report `docs/perf/epic-8-saves.md`.
+- [x] **T1 Fairness tests first** (S1–S9): `packages/shared/src/save/runSave.test.ts` (round trip, size), `runSave.coverage.test.ts`, `migrations.test.ts`; `apps/server/src/rooms/RunRoom.save.test.ts` (autosave twice per build, Save and quit, mid-wave leave = lost, shutdown in build/wave, tick-error), `RunRoom.resume.test.ts` (claim twice, returning/newcomer/missing seats, wave size, bans); `apps/server/src/db/savedRunsRepo.test.ts` (PGlite) + a `realPostgres.test.ts` case (two concurrent claims → one wins).
+- [x] **T2 Save format + restore** (AC 3, 4, 13): `packages/shared/src/save/{runSave,migrations,restore}.ts`; small per-system helpers next to their owners (`buildings/`, `economy/shopCards.ts` `restoreShop`, `boss/bossState.ts`, `events/eventState.ts`, `core/seedStreams.ts` `restoreSeedStreams` from `RngState` (`rng.ts` `createRngFromState`), `decay/applyDecayStage.ts` no-side-effect use), exported from `packages/shared/src/index.ts`.
+- [x] **T3 Database** (AC 1, 2, 8): `apps/server/src/db/schema.ts`, `drizzle/NNNN_saved_runs.sql` + meta, `db/savedRunsRepo.ts`, boot sweep in `apps/server/src/index.ts` / `app.ts` (`setRoomAccounts`-style injection: `setRoomSaves(repo)` in `auth/roomAccounts.ts` or a sibling `run/roomSaves.ts`).
+- [x] **T4 Autosave + resumable rules** (AC 5, 6, 7): `apps/server/src/run/saveWriter.ts`, `RunRoom.ts` (`onTick`, `finalLeave`, `onBeforeShutdown`, `onUncaughtException`), `buildEndsThisTick` in `packages/shared/src/run/runStateMachine.ts`.
+- [x] **T5 Save and quit** (AC 9, 10): `messages.ts` (`RUN_SAVE_QUIT`, `RUN_SAVED`, `RUN_SAVE_FAILED`), `net/limits.ts` `CLOSE_RUN_SAVED = 4023`, `RunRoom.onSaveQuit`; client `ui/menuItems.ts`, `ui/uiState.ts`, `ui/InRunMenu.tsx`, `net/linkMonitor.ts`/`connection.ts` (4023 terminal), a saved screen (`ui/ConnectionOverlay.tsx` or a small `ui/RunSavedScreen.tsx`).
+- [x] **T6 Supplies across nights** (AC S4): `apps/server/src/meta/banking.ts` — ending `"saved"` (no extract bonus) at every `markSaved`, top-up at the end (8.2+8.3's E8-J6; if T9 of 8.2+8.3 was not built, build it here first).
+- [x] **T7 Saved games + resume** (AC 11, 12, 13): route `GET /api/saved-runs`; `joinOptionsSchema` `intent: "resume"`, `savedRunId`; `RunRoom.onCreate` claim; `startRun` restore branch (`RunController` gains `fromSave(save)` static); `JoinRefusal` `save_busy`, `save_gone`; client `ui/StartScreen.tsx`, `net/` fetch, `net/joinErrors.ts`, `ui/LobbyScreen.tsx` resume line.
+- [x] **T8 Bots/tools**: `npm run bots -- --save-quit-at 3` then `--resume <id>` (bots resume and finish the run) with a liveness test (saved, claimed, restored digest == saved digest, waves continued, Results, row deleted).
+- [x] **T9 Docs**: `docs/deploy.md` + `docs/hermes-go-live.md` (migration NNNN runs in `deploy.sh`; saves survive deploys; rollback note: an older server image ignores `saved_runs`), `epics.md` Epic 8 intro sentence → "the coverage test in Story 8.4" (R8).
+- [x] **T10 Gate** (R6) + measurements: save bytes (2p wave 3, 4p wave 10 + 60 buildings, endless 15), capture ms p99, write ms on PGlite; dated report `docs/perf/epic-8-saves.md`.
 
 ## Dev Notes
 
@@ -125,10 +125,139 @@ Shared: `save/runSave.ts`, `save/restore.ts`, `save/migrations.ts` (+ tests), he
 
 ### Agent Model Used
 
+Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
+
 ### Gate
+
+- `npm run gate:fast` at hand-back: see the PR body (the PR's CI `gate` is the full gate).
+- Real PostgreSQL (opt-in, CI skips it: no `TEST_DATABASE_URL`): `realPostgresSaves.test.ts` 2/2 and the existing `realPostgres*.test.ts` green against a local PostgreSQL 16 (`TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5433/t86`).
+- Browser: `tools/checks/saveMenuDomLayout.test.ts` (20) + `playersMenuDomLayout.test.ts` (20) green locally.
 
 ### Debug Log References
 
+- Real CLI run on a dev server (PGlite dir): `npm run bots -- --count 2 --save-quit-at 1` → `bots_saved {runId}`; `npm run bots -- --count 2 --resume <runId> --until-wave 3` → `run_resumed {seatsBack: 2, digestChecked: true}`, waves 2–3 played, Supplies 20 → 60 per account (top-up), the build-phase leave made it resumable again.
+- A second server process started on the same PGlite directory released the first one's open run (`saved_runs_released {count: 1}`, `save_banked`): the boot sweep and its top-up on real data (not a clean kill -9 test).
+
 ### Completion Notes List
 
+- **Save format** (`packages/shared/src/save/`): `captureRunSave` / `restoreRunSave` / `resumeSavedRun`, generic plain-JSON capture (`toPlain` / `hydrate`: typed arrays → number arrays, Maps/Sets → sorted entries) for the run's records, custom paths for streams, decay (mutation-only `applyDecayStage`), pools (counters; shots in flight sparse, 8.4-B2), seats (present, held, remembered). `saveDigest` checked on restore (8.4-B1). `WORLD_SAVE_PLAN` + `runSave.coverage.test.ts` classify every World / PlayerState / Building / RunState / BossState / SpecialEventState / DecayState / LightState / ShopOffers / SeedStreams / WaveState / LootState key. `SAVE_SCHEMA_VERSION = 1`, `migrateRunSave`, a committed v1 fixture and a shape test (a shape change without a version bump fails). E8-S9 drops unknown ids with refunds.
+- **Database**: migration `0005_saved_runs` (generated by drizzle-kit on master), `savedRunsRepo` (bounded transactions; `claim` is one conditional UPDATE), brief-21 forward test on the 0004 schema with rows, PGlite tests, real-PG races (8 claims → 1, ×10; 6 concurrent save banks → 1 row, one run's Supplies).
+- **Room**: autosaves (first tick, build start, build's last tick via `buildEndsThisTick`, vote), `SaveWriter` (one write in flight, newest queued wins), Save and quit (host, build/vote, ticks paused while writing, 4023, S8 failure path), everyone-left (calm → resumable, wave → lost), shutdown (calm → save now, wave → last autosave), tick-error close (last autosave), finished run deletes its save, boot sweep, resume claim in `onCreate`, resume lobby (own slots, newcomer slots, bans, district fixed), restore at Start (returning seats, remembered away seats, newcomers with late-join money and no +15 s), every bank of a resumed run a top-up (S4), prune to 3 per account.
+- **Client**: Save and quit (menu item, greyed note, confirm, "Saving…", failed text, waits for my pending placements), the 4023 "Run saved" notice, Saved games on the start screen (Retry on failure), `resumeGame`, the lobby's "Resuming · Downtown · wave N" line, join texts.
+- **PR #9 review L1** fixed: `teamLoot.seatId` + `PlayerState.seat`; Results match on the seat ("A teammate" when gone); `loot_finder_unknown` error log (nit). Tests: `bankingMeta.test.ts`, `rewardsMeta.test.ts`.
+- **Bots**: `--account`, `--tokens`, `--save-quit-at W`, `--resume <runId>`; liveness `tools/bots/saveResume.test.ts`.
+- B-codes 8.4-B1…B4, 8.5-B1…B3, 8.6-B1…B7 in `docs/epic-8-story-decisions.md` (auto-accepted).
+- Not verified: production PostgreSQL write times; a real phone; the client's late-scene start on a resumed run in a real browser (covered by the bots and room tests only).
+
 ### File List
+
+- `.gitignore`
+- `_bmad-output/implementation-artifacts/8-4-5-6-save-and-resume.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/epics.md`
+- `apps/client/src/main.ts`
+- `apps/client/src/net/connection.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/joinErrors.ts`
+- `apps/client/src/net/lobbyLost.test.ts`
+- `apps/client/src/net/lobbyStore.test.ts`
+- `apps/client/src/net/lobbyStore.ts`
+- `apps/client/src/net/onlineFlow.ts`
+- `apps/client/src/net/savedRuns.test.ts`
+- `apps/client/src/net/savedRuns.ts`
+- `apps/client/src/net/serverNotice.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/ui/InRunMenu.tsx`
+- `apps/client/src/ui/LobbyScreen.tsx`
+- `apps/client/src/ui/ResultsScreen.tsx`
+- `apps/client/src/ui/ServerNotice.tsx`
+- `apps/client/src/ui/StartScreen.tsx`
+- `apps/client/src/ui/menuItems.test.ts`
+- `apps/client/src/ui/menuItems.ts`
+- `apps/client/src/ui/overlay.css`
+- `apps/client/src/ui/pendingPlacements.ts`
+- `apps/client/src/ui/rewardsMeta.test.ts`
+- `apps/client/src/ui/rewardsModel.ts`
+- `apps/client/src/ui/uiState.ts`
+- `apps/server/drizzle/0005_saved_runs.sql`
+- `apps/server/drizzle/meta/0005_snapshot.json`
+- `apps/server/drizzle/meta/_journal.json`
+- `apps/server/src/app.ts`
+- `apps/server/src/auth/savedRunsRoute.ts`
+- `apps/server/src/db/db.test.ts`
+- `apps/server/src/db/deviceTokensRepo.ts`
+- `apps/server/src/db/mergeRules.test.ts`
+- `apps/server/src/db/metaBank.test.ts`
+- `apps/server/src/db/progressRepo.ts`
+- `apps/server/src/db/realPostgres.test.ts`
+- `apps/server/src/db/realPostgresAccounts.test.ts`
+- `apps/server/src/db/realPostgresSaves.test.ts`
+- `apps/server/src/db/savedRunsRepo.test.ts`
+- `apps/server/src/db/savedRunsRepo.ts`
+- `apps/server/src/db/schema.ts`
+- `apps/server/src/index.ts`
+- `apps/server/src/meta/banking.ts`
+- `apps/server/src/meta/bankingMeta.test.ts`
+- `apps/server/src/meta/merge.ts`
+- `apps/server/src/meta/saveBank.ts`
+- `apps/server/src/net/limits.ts`
+- `apps/server/src/net/rateLimit.ts`
+- `apps/server/src/rooms/RunRoom.resume.test.ts`
+- `apps/server/src/rooms/RunRoom.save.test.ts`
+- `apps/server/src/rooms/RunRoom.saveReview.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/roomSaves.test.ts`
+- `apps/server/src/run/roomSaves.ts`
+- `apps/server/src/test/saveKit.ts`
+- `docs/deploy.md`
+- `docs/epic-8-story-decisions.md`
+- `docs/hermes-go-live.md`
+- `docs/perf/epic-8-saves.md`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/net/reconnect.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/run/buildEndsThisTick.test.ts`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/save/fixtures/runSave.v1.json`
+- `packages/shared/src/save/migrations.test.ts`
+- `packages/shared/src/save/migrations.ts`
+- `packages/shared/src/save/plain.ts`
+- `packages/shared/src/save/restore.ts`
+- `packages/shared/src/save/runSave.coverage.test.ts`
+- `packages/shared/src/save/runSave.test.ts`
+- `packages/shared/src/save/runSave.ts`
+- `packages/shared/src/save/saveFixtures.ts`
+- `tools/bots/botClient.ts`
+- `tools/bots/run.ts`
+- `tools/bots/saveResume.test.ts`
+- `tools/checks/accountUpgradeWiring.test.ts`
+- `tools/checks/lateJoinHostWiring.test.ts`
+- `tools/checks/metaWiring.test.ts`
+- `tools/checks/saveMenuDomLayout.test.ts`
+- `tools/checks/survivorEditorWiring.test.ts`
+
+### Review round 1 (parent's review of 4dd949e: 1 H / 6 M / ~12 L) — fixes
+
+- **H1** one bag pays once: `RunSave.lootFinderSeat` noted by `bankSavedRun` and the resumed RunBank; a removed finder's find is cleared (`afterRemove`); the bank transaction strips a find another account of the run already holds (`progressRepo.oneBagPerRun`, advisory lock). Tests: room find → remove → reused p1 → save → resume → wipe (one owner); PGlite + real-PG race ×10.
+- **M1** vote-resume newcomers wait (8.2 path) and enter at the build start (test).
+- **M2** shutdown / tick-error saves await the Supplies top-up inside the bounded wait (test); the boot sweep also banks resumable saves with no `run_rewards` row (`listUnbanked`, test).
+- **M3** 8.6-B8: `codeVersion` + `mapVersion` check; cross-build best-effort restore; another map → `save_too_old`, row deleted, waves paid once (tests, shared + room).
+- **M4** every refused Save and quit answers `run.save_failed {reason}`; the client times out after 8 s; Cancel stays usable; "Saving…" in the layout test (tests).
+- **M5** no 'open' row outlives its room: all-left failure → last stored autosave, else delete (8.4-B5); delete retried; onDispose settles a held row; a resumed run's claimed row counts as its last save (early tick errors mark it). Tests.
+- **M6** a guest's saved runs follow the merge (`saved_run_players` re-pointed; a resume maps `acct:<guest>` seats by `mergedInto`); `ACCOUNT_TABLE_MERGES` + schema test (tests).
+- **Lows**: Remove refused while saving; Remove in a build autosaves at once (unlinks the account, no resurrection by an older autosave); `lastSave` only after the write; per-run token; a resumed lobby needs one of its own seats (the last one leaving releases the save); `saved_at` column (0005 regenerated, unreleased); away seats' flags reset; `seatCounter` saved; boot sweep uses the district map; a lost run logs "lost"; `run_save_failed` once per run on a dead database; route rate key (8.6-B11); tests for S1 extras (fires, boss record, endless, blackout, bag), the shape check (version-keyed hashes with value types), the resume wave size, "Couldn't load saved games" layout, the endless wave-15 size (23.6 KB).
+- **Nits**: realPostgres files documented for `--no-file-parallelism`; spec names: C2S `run.save_quit` / S2C `run.saved` / `run.save_failed` as specified; the list is `POST /api/saved-runs` (8.6-B2, story said GET); the refusal set adds `save_unavailable` and `save_too_old` to the story's two.
+
+### Review round 2 (re-review of 6b38bad: 1 H + 3 L) — fixes
+
+- **H** a merged guest paid twice on resume: the bank transaction finds the run's earlier row on the payee OR any account merged into it (or the payee when a merged guest's seat banks): a top-up raises that row, a first bank pays nothing again; `listUnbanked` counts such a row as banked. The resume keeps mapping the seat (key and account) to the merged account so the save stays listed for it (part (a) "keep the original accountId" would unlink the save from the account for seats still away; the bank-side lookup covers both directions instead). Tests: room (guest banks wave 1 → merge → resume → Save and quit: 20 stays 20, one row), PGlite and real PG (×5 concurrent top-ups).
+- **L2** the Start restore passes `codeVersion` (same as the claim's trial).
+- **L3** a removed finder's `foundBy` is kept (the noted seat + `oneBagPerRun` decide); teammates' Results keep the "found" line with the finder's seat id (test).
+- **L4** the boot sweep's expiry is `SAVE_KEEP_MS` after the row's last write (D13: 7 days in the story; the review note said 14, the story's 7 kept), never a claim's old expiry (test).
+
+### Change Log
+
+- 2026-11-25: Stories 8.4+8.5+8.6 implemented (save format, saved_runs, autosave, Save and quit, resume, Saved games, bots, docs) + PR #9 review L1.

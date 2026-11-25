@@ -90,6 +90,9 @@ export const C2S = {
    * unknown id) is logged and ignored. "other" bucket.
    */
   HOST_REMOVE: "host.remove",
+  // ── Stories 8.4–8.6 (save and resume) ──
+  /** `{}` (Story 8.5, D12): the host saves the run and quits — build phase or vote only. "other" bucket. */
+  RUN_SAVE_QUIT: "run.save_quit",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -154,6 +157,11 @@ export const S2C = {
   // ── Story 8.3 (host remove) ──
   /** `{}` (Story 8.3, H3): to the removed player only, right before the server closes their socket with 4022. */
   PLAYER_REMOVED: "player.removed",
+  // ── Stories 8.4–8.6 (save and resume) ──
+  /** `{ expiresAt }` (Story 8.5): the run is saved; every socket closes with 4023 right after ("Run saved" screen). */
+  RUN_SAVED: "run.saved",
+  /** `{}` (Story 8.5, E8-S8): to the host only: the save failed; the room stays open and play goes on. */
+  RUN_SAVE_FAILED: "run.save_failed",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -180,7 +188,7 @@ export type { RunPhase } from "../run/runStateMachine";
  * or kept for a teammate's held or remembered seat (J3, decision E8-J3). Story 8.3: `removed` — the host removed this
  * seat from the room (H3, decision E8-H2: for the room's lifetime).
  */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed";
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed" | "save_busy" | "save_gone" | "save_unavailable" | "save_too_old";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -216,7 +224,10 @@ export const playerNameSchema = z
 /** Options sent with `client.create` / `client.joinById`; checked in `RunRoom.onAuth`. */
 export const joinOptionsSchema = z
   .object({
-    intent: z.enum(["create", "join"]),
+    /** Story 8.6: "resume" creates a room for a saved run (`savedRunId`, the caller's ticket must be linked to it). */
+    intent: z.enum(["create", "join", "resume"]),
+    /** Story 8.6: the saved run to resume (its run id). Only with intent "resume". */
+    savedRunId: z.string().uuid().optional(),
     name: playerNameSchema,
     /** `balance.version` of the client; must equal the server's (AC 4). */
     balanceVersion: z.string().min(1).max(16),
@@ -555,7 +566,7 @@ export const runRewardsSchema = z
     /** Story 7.12: my find — "Found in wave N: <name>", or Collector (`key` null). */
     loot: z.object({ wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
     /** Story 7.12 (D1): a teammate's find, on everyone else's Results ("Ana found: Traffic cone"). */
-    teamLoot: z.object({ playerId: z.string().max(4), wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
+    teamLoot: z.object({ playerId: z.string().max(4), seatId: z.string().max(16).optional(), wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
     /** Story 7.7: districts this run unlocked ("Unlocked: District 2"). */
     newDistricts: z.array(z.object({ id: z.string().max(32), name: z.string().max(24) }).strict()).max(8).optional(),
   })
@@ -628,3 +639,27 @@ export const hostRemoveSchema = z.object({ playerId: z.string().regex(/^p[0-3]$/
 export type HostRemove = z.infer<typeof hostRemoveSchema>;
 /** `player.removed` payload (Story 8.3): nothing (the reason is the message itself). */
 export type PlayerRemoved = Record<string, never>;
+
+// ── Stories 8.4–8.6 (save and resume) ──
+/** `run.save_quit` (Story 8.5): nothing. */
+export const runSaveQuitSchema = z.object({}).strict();
+/** `run.saved` payload (Story 8.5): when the save stops being resumable (ISO time). */
+export interface RunSaved {
+  expiresAt: string;
+}
+/**
+ * `run.save_failed` payload (Story 8.5, E8-S8; review M4: every refusal answers): `failed` = the write failed, the rest
+ * are refusals (`not_host`, `not_now` = not a build phase or the vote, `saving` = already saving, `no_database`).
+ */
+export interface RunSaveFailed {
+  reason: "failed" | "not_host" | "not_now" | "saving" | "no_database";
+}
+/** Story 8.6: one row of `GET /api/saved-runs` (D13: newest first, at most 3). */
+export interface SavedRunSummary {
+  id: string;
+  district: string;
+  wave: number;
+  names: { name: string; slot: number }[];
+  savedAt: string;
+  expiresAt: string;
+}

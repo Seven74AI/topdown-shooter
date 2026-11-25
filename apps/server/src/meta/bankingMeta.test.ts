@@ -115,6 +115,24 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     expect(r?.teamLoot).toBeUndefined();
   });
 
+  it("PR #9 review L1: the finder (p3#4) banked and was removed, Eve (p3#6) reuses p3 → the teammates' line carries the FINDER's seat id", async () => {
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const w = team(2, "wiped");
+    const p3 = addPlayer(w, "p3", 12, 10);
+    p3.wavesIn = 5;
+    w.loot.foundBy = "p3";
+    w.loot.foundWave = 3;
+    w.loot.plan.itemRoll = 0;
+    bank.noteLootFinder("p3#4"); // Di found it …
+    await bank.bank({ playerId: "p3", seatId: "p3#4", accountId: ACCTS[3] as string, record: p3, ending: "quit", wave: 4, meta: bank.seatMetaNow(w, p3) }); // … and banked on her removal
+    // Eve now sits in p3 (a new seat); the run ends
+    const res = await bank.bankRunEnd(w, [{ playerId: "p0", seatId: "p0#1", accountId: ACCTS[0] as string }, { playerId: "p3", seatId: "p3#6", accountId: ACCTS[2] as string }], []);
+    expect(res[0]?.teamLoot).toEqual({ playerId: "p3", seatId: "p3#4", wave: 3, key: lootPartKeys()[0], name: "Floral shirt" });
+    expect(res[1]?.loot).toBeUndefined(); // Eve found nothing
+    expect(res[1]?.teamLoot?.seatId).toBe("p3#4"); // her phone matches the finder by seat: not "Eve found"
+  });
+
   it("B33 (designer override 2026-11-25): the finder's bank fails → no team line, the finder's row says so, one loot_bank_failed line without params", async () => {
     const { repo } = fakeRepo();
     const failing: ProgressRepo = {

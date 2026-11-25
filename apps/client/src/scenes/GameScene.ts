@@ -102,6 +102,7 @@ import { BuildingView } from "../render/BuildingView";
 import { BlockReasonView } from "../render/BlockReasonView";
 import { PendingView } from "../render/PendingView";
 import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
+import { pendingPlacements } from "../ui/pendingPlacements";
 import { runPendingFrame, type PendingFlowScene } from "./pendingFlow";
 import { MineView } from "../render/MineView";
 import { MINE_SHAKE_MS, mineShakeIntensity } from "../render/mineBlast";
@@ -2117,6 +2118,7 @@ export class GameScene extends Phaser.Scene {
     fc.shopOpen = shopOpen;
     fc.deltaMs = deltaMs;
     runPendingFrame(this.pending, host, this.time.now, this.pendingScene, this.sendNow, this.refusalsDropped);
+    pendingPlacements.set(this.pending.count); // Story 8.5: Save and quit waits for my placements to settle
     const repairRefused = host.takeRepairRefusal(); // Story 3.7
     if (repairRefused) this.toasts.push(this.repairText(repairRefused));
     const upgradeRefused = host.takeUpgradeRefusal(); // Story 5.9

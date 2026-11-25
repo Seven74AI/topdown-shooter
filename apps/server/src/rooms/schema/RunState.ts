@@ -99,6 +99,8 @@ const playerFields = {
   trainReload: t.uint8().default(0),
   // Story 8.2 (J4): a late joiner watching a wave (or the vote) until the next build start; not in the World. Appended last.
   waiting: t.boolean().default(false),
+  // PR #9 review L1: the seat's id (`playerId#generation`), set at join / return; Results match a teammate's find on it.
+  seat: t.string().default(""),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
@@ -234,6 +236,8 @@ const runFields = {
   districtsOpen: t.uint8().default(1),
   // Story 8.3 (AC 11): the remembered seats as JSON [[playerId, name], …] ("" none), for the host's Players list. On change only.
   leftSeats: t.string().default(""),
+  // Story 8.6 (E8-R1): a resumed run's lobby shows "Resuming · <district> · wave N" (0 = not a resume). On change only.
+  resumeWave: t.uint16().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;
