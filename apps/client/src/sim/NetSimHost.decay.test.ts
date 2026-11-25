@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, NET_EVENT_KIND, NEUTRAL_INPUT, S2C, changeDecayStage, createWorld, loadBalance, skipWave, startWave, type SimEventsFlushed } from "@topdown/shared";
+import { DOWNTOWN_MAP, NET_EVENT_KIND, NEUTRAL_INPUT, S2C, changeDecayStage, circleHitsBuilding, createWorld, loadBalance, skipWave, startWave, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { DevThrottle } from "../net/devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
@@ -80,7 +80,10 @@ describe("NetSimHost decay (Story 4.5)", () => {
         room.state.decayStage = 2;
         const me = room.state.players.get("p1");
         if (me) {
-          me.x = dump.minX - 0.4;
+          // Fix bloater-car-corner: east of the dumpster. The dumpster stands flush against the `se_offices` east wall
+          // (x = 38), so its west side (the old `dump.minX - 0.4`) was inside that building, where the old push-out kept
+          // the survivor for good; the fixed one takes it out, which broke the old spot, not the rule tested here.
+          me.x = dump.maxX + 0.41; // 1 cm off the face (39.5 + 0.4 overlaps it by float rounding)
           me.y = 26.75;
         }
       }
@@ -88,12 +91,13 @@ describe("NetSimHost decay (Story 4.5)", () => {
     }
     room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 100, events: [[NET_EVENT_KIND.DECAY_STAGE_CHANGED, 2, 1]] } satisfies SimEventsFlushed);
     setNow(10_500);
-    host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1 }); // pressing east, into the dumpster
+    expect(circleHitsBuilding(s, dump.maxX + 0.41, 26.75, balance.player.radiusM), "the server's spot is legal").toBe(false);
+    host.setLocalInput({ ...NEUTRAL_INPUT, moveX: -1 }); // pressing west, into the dumpster
     host.update(10);
     host.update(0.05);
     expect(host.world.decay.stage).toBe(2);
     expect(host.predictor.solidNames).toContain("dumpster_alley_3");
-    expect(host.predictor.x).toBeLessThanOrEqual(dump.minX - balance.player.radiusM + 1e-9);
+    expect(host.predictor.x).toBeGreaterThanOrEqual(dump.maxX + balance.player.radiusM - 1e-9);
     // The banner event still arrives (the map itself never depended on it).
     const evs = host.drainEvents();
     expect(evs.filter((e) => e.type === "decay.stage_changed")).toEqual([{ type: "decay.stage_changed", stage: 2, from: 1 }]);

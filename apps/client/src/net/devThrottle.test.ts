@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { C2S, NEUTRAL_INPUT, S2C, createRng, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
+import { BYTES, C2S, INPUT_BYTES, NEUTRAL_INPUT, S2C, createRng, encodeInput, type PlayerInput, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
+
+/** Story 8.11: what NetSimHost sends (the binary input; `bytes` reused by the caller). */
+const sendInput = (throttle: DevThrottle, input: PlayerInput, bytes = new Uint8Array(INPUT_BYTES)): void => {
+  encodeInput(input, bytes);
+  throttle.sendBytes(BYTES.INPUT, bytes);
+};
 import { DEFAULT_STALL_MS, DevThrottle, throttleLossText } from "./devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "./fakeRoom";
 import { RunInbox } from "./session";
@@ -14,21 +20,22 @@ function setup(lagMs = 150, jitterMs = 0, seed = 1) {
 }
 
 describe("DevThrottle", () => {
-  it("holds outgoing sends half the lag, copied at send time", () => {
+  it("holds outgoing sends half the lag, copied at send time (Story 8.11: the input's bytes; a pong keeps its place)", () => {
     const { room, throttle, setNow } = setup(150);
-    const buf = { ...NEUTRAL_INPUT, seq: 1, moveX: 1 };
-    throttle.send(C2S.INPUT_SEND, buf);
-    buf.seq = 2; // the host reuses its buffer
-    buf.moveX = -1;
-    throttle.send(C2S.INPUT_SEND, buf);
+    const bytes = new Uint8Array(INPUT_BYTES); // the host reuses its bytes
+    sendInput(throttle, { ...NEUTRAL_INPUT, seq: 1, moveX: 1 }, bytes);
+    throttle.send(C2S.NET_PONG, { id: 7 });
+    sendInput(throttle, { ...NEUTRAL_INPUT, seq: 2, moveX: -1 }, bytes);
     throttle.pump(74);
-    expect(room.sentOf(C2S.INPUT_SEND)).toHaveLength(0);
+    expect(room.inputsSent()).toHaveLength(0);
+    expect(room.sentOf(C2S.NET_PONG)).toHaveLength(0);
     setNow(0);
     throttle.pump(75);
-    expect(room.sentOf(C2S.INPUT_SEND)).toEqual([
+    expect(room.inputsSent()).toEqual([
       expect.objectContaining({ seq: 1, moveX: 1 }),
       expect.objectContaining({ seq: 2, moveX: -1 }),
     ]);
+    expect(room.sentOf(C2S.NET_PONG)).toEqual([{ id: 7 }]);
   });
 
   it("holds state patches: listeners and `state` see the delayed copy", () => {
@@ -189,12 +196,12 @@ describe("DevThrottle: Story 8.8 lossy line (&loss, &stall)", () => {
   it("outgoing inputs stall the same way (both directions), with &stall=400", () => {
     const { room, throttle, script } = lossy(5, 400);
     script.push(0.5, 0.01); // the first input is lost
-    throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
-    throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 2 });
+    sendInput(throttle, { ...NEUTRAL_INPUT, seq: 1 });
+    sendInput(throttle, { ...NEUTRAL_INPUT, seq: 2 });
     throttle.pump(449);
-    expect(room.sentOf(C2S.INPUT_SEND)).toEqual([]);
+    expect(room.inputsSent()).toEqual([]);
     throttle.pump(450);
-    expect(room.sentOf(C2S.INPUT_SEND).map((m) => (m as { seq: number }).seq)).toEqual([1, 2]);
+    expect(room.inputsSent().map((m) => m.seq)).toEqual([1, 2]);
     expect(throttle.stallsOut).toBe(1);
     expect(throttle.stallsIn).toBe(0);
   });
@@ -225,7 +232,7 @@ describe("DevThrottle: Story 8.8 lossy line (&loss, &stall)", () => {
       for (let i = 0; i < 100; i++) {
         now = i * 50;
         room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: i, events: [] });
-        throttle.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: i + 1 });
+        sendInput(throttle, { ...NEUTRAL_INPUT, seq: i + 1 });
         for (let f = 0; f < 50; f++) throttle.pump((t = i * 50 + f));
       }
       return { arrivals, draws, stalls: throttle.stallsIn + throttle.stallsOut };

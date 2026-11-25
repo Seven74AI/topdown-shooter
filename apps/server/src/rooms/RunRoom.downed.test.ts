@@ -1,3 +1,4 @@
+import { sendInput } from "../test/sendInput";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
@@ -149,7 +150,7 @@ describe("RunRoom downed and team wipe (Story 2.8)", () => {
     expect(player(room, "p0").status).toBe("alive");
     const x0 = player(room, "p0").x;
     for (let seq = 1; seq <= 10; seq++) {
-      host.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq, moveX: 1, aimX: 1, fire: true });
+      sendInput(host, { ...NEUTRAL_INPUT, seq, moveX: 1, aimX: 1, fire: true });
       await new Promise((r) => setTimeout(r, TICK_DT_S * 1000));
     }
     await vi.waitFor(() => expect(guest.state.players.get("p0")?.ackSeq).toBe(10));

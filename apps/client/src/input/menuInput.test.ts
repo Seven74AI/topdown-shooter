@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { C2S, NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
+import { NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
 import { holdBuildingInput, neutralizeInput } from "./menuInput";
 import { InputRouter } from "./InputRouter";
 import { TouchSticks } from "./TouchSticks";
@@ -25,7 +25,7 @@ describe("neutralizeInput (Story 2.11: the menu is open)", () => {
       host.setLocalInput(neutralizeInput(input)); // the menu opened
       host.update(0.05);
     }
-    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    const sent = room.inputsSent() as PlayerInput[];
     expect(sent.map((s) => s.seq)).toEqual([1, 2, 3, 4, 5]);
     expect(sent[0]).toMatchObject({ moveX: 1, fire: true });
     for (const s of sent.slice(1)) expect(s).toMatchObject({ moveX: 0, moveY: 0, fire: false, swap: false });
@@ -69,7 +69,7 @@ describe("holdBuildingInput (Story 5.15: I hold a building and keep walking)", (
       host.setLocalInput(holdBuildingInput(input));
       host.update(0.05);
     }
-    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    const sent = room.inputsSent() as PlayerInput[];
     expect(sent.map((s) => s.seq)).toEqual([1, 2, 3, 4]);
     for (const s of sent) expect(s).toMatchObject({ moveX: 1, aimX: 0, aimY: 0, fire: false });
     host.dispose();

@@ -192,6 +192,8 @@ export interface NetRoomLike {
   /** Decoded room state; empty until the first full state arrives. */
   readonly state: RunStateView;
   send(type: string, message: unknown): void;
+  /** Story 8.11: a binary message (`BYTES.INPUT`); the SDK copies `bytes` at once (reusable after the call). */
+  sendBytes(type: number, bytes: Uint8Array): void;
   /** Returns the unsubscribe. A number type is a binary message (`BYTES`): `T` is a Uint8Array view. */
   onMessage<T>(type: string | number, cb: (message: T) => void): () => void;
   /** Fires after each decoded patch. */

@@ -1,3 +1,4 @@
+import { sendInput } from "../test/sendInput";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
@@ -207,7 +208,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     let seq = 0;
     for (let k = 0; k < 5; k++) {
       // 4 inputs at a time (the input ring holds 6): 20 × 0.225 m = 4.5 m of walking up
-      for (let i = 0; i < 4; i++) host.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq, moveY: -1, aimY: -1 });
+      for (let i = 0; i < 4; i++) sendInput(host, { ...NEUTRAL_INPUT, seq: ++seq, moveY: -1, aimY: -1 });
       await vi.waitFor(() => expect(room.controller?.ackSeq("p0")).toBe(seq), { timeout: 4000 });
     }
     expect(me.y).toBeCloseTo(face, 6);
