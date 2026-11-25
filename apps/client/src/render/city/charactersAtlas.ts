@@ -263,14 +263,24 @@ function keep(b: CharBake, d: Done): void {
   if (d.plain) return;
   const fx: CharFx | null = a.primary ? { glow: glow !== null, sheen: sheen !== null, bloater: d.bloater } : null;
   const m = /^zombie_(walker|runner|crawler)_[a-z]_w(\d)$/.exec(d.frame);
-  sheet.pending.push(() => {
+  const publish = (): void => {
     if (fx) FX.set(d.frame, fx);
     if (m) {
       const set = loopLanded.get(a.sheet) ?? new Set<number>();
       set.add(Number(m[2]));
       loopLanded.set(a.sheet, set);
     }
-  });
+  };
+  const veinSheet = a.bloater ? b.sheets.get(veinSheetOf(a.bloater.look)) : undefined;
+  if (veinSheet && veins) {
+    // a Bloater's FX is published once BOTH its sheet and its vein sheet are uploaded (re-review nit: no late veins)
+    let left = 2;
+    const both = (): void => {
+      if (--left === 0) publish();
+    };
+    sheet.pending.push(both);
+    veinSheet.pending.push(both);
+  } else sheet.pending.push(publish);
   b.stats.landed++;
   if (b.stats.waveOneMs === 0 && isWaveOneFrame(d.frame) && charArts().every((x) => !isWaveOneFrame(x.frame) || kept.get(x.frame)?.plain === false)) b.stats.waveOneMs = performance.now();
 }
@@ -554,6 +564,7 @@ export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
   b.inFlight = [];
   b.arrived.length = 0;
   b.bodiesArrived.length = 0;
+  for (const sh of b.sheets.values()) sh.pending.length = 0; // re-review NEW-1: no readiness of a wiped picture comes back
   b.stats.doneMs = 0;
   b.queue = [...bodies, ...allTasks()];
   if (b.worker) {

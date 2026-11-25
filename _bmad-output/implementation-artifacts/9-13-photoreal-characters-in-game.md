@@ -146,6 +146,12 @@ Claude (builder session, gds-dev-story), 2026-11-25.
 - D1: overlapped and steady-state tables in the perf doc; caps cut to 12 / 6 (16 / 8 put the 4× steady p95 one bucket up); the 4× p95 bucket in one overlapped round (bake still landing) is B24, accepted.
 - L1 `ZombieView.ts`: a new image starts on look 0's frame on look 0's sheet. L2 `workerFailed`: answers already received are not baked again (test). L3 restore comment / parity fixed, an interrupted body job is queued again. L4 `PlayerView.ts`: relit layers after the blink. L5 B27. L6 `CharacterFxView.ts`: a Spitter slot's drips reset when its owner changes. L7 `charactersFrames.ts`: a non-primary frame's glow canvas is freed. L8 `ZombieView.ts`: the reappear branch releases only the layer images. L9 docs (item 134 → 16, 568×320 shots for 135, 136, 137, 141; B3 numbers). L10 B28.
 
+### Re-review round 1 follow-ups (clean re-review of 2b55fa5)
+
+- NEW-1 `charactersAtlas.ts` (non-intact restore): the sheets' waiting readiness is cleared with the cache, so a wiped picture's loop / FX readiness can't come back. Test: "re-review NEW-1" (fails without the fix).
+- NEW-2 `ZombieView.ts` (drip call): the drip owner is the zombie's slot + generation, so a new Spitter in the same slot starts dry.
+- Nit `charactersAtlas.ts` keep: a Bloater's FX is published once both its sheet and its vein sheet are uploaded.
+
 ### Completion Notes List
 
 - T1: `charRelight.ts` (take 4 `relight4` as `relightCharSteps`, KEEP_OUTLINE hard-wired, constants rescaled by source px per page px, slope ×6u), `commonzArt.ts` (Walker fingertips 1.54 r ≤ 1.55, Crawler smear 1.68 r ≤ 1.75 by trimming the drawing).

@@ -480,7 +480,8 @@ export class ZombieView {
     const bs = this.bloaterSlot[id] as number;
     if (type === "bloater" && bs >= 0 && fx?.bloater && names) this.fx.bloater(bs, VEIN_SHEETS[(this.variant[id] as number) % VEIN_SHEETS.length] as string, names.veins, frameSide(CHAR_EXTENT_R.bloater), x, y, rot, sx, sy, img.depth, vis, t, fx.bloater);
     const ss = this.spitterSlot[id] as number;
-    if (type === "spitter" && ss >= 0 && anim.drip) this.fx.spitter(ss, id, x, y, rot, this.balance.zombies.types.spitter?.radiusM ?? DEFAULT_RADIUS_M, anim.drip[0], anim.drip[1], img.depth, vis, t);
+    // re-review NEW-2: the drip owner is the zombie (slot + generation), so a new Spitter in the slot starts dry
+    if (type === "spitter" && ss >= 0 && anim.drip) this.fx.spitter(ss, (id | ((this.shownGeneration[id] as number) << 16)) >>> 0, x, y, rot, this.balance.zombies.types.spitter?.radiusM ?? DEFAULT_RADIUS_M, anim.drip[0], anim.drip[1], img.depth, vis, t);
   }
 
   private newLayer(sheet: string, frame: string, add: boolean): Phaser.GameObjects.Image {

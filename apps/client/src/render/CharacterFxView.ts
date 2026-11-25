@@ -165,7 +165,7 @@ export class CharacterFxView {
 
   /**
    * One Spitter in slot `slot` (< maxSpitters): drips from its mouth (`mouth` in radii along the facing), pose
-   * `x, y, rot`, radius `rM` (m), zombie `id` (the deterministic jitter), time `t` (s, with the zombie's offset).
+   * `x, y, rot`, radius `rM` (m), the zombie's key `id` (slot + generation: the deterministic jitter and the slot's owner), time `t` (s, with the zombie's offset).
    */
   spitter(slot: number, id: number, x: number, y: number, rot: number, rM: number, mouthX: number, mouthY: number, depth: number, alpha: number, t: number): void {
     let sp = this.spitters[slot];

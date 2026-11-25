@@ -207,6 +207,32 @@ describe("Story 9.13: the character bake (main-thread fallback and worker housek
     expect(charFx(walkFrame("walker", 1 - first, 0))?.sheen).toBe(true);
   });
 
+  it("re-review NEW-1: a wipe (non-intact restore) drops readiness still waiting for an upload", () => {
+    const sh = newSheet("chars_walker_c", make(1, 1));
+    const other = newSheet("chars_walker_d", make(1, 1));
+    const b = newCharBake(new Map([[other.key, other], [sh.key, sh]]), make, []); // `other` is first in line for the upload
+    const n = frameSide(1.55);
+    const px = (w: number, h: number): ImageData => {
+      const g = make(w, h).getContext("2d") as CanvasRenderingContext2D;
+      g.fillRect(0, 0, w, h); // opaque: the restore's sentinel can see the wipe
+      return g.getImageData(0, 0, w, h);
+    };
+    for (let k = 0; k < 10; k++) receiveCharWorkerResult(b, { gen: 0, kind: "frame", frame: walkFrame("walker", 2, k), plain: false, base: px(n, n), glow: null, sheen: null, veins: null, bloater: null }, 0);
+    b.useWorker = true;
+    b.worker = { terminate() {}, postMessage() {}, onmessage: null, onerror: null } as unknown as Worker;
+    sh.dirty = false;
+    // land all ten without uploading (another sheet's upload takes the frame), then the pixels are "wiped"
+    other.dirty = true;
+    other.pending.push(() => {});
+    pumpCharBake(b, Infinity, Infinity, () => 1);
+    expect(sh.pending.length).toBeGreaterThan(0);
+    wipeKeptForTests();
+    rebakeCharsAfterCacheLoss(b);
+    expect(sh.pending.length).toBe(0);
+    pumpCharBake(b, 0, 0, () => 2);
+    expect(loopReady("walker", 2)).toBe(false);
+  });
+
   it("review M2: minutes idle, then a body request: a silent worker is still given up on ~20 s later", () => {
     const { b } = axeBake();
     let t = 0;
