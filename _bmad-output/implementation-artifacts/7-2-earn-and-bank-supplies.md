@@ -3,7 +3,7 @@ baseline_commit: 827ea4519356d752dee65d26cb932cffbdbc4ae4
 ---
 # Story 7.2: Earn and bank Supplies
 
-Status: in-progress
+Status: review
 
 <!-- Epic 7 progression story 2 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D1–D3 (earnings, who counts, rookie lift) are rules here. Epic 6 stories 6.9 (supply drop) and 6.11+6.12 (vote, endless) are not built yet: their hooks are "check at build time". -->
 
@@ -172,7 +172,8 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 
 ### Gate (brief R6)
 
-GATE_LINE
+- **FULL GATE ✅** `npm run typecheck && npm run lint && npm test && npm run build` on `story-7-2` 9c451d5 = story-7-2 merged with origin/story-7-1 `7519791` (7.1 + its review fixes, 8.1 inside) AND origin/master `02e7d8c`: 443 test files passed / 1 skipped, 4005 tests passed / 3 skipped, build OK; load 1.89 at start → 3.71 at end (2026-11-25 06:45–06:52).
+- First gate run on 1587e3f found 3 failures, fixed before this one: `noDbImports` (the room test imported drizzle-orm: now `db/testQueries.ts`), and two lobbyStore tests (a Leave while 8.1 is reconnecting now leaves at once; a live Leave mid-run waits for `run.rewards`, test updated).
 
 ### Notes for the merge
 
