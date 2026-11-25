@@ -261,6 +261,11 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.knockStepMm !== p.knockStepMm) s.knockStepMm = p.knockStepMm;
   if (s.gear !== p.gear) s.gear = p.gear; // Story 5.11: on a purchase only
   if (s.protectTicks !== p.protectTicks) s.protectTicks = p.protectTicks; // Story 8.1: 40 changes after a mid-wave return, then none
+  if (s.unlocks !== p.unlocks) s.unlocks = p.unlocks; // Story 7.4: once at run start
+  if (s.trainHp !== p.trainHp) s.trainHp = p.trainHp; // Story 7.5: once at run start
+  if (s.trainDmg !== p.trainDmg) s.trainDmg = p.trainDmg;
+  if (s.trainMoney !== p.trainMoney) s.trainMoney = p.trainMoney;
+  if (s.trainReload !== p.trainReload) s.trainReload = p.trainReload;
 }
 
 /** Story 8.1 (F5): a held player's wallet still changes (their turrets' pay); nothing else of theirs does. */
@@ -339,6 +344,11 @@ function resetPlayer(s: PlayerState): void {
   s.vote = 0; // Story 6.11
   s.heldUntilTick = 0; // Story 8.1
   s.protectTicks = 0;
+  s.unlocks = 0; // Story 7.4: the next run writes its own
+  s.trainHp = 0; // Story 7.5
+  s.trainDmg = 0;
+  s.trainMoney = 0;
+  s.trainReload = 0;
   s.wallet = 0;
   s.earned = 0;
   s.slowTicks = 0;

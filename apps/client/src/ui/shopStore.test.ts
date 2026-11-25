@@ -46,6 +46,9 @@ const offer = (cards: string[], rev = 0, sold = 0, build = 0, canReroll = true):
   sold,
   rerollPrice: 20,
   canReroll,
+  borrowed: 0,
+  lender: 255,
+  lenderName: "",
 });
 const feed = (o: ShopOfferView | null, build = 0): ShopInput => ({ type: "offer", offer: o, build });
 const CARDS = ["smg", "machete", "shotgun", "body_armor_1", "running_shoes", "revive_kit"];

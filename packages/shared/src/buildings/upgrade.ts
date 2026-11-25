@@ -2,6 +2,7 @@ import type { World } from "../core/world";
 import { err, ok, type Result } from "../core/result";
 import { spendMoney } from "../economy/economy";
 import { buildingById, buildingStats, setBuildingType, type Building } from "./buildings";
+import { inPool } from "../meta/pool";
 
 /**
  * Story 5.9: barricade upgrades (FR52; designer DD1 A: wood 200 HP → reinforced B8 350 HP (+50) →
@@ -16,10 +17,10 @@ import { buildingById, buildingStats, setBuildingType, type Building } from "./b
  */
 
 /** Why an upgrade is refused. The client maps it to text (`upgradeRefusalText`). */
-export type UpgradeError = "unknown_player" | "not_alive" | "not_build_phase" | "gone" | "not_owner" | "not_upgradable" | "money";
+export type UpgradeError = "unknown_player" | "not_alive" | "not_build_phase" | "gone" | "not_owner" | "not_upgradable" | "not_unlocked" | "money";
 
 /** Every `UpgradeError`, for parsing what the server sent. */
-export const UPGRADE_ERRORS: readonly UpgradeError[] = Object.freeze(["unknown_player", "not_alive", "not_build_phase", "gone", "not_owner", "not_upgradable", "money"]);
+export const UPGRADE_ERRORS: readonly UpgradeError[] = Object.freeze(["unknown_player", "not_alive", "not_build_phase", "gone", "not_owner", "not_upgradable", "not_unlocked", "money"]);
 
 /** The next tier of `type` and the step's price, or null at the top of the ladder / for an unknown type. */
 export function upgradeStep(world: Readonly<World>, type: string): { readonly type: string; readonly price: number } | null {
@@ -28,7 +29,7 @@ export function upgradeStep(world: Readonly<World>, type: string): { readonly ty
 
 /**
  * The whole upgrade check, in this order: unknown player → (Story 5.20) not standing → not a build phase → the building is gone
- * → not the owner → no next tier → money. null = the server would accept it.
+ * → not the owner → no next tier → (Story 7.4) the payer lacks the unlock → money. null = the server would accept it.
  */
 export function upgradeError(world: Readonly<World>, playerId: string, buildingId: number): UpgradeError | null {
   const p = world.players.get(playerId);
@@ -40,6 +41,7 @@ export function upgradeError(world: Readonly<World>, playerId: string, buildingI
   if (b.ownerId !== playerId) return "not_owner";
   const step = upgradeStep(world, b.type);
   if (!step || !buildingStats(world.balance, step.type)) return "not_upgradable";
+  if (!inPool(p.unlocks, step.type)) return "not_unlocked"; // Story 7.4 (K5, decision 7.4 D2): whoever pays needs Barricade upgrades
   if (p.wallet < step.price) return "money";
   return null;
 }

@@ -7,7 +7,6 @@ import {
   C2S,
   HORDE_KIND_KEY,
   HordeStreamDecoder,
-  NET_PROTOCOL_VERSION,
   spawnZombie,
   DOWNTOWN_MAP,
   NET_PROTOCOL_VERSION,

@@ -4,6 +4,7 @@ import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headles
 import type { World } from "../core/world";
 import { isSpawnBuried } from "../waves/spawnPick";
 import { runSupplies, suppliesEnding, type RunRecord } from "../meta/supplies";
+import { ALL_UNLOCKED } from "../meta/pool";
 
 /** Story 7.2 (T6, brief 9): each bot's run record at the end, and the waves the run really ended / the wave it fell in. */
 function recordsAtEnd(w: World): { records: RunRecord[] } {
@@ -62,7 +63,10 @@ describe("Story 6.1: ten-wave sim", () => {
         picksRead += picks;
       };
       let end: ReturnType<typeof recordsAtEnd> | null = null;
-      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void ((god = w.debug.godMode), (end = recordsAtEnd(w))) });
+      let masks: number[] = [];
+      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void ((god = w.debug.godMode), (end = recordsAtEnd(w)), (masks = [...w.players.values()].map((p) => p.unlocks))) });
+      // Story 7.4 (T5): the sim's bots keep every unlock (so a pool change can't silently change this sim).
+      expect(masks).toEqual(Array.from({ length: 4 }, () => ALL_UNLOCKED));
       // Story 7.2 (T6): every bot was in all 10 waves and the Behemoth; extracted → 250 Supplies each (no rookie line here).
       expect(end!.records.map((x) => [x.wavesIn, x.bossesIn, x.endlessWavesIn])).toEqual(Array.from({ length: 4 }, () => [10, 1, 0]));
       for (const x of end!.records) expect(runSupplies(x, suppliesEnding(r.ending, true), 10_000).total).toBe(250);

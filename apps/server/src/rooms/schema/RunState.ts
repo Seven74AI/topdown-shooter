@@ -87,6 +87,13 @@ const playerFields = {
   heldUntilTick: t.uint32().default(0),
   // Story 8.1 (D3): spawn-protection ticks left (40 → 0 once after a mid-wave return; 0 otherwise).
   protectTicks: t.uint8().default(0),
+  // Story 7.4 (AC 1): the unlock mask, set once at run start (≈ 0 B/s). Appended last.
+  unlocks: t.uint32().default(0),
+  // Story 7.5 (AC 5): Training levels 0..5, set once at run start (≈ 0 B/s). Appended last.
+  trainHp: t.uint8().default(0),
+  trainDmg: t.uint8().default(0),
+  trainMoney: t.uint8().default(0),
+  trainReload: t.uint8().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;

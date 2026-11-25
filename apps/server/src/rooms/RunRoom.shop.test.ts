@@ -29,6 +29,8 @@ import { RunRoom, serverBalance } from "./RunRoom";
 let colyseus: ColyseusTestServer;
 
 beforeAll(async () => {
+  // Story 7.4: these rooms test 5.9–5.13 rules with every item; a guest now plays the starter pool (decision 7.4 D3).
+  process.env.DEV_UNLOCKS = "all";
   ({ colyseus } = await bootTestServer());
 });
 afterEach(async () => {
@@ -37,6 +39,7 @@ afterEach(async () => {
   await colyseus.cleanup();
 });
 afterAll(async () => {
+  delete process.env.DEV_UNLOCKS;
   await colyseus.shutdown();
 });
 

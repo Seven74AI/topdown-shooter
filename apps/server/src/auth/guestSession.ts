@@ -16,7 +16,7 @@ import { hashGuestToken } from "../run/lobby";
 import { ipKey, type SlidingWindowLimiter } from "../net/rateLimit";
 import { DB_TIMEOUT_MS } from "../db/timeout";
 import { signTicket } from "./ticket";
-import { toView } from "./unlock";
+import { toView, trainingView } from "./unlock";
 
 export interface GuestSessionDeps {
   accounts: AccountsRepo;
@@ -112,7 +112,7 @@ export async function resolveGuestSession(
     if (!deps.progress) return {};
     try {
       const row = await deps.progress.get(accountId);
-      return { progress: row ? toView(row) : { supplies: 0, lifetimeSupplies: 0, unlocks: [] } };
+      return { progress: row ? toView(row) : { supplies: 0, lifetimeSupplies: 0, unlocks: [], training: trainingView(null) } };
     } catch {
       return { progress: null }; // logged as db_error by the repository
     }

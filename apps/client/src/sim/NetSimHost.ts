@@ -977,6 +977,11 @@ export class NetSimHost implements SimHost {
     p.maxHp = s.maxHp;
     p.gear = s.gear; // Story 5.11: HUD icons, shop "Owned", the reviver's kit (the predictor has its own copy)
     p.protectTicks = s.protectTicks; // Story 8.1 (D3): the renderer blinks a spawn-protected body
+    p.unlocks = (s.unlocks ?? 0) >>> 0; // Story 7.4: the build bar and consumables read the local mask
+    p.trainHp = s.trainHp ?? 0; // Story 7.5: Results' Training column; the predicted reload reads trainReload
+    p.trainDmg = s.trainDmg ?? 0;
+    p.trainMoney = s.trainMoney ?? 0;
+    p.trainReload = s.trainReload ?? 0;
     p.consumable = consumableAt(this.world.balance, s.consumable); // Story 5.12: the slot is server truth (never predicted)
     p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;

@@ -1,4 +1,4 @@
-import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
+import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed, type TrainingLevels } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 import { ANIMATED_LAYERS, type AnimatedLayerId } from "@topdown/shared";
 import { DEFAULT_STALL_MS, MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS, MAX_THROTTLE_LOSS_PCT, MAX_THROTTLE_STALL_MS } from "../net/devThrottle";
@@ -126,6 +126,27 @@ export interface UrlOptions {
    * unknown or in a release build.
    */
   devLayer: AnimatedLayerId | null;
+  /**
+   * `?unlocks=all|starter` (Story 7.4 AC 10, dev builds only, Practice solo): the solo run's unlock mask instead of
+   * the cached progress. null when absent, unknown or in a release build. `?shopall` implies all.
+   */
+  unlocks: "all" | "starter" | null;
+  /** `?training=5,5,5,5` (Story 7.5 AC 7, dev builds only, Practice solo): max HP, damage, start money, reload levels. */
+  training: TrainingLevels | null;
+}
+
+/** Story 7.4: `all` / `starter`, anything else null. */
+export function parseDevUnlocks(raw: string | null): "all" | "starter" | null {
+  const v = raw?.trim().toLowerCase();
+  return v === "all" || v === "starter" ? v : null;
+}
+
+/** Story 7.5: `a,b,c,d` (each 0..5) → the four levels, anything else null. */
+export function parseDevTraining(raw: string | null): TrainingLevels | null {
+  const parts = raw?.trim().split(",") ?? [];
+  if (parts.length !== 4 || !parts.every((x) => /^[0-5]$/.test(x.trim()))) return null;
+  const [maxHp, damage, startMoney, reload] = parts.map((x) => Number(x.trim())) as [number, number, number, number];
+  return { maxHp, damage, startMoney, reload };
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms); defined next to the throttle (Story 8.8 review N2: the bots share them). */
@@ -187,6 +208,8 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3
     startWave: dev ? q.get("startwave") : null, // Story 6.1: dev builds only
     devLayer: dev ? parseDevLayer(q.get("devlayer")) : null, // Story 7.8: dev builds only
+    unlocks: dev ? parseDevUnlocks(q.get("unlocks")) : null, // Story 7.4: dev builds only
+    training: dev ? parseDevTraining(q.get("training")) : null, // Story 7.5: dev builds only
   };
 }
 

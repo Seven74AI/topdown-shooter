@@ -93,6 +93,12 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   endlessWavesIn: "kept",
   bossesIn: "kept",
   endlessBossesIn: "kept",
+  unlocks: "kept", // Story 7.4: set once at run start
+  lockedUsed: "kept",
+  trainHp: "kept", // Story 7.5: set once at run start
+  trainDmg: "kept",
+  trainMoney: "kept",
+  trainReload: "kept",
 };
 
 /** Gives every field a non-default value so "kept" really means kept. */
@@ -110,6 +116,12 @@ function scramble(world: World, p: PlayerState): void {
   p.endlessWavesIn = 2;
   p.bossesIn = 1;
   p.endlessBossesIn = 1;
+  p.unlocks = 0b1010; // Story 7.4
+  p.lockedUsed = 4;
+  p.trainHp = 3; // Story 7.5
+  p.trainDmg = 2;
+  p.trainMoney = 5;
+  p.trainReload = 1;
   p.slowTicksLeft = 5;
   p.slowPct = 30;
   p.fireTicks = 3;

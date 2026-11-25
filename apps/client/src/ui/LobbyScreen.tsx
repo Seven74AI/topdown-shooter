@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { STARTING_MS, startButton } from "./startButton";
 import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { copyLink, share, shareLink } from "./share";
 import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
@@ -18,6 +19,12 @@ export function LobbyScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   const [notice, setNotice] = useState("");
+  const [startTap, setStartTap] = useState<number | null>(null); // Stories 7.4/7.5: "Starting…" while the server reads progress
+  useEffect(() => {
+    if (startTap === null) return;
+    const id = setTimeout(() => setStartTap(null), STARTING_MS);
+    return () => clearTimeout(id);
+  }, [startTap]);
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => lobbyStore.subscribe(setLobby), []);
   useEffect(() => {
@@ -88,8 +95,16 @@ export function LobbyScreen() {
             {ready ? "Not ready" : "Ready"}
           </button>
           {view.isHost && (
-            <button type="button" class="btn btn--start" disabled={!view.canStart} onClick={() => lobbyStore.start()}>
-              Start
+            <button
+              type="button"
+              class="btn btn--start"
+              disabled={!view.canStart || startButton(startTap, performance.now()).starting}
+              onClick={() => {
+                setStartTap(performance.now());
+                lobbyStore.start();
+              }}
+            >
+              {startButton(startTap, performance.now()).label}
             </button>
           )}
         </div>

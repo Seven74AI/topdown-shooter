@@ -60,9 +60,10 @@ export {
   type SurvivorLook,
 } from "./config/cosmetics";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
-export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Unlock, type UnlockCategory } from "./config/progression";
+export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, TRAINING_BOOSTS, findTrainingBoost, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Training, type TrainingBoost, type TrainingBoostId, type Unlock, type UnlockCategory } from "./config/progression";
 // Story 7.3: the pool, the unlock mask (7.4) and the "Good next pick".
-export { goodNextPick, itemCategories, ownedPerCategory, poolOf, unlockMask } from "./meta/pool";
+export { ALL_UNLOCKED, NO_UNLOCK, STARTER_ONLY, goodNextPick, inPool, inPoolOnly, itemCategories, itemNeedBits, ownedPerCategory, poolOf, unlockIndexOf, unlockMask } from "./meta/pool";
+export { NO_TRAINING, boostValue, clampLevel, damageMul, levelOf, levelsFromProgress, reloadTicksFor, trainedMaxHp, trainedReloadS, trainedStartMoney, trainingCost, type TrainingLevels } from "./meta/training";
 // Story 7.2: the Supplies a run pays and the run record they come from.
 export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
@@ -134,7 +135,7 @@ export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, mo
 export { bulletBlockT, bulletLineClear, meleeLineClear, segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";
-export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
+export { addPlayer, removePlayer, type PlayerInit, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
 export { checkTeamWipe, downPlayer, findReviver, placeNextToTeammate, returnOutPlayers, updateDowned } from "./player/downed";
 export { buildStartIndex, holdPlayer, isHeld, releaseHeldPlayer, restoreSeat, returnPlayer } from "./player/hold"; // Story 8.1
@@ -228,7 +229,7 @@ export {
 export { HordeStreamDecoder, isFarRefreshTick } from "./net/hordeStream";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
-export { fuelTicksOf, hasMagazine, isFlame, isGun, isLauncher, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export { fuelTicksOf, hasMagazine, isFlame, isGun, isLauncher, isMelee, magazineOf, playerWeaponDamage, reloadSecondsFor, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 // Story 5.4: flames, ignites and the friendly-fire rule
 export { FLAME_SLOTS, NO_FLAME_SLOT, flameStats, flameTick, resetFlameClocks, updateIgnites } from "./combat/flame";
 export { damagePlayerBy, friendlyFireStats } from "./combat/damage";
@@ -375,6 +376,7 @@ export {
 // Story 7.1: the account HTTP API (guest session, session ticket).
 export {
   ACCOUNT_SESSION_PATH,
+  ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
   GUEST_COOKIE,
   accountSessionRequestSchema,
@@ -383,6 +385,10 @@ export {
   sessionTicketSchema,
   unlockRequestSchema,
   unlockResponseSchema,
+  trainRequestSchema,
+  trainResponseSchema,
+  type TrainRequest,
+  type TrainResponse,
   type AccountSessionRequest,
   type AccountSessionResponse,
   type ProgressView,
@@ -610,7 +616,7 @@ export {
   type Rerolled,
   type ShopOfferView,
 } from "./economy/shopCards";
-export { MAX_CARDS, NO_CARD, createShopOffers, type ShopOffers } from "./economy/shopOffers";
+export { MAX_CARDS, NO_CARD, NO_LENDER, createShopOffers, type ShopOffers } from "./economy/shopOffers";
 // Story 5.1: weapon upgrades I–IV (damage helper `weaponDamage` is exported with the weapons above).
 export { buyItem, type BoughtItem } from "./economy/shop";
 export {

@@ -5,6 +5,7 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { spendMoney } from "./economy";
 import type { ShopError } from "./shop";
+import { trainedMaxHp } from "../meta/training";
 
 /**
  * Story 5.11: gear (FR48) — bought in a build phase, owned for the rest of the run.
@@ -146,9 +147,12 @@ export function armorBonus(balance: Balance, mask: number): number {
   return bonus;
 }
 
-/** Max HP with the gear in `mask`: `player.maxHp` + the best armor's bonus. */
-export function effectiveMaxHp(balance: Balance, mask: number): number {
-  return balance.player.maxHp + armorBonus(balance, mask);
+/**
+ * Max HP with the gear in `mask`: the Training-trained base (Story 7.5, decision 7.5 D1: `player.maxHp` × (1 + 2 % × L),
+ * rounded) + the best armor's bonus, unscaled. `trainHp` is the player's own level (default 0).
+ */
+export function effectiveMaxHp(balance: Balance, mask: number, trainHp = 0): number {
+  return trainedMaxHp(balance, trainHp) + armorBonus(balance, mask);
 }
 
 /** The move speed bonus in integer percent of the gear in `mask` (running shoes: 10). */
@@ -222,7 +226,7 @@ export function buyGearAt(world: World, playerId: string, item: string, price: n
   if (tier > 0) for (let i = 0; i < t.tier.length; i++) if (i !== index && (t.tier[i] as number) > 0 && (t.tier[i] as number) < tier) mask &= ~(1 << i);
   const oldMax = p.maxHp;
   p.gear = mask;
-  p.maxHp = effectiveMaxHp(world.balance, mask);
+  p.maxHp = effectiveMaxHp(world.balance, mask, p.trainHp);
   if (p.maxHp > oldMax) p.hp = Math.min(p.maxHp, p.hp + (p.maxHp - oldMax));
   return ok({ item, price });
 }

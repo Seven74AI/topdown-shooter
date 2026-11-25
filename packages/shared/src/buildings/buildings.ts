@@ -6,6 +6,7 @@ import { spendMoney } from "../economy/economy";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { circleOverlapsBox } from "./collision";
 import { BUILD_GRID_M } from "../config/constants";
+import { inPool } from "../meta/pool";
 
 /**
  * Story 3.4: buildings (GDD › Buildings and Defenses; FR50, FR51, FR53).
@@ -111,7 +112,7 @@ export function createBuildingState(): BuildingState {
 }
 
 /** Why a placement is refused. The client maps it to text (`placeRefusalText`). */
-export type PlaceError = "unknown_player" | "not_alive" | "not_build_phase" | "unknown_type" | "not_for_sale" | "limit" | "money" | "blocked";
+export type PlaceError = "unknown_player" | "not_alive" | "not_build_phase" | "unknown_type" | "not_for_sale" | "not_unlocked" | "limit" | "money" | "blocked";
 
 /** A footprint box in metres. */
 export interface Box {
@@ -313,7 +314,7 @@ export function blockReason(world: Readonly<World>, ownerId: string, box: Readon
 
 /**
  * The whole placement check, in this order: unknown player → (Story 5.20) not standing (downed or out) → not a build phase → unknown type or a
- * bad grid point/rotation → (Story 5.10) not for sale → the owner's cap → money → the spot. null = the server would accept it.
+ * bad grid point/rotation → (Story 5.10) not for sale → (Story 7.4) not in the placer's unlocks → the owner's cap → money → the spot. null = the server would accept it.
  * The client's preview runs the same check on its mirror World (the server's answer may still differ:
  * others' positions there are interpolated).
  */
@@ -325,6 +326,7 @@ export function placementError(world: Readonly<World>, ownerId: string, req: Pla
   const stats = buildingStats(world.balance, req.type);
   if (!stats || !stats.forSale || !isRotation(req.rot)) return "unknown_type"; // Story 5.9: upgrade-only tiers are never placed
   if (!stats.inShop) return "not_for_sale"; // Story 5.10: not offered yet (the floodlight until 6.3; dev: `loadDevBalance({ shopAll })`)
+  if (!inPool(p.unlocks, req.type)) return "not_unlocked"; // Story 7.4 (K5): the PLACING player's unlocks, never borrowed
   if (!Number.isInteger(req.gx) || !Number.isInteger(req.gy)) return "blocked";
   if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
   if (p.wallet < stats.price) return "money";

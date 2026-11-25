@@ -317,3 +317,43 @@ describe("Story 6.9 (AC 6): a weapon that changes mid-wave (the supply crate)", 
     });
   }
 });
+
+describe("Story 7.5 (AC 4): the predicted reload at Training reload 5 matches the server", () => {
+  for (const weapon of ["pistol", "shotgun", "smg"] as const) {
+    it(`${weapon}: local attacks == server attacks through two reloads, snapshot 6 steps old`, () => {
+      const run = (viewTrain: number) => {
+        const world = createWorld({ balance, seed: 7, systems: { waves: () => {}, zombies: () => {} } });
+        const p = addPlayer(world, "p0", 5, 16, { training: { maxHp: 0, damage: 0, startMoney: 0, reload: 5 } });
+        setLoadout(balance, p.loadout, [weapon, null]);
+        let shots = 0;
+        world.events.subscribe((e) => {
+          if (e.type === "weapon.fired" && e.playerId === "p0") shots++;
+        });
+        const clock = new LocalFireClock(balance);
+        const server: boolean[] = [];
+        const local: boolean[] = [];
+        const bars: [number, number][] = [];
+        const views: View[] = [{ ...viewOf(p, 0), trainReload: viewTrain }];
+        for (let seq = 1; seq <= 220; seq++) {
+          const input = fireInput(seq);
+          const view = views[Math.max(0, views.length - 1 - 6)] as View;
+          local.push(clock.step(input, view));
+          const before = shots;
+          setInput(world, "p0", input);
+          step(world, TICK_DT_S);
+          server.push(shots > before);
+          // The HUD's reload bar while my snapshot is still from before the emptying shot (the predicted path).
+          const serverLeft = p.loadout.slots[0].reloadTicks;
+          if (serverLeft > 0 && view.reloadTicks0 === 0) bars.push([clock.predictedReloadTicks(view, 0), serverLeft]);
+          views.push({ ...viewOf(p, seq), trainReload: viewTrain });
+        }
+        return { server, local, shots, bars };
+      };
+      const r = run(5);
+      expect(r.shots).toBeGreaterThan(10);
+      expect(r.local).toEqual(r.server);
+      expect(r.bars.length).toBeGreaterThan(3);
+      for (const [predicted, real] of r.bars) expect(predicted).toBe(real);
+    });
+  }
+});

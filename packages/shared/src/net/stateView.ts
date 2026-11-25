@@ -74,6 +74,13 @@ export interface PlayerStateView {
   readonly heldUntilTick: number;
   /** Story 8.1 (D3): spawn-protection ticks left after a mid-wave return (the body blinks; no fire). */
   readonly protectTicks: number;
+  /** Story 7.4 (AC 1): the unlock mask (bit i = `progression.json › unlocks[i]`), set once at run start. */
+  readonly unlocks: number;
+  /** Story 7.5 (AC 5): Training levels (0..5), set once at run start: Results' Training column, the Predictor's reload. */
+  readonly trainHp: number;
+  readonly trainDmg: number;
+  readonly trainMoney: number;
+  readonly trainReload: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -271,6 +278,11 @@ export const PLAYER_STATE_FIELDS = {
   inputQueued: true, // Story 8.9
   heldUntilTick: true, // Story 8.1
   protectTicks: true,
+  unlocks: true, // Story 7.4
+  trainHp: true, // Story 7.5
+  trainDmg: true,
+  trainMoney: true,
+  trainReload: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

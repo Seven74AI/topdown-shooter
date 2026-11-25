@@ -11,7 +11,7 @@ const balance = loadBalance();
 const none = () => 0;
 const self = (wallet: number, weapon1 = "", active = 0, weapon0 = "pistol"): BotShopSelf => ({ wallet, weapon0, weapon1, active });
 /** Story 5.13: an offer showing every card item (the list-walk rules apart from the draw). */
-const ALL: ShopOfferView = { build: 0, rev: 0, cards: cardCatalog(balance).map((c) => c.id), sold: 0, rerollPrice: 20, canReroll: true };
+const ALL: ShopOfferView = { build: 0, rev: 0, cards: cardCatalog(balance).map((c) => c.id), sold: 0, rerollPrice: 20, canReroll: true, borrowed: 0, lender: 255, lenderName: "" };
 const botShopNext = (b: typeof balance, me: BotShopSelf, owned: (t: string) => number, list: readonly string[], skip = 0, offer: ShopOfferView | null = ALL) => botShopNextRaw(b, me, owned, list, skip, offer);
 
 describe("botShopNext (Story 3.10): the shopping list in order", () => {

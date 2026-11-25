@@ -5,17 +5,20 @@
  * SameSite=Lax, Path=/, no Domain, 1 year). With `PUBLIC_ORIGIN` set, a foreign or missing `Origin` is refused with 403 (CSRF).
  */
 import { createEndpoint } from "@colyseus/core";
-import { ACCOUNT_SESSION_PATH, ACCOUNT_UNLOCK_PATH, GUEST_COOKIE, accountSessionRequestSchema, unlockRequestSchema } from "@topdown/shared";
+import { ACCOUNT_SESSION_PATH, ACCOUNT_TRAINING_PATH, ACCOUNT_UNLOCK_PATH, GUEST_COOKIE, accountSessionRequestSchema, trainRequestSchema, unlockRequestSchema } from "@topdown/shared";
 import { GUEST_COOKIE_MAX_AGE_S } from "../net/limits";
 import { originAllowed } from "../net/origin";
 import { log } from "../ops/logger";
 import { resolveGuestSession, type GuestSessionDeps } from "./guestSession";
 import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
+import { buyTraining, trainIpAllowed, trainRefused, type TrainDeps } from "./train";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
   /** Story 7.3: `POST /account/unlock`. */
   unlock: Omit<UnlockDeps, "accounts" | "logGate">;
+  /** Story 7.5: `POST /account/training`. */
+  train: Omit<TrainDeps, "accounts" | "logGate">;
 }
 
 /** The client IP the same way Colyseus reads it for rooms (`X-Real-IP`, which Caddy sets from Cloudflare). */
@@ -77,5 +80,32 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
   });
-  return { accountSession, accountUnlock };
+  /**
+   * Story 7.5 (AC 3): `POST /account/training` `{ boost, level, requestId }`. Same answers and guards as the unlock:
+   * 200 `{ ok, boost, level, progress }` or `{ ok: false, reason: already_trained | not_enough | maxed, need?, progress }`;
+   * 400 bad body, 401 no account, 403 foreign Origin, 429 over the limits, 503 save server down.
+   */
+  const accountTraining = createEndpoint(ACCOUNT_TRAINING_PATH, { method: "POST" }, async (ctx) => {
+    const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
+    const origin = headers?.get("origin");
+    if (!originAllowed(origin, deps.allowedOrigins)) {
+      log.warn({ origin: origin ?? null }, "account_origin_refused");
+      throw ctx.error(403, { message: "forbidden" });
+    }
+    ctx.setHeader("cache-control", "no-store");
+    const ip = clientIp(headers);
+    if (!trainIpAllowed(ip, { ipLimiter: deps.train.ipLimiter, logGate: deps.logGate })) throw ctx.error(429, { message: "rate_limited" });
+    const body = trainRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) {
+      trainRefused(ip, deps.logGate);
+      throw ctx.error(400, { message: "invalid_body" });
+    }
+    const out = await buyTraining(
+      { cookieToken: ctx.getCookie(GUEST_COOKIE), boost: body.data.boost, level: body.data.level, requestId: body.data.requestId, ip },
+      { ...deps.train, accounts: deps.accounts, logGate: deps.logGate },
+    );
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    return out.body;
+  });
+  return { accountSession, accountUnlock, accountTraining };
 }
