@@ -16,6 +16,7 @@ import { resetBuildSpend } from "../buildings/buildings";
 import { refreshBlackout } from "../decay/lightState";
 import { endSpecialEvent, eventHoldsWave } from "../events/specialEvents";
 import { scheduleEndlessEvent } from "./endlessEvents";
+import { armEndlessEvent } from "../events/schedule";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -107,6 +108,7 @@ export function startBuild(world: World): void {
   if (decayed) decayFinish(world, from);
   drawAllOffers(world); // Story 5.13: each player's card offer, after the decay steps (loadouts final)
   scheduleEndlessEvent(world); // Story 6.12 (F6): the coming endless wave's event (events stream; none in waves 1–10)
+  armEndlessEvent(world); // Story 6.8: the framework starts it in that wave like a scheduled entry
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
   refreshBlackout(world); // Story 6.3: the build phase's light (half dark at stage 5 once 6.4 turns it on)
 }

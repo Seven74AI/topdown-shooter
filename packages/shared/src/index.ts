@@ -649,7 +649,7 @@ export {
   type SpecialEventState,
 } from "./events/eventState";
 export { endSpecialEvent, eventHoldsWave, forceEvent, specialShotTarget, triggerPointReached, updateSpecialEvents } from "./events/specialEvents";
-export { eventFits, scheduleRunEvents } from "./events/schedule"; // 6.8's endless draw stays internal (6.11's run/endlessEvents owns the endless rule)
+export { armEndlessEvent, eventFits, scheduleRunEvents } from "./events/schedule";
 export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
 export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
 export { parseDevEvents } from "./events/devEvents";

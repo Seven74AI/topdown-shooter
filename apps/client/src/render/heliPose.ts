@@ -82,10 +82,9 @@ export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extra
   return out;
 }
 
-/** The pad centre: the map's `evac_pad` event spot (6.8's layer), else the map centre. */
+/** The pad centre: the map's `evac_pad` event spot (6.8's `events` layer), else the map centre. */
 export function evacPadOf(map: Readonly<DistrictMap>): { x: number; y: number } {
-  const spots = (map as { eventSpots?: readonly { name: string; x: number; y: number }[] }).eventSpots;
-  const pad = spots?.find((s) => s.name === "evac_pad");
+  const pad = map.eventSpots.find((s) => s.kind === "evac_pad");
   return pad ? { x: pad.x, y: pad.y } : { x: map.widthM / 2, y: map.heightM / 2 };
 }
 

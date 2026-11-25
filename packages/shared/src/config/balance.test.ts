@@ -623,14 +623,6 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
   });
 });
 
-describe("Story 6.11/6.12 review L5", () => {
-  it("evac.everyWaves must equal endless.bossEveryWaves (a vote after every endless Behemoth wave)", () => {
-    const files = bundledBalanceFiles();
-    (files.waves as { evac: { everyWaves: number } }).evac.everyWaves = 4;
-    expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
-  });
-});
-
 describe("Story 6.8: events.json", () => {
   it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 12 s, 6.8 B2)", () => {
     const e = loadBalance().events;
@@ -657,5 +649,13 @@ describe("Story 6.8: events.json", () => {
     bad((e) => (e.banners = { car_alarm: "x" }), /banners\.stampede is missing/);
     bad((e) => ((e.stampede as Record<string, unknown>).rowGapS = 0.33), /whole ticks/);
     bad((e) => ((e.stampede as Record<string, unknown>).countByPlayers = [12, 18, 24]), /countByPlayers/);
+  });
+});
+
+describe("Story 6.11/6.12 review L5", () => {
+  it("evac.everyWaves must equal endless.bossEveryWaves (a vote after every endless Behemoth wave)", () => {
+    const files = bundledBalanceFiles();
+    (files.waves as { evac: { everyWaves: number } }).evac.everyWaves = 4;
+    expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
   });
 });
