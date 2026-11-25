@@ -133,3 +133,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 08:37 Re-review 7.3 (71c63da0): F1–F11 hold (answer = committed in every real-PG case; no refresh loop); RR-M1 = same server crash as 7.2 RR2-M1 (7.1's db/client.ts) → fixed once in 7.1 before landing (OR-23), 7.2/7.3 inherit; RR-L1 client unlock timeout 3 s < route worst case → own ≥ 7 s timeout; RR-N1 test measures text width.
 - 08:41 7.3 re-review-1 fixes (18a328ad): unlock client timeout 7 s, refresh only after it; text-width layout test. 7.1 pg crash fix (5819a641): client error listener + keepAlive. Light re-review 2 for 7.3 dispatched (behaviour-changing timeout; designer's re-review-cap question pending).
 - 08:45 designer: "Let's cap re review" → rule recorded in HANDOFF §3.
+- 08:45 Re-review 2 7.3 (25410024): CLEAN (2 nits, self-healing). 7.3 READY — lands after 7.1, 7.2, 7.9 (it merged story-7-1 + story-7-2).
