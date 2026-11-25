@@ -191,7 +191,7 @@ Claude (builder session for Story 8.10, gds-dev-story), 2026-11-25 overnight.
 
 ### Gate
 
-GATE_LINE
+Commit `10f1488` on `story-8-10`, master `d8d44d0` merged (already up to date). `npm run typecheck && npm run lint && npm test && npm run build`: green — 407 test files passed (1 skipped), 3,740 tests passed (3 skipped), build OK. Load (1-min) 0.07 at the start, 4.65 at the end (the suite itself; 4 cores).
 
 ### Debug Log References
 
