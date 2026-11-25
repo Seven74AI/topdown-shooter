@@ -138,7 +138,7 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-25 overnight run.
 
 ### Gate
 
-GATE_LINE_PLACEHOLDER
+Gate (2026-11-25, full, builder): commit e43ab3f7 = story-7-6 (on story-7-3 18a328ad) merged with master c26d1bcf (7.1 + 7.2 landed) — typecheck ✓, lint ✓, test ✓ 467 files passed / 1 skipped, 4277 tests passed / 3 skipped (with TEST_DATABASE_URL = local PostgreSQL 16: 7.2/7.3 realPostgres + 7.6 realPostgresAccounts ran), build ✓; 476.7 s of tests; load 1.49 at start, 3.07 at end (4-core container, this builder alone).
 
 ### Debug Log References
 
