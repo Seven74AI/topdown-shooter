@@ -8,6 +8,12 @@
 export const RECONNECT = {
   /** AC 5: no message of any kind for this long (horde frames arrive 20×/s, pings 1×/s) = the line is dead. */
   watchdogMs: 3000,
+  /**
+   * A watchdog check that comes this late after the previous one means the PAGE was frozen (a long
+   * main-thread stall such as a scene restart, a throttled hidden-tab timer, a woken tab), not the
+   * line: the messages that arrived meanwhile are still queued behind the timer. Re-arm, don't fire.
+   */
+  watchdogStallMs: 1000,
   /** AC 4: the SDK's token reconnect, retried every 0.5 s → 3 s (backoff) … */
   minDelayMs: 500,
   maxDelayMs: 3000,
@@ -21,6 +27,14 @@ export const RECONNECT = {
   takeoverAfterMs: 2000,
   /** A takeover attempt that failed on the network (the line is still cut) is tried again after this. */
   retryMs: 1000,
+  /**
+   * A takeover join with no answer after this long counts as a network failure and the next one is
+   * started (a socket can hang without ever closing: WebKit 308073). A late success is adopted
+   * (`onLate`). Longer than a cut the line usually recovers from, so a held request normally answers first.
+   */
+  attemptTimeoutMs: 10_000,
+  /** A 4021 (taken over) this soon after my own recovery is my own crossed takeovers: take the seat again. */
+  ownTakeoverMs: 15_000,
   /** D4: while the seat is only remembered (`seat_kept`), the phone asks again this often. */
   seatRetryMs: 3000,
   /** Give up the takeover after the hold plus slack (the server has freed the seat by then). */
@@ -61,6 +75,7 @@ export function configureReconnection(r: ReconnectionLike): void {
 export class Watchdog {
   private lastMs = 0;
   private armed = false;
+  private lastCheckMs = Number.NaN;
   constructor(private readonly limitMs: number = RECONNECT.watchdogMs) {}
   heard(nowMs: number): void {
     this.lastMs = nowMs;
@@ -74,6 +89,12 @@ export class Watchdog {
     return this.armed ? nowMs - this.lastMs : 0;
   }
   fired(nowMs: number): boolean {
+    const late = nowMs - this.lastCheckMs > RECONNECT.watchdogStallMs;
+    this.lastCheckMs = nowMs;
+    if (late && this.armed) {
+      this.lastMs = Math.max(this.lastMs, nowMs - this.limitMs + RECONNECT.watchdogStallMs); // give the queued messages a second
+      return false;
+    }
     if (!this.armed || nowMs - this.lastMs <= this.limitMs) return false;
     this.armed = false;
     return true;
@@ -141,23 +162,35 @@ export class SeatRecovery<R> {
   }
 
   /**
-   * An attempt is waiting for its answer. One at a time, and never timed out: a cut line holds the
-   * request until it is whole again (then it answers at once), and two takeovers in flight from the
-   * same phone would fight over the seat.
+   * An attempt is waiting for its answer. One at a time; one that hangs past `attemptTimeoutMs`
+   * counts as a network failure and the next one starts (its late success is adopted: `onLate`).
    */
   get inFlight(): boolean {
-    return this.pending;
+    return this.pending > 0;
   }
 
-  private pending = false;
+  private pending = 0;
 
   private attempt(): void {
     const epoch = ++this.epoch;
     this.cancelTimer = null;
     this.attempts++;
-    this.pending = true;
+    this.pending++;
+    let settled = false;
+    const timeout = this.deps.schedule(() => {
+      if (settled) return;
+      settled = true;
+      this.pending--;
+      this.answer(epoch, { ok: false, reason: "network" });
+    }, RECONNECT.attemptTimeoutMs);
     const settle = (r: RecoveryJoin<R>): void => {
-      this.pending = false;
+      if (settled) {
+        if (r.ok) this.onLate(r.room); // timed out meanwhile; it holds the seat now if it is the newest
+        return;
+      }
+      settled = true;
+      this.pending--;
+      timeout();
       this.answer(epoch, r);
     };
     void this.deps.join().then(settle, () => settle({ ok: false, reason: "network" }));

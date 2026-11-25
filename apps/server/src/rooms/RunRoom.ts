@@ -480,6 +480,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller) return;
     controller.holdPlayer(member.playerId); // false when already held (quiet → drop)
     let hold = this.holds.get(member.playerId);
+    const fresh = !hold;
     if (!hold) {
       hold = { reason, atMs: performance.now(), reconnection: null, timer: null };
       this.holds.set(member.playerId, hold);
@@ -487,15 +488,17 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     hold.reason = reason;
     hold.timer?.clear();
     hold.timer = null;
+    // A quiet seat that then drops keeps its clock: the 120 s run from the first hold (Epic 8 D1), never restart.
+    const leftS = Math.max(1, this.holdS - (performance.now() - hold.atMs) / 1000);
     if (reason === "drop" && client) {
-      const reconnection = this.allowReconnection(client, this.holdS);
+      const reconnection = this.allowReconnection(client, leftS);
       reconnection.catch(() => {}); // a timeout or takeover: Colyseus calls onLeave (expiry) itself
       hold.reconnection = reconnection;
     } else {
-      hold.timer = this.clock.setTimeout(() => this.expireQuiet(member.playerId), this.holdS * 1000);
+      hold.timer = this.clock.setTimeout(() => this.expireQuiet(member.playerId), leftS * 1000);
     }
     const s = this.state.players.get(member.playerId);
-    if (s) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
+    if (s && fresh) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
     this.log.info({ playerId: member.playerId, reason, wave: controller.world.waves.number, phase: this.state.phase }, "player_held");
     this.updateFreeze();
   }
@@ -1328,7 +1331,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     if (!member) return;
     // Story 8.1 (AC 2): inputs again on the same socket after a quiet hold: the seat returns (F4) first.
-    if (this.holds.get(member.playerId)?.reason === "quiet") this.endHold(member, "input");
+    // A late input made while the line was down (F7: `isStaleInput`) is no sign of life.
+    if (this.holds.get(member.playerId)?.reason === "quiet" && this.controller && !this.controller.isStaleInput(input)) this.endHold(member, "input");
     this.controller?.queueInput(member.playerId, input);
   }
 }

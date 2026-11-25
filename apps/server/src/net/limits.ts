@@ -65,3 +65,10 @@ export const TRANSPORT_PING_INTERVAL_MS = 3000;
 export const TRANSPORT_PING_MAX_RETRIES = 4;
 /** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). */
 export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
+/**
+ * Story 8.1 (F7, brief 21): an input whose view tick (`viewTick`, the tick the phone drew) is more
+ * than this many ticks (2 s) behind the server was made while the line was down (a cut, a tunnel) and
+ * arrives late in the TCP burst: its seq counts as received, nothing of it is applied, and it never
+ * ends a quiet hold. A live phone's view lags by RTT/2 + render delay (≤ 0.75 s on the lossy line).
+ */
+export const STALE_INPUT_TICKS = 40;

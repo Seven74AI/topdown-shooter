@@ -26,8 +26,18 @@ describe("Story 8.1 Watchdog (AC 5)", () => {
     expect(firedAt).toBe(1000 + RECONNECT.watchdogMs + 1);
     expect(fires).toBe(1);
     w.heard(9500);
-    expect(w.fired(12_500)).toBe(false);
+    for (let t = 9500; t <= 12_500; t += 250) expect(w.fired(t)).toBe(false);
     expect(w.fired(12_501)).toBe(true);
+  });
+
+  it("a check that comes > 1 s late (the page froze: scene restart, hidden-tab timer) re-arms instead of firing; a real silence still fires", () => {
+    const w = new Watchdog();
+    w.heard(0);
+    for (let t = 0; t <= 1000; t += 250) expect(w.fired(t)).toBe(false);
+    expect(w.fired(5000)).toBe(false); // 4 s gap in the checks: the page was frozen
+    let firedAt = -1;
+    for (let t = 5250; t <= 9000 && firedAt < 0; t += 250) if (w.fired(t)) firedAt = t;
+    expect(firedAt).toBe(6250); // one more second for the queued messages, then the silence counts
   });
 
   it("horde frames every 50 ms (with the lossy line's 400 ms stalls) never fire it", () => {
@@ -37,6 +47,7 @@ describe("Story 8.1 Watchdog (AC 5)", () => {
       if (t % 5000 < 400 && t > 0) continue; // a 400 ms stall every 5 s
       w.heard(t);
       if (w.fired(t + 49)) fires++;
+      if (w.fired(t + 50)) fires++;
     }
     expect(fires).toBe(0);
   });
@@ -45,7 +56,7 @@ describe("Story 8.1 Watchdog (AC 5)", () => {
     const w = new Watchdog();
     w.heard(0);
     w.disarm();
-    expect(w.fired(10_000)).toBe(false);
+    for (let t = 0; t <= 10_000; t += 250) expect(w.fired(t)).toBe(false);
   });
 });
 
@@ -170,7 +181,7 @@ describe("Story 8.1 shouldRescueReload (AC 7, D6)", () => {
 });
 
 describe("Story 8.1 SeatRecovery: one attempt at a time (a cut line holds the request)", () => {
-  it("a hung attempt is never timed out or doubled: it answers when the line is whole and the seat is back at once", async () => {
+  it("a held attempt (shorter than the timeout) is not doubled: it answers when the line is whole and the seat is back at once", async () => {
     const time = fakeTime();
     const releases: ((r: RecoveryJoin<string>) => void)[] = [];
     const got: string[] = [];
@@ -183,12 +194,43 @@ describe("Story 8.1 SeatRecovery: one attempt at a time (a cut line holds the re
       schedule: time.schedule,
     });
     rec.start();
-    await time.advance(20_000);
+    await time.advance(RECONNECT.attemptTimeoutMs - 100);
     expect(releases).toHaveLength(1);
     expect(rec.inFlight).toBe(true);
     releases[0]?.({ ok: true, room: "R" });
     await time.advance(1);
     expect(got).toEqual(["R"]);
     expect(rec.inFlight).toBe(false);
+  });
+});
+
+describe("Story 8.1 SeatRecovery: a hung attempt (WebKit 308073)", () => {
+  it("times out after 10 s and the next one goes; a late success is handed to onLate (adopted)", async () => {
+    const time = fakeTime();
+    const releases: ((r: RecoveryJoin<string>) => void)[] = [];
+    const late: string[] = [];
+    const got: string[] = [];
+    const rec = new SeatRecovery<string>(
+      {
+        join: () => new Promise((res) => releases.push(res)),
+        onRecovered: (r) => got.push(r),
+        onSeatKept: () => got.push("kept"),
+        onGone: () => got.push("gone"),
+        now: time.now,
+        schedule: time.schedule,
+      },
+      (r) => late.push(r),
+    );
+    rec.start();
+    await time.advance(RECONNECT.attemptTimeoutMs - 1);
+    expect(releases).toHaveLength(1);
+    await time.advance(1 + RECONNECT.retryMs);
+    expect(releases).toHaveLength(2);
+    releases[1]?.({ ok: true, room: "R" });
+    await time.advance(1);
+    releases[0]?.({ ok: true, room: "late" });
+    await time.advance(1);
+    expect(got).toEqual(["R"]);
+    expect(late).toEqual(["late"]);
   });
 });

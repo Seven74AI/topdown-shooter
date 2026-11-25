@@ -24,6 +24,12 @@ describe("Story 8.1 reconnect wiring", () => {
     expect(src).toMatch(/shouldRescueReload\(hiddenForMs, performance\.now\(\) - shownAt, linkStore\.get\(\)\.status === "reconnecting"\)\) location\.reload\(\)/);
   });
 
+  it("BootScene listens for startOnline from its first frame (a reload's resumed seat asks during the title)", () => {
+    const src = client("scenes", "BootScene.ts");
+    const create = src.slice(src.indexOf("create(data?: BootSceneData)"), src.indexOf("const title = this.add"));
+    expect(create).toMatch(/uiStore\.handle\("startOnline", \(session\) => this\.startOnline\(session\)\);/);
+  });
+
   it("the overlay is mounted, and the player view blinks protection", () => {
     expect(client("ui", "App.tsx")).toMatch(/<ConnectionOverlay \/>/);
     expect(client("render", "PlayerView.ts")).toMatch(/protectBlinkAlpha\(p\.protectTicks, timeMs\)/);

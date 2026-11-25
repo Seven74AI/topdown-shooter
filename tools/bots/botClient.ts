@@ -310,6 +310,12 @@ export class BotClient {
     room.onLeave((code: number, reason?: string) => {
       if (this.room !== room || this.leaving) return;
       if (code === CLOSE_TAKEN_OVER && this.recovery.inFlight) return; // our own takeover: its room is adopted next
+      if (code === CLOSE_TAKEN_OVER && performance.now() - this.recoveredAtMs < RECONNECT.ownTakeoverMs) {
+        // two of my own takeovers crossed (the server kept the other one): take the seat again
+        if (this.link === "ok") this.dropped();
+        this.recovery.start();
+        return;
+      }
       // Story 8.1: mid-run, an end that is not a Leave, a shutdown or a takeover is a drop the SDK couldn't repair.
       const phase = room.state?.phase;
       if ((phase === "build" || phase === "wave" || phase === "vote") && code !== 4000 && code !== 4001 && code !== CLOSE_TAKEN_OVER) {
@@ -360,7 +366,10 @@ export class BotClient {
   }
 
   /** Story 8.1: my seat came back on a new room (a takeover by guest token): play on in it. */
+  private recoveredAtMs = Number.NEGATIVE_INFINITY;
+
   private recovered(room: Room<unknown, RunStateView>): void {
+    this.recoveredAtMs = performance.now();
     const old = this.room;
     old.reconnection.enabled = false;
     this.room = room;

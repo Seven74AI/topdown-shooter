@@ -88,6 +88,18 @@ describe("Story 8.1 lobbyStore reconnect wiring", () => {
     expect(linkStore.get().status).toBe("seat_kept");
   });
 
+  it("a 4021 right after my own recovery is my own crossed takeovers: take the seat again (no 'taken over')", async () => {
+    const f = linkRoom();
+    const rejoin = vi.fn(async (): Promise<RecoveryJoin<RunConnection>> => ({ ok: false, reason: "network" }));
+    const { onLost } = attach(f, rejoin);
+    linkStore.recoveredAtMs = performance.now();
+    f.leaveWith(4021);
+    await Promise.resolve();
+    expect(onLost).not.toHaveBeenCalled();
+    expect(rejoin).toHaveBeenCalledTimes(1);
+    linkStore.recoveredAtMs = Number.NEGATIVE_INFINITY;
+  });
+
   it("closed as taken over (4021): 'taken_over', and the seat stays saved (the other tab has it)", () => {
     vi.stubGlobal("sessionStorage", memoryStorage());
     const f = linkRoom();

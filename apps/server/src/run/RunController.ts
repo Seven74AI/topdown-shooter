@@ -30,6 +30,7 @@ import {
   castVote,
   type EvacChoice,
   setZombieHistoryEnabled,
+  viewTickOfInput,
   setInput,
   skippedInputWeaponTick,
   startBuild,
@@ -65,7 +66,7 @@ import {
   type ZombieTypeId,
   setForcedBlackout,
 } from "@topdown/shared";
-import { INPUT_SEQ_RESYNC_AFTER, QUIET_HOLD_TICKS, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { INPUT_SEQ_RESYNC_AFTER, QUIET_HOLD_TICKS, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS, STALE_INPUT_TICKS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
 
 /** Story 2.12: the rewind cap in ticks (REWIND_CAP_MS, never more than the shared history holds). */
@@ -148,6 +149,8 @@ class PlayerSlot {
   overTargetTicks = 0;
   /** Zombies this player killed this run (Story 2.8 Results). */
   kills = 0;
+  /** Story 8.1 (F7): inputs dropped because they were made while the line was down (`isStaleInput`). */
+  offlineDrops = 0;
   /** Story 8.1 (D1): ticks in a row with no input queued or applied (a quiet phone); reset by every queued input. */
   quietTicks = 0;
   /** Story 8.1: on hold (dropped or quiet): out of `order`, its inputs ignored until `returnPlayer`. */
@@ -421,7 +424,6 @@ export class RunController {
   queueInput(playerId: string, input: PlayerInput): void {
     const s = this.slots.get(playerId);
     if (!s || s.held) return; // Story 8.1 (F7): nothing a held player sent is applied
-    s.quietTicks = 0;
     if (input.seq <= s.lastQueuedSeq) {
       s.staleDrops++;
       return;
@@ -445,6 +447,13 @@ export class RunController {
       }
     }
     s.jumpStreak = 0;
+    if (this.isStaleInput(input)) {
+      // Story 8.1 (F7): made while the line was down, delivered late: the seq counts, nothing applies.
+      s.lastQueuedSeq = input.seq;
+      s.offlineDrops++;
+      return;
+    }
+    s.quietTicks = 0;
     const full = s.count === INPUT_QUEUE_MAX;
     if (full) {
       dropOldest(s);
@@ -516,9 +525,10 @@ export class RunController {
   }
 
   /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
-  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number } {
+  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number; offline: number } {
     const s = this.slots.get(playerId);
     return {
+      offline: s?.offlineDrops ?? 0,
       overflow: s?.overflowDrops ?? 0,
       stale: s?.staleDrops ?? 0,
       drained: s?.drainSkips ?? 0,
@@ -555,6 +565,12 @@ export class RunController {
     this.heldSlots.set(playerId, s);
     resetQueue(s);
     return true;
+  }
+
+  /** Story 8.1 (F7): the input's view is more than STALE_INPUT_TICKS behind the server (made while the line was down). */
+  isStaleInput(input: PlayerInput): boolean {
+    const view = viewTickOfInput(input);
+    return view >= 0 && this.world.tick - view > STALE_INPUT_TICKS;
   }
 
   /** Story 8.1 (D5): a takeover by a new tab: its seqs start afresh (no seq_gap_suspect), nothing else changes. */

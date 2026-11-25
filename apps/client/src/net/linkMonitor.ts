@@ -14,6 +14,8 @@ type LinkListener = (s: LinkSnapshot) => void;
 /** Story 8.1: the link status for the UI (one per page; the current room's monitor writes it). */
 class LinkStore {
   private snap: LinkSnapshot = { status: "ok", sinceMs: 0 };
+  /** When my seat last came back on a new room (a takeover): a 4021 soon after is my own crossed takeovers. */
+  recoveredAtMs = Number.NEGATIVE_INFINITY;
   private readonly listeners = new Set<LinkListener>();
   get(): LinkSnapshot {
     return this.snap;
@@ -111,6 +113,7 @@ export class LinkMonitor<R> {
   }
 
   private adopt(r: R): void {
+    linkStore.recoveredAtMs = this.deps.now();
     this.set("ok");
     this.closed = true;
     this.recovery.cancel();

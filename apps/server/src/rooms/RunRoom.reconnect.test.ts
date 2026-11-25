@@ -300,6 +300,32 @@ describe("Story 8.1 after the hold (AC 9, F8)", () => {
 });
 
 describe("Story 8.1 quiet player (AC 2, D1)", () => {
+  it("a quiet seat that then drops keeps its 120 s clock (the hold never restarts): it runs out from the first hold", async () => {
+    const { clients, room, seen } = await runOf(2);
+    room.holdS = 3.6;
+    const w = world(room);
+    startWave(w);
+    const ana = clients[0] as RunSdkRoom;
+    let seq = 0;
+    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
+    try {
+      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 6000 });
+      const heldAt = performance.now();
+      const until = room.state.players.get("p1")?.heldUntilTick;
+      await sleep(1500);
+      const bo = clients[1] as RunSdkRoom;
+      reconnect(bo, false);
+      dropSocket(room, bo);
+      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
+      expect(room.state.players.get("p1")?.heldUntilTick).toBe(until); // the chip's countdown doesn't jump back
+      await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]), { timeout: 6000 });
+      const heldForMs = performance.now() - heldAt;
+      expect(heldForMs).toBeLessThan(3600 + 800); // from the FIRST hold, not 3.6 s after the drop (that would be ≥ 5.1 s)
+    } finally {
+      clearInterval(keepAlive);
+    }
+  });
+
   it("a connected player with no input for 3 s in a wave is held (reason quiet); its next input returns it next to a teammate", async () => {
     const { clients, room } = await runOf(2);
     const lines = logLines(room);

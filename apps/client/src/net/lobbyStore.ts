@@ -3,6 +3,7 @@ import {
   C2S,
   CLOSE_TAKEN_OVER,
   MAX_PLAYERS,
+  RECONNECT,
   S2C,
   type RecoveryJoin,
   startBlocker,
@@ -252,6 +253,11 @@ class LobbyStore {
       const link = this.link;
       // Our own takeover is in flight: this 4021 is it closing the token-reconnected socket; its room is adopted next.
       if (link && code === CLOSE_TAKEN_OVER && link.recoveryInFlight) return;
+      // Just recovered: two of my own takeovers crossed (the server kept the other): take the seat again.
+      if (link && code === CLOSE_TAKEN_OVER && performance.now() - linkStore.recoveredAtMs < RECONNECT.ownTakeoverMs) {
+        link.sdkGaveUp();
+        return;
+      }
       if (link && inRunPhase(room.state?.phase) && !shuttingDown && code !== CONSENTED && code !== SERVER_SHUTDOWN && code !== CLOSE_TAKEN_OVER) {
         link.sdkGaveUp();
         return;
