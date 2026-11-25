@@ -118,3 +118,18 @@ describe("Story 8.1 review M3: the phone's clock after a freeze", () => {
     expect((host.serverTick - tick) * 50).toBeLessThan(200);
   });
 });
+
+describe("Story 8.1 RR1-M1: NetSimHost.heldSeatSlots", () => {
+  it("lists teammates with heldUntilTick > 0 from the room state (never me)", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 }), fakePlayer(2, { x: 30, y: 10 })]));
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => 0 });
+    room.state.tick = 1;
+    room.state.phase = "vote";
+    (room.state.players.get("p2") as { heldUntilTick: number }).heldUntilTick = 500;
+    (room.state.players.get("p1") as { heldUntilTick: number }).heldUntilTick = 500;
+    room.patch();
+    host.update(FRAME);
+    expect([...host.heldSeatSlots()]).toEqual([2]);
+  });
+});

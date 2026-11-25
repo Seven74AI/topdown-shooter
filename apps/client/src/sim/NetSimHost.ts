@@ -371,6 +371,17 @@ export class NetSimHost implements SimHost {
   }
 
   /** Story 2.9: slot and name from the room's schema copy (the slot from the id until it arrives). */
+  /** Story 8.1 RR1-M1: teammates on hold, by slot (preallocated; valid until the next call). */
+  private readonly heldSlots: number[] = [];
+  private readonly collectHeld = (p: PlayerStateView, id: string): void => {
+    if (p.heldUntilTick > 0 && id !== this.localPlayerId) this.heldSlots.push(p.slot);
+  };
+  heldSeatSlots(): readonly number[] {
+    this.heldSlots.length = 0;
+    this.session.room.state?.players?.forEach(this.collectHeld);
+    return this.heldSlots;
+  }
+
   playerInfo(id: string): PlayerInfo {
     const s = this.session.room.state?.players?.get(id);
     const slot = s?.slot ?? playerSlotOf(id);
