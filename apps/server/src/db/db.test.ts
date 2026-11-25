@@ -5,7 +5,8 @@ import { type SQL, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo } from "./accountsRepo";
-import { type Database, type Db, databaseFromEnv, openPglite } from "./client";
+import { EventEmitter } from "node:events";
+import { type Database, type Db, createPool, databaseFromEnv, openPglite } from "./client";
 import { MIGRATIONS_FOLDER, migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { DbUnavailableError, withDbTimeout } from "./timeout";
@@ -140,6 +141,24 @@ describe("timeouts and errors (Story 7.1 AC 9, P3)", () => {
     const down = databaseFromEnv({ DATABASE_URL: "postgres://u:p@127.0.0.1:1/none" }, "unused");
     open.push(down);
     await expect(accountsRepo(down).findByTokenHash(HASH_A)).rejects.toBeInstanceOf(DbUnavailableError);
+  });
+
+  it("a checked-out client losing its backend mid-transaction logs db_error and never crashes the process", async () => {
+    const errors = vi.spyOn(log, "error").mockImplementation(() => undefined as never);
+    const pool = createPool("postgres://u:p@127.0.0.1:1/none");
+    try {
+      expect((pool as unknown as { options: { keepAlive?: boolean } }).options.keepAlive).toBe(true);
+      // What pg-pool does when it hands out a new client: emit `connect` with it.
+      const client = new EventEmitter();
+      pool.emit("connect", client as never);
+      // An EventEmitter with no `error` listener throws on emit (that was the uncaughtException).
+      expect(() => client.emit("error", new Error("terminating connection due to administrator command"))).not.toThrow();
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ op: "client", err: "terminating connection due to administrator command" }), "db_error");
+      // Idle-client errors (the pool's own event) are handled too.
+      expect(() => pool.emit("error", new Error("idle lost"), client as never)).not.toThrow();
+    } finally {
+      await pool.end();
+    }
   });
 
   it("production without DATABASE_URL refuses; dev falls back to PGlite", () => {

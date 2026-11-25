@@ -164,18 +164,18 @@ development_status:
 
   # Epic 7: Accounts and meta-progression
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
-  7-1-progress-saved-on-the-server: review  # built on story-7-1 (gated with story-8-1 + master d8d44d0); story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-1-progress-saved-on-the-server: done  # 2026-11-25: PostgreSQL/PGlite + repos, guest accounts (__Host-tdg cookie + localStorage), ticket bound to the token, account at join, deploy/backups; review 1M/6L + 1 narrow re-review, pg client crash fix
   7-2-earn-and-bank-supplies: review  # builder story-7-2 2026-11-25, full gate green 9c451d5; story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-3-unlock-screen: review  # 2026-11-25 overnight: unlock list (14, 3,120), pool/mask/Good next pick, POST /account/unlock (one conditional update, request-id memo, 20/min/account), Progress hub PH1 Lumen LF5; review fixes F1-F11, gate green on fed5cc51 (branch story-7-3)
-  7-4-shop-deck-from-my-unlocks: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
-  7-5-training-boosts: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-4-shop-deck-from-my-unlocks: ready-for-dev  # MERGED with 7.5 (docs/story-merges-2026-11-25.md)
+  7-5-training-boosts: ready-for-dev  # MERGED into 7.4+7.5
   7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
-  7-7-district-unlock-rule: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
+  7-7-district-unlock-rule: ready-for-dev  # MERGED into 7.7+7.11+7.12
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
   7-10-survivor-editor: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
-  7-11-milestone-items: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
-  7-12-surprise-loot-bag: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-11-milestone-items: ready-for-dev  # MERGED into 7.7+7.11+7.12
+  7-12-surprise-loot-bag: ready-for-dev  # T0-T4 built (story-7-12); T5 in the merged 7.7+7.11+7.12
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience
@@ -188,12 +188,12 @@ development_status:
   8-1-reconnect-within-2-minutes: done  # 2026-11-25 overnight: hold 120 s, 3 s dropping body (B16), once-per-wave protected return (B15), held seats counted (H3) and silent in the vote; review 3H/3M/6L + 3 narrow re-reviews (+ main-session check of the last fix, re-review cap)
   8-10-half-size-horde-stream: done  # 2026-11-25 overnight: delta horde stream 18.6 -> 8.2 KB/s, stampede 28.2 -> 13.5 (6.8 B1 closed); B7 all zombies 20 Hz (supersedes D1); review 2M+3L fixed, re-review approved
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
-  8-2-join-mid-run-at-a-build-phase: backlog
-  8-3-host-migration: backlog
-  8-4-autosave-at-every-build-phase: backlog
-  8-5-save-and-quit: backlog
-  8-6-resume-a-saved-run: backlog
-  8-7-pings: backlog
+  8-2-join-mid-run-at-a-build-phase: ready-for-dev  # merged 8.2+8.3 (designer 2026-11-25): story file 8-2-3-join-mid-run-and-host-role.md (2026-11-25, decisions docs/epic-8-story-decisions.md, recommended, to accept)
+  8-3-host-migration: ready-for-dev  # merged into 8.2+8.3: see 8-2-3-join-mid-run-and-host-role.md
+  8-4-autosave-at-every-build-phase: ready-for-dev  # merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
+  8-5-save-and-quit: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
+  8-6-resume-a-saved-run: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
+  8-7-pings: ready-for-dev  # story file 8-7-pings.md (2026-11-25; parallel with 8.2+8.3; decisions docs/epic-8-story-decisions.md)
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio

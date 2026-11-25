@@ -48,6 +48,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 5. A BMAD bug: `bmad-build` / `bmad-build-auto` stop with "ambiguous config value implementation_artifacts" (bmm + gds both define it; `_bmad/scripts/render_skill.py` treats identical duplicates as ambiguous; still present in BMAD 6.12.4 and main). Use the gds skills (`gds-dev-story`, `gds-code-review`, `gds-create-story`, `gds-retrospective`, `gds-correct-course`) instead.
 6. Designer: "no videos" for look proposals (stills only); red IS allowed in menu screens (in-play signals keep red = boss danger).
 
+**Re-review cap (designer 2026-11-25, "Let's cap re review"):** at most **two narrow re-review rounds per story**. After the second round, remaining fixes (lows, one-line or test-only fixes, and mirrors of an already re-reviewed fix) are checked by the main session: read the diff, run the touched tests, then log the check in the story file and the run log, and land. Exception: a new **high** finding still gets a fresh re-review. The full fresh review per story is unchanged, and so is one gate per builder plus the main session's gate before master.
+
 **Session 9 speed-up (designer 2026-11-24, "ok for all, now"):**
 1. Start a story as soon as its real file overlap allows, not by round: check the Notes for the merge of the stories it waits for (6.8 started before 6.6+6.7 landed because 6.6 left zombieAi.ts/flowField.ts untouched; 6.11+6.12 branched from story-6-6). Give each parallel builder its own netEvents kind range and readability-sheet number range up front.
 2. Up to 3–4 builders at once (each in its own cloud session).
