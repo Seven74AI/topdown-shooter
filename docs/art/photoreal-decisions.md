@@ -12,3 +12,14 @@ ground damage, one group at a time with a before/after page each.
 Related decisions from the same review (in the game): the police barrier looks B1 + B3, the glowing countdown slam
 warning with sparks, the R1 + R2 + R3 ground damage, and the P1 boss warning display. See `docs/art/asset-fixes-1/`
 and the asset review in `docs/art/asset-review.md`.
+
+## Things you build (photoreal group 3), 2026-11-25
+
+- The 7 non-barricade buildables (bear traps, mine, spike trap, floodlights, med station) and their animations: approved ("All OK"). Page: `docs/art/photoreal-3/compare.html`.
+- Barricades: drawn STANDING, from a raised camera (heights × 0.6), not flat from above (flat read as benches). Approved on the wood wall ("Perfect"):
+  - four pictures per barricade, one per rotation: front inside (braces, props, junk), front outside (same wall mirrored, clean, rubble at the foot), side with braces east / west (braces always inside);
+  - a corner piece fills the empty square where two lines meet (post + stubs over both walls), so corners close;
+  - pieces run edge to edge (no holes), each placed piece is a random variant built from scavenged parts, tilted and overlapping (not "too well arranged");
+  - frame 2 × 1 m (footprint unchanged), shadows cast from the real silhouette, one light direction.
+- Same system drawn for reinforced, metal and police (police corner = traffic drum): awaiting the designer's verdict.
+- References: Meshy images in `docs/art/photoreal-3/refs/`.

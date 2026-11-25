@@ -10,7 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { CB, SIDE_C, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3corner, drawWD3outV, drawWD3sideE, drawWD3sideW, drawWD3v, inFrameM } from "./barricadeTakes";
+import { CB, SIDE_C, drawCorner, drawFrontIn, drawFrontOut, drawPoliceCorner, drawPoliceFront, drawPoliceSide, drawSide, type Style, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3corner, drawWD3outV, drawWD3sideE, drawWD3sideW, drawWD3v, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const REFS: Record<string, string>; // the Meshy references (round 3)
@@ -578,21 +578,38 @@ async function takes(): Promise<void> {
 }
 
 /** A closed fort of wood barricades: inside faces on the far wall, outside faces on the near wall, braces inside, corner pieces. */
-async function fort(): Promise<void> {
-  const box = document.getElementById("fort") as HTMLElement;
-  const mk = (id: string, draw: (g: Ctx) => void, wM: number, hM: number, seed: number): Lit => relight({ ...take(id, "", draw, "x", 0, ""), wM, hM }, seed);
+interface FortSet {
+  title: string;
+  caption: string;
+  inside: (g: Ctx, v: number) => void;
+  outside: (g: Ctx, v: number) => void;
+  side: (g: Ctx, braceSide: 1 | -1, v: number) => void;
+  corner: (g: Ctx, h: 1 | -1, v: 1 | -1, inside: boolean) => void;
+  glow?: boolean;
+}
+const styleSet = (st: Style, title: string, caption: string): FortSet => ({ title, caption, inside: (g, v) => drawFrontIn(g, st, v), outside: (g, v) => drawFrontOut(g, st, v), side: (g, b, v) => drawSide(g, st, b, v), corner: (g, h, v, i) => drawCorner(g, st, h, v, i) });
+const FORTS: FortSet[] = [
+  styleSet("wood", "Wood barricade (approved)", "Far wall: inside face (braces, junk) · near wall: outside face (clean, rubble at its foot) · side walls: braces inside · corner pieces close every corner"),
+  styleSet("rf", "Reinforced barricade", "The wood wall reinforced: rusty corrugated steel, steel straps, chains, razor wire along every top · banded posts with wire at the corners"),
+  styleSet("mt", "Metal barricade", "Welded plates of uneven size: hazard bands and rust outside, angle-iron stiffeners, I-beam props and sandbags inside · steel I-beam corner posts"),
+  { title: "Police barricade", caption: "Sawhorses look the same from both sides, so inside and outside are just two variants · side lines show the sawhorses end-on · a traffic drum at each corner", inside: (g, v) => drawPoliceFront(g, v), outside: (g, v) => drawPoliceFront(g, v + 10), side: (g, _b, v) => drawPoliceSide(g, v), corner: (g) => drawPoliceCorner(g), glow: true },
+];
+
+async function fort(set: FortSet, box: HTMLElement, base: number): Promise<void> {
+  const mk = (id: string, draw: (g: Ctx) => void, wM: number, hM: number, seed: number): Lit => relight({ ...take(id, "", draw, "x", 0, ""), wM, hM, ...(set.glow ? { emissive: amber, glow: "strobe" as const } : {}) }, seed);
   const L = {
-    inside: mk("fi", (g) => drawWD3v(g, 1), 2, 1, 1801),
-    inside2: mk("fi2", (g) => drawWD3v(g, 2), 2, 1, 1811),
-    outside: mk("fo", (g) => drawWD3outV(g, 3), 2, 1, 1802),
-    outside2: mk("fo2", (g) => drawWD3outV(g, 4), 2, 1, 1812),
-    sideE: mk("se", (g) => drawWD3sideE(g, 1), 1, 2.8, 1803),
-    sideW: mk("sw", (g) => drawWD3sideW(g, 2), 1, 2.8, 1804),
-    NW: mk("nw", (g) => drawWD3corner(g, 1, 1, true), 1.4, 2, 1805),
-    NE: mk("ne", (g) => drawWD3corner(g, -1, 1, true), 1.4, 2, 1806),
-    SW: mk("sw2", (g) => drawWD3corner(g, 1, -1, false), 1.4, 2, 1807),
-    SE: mk("se2", (g) => drawWD3corner(g, -1, -1, false), 1.4, 2, 1808),
+    inside: mk("fi", (g) => set.inside(g, 1), 2, 1, base + 1),
+    inside2: mk("fi2", (g) => set.inside(g, 2), 2, 1, base + 2),
+    outside: mk("fo", (g) => set.outside(g, 3), 2, 1, base + 3),
+    outside2: mk("fo2", (g) => set.outside(g, 4), 2, 1, base + 4),
+    sideE: mk("se", (g) => set.side(g, 1, 1), 1, 2.8, base + 5),
+    sideW: mk("sw", (g) => set.side(g, -1, 2), 1, 2.8, base + 6),
+    NW: mk("nw", (g) => set.corner(g, 1, 1, true), 1.4, 2, base + 7),
+    NE: mk("ne", (g) => set.corner(g, -1, 1, true), 1.4, 2, base + 8),
+    SW: mk("sw2", (g) => set.corner(g, 1, -1, false), 1.4, 2, base + 9),
+    SE: mk("se2", (g) => set.corner(g, -1, -1, false), 1.4, 2, base + 10),
   };
+
   await new Promise((r) => setTimeout(r, 0));
   const PX = 130;
   const W = 7.2;
@@ -619,9 +636,9 @@ async function fort(): Promise<void> {
   const card = document.createElement("article");
   card.className = "pair wide";
   const h3 = document.createElement("h3");
-  h3.textContent = "WD3 as a closed fort";
+  h3.textContent = set.title;
   card.appendChild(h3);
-  card.appendChild(fig(c, "Far wall: inside face (braces, junk) · near wall: outside face (clean, rubble at its foot) · side walls: braces inside · corner pieces close every corner"));
+  card.appendChild(fig(c, set.caption));
   const pieceRow = document.createElement("div");
   pieceRow.className = "pieces";
   const show = (lit: Lit, cap: string, s: number): HTMLElement => {
@@ -644,7 +661,8 @@ async function fort(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await fort();
+  const fbox = document.getElementById("fort") as HTMLElement;
+  for (const [i, set] of FORTS.entries()) await fort(set, fbox, 1800 + i * 40);
   await takes();
   const list = document.getElementById("list") as HTMLElement;
   for (let i = 0; i < ITEMS.length; i++) {

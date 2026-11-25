@@ -825,14 +825,15 @@ interface Part { x0: number; x1: number; h: number }
  * stake clusters (sharpened or broken tops), doors, pallets, plywood, corrugated sheets, each tilted a few degrees,
  * overlapping unevenly, and running past both frame edges so neighbouring pieces join with no gap.
  */
-function wd3Wall(c: Ctx, inside: boolean, seed: number): Part[] {
+function wd3Wall(c: Ctx, inside: boolean, seed: number, style: "wood" | "rf" = "wood"): Part[] {
   const r = rng(seed);
   const parts: Part[] = [];
   let x = -1.04;
   let last = -1;
   while (x < 1.02) {
-    let kind = Math.floor(r() * 6);
-    if (kind === last && kind !== 0) kind = 0;
+    // the reinforced wall leans on corrugated steel and pallets
+    let kind = style === "rf" ? [0, 0, 1, 2, 2, 3, 4, 4, 4, 4][Math.floor(r() * 10)] as number : Math.floor(r() * 6);
+    if (kind === last && kind !== 0 && !(style === "rf" && kind === 4)) kind = 0;
     last = kind;
     const ang = (r() - 0.5) * 0.11;
     const lift = r() * 0.015;
@@ -1138,4 +1139,417 @@ export function drawCornerPost(g: Ctx): void {
     g.fillRect(-0.075, base - H * TILT * t - 0.012, 0.15, 0.024);
     bolt(g, 0, base - H * TILT * t, 0.009);
   }
+}
+
+// ─────────────────────────────── round 4: the same system for every barricade ───────────────────────────────
+// Designer approved the wood wall ("Perfect"): four rotation pictures (front inside / outside, side braces east /
+// west), a corner piece, random variants, edge to edge. The same for the reinforced, metal and police barricades.
+
+export type Style = "wood" | "rf" | "mt";
+
+/** Steel straps, chains and (always) razor wire along the top: what makes the wood wall "reinforced". */
+function rfOverlay(c: Ctx, seed: number, inside: boolean): void {
+  const r = rng(seed + 900);
+  const straps = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < straps; i++) {
+    const x = -0.85 + (1.7 * (i + 0.3 + r() * 0.4)) / straps;
+    steelPlate(c, x - 0.035, sy(0.95 + r() * 0.08), x + 0.035, YB, "#5d636b", seed + 910 + i, false);
+    for (let t = 0.15; t < 0.95; t += 0.26) bolt(c, x, sy(t), 0.008);
+  }
+  const chains = 1 + Math.floor(r() * 2);
+  for (let i = 0; i < chains; i++) {
+    const a = -0.95 + r() * 0.8;
+    chain(c, a, sy(0.45 + r() * 0.3), Math.min(1.02, a + 0.6 + r() * 0.6), sy(0.4 + r() * 0.35), 0.04 + r() * 0.05);
+  }
+  if (!inside) for (let i = 0; i < 10; i++) bolt(c, -0.95 + r() * 1.9, sy(0.2 + r() * 0.6), 0.006);
+  razorCoil(c, -1.06, 1.06, sy(1.07), 0.085, seed + 950);
+}
+
+/** The metal wall: welded plates of uneven size, overlapping, rust, weld seams; the inside shows the stiffeners. */
+function mtWall(c: Ctx, inside: boolean, seed: number): void {
+  const r = rng(seed);
+  let x = -1.04;
+  let i = 0;
+  const greys = ["#5d636a", "#666c73", "#596067", "#6d6a64", "#535a61"];
+  while (x < 1.02) {
+    const w = 0.34 + r() * 0.38;
+    const h = 0.86 + r() * 0.2;
+    const x0 = x;
+    const x1 = x + w;
+    const ang = (r() - 0.5) * 0.05;
+    c.save();
+    c.translate((x0 + x1) / 2, YB);
+    c.rotate(ang);
+    c.translate(-(x0 + x1) / 2, -YB);
+    steelPlate(c, x0, sy(h), x1, YB, greys[Math.floor(r() * greys.length)] as string, seed + i * 11, !inside);
+    c.fillStyle = "rgba(255,255,255,0.32)";
+    c.fillRect(x0, sy(h) - 0.013, w, 0.013); // the plate's top edge
+    if (inside) {
+      // stiffeners welded on the back: an angle iron across, two uprights
+      for (const t of [0.35, 0.72]) bar(c, x0 + 0.02, sy(h * t), x1 - 0.02, sy(h * t), 0.03, "steel", "#4c5157", seed + i * 11 + 3);
+      for (const u of [0.25, 0.75]) bar(c, x0 + w * u, sy(h * 0.95), x0 + w * u, YB - 0.01, 0.026, "steel", "#474c52", seed + i * 11 + 5);
+    } else if (r() < 0.55) {
+      const hb0 = 0.3 + r() * 0.15;
+      const hb1 = hb0 + 0.2 + r() * 0.12;
+      hazard(c, x0 + 0.03, sy(hb1), x1 - 0.03, sy(hb0), seed + i * 11 + 7);
+      c.strokeStyle = "#0a0b0d";
+      c.lineWidth = 1.3 * P;
+      c.strokeRect(x0 + 0.03, sy(hb1), w - 0.06, sy(hb0) - sy(hb1));
+    }
+    c.restore();
+    // the weld seam where it overlaps the next plate
+    c.strokeStyle = "rgba(28,22,16,0.9)";
+    c.lineWidth = 3 * P;
+    c.beginPath();
+    c.moveTo(x1 - 0.015, sy(0.85));
+    c.lineTo(x1 - 0.015, YB);
+    c.stroke();
+    i++;
+    x = x1 - 0.03 - r() * 0.03;
+  }
+  if (!inside) {
+    const gr = c.createLinearGradient(0, sy(0.3), 0, YB);
+    gr.addColorStop(0, "rgba(25,20,14,0)");
+    gr.addColorStop(1, "rgba(25,20,14,0.5)");
+    c.fillStyle = gr;
+    c.fillRect(-1.05, sy(0.3), 2.1, YB - sy(0.3));
+  }
+}
+
+function rubble(c: Ctx, seed: number): void {
+  const r = rng(seed);
+  for (let i = 0; i < 26; i++) {
+    const x = -0.95 + r() * 1.9;
+    const y = YB + 0.02 + r() * 0.07;
+    const sz = 0.01 + r() * 0.022;
+    c.fillStyle = ["#5d5a55", "#6e6a63", "#4a4743", "#7a6a55"][Math.floor(r() * 4)] as string;
+    c.beginPath();
+    c.moveTo(x - sz, y);
+    c.lineTo(x - sz * 0.3, y - sz * 0.8);
+    c.lineTo(x + sz, y - sz * 0.3);
+    c.lineTo(x + sz * 0.6, y + sz * 0.5);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = "rgba(0,0,0,0.6)";
+    c.lineWidth = P;
+    c.stroke();
+  }
+}
+
+/** Front, inside (variant): RF = the wood wall + steel + wire + braces; MT = plates + I-beam props + sandbags. */
+export function drawFrontIn(g: Ctx, style: Style, variant: number): void {
+  if (style === "wood") return drawWD3v(g, variant);
+  withShadow(g, 2, 1, YB, (c) => {
+    const seed = (style === "rf" ? 5100 : 6100) + variant * 997;
+    const r = rng(seed + 50);
+    if (style === "rf") {
+      wd3Wall(c, true, seed, "rf");
+      rfOverlay(c, seed, true);
+      const n = 2 + Math.floor(r() * 2);
+      for (let i = 0; i < n; i++) {
+        const x = -0.85 + (1.7 * (i + 0.2 + r() * 0.6)) / n;
+        const top = 0.55 + r() * 0.3;
+        bar(c, x, sy(top), x + (r() - 0.5) * 0.25, YB + 0.14 + r() * 0.05, 0.05, "wood", WOODS[Math.floor(r() * 6)] as string, seed + 60 + i);
+        bolt(c, x, sy(top) + 0.012, 0.009);
+      }
+      if (r() < 0.7) cinder(c, -0.8 + r() * 1.6, YB + 0.13);
+    } else {
+      mtWall(c, true, seed);
+      const n = 2 + Math.floor(r() * 2);
+      for (let i = 0; i < n; i++) {
+        const x = -0.8 + (1.6 * (i + 0.2 + r() * 0.6)) / n;
+        const foot = x + (r() - 0.5) * 0.2;
+        bar(c, x, sy(0.7 + r() * 0.15), foot, YB + 0.16, 0.045, "steel", "#4c5157", seed + 70 + i);
+        c.fillStyle = "#33373c";
+        c.fillRect(foot - 0.04, YB + 0.15, 0.08, 0.03); // base plate
+        bolt(c, foot - 0.025, YB + 0.165, 0.006);
+        bolt(c, foot + 0.025, YB + 0.165, 0.006);
+      }
+      const bags = 3 + Math.floor(r() * 4);
+      for (let i = 0; i < bags; i++) sandbag(c, -0.85 + r() * 1.7, YB + 0.06 + r() * 0.05, 0.22 + r() * 0.04, seed + 80 + i);
+    }
+  });
+}
+
+/** Front, outside (variant): the same wall turned round, no braces, rubble at the foot. */
+export function drawFrontOut(g: Ctx, style: Style, variant: number): void {
+  if (style === "wood") return drawWD3outV(g, variant);
+  withShadow(g, 2, 1, YB, (c) => {
+    const seed = (style === "rf" ? 5100 : 6100) + variant * 997;
+    c.save();
+    c.scale(-1, 1);
+    if (style === "rf") {
+      wd3Wall(c, false, seed, "rf");
+      rfOverlay(c, seed, false);
+    } else mtWall(c, false, seed);
+    c.restore();
+    rubble(c, seed + 600);
+  });
+}
+
+/** Side view for every style: the near end, the top edge running up the screen, braces on the inside. */
+export function drawSide(g: Ctx, style: Style, braceSide: 1 | -1, variant: number): void {
+  if (style === "wood") return wd3Side(g, braceSide, variant);
+  const up = TILT;
+  const r = rng((style === "rf" ? 5400 : 6400) + variant * 577);
+  const parts: { y0: number; y1: number; h: number; col: string; w: number; steel: boolean }[] = [];
+  let y = SN - 0.04;
+  while (y < SS_ - 0.01) {
+    const k = r();
+    let len: number;
+    let col: string;
+    let steel: boolean;
+    let h: number;
+    if (style === "mt") {
+      len = 0.34 + r() * 0.38;
+      col = ["#5d636a", "#666c73", "#596067", "#6d6a64"][Math.floor(r() * 4)] as string;
+      steel = true;
+      h = 0.86 + r() * 0.2;
+    } else {
+      steel = k < 0.45;
+      len = steel ? 0.32 + r() * 0.16 : k < 0.6 ? 0.4 : 0.075;
+      col = steel ? "#8f959b" : k < 0.6 ? "#a08a62" : (WOODS[Math.floor(r() * 6)] as string);
+      h = steel ? 0.92 + r() * 0.1 : 0.9 + r() * 0.15;
+    }
+    parts.push({ y0: y, y1: Math.min(SS_, y + len), h, col, w: steel ? 0.07 : 0.12, steel });
+    y += len - (style === "mt" ? 0.03 : 0);
+  }
+  g.save();
+  g.filter = "blur(1.5px)";
+  g.fillStyle = "rgba(0,0,0,0.62)";
+  for (const p of parts) {
+    const dx = p.h * TILT * 0.55;
+    const dy = p.h * TILT * 0.32;
+    g.beginPath();
+    g.moveTo(0.05, p.y0);
+    g.lineTo(0.05 + dx, p.y0 + dy);
+    g.lineTo(0.05 + dx, p.y1 + dy - 0.006);
+    g.lineTo(0.05, p.y1 - 0.006);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
+  const props = [SN + 0.3 + r() * 0.15, SIDE_C - 0.2 + r() * 0.15, SIDE_C + 0.4 + r() * 0.15];
+  const drawProps = (): void => {
+    for (const py of props) {
+      if (style === "mt") {
+        bar(g, 0, py - up * 0.72, braceSide * 0.22, py + 0.04, 0.045, "steel", "#4c5157", 6410 + Math.round(py * 10));
+        g.fillStyle = "#33373c";
+        g.fillRect(braceSide * 0.22 - 0.04, py + 0.03, 0.08, 0.03);
+      } else bar(g, 0, py - up * 0.72, braceSide * 0.22, py + 0.04, 0.05, "wood", "#6a4e33", 5410 + Math.round(py * 10));
+    }
+    if (style === "mt") for (let i = 0; i < 4; i++) sandbag(g, braceSide * 0.2, SIDE_C - 0.6 + i * 0.4 + r() * 0.1, 0.2, 6450 + i);
+    else cinder(g, braceSide * 0.24, SIDE_C + 0.7);
+  };
+  if (braceSide < 0) drawProps();
+  for (const p of parts) {
+    const t0 = p.y0 - p.h * TILT;
+    if (p.steel) {
+      steelPlate(g, -p.w / 2, t0, p.w / 2, p.y1, p.col, 5420 + Math.round(p.y0 * 100), false);
+      g.fillStyle = "rgba(255,255,255,0.28)";
+      g.fillRect(-p.w / 2, t0, p.w, p.y1 - p.y0); // the lit top lip
+    } else plank(g, -p.w / 2, t0, p.w / 2, p.y1, p.col, 5420 + Math.round(p.y0 * 100));
+    g.fillStyle = "rgba(0,0,0,0.38)";
+    g.fillRect(-p.w / 2, p.y1 - p.h * TILT, p.w, p.h * TILT);
+    if (p.steel && style === "mt") bolt(g, 0, (p.y0 + p.y1) / 2 - p.h * TILT, 0.007);
+  }
+  if (style === "rf") {
+    // razor wire along the top, the whole length
+    const top = SIDE_C - 1.07 * TILT;
+    g.save();
+    g.translate(0, top);
+    g.rotate(Math.PI / 2);
+    razorCoil(g, -1.08, 1.08, 0, 0.085, 5470 + variant);
+    g.restore();
+  }
+  if (braceSide > 0) drawProps();
+}
+
+/** The corner piece for every style: a post (squared timber, banded; or a steel I-beam), stubs over both walls. */
+export function drawCorner(g: Ctx, style: Style, h: 1 | -1, v: 1 | -1, inside: boolean): void {
+  if (style === "wood") return drawWD3corner(g, h, v, inside);
+  const H = 1.25;
+  withShadow(g, 1.4, 2, CB, (c) => {
+    const stub = (i: number, y0: number): void => {
+      const hh = 0.95 + (i % 2) * 0.06;
+      if (style === "mt") steelPlate(c, -0.04, y0 - hh * TILT, 0.04, y0 + 0.075, "#62686f", 6800 + i, false);
+      else plank(c, -0.055, y0 - hh * TILT, 0.055, y0 + 0.075, WOODS[(i + 2) % 6] as string, 5800 + i);
+    };
+    if (v < 0) for (let i = 0; i < 4; i++) stub(i, CB - 0.06 - (i + 1) * 0.075);
+    if (style === "mt") {
+      const x0 = Math.min(0, h * 0.48);
+      steelPlate(c, x0, sy(0.98, CB), x0 + 0.48, CB, "#60666d", 6810, !inside);
+      c.fillStyle = "rgba(255,255,255,0.32)";
+      c.fillRect(x0, sy(0.98, CB) - 0.013, 0.48, 0.013);
+      if (!inside) hazard(c, x0 + 0.03, sy(0.6, CB), x0 + 0.45, sy(0.38, CB), 6811);
+    } else {
+      for (let i = 0; i < 3; i++) stake(c, h * (0.1 + i * 0.075), 0.07, 0.95 + i * 0.04, WOODS[(i + 1) % 6] as string, 5810 + i, CB);
+      corrugated(c, Math.min(h * 0.3, h * 0.5), Math.max(h * 0.3, h * 0.5), sy(0.95, CB), CB, 5815);
+    }
+    // the post
+    if (style === "mt") {
+      bar(c, 0, CB, 0, sy(H, CB), 0.15, "steel", "#4a4f55", 6830);
+      c.fillStyle = "#2f3337";
+      c.fillRect(-0.02, sy(H, CB), 0.04, CB - sy(H, CB)); // the I-beam's web in shadow
+      steelPlate(c, -0.09, sy(H, CB) - 0.05, 0.09, sy(H, CB), "#6a7077", 6831, false);
+      for (const t of [0.25, 0.55, 0.85]) bolt(c, 0, sy(H * t, CB), 0.01);
+    } else {
+      bar(c, 0, CB, 0, sy(H, CB), 0.16, "wood", "#5f452c", 5830);
+      plank(c, -0.08, sy(H, CB) - 0.08, 0.08, sy(H, CB), "#9a7a55", 5831);
+      for (const t of [0.3, 0.72]) {
+        c.fillStyle = "#3a3d42";
+        c.fillRect(-0.085, sy(H * t, CB) - 0.013, 0.17, 0.026);
+        bolt(c, 0, sy(H * t, CB), 0.01);
+      }
+      razorCoil(c, -0.2, 0.2, sy(1.15, CB), 0.075, 5840);
+    }
+    if (v > 0) for (let i = 0; i < 4; i++) stub(i, CB + 0.06 + i * 0.075);
+  });
+}
+
+// ─────────────────────────────── police ───────────────────────────────
+
+/** Police front (both rotations: a sawhorse looks the same from both sides): three sawhorses edge to edge. */
+export function drawPoliceFront(g: Ctx, variant: number): void {
+  const r = rng(7100 + variant * 997);
+  withShadow(g, 2, 1, YB, (c) => {
+    for (let u = 0; u < 3; u++) {
+      const cx = -0.667 + u * 0.667 + (r() - 0.5) * 0.04;
+      const ang = (r() - 0.5) * 0.05;
+      c.save();
+      c.translate(cx, YB);
+      c.rotate(ang);
+      c.translate(-cx, -YB);
+      const back = YB - 0.08;
+      const front = YB + 0.05;
+      const top = sy(1.0, YB - 0.015);
+      for (const s of [-1, 1]) bar(c, cx + s * 0.26, top, cx + s * 0.29, back, 0.026, "steel", "#cfd2d4", 7110 + u * 4 + s);
+      for (const s of [-1, 1]) {
+        bar(c, cx + s * 0.26, top, cx + s * 0.29, front, 0.028, "steel", "#e2e4e5", 7120 + u * 4 + s);
+        c.fillStyle = "#121315";
+        c.fillRect(cx + s * 0.29 - 0.022, front - 0.01, 0.044, 0.02);
+        c.fillRect(cx + s * 0.29 - 0.022, back - 0.01, 0.044, 0.02);
+      }
+      // the boards run the whole unit, so neighbours meet
+      policeBoard(c, cx - 0.345, cx + 0.345, 0.78, 0.97, YB + 0.01);
+      policeBoard(c, cx - 0.335, cx + 0.335, 0.32, 0.48, YB + 0.03);
+      for (const x of [cx - 0.26, cx + 0.26]) {
+        bolt(c, x, sy(0.875, YB + 0.01), 0.008);
+        bolt(c, x, sy(0.4, YB + 0.03), 0.008);
+      }
+      // scuffs and a sticker or two
+      c.fillStyle = "rgba(30,25,20,0.4)";
+      for (let i = 0; i < 6; i++) c.fillRect(cx - 0.3 + r() * 0.6, sy(0.78 + r() * 0.19, YB + 0.01), 0.01 + r() * 0.04, P * 1.5);
+      if (r() < 0.6) lamp(c, cx + (r() < 0.5 ? -0.24 : 0.24), sy(1.0, YB + 0.01) - 0.05);
+      c.restore();
+    }
+  });
+}
+
+/** Police side: the sawhorses end-on (an A of legs each), the boards running up the screen as striped edges. */
+export function drawPoliceSide(g: Ctx, variant: number): void {
+  const r = rng(7400 + variant * 577);
+  const units = [SN + 0.33, SIDE_C, SS_ - 0.33];
+  const top = (y: number): number => y - 1.0 * TILT;
+  // shadows of the A-frames and the boards
+  g.save();
+  g.filter = "blur(1.5px)";
+  g.fillStyle = "rgba(0,0,0,0.6)";
+  // each A-frame's shadow: from both feet up to the top's shadow point; the boards' shadows join the tops
+  const sx = (h: number): number => h * TILT * 0.55;
+  const sY = (h: number): number => h * TILT * 0.32;
+  g.strokeStyle = "rgba(0,0,0,0.55)";
+  g.lineCap = "round";
+  for (const y of units) {
+    g.lineWidth = 0.022;
+    g.beginPath();
+    g.moveTo(-0.22, y);
+    g.lineTo(sx(1), y + sY(1));
+    g.lineTo(0.22, y);
+    g.stroke();
+  }
+  g.lineWidth = 0.03;
+  g.beginPath();
+  g.moveTo(sx(1), units[0]! + sY(1) - 0.33);
+  g.lineTo(sx(1), units[2]! + sY(1));
+  g.stroke();
+  g.lineWidth = 0.026;
+  g.beginPath();
+  g.moveTo(sx(0.48), units[0]! + sY(0.48) - 0.33);
+  g.lineTo(sx(0.48), units[2]! + sY(0.48));
+  g.stroke();
+  g.restore();
+  for (const y of units) {
+    for (const s of [-1, 1]) bar(g, 0, top(y), s * 0.22, y, 0.026, "steel", s < 0 ? "#cfd2d4" : "#e2e4e5", 7410 + Math.round(y * 10) + s);
+  }
+  // the boards' top edges, running the whole length (thin, striped)
+  for (const [hgt, wdt] of [[0.48, 0.03], [0.97, 0.034]] as const) {
+    const y0 = SN - hgt * TILT - 0.04;
+    const y1 = SS_ - hgt * TILT;
+    g.save();
+    g.beginPath();
+    g.rect(-wdt / 2, y0, wdt, y1 - y0);
+    g.clip();
+    g.fillStyle = "#e6e2d6";
+    g.fillRect(-wdt / 2, y0, wdt, y1 - y0);
+    g.fillStyle = "#24497e";
+    for (let yy = y0; yy < y1; yy += 0.09) g.fillRect(-wdt / 2, yy, wdt, 0.045);
+    g.restore();
+    g.strokeStyle = "#08080a";
+    g.lineWidth = 1.2 * P;
+    g.strokeRect(-wdt / 2, y0, wdt, y1 - y0);
+  }
+  // the near ends of the two boards, and the front A-frame over them
+  for (const [h0, h1] of [[0.32, 0.48], [0.78, 0.97]] as const) {
+    g.fillStyle = "#d9d5c9";
+    g.fillRect(-0.02, sy(h1, SS_), 0.04, sy(h0, SS_) - sy(h1, SS_));
+    g.strokeRect(-0.02, sy(h1, SS_), 0.04, sy(h0, SS_) - sy(h1, SS_));
+  }
+  for (const y of units) for (const s of [-1, 1]) {
+    g.fillStyle = "#121315";
+    g.fillRect(s * 0.22 - 0.022, y - 0.01, 0.044, 0.02);
+  }
+  if (r() < 0.7) lamp(g, 0, top(units[0] as number) - 0.05);
+  lamp(g, 0, top(units[2] as number) - 0.05);
+}
+
+/** Police corner: a striped traffic drum where two lines meet. */
+export function drawPoliceCorner(g: Ctx): void {
+  withShadow(g, 1.4, 2, CB, (c) => {
+    const H = 0.95;
+    const rx = 0.2;
+    const yT = sy(H, CB);
+    c.fillStyle = "#e0601e";
+    c.beginPath();
+    c.moveTo(-rx, yT);
+    c.lineTo(-rx * 1.05, CB);
+    c.ellipse(0, CB, rx * 1.05, rx * 0.35, 0, Math.PI, 0, true);
+    c.lineTo(rx, yT);
+    c.closePath();
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = "#f2f0ea";
+    for (const t of [0.25, 0.55]) c.fillRect(-0.3, sy(H * (t + 0.12), CB), 0.6, sy(H * t, CB) - sy(H * (t + 0.12), CB));
+    const gr = c.createLinearGradient(-rx, 0, rx, 0);
+    gr.addColorStop(0, "rgba(255,255,255,0.25)");
+    gr.addColorStop(0.4, "rgba(255,255,255,0)");
+    gr.addColorStop(1, "rgba(0,0,0,0.35)");
+    c.fillStyle = gr;
+    c.fillRect(-0.3, yT, 0.6, CB - yT + 0.1);
+    c.restore();
+    c.strokeStyle = "#0a0806";
+    c.lineWidth = 1.4 * P;
+    c.stroke();
+    c.fillStyle = "#c9531a";
+    c.beginPath();
+    c.ellipse(0, yT, rx, rx * 0.35, 0, 0, TAU);
+    c.fill();
+    c.stroke();
+    c.fillStyle = "#1a1a1a";
+    c.beginPath();
+    c.ellipse(0, CB + 0.01, rx * 1.15, rx * 0.4, 0, 0, Math.PI);
+    c.fill();
+    lamp(c, 0, yT - 0.03);
+  });
 }
