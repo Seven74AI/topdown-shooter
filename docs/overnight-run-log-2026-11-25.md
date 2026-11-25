@@ -12,6 +12,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTHBB6ZMNgxhetcmfH | Builder 7.1 (early part T1–T5, T8) | story-7-1 |
 | session_01CgLgPXkMujTFt9FkusaTPz | Builder 7.9 (early part T1, T4, T5) | story-7-9 |
 | session_01CgLgPT2yAMRMLRecGBwVue | Builder 8.1 | story-8-1 |
+| session_01CgLgPVUe4VgW93WEkr9VNn | Review 8.8 | review-8-8 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -34,3 +35,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:12 7.9 early part pushed (46d60e3): T1 look code, T4 gun under body, T5 per-player textures; 1360 touched tests, 11/11 mutations killed. Builder choices: D1 repaint by comparing decay stage per frame; missing look = 0 replaced fields; client decodes against full catalogue (server checks ownership); ?devlooks=N. Holding T2/T3/T6 for 7.1 + 8.1.
 - 04:17 7.1 early part pushed (6aa9b81): deps, schema+migration, repos, progression.json, account API, deploy/backups; 132 touched tests, 8/8 mutations caught. Auto-accepted B1–B7 (docs/epic-7-decisions.md › Story 7.1 build-time choices). Not verified: no Docker here; VPS steps are Hermes's. Holding T6/T7 for 8.1.
 - 04:18 dispatched 8.1 (early, OR-6).
+- 04:26 8.8 hand-back (c1c5ef1, gate on ddce305: 398 files / 3679 tests, load 3.98). Reversed hits kiting Runners: clean 0.2→0.2 %, 1 % 7.6→2.0 %, 2 % 11.9→1.3 %, 1 %×400 ms 12.7→7.2 %; shots over cap 50/73/64 % → 0/0/4.7 %; rewind p99 0.054→0.060 ms. Two-tab smoke report docs/perf/network-pass-smoke-2026-11-25.md (vote not reached: team wiped at the Behemoth; no online boss-HP switch). Finding for 8.9: 1 %×400 ms Walker rows ~1 pp worse with 500 ms window. Dispatched review.
