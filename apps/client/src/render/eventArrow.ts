@@ -143,6 +143,32 @@ export const EVENT_ARROW_JUMP_CSS_PX = 40;
 /** …while last frame's spot is within this of the bearing. */
 export const EVENT_ARROW_HOLD_RAD = (10 * Math.PI) / 180;
 
+/**
+ * Story 8.7 (CI timeout fix): the arrow's spot on the ray towards (sx, sy) ONLY — no ±30° search round it — or false
+ * when that ray's exit isn't clear. For callers that step through the rays themselves (the 6.14 pair fan): calling
+ * `placeEventArrow` per fan ray re-ran a full search per ray (the 6.14 L4 sweep went 4.9 s → 40 s once its 16 keep-offs
+ * all counted).
+ */
+export function placeEventArrowOnRay(sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace): boolean {
+  const half = size / 2 + EVENT_ARROW_PAD_CSS_PX * k;
+  rg.L = insets.left * k + half;
+  rg.R = w - insets.right * k - half;
+  rg.T = insets.top * k + half;
+  rg.B = h - insets.bottom * k - half;
+  rg.cx = w / 2;
+  rg.cy = h / 2;
+  rg.size = size;
+  rg.clear = CENTRE_CLEAR_CSS_PX * k;
+  const bearing = Math.atan2(sy - rg.cy, sx - rg.cx);
+  buildNotches(avoid, half, rg.L, rg.R, rg.T, rg.B, rg.cx, rg.cy, Math.max(4, NOTCH_CHAMFER_MARGIN_CSS_PX * k));
+  if (!exitClear(bearing, bearing)) return false;
+  out.x = rg.x;
+  out.y = rg.y;
+  out.angle = bearing;
+  out.side = 1;
+  return true;
+}
+
 /** The fresh placement for `bearing` into rg.x / rg.y. */
 function place(bearing: number, hadPrev: boolean, prevX: number, prevY: number): void {
   if (exitClear(bearing, bearing)) return;

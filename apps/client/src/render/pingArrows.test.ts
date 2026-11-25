@@ -3,7 +3,7 @@ import { CENTRE_CLEAR_CSS_PX, rectCentreGap } from "../scenes/consumableButton";
 import { layoutPingButton } from "../scenes/hudTopLayout";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, waveControlRects, type ScreenRect } from "./eventArrow";
 import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
-import { PING_ARROW_CSS_PX, PING_CONTROL_RECTS, fillPingKeepOffs, newPingArrows, newPingKeepOffs, pingIconRect, placePingArrows, type PingArrows, type PingKeepOffMode } from "./pingArrows";
+import { PING_ARROW_CSS_PX, PING_OTHER_ARROWS, newPingArrows, pingIconRect, placePingArrows, type PingArrows } from "./pingArrows";
 import { PingModel } from "./pingModel";
 
 /**
@@ -21,12 +21,13 @@ const SIZES: readonly [number, number][] = [
   [844, 390],
 ];
 const R = 5000; // px: far off screen
+const ZERO = { left: 0, right: 0, top: 0, bottom: 0 } as const;
 const angErr = (a: number, b: number): number => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 const overlaps = (a: ScreenRect, b: ScreenRect, grow = 0): boolean => a.x < b.x + b.w + grow && b.x < a.x + a.w + grow && a.y < b.y + b.h + grow && b.y < a.y + a.h + grow;
 
-/** A scene with the screen centre at world (0, 0), 1 px per metre (vx, vy = the view's top-left in m). */
-function frame(model: PingModel, w: number, h: number, controls: ScreenRect[], arrows: PingArrows, ev: ScreenRect | null = null, lite: ScreenRect[] | null = null): PingArrows {
-  return placePingArrows(model, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, ev, arrows, lite);
+/** A scene with the screen centre at world (0, 0), 1 px per metre (vx, vy = the view's top-left in m). `hud`: the icon check's rects. */
+function frame(model: PingModel, w: number, h: number, hud: ScreenRect[], arrows: PingArrows, ev: ScreenRect | null = null, ins: typeof INSET | typeof ZERO = INSET): PingArrows {
+  return placePingArrows(model, -w / 2, -h / 2, 1, w, h, ins, 1, hud, [ev, null, null], arrows);
 }
 
 /**
@@ -38,18 +39,18 @@ const capFor = (slot: number, w: number): number => (slot >= 2 && w <= 568 ? (45
 /** Measured worst bearing error per slot (radians) of the last checks (logged by the sweeps). */
 const worstErr = [0, 0, 0, 0];
 
-function checkRules(arrows: PingArrows, w: number, h: number, controls: ScreenRect[], bearings: readonly number[], tag: string): void {
+function checkRules(arrows: PingArrows, w: number, h: number, bearings: readonly number[], tag: string, ins: typeof INSET | typeof ZERO = INSET): void {
   const size = PING_ARROW_CSS_PX;
   const rects: ScreenRect[] = [];
   for (let i = 0; i < 4; i++) {
     if (!arrows.shown[i]) continue;
     const at = arrows.at[i] as { x: number; y: number; angle: number };
     const r = { ...eventArrowDrawnRect(at, size, { x: 0, y: 0, w: 0, h: 0 }) };
-    expect(r.x, `${tag} slot ${i}: left`).toBeGreaterThanOrEqual(INSET.left - 1e-6);
-    expect(r.x + r.w, `${tag} slot ${i}: right`).toBeLessThanOrEqual(w - INSET.right + 1e-6);
-    expect(r.y, `${tag} slot ${i}: top`).toBeGreaterThanOrEqual(INSET.top - 1e-6);
-    expect(r.y + r.h, `${tag} slot ${i}: bottom`).toBeLessThanOrEqual(h - INSET.bottom + 1e-6);
-    for (let c = 0; c < controls.length; c++) expect(overlaps(r, controls[c] as ScreenRect), `${tag} slot ${i} overlaps control ${c}`).toBe(false);
+    expect(r.x, `${tag} slot ${i}: left`).toBeGreaterThanOrEqual(ins.left - 1e-6);
+    expect(r.x + r.w, `${tag} slot ${i}: right`).toBeLessThanOrEqual(w - ins.right + 1e-6);
+    expect(r.y, `${tag} slot ${i}: top`).toBeGreaterThanOrEqual(ins.top - 1e-6);
+    expect(r.y + r.h, `${tag} slot ${i}: bottom`).toBeLessThanOrEqual(h - ins.bottom + 1e-6);
+    // B16 (designer 2026-11-25): no HUD control is a keep-off — the arrow sits under the semi-transparent HUD
     expect(rectCentreGap(r.x, r.y, r.w, r.h, w / 2, h / 2), `${tag} slot ${i}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
     const err = angErr(Math.atan2(at.y - h / 2, at.x - w / 2), bearings[i] as number);
     worstErr[i] = Math.max(worstErr[i] as number, err);
@@ -92,7 +93,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
           m.show(2, 0, Math.cos(a) * R, Math.sin(a) * R, 0);
           frame(m, w, h, controls, arrows);
           expect(arrows.shown[2]).toBe(true);
-          checkRules(arrows, w, h, controls, [0, 0, a, 0], `${w}x${h} @${((dir * i) / 100).toFixed(2)}°`);
+          checkRules(arrows, w, h, [0, 0, a, 0], `${w}x${h} @${((dir * i) / 100).toFixed(2)}°`);
           const at = arrows.at[2] as { x: number; y: number };
           if (!Number.isNaN(px) && Math.hypot(at.x - px, at.y - py) > 40) big++;
           px = at.x;
@@ -163,7 +164,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
           }
           frame(m, w, h, controls, arrows);
           expect(arrows.shown.every(Boolean)).toBe(true);
-          checkRules(arrows, w, h, controls, bearings, `${w}x${h} spread ${spread}° @${(i / 100).toFixed(2)}°`);
+          checkRules(arrows, w, h, bearings, `${w}x${h} spread ${spread}° @${(i / 100).toFixed(2)}°`);
           frames++;
         }
       }
@@ -197,7 +198,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
         m.show(1, 0, x - w / 2, top - h / 2, 0);
         const a = frame(m, w, h, controls, newPingArrows());
         expect(a.shown[1], `teammate at (${x}, ${top})`).toBe(true);
-        checkRules(a, w, h, controls, [0, Math.atan2(top - h / 2, x - w / 2), 0, 0], `M1 (${x}, ${top})`);
+        checkRules(a, w, h, [0, Math.atan2(top - h / 2, x - w / 2), 0, 0], `M1 (${x}, ${top})`);
       }
     }
     const m = new PingModel();
@@ -219,7 +220,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
         expect([arrows.icon[0], arrows.shown[2]]).toEqual([true, true]);
         const r = eventArrowDrawnRect(arrows.at[2] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
         expect(overlaps(r, icon, PAIR_GAP_CSS_PX - 1e-6), `${sw}x${sh} @${deg.toFixed(2)}°: the arrow on my icon`).toBe(false);
-        checkRules(arrows, sw, sh, ctl, [0, 0, b, 0], `${sw}x${sh} own icon + arrow @${deg.toFixed(2)}°`);
+        checkRules(arrows, sw, sh, [0, 0, b, 0], `${sw}x${sh} own icon + arrow @${deg.toFixed(2)}°`);
       }
     }
     // my own ping at the screen centre stays an icon at every test size (its word may run over the HP row's reserve)
@@ -257,61 +258,6 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     expect(frame(m, w, h, controls, newPingArrows()).wordBelow[0]).toBe(false);
   });
 
-  // Review M3 / L6 / L7: in a build phase and in the vote the arrows also keep off that mode's controls (build bar,
-  // Ready, build-row swap / quick-use, undo; Extract / Stay), the open wheel and the loot badge / flag arrow.
-  const MODES: [string, PingKeepOffMode][] = [
-    ["build", { build: true, ready: true, vote: false, wheel: false, wheelColumn: false, flag: null, loot: null }],
-    ["build + wheel", { build: true, ready: true, vote: false, wheel: true, wheelColumn: true, flag: null, loot: null }],
-    ["vote + wheel", { build: false, ready: false, vote: true, wheel: true, wheelColumn: false, flag: null, loot: null }],
-    ["wave + wheel + loot badge", { build: false, ready: false, vote: false, wheel: true, wheelColumn: true, flag: null, loot: { x: 60, y: 140, w: 32, h: 32 } }],
-  ];
-  for (const [w, h] of SIZES) {
-    it(`${w} × ${h}: build, vote, wheel and loot-badge keep-offs — one ping swept at 0.01° both ways and three crowded pings, every rule each frame`, () => {
-      const base = waveControlRects(w, h, INSET, 1, newWaveControlRects());
-      let frames = 0;
-      let liteFrames = 0;
-      for (const [name, mode] of MODES) {
-        const liteAll = newPingKeepOffs();
-        const keepAll = fillPingKeepOffs(base, mode, w, h, INSET, 1, newPingKeepOffs(), liteAll);
-        const full = keepAll.filter((r) => r.w > 0);
-        const keep = liteAll.filter((r) => r.w > 0); // B16: never overlapped (the build-phase controls may be, counted below)
-        expect(full.length, name).toBeGreaterThan(base.length); // liveness: the mode really added rects
-        for (const dir of [1, -1]) {
-          const m = new PingModel();
-          const arrows = newPingArrows();
-          for (let i = 0; i <= 36_000; i += 1) {
-            const a = ((dir * i) / 100) * (Math.PI / 180);
-            m.show(0, 0, Math.cos(a) * R, Math.sin(a) * R, 0);
-            frame(m, w, h, full, arrows, null, keep);
-            checkRules(arrows, w, h, keep, [a, 0, 0, 0], `${w}x${h} ${name} @${((dir * i) / 100).toFixed(2)}°`);
-            if (arrows.lite[0]) liteFrames++;
-            else checkRules(arrows, w, h, full, [a, 0, 0, 0], `${w}x${h} ${name} (full set) @${((dir * i) / 100).toFixed(2)}°`);
-            frames++;
-          }
-        }
-        const m = new PingModel();
-        const arrows = newPingArrows();
-        const bearings = [0, 0, 0, 0];
-        for (let i = 0; i <= 36_000; i += 10) {
-          const base0 = (i / 100) * (Math.PI / 180);
-          for (let s = 0; s < 3; s++) {
-            bearings[s] = base0 + (s * 3 * Math.PI) / 180;
-            m.show(s, s, Math.cos(bearings[s] as number) * R, Math.sin(bearings[s] as number) * R, 0);
-          }
-          frame(m, w, h, full, arrows, null, keep);
-          checkRules(arrows, w, h, keep, bearings, `${w}x${h} ${name} ×3 @${(i / 100).toFixed(2)}°`);
-          frames++;
-        }
-      }
-      expect(frames).toBe(MODES.length * (2 * 36_001 + 3601));
-      // B16 measured: only a build phase on the two small screens ever needs the lite set
-      if (w >= 800) expect(liteFrames, "no lite placement at 800+ px for one ping").toBe(0);
-      console.info(`[ping arrows] ${w}×${h}: worst bearing error by slot ${worstErr.map((e) => ((e * 180) / Math.PI).toFixed(1)).join(" / ")}°`);
-      worstErr.fill(0);
-      console.info(`[ping arrows] ${w}×${h}: one-ping frames on the lite set (may lie under a build control): ${liteFrames} of ${MODES.length * 2 * 36_001}`);
-    }, 240_000);
-  }
-
   it("a resize mid-ping (568 × 320 → 844 × 390): every bearing (0.5° steps), the arrow keeps every rule on the new screen at once", () => {
     for (let deg = 0; deg < 360; deg += 0.5) {
       const a = (deg * Math.PI) / 180;
@@ -326,7 +272,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
       ] as const) {
         const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
         frame(m, w, h, controls, arrows);
-        checkRules(arrows, w, h, controls, [0, a, 0, 0], `resize ${w}x${h} @${deg}°`);
+        checkRules(arrows, w, h, [0, a, 0, 0], `resize ${w}x${h} @${deg}°`);
       }
     }
   });
@@ -341,99 +287,89 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     frame(m, 640, 360, controls, arrows);
     expect(arrows.at[0]).toBe(at0);
     expect(arrows.avoid[3]).toBe(avoid0);
-    expect(arrows.avoid[3]?.[PING_CONTROL_RECTS]).toBe(arrows.event);
-    expect(arrows.avoid[3]?.[PING_CONTROL_RECTS + 1]).toBe(arrows.drawn[0]);
+    expect(arrows.avoid[3]?.[0]).toBe(arrows.others[0]);
+    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS]).toBe(arrows.drawn[0]);
   });
 });
 
 /**
- * Re-review M1 / M2 (R3: stateful sweeps, jumps and oscillation): with the build and vote keep-offs, at 568 × 320 and
- * 640 × 360, with zero insets and with 44 / 21 insets — one ping swept at 0.01° both ways jumps > 40 px at most 3 times a
- * turn; oscillating across each jump (±0.01°, ±0.1°, ±0.5°) flips at most once; wobbling ±0.05° round every 0.1°
- * never flickers (at most one move > 40 px); every frame keeps every rule against the set it used (B16 lite or full).
+ * Re-review M1 / M2, kept as regression guards after B16 (designer 2026-11-25: no HUD control keep-offs). The HUD only
+ * decides whether an icon is seen, so a far ping's arrow is placed the same in a wave, a build phase and the vote. At
+ * 568 × 320 and 640 × 360, zero insets and 44 / 21: one ping swept at 0.01° both ways jumps > 40 px at most 3 times a
+ * turn and sits at its true bearing (≤ 0.5°); oscillating across each jump (±0.01°, ±0.1°, ±0.5°) flips at most once;
+ * wobbling ±0.05° round every 0.1° never flickers. And it does lie over HUD controls where its bearing goes (B16).
  */
-describe("Story 8.7 re-review M1 / M2: no flicker with the mode keep-offs", () => {
-  const ZERO = { left: 0, right: 0, top: 0, bottom: 0 } as const;
-  const MODES2: [string, PingKeepOffMode][] = [
-    ["build", { build: true, ready: true, vote: false, wheel: false, wheelColumn: false, flag: null, loot: null }],
-    ["vote", { build: false, ready: false, vote: true, wheel: false, wheelColumn: false, flag: null, loot: null }],
-  ];
+describe("Story 8.7 re-review M1 / M2 + B16: true bearing, no flicker", () => {
   for (const [w, h] of [[568, 320], [640, 360]] as const) {
     for (const [iname, ins] of [["zero insets", ZERO], ["insets 44/21", INSET]] as const) {
-      for (const [name, mode] of MODES2) {
-        it(`${w} × ${h}, ${iname}, ${name}`, () => {
-          const base = waveControlRects(w, h, ins, 1, newWaveControlRects());
-          const liteAll = newPingKeepOffs();
-          const full = fillPingKeepOffs(base, mode, w, h, ins, 1, newPingKeepOffs(), liteAll);
-          const at = (m: PingModel, arrows: PingArrows, deg: number) => {
-            const a = (deg * Math.PI) / 180;
-            m.show(0, 0, Math.cos(a) * R, Math.sin(a) * R, 0);
-            placePingArrows(m, -w / 2, -h / 2, 1, w, h, ins, 1, full, null, arrows, liteAll);
-            return arrows.at[0] as { x: number; y: number; angle: number };
-          };
-          const rules = (arrows: PingArrows, deg: number): void => {
-            const p = arrows.at[0] as { x: number; y: number; angle: number };
+      it(`${w} × ${h}, ${iname}`, () => {
+        const hud = waveControlRects(w, h, ins, 1, newWaveControlRects());
+        const at = (m: PingModel, arrows: PingArrows, deg: number) => {
+          const a = (deg * Math.PI) / 180;
+          m.show(0, 0, Math.cos(a) * R, Math.sin(a) * R, 0);
+          frame(m, w, h, hud, arrows, null, ins);
+          return arrows.at[0] as { x: number; y: number; angle: number };
+        };
+        const jumps: number[] = [];
+        let worst = 0;
+        let overHud = 0;
+        for (const dir of [1, -1]) {
+          const m = new PingModel();
+          const arrows = newPingArrows();
+          let px = Number.NaN;
+          let py = Number.NaN;
+          let big = 0;
+          for (let i = 0; i <= 36_000; i++) {
+            const deg = (dir * i) / 100;
+            const p = at(m, arrows, deg);
+            checkRules(arrows, w, h, [(deg * Math.PI) / 180, 0, 0, 0], `${w}x${h} ${iname} @${deg.toFixed(2)}°`, ins);
+            worst = Math.max(worst, angErr(Math.atan2(p.y - h / 2, p.x - w / 2), (deg * Math.PI) / 180));
             const r = eventArrowDrawnRect(p, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
-            expect(r.x >= ins.left - 1e-6 && r.y >= ins.top - 1e-6 && r.x + r.w <= w - ins.right + 1e-6 && r.y + r.h <= h - ins.bottom + 1e-6, `@${deg}: safe area`).toBe(true);
-            for (const o of arrows.lite[0] ? liteAll : full) if (o.w > 0) expect(overlaps(r, o), `@${deg}: overlaps a keep-off (${arrows.lite[0] ? "lite" : "full"})`).toBe(false);
-            expect(rectCentreGap(r.x, r.y, r.w, r.h, w / 2, h / 2), `@${deg}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
-            expect(angErr(Math.atan2(p.y - h / 2, p.x - w / 2), (deg * Math.PI) / 180), `@${deg}: bearing`).toBeLessThanOrEqual(EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-6);
-          };
-          const jumps: number[] = [];
-          for (const dir of [1, -1]) {
+            if (hud.some((o) => overlaps(r, o))) overHud++;
+            if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) {
+              big++;
+              if (dir === 1) jumps.push(deg);
+            }
+            px = p.x;
+            py = p.y;
+          }
+          expect(big, `jumps > 40 px in one turn (${dir > 0 ? "clockwise" : "anticlockwise"})`).toBeLessThanOrEqual(3);
+        }
+        expect((worst * 180) / Math.PI, "true bearing (°)").toBeLessThanOrEqual(0.5);
+        expect(overHud, "B16 liveness: the arrow does pass under HUD controls").toBeGreaterThan(0);
+        for (const deg of jumps) {
+          for (const amp of [0.01, 0.1, 0.5]) {
             const m = new PingModel();
             const arrows = newPingArrows();
+            let flips = 0;
             let px = Number.NaN;
             let py = Number.NaN;
-            let big = 0;
-            for (let i = 0; i <= 36_000; i++) {
-              const deg = (dir * i) / 100;
-              const p = at(m, arrows, deg);
-              rules(arrows, deg);
-              if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) {
-                big++;
-                if (dir === 1) jumps.push(deg);
-              }
+            for (let j = 0; j < 40; j++) {
+              const p = at(m, arrows, deg + (j % 2 === 0 ? -amp : amp));
+              if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) flips++;
               px = p.x;
               py = p.y;
             }
-            // B16 (measured): at 568 × 320 in a build phase the lite set's two regions add their way in and out (4 a turn)
-            expect(big, `jumps > 40 px in one turn (${dir > 0 ? "clockwise" : "anticlockwise"})`).toBeLessThanOrEqual(w === 568 && name === "build" ? 4 : 3);
+            expect(flips, `oscillating ±${amp}° round the jump at ${deg}°`).toBeLessThanOrEqual(1);
           }
-          for (const deg of jumps) {
-            for (const amp of [0.01, 0.1, 0.5]) {
-              const m = new PingModel();
-              const arrows = newPingArrows();
-              let flips = 0;
-              let px = Number.NaN;
-              let py = Number.NaN;
-              for (let j = 0; j < 40; j++) {
-                const p = at(m, arrows, deg + (j % 2 === 0 ? -amp : amp));
-                if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) flips++;
-                px = p.x;
-                py = p.y;
-              }
-              expect(flips, `oscillating ±${amp}° round the jump at ${deg}°`).toBeLessThanOrEqual(1);
-            }
+        }
+        let flicker = 0;
+        for (let d10 = 0; d10 < 3600; d10++) {
+          const m = new PingModel();
+          const arrows = newPingArrows();
+          let moves = 0;
+          let px = Number.NaN;
+          let py = Number.NaN;
+          for (let j = 0; j < 20; j++) {
+            const p = at(m, arrows, d10 / 10 + (j % 2 === 0 ? -0.05 : 0.05));
+            if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) moves++;
+            px = p.x;
+            py = p.y;
           }
-          let flicker = 0;
-          for (let d10 = 0; d10 < 3600; d10++) {
-            const m = new PingModel();
-            const arrows = newPingArrows();
-            let moves = 0;
-            let px = Number.NaN;
-            let py = Number.NaN;
-            for (let j = 0; j < 20; j++) {
-              const p = at(m, arrows, d10 / 10 + (j % 2 === 0 ? -0.05 : 0.05));
-              if (!Number.isNaN(px) && Math.hypot(p.x - px, p.y - py) > 40) moves++;
-              px = p.x;
-              py = p.y;
-            }
-            if (moves > 1) flicker++;
-          }
-          expect(flicker, "bearings that flicker when wobbled ±0.05°").toBe(0);
-        }, 240_000);
-      }
+          if (moves > 1) flicker++;
+        }
+        expect(flicker, "bearings that flicker when wobbled ±0.05°").toBe(0);
+      }, 240_000);
     }
   }
 });

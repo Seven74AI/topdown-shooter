@@ -36,14 +36,12 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/this\.updatePings\(host\.pings, ev\.x, ev\.y, ev\.width\)/);
     expect(src).toMatch(/playSfx\(p\.kind === 0 \? "ping_double" : "ping", pingPan\(sx, sw\), PING_SFX_VOLUME\)/);
     expect(src).toMatch(/if \(menuKey && this\.hudModel\.ping\.open\) \{/); // Esc closes the wheel before the menu
-    // review M2 / M3 / L6 / L7 / B16: the mode keep-offs (with the lite set) reach the view; the arrow mask reaches the HUD
-    expect(src).toMatch(/fillPingKeepOffs\(ev\?\.controlRects\(\) \?\? \[\], mode, sw, sh, this\.eventInsets, k, this\.pingKeepOffs, this\.pingKeepOffsLite\)/);
-    expect(src).toMatch(/this\.pingView\?\.update\(pings, now, vx, vy, vw, sw, sh, k, this\.eventInsets, keepOffs, rect, this\.pingKeepOffsLite\)/);
-    expect(src).toMatch(/m\.pingArrowSlots = this\.pingView\?\.arrowMask\(\) \?\? 0;/);
-    expect(src).toMatch(/mode\.flag = flag \?/);
-    expect(src).toMatch(/mode\.loot = badge \?/);
-    expect(src).toMatch(/mode\.wheel = m\.pingButton && m\.ping\.open;/);
-    expect(src).toMatch(/mode\.wheelColumn = m\.pingWheelColumn;/); // the layout the HUD shows (frozen while open)
+    // B16 (designer 2026-11-25): no HUD control keep-offs — the HUD rects only for the icon check; the other arrows kept off
+    expect(src).toMatch(/this\.pingView\?\.update\(pings, now, vx, vy, vw, sw, sh, k, this\.eventInsets, ev\?\.controlRects\(\) \?\? \[\], others\);/);
+    expect(src).toMatch(/others\[0\] = arrow \?/);
+    expect(src).toMatch(/others\[1\] = flag \?/);
+    expect(src).toMatch(/others\[2\] = badge \?/);
+    expect(src).toMatch(/m\.pingArrowSlots = this\.pingView\?\.arrowMask\(\) \?\? 0;/); // review M2
   });
 
   it("HudScene: the button + wheel are made, laid out, drawn; a tap off the wheel closes it; the open wheel hides swap and the build bar (quick-use stays)", () => {

@@ -107,6 +107,20 @@ const pingState = (page) =>
   console.log("both pinged", await pingState(desk), await pingState(phone));
   await desk.screenshot({ path: `${out}/8-7-desktop-pings.png` });
   await phone.screenshot({ path: `${out}/${PFX}-edge-arrow.png` });
+  if (PHONE[0] === 568) {
+    // B16 (designer 2026-11-25): the desktop walks straight down for 9 s and pings "Help!": on the 568 × 320 phone, in
+    // the build phase, its arrow sits at the true bearing on the bottom edge — under the build bar (semi-transparent).
+    await sleep(4200);
+    await desk.keyboard.down("KeyS");
+    await sleep(9000);
+    await desk.keyboard.up("KeyS");
+    await desk.keyboard.press("KeyF");
+    await sleep(100);
+    await desk.keyboard.press("Digit1");
+    await sleep(600);
+    console.log("arrow under the HUD", await phone.evaluate(() => { const v = window.__game.scene.getScene("Game").pingView; return { at: v.arrowAt(0), mask: v.arrowMask() }; }));
+    await phone.screenshot({ path: `${out}/8-7-568-arrow-under-hud.png` });
+  }
   console.log(logs.join("\n") || "no page errors");
   await browser.close();
 })().catch((e) => {

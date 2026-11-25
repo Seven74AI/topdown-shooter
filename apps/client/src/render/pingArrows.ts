@@ -1,25 +1,13 @@
 import { MAX_PLAYERS } from "@topdown/shared";
 import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
-import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
-import { EVENT_ARROW_HOLD_RAD, EVENT_ARROW_JUMP_CSS_PX, EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
+import { CENTRE_CLEAR_CSS_PX, rectCentreGap } from "../scenes/consumableButton";
+import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 import type { PingModel } from "./pingModel";
 import { HP_BAR_H, HP_MARGIN, HP_TEXT_PX, HP_TEXT_RESERVE_CSS_PX, LINE_HEIGHT, hudTextWidths, layoutHpBar, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
-import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "../scenes/buildBar";
-import { layoutUndoChip } from "../scenes/undoChip";
-import { layoutPingWheel, newPingChipRects } from "../scenes/pingWheel";
-import { layoutEvacVote } from "../ui/voteModel";
-import { READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /** Story 8.7 (AC 7): a ping's edge arrow size (CSS px): its disc (× 0.7) holds the kind icon at 24 px. */
 export const PING_ARROW_CSS_PX = 34;
 
-/**
- * How many HUD keep-offs a placement takes: `waveControlRects` (8, with the ping button) + the mode's own controls
- * (`fillPingKeepOffs`, review M3 / L6 / L7). With the event arrow and 3 placed ping arrows that is ≤ 24 rects, the
- * placement's obstacle capacity (`eventArrow.ts` `MAX_NOTCHES`).
- */
-export const PING_CONTROL_RECTS = 20;
-const CONTROL_RECTS = PING_CONTROL_RECTS;
 
 /**
  * Story 8.7 (AC 6; B12): the world icon — a disc `PING_ICON_CSS_PX` across, lifted `PING_LIFT_CSS_PX` over the ping
@@ -101,29 +89,26 @@ function iconVisible(sx: number, sy: number, sw: number, sh: number, insets: Ins
 
 /**
  * The preallocated placement state of the four ping arrows (brief 7: nothing allocated per frame). `at[i]` keeps slot
- * i's hysteresis (6.8: one placement object per arrow); `avoid[i]` is the keep-off list for slot i — the HUD
- * controls, the event arrow, then the arrows placed before it this frame (grown by `PAIR_GAP_CSS_PX`), sharing rects.
+ * i's hysteresis (6.8: one placement object per arrow). Decision 8.7 B16 (designer 2026-11-25): ping arrows sit UNDER the
+ * HUD — the HUD's buttons and tiles are semi-transparent — so they keep off no HUD control; `avoid[n]` holds only the
+ * other arrows (the event arrow, the 6.10 flag arrow, the loot badge) and the n seen icons / arrows placed before it this
+ * frame (grown by `PAIR_GAP_CSS_PX`), sharing rects. `hud` (the wave controls, ☰ and the ping button) only decides
+ * whether a ping's icon is seen (review M1).
  */
 export interface PingArrows {
   readonly at: EventArrowPlace[];
   readonly shown: boolean[];
-  /** The drawn rect of each placed arrow (grown by the pair gap): a later arrow keeps off it. */
+  /** The drawn rect of each placed arrow / seen icon disc (grown by the pair gap): a later arrow keeps off it. */
   readonly drawn: ScreenRect[];
-  readonly controls: ScreenRect[];
-  readonly event: ScreenRect;
+  /** The HUD rects a seen icon must be clear of (review M1; not keep-offs for the arrows, B16). */
+  readonly hud: ScreenRect[];
+  /** The other arrows' drawn rects (event, flag, loot badge), grown by the pair gap; parked far off when absent. */
+  readonly others: ScreenRect[];
   readonly avoid: ScreenRect[][];
-  /** Decision 8.7 B16: the keep-offs without the build-phase controls, and their avoid lists (same sharing). */
-  readonly controlsLite: ScreenRect[];
-  readonly avoidLite: ScreenRect[][];
-  /** Per slot: this frame's arrow used the lite keep-offs (B16: it may lie over a build-phase control). */
-  readonly lite: boolean[];
   /** Per slot: the ping is seen as its world icon this frame (review M1). */
   readonly icon: boolean[];
   /** Per slot: B17 — the icon's word is drawn under the disc (above it would run over HUD text). */
   readonly wordBelow: boolean[];
-  /** Re-review M2: each slot's placement on the full keep-off set and on the lite set, each with its own hysteresis. */
-  readonly atFull: EventArrowPlace[];
-  readonly atLite: EventArrowPlace[];
   /** The arrow size used last frame (canvas px). */
   sizePx: number;
   /** Per slot: the beside spot held (1–8 beside `besideOf`'s arrow), 0 = its own 6.8 spot. */
@@ -131,30 +116,26 @@ export interface PingArrows {
   readonly besideOf: number[];
 }
 
+/** HUD rects for the icon check (`waveControlRects`: 8). */
+const HUD_RECTS = 8;
+/** Other arrows kept off: the event arrow, the 6.10 flag arrow, the loot badge. */
+export const PING_OTHER_ARROWS = 3;
+
 export function newPingArrows(): PingArrows {
-  const controls = Array.from({ length: CONTROL_RECTS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
-  const event = { x: 0, y: 0, w: 0, h: 0 };
+  const others = Array.from({ length: PING_OTHER_ARROWS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
   const drawn = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
-  // avoid[n] = controls + event + the first n drawn rects (slot order of placement this frame)
+  // avoid[n] = the other arrows + the first n drawn rects (slot order of placement this frame)
   const avoid: ScreenRect[][] = [];
-  for (let n = 0; n < MAX_PLAYERS; n++) avoid.push([...controls, event, ...drawn.slice(0, n)]);
-  const controlsLite = Array.from({ length: CONTROL_RECTS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
-  const avoidLite: ScreenRect[][] = [];
-  for (let n = 0; n < MAX_PLAYERS; n++) avoidLite.push([...controlsLite, event, ...drawn.slice(0, n)]);
+  for (let n = 0; n < MAX_PLAYERS; n++) avoid.push([...others, ...drawn.slice(0, n)]);
   return {
     at: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
     shown: Array.from({ length: MAX_PLAYERS }, () => false),
     drawn,
-    controls,
-    event,
+    hud: Array.from({ length: HUD_RECTS }, () => ({ x: 0, y: 0, w: 0, h: 0 })),
+    others,
     avoid,
-    controlsLite,
-    avoidLite,
-    lite: Array.from({ length: MAX_PLAYERS }, () => false),
     icon: Array.from({ length: MAX_PLAYERS }, () => false),
     wordBelow: Array.from({ length: MAX_PLAYERS }, () => false),
-    atFull: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
-    atLite: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
     sizePx: PING_ARROW_CSS_PX,
     besideSpot: Array.from({ length: MAX_PLAYERS }, () => 0),
     besideOf: Array.from({ length: MAX_PLAYERS }, () => -1),
@@ -162,8 +143,6 @@ export function newPingArrows(): PingArrows {
 }
 
 const OFF = -1e6;
-/** Re-review M2: the lite set is let go only once the full set's spot is back within this of the bearing. */
-const LITE_RELEASE_RAD = (25 * Math.PI) / 180;
 /** A point this far out along the bearing is off every screen (the arrow placement's "off screen" input). */
 const FAR_PX = 1e5;
 const DIR_X = [0, 0, -1, 1];
@@ -246,50 +225,30 @@ function besideFallback(i: number, placed: number, sw: number, sh: number, inset
 }
 const drawnScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
 
-/**
- * Story 8.7 (AC 7, R3): places the edge arrow of every live ping whose point is off screen (or under a HUD block), by
- * the 6.8 event-arrow rule (`placeEventArrow`: inside the safe area, ≤ 30° bearing error, off every control, 48 px
- * clear of the survivor, the 40 px / 10° jump hysteresis), in slot order, each one also keeping `PAIR_GAP_CSS_PX` off
- * the arrows placed before it and off the event arrow (`eventArrow`, its drawn rect, or null).
- */
-function copyRects(src: readonly ScreenRect[], dst: ScreenRect[]): void {
-  for (let i = 0; i < dst.length; i++) {
-    const r = src[i];
-    const d = dst[i] as ScreenRect;
-    if (r) {
-      d.x = r.x;
-      d.y = r.y;
-      d.w = r.w;
-      d.h = r.h;
-    } else {
-      d.x = d.y = OFF; // fewer rects given: parked far off screen (ignored by the placement)
-      d.w = d.h = 0;
-    }
+function copyRect(src: Readonly<ScreenRect> | null | undefined, d: ScreenRect, grow: number): void {
+  if (src) {
+    d.x = src.x - grow;
+    d.y = src.y - grow;
+    d.w = src.w + 2 * grow;
+    d.h = src.h + 2 * grow;
+  } else {
+    d.x = d.y = OFF; // absent: parked far off screen (ignored by the placement)
+    d.w = d.h = 0;
   }
 }
 
 /**
- * `lite` (decision 8.7 B16): the keep-offs without the build-phase controls (`fillPingKeepOffs`' second output). When
- * the full set leaves no spot within 30° of the bearing (568 × 320 / 640 × 360 in a build phase: the build bar, its
- * row and Ready fill the lower right; the open wheel the upper right for ≤ 3 s), the arrow is placed again keeping off
- * only `lite`: it keeps its bearing and may lie under a build-phase control or the wheel instead of pointing up to 160°
- * the wrong way.
+ * Story 8.7 (AC 7, R3; B16 as decided by the designer 2026-11-25): places the edge arrow of every live ping whose icon
+ * isn't seen (review M1), by the 6.8 event-arrow rule (`placeEventArrow`: inside the safe area, 48 px clear of the
+ * survivor, the 40 px / 10° jump hysteresis) with NO HUD control as a keep-off — so at its true bearing — in slot order,
+ * each keeping `PAIR_GAP_CSS_PX` off the other arrows (`others`: event arrow, flag arrow, loot badge; null = none), the
+ * seen icons' discs and the arrows placed before it; crowded on one bearing, the "beside" fallback (B7).
  */
-export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM: number, sw: number, sh: number, insets: Insets, k: number, controls: readonly ScreenRect[], eventArrow: Readonly<ScreenRect> | null, out: PingArrows, lite: readonly ScreenRect[] | null = null): PingArrows {
+export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM: number, sw: number, sh: number, insets: Insets, k: number, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[], out: PingArrows): PingArrows {
   const size = PING_ARROW_CSS_PX * k;
   out.sizePx = size;
-  copyRects(controls, out.controls);
-  copyRects(lite ?? controls, out.controlsLite);
-  const ev = out.event;
-  if (eventArrow) {
-    ev.x = eventArrow.x - PAIR_GAP_CSS_PX * k;
-    ev.y = eventArrow.y - PAIR_GAP_CSS_PX * k;
-    ev.w = eventArrow.w + 2 * PAIR_GAP_CSS_PX * k;
-    ev.h = eventArrow.h + 2 * PAIR_GAP_CSS_PX * k;
-  } else {
-    ev.x = ev.y = OFF;
-    ev.w = ev.h = 0;
-  }
+  for (let i = 0; i < HUD_RECTS; i++) copyRect(hud[i], out.hud[i] as ScreenRect, 0);
+  for (let i = 0; i < PING_OTHER_ARROWS; i++) copyRect(others[i], out.others[i] as ScreenRect, PAIR_GAP_CSS_PX * k);
   // Review M1: first, which pings are seen as icons (the icon's disc, grown by the pair gap, is a keep-off for the
   // arrows: an arrow never lands on a seen icon); then the arrows of the others.
   let placed = 0;
@@ -300,7 +259,7 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     const sx = (p.x - vx) * pxPerM;
     const sy = (p.y - vy) * pxPerM;
     out.wordBelow[i] = pingWordBelow(sx, sy, sw, insets, k); // B17
-    if (!iconVisible(sx, sy, sw, sh, insets, k, out.controls, out.wordBelow[i] as boolean)) continue;
+    if (!iconVisible(sx, sy, sw, sh, insets, k, out.hud, out.wordBelow[i] as boolean)) continue;
     out.icon[i] = true;
     // the icon's disc (not its word box: a wide word at the screen centre would block every bearing straight up)
     const d = out.drawn[placed] as ScreenRect;
@@ -314,24 +273,15 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = model.live(i);
     const at = out.at[i] as EventArrowPlace;
-    if (!p) {
-      at.side = 0; // a new ping starts its hysteresis fresh
+    if (!p || out.icon[i]) {
+      at.side = 0; // a new ping (or one seen again) starts its hysteresis fresh
       out.shown[i] = false;
+      out.besideSpot[i] = 0;
       continue;
     }
     const sx = (p.x - vx) * pxPerM;
     const sy = (p.y - vy) * pxPerM;
     const avoid = out.avoid[placed] as ScreenRect[];
-    const avoidLite = out.avoidLite[placed] as ScreenRect[];
-    const full = out.atFull[i] as EventArrowPlace;
-    const lit = out.atLite[i] as EventArrowPlace;
-    if (out.icon[i]) {
-      at.side = full.side = lit.side = 0;
-      out.shown[i] = false;
-      out.besideSpot[i] = 0;
-      out.lite[i] = false;
-      continue;
-    }
     let dx = sx - sw / 2;
     let dy = sy - sh / 2;
     const len = Math.hypot(dx, dy);
@@ -342,50 +292,10 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
       dx /= len;
       dy /= len;
     }
-    const fx = sw / 2 + dx * FAR_PX;
-    const fy = sh / 2 + dy * FAR_PX;
-    placeEventArrow(fx, fy, sw, sh, insets, k, size, avoid, full); // always: its hysteresis stays warm
-    // Decision B16 with re-review M2's hysteresis: the lite set is used once the full set is over 30° off, and kept
-    // until the full set is back within 25° or its spot is within the 40 px / 10° hold of the lite spot.
-    let useLite = false;
-    if (lite) {
-      const errFull = angErr(Math.atan2(full.y - sh / 2, full.x - sw / 2), full.angle);
-      if (out.lite[i]) {
-        placeEventArrow(fx, fy, sw, sh, insets, k, size, avoidLite, lit);
-        const near =
-          Math.hypot(full.x - lit.x, full.y - lit.y) <= EVENT_ARROW_JUMP_CSS_PX * k &&
-          angErr(Math.atan2(full.y - sh / 2, full.x - sw / 2), Math.atan2(lit.y - sh / 2, lit.x - sw / 2)) <= EVENT_ARROW_HOLD_RAD;
-        useLite = !(errFull <= LITE_RELEASE_RAD || near);
-      } else if (errFull > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9) {
-        // start the lite placement from where the arrow is now (its hysteresis prefers the side nearer to it)
-        lit.x = at.side === 1 ? at.x : full.x;
-        lit.y = at.side === 1 ? at.y : full.y;
-        lit.side = 1;
-        placeEventArrow(fx, fy, sw, sh, insets, k, size, avoidLite, lit);
-        useLite = true;
-      }
-    }
-    if (!useLite) lit.side = 0;
-    const src = useLite ? lit : full;
-    // Re-review M1: a fresh spot more than 40 px away waits while the arrow's spot is still legal (against the set in
-    // use) and within 30° of the bearing — big keep-offs (Ready, the build bar) make the 6.8 placement cycle between
-    // spots on 0.25° steps; this holds it, so it moves once, when the old spot stops working.
-    const hold =
-      at.side === 1 &&
-      Math.hypot(src.x - at.x, src.y - at.y) > EVENT_ARROW_JUMP_CSS_PX * k &&
-      angErr(Math.atan2(at.y - sh / 2, at.x - sw / 2), src.angle) <= EVENT_ARROW_MAX_BEARING_ERR_RAD &&
-      legal(at.x, at.y, src.angle, sw, sh, insets, k, size, useLite ? avoidLite : avoid);
-    if (!hold) {
-      at.x = src.x;
-      at.y = src.y;
-    }
-    at.angle = src.angle;
-    at.side = 1;
-    out.lite[i] = useLite;
-    out.shown[i] = true;
+    out.shown[i] = placeEventArrow(sw / 2 + dx * FAR_PX, sh / 2 + dy * FAR_PX, sw, sh, insets, k, size, avoid, at);
     // Crowding (several pings on one bearing, 568 × 320's corners): when the spot is over 30° off, the arrow sits
     // right beside one placed before it instead (the 6.10 pair rule's spots), held while legal and ≤ 30°.
-    if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, useLite ? avoidLite : avoid, out);
+    if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, avoid, out);
     const r = eventArrowDrawnRect(at, size, drawnScratch);
     const d = out.drawn[placed] as ScreenRect;
     d.x = r.x - PAIR_GAP_CSS_PX * k;
@@ -397,110 +307,6 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
   return out;
 }
 
-/**
- * Story 8.7 review M3 / L6 / L7: which of the mode's own controls the ping arrows keep off this frame (all fixed
- * layouts the HUD draws with). Flag / loot: the 6.10 flag arrow's and the loot badge's drawn rects, or null.
- */
-export interface PingKeepOffMode {
-  /** The build bar is up (its tiles incl. Shop, the build-row swap / quick-use, the undo chip). */
-  build: boolean;
-  ready: boolean;
-  /** The evacuation vote (Extract / Stay). */
-  vote: boolean;
-  /** The ping wheel is open (its chips), in one column (B5 amended: while quick-use shows) or 2 × 2. */
-  wheel: boolean;
-  wheelColumn: boolean;
-  flag: Readonly<ScreenRect> | null;
-  loot: Readonly<ScreenRect> | null;
-}
-
-const barScratch = newBuildBarLayout();
-const rowScratch = newRightButtonsLayout();
-const undoScratch = { x: 0, y: 0, size: 0 };
-const chipScratch = newPingChipRects();
-const voteCache = { w: -1, h: -1, b: -1, k: -1, ex: { x: 0, y: 0, w: 0, h: 0 }, st: { x: 0, y: 0, w: 0, h: 0 } };
-
-function put(out: ScreenRect[], i: number, x: number, y: number, w: number, h: number): number {
-  const r = out[i] as ScreenRect;
-  r.x = x;
-  r.y = y;
-  r.w = w;
-  r.h = h;
-  return i + 1;
-}
-
-/**
- * Fills `out` (`PING_CONTROL_RECTS` rects) with `base` (`waveControlRects`, 8) and then the mode's controls; the rest
- * are parked far off screen. No allocation once warm (the vote layout is cached per screen size).
- */
-export function fillPingKeepOffs(base: readonly ScreenRect[], mode: Readonly<PingKeepOffMode>, w: number, h: number, insets: Insets, k: number, out: ScreenRect[], outLite: ScreenRect[] | null = null): ScreenRect[] {
-  let n = 0;
-  for (let i = 0; i < base.length && n < out.length; i++) {
-    const b = base[i] as ScreenRect;
-    // re-review L1: in a build phase nothing is drawn at the wave row's swap / quick-use (base 1, 2): parked
-    if (mode.build && (i === 1 || i === 2)) n = put(out, n, OFF, OFF, 0, 0);
-    else n = put(out, n, b.x, b.y, b.w, b.h);
-  }
-  const nBase = n;
-  if (mode.build) {
-    const bar = layoutBuildBar(w, h, insets.right, insets.bottom, k, barScratch);
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -Infinity;
-    let y1 = -Infinity;
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-      x0 = Math.min(x0, bar.x[s] as number);
-      y0 = Math.min(y0, bar.y[s] as number);
-      x1 = Math.max(x1, (bar.x[s] as number) + bar.tile);
-      y1 = Math.max(y1, (bar.y[s] as number) + bar.tile);
-    }
-    n = put(out, n, x0, y0, x1 - x0, y1 - y0);
-    const row = layoutRightButtons(w, h, insets.right, insets.bottom, k, true, bar.left, bar.top, rowScratch, bar.countX);
-    n = put(out, n, row.swapX, row.swapY, row.size, row.size);
-    n = put(out, n, row.consX, row.consY, row.size, row.size);
-    const u = layoutUndoChip(w, h, insets.right, insets.bottom, bar.left, bar.top, bar.countX, k, false, undoScratch);
-    n = put(out, n, u.x, u.y, u.size, u.size);
-  }
-  if (mode.ready) {
-    const bar = layoutBuildBar(w, h, insets.right, insets.bottom, k, barScratch);
-    const rw = READY_BUTTON_W_CSS_PX * k;
-    const rh = READY_BUTTON_H_CSS_PX * k;
-    n = put(out, n, readyLeftX(w, rw, bar.left, k), h - (READY_BUTTON_BOTTOM_CSS_PX + insets.bottom) * k - rh, rw, rh);
-  }
-  if (mode.wheel) {
-    const chips = layoutPingWheel(w, insets, k, chipScratch, mode.wheelColumn);
-    const a = chips[0];
-    const d = chips[3];
-    const x0 = Math.min(a.x, chips[1].x);
-    n = put(out, n, x0, a.y, Math.max(a.x + a.w, chips[1].x + chips[1].w) - x0, d.y + d.h - a.y);
-  }
-  const nBuild = n; // [nBase, nBuild): the build-phase controls and the open wheel (B16's lite set leaves them out)
-  if (mode.vote) {
-    const c = voteCache;
-    if (c.w !== w || c.h !== h || c.b !== insets.bottom || c.k !== k) {
-      const v = layoutEvacVote(w / k, h / k, insets.bottom); // CSS px (the DOM panel)
-      Object.assign(c, { w, h, b: insets.bottom, k });
-      Object.assign(c.ex, { x: v.extract.x * k, y: v.extract.y * k, w: v.extract.w * k, h: v.extract.h * k });
-      Object.assign(c.st, { x: v.stay.x * k, y: v.stay.y * k, w: v.stay.w * k, h: v.stay.h * k });
-    }
-    n = put(out, n, c.ex.x, c.ex.y, c.ex.w, c.ex.h);
-    n = put(out, n, c.st.x, c.st.y, c.st.w, c.st.h);
-  }
-  if (mode.flag) n = put(out, n, mode.flag.x, mode.flag.y, mode.flag.w, mode.flag.h);
-  if (mode.loot) n = put(out, n, mode.loot.x, mode.loot.y, mode.loot.w, mode.loot.h);
-  for (let i = n; i < out.length; i++) put(out, i, OFF, OFF, 0, 0);
-  if (outLite) {
-    let j = 0;
-    for (let i = 0; i < n; i++) {
-      if (i >= nBase && i < nBuild) continue;
-      const r = out[i] as ScreenRect;
-      j = put(outLite, j, r.x, r.y, r.w, r.h);
-    }
-    for (let i = j; i < outLite.length; i++) put(outLite, i, OFF, OFF, 0, 0);
-  }
-  return out;
-}
-
 /** Grows `r` by `d` on every side (in place). */
 export function growRect(r: ScreenRect, d: number): ScreenRect {
   r.x -= d;
@@ -508,8 +314,4 @@ export function growRect(r: ScreenRect, d: number): ScreenRect {
   r.w += 2 * d;
   r.h += 2 * d;
   return r;
-}
-
-export function newPingKeepOffs(): ScreenRect[] {
-  return Array.from({ length: PING_CONTROL_RECTS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
 }

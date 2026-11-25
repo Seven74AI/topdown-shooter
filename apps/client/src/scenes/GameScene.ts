@@ -185,10 +185,8 @@ import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
 import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
-import { fillPingKeepOffs, growRect, newPingKeepOffs, type PingKeepOffMode } from "../render/pingArrows";
-import { PAIR_GAP_CSS_PX } from "../render/eventArrowPair";
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
-import { eventArrowDrawnRect } from "../render/eventArrow";
+import { eventArrowDrawnRect, type ScreenRect } from "../render/eventArrow";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -2026,9 +2024,8 @@ export class GameScene extends Phaser.Scene {
   private readonly pingArrowRect = { x: 0, y: 0, w: 0, h: 0 };
   private readonly pingFlagRect = { x: 0, y: 0, w: 0, h: 0 };
   private readonly pingLootRect = { x: 0, y: 0, w: 0, h: 0 };
-  private readonly pingKeepOffs = newPingKeepOffs();
-  private readonly pingKeepOffsLite = newPingKeepOffs();
-  private readonly pingMode: PingKeepOffMode = { build: false, ready: false, vote: false, wheel: false, wheelColumn: false, flag: null, loot: null };
+  /** The other arrows the ping arrows keep off: the event arrow, the 6.10 flag arrow, the loot badge (null = none). */
+  private readonly pingOthers: (ScreenRect | null)[] = [null, null, null];
   private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
     const now = performance.now(); // the model's clock (decision 8.7 B4)
     const host = this.host;
@@ -2045,23 +2042,18 @@ export class GameScene extends Phaser.Scene {
     }
     const ev = this.eventView;
     const size = EVENT_ARROW_CSS_PX * k;
+    // B16 (designer 2026-11-25): ping arrows sit under the HUD (it is semi-transparent): no HUD control is a keep-off.
+    // They keep off the other arrows only (the badge is placed before the pings, so the two never overlap); the HUD
+    // rects only decide whether a ping's icon is seen (review M1).
     const arrow = ev?.edgeArrowAt() ?? null;
-    const rect = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
-    // Review M3 / L6 / L7: the mode's own controls (build bar, Ready, vote, the open wheel), the 6.10 flag arrow and
-    // the loot badge are keep-offs too (the badge is placed before the pings, so the two never overlap).
-    const m = this.hudModel;
-    const mode = this.pingMode;
-    mode.build = m.buildBar;
-    mode.ready = m.readyButton;
-    mode.vote = m.voting;
-    mode.wheel = m.pingButton && m.ping.open;
-    mode.wheelColumn = m.pingWheelColumn; // B5 amended: the layout the HUD shows (frozen while open)
     const flag = ev?.flagArrowAt() ?? null;
-    mode.flag = flag ? growRect(eventArrowDrawnRect(flag, size, this.pingFlagRect), PAIR_GAP_CSS_PX * k) : null;
     const badge = this.lootView?.badgeArrowAt() ?? null;
-    mode.loot = badge ? growRect(eventArrowDrawnRect(badge, size, this.pingLootRect), PAIR_GAP_CSS_PX * k) : null;
-    const keepOffs = fillPingKeepOffs(ev?.controlRects() ?? [], mode, sw, sh, this.eventInsets, k, this.pingKeepOffs, this.pingKeepOffsLite);
-    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, keepOffs, rect, this.pingKeepOffsLite); // B16
+    const others = this.pingOthers;
+    others[0] = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
+    others[1] = flag ? eventArrowDrawnRect(flag, size, this.pingFlagRect) : null;
+    others[2] = badge ? eventArrowDrawnRect(badge, size, this.pingLootRect) : null;
+    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, ev?.controlRects() ?? [], others);
+    const m = this.hudModel;
     m.pingArrowSlots = this.pingView?.arrowMask() ?? 0; // review M2: HudScene hides those senders' teammate arrows
   }
 

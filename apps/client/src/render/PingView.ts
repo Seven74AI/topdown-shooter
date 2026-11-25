@@ -64,12 +64,12 @@ export class PingView {
 
   /**
    * One frame. (vx, vy, vw) the camera's world view (m), (sw, sh) the canvas (px), `k` px per CSS px, `insets` the
-   * safe area (CSS px); `controls` the HUD keep-offs (`waveControlRects`, 8 with the ping button) and `eventArrow`
-   * the event's drawn edge arrow (or null).
+   * safe area (CSS px); `hud` the HUD rects a seen icon must be clear of (`waveControlRects`: not keep-offs for the
+   * arrows, B16) and `others` the other arrows' drawn rects (event, flag, loot badge; null = none).
    */
-  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, controls: readonly ScreenRect[], eventArrow: Readonly<ScreenRect> | null, lite: readonly ScreenRect[] | null = null): void {
+  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[]): void {
     const pxPerM = vw > 0 ? sw / vw : 1;
-    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, controls, eventArrow, this.arrows, lite);
+    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, hud, others, this.arrows);
     const iconM = (PING_ICON_CSS_PX * k) / pxPerM;
     const wordHM = (PING_WORD_CSS_PX * k) / pxPerM;
     const liftM = (PING_LIFT_CSS_PX * k) / pxPerM;
