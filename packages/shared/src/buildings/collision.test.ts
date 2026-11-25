@@ -11,7 +11,7 @@ import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt, type Building, type BuildingRotation } from "./buildings";
-import { PUSH_MOVED, PUSH_NONE, PUSH_STUCK, circleOverlapsBox, pushOutOfBuildings, pushed } from "./collision";
+import { PUSH_MOVED, PUSH_NONE, PUSH_STUCK, circleOverlapsBox, pushEscapes, pushOutOfBuildings, pushed } from "./collision";
 
 /** Story 3.4 (FR53): barricades block players and zombies; projectiles pass over. One mechanic per test. */
 const balance = loadBalance();
@@ -61,8 +61,18 @@ describe("circle vs box", () => {
     const world = createWorld({ balance, seed: 1 });
     wall(world, 19, 10, 1); // [19, 19.5] × [10, 12]
     wall(world, 20, 10, 1); // [20, 20.5] × [10, 12]: a 0.5 m slot at x ∈ [19.5, 20]
+    const e0 = pushEscapes.count;
     expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 12.5)).toBe(PUSH_STUCK);
     expect(pushed).toEqual({ x: 19.75, y: 12.5 });
+    expect(pushEscapes.count).toBe(e0); // a legal start spot: the old rule, no escape
+    // Fix bloater-car-corner: a start spot that is not legal (dropped into the slot, overlapping both walls by 0.15 m)
+    // leaves to the nearest clear spot, on its own side of the walls (out of the slot's south mouth), not across one.
+    expect(circleOverlapsBox(19.75, 11.5, 0.4, 19, 10, 19.5, 12)).toBe(true);
+    expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 11.5)).toBe(PUSH_MOVED);
+    expect(pushEscapes.count).toBe(e0 + 1);
+    expect(clearOfAll(world, pushed.x, pushed.y, 0.4)).toBe(true);
+    expect(pushed.y).toBeGreaterThan(12);
+    expect(Math.abs(pushed.x - 19.75)).toBeLessThan(0.5);
   });
 
   it("fix bloater-car-corner: a centre placed inside the join of two touching car-sized boxes (its start spot inside too) leaves to the nearest clear spot", () => {
@@ -75,11 +85,15 @@ describe("circle vs box", () => {
     const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
     expect(world.obstacles.solids.map((s) => s.name)).toEqual(["h_car", "v_car"]);
     // In the horizontal box near its bottom face: pushed out of it into the vertical one, and back.
+    const e0 = pushEscapes.count;
     expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55)).toBe(PUSH_MOVED);
+    expect(pushEscapes.count).toBe(e0 + 1); // it took the escape
     expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
     expect(Math.hypot(pushed.x - 15.55, pushed.y - 15.55)).toBeLessThan(1.5); // the nearest clear spot, not far away
-    // A legal start spot keeps the old rule: stuck, it stays where it came from.
-    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15, 17.3)).not.toBe(PUSH_STUCK);
+    // The same target from a legal start spot (beside the join): the ordinary push-out takes it out, no escape.
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15, 17.3)).toBe(PUSH_MOVED);
+    expect(pushEscapes.count).toBe(e0 + 1);
+    expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });
 
   it("fix bloater-car-corner: a centre deep in a box against the map edge (pushed off the map and clamped back) leaves too", () => {

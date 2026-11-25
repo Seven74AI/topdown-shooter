@@ -2,7 +2,7 @@
 
 ## Hand-off Brief
 
-A body whose **centre** is inside the junction of two touching thick solids (the Downtown L/T of `curb_car_west_n_in_road` + `curb_car_west_s_in_road`, decay stage 2+) never leaves. `pushOutOfBuildings` bounces it between the two boxes' nearest-face pushes, gives up (PUSH_STUCK) and returns `from`, the same spot inside the car, every tick. Only the dev spawn cheats put centres inside solids. No normal-play path was found (real spawns are guarded), so this is a dev-tool trigger of a latent push-out defect, fixed in the push-out.
+A body whose **centre** is inside the junction of two touching thick solids (the Downtown L/T of `curb_car_west_n_in_road` + `curb_car_west_s_in_road`, decay stage 2+) never leaves. `pushOutOfBuildings` bounces it between the two boxes' nearest-face pushes, gives up (PUSH_STUCK) and returns `from`, the same spot inside the car, every tick. The dev spawn cheats put centres inside solids. In normal play, only co-op hit pushback stacked in one tick (about 1 m, not swept against solids) can do it, which makes it rare but real. Real spawns are guarded. The fix is in the push-out, so it covers both.
 
 ## Case Info
 
@@ -42,7 +42,7 @@ The 200-Bloater ring runs (4 player spots × 3 seeds, 600 ticks): 0 bodies insid
 ### Deduction 1: needs a box thicker than the body
 The bounce needs the first box's nearest face to be the join. A centre bounced back sits `r` from that face, so the box must be thicker than 2r. Barricades (0.5 m) can't trap a wide body; cars (2 m) can. Confirmed by a unit test that fails with the fix off (two 2 m boxes) and by the fuzz: its barricade L/T control trials need no escape.
 
-### Deduction 2: normal play can't reach it (no path found)
+### Deduction 2 (revised in review): normal play can reach it only through co-op stacked pushback
 Getting stuck needs a centre that is already inside a solid at the start of a tick. Every normal placement is guarded:
 - wave spawns: `downtown.test.ts` checks that every spawn's jitter is clear of collision;
 - stampede: `blockedAt`;
@@ -50,7 +50,7 @@ Getting stuck needs a centre that is already inside a solid at the start of a ti
 - decay relocation: `relocateZombie` falls back to `findBoxFreeSpot`;
 - knockback: swept against boxes.
 
-Pushback (`damage.ts › hurt`, ≤ 0.25 m) is not swept, but it is smaller than any body radius, so it can't put a centre inside, and the next push-out fixes a shallow overlap. A body shoved by a player keeps a clear `from`, so it leaves on that side. Evidence: 12 headless runs (seeds 1–3 × 1/4 bots × god/mortal) and 4 endless runs (vote "stay", 19–20 waves each), with **0 escapes**.
+Hit pushback (`damage.ts › hurt`) is not swept against solids, and hits on one body in one tick add up. Solo, a player's pushback per tick (≤ 0.25 m, the machete; guns 0.15 m) is below every body radius (≥ 0.35 m), so it can't embed a centre. In co-op, ~1 m in one tick (for example 4 machete hits from the north) drives a Walker's centre into `dumpster_alley_3`, which stands flush against `se_offices`. Its nearest face is the shared one, so the old push-out bounced it between the two boxes and kept it there (edge-case review, confirmed by the pinned test in `carCorner.test.ts`). At the car L the same needs > 1 m into the 2 m car. Rare, but real. A body shoved by a player keeps a clear `from`, so it leaves on that side. Evidence: 12 headless runs (seeds 1–3 × 1/4 bots × god/mortal) and 4 endless runs (vote "stay", 19–20 waves each), with **0 escapes**.
 
 ## Hypothesized Paths
 
@@ -85,4 +85,6 @@ When stuck and `from` overlaps a solid by more than float noise (> 1 mm), move t
 ## Side Findings
 
 - The dev spawn cheats place bodies inside solids (cars, buildings). With the fix they are pushed out on the first tick. The spawns were left as they are (dev-only).
-- `damage.ts › hurt` pushback is not swept against solids. It is harmless today (≤ 0.25 m < every radius), but a future pushback larger than a body radius would recreate the trigger.
+- `damage.ts › hurt` pushback is not swept against solids (the co-op trigger above). The escape now recovers, but sweeping the pushback like `knockZombie` does would remove the trigger itself.
+- Crowds jam against car faces (bodies pressed into a wall by the crowd behind, the player on the far side) for more than 4 s. The same happens on master with legal spawns only, so this is crowd steering, outside this fix.
+- An unfixed `NetSimHost.decay.test.ts` fixture placed the survivor inside `se_offices`.

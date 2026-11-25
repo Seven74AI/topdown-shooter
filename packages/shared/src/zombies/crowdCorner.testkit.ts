@@ -4,7 +4,7 @@ import { queryRadius } from "../core/spatialGrid";
 import { ticksFor } from "../core/time";
 import { step, type World } from "../core/world";
 import { isZombieAlive } from "./zombiePool";
-import { ZOMBIE_STATE, ZOMBIE_TYPES, isWindupState } from "./zombieTypes";
+import { ZOMBIE_STATE, ZOMBIE_TYPES, isWindupState, zombieTypeIndex } from "./zombieTypes";
 import { STILL_M, STILL_S, insideBox } from "./wideBody.testkit";
 
 /**
@@ -13,6 +13,7 @@ import { STILL_M, STILL_S, insideBox } from "./wideBody.testkit";
  * test-only).
  */
 const balance = loadBalance();
+const BLOATER = zombieTypeIndex("bloater");
 
 export interface CrowdResult {
   /** "id@tick (x, y) in <box>" for every body that ended a tick inside a solid (from the end of tick 1 on). */
@@ -22,6 +23,13 @@ export interface CrowdResult {
   longestStillId: number;
   /** Bodies still alive at the bound (counted only when `untilGone`). */
   left: number;
+  /** Bloaters among `ids` still alive at the bound (whatever `untilGone`). */
+  bloatersLeft: number;
+  /** Alive body-ticks, and how many of them were exempt from the still rule as crowd-held (the check's reach). */
+  bodyTicks: number;
+  heldTicks: number;
+  /** The largest, over the bodies, of each body's closest approach to a standing player (m): every body came this near. */
+  farthestApproach: number;
   ticks: number;
 }
 
@@ -38,6 +46,9 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
   const ax = ids.map((id) => z.x[id] as number);
   const ay = ids.map((id) => z.y[id] as number);
   const still = ids.map(() => 0);
+  const approach = ids.map(() => Infinity);
+  let bodyTicks = 0;
+  let heldTicks = 0;
   const inside: string[] = [];
   let longestStill = 0;
   let longestStillId = -1;
@@ -55,7 +66,13 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
       const r = balance.zombies.types[ZOMBIE_TYPES[z.type[id] as number] as string]?.radiusM ?? 0;
       const box = insideBox(world, x, y, r);
       if (box && inside.length < 20) inside.push(`${id}@${tick} (${x.toFixed(2)}, ${y.toFixed(2)}) in ${box}`);
-      const attacking = z.state[id] === ZOMBIE_STATE.SWELL || isWindupState(z.state[id] as number) || touchingPlayer(world, x, y, r) || heldByCrowd(world, id, x, y, r);
+      bodyTicks++;
+      approach[k] = Math.min(approach[k] as number, playerDistance(world, x, y));
+      let attacking = z.state[id] === ZOMBIE_STATE.SWELL || isWindupState(z.state[id] as number) || touchingPlayer(world, x, y, r);
+      if (!attacking && heldByCrowd(world, id, x, y, r)) {
+        attacking = true;
+        heldTicks++;
+      }
       if (attacking || Math.hypot(x - (ax[k] as number), y - (ay[k] as number)) >= STILL_M) {
         ax[k] = x;
         ay[k] = y;
@@ -68,15 +85,28 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
         }
       }
     }
-    if (untilGone && alive === 0) return { inside, longestStill, longestStillId, left: 0, ticks };
+    if (untilGone && alive === 0) return { inside, longestStill, longestStillId, left: 0, bloatersLeft: 0, bodyTicks, heldTicks, farthestApproach: farthest(approach), ticks };
   }
   let left = 0;
-  for (let k = 0; k < ids.length; k++) if (isZombieAlive(z, ids[k] as number) && z.generation[ids[k] as number] === gen[k]) left++;
-  return { inside, longestStill, longestStillId, left: untilGone ? left : 0, ticks };
+  let bloatersLeft = 0;
+  for (let k = 0; k < ids.length; k++) {
+    const id = ids[k] as number;
+    if (!isZombieAlive(z, id) || z.generation[id] !== gen[k]) continue;
+    left++;
+    if (z.type[id] === BLOATER) bloatersLeft++;
+  }
+  return { inside, longestStill, longestStillId, left: untilGone ? left : 0, bloatersLeft, bodyTicks, heldTicks, farthestApproach: farthest(approach), ticks };
 }
 
 const near = new Int32Array(512);
-/** Crowd-held: another alive zombie touches this one (the grid is from the start of the tick: 0.3 m of query margin). */
+/** A queued body keeps this much space to the one ahead (the soft separation's push leaves a gap). */
+const QUEUE_SLACK_M = 0.25;
+/**
+ * Crowd-held: another alive zombie is within `QUEUE_SLACK_M` of touching this one: it queues behind the
+ * crowd, or the crowd behind it presses it on a wall (Story 6.13 AC 3: a body held back by a crowd is not a
+ * stall; crowds jamming on a car face for over 4 s happen on master too, legal spawns only). The grid is
+ * from the start of the tick: 0.3 m of query margin. A body with no zombie that near counts.
+ */
 function heldByCrowd(world: World, id: number, x: number, y: number, r: number): boolean {
   const z = world.zombies;
   const n = queryRadius(world.zombieGrid, z.x, z.y, x, y, r + MAX_R + 0.3, near);
@@ -84,11 +114,23 @@ function heldByCrowd(world: World, id: number, x: number, y: number, r: number):
     const j = near[k] as number;
     if (j === id || !isZombieAlive(z, j)) continue;
     const rj = balance.zombies.types[ZOMBIE_TYPES[z.type[j] as number] as string]?.radiusM ?? 0;
-    if (Math.hypot((z.x[j] as number) - x, (z.y[j] as number) - y) <= r + rj + 0.05) return true;
+    if (Math.hypot((z.x[j] as number) - x, (z.y[j] as number) - y) <= r + rj + QUEUE_SLACK_M) return true;
   }
   return false;
 }
 const MAX_R = Math.max(...Object.values(balance.zombies.types).map((t) => t?.radiusM ?? 0));
+
+function farthest(a: readonly number[]): number {
+  let m = 0;
+  for (const v of a) m = Math.max(m, v);
+  return m;
+}
+
+function playerDistance(world: World, x: number, y: number): number {
+  let best = Infinity;
+  for (const p of world.players.values()) if (p.status === "alive") best = Math.min(best, Math.hypot(p.x - x, p.y - y));
+  return best;
+}
 
 function touchingPlayer(world: World, x: number, y: number, r: number): boolean {
   for (const p of world.players.values()) {

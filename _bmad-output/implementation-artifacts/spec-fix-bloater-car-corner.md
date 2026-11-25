@@ -2,7 +2,7 @@
 title: 'Fix: Bloaters wedged in car corners'
 type: 'bugfix'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 context: []
 baseline_commit: '388b584'
 ---
@@ -50,6 +50,17 @@ baseline_commit: '388b584'
 **Acceptance Criteria:**
 - Given 200 dev-spawned Bloaters round a player in the car corner, when the World runs, then from the end of tick 1 no body overlaps a solid, none stands still for more than 4 s while not attacking, and all reach the player within 90 s.
 - Given the headless bot runs, when compared before and after the fix, then the `worldDigest` values are identical and the escape fired 0 times.
+
+## Spec Change Log
+
+- Review round 1 (3 fresh reviewers: blind, edge case, acceptance). Patches only, no loopback:
+  - A trial of a "centre inside a solid" guard (blind review #1) left bodies dropped into a gap narrower than themselves (car + `police_line_lot`, bus) stuck for good. Reverted to the overlap guard (> 1 mm at `from`). The edge-case probe found no wall crossing (14,337 bodies) and 0 escapes in 1.6M legal Float32 push-outs.
+  - Tests: escape counters asserted in the unit tests; the slot test now pins "an illegal in-slot start leaves on its own side".
+  - `tenWaveSim` pins "a real run makes 0 escapes" (auditor #4).
+  - The progress check was near-vacuous (auditor #1). Added a non-bursting Walker + Brute crowd test (run > 4 s, every body's closest approach < 8 m, held share < 98 %), and the held share and closest approach in the fuzz.
+  - The fuzz asserts its corners really touch, and the car masks are computed once.
+  - `NetSimHost.decay.test.ts` fixture was inside `se_offices` (an illegal spot, kept there by the old push-out): mirrored to the dumpster's east side, same assertion.
+  - Edge-case finding: co-op hit pushback (`hurt`, not swept) stacked in one tick can drive a centre into a junction (dumpster against `se_offices`). That is a normal-play path, pinned in `carCorner.test.ts`.
 
 ## Design Notes
 

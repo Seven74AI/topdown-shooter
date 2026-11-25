@@ -168,9 +168,13 @@ export function pushOutOfBuildings(
  * Fix bloater-car-corner (2026-11-25): staying at `from` is the fallback only because `from` is
  * normally outside every box. A centre placed inside one (the dev spawn cheats place bodies with no
  * solid check) at the join of two touching boxes is pushed by each box's nearest face into the other.
- * The passes never settle, and staying at `from` would keep it inside for good. Above this overlap at
- * `from` (far above Float32 rounding against a face, which must never trigger it: a body stuck at a slot
- * mouth must not jump a wall), the body goes to the nearest clear spot instead (`escape`).
+ * The passes never settle, and staying at `from` would keep it inside for good (the same for a body
+ * dropped into a gap narrower than itself between two boxes: centre outside both, overlapping both). When
+ * `from` overlaps a solid by more than this, the body goes to the nearest clear spot instead (`escape`).
+ * The margin is far above Float32 rounding against a face, so a legal `from` (every normal placement and
+ * every push-out result) never triggers it: a body held at a slot mouth stays put and never jumps a wall.
+ * It is not a line-of-movement search: it only runs on a body already in an illegal spot, and a body
+ * with no clear spot within `ESCAPE_REACH_M` repeats the full search each tick (none on Downtown).
  */
 const FROM_INSIDE_EPS_M = 1e-3;
 /**
