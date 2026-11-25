@@ -29,9 +29,8 @@ import { centre, playerSlotIndex, playersInRun, setEventPhase, teamCentre, type 
  */
 
 const STAMPEDE = EVENT_KINDS.indexOf("stampede");
+/** Geometry epsilon: spawn this far inside the start edge; a Runner this close to the far edge has left. */
 const EDGE_EPS_M = 0.05;
-/** How much of the speed keeps pushing along the lane while a Runner sidesteps cover. */
-const SIDESTEP_ALONG = 0.25;
 
 export const laneAlongX = (l: StampedeLane): boolean => l.dir === "e" || l.dir === "w";
 export const laneLength = (l: StampedeLane): number => (laneAlongX(l) ? l.maxX - l.minX : l.maxY - l.minY);
@@ -236,6 +235,8 @@ export function stampedeSteer(world: Readonly<World>, x: number, y: number, r: n
   // that stays in the lane (else the other end).
   band.n = 0;
   const solids = world.obstacles.solids;
+  band.latLo = laneLo - look; // review nit: only boxes that can reach the lane's width
+  band.latHi = laneHi + look;
   for (let i = 0; i < solids.length; i++) bandBox(solids[i] as MapBox, x, y, dx, dy, look, r, alongX);
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) bandBox(list[i] as Building, x, y, dx, dy, look, r, alongX);
@@ -280,8 +281,8 @@ export function stampedeSteer(world: Readonly<World>, x: number, y: number, r: n
     // sideways (perpendicular to the lane) plus a little along it
     const px = alongX ? 0 : side;
     const py = alongX ? side : 0;
-    vx = px + dx * SIDESTEP_ALONG;
-    vy = py + dy * SIDESTEP_ALONG;
+    vx = px + dx * world.balance.events.stampede.sidestepAlongFrac;
+    vy = py + dy * world.balance.events.stampede.sidestepAlongFrac;
     const n = Math.sqrt(vx * vx + vy * vy);
     vx /= n;
     vy /= n;
@@ -292,8 +293,9 @@ export function stampedeSteer(world: Readonly<World>, x: number, y: number, r: n
 
 /** Lateral intervals blocked in the band ahead (module scratch: no allocation per call). */
 const MAX_BAND = 64;
+/** Geometry epsilon: blocked lateral intervals closer than this merge (no body passes a 5 cm gap). */
 const MERGE_GAP_M = 0.05;
-const band = { n: 0, lo: new Float64Array(MAX_BAND), hi: new Float64Array(MAX_BAND) };
+const band = { n: 0, latLo: 0, latHi: 0, lo: new Float64Array(MAX_BAND), hi: new Float64Array(MAX_BAND) };
 function bandBox(b: { minX: number; minY: number; maxX: number; maxY: number }, x: number, y: number, dx: number, dy: number, look: number, r: number, alongX: boolean): void {
   if (band.n >= MAX_BAND) return;
   // along the lane: the box's extent vs the window [pos, pos + look] in the run direction
@@ -304,8 +306,11 @@ function bandBox(b: { minX: number; minY: number; maxX: number; maxY: number }, 
   const wLo = d > 0 ? p : p - look;
   const wHi = d > 0 ? p + look : p;
   if (bHi <= wLo || bLo >= wHi) return;
-  band.lo[band.n] = (alongX ? b.minY : b.minX) - r;
-  band.hi[band.n] = (alongX ? b.maxY : b.maxX) + r;
+  const lo = (alongX ? b.minY : b.minX) - r;
+  const hi = (alongX ? b.maxY : b.maxX) + r;
+  if (hi <= band.latLo || lo >= band.latHi) return; // beside the lane: never in the way
+  band.lo[band.n] = lo;
+  band.hi[band.n] = hi;
   band.n++;
 }
 

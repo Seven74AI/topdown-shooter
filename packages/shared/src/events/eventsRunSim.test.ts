@@ -7,7 +7,7 @@ import { parseDevEvents } from "./devEvents";
 import { EVENT_KINDS } from "./eventState";
 
 /**
- * The survivor is forced in wave 3: god-mode bots walk straight lines and lose it in the late waves
+ * The survivor is forced in wave 3: god-mode bots walk straight lines and lose it in the late-wave
  * crowds (probe 2026-11-25: 0–1 saves in 16 runs in waves 6–8 whatever the B1 radius) — bot
  * survival is not difficulty evidence (brief 15); the liveness here is "a save really happens".
  *

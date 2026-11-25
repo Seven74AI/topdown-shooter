@@ -5,6 +5,8 @@ import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCen
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { layoutBossBar } from "./bossBar";
+import { newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
+import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -164,4 +166,31 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   });
 });
 
-
+describe("Story 6.8 review M2: the event edge arrow (not pressable) in the one HUD layout test", () => {
+  for (const [w, h] of SIZES) {
+    it(`${w} × ${h}: at every angle (every 2°) it stays inside the safe area, off every wave control and ≥ 48 px from the survivor`, () => {
+      const controls = waveControlRects(w, h, INSET, K, newWaveControlRects());
+      // the same controls the wave mode lists (the arrow only shows in a wave; events never share it with the boss bar)
+      const wave = modes(w, h).wave!.filter((b) => b.id !== "boss_bar");
+      for (const c of controls) expect(wave.some((b) => Math.abs(b.x - c.x) < 1e-6 && Math.abs(b.y - c.y) < 1e-6 && Math.abs(b.w - c.w) < 1e-6), "the arrow avoids the controls the test lists").toBe(true);
+      const size = EVENT_ARROW_CSS_PX * K;
+      const at = { x: 0, y: 0, angle: 0 };
+      let placed = 0;
+      for (let deg = 0; deg < 360; deg += 2) {
+        const a = (deg * Math.PI) / 180;
+        expect(placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, controls, at)).toBe(true);
+        placed++;
+        const box: Box = { id: `event_arrow@${deg}`, x: at.x - size / 2, y: at.y - size / 2, w: size, h: size };
+        expect(box.x, box.id).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+        expect(box.x + box.w, box.id).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+        expect(box.y, box.id).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
+        expect(box.y + box.h, box.id).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+        for (const c of wave) expect(overlaps(box, c), `${box.id} overlaps ${c.id}`).toBe(false);
+        expect(rectCentreGap(box.x, box.y, box.w, box.h, w / 2, h / 2), `${box.id}: within 48 px of the survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+      }
+      expect(placed).toBe(180);
+      // on screen: no arrow
+      expect(placeEventArrow(w / 2, h / 2, w, h, INSET, K, size, controls, at)).toBe(false);
+    });
+  }
+});

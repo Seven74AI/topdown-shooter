@@ -136,6 +136,8 @@ export interface BotConfig {
   reviveStopM: number;
   /** Story 3.10: shop item ids bought in this order in each build phase (`bots/botShop.ts`). */
   shoppingList?: readonly string[];
+  /** Story 6.8: rule 2c's strafe side flip, in input seqs (absent: 64). */
+  strafeFlipSeqs?: number;
   /** Story 5.12 (absent: 0.4 / 5). */
   medkitBelowHpFrac?: number;
   throwClusterMin?: number;
@@ -287,9 +289,9 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   // 2c. Every zombie in range is behind cover (a barricade stops my bullets): strafe 90° left of the
   // nearest to open a line.
   if (z && view.knowsCover && view.shotZombie === null && z.distM <= me.rangeM) {
-    // Story 6.8 (found by the 10-wave sim): the side flips every STRAFE_FLIP_SEQS inputs, so a bot
+    // Story 6.8 (found by the 10-wave sim): the side flips every `bots.json › strafeFlipSeqs` inputs, so a bot
     // pinned against the bus by its strafe (always left) gets out of the pocket and opens a line.
-    const side = ((seq / STRAFE_FLIP_SEQS) | 0) % 2 === 0 ? 1 : -1;
+    const side = ((seq / (cfg.strafeFlipSeqs ?? 64)) | 0) % 2 === 0 ? 1 : -1;
     moveToward(out, -(z.y - me.y) * side, (z.x - me.x) * side);
     return;
   }
@@ -380,8 +382,6 @@ function huntStep(world: World, x: number, y: number, out: BotView): void {
   out.huntStepY = flowCellCenterY(nav, c) - y;
 }
 
-/** Story 6.8: a stampede lane's margin a bot keeps (m, beyond the lane's edge). */
-const LANE_MARGIN_M = 1;
 
 /** Story 6.9: bots keep this far beyond the gas ring while it hisses. */
 const GAS_MARGIN_M = 1.5;
@@ -403,7 +403,8 @@ function laneOut(world: World, x: number, y: number, out: BotView): void {
   if (a.kind !== STAMPEDE_KIND || a.lane < 0) return;
   const l = world.map.stampedeLanes[a.lane];
   if (!l) return;
-  if (x < l.minX - LANE_MARGIN_M || x > l.maxX + LANE_MARGIN_M || y < l.minY - LANE_MARGIN_M || y > l.maxY + LANE_MARGIN_M) return;
+  const m = world.balance.bots.laneMarginM;
+  if (x < l.minX - m || x > l.maxX + m || y < l.minY - m || y > l.maxY + m) return;
   if (l.dir === "e" || l.dir === "w") out.laneOutY = y - l.minY < l.maxY - y ? -1 : 1;
   else out.laneOutX = x - l.minX < l.maxX - x ? -1 : 1;
 }
@@ -466,9 +467,6 @@ function errand(world: World, p: PlayerState, out: BotView): void {
     }
   }
 }
-
-/** Story 6.8: rule 2c's strafe changes side every this many input seqs (3.2 s at 20 Hz). */
-const STRAFE_FLIP_SEQS = 64;
 
 /** Story 6.5: cells the hunt looks ahead along its way. */
 const HUNT_LOOKAHEAD_CELLS = 4;

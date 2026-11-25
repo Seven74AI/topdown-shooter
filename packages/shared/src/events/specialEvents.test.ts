@@ -172,3 +172,37 @@ describe("Story 6.8 review (API for 6.9/6.10): update returns the outcome", () =
     }
   });
 });
+
+describe("Story 6.8 review L1 (DD7): nobody standing at the trigger point", () => {
+  it("no trigger and NOT skipped while everyone is down; it starts once one stands up", async () => {
+    const { eventWorld, startNext, tickN } = await import("./testEvents");
+    // (a real run turns "nobody standing" into a wipe in the player system before this one runs; the
+    // guard is the safety net — the player system is off here so the downed state lasts)
+    const { world, players, events } = eventWorld({ players: [[24, 16], [25, 16]], systems: { player: () => {} } });
+    for (const p of players) p.status = "downed";
+    startNext(world, "car_alarm");
+    tickN(world, 40);
+    expect(world.special.active.kind).toBe(-1);
+    expect(ofType(events, "event.skipped")).toHaveLength(0);
+    expect(world.special.log.skipped).toBe(0);
+    players[1]!.status = "alive";
+    tickN(world, 2);
+    expect(ofType(events, "event.triggered")).toHaveLength(1);
+  });
+});
+
+describe("Story 6.8 review L4 (D6): the WARNING holds the wave too", () => {
+  it("the last normal zombie dies during the 3 s warning: the wave waits for the stampede", () => {
+    const { world, events } = run([{ kind: "stampede", wave: 1 }], { frozen: true });
+    until(world, () => world.special.active.kind !== -1);
+    expect(world.special.active.phase).toBe(EVENT_PHASE.WARNING);
+    world.waves.queued = 0; // everything spawned…
+    killWave(world); // …and dead, in the warning
+    for (let i = 0; i < 20; i++) {
+      tick(world);
+      expect(world.special.active.phase).toBe(EVENT_PHASE.WARNING);
+    }
+    expect(world.run.phase).toBe("wave");
+    expect(ofType(events, "wave.ended")).toHaveLength(0);
+  });
+});

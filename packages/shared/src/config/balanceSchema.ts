@@ -604,6 +604,10 @@ export const botsSchema = z
     medkitBelowHpFrac: z.number().min(0).max(1).default(0.4),
     /** Story 5.12: a bot throws a grenade / molotov at the densest zombie within throw range when at least this many stand within its radius. */
     throwClusterMin: z.number().int().min(1).max(64).default(5),
+    /** Story 6.8: a bot keeps this far (m) outside an active stampede's lane. */
+    laneMarginM: z.number().min(0).max(8).default(1),
+    /** Story 6.8: rule 2c's strafe changes side every this many input seqs (64 = 3.2 s at 20 Hz). */
+    strafeFlipSeqs: z.number().int().min(1).max(10_000).default(64),
   })
   .strict();
 
@@ -1356,6 +1360,8 @@ export const eventsSchema = z
         stuckProgressM: z.number().positive(),
         /** A Runner looks this far ahead for cover and steers round it (F6: "cover pushes them aside"). */
         deflectLookM: z.number().positive().max(4),
+        /** While side-stepping cover, this share of the speed keeps pushing along the lane. */
+        sidestepAlongFrac: z.number().min(0).max(1),
       })
       .strict(),
     /** Story 6.9 (FR39, G1–G4): the gas leak at the gas-station zone's centre. */

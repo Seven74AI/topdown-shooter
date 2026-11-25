@@ -360,6 +360,9 @@ export function createPathingState(map: DistrictBounds & { readonly solids?: rea
   };
 }
 
+/** Story 6.8: `PathingState.lureBuild` once both lure fields are built (1 nav, 2 wide, 0 idle). */
+export const LURE_READY = 3;
+
 /**
  * Story 6.8 (DD3): starts building the two lure fields round `box` (the armed car). They take a turn
  * in the round-robin (`updatePathing`) until both are done. No allocation.
@@ -1103,7 +1106,7 @@ function advanceLure(world: World, budget: number): void {
   const nav = wideStep ? p.wide : p.nav;
   if (nav.version !== world.buildings.wallVersion) rasterizeBuildings(nav, world);
   advanceFlowField(f, nav, world, budget);
-  if (!f.building) p.lureBuild = wideStep ? 3 : 2;
+  if (!f.building) p.lureBuild = wideStep ? LURE_READY : 2;
 }
 
 /**

@@ -109,7 +109,7 @@ describe("Story 6.8 events fuzz (brief 7)", () => {
         w.special.active.phaseTick = w.tick - 400;
         tickN(w, 1);
         expect(w.special.active.phase, label).toBe(EVENT_PHASE.ALARM);
-        for (let t = 0; t < 20 * 14; t++) {
+        for (let t = 0; t < 20 * 16; t++) {
           tickN(w, 1);
           if (t % 10 === 0) noBodyInABox(w, label);
         }
@@ -124,7 +124,7 @@ describe("Story 6.8 events fuzz (brief 7)", () => {
         addPlayer(s, "p0", 24, 16);
         addPlayer(s, "p1", 25, 16);
         force(s, "stampede");
-        for (let t = 0; t < 20 * 15 && !(t > 2 && s.special.active.kind === -1); t++) {
+        for (let t = 0; t < 20 * 17 && !(t > 2 && s.special.active.kind === -1); t++) {
           tickN(s, 1);
           if (t % 5 === 0) noBodyInABox(s, `${label} stampede`);
         }

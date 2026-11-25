@@ -230,3 +230,54 @@ describe("Story 6.8 F5: the alarm pulls, it doesn't teleport or trap", () => {
     expect(ofType(events, "event.ended")).toEqual([{ type: "event.ended", kind: "car_alarm", outcome: "done" }]);
   });
 });
+
+describe("Story 6.8 review L5/L6: the 8 m minimum; once lured, lured for the alarm", () => {
+  it("a candidate car ≤ 8 m from the team is never armed while another is in range (200 seeds)", () => {
+    const car = DOWNTOWN_MAP.cover.find((c) => c.name === "parked_car_1")!;
+    const cx = (car.minX + car.maxX) / 2;
+    for (let seed = 1; seed <= 200; seed++) {
+      const t = eventWorld({ seed, players: [[cx, 24]], systems: noZombies });
+      startNext(t.world, "car_alarm");
+      tickN(t.world, 1);
+      expect(t.world.special.carAlarm.car).not.toBe("parked_car_1");
+      const c = t.world.special.carAlarm;
+      expect(Math.hypot((c.minX + c.maxX) / 2 - cx, (c.minY + c.maxY) / 2 - 24)).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it("a zombie lured inside 15 m stays lured when pushed out of it (until the alarm ends)", () => {
+    const t = eventWorld({ seed: 3, players: [[4, 26.5]], systems: noZombies });
+    startNext(t.world, "car_alarm");
+    tickN(t.world, 1);
+    t.world.special.active.phaseTick = t.world.tick - ticks(20);
+    tickN(t.world, 1);
+    const c = carCentre(t.world);
+    const id = spawnZombie(t.world, "walker", c.x + 3, c.y, true);
+    tickN(t.world, 2);
+    expect(t.world.zombies.lureTicks[id]).toBeGreaterThan(0);
+    t.world.zombies.x[id] = c.x > 24 ? c.x - 18 : c.x + 18; // out of the 15 m, away from the car
+    tickN(t.world, 5);
+    expect(t.world.zombies.lureTicks[id]).toBeGreaterThan(0);
+  });
+});
+
+describe("Story 6.8 review L7: until the lure fields are built, a lured zombie keeps chasing (never straight into cover)", () => {
+  it("the alarm sounds at once: the zombie goes for the team while lureBuild < ready, then for the car", () => {
+    const t = eventWorld({ seed: 3, players: [[2, 26.5]] });
+    startNext(t.world, "car_alarm");
+    tickN(t.world, 1);
+    const car = DOWNTOWN_MAP.cover.find((c) => c.name === "street_car_east")!;
+    Object.assign(t.world.special.carAlarm, { car: car.name, minX: car.minX, minY: car.minY, maxX: car.maxX, maxY: car.maxY });
+    requestLureFields(t.world, car);
+    t.world.special.active.phaseTick = t.world.tick - ticks(20); // sounding now, the fields not built yet
+    const id = spawnZombie(t.world, "walker", 36, 21, true);
+    const x0 = t.world.zombies.x[id]!;
+    tickN(t.world, 3);
+    expect(t.world.pathing.lureBuild).toBeLessThan(3);
+    expect(t.world.zombies.lureTicks[id]).toBeGreaterThan(0);
+    expect(t.world.zombies.x[id]!).toBeLessThan(x0); // still chasing west, not at the car (east)
+    tickN(t.world, 60);
+    expect(t.world.pathing.lureBuild).toBe(3);
+    expect(t.world.zombies.x[id]!).toBeGreaterThan(x0); // now it walks to the car
+  });
+});

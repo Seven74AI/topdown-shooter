@@ -624,13 +624,13 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
 });
 
 describe("Story 6.8: events.json", () => {
-  it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 10 s)", () => {
+  it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 12 s, 6.8 B2)", () => {
     const e = loadBalance().events;
     expect(e.perRun).toBe(2);
     expect(e.waves).toEqual([3, 4, 6, 7, 8]);
     expect([e.startFractionMin, e.startFractionMax]).toEqual([0.2, 0.6]);
     expect(e.carAlarm).toMatchObject({ armedS: 20, alarmS: 15, pullRadiusM: 15, distractBreakM: 2, pickMinM: 8, pickMaxM: 25 });
-    expect(e.stampede).toMatchObject({ warningS: 3, runS: 10, laneWidthM: 8, speedMps: 5, contactDamage: 8, countByPlayers: [12, 18, 24, 30], overCap: 30, rowSize: 6, rowGapS: 0.3, stuckS: 1, stuckProgressM: 0.5 });
+    expect(e.stampede).toMatchObject({ warningS: 3, runS: 12, laneWidthM: 8, speedMps: 5, contactDamage: 8, countByPlayers: [12, 18, 24, 30], overCap: 30, rowSize: 6, rowGapS: 0.3, stuckS: 1, stuckProgressM: 0.5 });
     expect(e.banners).toMatchObject({ car_alarm: "CAR ALARM · shoot it to set it off", stampede: "STAMPEDE!" });
   });
 

@@ -9,6 +9,7 @@ import { EVENT_KIND_NONE_WIRE, EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, 
  */
 export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>): void {
   const a = world.special.active;
+  const looked = lookedOf(world);
   const kind = state.eventKind ?? EVENT_KIND_NONE_WIRE;
   if (kind === EVENT_KIND_NONE_WIRE || kind >= EVENT_KINDS.length) {
     a.kind = EVENT_NONE;
@@ -16,6 +17,8 @@ export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>):
     a.lane = -1;
     world.special.carAlarm.car = "";
     mirrorCrateAndSurvivor(world, state, -1);
+    looked.x = Number.NaN;
+    looked.y = Number.NaN;
     return;
   }
   a.kind = kind;
@@ -29,7 +32,10 @@ export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>):
   a.lane = lane === 255 ? -1 : lane;
   const car = world.special.carAlarm;
   if (EVENT_KINDS[kind] === "car_alarm") {
-    if (car.car === "" || Math.abs((car.minX + car.maxX) / 2 - a.x) > 0.02 || Math.abs((car.minY + car.maxY) / 2 - a.y) > 0.02) {
+    // Review nit: look the car up once per marker position (no per-frame search when none matches).
+    if (looked.x !== a.x || looked.y !== a.y) {
+      looked.x = a.x;
+      looked.y = a.y;
       const c = world.map.cover.find((o) => o.kind === "car" && Math.abs((o.minX + o.maxX) / 2 - a.x) < 0.02 && Math.abs((o.minY + o.maxY) / 2 - a.y) < 0.02);
       car.car = c?.name ?? "";
       car.minX = c?.minX ?? a.x;
@@ -37,8 +43,23 @@ export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>):
       car.maxX = c?.maxX ?? a.x;
       car.maxY = c?.maxY ?? a.y;
     }
-  } else car.car = "";
+  } else {
+    car.car = "";
+    looked.x = Number.NaN;
+    looked.y = Number.NaN;
+  }
   mirrorCrateAndSurvivor(world, state, kind);
+}
+
+/** Per mirror World: the marker position its armed car was last looked up for (NaN: none). */
+const lookedBy = new WeakMap<World, { x: number; y: number }>();
+function lookedOf(world: World): { x: number; y: number } {
+  let l = lookedBy.get(world);
+  if (!l) {
+    l = { x: Number.NaN, y: Number.NaN };
+    lookedBy.set(world, l);
+  }
+  return l;
 }
 
 /**

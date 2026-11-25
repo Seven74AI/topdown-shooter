@@ -7,7 +7,7 @@
   "carAlarm": { "armedS": 20, "alarmS": 15, "pullRadiusM": 15, "distractBreakM": 2, "pickMinM": 8, "pickMaxM": 25, "lureSeedM": 0.75 },
   "stampede": {
     "warningS": 3,
-    "runS": 10,
+    "runS": 12,
     "laneWidthM": 8,
     "speedMps": 5,
     "contactDamage": 8,
@@ -18,7 +18,8 @@
     "laneNearTeamM": 10,
     "stuckS": 1,
     "stuckProgressM": 0.5,
-    "deflectLookM": 4
+    "deflectLookM": 4,
+    "sidestepAlongFrac": 0.25
   },
   "gasLeak": { "hissS": 10, "armDelayS": 3, "radiusM": 6, "playerDamage": 60, "killDamage": 10000, "buildingDamage": 150, "tankAt": "zone_centre", "tankRadiusM": 0.6 },
   "supplyDrop": { "flareS": 5, "minFromTeamM": 12, "takeRadiusM": 0.8, "takeS": 1, "level": 2, "weapons": ["flamethrower", "gas_torch", "grenade_launcher", "chainsaw", "assault_rifle"], "spotClearM": 1 },

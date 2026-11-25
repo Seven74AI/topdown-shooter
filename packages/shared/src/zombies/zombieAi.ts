@@ -10,7 +10,7 @@ import { zombieTypeOf } from "./zombiePool";
 import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid } from "./flowField";
+import { LURE_READY, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid } from "./flowField";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
 import { knockPlayer } from "../player/knockback";
 import { meleeLineClear } from "../combat/cover";
@@ -258,7 +258,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
     let lureWalk = false;
     if (!stampede && (pool.lureTicks[id] as number) > 0) {
       pool.lureTicks[id] = (pool.lureTicks[id] as number) - 1;
-      lureWalk = !isRushState(pool.state[id] as number) && !standingWithin(x, y, world.balance.events.carAlarm.distractBreakM);
+      // Review L7: only once both lure fields are built (≈ 0.7 s after arming); until then it keeps
+      // chasing by the chase field, so a car shot at once never sends zombies straight into the bus.
+      lureWalk = world.pathing.lureBuild === LURE_READY && !isRushState(pool.state[id] as number) && !standingWithin(x, y, world.balance.events.carAlarm.distractBreakM);
     }
     const holds = !stampede && !(lureWalk && !isWindupState(pool.state[id] as number)) && stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
     // Story 5.14 (AC 3): held in a bear trap's jaws: no walking, no soft push (a Spitter still spits: above).

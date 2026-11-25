@@ -81,6 +81,8 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
   it(`every lane: a 30-Runner stampede spawns, never puts a Runner in a box, and ends with every Runner crossed or converted (stages 1–5 × ≤ ${LANE_MASKS} masks)`, () => {
     let exitedCross = 0;
     let spawnedCross = 0;
+    let exitedMain = 0;
+    let spawnedMain = 0;
     let stuckAll = 0;
     let spawnedAll = 0;
     for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++) {
@@ -108,8 +110,8 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
           const lane = map.stampedeLanes[li]!;
           const r = balance.zombies.types.runner!.radiusM;
           let early = 0;
-          for (let t = 0; t < 20 * 14 && world.special.active.kind !== -1; t++) {
-            early = world.special.log.stampedeConverted; // conversions before the 10 s end (the stuck rule)
+          for (let t = 0; t < 20 * 16 && world.special.active.kind !== -1; t++) {
+            early = world.special.log.stampedeConverted; // conversions before the 12 s end (the stuck rule)
             tickN(world, 1);
             const z = world.zombies;
             for (let k = 0; k < z.aliveCount; k++) {
@@ -128,14 +130,18 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
           if (lane.dir === "n" || lane.dir === "s") {
             exitedCross += log.stampedeExited;
             spawnedCross += log.stampedeSpawned;
+          } else {
+            exitedMain += log.stampedeExited;
+            spawnedMain += log.stampedeSpawned;
           }
         }
       }
     }
-    // Liveness: on the 32 m cross street most Runners really cross (the 48 m main street takes 9.6 s at
-    // 5 m/s: most join the wave near its far end at 10 s); cover deflects them, the stuck rule is rare.
+    // Liveness (6.8 B2, runS 12): the stampede crosses and leaves on both streets (48 m main street:
+    // 9.6 s at 5 m/s + 1.5 s of rows); cover deflects them, the stuck rule is rare.
     expect(exitedCross / spawnedCross).toBeGreaterThan(0.8);
+    expect(exitedMain / spawnedMain).toBeGreaterThan(0.75);
     expect(stuckAll / spawnedAll).toBeLessThan(0.05);
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[stampede lanes] cross street crossed ${exitedCross}/${spawnedCross}; stuck-converted ${stuckAll}/${spawnedAll}`);
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[stampede lanes] main street crossed ${exitedMain}/${spawnedMain} (${((100 * exitedMain) / spawnedMain).toFixed(1)} %); cross street ${exitedCross}/${spawnedCross} (${((100 * exitedCross) / spawnedCross).toFixed(1)} %); stuck-converted ${stuckAll}/${spawnedAll}`);
   }, 120_000);
 });
