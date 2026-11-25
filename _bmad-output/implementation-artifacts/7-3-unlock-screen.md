@@ -357,6 +357,24 @@ Typecheck + lint + touched tests (no full gate, as asked); tree = fed5cc51 + the
 | RR-L1 | `unlockItem` gets its own client timeout `UNLOCK_TIMEOUT_MS` = 7 s (`net/unlockTiming.ts`; the session call keeps 3 s); after a failed unlock the hub refreshes only once 7 s have passed since the send (`refreshAfterFailureMs`), so it never reads the pre-commit row | `apps/client/src/net/progressStore.test.ts` > "UNLOCK_TIMEOUT_MS ≥ 7 s, the session stays 3 s", "a slow answer at 6.5 s is still taken (it would have been dropped at 3 s); the call gives up only at 7 s"; `apps/client/src/ui/hubModel.test.ts` > "never sooner than UNLOCK_TIMEOUT_MS after the send (1 ms sweep), at once after it"; `tools/checks/progressHubWiring.test.ts` (sentAt + delayed refresh) | timeout 3000 → 3 tests fail |
 | RR-N1 | `hubDomLayout` measures the text (ink): an element whose `scrollWidth > clientWidth` must have `overflow: hidden` + `text-overflow: ellipsis`, else its ink right (left + scrollWidth) must stay inside the column | `tools/checks/hubDomLayout.test.ts` > "568×320, review F8: a 42-char name…" | dropping only `overflow`/`text-overflow` from `.ph-name__text` → fails |
 
+### Re-review (narrow) 2 (AI, 2026-11-25)
+
+Scope: `git log --no-merges fed5cc51..18a328ad` (RR-L1 unlock timeout 7 s + delayed refresh; RR-N1 text-width check). **Verdict: clean** (two nits, no fix required).
+
+Checks: `npm ci` ok; `npm run typecheck` ok; touched tests (progressStore, hubModel, hubDomLayout, progressHubWiring) 52/52 pass (hubDomLayout ran, not skipped).
+
+Exploit attempts:
+- **Pending refresh after hub close/reopen**: the timer calls the module-level `progressStore.refresh()`, not React state, so nothing writes into an unmounted component. If the hub is reopened inside the 7 s window, the open-refresh runs first and the delayed one later; `refresh()` uses a sequence number (later call wins) and `accept()` bumps it, so a later server read or unlock answer is never overwritten by an older reply. The worst outcome is one extra session GET. Harmless.
+- **Two quick failed taps**: after the first failure the hub is offline and `tapUnlock` is blocked, so a second send can't normally start. Even if it did, two timers would just mean two refreshes, and the last one wins. Harmless.
+- **Slow ok at 6.9 s vs abort at 7.0 s**: `res.json()` runs inside the abort window. If the body arrives after 7 s the call fails, but the server has already committed (it answered), and the refresh fires right away (`refreshAfterFailureMs` = 0 because 7 s have passed), so it reads the row after the commit. The user sees the right numbers. OK.
+- **B4 wait (Unlock disabled up to 7 s after a fast failure)**: acceptable. It only happens after a failed call, the offline note is shown, and reopening the hub refreshes at once.
+
+Mutations (each reverted): UNLOCK_TIMEOUT_MS 7000→6000 → 3 tests fail; drop `timeoutMs: UNLOCK_TIMEOUT_MS` from unlockItem → slow-answer test fails; `refreshAfterFailureMs` → 0 → sweep fails; ProgressScreen setTimeout → immediate refresh → wiring fails; `.ph-line` `overflow: hidden`→`visible` → hubDomLayout fails with the new "text paints past its column" message (the old box check alone would not catch this).
+
+Nits (no action required):
+- RR2-N1: the 7 s window starts at the client's send, but the route's ≈5.8 s budget starts when the request arrives. If the upload takes more than ≈1.2 s, a commit can still land after the client gave up and after the refresh. Self-heals: a retry gets "owned" and the next hub open shows the truth. Residual, very low.
+- RR2-N2: if the hub is reopened inside the 7 s window, its immediate open-refresh can still read the row from before the commit, which brings back the pre-RR-L1 behaviour for that one read. The delayed refresh corrects it when it fires. Very low.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
