@@ -101,14 +101,10 @@ export class AdaptiveDelay {
 
   /**
    * Moves the render clock to client time `nowMs` for the server tick estimate `estimateTick`
-   * and returns the new render tick (monotonic). Call once per frame. Review M1: `measuredTick`
-   * (`ServerClock.rawTick`) — the delay is steered against max(estimate, measurement), so after a
-   * latency fall (the measurement jumps ahead of the slewed estimate) the render clock catches up
-   * at once at ≤ 1.1× instead of drifting behind the real server time.
+   * and returns the new render tick (monotonic). Call once per frame.
    */
-  advance(nowMs: number, estimateTick: number, newestTick = -1, measuredTick = Number.NaN): number {
+  advance(nowMs: number, estimateTick: number, newestTick = -1): number {
     if (Number.isNaN(estimateTick)) return this.renderTickNow;
-    if (measuredTick > estimateTick) estimateTick = measuredTick;
     const dtMs = Number.isNaN(this.lastNowMs) ? 0 : nowMs - this.lastNowMs;
     if (dtMs < 0) return this.renderTickNow;
     this.lastNowMs = nowMs;

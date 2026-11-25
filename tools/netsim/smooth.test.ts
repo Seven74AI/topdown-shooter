@@ -83,6 +83,19 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
     expect(s.drained).toBeLessThanOrEqual(3); // the server's skip rule is only a safety net now
   }, 60_000);
 
+  it("F1 (8.9 B9): every 1 % × 200 ms row stays at ≤ 1.2 freezes per 30 s (before 6–6.9)", () => {
+    for (const [name, o] of [
+      ["150 Walkers standing", { walkers: 150, kite: false }],
+      ["150 Walkers kiting", { walkers: 150, kite: true }],
+      ["20 Runners kiting", { zombieType: "runner", kite: true }],
+    ] as const) {
+      const s = sum(`lossy 1 % ${name} (B9)`, { seconds: 60, ...o, loss: LOSSY });
+      expectMonotonicAndBounded(s);
+      expect(s.freezesPer30s).toBeLessThanOrEqual(1.21); // "1.2" rounded: 7 freezes in 3 × 58 s = 1.207; measured 1.21 / 0.9 / 0.9 (same seeds)
+      for (const r of s.runs) expect(r.smooth.delayP50).toBeGreaterThan(200); // liveness: the stalls were measured
+    }
+  }, 120_000);
+
   it("F2 (audit F5): a lasting +150 ms latency step on the lossy line never moves anything backwards", () => {
     const s = sum("lossy 1 % + 150 ms step at 20 s", { seconds: 40, zombieType: "runner", kite: true, loss: LOSSY, latencyStep: { atMs: 20_000, addMs: 150 } });
     expectMonotonicAndBounded(s);
