@@ -28,6 +28,8 @@ export interface PlayerInfo {
   readonly slot: number;
   /** Display name ("" solo). */
   readonly name: string;
+  /** Story 7.9: the survivor look code (online: the server's canonical `state.look`; "" = the default look). */
+  readonly look: string;
 }
 
 /**

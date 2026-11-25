@@ -126,6 +126,8 @@ export interface UrlOptions {
    * unknown or in a release build.
    */
   devLayer: AnimatedLayerId | null;
+  /** Story 7.9 (AC 14): `?devlooks=N` (dev builds): N − 1 extra standing survivors with random starter looks next to mine (views only); 0 = off. */
+  devLooks: number;
   /**
    * `?unlocks=all|starter` (Story 7.4 AC 10, dev builds only, Practice solo): the solo run's unlock mask instead of
    * the cached progress. null when absent, unknown or in a release build. `?shopall` implies all.
@@ -208,6 +210,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3
     startWave: dev ? q.get("startwave") : null, // Story 6.1: dev builds only
     devLayer: dev ? parseDevLayer(q.get("devlayer")) : null, // Story 7.8: dev builds only
+    devLooks: dev ? parseDevLooks(q.get("devlooks")) : 0, // Story 7.9: dev builds only
     unlocks: dev ? parseDevUnlocks(q.get("unlocks")) : null, // Story 7.4: dev builds only
     training: dev ? parseDevTraining(q.get("training")) : null, // Story 7.5: dev builds only
   };
@@ -217,6 +220,14 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
 export function parseDevLayer(raw: string | null): AnimatedLayerId | null {
   const v = raw?.trim().toLowerCase() ?? "";
   return (ANIMATED_LAYERS as readonly string[]).includes(v) ? (v as AnimatedLayerId) : null;
+}
+
+/** Story 7.9: `?devlooks=N`, 1–4 survivors in all (a lobby's worth); anything else is off (0). */
+export const MAX_DEV_LOOKS = 4;
+export function parseDevLooks(raw: string | null): number {
+  if (raw === null || !/^\d{1,2}$/.test(raw.trim())) return 0;
+  const n = Number(raw.trim());
+  return n >= 1 && n <= MAX_DEV_LOOKS ? n : 0;
 }
 
 function parseScenario(raw: string | null): TestScenario | null {

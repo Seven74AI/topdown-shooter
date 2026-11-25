@@ -87,6 +87,9 @@ const playerFields = {
   heldUntilTick: t.uint32().default(0),
   // Story 8.1 (D3): spawn-protection ticks left (40 → 0 once after a mid-wave return; 0 otherwise).
   protectTicks: t.uint8().default(0),
+  // Story 7.9: the survivor look code (canonical, decoded in checkAuth), set once at join with `name`; never per tick,
+  // kept on a lobby return and by a held seat. Appended last.
+  look: t.string().default(""),
   // Story 7.4 (AC 1): the unlock mask, set once at run start (≈ 0 B/s). Appended last.
   unlocks: t.uint32().default(0),
   // Story 7.5 (AC 5): Training levels 0..5, set once at run start (≈ 0 B/s). Appended last.
