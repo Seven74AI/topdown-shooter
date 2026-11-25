@@ -4,7 +4,7 @@ import { ensureBossTextures } from "../render/city/bossAtlas";
 import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize, type HudPlate } from "../render/city/hudWarnArt";
 import { bossMarker, type BossMarker } from "../render/bossMarker";
 import { BOSS_BAR_NAME_CSS_PX } from "../ui/sizes";
-import { BOSS_BAR_NOTCH, layoutBossBanner, layoutBossBar, type BossBarLayout } from "./bossBar";
+import { BOSS_BAR_NOTCH, bossBarHidden, layoutBossBanner, layoutBossBar, type BossBarLayout } from "./bossBar";
 import type { HudModel } from "./hudModel";
 
 /**
@@ -84,7 +84,7 @@ export class BossHud {
     const showBanner = nowMs < this.bannerUntilMs && m.bossState !== BOSS_STATE.NONE && !textBanner;
     const br = layoutBossBanner(w, h, insets.left, insets.top, insets.right, k, hudFrameCssSize("banner"), this.layout);
     // The bar.
-    if (!m.bossVisible || (showBanner && br.overBar)) {
+    if (bossBarHidden(m.bossVisible, showBanner, br.overBar)) {
       if (this.bar.visible) {
         this.bar.setVisible(false);
         this.name.setVisible(false);

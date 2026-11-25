@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance } from "@topdown/shared";
-import { ATLAS_BUILDINGS, BUILDINGS_PX_PER_M, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
+import { BUILDINGS_PX_PER_M, textureOfFrame, BUILDING_SHEETS, sheetSpecs, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
 import { CB, FRONT_BASE_Y, SIDE_C } from "./barricadeArt";
 import { ABOVE_STANDING_DEPTH, STAND_DEPTH, STAND_DEPTH_SPAN, cornerDepth, standDepth } from "../barricadeLook";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./atlasLayout";
@@ -35,7 +35,7 @@ describe("photoreal group 3: standing barricades (one picture per rotation, vari
         const fp = footprint(stats, 0, 0, rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
         const fw = fp.maxX - fp.minX;
         const fh = fp.maxY - fp.minY;
-        expect(st.texture).toBe(ATLAS_BUILDINGS);
+        expect(st.texture, "on its own sheet").toBe(textureOfFrame(st.frame));
         expect(st.wM, `${t} rot ${rot}: as wide as the footprint (or its props' room)`).toBeGreaterThanOrEqual(fw - 1e-9);
         // below the origin: at most the footprint's near half plus the foot clutter's 0.1 m
         expect(st.hM * (1 - st.originY), `${t} rot ${rot}: nothing far below the footprint`).toBeLessThanOrEqual(fh / 2 + 0.1 + 1e-9);
@@ -57,9 +57,13 @@ describe("photoreal group 3: standing barricades (one picture per rotation, vari
         }
       }
     }
-    const layout = packAtlas(specs);
-    expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
-    expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
+    for (const sheet of BUILDING_SHEETS) {
+      const layout = packAtlas(sheetSpecs(sheet));
+      expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
+      expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
+    }
+    // every frame is on exactly one sheet
+    expect(BUILDING_SHEETS.reduce((n, sh) => n + sheetSpecs(sh).length, 0)).toBe(specs.length);
   });
 
   it("step 3: every standing type has its four corner pieces in the atlas, origin on the square's centre", () => {

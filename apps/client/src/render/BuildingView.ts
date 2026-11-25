@@ -4,7 +4,7 @@ import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 import { barricadePoolSize, barricadeTint, barricadeTransform, cornerDepth, framePointToWorld, standDepth, type BoxOut, type SpriteTransform } from "./barricadeLook";
-import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, cornerFrame, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
+import { ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, textureOfFrame, buildingFrame, buildingFx, cornerFrame, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
 import { findCorners, type Corner } from "./wallCorners";
 import { glintAlpha, glowLevel } from "./buildingFx";
 import { buildingShadowHeightM } from "./mineLook";
@@ -164,9 +164,9 @@ export class BuildingView {
       this.glows.push(null);
     }
     for (let i = 0; i < GLINT_POOL; i++) this.glints.push(scene.add.image(0, 0, TEX_GLINT).setBlendMode(Phaser.BlendModes.ADD).setDepth(GLINT_DEPTH).setVisible(false));
-    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(BUILDING_DEPTH).setVisible(false));
+    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, textureOfFrame(FRAME_WOOD), FRAME_WOOD).setDepth(BUILDING_DEPTH).setVisible(false));
     this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
-    this.ghost = scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
+    this.ghost = scene.add.image(0, 0, textureOfFrame(FRAME_WOOD), FRAME_WOOD).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
     this.bars = scene.add.graphics().setDepth(BAR_DEPTH);
     this.preview = scene.add.graphics().setDepth(PREVIEW_DEPTH).setVisible(false);
   }

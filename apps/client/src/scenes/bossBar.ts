@@ -65,15 +65,16 @@ export interface BossBannerLayout {
   y: number;
   w: number;
   h: number;
-  /** True on short screens: the banner takes the boss bar's place (the bar is hidden while it shows). */
+  /** True when it wouldn't keep the survivor's 48 px under the bar — every phone landscape size we test (568–844 ×
+   * 320–390): the banner takes the boss bar's place and the bar is hidden while it shows (`bossBarHidden`). */
   overBar: boolean;
 }
 
 /**
  * Where the arrival banner sits: centred, under the boss bar's block (laid out even while the bar is hidden), so
  * the wave line stays readable, and always ≥ 48 px clear of the survivor at the screen centre (review M2, brief 31).
- * On a short screen where it wouldn't fit under the bar, it takes the bar's place instead (the view hides the bar
- * meanwhile), shrunk if it must be. `artCss` = the banner plate's art size (CSS px). Pure; in the one HUD layout test.
+ * Where it wouldn't fit under the bar (in practice every phone held sideways) it takes the bar's place instead (the
+ * view hides the bar meanwhile, `bossBarHidden`), shrunk if it must be. `artCss` = the banner plate's art size (CSS px). Pure; in the one HUD layout test.
  */
 export function layoutBossBanner(width: number, height: number, insetLeft: number, insetTop: number, insetRight: number, k: number, artCss: { w: number; h: number }, bar: BossBarLayout): BossBannerLayout {
   const l = layoutBossBar(width, insetLeft, insetTop, insetRight, k, bar);
@@ -86,4 +87,12 @@ export function layoutBossBanner(width: number, height: number, insetLeft: numbe
   bw = artCss.w * s * k;
   bh = artCss.h * s * k;
   return { x: width / 2 - bw / 2, y: l.y, w: bw, h: bh, overBar: true };
+}
+
+/**
+ * Review R6: is the boss bar hidden this frame? When no boss is shown, or while the arrival banner shows in the bar's
+ * place (`BossBannerLayout.overBar`). Pure; BossHud draws by it.
+ */
+export function bossBarHidden(bossVisible: boolean, bannerShown: boolean, bannerOverBar: boolean): boolean {
+  return !bossVisible || (bannerShown && bannerOverBar);
 }

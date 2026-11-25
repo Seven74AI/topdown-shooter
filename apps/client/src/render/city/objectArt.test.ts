@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, loadBalance } from "@topdown/shared";
 import { B6_PLANKS, B6_ROW_Y0, B6_ROW_Y1, drawObjectInFrame, drawSandbags, drawWoodBarricade } from "./objectArt";
-import { ATLAS_BUILDINGS, FRAME_WOOD, FRONT_H_M, FRONT_W_M, buildingFrame, buildingsAtlasSpecs, BUILDINGS_PX_PER_M } from "./buildingsAtlas";
+import { BUILDING_SHEETS, FRAME_WOOD, FRONT_H_M, FRONT_W_M, buildingFrame, buildingsAtlasSpecs, BUILDINGS_PX_PER_M, textureOfFrame } from "./buildingsAtlas";
 import { RecordCanvas, asContext, type PaintOp } from "./recordCanvas";
 
 const balance = loadBalance();
@@ -38,8 +38,9 @@ describe("Story 4.12: B6 wood barricade drawn in game code (round-4 port)", () =
   });
 
   it("the whole ladder B6 → B8 → M1c is code in one atlas (the loaded objects atlas is gone)", () => {
-    expect(buildingFrame("wood_barricade")).toEqual({ texture: ATLAS_BUILDINGS, frame: FRAME_WOOD });
-    for (const t of ["reinforced_barricade", "metal_barricade"]) expect(buildingFrame(t)?.texture).toBe(ATLAS_BUILDINGS);
+    // re-review R1: each barricade style's pictures are on their own sheet of the buildings atlas
+    expect(buildingFrame("wood_barricade")).toEqual({ texture: textureOfFrame(FRAME_WOOD), frame: FRAME_WOOD });
+    for (const t of ["wood_barricade", "reinforced_barricade", "metal_barricade"]) expect(BUILDING_SHEETS).toContain(buildingFrame(t)?.texture);
     // photoreal group 3: the barricades stand, so the rot-0 picture is the footprint's length by 1 m (the face rises)
     const spec = buildingsAtlasSpecs().find((s) => s.name === FRAME_WOOD);
     expect(w).toBe(FRONT_W_M);

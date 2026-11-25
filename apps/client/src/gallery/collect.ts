@@ -36,7 +36,7 @@ export async function collectAssets(): Promise<Asset[]> {
       create(): void {
         try {
           ensureAtlases(this);
-          ensureBuildingsAtlas(this);
+          ensureBuildingsAtlas(this, { worker: false }); // baked on the spot below, not in a worker
           pumpBuildingsAtlas(Infinity, Infinity); // the relit pictures, all of them, before the frames are cut
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);

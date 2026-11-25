@@ -14,6 +14,8 @@ import { fbm, hash2 } from "./groundDamageArt";
  */
 
 export type MakeCanvas = (w: number, h: number) => HTMLCanvasElement;
+/** Rows per readback band (review R1): a band of a 768 px wide source is ~25 k px, a few ms. */
+export const READ_BAND_ROWS = 32;
 export type Emissive = (r: number, g: number, b: number) => boolean;
 
 export interface RelightOpts {
@@ -121,8 +123,13 @@ export function* relightSteps(src: HTMLCanvasElement, w: number, h: number, ss: 
   const H = src.height;
   const k = W / w; // source px per output px
   const sg = src.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
-  const d = sg.getImageData(0, 0, W, H).data;
-  yield (W * H) >> 3;
+  // review R1: read back in row bands, so no single step reads the whole picture
+  const d = new Uint8ClampedArray(W * H * 4);
+  for (let y0 = 0; y0 < H; y0 += READ_BAND_ROWS) {
+    const bh = Math.min(READ_BAND_ROWS, H - y0);
+    d.set(sg.getImageData(0, y0, W, bh).data, y0 * W * 4);
+    yield W * bh;
+  }
   const n = W * H;
   const A = new Float32Array(n);
   const lum = new Float32Array(n);
@@ -286,21 +293,24 @@ export function* relightSteps(src: HTMLCanvasElement, w: number, h: number, ss: 
       c.height = 0;
     }
   };
-  let bloom: HTMLCanvasElement | null = null;
-  if (ec > 0) {
-    bloom = shrink(glow, opt.bloomPx ?? 4);
+  try {
+    let bloom: HTMLCanvasElement | null = null;
+    if (ec > 0) {
+      bloom = shrink(glow, opt.bloomPx ?? 4);
+      yield (W * H) >> 3;
+      const bg = bloom.getContext("2d") as CanvasRenderingContext2D;
+      bg.filter = "none";
+      bg.drawImage(shrink(glow, 0, false), 0, 0); // the glowing pixels themselves, crisp, under their halo
+      yield (W * H) >> 3;
+      bg.globalCompositeOperation = "destination-out";
+      bg.globalAlpha = 0.85;
+      bg.drawImage(shrink(occ, 0, false), 0, 0);
+    }
+    const gr = ec ? Math.sqrt(ec / Math.PI) / k : 0;
     yield (W * H) >> 3;
-    const bg = bloom.getContext("2d") as CanvasRenderingContext2D;
-    bg.filter = "none";
-    bg.drawImage(shrink(glow, 0, false), 0, 0); // the glowing pixels themselves, crisp, under their halo
-    yield (W * H) >> 3;
-    bg.globalCompositeOperation = "destination-out";
-    bg.globalAlpha = 0.85;
-    bg.drawImage(shrink(occ, 0, false), 0, 0);
+    const baseOut = shrink(base);
+    return { base: baseOut, bloom, glowAt: [ex / Math.max(1, ec) / k, ey / Math.max(1, ec) / k, gr], spots };
+  } finally {
+    release(); // review R4: also when the bake is abandoned midway
   }
-  const gr = ec ? Math.sqrt(ec / Math.PI) / k : 0;
-  yield (W * H) >> 3;
-  const baseOut = shrink(base);
-  release();
-  return { base: baseOut, bloom, glowAt: [ex / Math.max(1, ec) / k, ey / Math.max(1, ec) / k, gr], spots };
 }

@@ -8,6 +8,17 @@
  */
 import type { Ctx } from "./buildingArt";
 
+/** A scratch canvas: a DOM canvas on the main thread, an OffscreenCanvas in the bake worker (no `document` there). */
+function scratchCanvas(w: number, h: number): HTMLCanvasElement {
+  if (typeof document !== "undefined") {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    return c;
+  }
+  return new OffscreenCanvas(w, h) as unknown as HTMLCanvasElement;
+}
+
 const P = 1 / 96;
 const TAU = Math.PI * 2;
 
@@ -306,15 +317,11 @@ function withShadow(g: Ctx, wM: number, hM: number, base: number, paint: (c: Ctx
   const k = Math.hypot(m.a, m.b);
   const W = Math.ceil(wM * k);
   const H = Math.ceil(hM * k);
-  const off = document.createElement("canvas");
-  off.width = W;
-  off.height = H;
+  const off = scratchCanvas(W, H);
   const oc = off.getContext("2d") as Ctx;
   oc.setTransform(k, 0, 0, k, W / 2, H / 2);
   paint(oc);
-  const sil = document.createElement("canvas");
-  sil.width = W;
-  sil.height = H;
+  const sil = scratchCanvas(W, H);
   const sc = sil.getContext("2d") as Ctx;
   sc.drawImage(off, 0, 0);
   sc.globalCompositeOperation = "source-in";

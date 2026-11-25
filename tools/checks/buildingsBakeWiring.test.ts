@@ -20,7 +20,7 @@ describe("the buildings atlas bake is wired", () => {
 
   it("the asset gallery bakes everything before it cuts the frames", () => {
     const src = read("gallery", "collect.ts");
-    const ensure = src.indexOf("ensureBuildingsAtlas(this);");
+    const ensure = src.indexOf("ensureBuildingsAtlas(this, { worker: false });");
     expect(ensure).toBeGreaterThan(0);
     expect(src.indexOf("pumpBuildingsAtlas(Infinity, Infinity);")).toBeGreaterThan(ensure);
   });
