@@ -61,6 +61,8 @@ export {
 } from "./config/cosmetics";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
 export { PROGRESSION, ProgressionError, loadProgression, progressionSchema, starterPool, type Progression } from "./config/progression";
+// Story 7.2: the Supplies a run pays and the run record they come from.
+export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
@@ -289,6 +291,10 @@ export {
   playerNameSchema,
   runStartSchema,
   lobbyReturnSchema,
+  runLeaveSchema,
+  runRewardsSchema,
+  type RunRewards,
+  type RunRewardsStatus,
   buildSetReadySchema,
   evacVoteSchema,
   buildingPlaceSchema,

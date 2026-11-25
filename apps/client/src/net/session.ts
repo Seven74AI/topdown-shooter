@@ -29,6 +29,7 @@ import {
 } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
 import { TeammateGhosts } from "./teammateGhosts";
+import { rewardsStore } from "./rewardsStore";
 
 const SHOP_ERRORS: readonly ShopError[] = [
   "not_build",
@@ -254,6 +255,12 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_SELL_REFUSED, (m: unknown) => this.receiveSellRefused(m))); // Story 5.20
     this.offs.push(room.onMessage(S2C.BUILDING_MOVE_REFUSED, (m: unknown) => this.receiveMoveRefused(m))); // Story 5.22
     this.offs.push(room.onMessage(S2C.BUILDING_GHOSTED, (m: unknown) => this.receiveGhost(m))); // Story 5.24
+    this.offs.push(room.onMessage(S2C.RUN_REWARDS, (m: unknown) => this.receiveRewards(m))); // Story 7.2
+  }
+
+  /** Story 7.2: `run.rewards` (before or after the Results patch) → the rewards store the Results screen reads. */
+  private receiveRewards(m: unknown): void {
+    if (!this.closed) rewardsStore.receive(m);
   }
 
   private receiveGhost(m: unknown): void {

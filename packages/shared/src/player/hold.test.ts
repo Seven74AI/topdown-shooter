@@ -87,6 +87,10 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   lastAimTicks: "kept",
   protectTicks: "reset", // set by the mid-wave return (its own test)
   protectedReturnWave: "kept", // B15: set by a protected mid-wave return (its own test)
+  wavesIn: "kept", // Story 7.2: the run record survives a hold (S2)
+  endlessWavesIn: "kept",
+  bossesIn: "kept",
+  endlessBossesIn: "kept",
 };
 
 /** Gives every field a non-default value so "kept" really means kept. */
@@ -100,6 +104,10 @@ function scramble(world: World, p: PlayerState): void {
   p.wallet = 777;
   p.earned = 1234;
   p.earnedAtEvac = 99;
+  p.wavesIn = 4; // Story 7.2
+  p.endlessWavesIn = 2;
+  p.bossesIn = 1;
+  p.endlessBossesIn = 1;
   p.slowTicksLeft = 5;
   p.slowPct = 30;
   p.fireTicks = 3;

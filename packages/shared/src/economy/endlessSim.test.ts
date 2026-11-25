@@ -15,6 +15,7 @@ import { killBoss } from "../boss/death";
 import { BUILD_GRID_M } from "../config/constants";
 import { addBuildingAt, removeBuilding } from "../buildings/buildings";
 import { lightsOf } from "../decay/lightState";
+import { runSupplies } from "../meta/supplies";
 
 /**
  * Story 6.12 (T6, brief 9 / 25): the endless flow with every real system.
@@ -171,6 +172,12 @@ describe("Story 6.12: endless sims", () => {
     expect(bossWaves).toEqual([10, 15, 20, 25, 30]); // wave 10 is played (the start wave), then every 5th endless wave
     // F4 / D1: 6,000 × (1 + 0.25 k) at 4 players (k = 0 at wave 10), never × the zombies' hpMult
     expect(bossHp).toEqual([1, 1.25, 1.5, 1.75, 2].map((g) => bossMaxHp(balance, 4, 1, g)));
+    // Story 7.2 (T6): every player's run record = the waves and Behemoths that really happened (the run starts at wave
+    // 10: 1 run wave, 20 endless waves, 5 Behemoths of which 4 in endless); the extract pays all of it (S4, D5).
+    for (const p of world.players.values()) {
+      expect([p.wavesIn, p.endlessWavesIn, p.bossesIn, p.endlessBossesIn]).toEqual([1, 20, 5, 4]);
+      expect(runSupplies(p, "extracted", 10_000)).toMatchObject({ waves: 10, boss: 50, extract: 100, endless: 400, endlessBoss: 200, total: 760 });
+    }
     expect(maxBrutes).toBeLessThanOrEqual(6);
     expect(maxBrutes).toBeGreaterThan(0);
     // Review M3: flat — every growable list the same at the first tick of wave 11 and of wave 30 (unmasked),
@@ -226,6 +233,9 @@ describe("Story 6.12: endless sims", () => {
       const p = world.players.get(id)!;
       expect(p.earnedAtEvac).toBeGreaterThan(0); // wave 10's kills, bonus and the boss pay
       expect(p.earnedAtEvac).toBeLessThanOrEqual(p.earned);
+      // Story 7.2 (T6, S4): endless waves were counted, and a wipe after Stay loses them: only wave 10 + its boss pay.
+      expect(p.endlessWavesIn).toBeGreaterThanOrEqual(1);
+      expect(runSupplies(p, "lost", 10_000)).toMatchObject({ endless: 0, endlessBoss: 0, extract: 0, total: p.wavesIn * 10 + Math.min(p.bossesIn - p.endlessBossesIn, 1) * 50 });
     }
   }, 300_000);
 });
