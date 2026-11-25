@@ -89,6 +89,8 @@ export interface HeadlessRunLog {
   purchases: string[][];
   buildingsPlaced: number[];
   spent: number[];
+  /** Story 6.9 review L10: building refunds per player (`money.earned` reason "refund"; not in `earned`). */
+  refunded: number[];
   /** Money paid to the whole team by reason (kill, assist, revive, wave bonus). */
   earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number; boss: number; event: number };
   /** Turrets' kills (they pay the owner `buildingKillShare`; included in `earnedBy.kill`). */
@@ -153,6 +155,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     purchases: ids.map(() => []),
     buildingsPlaced: ids.map(() => 0),
     spent: ids.map(() => 0),
+    refunded: ids.map(() => 0),
     earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0, boss: 0, event: 0 },
     turretKills: 0,
     killsByWeapon: {},
@@ -205,6 +208,10 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         break;
       case "money.earned":
         log.earnedBy[e.reason] += e.amount; // Story 4.5: refunds are not in `earned` (the six-wave sim checks the other four)
+        if (e.reason === "refund") {
+          const i = ids.indexOf(e.playerId); // review L10: per player
+          if (i >= 0) log.refunded[i] = (log.refunded[i] as number) + e.amount;
+        }
         if (world.tick === bruteKillTick && (e.reason === "kill" || e.reason === "assist")) log.brutes.killPay += e.amount;
         break;
       case "zombie.brute_spawned":

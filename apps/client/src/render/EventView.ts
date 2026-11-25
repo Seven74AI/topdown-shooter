@@ -4,6 +4,7 @@ import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, en
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
 import { EventPickupsView } from "./EventPickupsView";
+import { placeSecondEventArrow } from "./eventArrowPair";
 import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
@@ -140,7 +141,8 @@ export class EventView {
     // Story 6.10 (S1): the survivor's flag gets its own edge arrow, placed by the same rule (screen
     // px, off the wave controls / HP block, inside the safe area).
     const f = look.flag;
-    const flagEdge = f.visible && placeEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), this.flagAt);
+    // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
+    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt);
     f.edge.visible = flagEdge;
     if (flagEdge) {
       f.edge.x = vx + this.flagAt.x / pxPerM;

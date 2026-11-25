@@ -1,4 +1,5 @@
 import { resetBearTraps } from "../buildings/bearTrap";
+import { damageSurvivor, survivorTarget } from "../events/survivor";
 import type { World } from "../core/world";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
@@ -146,6 +147,13 @@ export function updateFires(world: World): void {
   pass.cars = cars;
   world.players.forEach(burnPlayer);
   pass.world = null;
+  // Story 6.10 review L3 (D3 / S4): a car fire hurts the survivor on its own clock (it stops at fire
+  // edges, so only a fire that starts under it can); molotov zones never do (players' fire).
+  const npc = cars ? survivorTarget(world) : null;
+  if (npc && circleInFire(fires, npc.x, npc.y, npc.radiusM) && ++npc.fireTicks >= pulse) {
+    npc.fireTicks = 0;
+    damageSurvivor(world, amount);
+  }
   // Zombies, from the end: a kill swaps the last alive id into this position, which was already done
   // (review: forwards would skip the zombie moved into the freed slot).
   const z = world.zombies;

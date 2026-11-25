@@ -1446,6 +1446,8 @@ export const eventsSchema = z
         /** D1: where the tank sits ("zone_centre": the centre of the map's `gas_leak` hazard). */
         tankAt: z.literal("zone_centre"),
         tankRadiusM: z.number().positive().max(2),
+        /** Review L4: what the blast does to the Behemoth (every zombie dies; the boss takes this, never a one-shot). */
+        bossDamage: z.number().min(0),
       })
       .strict()
       .refine((g) => g.armDelayS < g.hissS, "gasLeak.armDelayS must be below hissS"),

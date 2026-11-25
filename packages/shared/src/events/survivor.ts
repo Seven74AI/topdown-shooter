@@ -190,6 +190,7 @@ function clearNpc(n: SurvivorState): void {
   n.status = "dead";
   n.leaderSlot = -1;
   n.acidTicks = 0;
+  n.fireTicks = 0;
 }
 
 export const survivorModule: EventModule = {
@@ -219,6 +220,7 @@ export const survivorModule: EventModule = {
     n.safeX = safe.x;
     n.safeY = safe.y;
     n.acidTicks = 0;
+    n.fireTicks = 0;
     const a = world.special.active;
     a.x = at.x;
     a.y = at.y;

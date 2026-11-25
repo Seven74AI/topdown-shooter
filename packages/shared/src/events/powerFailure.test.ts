@@ -72,6 +72,17 @@ describe("Story 6.10 P3: only in waves 6–8, never in a wave that is already a 
     expect([6, 7, 8].some((w) => powerFailureWave(world, w))).toBe(true);
   });
 
+  it("review L2: a wave that is already a full blackout wave never gets one (balance override: wave 7 at 10 %)", () => {
+    const b = balance.decay.blackout;
+    const table = [...b.lightPctByWave];
+    while (table.length < 7) table.push(0);
+    table[6] = 10;
+    const over = { ...balance, decay: { ...balance.decay, blackout: { ...b, lightPctByWave: table } } };
+    const w = createWorld({ balance: over, seed: 1, map: DOWNTOWN_MAP });
+    expect(powerFailureWave(w, 7)).toBe(false);
+    expect(powerFailureWave(w, 6)).toBe(table[5]! <= 0);
+  });
+
   it("6.10 D7 / 6.12 D6: even endless waves qualify (odd ones are pitch black: never); not without endless; it then goes 20 % moonlit (6.12 D8)", () => {
     const { world } = eventWorld({ wave: 12, systems: noZombies });
     expect(powerFailureWave(world, 12)).toBe(false); // not endless

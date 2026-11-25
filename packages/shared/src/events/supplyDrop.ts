@@ -86,27 +86,43 @@ function canClaim(world: Readonly<World>, p: PlayerState | undefined, x: number,
   return weapon !== undefined && crateRefusal(p.loadout, weapon, d.level) === null;
 }
 
-/** One LANDED tick: the claim (G6); true when the crate was taken this tick. */
-function updateClaim(world: World): boolean {
+/**
+ * Review M1 ("first on it keeps the claim"): every FLARE and LANDED tick, the tick each player slot
+ * stepped on the crate's spot and has stood there since (−1: not on it / can't claim). The landing
+ * claim then goes to the earliest arrival, not the lowest slot.
+ */
+function updateOnSince(world: World): void {
   const a = world.special.active;
   const d = world.special.supplyDrop;
+  const r = world.balance.events.supplyDrop.takeRadiusM;
+  for (let s = 0; s < d.onSince.length; s++) {
+    if (canClaim(world, playerInSlot(world, s), a.x, a.y, r * r)) {
+      if ((d.onSince[s] as number) < 0) d.onSince[s] = world.tick;
+    } else d.onSince[s] = -1;
+  }
+}
+
+/** One LANDED tick: the claim (G6); true when the crate was taken this tick. */
+function updateClaim(world: World): boolean {
+  const d = world.special.supplyDrop;
   const cfg = world.balance.events.supplyDrop;
-  const r2 = cfg.takeRadiusM * cfg.takeRadiusM;
-  let holder = playerInSlot(world, d.claimSlot);
-  if (canClaim(world, holder, a.x, a.y, r2)) {
+  updateOnSince(world);
+  let holder = d.claimSlot >= 0 && (d.onSince[d.claimSlot] as number) >= 0 ? playerInSlot(world, d.claimSlot) : undefined;
+  if (holder) {
     d.claimTicks++;
   } else {
     d.claimSlot = -1;
     d.claimTicks = 0;
-    holder = undefined;
-    for (let s = 0; s < world.flameSlots.length; s++) {
-      const p = playerInSlot(world, s);
-      if (canClaim(world, p, a.x, a.y, r2)) {
-        d.claimSlot = s;
-        d.claimTicks = 1;
-        holder = p;
-        break;
-      }
+    // the earliest arrival still on it (ties: slot order)
+    let best = -1;
+    for (let s = 0; s < d.onSince.length; s++) {
+      const t = d.onSince[s] as number;
+      if (t >= 0 && (best < 0 || t < (d.onSince[best] as number))) best = s;
+    }
+    if (best >= 0) {
+      d.claimSlot = best;
+      d.claimTicks = 1;
+      holder = playerInSlot(world, best);
     }
   }
   if (!holder || d.claimTicks < ticksFor(cfg.takeS)) return false;
@@ -137,6 +153,7 @@ export const supplyDropModule: EventModule = {
     d.claimSlot = -1;
     d.claimTicks = 0;
     d.takenBy = null;
+    d.onSince.fill(-1);
     const a = world.special.active;
     a.x = spot.x;
     a.y = spot.y;
@@ -146,6 +163,7 @@ export const supplyDropModule: EventModule = {
   update(world) {
     const a = world.special.active;
     if (a.phase === EVENT_PHASE.FLARE) {
+      updateOnSince(world); // review M1: who was on the spot first, before it lands
       if (world.tick - a.phaseTick < ticksFor(world.balance.events.supplyDrop.flareS)) return null;
       setEventPhase(world, EVENT_PHASE.LANDED, null);
     }

@@ -247,7 +247,7 @@ Player:
 ## 92: something is falling. Where, and what is inside? Who should run for it? (Story 6.9: the supply drop — green smoke flare, the crate on its chute with a shrinking shadow, the white pin and "GAS TORCH · II" from the flare on; SD2 + SD3. The crate does NOT stop bullets: it is a pick-up)
 ![92](../../art/6-9/6-9-800x360-crate-flare.png)
 
-## 93: you are standing on the crate with two weapons. What will you lose, and how do you cancel? (Story 6.9 G7: the white fill ring and "Replaces your SMG III" on the HUD's toast line; step off to cancel)
+## 93: you are standing on the crate with two weapons. What will you lose, and how do you cancel? (Story 6.9 G7: the white fill ring and "Replaces your SMG III · step off to cancel" on the HUD's toast line; the cancel promise drops for the last quarter of the second, review L7; the crate is drawn under you, review L6)
 ![93](../../art/6-9/6-9-800x360-crate-replace.png)
 
 ## 94: who is that? Is it a teammate? Where must it go? (Story 6.10: the survivor — off screen its white person arrow and the white flag arrow; S1. Must read "not a teammate")

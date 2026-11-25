@@ -8,6 +8,8 @@
  * only) and a few log counters for tests. Preallocated: nothing here allocates after run start.
  */
 
+import { MAX_PLAYERS } from "../net/messages";
+
 /** Event kinds. Append only: the index goes on the wire (`eventKind`, `event.*` tuples). */
 export const EVENT_KINDS = ["car_alarm", "stampede", "gas_leak", "supply_drop", "power_failure", "survivor"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -131,6 +133,8 @@ export interface SupplyDropState {
   claimTicks: number;
   /** Who took it (null: not yet). */
   takenBy: string | null;
+  /** Review M1: per player slot, the tick it stepped on the spot and has stood on it since (−1: not on it). */
+  readonly onSince: Int32Array;
 }
 
 /** Story 6.10: the survivor NPC's states (`SurvivorState.state`). */
@@ -155,6 +159,8 @@ export interface SurvivorState {
   safeY: number;
   /** Its own acid clock (the 4.8 per-body rule). */
   acidTicks: number;
+  /** Review L3: its own car-fire clock (the 4.8 per-body rule; molotovs never hurt it, S4). */
+  fireTicks: number;
   /** The `ChaseTarget` shape the zombies read ("alive" while it can be hit). */
   status: "alive" | "dead";
 }
@@ -219,8 +225,8 @@ export function createSpecialEventState(): SpecialEventState {
     carAlarm: { car: "", minX: 0, minY: 0, maxX: 0, maxY: 0, shotBy: null },
     stampede: { toSpawn: 0, spawned: 0, rowTimer: 0, alive: 0, dirX: 0, dirY: 0 },
     gasLeak: { shotBy: null, blownTick: -1 },
-    supplyDrop: { weapon: -1, level: 0, claimSlot: -1, claimTicks: 0, takenBy: null },
-    survivor: { x: 0, y: 0, prevX: 0, prevY: 0, hp: 0, radiusM: 0, state: NPC_STATE.NONE, look: 0, leaderSlot: -1, safeX: 0, safeY: 0, acidTicks: 0, status: "dead" },
+    supplyDrop: { weapon: -1, level: 0, claimSlot: -1, claimTicks: 0, takenBy: null, onSince: new Int32Array(MAX_PLAYERS).fill(-1) },
+    survivor: { x: 0, y: 0, prevX: 0, prevY: 0, hp: 0, radiusM: 0, state: NPC_STATE.NONE, look: 0, leaderSlot: -1, safeX: 0, safeY: 0, acidTicks: 0, fireTicks: 0, status: "dead" },
     log: {
       triggered: 0,
       skipped: 0,
@@ -258,7 +264,7 @@ export function snapshotSpecial(s: Readonly<SpecialEventState>) {
     carAlarm: { ...s.carAlarm },
     stampede: { ...s.stampede },
     gasLeak: { ...s.gasLeak }, // Story 6.9
-    supplyDrop: { ...s.supplyDrop },
+    supplyDrop: { ...s.supplyDrop, onSince: Array.from(s.supplyDrop.onSince) },
     survivor: { ...s.survivor }, // Story 6.10
     log: {
       triggered: s.log.triggered,

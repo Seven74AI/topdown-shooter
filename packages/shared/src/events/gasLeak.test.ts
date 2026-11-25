@@ -8,6 +8,7 @@ import { EVENT_KINDS, EVENT_PHASE } from "./eventState";
 import { eventHoldsWave } from "./specialEvents";
 import { gasTankArmed, GAS_LEAK_WEAPON } from "./gasLeak";
 import { balance, eventWorld, ofType, startNext, tickN } from "./testEvents";
+import { placeBoss } from "../boss/testBoss";
 
 /**
  * Story 6.9 (G1–G4, AC 1–3): the gas leak. The tank is at the gas-station zone's centre (34, 5.75 m:
@@ -211,5 +212,31 @@ describe("Story 6.9 G1 + G2: the ring is the blast; everyone in it takes the ful
     const late = addPlayer(t.world, "p9", 37, TANK.y);
     tickN(t.world, ticks(cfg.hissS));
     expect(late.hp).toBe(balance.player.maxHp - cfg.playerDamage);
+  });
+});
+
+describe("Story 6.9 review L4 / L5", () => {
+  it("L4: a Behemoth in the ring takes gasLeak.bossDamage (150), never the zombies' kill damage", () => {
+    const t = eventWorld({ players: [[24, 16]], systems: noZombies });
+    t.world.decay.stage = 2;
+    placeBoss(t.world, 38.5, TANK.y);
+    t.world.boss.gapTicks = 10_000;
+    const hp0 = t.world.boss.hp;
+    startNext(t.world, "gas_leak");
+    tickN(t.world, ticks(cfg.armDelayS) + 2);
+    shootTank(t.world, "p0");
+    tickN(t.world, 1);
+    expect(t.world.special.log.gasBooms).toBe(1);
+    expect(hp0 - t.world.boss.hp).toBe(cfg.bossDamage);
+    expect(cfg.bossDamage).toBe(150);
+  });
+
+  it("L5: the bullet that blows the tank stops at the tank (a piercing round goes no further)", () => {
+    const { world } = hissWorld();
+    tickN(world, ticks(cfg.armDelayS) + 1);
+    spawnProjectile(world.projectiles, { x: TANK.x - 1, y: TANK.y, dirX: 1, dirY: 0, speedMps: 60, rangeM: 20, damage: 6, pierce: 5, weaponIndex: 0, owner: "p0", building: 0, advanceM: 0 });
+    tickN(world, 1);
+    expect(world.special.log.gasBooms).toBe(1);
+    expect(world.projectiles.aliveCount).toBe(0);
   });
 });

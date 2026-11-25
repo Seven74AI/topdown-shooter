@@ -17,11 +17,12 @@ export interface FogTakers {
 
 /** Gives every present view `fog`; returns how many were wired. */
 export function wireFog(t: Readonly<FogTakers>, fog: FogTaker["fog"]): number {
-  let n = 0;
-  for (const v of [t.zombieView, t.trailView, t.acidView]) {
-    if (!v) continue;
-    if (v.fog !== fog) v.fog = fog;
-    n++;
-  }
-  return n;
+  // Review L9: three plain checks (no array per frame: brief 10).
+  return give(t.zombieView, fog) + give(t.trailView, fog) + give(t.acidView, fog);
+}
+
+function give(v: FogTaker | null, fog: FogTaker["fog"]): number {
+  if (!v) return 0;
+  if (v.fog !== fog) v.fog = fog;
+  return 1;
 }

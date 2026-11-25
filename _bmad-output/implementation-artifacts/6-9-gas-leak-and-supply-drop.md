@@ -245,6 +245,23 @@ Claude (Claude Code cloud session, branch `story-6-9`).
 - Crate vs the wave end (6.8 review note): G8 says the untaken crate is lost when the wave ends, so it lives in `special.active` and does NOT hold the wave — the framework's `wave_end` is exactly G8 (tested). The gas leak holds the wave while it hisses (F8).
 - Docs: readability sheet items 90–96 (`docs/art/6-9/` screenshots).
 
+### Review follow-ups (fresh review of fb1d6f1: 0 H, 2 M, 11 L)
+
+- **M1 fixed [behaviour]** `supplyDrop.ts`: per-slot `onSince` (the tick a player stepped on the spot and stood there since, kept during FLARE and LANDED; `SupplyDropState.onSince`, in the snapshot); the landing claim goes to the earliest arrival (ties: slot). Test: slot 1 on the spot the whole flare, slot 0 arrives 2 ticks before the landing → slot 1 takes it.
+- **M2** (design: survivor save rate) — waiting for the designer via the main session; nothing built.
+- **L1 fixed** `survivor.test.ts`: a held Spitter 4.5 m from a waiting survivor spits at it; 5.5 m (inside its 6 m range) doesn't until a player leads it; an acid puddle hurts it on its own clock.
+- **L2 fixed** `powerFailure.test.ts`: balance override with wave 7 at 10 % → no power failure.
+- **L3 fixed [behaviour]** `decay/fire.ts`: a car fire hurts the survivor on its own 4.8 clock (`SurvivorState.fireTicks`); molotov zones never (S4). Test.
+- **L4 fixed [behaviour]** `events.json › gasLeak.bossDamage` 150 + `ExplosionSpec.bossDamage` (−1 = the zombie damage, every other blast unchanged): the gas blast does 150 to the Behemoth, never the zombies' 10,000. Test.
+- **L5 fixed [behaviour]** the bullet that blows the tank stops at the tank: `onSpecialShot` now returns the stop t (−1 none; the car alarm returns −1, its car is cover) and `firing.ts` stops the projectile there. **6.8's hook signature changed `void` → `number`** (callers that ignore it are unaffected). Test (a pierce-5 round is gone after the boom).
+- **L6 fixed** the crate, chute, shadow and flare are drawn at depth 8.4 (under the survivors' rings and bodies); only the fill ring, pin and label stay above the darkness (the crate body is under the dark in a blackout; its pin and ring still show it).
+- **L7 fixed** the prompt reads "Replaces your SMG III · step off to cancel" while the server's fill is below 3/4 (`CRATE_CANCEL_UNTIL` 0.75), then only "Replaces your SMG III" (a late step-off can't reach the server in time under lag). Server rule unchanged (G6).
+- **L8 fixed** no prompt while a teammate holds the claim.
+- **L9 fixed** `wireFog`: three plain checks, no per-frame array.
+- **L10 fixed** `headlessRun` logs refunds per player (`refunded`); the ten-wave check is per player again (`wallet = start + earned + refunded − spent`), and `earnedBy` sums include `event`.
+- **L11 fixed** `render/eventArrowPair.ts › placeSecondEventArrow`: the flag's edge arrow keeps 6.8's placement rules and also keeps off the NPC arrow's drawn rect; `hudLayout.test.ts` checks every bearing pair (5° steps, also 1°/3°/10°/45°/180° apart): both arrows keep every rule and never overlap.
+- Merged `origin/story-6-8` 185496d (arrow placement rewrite: the flag keeps its own `EventArrowPlace` with `side` hysteresis).
+
 ### File List
 
 New: `packages/shared/src/events/{gasLeak,supplyDrop,powerFailure,survivor}.ts` (+ `.test.ts`), `packages/shared/src/events/eventsRunSim.test.ts`, `apps/client/src/render/EventPickupsView.ts`, `apps/client/src/render/eventPickups.test.ts`, `apps/client/src/render/fog/fogWiring.ts` (+ `.test.ts`), `tools/checks/fogWiring.test.ts`, `docs/art/6-9/*.png`.

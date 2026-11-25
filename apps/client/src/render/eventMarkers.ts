@@ -1,4 +1,4 @@
-import { EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, crateOutcome, romanLevel, ticksFor, weaponIds, weaponName, type Balance, type CrateOutcome, type SimEvent, type World } from "@topdown/shared";
+import { EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, crateOutcome, playerSlotOf, romanLevel, ticksFor, weaponIds, weaponName, type Balance, type CrateOutcome, type SimEvent, type World } from "@topdown/shared";
 import { edgeArrow } from "./edgeArrow";
 import { EVENT_AMBER, EVENT_GAS, EVENT_WHITE } from "./city/eventArt";
 
@@ -278,6 +278,13 @@ export function eventCue(e: SimEvent, balance: Balance, out: EventCue): EventCue
 const replaceTexts = new Map<string, string>();
 const promptOut: CrateOutcome = { slot: -1, how: "refused" };
 export const CRATE_ALREADY_HAVE = "You already have it";
+/**
+ * Review L7: the "· step off to cancel" promise only while the server's fill is below this (a
+ * step-off reaches the server ~1 RTT later: under ?lag=150 the claim keeps counting 3–4 ticks, so
+ * the last fifth of the second can't be cancelled from the screen). The warning itself stays (G7).
+ */
+export const CRATE_CANCEL_UNTIL = 0.75;
+export const CRATE_CANCEL_SUFFIX = " · step off to cancel";
 export function cratePrompt(world: Readonly<World>, localId: string): string {
   const a = world.special.active;
   if (EVENT_KINDS[a.kind] !== "supply_drop" || a.phase !== EVENT_PHASE.LANDED) return "";
@@ -287,15 +294,19 @@ export function cratePrompt(world: Readonly<World>, localId: string): string {
   if (!p || p.status !== "alive" || weapon === undefined) return "";
   const r = world.balance.events.supplyDrop.takeRadiusM;
   if ((p.x - a.x) ** 2 + (p.y - a.y) ** 2 > r * r) return "";
+  // Review L8: only when the claim is mine or nobody's (a teammate taking it: nothing to lose).
+  if (d.claimSlot >= 0 && d.claimSlot !== playerSlotOf(localId)) return "";
   const o = crateOutcome(p.loadout, weapon, d.level, promptOut);
   if (o.how === "refused") return CRATE_ALREADY_HAVE;
   if (o.how !== "replace") return "";
   const slot = p.loadout.slots[o.slot as 0 | 1];
   if (!slot) return "";
-  const key = `${slot.weapon}:${slot.level}`;
+  const fill = d.claimSlot >= 0 ? d.claimTicks / ticksFor(world.balance.events.supplyDrop.takeS) : 0;
+  const cancel = fill < CRATE_CANCEL_UNTIL;
+  const key = `${slot.weapon}:${slot.level}:${cancel ? 1 : 0}`;
   let s = replaceTexts.get(key);
   if (s === undefined) {
-    s = `Replaces your ${weaponName(world.balance, slot.weapon)} ${romanLevel(slot.level)}`;
+    s = `Replaces your ${weaponName(world.balance, slot.weapon)} ${romanLevel(slot.level)}${cancel ? CRATE_CANCEL_SUFFIX : ""}`;
     replaceTexts.set(key, s);
   }
   return s;

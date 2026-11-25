@@ -138,6 +138,18 @@ describe("Story 6.9 G6: only a standing player takes it, and only by standing on
     expect(world.special.active.kind).toBe(EVENT_KINDS.indexOf("supply_drop"));
   });
 
+  it("review M1: one waits on the spot the whole flare, a lower slot steps on 2 ticks before it lands → the first arrival (slot 1) takes it", () => {
+    const { world, players, events } = dropWorld(11, [
+      [24, 16],
+      [24, 18],
+    ]);
+    on(world, players[1]!);
+    tickN(world, ticks(cfg.flareS) - 3);
+    on(world, players[0]!, 0.2);
+    tickN(world, 3 + TAKE + 1);
+    expect(ofType(events, "weapon.crate_taken")[0]!.playerId).toBe("p1");
+  });
+
   it("two players on it: the first keeps the claim and takes it; the second can't steal it by staying longer", () => {
     const { world, players, events } = landed(11, [
       [24, 16],

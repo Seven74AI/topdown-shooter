@@ -41,6 +41,8 @@ const ARC_R_M = 1.3;
 const FILL_R_M = 0.75;
 const LEADER_RING_M = 3;
 const DASH_M = 0.5;
+/** Review L6: under the survivors' rings (8.5) and bodies (10): a player on the crate stays visible. */
+export const CRATE_DEPTH = 8.4;
 const SLOT_IDS = [0, 1, 2, 3].map((s) => playerIdOfSlot(s) ?? "");
 
 interface Puff {
@@ -90,10 +92,12 @@ export class EventPickupsView {
     const fx = world.balance.events.fx;
     const style = { fontFamily: "sans-serif", fontSize: `${LABEL_PX}px`, fontStyle: "bold", color: EVENT_WHITE, stroke: "#000000", strokeThickness: 6 };
     this.tank = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.tank).setDisplaySize(TANK_W_M, TANK_W_M / 2).setVisible(false), "pickup");
-    this.shadow = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.shadow).setVisible(false), "pickup");
-    this.flare = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.flare).setDisplaySize(0.6, 0.3).setVisible(false), "pickup");
-    this.crate = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.crate).setDisplaySize(CRATE_M * (80 / 72), CRATE_M).setVisible(false), "pickup");
-    this.chute = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.chute).setDisplaySize(CHUTE_M, CHUTE_M * (56 / 96)).setOrigin(0.5, 1).setVisible(false), "pickup");
+    // Review L6: the crate, its chute, shadow and flare sit UNDER the survivors (a player standing on it
+    // stays visible); only its fill ring and the pin / label are above the darkness.
+    this.shadow = scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.shadow).setDepth(CRATE_DEPTH - 0.02).setVisible(false);
+    this.flare = scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.flare).setDisplaySize(0.6, 0.3).setDepth(CRATE_DEPTH - 0.01).setVisible(false);
+    this.crate = scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.crate).setDisplaySize(CRATE_M * (80 / 72), CRATE_M).setDepth(CRATE_DEPTH).setVisible(false);
+    this.chute = scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.chute).setDisplaySize(CHUTE_M, CHUTE_M * (56 / 96)).setOrigin(0.5, 1).setDepth(CRATE_DEPTH + 0.01).setVisible(false);
     this.npc = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, npcFrame(0, true)).setDisplaySize(NPC_M, NPC_M).setVisible(false), "pickup");
     this.rings = aboveDarkness(scene.add.graphics().setVisible(false), "pickup");
     this.marks = aboveDarkness(scene.add.graphics().setVisible(false), "marker");

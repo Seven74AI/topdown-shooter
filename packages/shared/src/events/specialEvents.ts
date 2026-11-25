@@ -163,7 +163,8 @@ export function specialShotTarget(world: Readonly<World>): boolean {
  * F4: a PLAYER projectile's step (x0, y0) → (x1, y1), stopped at `stopT` (−1: flies on), credited to
  * `ownerId`. Called only while `specialShotTarget` is true.
  */
-export function onSpecialShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): void {
+export function onSpecialShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): number {
   if (armedCarBox(world)) carAlarmShot(world, x0, y0, x1, y1, stopT, ownerId);
-  else if (gasTankArmed(world)) gasLeakShot(world, x0, y0, x1, y1, stopT, ownerId); // Story 6.9
+  else if (gasTankArmed(world)) return gasLeakShot(world, x0, y0, x1, y1, stopT, ownerId); // Story 6.9 (review L5: where the bullet stops, −1 none)
+  return -1; // the car is map cover: the bullet already stops at its face
 }

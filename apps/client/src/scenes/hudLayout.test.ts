@@ -8,6 +8,7 @@ import { layoutBossBar } from "./bossBar";
 import { eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { layoutHpBlock, layoutWaveLine } from "./hudTopLayout";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
+import { placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
@@ -239,6 +240,51 @@ describe("Story 6.8 review M2 / re-review R1–R3: the event edge arrow (not pre
       expect(placeEventArrow(INSET.left * K * 0.5, h / 2, w, h, INSET, K, size, avoid, at)).toBe(true);
       const hp = keepOff[0]!;
       expect(placeEventArrow(hp.x + hp.w / 2, hp.y + hp.h / 2, w, h, INSET, K, size, avoid, at)).toBe(true);
+    });
+  }
+});
+
+describe("Story 6.10 review L11: the survivor's two edge arrows (NPC + flag) in the one HUD layout test", () => {
+  for (const [w, h] of SIZES) {
+    it(`${w} × ${h}: every pair of bearings (5° steps, and 1° apart): both drawn arrows keep every rule, and never overlap each other`, () => {
+      const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
+      const wave = modes(w, h).wave!.filter((b) => b.id !== "boss_bar");
+      const keepOff: Box[] = [
+        { id: "hp_block", ...layoutHpBlock(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+        { id: "wave_line", ...layoutWaveLine(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+      ];
+      const size = EVENT_ARROW_CSS_PX * K;
+      const npc = { x: 0, y: 0, angle: 0, side: 0 };
+      const flag = { x: 0, y: 0, angle: 0, side: 0 };
+      const rn = { x: 0, y: 0, w: 0, h: 0 };
+      const rf = { x: 0, y: 0, w: 0, h: 0 };
+      let pairs = 0;
+      const check = (r: { x: number; y: number; w: number; h: number }, id: string): void => {
+        const box: Box = { id, x: r.x, y: r.y, w: r.w, h: r.h };
+        expect(box.x, id).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+        expect(box.x + box.w, id).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+        expect(box.y, id).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
+        expect(box.y + box.h, id).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+        for (const c of [...wave, ...keepOff]) expect(overlaps(box, c), `${id} overlaps ${c.id}`).toBe(false);
+        expect(rectCentreGap(box.x, box.y, box.w, box.h, w / 2, h / 2), `${id}: within 48 px of the survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+      };
+      for (let da = 0; da < 360; da += 5) {
+        for (const db of [da, da + 1, da + 3, da + 10, da + 45, da + 180]) {
+          const a = (da * Math.PI) / 180;
+          const b = (db * Math.PI) / 180;
+          npc.side = 0;
+          flag.side = 0;
+          expect(placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc)).toBe(true);
+          expect(placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag)).toBe(true);
+          eventArrowDrawnRect(npc, size, rn);
+          eventArrowDrawnRect(flag, size, rf);
+          check(rn, `npc_arrow@${da}`);
+          check(rf, `flag_arrow@${db}`);
+          expect(overlaps({ id: "n", ...rn }, { id: "f", ...rf }), `npc@${da} and flag@${db} overlap`).toBe(false);
+          pairs++;
+        }
+      }
+      expect(pairs).toBe(72 * 6);
     });
   }
 });

@@ -71,6 +71,7 @@ function blow(world: World, by: string | null): void {
   spec.quiet = true;
   spec.grenadeId = 0;
   spec.announce = true;
+  spec.bossDamage = cfg.bossDamage; // review L4: not the zombies' kill damage
   explode(world, spec);
   const log = world.special.log;
   log.gasBooms++;
@@ -82,12 +83,13 @@ function blow(world: World, by: string | null): void {
  * G3 (the 6.8 shot hook): a player's projectile step (x0, y0) → (x1, y1), stopped at `stopT` (−1: it
  * flies on), reaches the armed tank when it enters the tank's circle no later than where it stops.
  */
-export function gasLeakShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): void {
-  if (ownerId === null) return;
+export function gasLeakShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): number {
+  if (ownerId === null) return -1;
   const a = world.special.active;
   const t = segmentCircleT(x0, y0, x1, y1, a.x, a.y, world.balance.events.gasLeak.tankRadiusM);
-  if (t < 0 || (stopT >= 0 && t > stopT + 1e-9)) return;
+  if (t < 0 || (stopT >= 0 && t > stopT + 1e-9)) return -1;
   blow(world, ownerId);
+  return t; // review L5: the bullet stops at the tank
 }
 
 export const gasLeakModule: EventModule = {

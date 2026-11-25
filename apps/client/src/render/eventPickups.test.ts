@@ -57,7 +57,17 @@ describe("Story 6.9: gas leak and supply drop markers (from the room state, serv
     const s = fakeState();
     Object.assign(s, { eventKind: EVENT_KINDS.indexOf("supply_drop"), eventPhase: EVENT_PHASE.LANDED, eventPhaseTick: 200, eventX: 1000, eventY: 2000, crateWeapon: weaponIds(balance).indexOf("chainsaw") });
     mirrorSpecialEvent(w, s);
+    expect(cratePrompt(w, "p0")).toBe("Replaces your SMG III · step off to cancel");
+    // review L7: past 3/4 of the second the cancel promise drops (a step-off can't reach the server in time); the warning stays
+    Object.assign(s, { crateClaimSlot: 0, crateClaimTicks: 16 });
+    mirrorSpecialEvent(w, s);
     expect(cratePrompt(w, "p0")).toBe("Replaces your SMG III");
+    // review L8: a teammate holds the claim → nothing to lose here
+    Object.assign(s, { crateClaimSlot: 1, crateClaimTicks: 5 });
+    mirrorSpecialEvent(w, s);
+    expect(cratePrompt(w, "p0")).toBe("");
+    Object.assign(s, { crateClaimSlot: 255, crateClaimTicks: 0 });
+    mirrorSpecialEvent(w, s);
     p.x = 11;
     expect(cratePrompt(w, "p0")).toBe("");
     p.x = 10;

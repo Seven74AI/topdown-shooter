@@ -366,7 +366,11 @@ function updateProjectiles(world: World, dtS: number): void {
     if (stoppedAt < 0 && bossFirst) applyBossDamage(world, pool.damage[id] as number, building > 0 ? null : (pool.owner[id] ?? null), weapon); // Story 6.5
     if (stoppedAt < 0 && blockT >= 0) stoppedAt = blockT; // Story 4.2: into the cover's face
     // Story 6.8 (F4, AC 8): a player's bullet that reaches the armed car (not stopped before it) sets it off.
-    if (building === 0 && specialShotTarget(world)) onSpecialShot(world, x0, y0, x1, y1, stoppedAt, pool.owner[id] ?? null);
+    if (building === 0 && specialShotTarget(world)) {
+      // Story 6.9 review L5: a bullet that blows the gas tank stops at the tank.
+      const st = onSpecialShot(world, x0, y0, x1, y1, stoppedAt, pool.owner[id] ?? null);
+      if (st >= 0 && (stoppedAt < 0 || st < stoppedAt)) stoppedAt = st;
+    }
     if (stoppedAt >= 0) {
       pool.x[id] = x0 + dx * step * stoppedAt;
       pool.y[id] = y0 + dy * step * stoppedAt;

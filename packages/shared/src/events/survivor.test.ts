@@ -10,6 +10,9 @@ import { DOWNTOWN_MAP } from "../map/downtown";
 import { EVENT_KINDS, EVENT_PHASE, NPC_STATE } from "./eventState";
 import { damageSurvivor, survivorFits } from "./survivor";
 import { flowCellAt } from "../zombies/flowField";
+import { updateFires } from "../decay/fire";
+import { shotLineClear } from "../combat/cover";
+import { AREA_KIND, spawnArea } from "../hazards/areaPool";
 import { balance, eventWorld, ofType, startNext, tickN } from "./testEvents";
 
 /** Story 6.10 (S1–S5, AC 3–5): the survivor NPC. */
@@ -287,6 +290,85 @@ describe("Story 6.10 S4 / DD5: it never walks into a fire", () => {
     }
     const f = world.decay.fires[world.decay.fires.length - 1]!;
     expect(Math.hypot(n.x - f.x, n.y - f.y)).toBeLessThan(f.radiusM + n.radiusM + 0.25); // it reached the edge and waits there
+  });
+});
+
+describe("Story 6.10 review L1: Spitters and acid vs the survivor (S3 + B1)", () => {
+  /** A spot `r` m from the NPC, box-free, with a clear shot line to it. */
+  function spotFrom(world: World, r: number): { x: number; y: number } {
+    const n = world.special.survivor;
+    for (let k = 0; k < 72; k++) {
+      const a = (k / 72) * Math.PI * 2;
+      const x = n.x + Math.cos(a) * r;
+      const y = n.y + Math.sin(a) * r;
+      if (boxBlocked(world, x, y, 0.6) || !shotLineClear(world, x, y, n.x, n.y)) continue;
+      return { x, y };
+    }
+    throw new Error("no spot");
+  }
+  /** A Spitter held in place (a bear trap's hold: it still spits, never walks) `r` m from the NPC; spits seen at it. */
+  let lastAt = { x: 0, y: 0 };
+  function spitterAt(world: World, r: number): () => number {
+    const at = spotFrom(world, r);
+    lastAt = at;
+    const zid = spawnZombie(world, "spitter", at.x, at.y, true);
+    world.zombies.holdTicks[zid] = 60_000;
+    let spits = 0;
+    world.events.subscribe((e) => {
+      if (e.type === "spitter.spat") spits++;
+    });
+    return () => spits;
+  }
+
+  it("a waiting survivor: a Spitter 4.5 m off spits at it; one 5.5 m off (in its 6 m range) doesn't — until a player leads it", () => {
+    const near = npcWorld(11, [[44, 30]], {});
+    const spitsNear = spitterAt(near.world, 4.5);
+    tickN(near.world, 60);
+    expect(spitsNear()).toBeGreaterThan(0);
+    const far = npcWorld(11, [[44, 30]], {});
+    const n = far.world.special.survivor;
+    const spitsFar = spitterAt(far.world, 5.5);
+    tickN(far.world, 80);
+    expect(spitsFar()).toBe(0);
+    const p = far.players[0]!;
+    const sx = lastAt.x;
+    const sy = lastAt.y;
+    const ux = (n.x - sx) / Math.hypot(n.x - sx, n.y - sy);
+    const uy = (n.y - sy) / Math.hypot(n.x - sx, n.y - sy);
+    for (let i = 0; i < 80; i++) {
+      p.x = n.x + ux * 1.0; // the leader stands just behind it, on the far side from the Spitter (out of its range)
+      p.y = n.y + uy * 1.0;
+      tickN(far.world, 1);
+      if (spitsFar() > 0) break;
+    }
+    expect(n.state).toBe(NPC_STATE.FOLLOWING);
+    expect(spitsFar()).toBeGreaterThan(0);
+  });
+
+  it("an acid puddle under it hurts it on its own clock (one pulse per puddlePulseS)", () => {
+    const { world } = npcWorld(11, [[44, 30]], {}); // acid runs in the zombies slot
+    const n = world.special.survivor;
+    const spit = balance.zombies.types.spitter!.spit!;
+    spawnArea(world.areas, 16, AREA_KIND.ACID, 1, n.x, n.y, spit.puddleRadiusM, 200, world.tick);
+    const pulse = Math.round(spit.puddlePulseS * 20);
+    const dmg = Math.round(spit.puddleDamagePerS * spit.puddlePulseS);
+    tickN(world, pulse * 3);
+    expect(cfg.hp - n.hp).toBe(3 * dmg);
+  });
+});
+
+describe("Story 6.10 review L3: a car fire hurts it on its own clock; a molotov never does", () => {
+  it("a car fire under it: one pulse of damage per pulseS (its own clock)", () => {
+    const { world } = npcWorld(11, [[44, 30]]);
+    const n = world.special.survivor;
+    (world.decay.fires as unknown as object[]).push({ name: "f", target: "x", x: n.x, y: n.y, radiusM: 1, stage: 1, index: 0 });
+    world.waves.paused = false; // fires don't burn under the dev pause (review L6, 4.8): run the fire pass alone
+    const pulse = Math.round(balance.decay.fire.pulseS * 20);
+    const dmg = Math.round(balance.decay.fire.damagePerS * balance.decay.fire.pulseS);
+    for (let i = 0; i < pulse - 1; i++) updateFires(world);
+    expect(n.hp).toBe(cfg.hp);
+    updateFires(world);
+    expect(n.hp).toBe(cfg.hp - dmg);
   });
 });
 
