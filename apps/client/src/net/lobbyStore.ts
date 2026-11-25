@@ -58,6 +58,11 @@ export const START_HINT = {
   notReady: "Waiting for everyone to be Ready",
   tooFew: "Need at least 1 player",
 } as const;
+/** Story 7.9 review L6: the same reasons short enough for the Start button's second line (≥ 112 px at 11 px). */
+export const START_HINT_SHORT = {
+  notReady: "Waiting for Ready",
+  tooFew: "Need 1 player",
+} as const;
 
 /** What the lobby screen shows, derived from a snapshot. */
 export interface LobbyView {
@@ -69,6 +74,8 @@ export interface LobbyView {
   readonly canStart: boolean;
   /** Why Start is disabled, for the host; null when it is enabled or for guests. */
   readonly startHint: string | null;
+  /** Story 7.9 review L6: `startHint` short enough for the Start button (the full text stays its tooltip / label). */
+  readonly startHintShort: string | null;
 }
 
 export function lobbyView(s: LobbySnapshot, allowSolo: boolean): LobbyView {
@@ -79,7 +86,8 @@ export function lobbyView(s: LobbySnapshot, allowSolo: boolean): LobbyView {
   const blocker = startBlocker(s.players, isHost, allowSolo);
   const startHint =
     !isHost || blocker === null ? null : blocker === "too_few" ? START_HINT.tooFew : START_HINT.notReady;
-  return { rows, me, isHost, canStart: blocker === null, startHint };
+  const startHintShort = startHint === null ? null : blocker === "too_few" ? START_HINT_SHORT.tooFew : START_HINT_SHORT.notReady;
+  return { rows, me, isHost, canStart: blocker === null, startHint, startHintShort };
 }
 
 /** Subscribes to lobby field changes of a room (`watchLobby` in connection.ts); returns the unsubscribe. */

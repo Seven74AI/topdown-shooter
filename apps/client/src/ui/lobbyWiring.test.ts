@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import screen from "./LobbyScreen.tsx?raw";
 import connection from "../net/connection.ts?raw";
+import devCheats from "../debug/DevCheats.tsx?raw";
 import { fakePlayer } from "../net/fakeRoom";
 import { snapshotLobby } from "../net/lobbyStore";
 
@@ -26,5 +27,12 @@ describe("lobby look wiring (Story 7.9 T6)", () => {
     const s = snapshotLobby("ABCD", { phase: "lobby", hostSlot: 0, players: new Map([["p0", fakePlayer(0, { look: "v1|top:hoodie" })]]) } as never, "p0");
     expect(s.players[0]?.look).toBe("v1|top:hoodie");
     expect(connection).toMatch(/\$\.listen\(player, "look", onChange\)/);
+  });
+  it("review L5: the dev ⚙ is not drawn on the lobby (it sat on LEAVE)", () => {
+    expect(devCheats).toMatch(/setInLobby\(sc\.kind === "lobby"\)/);
+    expect(devCheats).toMatch(/\{!inLobby && \(\s*<button type="button" class="dev-gear"/);
+  });
+  it("review L6: the Start button's second line is the short hint (the full one is its label)", () => {
+    expect(screen).toMatch(/\{view\.startHintShort && <span class="lobby__start-hint">\{view\.startHintShort\}<\/span>\}/);
   });
 });

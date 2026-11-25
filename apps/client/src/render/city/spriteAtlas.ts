@@ -241,7 +241,8 @@ function zombieOf(name: string): { type: ZombieTypeId; variant: number } | null 
   return null;
 }
 
-function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
+/** Paints one character-atlas frame (exported for tests: Story 7.9 review L2 checks the real gun frames). */
+export function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.translate(f.x + f.w / 2, f.y + f.h / 2);
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
   if (f.name === SURVIVOR_CHAINSAW_RUNNING) return drawSurvivor(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));

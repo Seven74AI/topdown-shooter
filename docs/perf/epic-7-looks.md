@@ -37,8 +37,10 @@ calls `SurvivorLookTextures` makes; the texture upload is not included), 7 repet
 
 **Over AC 9's "≤ ~2 ms total" with the 4× throttle.** What ships instead:
 
-- The first bake happens in the Game scene's start, next to the atlas bake (which paints all characters, zombies,
-  props and FX: a far bigger job), before the first frame of play; a hitch there is not seen in play.
+- The first bake happens in the Game scene's first frames, **one body per frame** (review L7: the same budget as the
+  repaints), and online only once the server's decay stage is in the mirror (no stage-1 bake followed by a repaint).
+  A survivor shows the default atlas picture until its body is baked (≤ 3 frames for a 4-player run), so a
+  mid-wave reload (8.1 return) never paints 4 bodies in one frame.
 - The repaint at a build start (D1) is spread: **one body per frame** (`SurvivorLookTextures.beginFrame`), so a build
   start costs ≤ ~2.3 ms per frame for 4 frames (4× throttled), ~0.5 ms unthrottled, never during a wave.
 - Further cut if the phone shows a hitch: bake the `nopack` frame only when a weapon with a back piece is first held

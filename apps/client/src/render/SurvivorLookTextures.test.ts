@@ -38,7 +38,7 @@ function setup(): { fs: ReturnType<typeof fakeScene>; tx: SurvivorLookTextures; 
 describe("per-player survivor textures (Story 7.9 AC 7, 9; D1)", () => {
   it("bakes each player's body once (pack and nopack side by side), through addGeneratedTexture", () => {
     const { fs, tx, canvases } = setup();
-    const key = tx.setLook("p1", RED, 1);
+    const key = tx.setLook("p1", RED, 1) as string;
     expect(key).toBe(lookTextureKey("p1"));
     expect(fs.keys.has(key)).toBe(true);
     expect(textureRegistry.has(key)).toBe(true);
@@ -88,8 +88,15 @@ describe("per-player survivor textures (Story 7.9 AC 7, 9; D1)", () => {
 
   it("AC 9: a build start repaints at most one existing body per frame; all 4 are done after 4 frames", () => {
     const { fs, tx } = setup();
-    for (const id of ["p0", "p1", "p2", "p3"]) tx.setLook(id, DEFAULT_CODE, 1); // new bodies: painted at once
-    expect(tx.bakes).toBe(4);
+    // review L7: new bodies too — one per frame (a mid-wave reload never paints 4 in one frame)
+    tx.beginFrame();
+    expect(["p0", "p1", "p2", "p3"].map((id) => tx.setLook(id, DEFAULT_CODE, 1))).toEqual([lookTextureKey("p0"), null, null, null]);
+    for (let frame = 2; frame <= 4; frame++) {
+      tx.beginFrame();
+      for (const id of ["p0", "p1", "p2", "p3"]) tx.setLook(id, DEFAULT_CODE, 1);
+      expect(tx.bakes).toBe(frame);
+    }
+    expect(tx.size).toBe(4);
     for (let frame = 1; frame <= 6; frame++) {
       tx.beginFrame();
       for (const id of ["p0", "p1", "p2", "p3"]) tx.setLook(id, DEFAULT_CODE, 2);
@@ -130,6 +137,7 @@ describe("per-player survivor textures (Story 7.9 AC 7, 9; D1)", () => {
     const { fs, tx } = setup();
     const codes = devLookCodes(50);
     for (let i = 0; i < 50; i++) {
+      tx.beginFrame();
       tx.setLook(`p${i}`, codes[i] as string, 1);
       if (i >= 3) tx.remove(`p${i - 3}`); // the oldest left
       expect(tx.size).toBeLessThanOrEqual(4);
@@ -173,7 +181,7 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     const fs = fakeScene();
     const tx = new SurvivorLookTextures(fs.scene, napiCanvas);
     const v = new PlayerView(fs.scene, 0.4);
-    v.setBodyTexture(tx.setLook("p1", code, 1));
+    v.setBodyTexture(tx.setLook("p1", code, 1) as string);
     return { v, body: v.bodySprite as unknown as FakeObject, gun: v.gunSprite as unknown as FakeObject, fs, tx };
   }
 
@@ -215,6 +223,12 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     expect([body.visible, gun.visible]).toEqual([false, false]);
     v.update(player(), 1, 0);
     expect([body.visible, gun.visible]).toEqual([true, true]);
+    // Story 8.1 D3's spawn-protection blink (review M1): the gun fades with the body
+    v.update(player({ protectTicks: 30 }), 1, 100);
+    expect(body.alpha).toBeLessThan(1);
+    expect(gun.alpha).toBe(body.alpha);
+    v.update(player({ protectTicks: 0 }), 1, 200);
+    expect([body.alpha, gun.alpha]).toEqual([1, 1]);
     v.setAboveDark(true);
     expect(body.depth).toBe(DARK_BODY_DEPTH);
     expect(gun.depth).toBeLessThan(body.depth);
@@ -232,7 +246,7 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     const texSpy = vi.spyOn(body, "setTexture");
     const refreshes = fs.refreshes;
     for (let i = 1; i <= 300; i++) {
-      v.setBodyTexture(tx.setLook("p1", RED, 1));
+      v.setBodyTexture(tx.setLook("p1", RED, 1) as string);
       v.update(player({ x: 5 + i * 0.01 }), 1, i * 16);
     }
     expect([spy.mock.calls.length, gunSpy.mock.calls.length, texSpy.mock.calls.length, fs.refreshes - refreshes]).toEqual([0, 0, 0, 0]);

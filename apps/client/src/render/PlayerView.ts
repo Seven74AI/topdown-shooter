@@ -242,6 +242,7 @@ export class PlayerView {
     if (blink !== this.shownBlink) {
       this.shownBlink = blink;
       this.body.setAlpha(blink);
+      this.gun.setAlpha(blink); // Story 7.9 review M1: the gun blinks with the body
       this.layer?.img.setAlpha(blink);
     }
   }

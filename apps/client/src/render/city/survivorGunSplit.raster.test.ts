@@ -13,6 +13,7 @@ import {
   SURVIVOR_GUN_PLAIN,
   SURVIVOR_WEAPON_FRAMES,
   characterSpecs,
+  drawCharacterFrame,
   survivorFrameFor,
   survivorGunFrameFor,
   weaponHidesPack,
@@ -77,6 +78,20 @@ describe("gun under the body (Story 7.9 AC 8, D2)", () => {
     for (let i = 3; i < split.length; i += 4) if ((split[i] as number) > 0) opaque++;
     expect(opaque).toBeGreaterThan(1000); // liveness: a survivor was drawn
     expect(maxChannelDiff(reference, split)).toBeLessThanOrEqual(2);
+  });
+
+  // Review L2: the frames the GAME uses — painted by the atlas's own painter from `characterSpecs()` — under the body.
+  it.each(CASES.map((c) => [survivorGunFrameFor(c.weapon, c.running), c] as const))("atlas frame %s + default body = the one-piece frame", (name, c) => {
+    const spec = characterSpecs().find((f) => f.name === name);
+    expect(spec).toBeDefined();
+    const atlasGun = createCanvas(SIDE, SIDE);
+    drawCharacterFrame(atlasGun.getContext("2d") as unknown as G, { ...(spec as { name: string; w: number; h: number }), x: 0, y: 0 });
+    const body = canvasOf((g) => drawSurvivorBody(g, CHAR_R_PX, resolveLook(DEFAULT_LOOK, 1), !weaponHidesPack(c.weapon), false));
+    const ag = atlasGun.getContext("2d");
+    ag.setTransform(1, 0, 0, 1, 0, 0); // the painter leaves its centring translate (the atlas wraps it in save/restore)
+    ag.drawImage(body, 0, 0);
+    const reference = bytes(canvasOf((g) => drawSurvivor(g, CHAR_R_PX, c.held, c.back)));
+    expect(maxChannelDiff(reference, bytes(atlasGun))).toBeLessThanOrEqual(2);
   });
 
   it("the gun frame alone shows no body, and the body alone no gun (the split is real)", () => {

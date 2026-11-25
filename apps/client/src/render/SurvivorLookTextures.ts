@@ -48,9 +48,10 @@ export class SurvivorLookTextures {
   /** Bakes done (tests and the perf note): one per new player, one per look or stage change. */
   bakes = 0;
   /**
-   * Story 7.9 (AC 9, perf note): repaints of EXISTING bodies allowed this frame. A build start (D1) changes every
-   * body's stage at once; one repaint per frame spreads the ~2 ms (4× throttled: ~9 ms) over 4 frames. A new player's
-   * body is painted at once (it has nothing to show before); the scene calls `beginFrame` once per frame.
+   * Story 7.9 (AC 9, perf note; review L7): bakes allowed this frame — a new body or a repaint. A build start (D1) or
+   * a (re)started scene with 4 players would otherwise paint 4 bodies in one frame; one per frame spreads the ~2 ms
+   * (4× throttled: ~9 ms) over 4 frames. A survivor without its body yet keeps the default atlas picture (PlayerView's
+   * 7.8 path) until its turn. The scene calls `beginFrame` once per frame.
    */
   private repaintBudget = 1;
 
@@ -63,8 +64,11 @@ export class SurvivorLookTextures {
     for (const k of keys) if (k.startsWith(SURVIVOR_LOOK_PREFIX)) this.drop(k);
   }
 
-  /** The player's body texture (made on first call); repainted when `code` or `stage` changed. Returns the key. */
-  setLook(playerId: string, code: string, stage: number): string {
+  /**
+   * The player's body texture (made on first call); repainted when `code` or `stage` changed. Returns the key, or
+   * null when a NEW body has to wait for a later frame (this frame's bake is spent).
+   */
+  setLook(playerId: string, code: string, stage: number): string | null {
     const e = this.entries.get(playerId);
     if (e) {
       if (e.code === code && e.stage === stage) return e.key;
@@ -78,6 +82,7 @@ export class SurvivorLookTextures {
       this.bakes++;
       return e.key;
     }
+    if (this.repaintBudget <= 0) return null; // review L7: next frame
     const key = lookTextureKey(playerId);
     if (this.scene.textures.exists(key)) this.drop(key); // a leftover under the same id
     const canvas = this.makeCanvas();
@@ -97,6 +102,7 @@ export class SurvivorLookTextures {
     if (!tex) return key;
     (entry as { tex: Phaser.Textures.CanvasTexture }).tex = tex;
     this.entries.set(playerId, entry);
+    this.repaintBudget--;
     this.bakes++;
     return key;
   }
@@ -158,7 +164,9 @@ export function syncViewLook(
   hasPool: boolean,
   devLayer: AnimatedLayerId | null,
 ): void {
-  view.setBodyTexture(textures.setLook(id, code, stage));
+  const key = textures.setLook(id, code, stage);
+  if (key === null) return; // review L7: this body is baked on a later frame (the default picture until then)
+  view.setBodyTexture(key);
   if (view.lookCode === code) return;
   view.lookCode = code;
   const layer = devLayer ?? lookLayer(code);

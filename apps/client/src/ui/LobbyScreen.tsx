@@ -155,9 +155,17 @@ export function LobbyScreen() {
         {ready ? "Not ready" : "Ready"}
       </button>
       {view.isHost ? (
-        <button type="button" class="lobby__btn lobby__btn--primary lobby__start" style={place(L.start)} disabled={!view.canStart} onClick={() => lobbyStore.start()}>
+        <button
+          type="button"
+          class="lobby__btn lobby__btn--primary lobby__start"
+          style={place(L.start)}
+          disabled={!view.canStart}
+          title={view.startHint ?? undefined}
+          aria-label={view.startHint ? `Start. ${view.startHint}` : "Start"}
+          onClick={() => lobbyStore.start()}
+        >
           <span>Start</span>
-          {view.startHint && <span class="lobby__start-hint">{view.startHint}</span>}
+          {view.startHintShort && <span class="lobby__start-hint">{view.startHintShort}</span>}
         </button>
       ) : (
         view.me && (

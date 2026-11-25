@@ -291,6 +291,9 @@ export class GameScene extends Phaser.Scene {
    * (AC 10); `?devlayer` (dev builds) still forces it on everyone.
    */
   private readonly syncLook = (view: PlayerView, id: string, code: string): void => {
+    // Review L7: online, bake only once the mirror has the server's decay stage (no stage-1 bake, then a repaint).
+    const host = this.host;
+    if (host instanceof NetSimHost && !host.decaySynced) return;
     if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, urlOptions().devLayer);
   };
   private readonly layerPoolOf = (): SurvivorLayerPool => (this.layerPool ??= new SurvivorLayerPool(this));

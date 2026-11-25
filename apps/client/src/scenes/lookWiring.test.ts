@@ -37,4 +37,7 @@ describe("GameScene look wiring (Story 7.9)", () => {
   it("the per-frame repaint budget is reset once per frame (AC 9: a build start's repaints spread over frames)", () => {
     expect(src).toMatch(/this\.lookTextures\?\.beginFrame\(\);/);
   });
+  it("review L7: online, no bake before the server's decay stage is in the mirror", () => {
+    expect(arrowBody("syncLook")).toMatch(/if \(host instanceof NetSimHost && !host\.decaySynced\) return;/);
+  });
 });

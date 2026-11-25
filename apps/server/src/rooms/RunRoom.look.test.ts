@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Room as SdkRoom } from "@colyseus/sdk";
+import { Callbacks, type Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { BYTES, C2S, DEFAULT_LOOK, DOWNTOWN_MAP, LOOK_CODE_MAX, RUN_ROOM_NAME, S2C, decodeLook, downPlayer, encodeLook, endWave, startWave, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -46,12 +46,13 @@ const roomOf = (c: RunSdkRoom): RunRoom => colyseus.getRoomById<RunRoom>(c.roomI
 const ctx = { ip: "10.9.9.9" } as Parameters<typeof RunRoom.onAuth>[2];
 
 describe("L1: a look can't break the game (checkAuth)", () => {
-  it("1,000 random looks (10 kB, unicode, v1| prefixes, objects) are all accepted, each canonical ≤ 96 characters", async () => {
+  it("1,000 random looks (unicode, v1| prefixes, objects, up to the 1 KB options cap) are all accepted, each canonical ≤ 96 characters; larger options are refused by the cap, not the look", async () => {
     let s = 0x79;
     const r = (): number => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
     const alphabet = "v1|:,abcdefghijklmnopqrstuvwxyz0123456789#ÉΩ😀 ";
     const parts = ["top:hoodie", "head:riot", "head:prop", "pack:golf", "skin:9", "c:ffffff,000000,123456", "hair:bald"];
     let accepted = 0;
+    let capped = 0;
     for (let i = 0; i < 1000; i++) {
       let look: unknown;
       if (i % 97 === 0) look = { head: "riot" };
@@ -63,13 +64,20 @@ describe("L1: a look can't break the game (checkAuth)", () => {
         look = str;
       }
       const options = opts("join", "Ana", token(), look);
-      if (JSON.stringify(options).length > 1024) continue; // the whole-options size cap applies as before (not a look rule)
+      if (JSON.stringify(options).length > 1024) {
+        // Review L3: the whole-options cap (MAX_CLIENT_MESSAGE_BYTES, Story 2.1) refuses these before any look rule.
+        await expect(RunRoom.onAuth("", options, ctx)).rejects.toThrow("invalid_options");
+        capped++;
+        continue;
+      }
       const auth = await RunRoom.onAuth("", options, ctx);
       expect(auth.look.length).toBeLessThanOrEqual(LOOK_CODE_MAX);
       expect(encodeLook(decodeLook(auth.look).look)).toBe(auth.look); // canonical
       accepted++;
     }
     expect(accepted).toBeGreaterThan(900); // liveness: the fuzz really went through onAuth
+    expect(capped).toBeGreaterThan(0); // the 10 kB cases exist and meet the options cap
+    expect(accepted + capped).toBe(1000);
   });
 
   it("logs look_replaced with the count only, never the look text; a clean look logs nothing", async () => {
@@ -174,26 +182,43 @@ describe("AC 6: one string on the room state, set once", () => {
     expect([...room.members.values()].find((m) => m.playerId === "p1")?.look).toBe(STARTER); // remembered again with it
   });
 
-  it("L4: 0 B/s per tick — the bytes per tick with 4 custom looks equal those with 4 default looks", async () => {
-    // Same run twice, only the looks differ: what the room sends per tick after the join must be identical.
-    const bytesPerTick = async (looks: [string, string]): Promise<number> => {
-      const { host, room, w } = await startedTwo(looks);
+  it("L4: 0 B/s per tick — 4 players, 200 ticks: the look never changes in a patch, and the bytes per tick equal a run with default looks", async () => {
+    // Review L4: 4 custom looks vs 4 default looks, 200 ticks each; plus a listener on every player's `look` on a client.
+    const run = async (looks: string[]): Promise<{ perTick: number; lookChanges: number }> => {
+      vi.stubEnv("DEV_NO_WAVES", "1");
+      const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "P0", token(), looks[0])));
+      const others: RunSdkRoom[] = [];
+      for (let i = 1; i < 4; i++) others.push(quiet(await colyseus.sdk.joinById<RunStateView>(host.roomId, opts("join", `P${i}`, token(), looks[i]))));
+      const room = roomOf(host);
+      await vi.waitFor(() => expect(room.members.size).toBe(4));
+      for (const c of [host, ...others]) c.send(C2S.LOBBY_SET_READY, { ready: true });
+      await vi.waitFor(() => expect([...room.state.players.values()].every((p) => p.ready)).toBe(true));
+      host.send(C2S.RUN_START, {});
+      for (const c of [host, ...others]) await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+      const w = room.controller?.world;
+      if (!w) throw new Error("no run");
+      // The build phase (25 s): it ticks with idle bots (a wave would put 4 quiet players on hold and freeze, Story 8.1).
+      await new Promise((r) => setTimeout(r, 300)); // the start patch has gone out
+      let lookChanges = 0;
+      const $ = Callbacks.get(others[0] as never) as unknown as { listen(o: unknown, k: string, cb: () => void, immediate?: boolean): () => void };
+      const offs: (() => void)[] = [];
+      (others[0] as RunSdkRoom).state.players.forEach((p) => offs.push($.listen(p, "look", () => lookChanges++, false)));
+      expect(offs).toHaveLength(4);
       const meter = room.netMeters.get(host.sessionId);
       if (!meter) throw new Error("no meter");
-      startWave(w);
-      await new Promise((r) => setTimeout(r, 300)); // the look went out with the join; now only ticks
       const start = meter.out.totalBytes;
       const t0 = w.tick;
-      await vi.waitFor(() => expect(w.tick - t0).toBeGreaterThanOrEqual(20), { timeout: 5000 });
-      const ticks = w.tick - t0;
-      const bytes = meter.out.totalBytes - start;
+      await vi.waitFor(() => expect(w.tick - t0).toBeGreaterThanOrEqual(200), { timeout: 20_000, interval: 50 });
+      const perTick = (meter.out.totalBytes - start) / (w.tick - t0);
+      for (const off of offs) off();
       await colyseus.cleanup();
-      expect(ticks).toBeGreaterThan(0);
-      return bytes / ticks;
+      return { perTick, lookChanges };
     };
-    const plain = await bytesPerTick([DEFAULT_CODE, DEFAULT_CODE]);
-    const custom = await bytesPerTick([STARTER, STARTER.replace("skin:4", "skin:7")]);
-    expect(plain).toBeGreaterThan(0); // liveness: ticks were sent
-    expect(Math.abs(custom - plain) / plain).toBeLessThan(0.15); // no look bytes per tick (pings and timing jitter only)
-  });
+    const plain = await run([DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE]);
+    const custom = await run([STARTER, STARTER.replace("skin:4", "skin:7"), STARTER.replace("top:hoodie", "top:puffer"), STARTER.replace("hair:mohawk", "hair:bald")]);
+    expect(plain.perTick).toBeGreaterThan(0); // liveness: ticks were sent
+    expect(custom.lookChanges).toBe(0);
+    expect(plain.lookChanges).toBe(0);
+    expect(Math.abs(custom.perTick - plain.perTick) / plain.perTick).toBeLessThan(0.05); // same run, only the looks differ
+  }, 60_000);
 });
