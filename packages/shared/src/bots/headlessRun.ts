@@ -55,6 +55,11 @@ export interface HeadlessRunOptions {
   onTick?: (world: World) => void;
   /** Story 6.5: called once with the World before the first tick (dev switches: `debug.bossWaves`, `debug.bossHpScale`). */
   setup?: (world: World) => void;
+  /**
+   * Investigation cut-test-stall-2026-11-25: called on each bot's view after `botViewFromWorld`, before
+   * `botInput` (tests: rebuild it as `tools/bots` sees it over the wire, to replay that bot headless).
+   */
+  viewHook?: (world: World, playerId: string, view: BotView) => void;
 }
 
 export interface HeadlessWaveLog {
@@ -295,6 +300,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       const view = views[i] as BotView;
       const input = inputs[i] as PlayerInput;
       botViewFromWorld(world, id, view);
+      opts.viewHook?.(world, id, view);
       botInput(view, cfg, seq, input);
       if (swapNext[i] && world.run.phase === "wave") {
         input.swap = true; // the first wave tick (a swap in the one-tick build would be fine too)
