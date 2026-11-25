@@ -148,3 +148,8 @@ Story decisions 7.3 D1–D4 were accepted with the progress file ("Okay, for all
 | 7.3 B17 | Merging with 7.9 (both add `progress` to the session reply) | **One optional `progress` object `{ supplies, lifetimeSupplies, unlocks, look }` from ONE repository read inside 7.1's 2 s deadline; a failed read gives `progress: null`, so the phone keeps its own look copy** (7.9 alone sent `{ look: null }` on a failed read, which cleared the device copy) (keep `{ look: null }` on failure: a database hiccup would wipe the phone's look) |
 | 7.3 B18 | The lobby's Progress button after 7.9's SC3 layout | **In the header, left of Leave (`lobbyLayout.progress`, 104 px; the district line narrows to ≥ 125 px at 568 × 320 with insets), in 7.9's layout test** (on the bottom button row: no room beside Copy / Share / Ready / Start at 568) |
 
+
+
+### 7-UI-3 amended (designer, 2026-11-25)
+
+After a 6-colour comparison (`docs/art/occlusion/colours.html`), zombie wall silhouettes stay **red**. Designer: "Red is better, red shouldn't be only for bosses. I mean that the color usually used to show danger. So it works for zombie silhouette." The in-play colour rule becomes **red = danger** (boss danger and zombies), not boss-only. Menu screens keep 7-UI-3 (red allowed).
