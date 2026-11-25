@@ -239,19 +239,41 @@ function overlapsObstacle(world: Readonly<World>, x: number, y: number, r: numbe
 }
 
 /** The boxes within reach of one escape (prefiltered once per escape; solids, then wall buildings), and whether `from`'s centre is inside each. */
-const MAX_NEAR_BOXES = 256;
-const nearMinX = new Float64Array(MAX_NEAR_BOXES);
-const nearMinY = new Float64Array(MAX_NEAR_BOXES);
-const nearMaxX = new Float64Array(MAX_NEAR_BOXES);
-const nearMaxY = new Float64Array(MAX_NEAR_BOXES);
-const nearHolds = new Uint8Array(MAX_NEAR_BOXES);
+/**
+ * The boxes within reach of one escape (prefiltered once per escape: solids, then wall buildings), and
+ * whether `from`'s centre is inside each. Review N2: the arrays grow (doubling, only when an escape
+ * meets more boxes than ever before), so no box is ever dropped.
+ */
+let nearCap = 64;
+let nearMinX = new Float64Array(nearCap);
+let nearMinY = new Float64Array(nearCap);
+let nearMaxX = new Float64Array(nearCap);
+let nearMaxY = new Float64Array(nearCap);
+let nearHolds = new Uint8Array(nearCap);
 let nearCount = 0;
 
+function growNear(): void {
+  const cap = nearCap * 2;
+  const grow = (a: Float64Array): Float64Array<ArrayBuffer> => {
+    const b = new Float64Array(cap);
+    b.set(a);
+    return b;
+  };
+  nearMinX = grow(nearMinX);
+  nearMinY = grow(nearMinY);
+  nearMaxX = grow(nearMaxX);
+  nearMaxY = grow(nearMaxY);
+  const h = new Uint8Array(cap);
+  h.set(nearHolds);
+  nearHolds = h;
+  nearCap = cap;
+}
+
 function addNear(x: number, y: number, reach: number, b: BoxView): void {
-  if (nearCount >= MAX_NEAR_BOXES) return;
   const cx = Math.min(b.maxX, Math.max(b.minX, x));
   const cy = Math.min(b.maxY, Math.max(b.minY, y));
   if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > reach * reach) return;
+  if (nearCount >= nearCap) growNear();
   const k = nearCount++;
   nearMinX[k] = b.minX;
   nearMinY[k] = b.minY;
@@ -264,7 +286,8 @@ function addNear(x: number, y: number, reach: number, b: BoxView): void {
  * Dead ends (no clear spot within reach) remembered per World and obstacle versions, so a body that
  * can't escape doesn't repeat the full search every tick (the same inputs always fail the same way, so
  * skipping changes no result). A small ring of (x, y, r, withBuildings) keys; cleared when the World,
- * its obstacles or its buildings change.
+ * its obstacles or its buildings change. Review N1: the World is held weakly (a disposed World is not
+ * kept alive by this cache).
  */
 const DEAD_ENDS = 64;
 const deadX = new Float64Array(DEAD_ENDS);
@@ -273,13 +296,13 @@ const deadR = new Float64Array(DEAD_ENDS);
 const deadB = new Uint8Array(DEAD_ENDS);
 let deadCount = 0;
 let deadNext = 0;
-let deadWorld: Readonly<World> | null = null;
+let deadWorld: WeakRef<Readonly<World>> | null = null;
 let deadObstacles = -1;
 let deadBuildings = -1;
 
 function deadEndKnown(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
-  if (deadWorld !== world || deadObstacles !== world.obstacles.version || deadBuildings !== world.buildings.version) {
-    deadWorld = world;
+  if (deadWorld?.deref() !== world || deadObstacles !== world.obstacles.version || deadBuildings !== world.buildings.version) {
+    if (deadWorld?.deref() !== world) deadWorld = new WeakRef(world); // only when the World changes (rare: never per tick)
     deadObstacles = world.obstacles.version;
     deadBuildings = world.buildings.version;
     deadCount = 0;
@@ -301,6 +324,91 @@ function rememberDeadEnd(x: number, y: number, r: number, withBuildings: boolean
   if (deadCount < DEAD_ENDS) deadCount++;
 }
 
+/**
+ * Review M1 (fix escape-narrow-openings): the way out must be one the BODY can take, not only its centre.
+ * - Clearance: every point of the straight path keeps at least the clearance the body had at `from`
+ *   (r minus its overlap there; 0 for a centre inside a box). So a body that merely overlaps a wall never
+ *   squeezes through an opening narrower than itself (a 0.5 m murder hole into a fort), nor along a seam.
+ * - Seams: two touching boxes count as one wall on the centre line too (boxes grown by `SEAM_EPS_M`; the
+ *   slab test alone lets a centre slide along the shared face).
+ * - Open side first: when the start is equally near a sealed pocket (a fort's inside) and the open map,
+ *   a spot whose free area (for this body, on a `FLOOD_CELL_M` grid within `FLOOD_HALF_M`) reaches the
+ *   edge of that area wins; only when no such spot exists within reach does an enclosed one do.
+ */
+const SEAM_EPS_M = 1e-9;
+const PATH_STEP_M = 0.025;
+const FLOOD_CELL_M = 0.1;
+const FLOOD_HALF_M = 4;
+const FLOOD_N = Math.round((2 * FLOOD_HALF_M) / FLOOD_CELL_M); // 80 × 80 cells
+/** 0 = not computed / blocked, 1 = free, 2 = free and connected to the area's edge (open). */
+const flood = new Uint8Array(FLOOD_N * FLOOD_N);
+const floodQueue = new Int32Array(FLOOD_N * FLOOD_N);
+let floodReady = false;
+let floodX0 = 0;
+let floodY0 = 0;
+
+/** Distance from (px, py) to the nearest box within reach (0 inside one). */
+function nearestBoxDistance(px: number, py: number): number {
+  let best = Infinity;
+  for (let k = 0; k < nearCount; k++) {
+    const cx = Math.min(nearMaxX[k] as number, Math.max(nearMinX[k] as number, px));
+    const cy = Math.min(nearMaxY[k] as number, Math.max(nearMinY[k] as number, py));
+    const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+    if (d2 < best) best = d2;
+  }
+  return best === Infinity ? Infinity : Math.sqrt(best);
+}
+
+/** The free area for a body of radius r round (x, y), and which of it is open (reaches the area's edge). */
+function buildFlood(world: Readonly<World>, x: number, y: number, r: number): void {
+  const { widthM, heightM } = world.map;
+  floodX0 = x - FLOOD_HALF_M;
+  floodY0 = y - FLOOD_HALF_M;
+  for (let j = 0; j < FLOOD_N; j++) {
+    for (let i = 0; i < FLOOD_N; i++) {
+      const px = floodX0 + (i + 0.5) * FLOOD_CELL_M;
+      const py = floodY0 + (j + 0.5) * FLOOD_CELL_M;
+      const inMap = px >= r && px <= widthM - r && py >= r && py <= heightM - r;
+      flood[j * FLOOD_N + i] = inMap && escapeSpotClear(px, py, r) ? 1 : 0;
+    }
+  }
+  let qt = 0;
+  for (let j = 0; j < FLOOD_N; j++) {
+    for (let i = 0; i < FLOOD_N; i++) {
+      if (i !== 0 && j !== 0 && i !== FLOOD_N - 1 && j !== FLOOD_N - 1) continue;
+      const c = j * FLOOD_N + i;
+      if (flood[c] !== 1) continue;
+      flood[c] = 2;
+      floodQueue[qt++] = c;
+    }
+  }
+  let qh = 0;
+  while (qh < qt) {
+    const c = floodQueue[qh++] as number;
+    const i = c % FLOOD_N;
+    const j = (c - i) / FLOOD_N;
+    for (let k = 0; k < 4; k++) {
+      const ni = i + (k === 0 ? 1 : k === 1 ? -1 : 0);
+      const nj = j + (k === 2 ? 1 : k === 3 ? -1 : 0);
+      if (ni < 0 || nj < 0 || ni >= FLOOD_N || nj >= FLOOD_N) continue;
+      const n = nj * FLOOD_N + ni;
+      if (flood[n] !== 1) continue;
+      flood[n] = 2;
+      floodQueue[qt++] = n;
+    }
+  }
+  floodReady = true;
+}
+
+/** The spot (px, py) lies in the open part of the free area (any of the 3 × 3 cells round it; outside the area counts as open). */
+function floodOpen(px: number, py: number): boolean {
+  const ci = Math.floor((px - floodX0) / FLOOD_CELL_M);
+  const cj = Math.floor((py - floodY0) / FLOOD_CELL_M);
+  if (ci < 1 || cj < 1 || ci > FLOOD_N - 2 || cj > FLOOD_N - 2) return true;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (flood[(cj + dj) * FLOOD_N + ci + di] === 2) return true;
+  return false;
+}
+
 /** The nearest clear spot round (x, y) inside the map (fine rings, then coarse ones), into `pushed`; false if none within `ESCAPE_REACH_M`. */
 function escape(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
   if (deadEndKnown(world, x, y, r, withBuildings)) return false;
@@ -313,14 +421,19 @@ function escape(world: Readonly<World>, x: number, y: number, r: number, withBui
     const list = world.buildings.list;
     for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) addNear(x, y, reach, list[i] as Building);
   }
-  for (let k = 1; k <= ESCAPE_FINE_RINGS; k++) if (escapeRing(world, x, y, r, k * ESCAPE_FINE_STEP_M, ESCAPE_FINE_STEP_M)) return true;
-  for (let k = 1; k <= ESCAPE_COARSE_RINGS; k++) if (escapeRing(world, x, y, r, ESCAPE_FINE_M + k * ESCAPE_COARSE_STEP_M, ESCAPE_COARSE_STEP_M)) return true;
+  floodReady = false;
+  const clearance = Math.min(r, nearestBoxDistance(x, y)); // r minus its overlap at `from` (0 for a centre in a box)
+  for (let pass = 0; pass < 2; pass++) {
+    const openOnly = pass === 0;
+    for (let k = 1; k <= ESCAPE_FINE_RINGS; k++) if (escapeRing(world, x, y, r, clearance, openOnly, k * ESCAPE_FINE_STEP_M, ESCAPE_FINE_STEP_M)) return true;
+    for (let k = 1; k <= ESCAPE_COARSE_RINGS; k++) if (escapeRing(world, x, y, r, clearance, openOnly, ESCAPE_FINE_M + k * ESCAPE_COARSE_STEP_M, ESCAPE_COARSE_STEP_M)) return true;
+  }
   rememberDeadEnd(x, y, r, withBuildings);
   return false;
 }
 
 /** The first clear spot, walking the ring of radius `d` round (x, y) from +x anticlockwise, into `pushed`. */
-function escapeRing(world: Readonly<World>, x: number, y: number, r: number, d: number, step: number): boolean {
+function escapeRing(world: Readonly<World>, x: number, y: number, r: number, clearance: number, openOnly: boolean, d: number, step: number): boolean {
   const { widthM, heightM } = world.map;
   let set = 0;
   while (set < ESCAPE_DIR_COUNTS.length - 1 && (TWO_PI * d) / (ESCAPE_DIR_COUNTS[set] as number) > step) set++;
@@ -336,7 +449,11 @@ function escapeRing(world: Readonly<World>, x: number, y: number, r: number, d: 
     uy = ux * rs + uy * rc;
     ux = nx;
     if (px < r || px > widthM - r || py < r || py > heightM - r) continue;
-    if (!escapeSpotClear(px, py, r) || !escapeClearPath(x, y, px, py)) continue;
+    if (!escapeSpotClear(px, py, r) || !escapeClearPath(x, y, px, py, clearance)) continue;
+    if (openOnly) {
+      if (!floodReady) buildFlood(world, x, y, r);
+      if (!floodOpen(px, py)) continue;
+    }
     pushed.x = px;
     pushed.y = py;
     return true;
@@ -350,13 +467,26 @@ function escapeSpotClear(px: number, py: number, r: number): boolean {
   return true;
 }
 
-/** The centre's straight way out crosses no box except those `from`'s centre is already in (never through a wall). */
-function escapeClearPath(x: number, y: number, px: number, py: number): boolean {
+/**
+ * The way out from (x, y) to (px, py): its centre crosses no box except those `from`'s centre is already
+ * in (boxes grown by `SEAM_EPS_M`, so a shared face is a wall), and every point keeps `clearance` from
+ * every box (review M1).
+ */
+function escapeClearPath(x: number, y: number, px: number, py: number, clearance: number): boolean {
   const dx = px - x;
   const dy = py - y;
   for (let k = 0; k < nearCount; k++) {
     if (nearHolds[k] === 1) continue;
-    if (segmentHitsBox(x, y, dx, dy, nearMinX[k] as number, nearMinY[k] as number, nearMaxX[k] as number, nearMaxY[k] as number)) return false;
+    const e = SEAM_EPS_M;
+    if (segmentHitsBox(x, y, dx, dy, (nearMinX[k] as number) - e, (nearMinY[k] as number) - e, (nearMaxX[k] as number) + e, (nearMaxY[k] as number) + e)) return false;
+  }
+  if (clearance <= 0) return true;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const steps = Math.ceil(len / PATH_STEP_M);
+  const need = clearance - 1e-9;
+  for (let s = 1; s < steps; s++) {
+    const t = s / steps;
+    if (nearestBoxDistance(x + dx * t, y + dy * t) < need) return false;
   }
   return true;
 }

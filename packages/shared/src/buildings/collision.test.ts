@@ -383,3 +383,120 @@ describe("free spots (spotBlocked) avoid buildings", () => {
     expect(clearOfAll(world, p.x, p.y, R)).toBe(true);
   });
 });
+
+/**
+ * Review M1 (fix escape-narrow-openings): the escape's way out must be one the body can take. Three
+ * probes rebuilt from the review: a body wedged outside a sealed fort's 0.5 m murder hole, bodies dropped
+ * into the hole, and a body next to a seam between two touching boxes.
+ */
+describe("the escape never squeezes a body through an opening narrower than itself (review M1)", () => {
+  const RZ_W = balance.zombies.types.walker?.radiusM ?? 0.35;
+  /** A barricade fort: inside [19.5, 24] × [9, 12]; the north wall [19.5, 21.5] + [22, 24] at y [8.5, 9] leaves a 0.5 m hole at x [21.5, 22]. */
+  const fortWorld = (): World => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    for (const [x, y, rot] of [
+      [19.5, 8.5, 0], [22, 8.5, 0], [19, 8.5, 1], [19, 10.5, 1], [24, 8.5, 1], [24, 10.5, 1], [19.5, 12, 0], [21.5, 12, 0],
+    ] as const) addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot: rot as BuildingRotation, hp: 200 });
+    return world;
+  };
+  const inFort = (x: number, y: number): boolean => x > 19.5 && x < 24 && y > 9 && y < 12;
+
+  it("(a) wedged outside the hole (in a 0.5 m gap between the fort and a barricade north of it): it never ends inside the fort", () => {
+    const world = fortWorld();
+    addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: 20.5 / BUILD_GRID_M, gy: 7.5 / BUILD_GRID_M, rot: 0, hp: 200 }); // [20.5, 22.5] × [7.5, 8]
+    let escapes = 0;
+    const bad: string[] = [];
+    for (let x = 20.55; x < 22.5; x += 0.05) {
+      const e0 = pushEscapes.count;
+      pushOutOfBuildings(world, x, 8.25, RZ_W, x, 8.25, true, true);
+      escapes += pushEscapes.count - e0;
+      if (inFort(pushed.x, pushed.y) && bad.length < 5) bad.push(`(${x.toFixed(2)}, 8.25) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+    }
+    expect(escapes, "liveness: the gap really wedged them").toBeGreaterThan(10);
+    expect(bad).toEqual([]);
+  });
+
+  it("(b) dropped into the hole: it leaves by the open side, never into the sealed fort", () => {
+    const world = fortWorld();
+    const bad: string[] = [];
+    let tried = 0;
+    for (let x = 21.55; x < 22; x += 0.05) {
+      for (let y = 8.55; y < 9; y += 0.05) {
+        tried++;
+        expect(pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true), `(${x.toFixed(2)}, ${y.toFixed(2)})`).toBe(PUSH_ESCAPED);
+        expect(clearOfAll(world, pushed.x, pushed.y, RZ_W)).toBe(true);
+        if ((inFort(pushed.x, pushed.y) || pushed.y > 9) && bad.length < 5) bad.push(`(${x.toFixed(2)}, ${y.toFixed(2)}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+      }
+    }
+    expect(tried).toBe(81);
+    expect(bad).toEqual([]);
+  });
+
+  it("(c) next to a seam between two touching boxes: it never slides through the seam (the far side is nearer than the gap's ends)", () => {
+    // A [10, 12] × [8, 12] and B [10, 12] × [12, 16] touch along y = 12; D [8, 9.7] × [8, 16] leaves a 0.3 m gap west of them.
+    const solids = [
+      { name: "a", minX: 10, minY: 8, maxX: 12, maxY: 12 },
+      { name: "b", minX: 10, minY: 12, maxX: 12, maxY: 16 },
+      { name: "d", minX: 8, minY: 8, maxX: 9.7, maxY: 16 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    for (let y = 11.8; y <= 12.2 + 1e-9; y += 0.1) {
+      expect(pushOutOfBuildings(world, 9.85, y, RZ_W, 9.85, y, true, true)).toBe(PUSH_ESCAPED);
+      const at = `(9.85, ${y.toFixed(2)}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+      expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, RZ_W - 1e-6, s.minX, s.minY, s.maxX, s.maxY)), at).toBe(true);
+      expect(pushed.x, `${at}: through the seam`).toBeLessThan(10); // out of the gap's north or south end
+    }
+  });
+
+  it("(d) a centre inside a box whose only near way out is a seam between two touching boxes: the seam is a wall (boxes grown by 1e-9)", () => {
+    // E [6, 12] × [11, 13] holds the centre; F above and G below touch it; A [12, 14] × [10, 12] and B [12, 14] × [12, 14]
+    // touch E's east face and each other along y = 12. Only the west end (x ≤ 5.65) is a real way out.
+    const solids = [
+      { name: "e", minX: 6, minY: 11, maxX: 12, maxY: 13 },
+      { name: "f", minX: 6, minY: 9, maxX: 12, maxY: 11 },
+      { name: "g", minX: 6, minY: 13, maxX: 12, maxY: 15 },
+      { name: "a", minX: 12, minY: 10, maxX: 14, maxY: 12 },
+      { name: "b", minX: 12, minY: 12, maxX: 14, maxY: 14 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    expect(pushOutOfBuildings(world, 11.9, 12, RZ_W, 11.9, 12, true, true)).toBe(PUSH_ESCAPED);
+    const at = `(11.9, 12) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+    expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, RZ_W - 1e-6, s.minX, s.minY, s.maxX, s.maxY)), at).toBe(true);
+    expect(pushed.x, `${at}: along the seam`).toBeLessThan(6);
+  });
+
+  it("(e) barely overlapping two boxes next to a 0.5 m gap in a wall with open ground on both sides: never through the gap", () => {
+    // Wall [10, 12] + [12.5, 14.5] × [10, 10.5] with a 0.5 m gap at x [12, 12.5]; K [11, 13.5] × [9, 9.425] north of it leaves
+    // 0.575 m, less than a Walker (0.7 m). Pressed in between over the gap, the body overlaps K and the gap's corners by ~1 cm:
+    // its clearance there is ~0.34 m, the gap's is 0.25 m, so the gap is no way out for it (both sides are open, so
+    // the open-side rule can't stop it).
+    const solids = [
+      { name: "w1", minX: 10, minY: 10, maxX: 12, maxY: 10.5 },
+      { name: "w2", minX: 12.5, minY: 10, maxX: 14.5, maxY: 10.5 },
+      { name: "k", minX: 11, minY: 9, maxX: 13.5, maxY: 9.425 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    let stuckOrEscaped = 0;
+    for (let x = 12.15; x <= 12.35 + 1e-9; x += 0.05) {
+      const y = 9.765;
+      expect(solids.some((s) => circleOverlapsBox(x, y, RZ_W, s.minX, s.minY, s.maxX, s.maxY)), "liveness: the start overlaps").toBe(true);
+      const res = pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true);
+      if (res === PUSH_STUCK || res === PUSH_ESCAPED) stuckOrEscaped++;
+      expect(pushed.y, `(${x.toFixed(2)}, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)}): through the 0.5 m gap`).toBeLessThan(10);
+    }
+    expect(stuckOrEscaped, "liveness: wedged (the ordinary push-out can't place it)").toBeGreaterThan(0);
+  });
+
+  it("review N2: an escape with more boxes in reach than its arrays held (64) grows them and still checks every box", () => {
+    // The car T (a centre in its join must escape) plus 96 small posts in a field west of it, all within reach.
+    // The posts come first in map order, so an escape that dropped boxes past its first 64 would miss the cars.
+    const solids: { name: string; minX: number; minY: number; maxX: number; maxY: number }[] = [];
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 16; j++) solids.push({ name: `p${i}_${j}`, minX: 4 + i, minY: 8 + j, maxX: 4.2 + i, maxY: 8.2 + j });
+    solids.push({ name: "h_car", minX: 14, minY: 14.5, maxX: 18.5, maxY: 16.5 }, { name: "v_car", minX: 15.5, minY: 16.5, maxX: 17.5, maxY: 21 });
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    const within = solids.filter((s) => Math.hypot(Math.max(s.minX - 15.55, 0, 15.55 - s.maxX), Math.max(s.minY - 15.55, 0, 15.55 - s.maxY)) <= 12.4).length;
+    expect(within, "liveness: more boxes in reach than the arrays start with").toBeGreaterThan(64);
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55, true, true)).toBe(PUSH_ESCAPED);
+    expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
+  });
+});
