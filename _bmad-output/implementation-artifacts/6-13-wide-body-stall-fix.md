@@ -90,3 +90,66 @@ The mouth of the box is narrower than a wide body (a 0.5 m diagonal gap, or a 1 
 - The exact M1 run (seed 4, tick ≈ 9770) could not be reproduced, so the fix is proven on the fuzz-found layouts with the same mechanism, not on that run.
 - Not tried in a browser or a real room. The change is server/solo sim only (zombies run only there), with no wire, client or bandwidth change.
 - A box shut only by map cover (no barricade within 2.5 m) is still a stall by design: there is nothing to break.
+
+## Senior Developer Review (AI)
+
+Reviewer: fresh agent (gds-code-review: Blind Hunter, Edge Case Hunter, Acceptance Auditor), 2026-11-25. Reviewed commit `ac2c2f2` (diff `62dd2ef...ac2c2f2`). No code changed: all probes and mutations were local and reverted.
+
+**Outcome: Changes requested (1 high).** The net works on the three pinned layouts and is bit-identical when it doesn't fire. But its target choice can pick a building the body can never touch, and that brings the M1 stall back, permanently.
+
+### Checks I ran myself
+
+- `npm run typecheck`: clean. `wideBodyStall.test.ts` and `wideBody.fuzz.test.ts`: 6/6 pass.
+- **AC 4 digest (reproduced).** 16 headless runs (`runHeadless`): seeds 1–3 × 1/4 bots × god/mortal, plus seeds 1–4 × 4 god bots with `strafeFlipSeqs` 10000. I hashed `snapshotWorld` without `progressHash` and `balanceVersion` at `ac2c2f2`, then again with the 4 source files checked out from `62dd2ef`. All 16 digests match, and the net fired 0 times in all 16 runs. So the claim holds, but these runs only prove the no-fire path.
+- **Per-tick cost.** Total wall time for the 16 runs: 61.6 s with the change, 61.0 s without (+1 %, within noise). I did not run the PERF_ASSERT endless sim.
+- **Fuzz at 1,500 trials (reproduced).** The net fires exactly 3× (trials 128, 2084, 2485), and every time on the barricade the body touches (0.5–0.6 m). With 2 random extra barricades 2.2–4.5 m from the box (1,500 trials): no failures, 1 firing.
+- **Bloater at the barricade hurts the campers.** With god mode off, the burst in layouts 2485 and 128 takes campers from 100 to 70 HP, so the blast reaches them past the barricade (brief 5: barricades don't shield blasts).
+
+### Findings
+
+| # | Severity | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- |
+| H1 | **high** | `zombies/zombieAi.ts:641-652` (target choice), `:615-617` (stuck keeps it) | The stuck target is "the solid building within 2.5 m **of the body** that is nearest **the player**", with no check that the body can reach it. A camp box usually holds a floodlight, med station or turret, and that building is nearer the player than the walls. Reproduced on layout 2084: I added a `floodlight` (or `med_station`) at (9, 9) inside the box. The net fires, picks it (`stuckBuilding` 3), and the Brute steers straight at it into the 0.5 m gap. The push-out holds it, and pass 4 needs contact (`distanceToBox ≤ rz + eps`), so it never attacks. It stood still for **783 ticks (39 s) of 900**, attacking nothing, which is the M1 stall again. It is permanent: the record only clears when that building is gone or the line clears. A building on the far side of map cover within 2.5 m fails the same way ("through a wall"). It also gives players an exploit: put any solid building in the middle of the box and the last Brute never comes. | Choose by distance **to the body** (ties: nearest the player, then id). Or keep only candidates the body can reach: a clear `segmentHitsBuildings` line, radius rz, to the box's nearest point, ignoring the candidate itself. Also add a give-up: if it hasn't touched its stuck building within `wideStuckS`, clear the record and exclude that building. I checked the first option locally: the 3 layout tests, the fuzz, and both floodlight/med_station probes pass. Pin the floodlight-in-box layout as a 4th regression test. |
+| M1 | medium (test gap, AC 3) | `wideBodyStall.test.ts`; `zombieAi.ts:622-625` | AC 3's guard (a body only counts at the field's end) is not tested. Mutation C below, which removes the `fieldEnd` gate entirely, passes all 6 tests. The detour test never slows the Brute down, and the fuzz has one zombie and no crowd. A crowd probe I ran (30 Walkers + 3 Brutes + 1 Bloater against an 8 m wall with a 1 m gap, 6 seeds, 30 s) fired 0× with **and** without the gate. So AC 3 holds today, but nothing protects it. | Add a test where a wide body is held below 0.25 m / 2 s on an ordinary field cell (packed behind Walkers in a 1-body corridor, or slowed to 0 by `slowPct`), and assert the net doesn't fire and no building loses HP. It must fail with the gate removed. |
+| L1 | low | `zombieAi.ts:615-617` | Once stuck, the record ignores `fieldEnd` and the target. If the campers leave (a player fits through the 1 m rubble mouth) or another wall falls and opens a path, the body keeps hammering its stuck building while the nearest player's line stays blocked. It ends when the building breaks: a Brute takes ≈ 3 s on wood and ≈ 9 s on metal. A Bloater swells and bursts there, possibly harmlessly away from the team. That costs the team little, but it is a lever: get it stuck, then step out. I couldn't show it cleanly in a probe (wood falls before the record is checked again). | In the stuck branch, clear the record when `fieldEnd` has been false for `wideStuckS` (the field gives a way round again), or when the target moved more than `wideStuckReachM` from where it was at firing. |
+| L2 | low (tests) | `wideBodyStall.test.ts`, `balance.test.ts`, determinism | Mutations survived: D (`wideStallClear` no-op), E (stuck record not cleared when its building is gone), F (`stuckBuilding` dropped from `progressHash`), G (`wideStuckS` whole-ticks refine removed), H (no pool-generation reset). For E, a probe shows the right behaviour: remove the stuck building, the record clears and the Brute reaches the player 4 ticks later. But no shipped test asserts it. | One test each: sell the stuck building → record cleared and the body re-paths; the stuck body's line clears → record cleared; `loadBalance` with `wideStuckS: 0.07` throws; a reused slot starts a fresh record; two worlds that differ only in `stuckBuilding` give different `progressHash`. |
+| L3 | low (perf) | `zombieAi.ts:653` | Shut out by map cover only (no building in reach): `ticks` stays at the cap and the full building-list scan runs **every tick** for that body, with no result. That's O(buildings) per stalled wide body per tick, with no allocation. It's small, but it runs forever. | Reset `ticks` to 0 (re-check every `wideStuckS`) when no candidate is found. |
+
+### Beat the rule (attempts)
+
+| Attempt | Result |
+| --- | --- |
+| Solid non-wall building (floodlight / med station) inside the box, nearer the campers than the walls | **Beaten (H1):** the Brute stood still for 39 s. Turret not tried: it would shoot the Brute and hide the stall. |
+| Bloater at the rubble mouth (layout 128) with a floodlight in the box | Not beaten: the floodlight changed the field, the Bloater reached the player and swelled at tick 195, and the net didn't fire. |
+| The 1 m rubble mouth (layout 128) | The body goes for the east barricade it touches, as expected. |
+| Box shut by map cover only | By design no net (story "Not verified"). Found only as L3 (the scan cost). |
+| Decoy barricades 2.2–4.5 m from the box (1,500 fuzz trials) | No stall. The net fired only on the touched wall. |
+| Crowd (30 Walkers + wide bodies at a 1 m gap) | No false positive (0 fires, 0 building damage), with and without the `fieldEnd` gate. |
+| Sell the stuck target right after firing | The record clears the next tick and the Brute reaches the player 4 ticks later. |
+| Bear-trap hold while stuck | The record is kept: the `continue` skips the clear. That's fine. |
+| Player relocates after firing | Moving to reachable spots: the record cleared (line clear) and the Brute re-pathed. A spot inside map solid kept it stuck: an invalid spot. See L1 for the remaining lever. |
+| Bloater swelling at the barricade | It hurts the campers: 100 → 70 HP in layouts 2485 and 128. |
+| Car alarm lure / stampede / Behemoth body / survivor chase | Not reachable from the net: `lureWalk` and `stampede` give `target = null` → `wideStallClear`. Swelling and windup `continue` first. `wideStall` takes a `ChaseTarget` and reads only x/y. Code-read only, no runtime probe. |
+
+### Mutations (each new test, once)
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| A | `wideStall` always returns false | **Killed** (all 3 layouts + the fuzz) |
+| B | Target = nearest the body (instead of nearest the player) | Survived. It's the H1 fix, and it also makes the floodlight/med-station probes pass. |
+| C | `fieldEnd` gate removed | **Survived** (M1) |
+| D | `wideStallClear` is a no-op | Survived (L2) |
+| E | Stuck record kept when its building is gone | Survived (L2) |
+| F | `stuckBuilding` not in `progressHash` | Survived (L2): no shipped test fails, only my own digest probe |
+| G | `wideStuckS` whole-ticks refine removed | Survived (L2) |
+| H | No pool-generation reset | Survived (L2) |
+| I | `wideStuckReachM` → 99 m | Survived: no test where a far building is wrongly chosen |
+
+### Brief lines
+
+- 7 (fuzz): OK, but it has no solid non-wall buildings in boxes, which is the H1 gap.
+- 8 (determinism): OK. The record is in the snapshot and the digest was reproduced (untested hash term: L2).
+- 9 (liveness): `fired` is asserted. 10 (ticks / no allocation / JSON): OK.
+- 16: timing within noise; PERF_ASSERT not run.
+- 19 (merge notes): present.
+- 3 (fairness rule as a test): the N = 4 s rule is asserted in the layouts and the fuzz. H1 breaks it in a case neither covers.
