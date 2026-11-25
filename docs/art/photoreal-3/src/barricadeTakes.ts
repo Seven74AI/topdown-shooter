@@ -758,66 +758,167 @@ function point(g: Ctx, x: number, w: number, yTop: number): void {
   g.stroke();
 }
 
-/** The WD3 wall itself (front view, x from −0.97 to 0.97), shared by both faces. */
-function wd3Wall(c: Ctx, inside: boolean): void {
-  const r = rng(4100);
-  const stakes = (x0: number, n: number, hMin: number, hVar: number, seed: number, grey: boolean): void => {
-    for (let i = 0; i < n; i++) {
-      const x = x0 + i * 0.075;
-      const h = hMin + r() * hVar;
-      const lean = (r() - 0.5) * 0.02;
-      stake(c, x, 0.07, h, grey && i % 2 ? "#8a8577" : (WOODS[(i + seed) % 6] as string), seed * 10 + i, YB, lean);
-      point(c, x + lean, 0.07, sy(h));
-    }
-  };
-  stakes(-0.94, 6, 0.9, 0.22, 411, false);
-  door(c, -0.5, -0.12, 1.02, 4130);
-  pallet(c, -0.1, 0.32, 0.95, 4140);
-  stakes(0.37, 5, 0.86, 0.25, 415, true);
-  pallet(c, 0.74, 0.97, 0.88, 4160);
-  if (inside) {
-    // the cross planks are nailed on the inside
-    plank(c, -0.97, sy(0.66) - 0.025, 0.2, sy(0.66) + 0.022, "#7a5c3c", 4170);
-    plank(c, 0.25, sy(0.36) - 0.025, 0.97, sy(0.36) + 0.022, "#6f5235", 4171);
-    for (let x = -0.92; x < 0.2; x += 0.075) nail(c, x, sy(0.66));
-    for (let x = 0.3; x < 0.97; x += 0.075) nail(c, x, sy(0.36));
-  } else {
-    // from outside only the nail tips poking through, and grime splashed up from the street
-    for (let x = -0.92; x < 0.2; x += 0.075) nail(c, x, sy(0.66));
-    for (let x = 0.3; x < 0.97; x += 0.075) nail(c, x, sy(0.36));
+/** A plywood sheet, water-stained, with a torn corner. */
+function plywood(g: Ctx, x0: number, x1: number, h: number, seed: number): void {
+  const r = rng(seed);
+  const yt = sy(h);
+  const tear = r() < 0.6;
+  g.save();
+  g.beginPath();
+  g.moveTo(x0, YB);
+  g.lineTo(x0, yt + (tear ? 0 : 0));
+  if (tear) {
+    const tx = x0 + (x1 - x0) * (0.55 + r() * 0.2);
+    g.lineTo(tx, yt);
+    g.lineTo(tx + 0.03, yt + 0.05);
+    g.lineTo(tx + 0.06, yt + 0.03);
+    g.lineTo(x1, yt + 0.09 + r() * 0.05);
+  } else g.lineTo(x1, yt);
+  g.lineTo(x1, YB);
+  g.closePath();
+  g.fillStyle = r() < 0.5 ? "#9a8866" : "#8d7d60";
+  g.fill();
+  g.clip();
+  for (let i = 0; i < 6; i++) {
+    const cx = x0 + r() * (x1 - x0);
+    const cy = yt + r() * (YB - yt);
+    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, 0.04 + r() * 0.08);
+    rg.addColorStop(0, "rgba(50,38,24,0.45)");
+    rg.addColorStop(1, "rgba(50,38,24,0)");
+    g.fillStyle = rg;
+    g.fillRect(x0, yt, x1 - x0, YB - yt);
+  }
+  g.strokeStyle = "rgba(60,45,28,0.35)";
+  g.lineWidth = P;
+  for (let i = 0; i < 8; i++) {
+    const yy = yt + r() * (YB - yt);
+    g.beginPath();
+    g.moveTo(x0, yy);
+    g.bezierCurveTo(x0 + (x1 - x0) * 0.3, yy + 0.01, x0 + (x1 - x0) * 0.6, yy - 0.01, x1, yy + 0.005);
+    g.stroke();
+  }
+  g.restore();
+  g.strokeStyle = "#0a0806";
+  g.lineWidth = 1.4 * P;
+  g.stroke();
+}
+
+/** A stake's top broken off jagged instead of sharpened. */
+function broken(g: Ctx, x: number, w: number, yTop: number, seed: number): void {
+  const r = rng(seed);
+  g.fillStyle = "#b8976a";
+  g.beginPath();
+  g.moveTo(x - w / 2, yTop + 0.01);
+  for (let i = 1; i < 5; i++) g.lineTo(x - w / 2 + (w * i) / 5, yTop - r() * 0.03);
+  g.lineTo(x + w / 2, yTop + 0.01);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = "#0a0806";
+  g.lineWidth = 1.1 * P;
+  g.stroke();
+}
+
+interface Part { x0: number; x1: number; h: number }
+
+/**
+ * The WD3 wall (front view), built at random from scavenged parts so no two pieces match and nothing lines up:
+ * stake clusters (sharpened or broken tops), doors, pallets, plywood, corrugated sheets, each tilted a few degrees,
+ * overlapping unevenly, and running past both frame edges so neighbouring pieces join with no gap.
+ */
+function wd3Wall(c: Ctx, inside: boolean, seed: number): Part[] {
+  const r = rng(seed);
+  const parts: Part[] = [];
+  let x = -1.04;
+  let last = -1;
+  while (x < 1.02) {
+    let kind = Math.floor(r() * 6);
+    if (kind === last && kind !== 0) kind = 0;
+    last = kind;
+    const ang = (r() - 0.5) * 0.11;
+    const lift = r() * 0.015;
+    const w = kind === 0 ? 0.075 * (2 + Math.floor(r() * 4)) : kind === 1 ? 0.34 + r() * 0.06 : kind === 2 ? 0.38 + r() * 0.06 : kind === 3 ? 0.3 + r() * 0.2 : kind === 4 ? 0.32 + r() * 0.16 : 0.15;
+    const x0 = x;
+    const x1 = x + w;
+    const h = kind === 1 ? 0.98 + r() * 0.08 : 0.8 + r() * 0.3;
+    c.save();
+    c.translate((x0 + x1) / 2, YB);
+    c.rotate(ang);
+    c.translate(-(x0 + x1) / 2, -YB - lift);
+    if (kind === 0 || kind === 5) {
+      const n = Math.round(w / 0.075);
+      for (let i = 0; i < n; i++) {
+        const sx = x0 + 0.0375 + i * 0.075;
+        const hh = h + (r() - 0.5) * 0.18;
+        const col = r() < 0.25 ? "#8a8577" : (WOODS[Math.floor(r() * 6)] as string);
+        const lean = (r() - 0.5) * 0.03;
+        stake(c, sx, 0.065 + r() * 0.015, hh, col, seed * 7 + parts.length * 13 + i, YB, lean);
+        if (r() < 0.65) point(c, sx + lean, 0.07, sy(hh));
+        else broken(c, sx + lean, 0.07, sy(hh), seed + i * 31 + parts.length);
+      }
+    } else if (kind === 1) door(c, x0, x1, h, seed + parts.length * 17);
+    else if (kind === 2) pallet(c, x0, x1, h * 0.95, seed + parts.length * 19);
+    else if (kind === 3) plywood(c, x0, x1, h, seed + parts.length * 23);
+    else corrugated(c, x0, x1, sy(h), YB, seed + parts.length * 29);
+    c.restore();
+    parts.push({ x0, x1, h });
+    x = x1 - 0.02 - r() * 0.04; // overlap the next part a little
+  }
+  // the cross planks at odd angles, nailed where they cross the parts
+  const planks = inside ? 2 + Math.floor(r() * 2) : 0;
+  for (let i = 0; i < planks; i++) {
+    const a = -1.02 + r() * 0.9;
+    const b = Math.min(1.02, a + 0.6 + r() * 0.8);
+    const ha = 0.3 + r() * 0.45;
+    const hb = Math.max(0.25, Math.min(0.8, ha + (r() - 0.5) * 0.35));
+    bar(c, a, sy(ha), b, sy(hb), 0.046, "wood", WOODS[Math.floor(r() * 6)] as string, seed + 300 + i);
+    for (let t = 0.06; t < 1; t += 0.12 + r() * 0.1) nail(c, a + (b - a) * t, sy(ha + (hb - ha) * t));
+  }
+  if (!inside) {
+    for (let i = 0; i < 18; i++) nail(c, -0.95 + r() * 1.9, sy(0.3 + r() * 0.4)); // nail tips through from the inside
     const gr = c.createLinearGradient(0, sy(0.3), 0, YB);
     gr.addColorStop(0, "rgba(25,20,14,0)");
     gr.addColorStop(1, "rgba(25,20,14,0.55)");
     c.fillStyle = gr;
-    c.fillRect(-0.97, sy(0.3), 1.94, YB - sy(0.3));
+    c.fillRect(-1.05, sy(0.3), 2.1, YB - sy(0.3));
   }
+  return parts;
 }
 
-/** WD3 inside face: the braced side, props leaning on it, junk at the foot. */
-export function drawWD3(g: Ctx): void {
+/** WD3 inside face: the braced side, props leaning on it at uneven angles, junk at the foot. */
+export function drawWD3v(g: Ctx, variant: number): void {
   withShadow(g, 2, 1, YB, (c) => {
-    wd3Wall(c, true);
-    for (const x of [-0.75, 0.1, 0.62]) bar(c, x, sy(0.72), x + 0.08, YB + 0.17, 0.05, "wood", "#6a4e33", 4180 + Math.round(x * 10));
-    for (const x of [-0.75, 0.1, 0.62]) {
-      nail(c, x + 0.005, sy(0.72) + 0.012);
-      c.fillStyle = "#3a3d42";
-      c.fillRect(x + 0.05, YB + 0.155, 0.06, 0.03);
+    const seed = 4100 + variant * 997;
+    wd3Wall(c, true, seed);
+    const r = rng(seed + 50);
+    const n = 2 + Math.floor(r() * 2);
+    for (let i = 0; i < n; i++) {
+      const x = -0.85 + (1.7 * (i + 0.2 + r() * 0.6)) / n;
+      const top = 0.55 + r() * 0.3;
+      const foot = x + (r() - 0.5) * 0.25;
+      bar(c, x, sy(top), foot, YB + 0.14 + r() * 0.05, 0.045 + r() * 0.015, "wood", WOODS[Math.floor(r() * 6)] as string, seed + 60 + i);
+      nail(c, x, sy(top) + 0.012);
     }
-    cinder(c, -0.3, YB + 0.13);
-    cinder(c, -0.18, YB + 0.15);
-    tyre(c, 0.42, YB + 0.13, 0.08);
+    const junk = Math.floor(r() * 3) + 1;
+    for (let i = 0; i < junk; i++) {
+      const x = -0.85 + r() * 1.7;
+      if (r() < 0.55) cinder(c, x, YB + 0.12 + r() * 0.04);
+      else tyre(c, x, YB + 0.13, 0.07 + r() * 0.015);
+    }
   });
 }
+export function drawWD3(g: Ctx): void {
+  drawWD3v(g, 0);
+}
 
-/** WD3 outside face: the same wall turned round (mirrored), no braces, a row of sharpened stakes angled at the street. */
-export function drawWD3out(g: Ctx): void {
+/** WD3 outside face: the same wall turned round (mirrored), no braces, street rubble at its foot. */
+export function drawWD3outV(g: Ctx, variant: number): void {
   withShadow(g, 2, 1, YB, (c) => {
+    const seed = 4100 + variant * 997;
     c.save();
     c.scale(-1, 1);
-    wd3Wall(c, false);
+    wd3Wall(c, false, seed);
     c.restore();
-    // the foot of the wall on the street side: rubble, broken plank ends, a cinder block
-    const r = rng(4700);
+    const r = rng(seed + 600);
     for (let i = 0; i < 26; i++) {
       const x = -0.95 + r() * 1.9;
       const y = YB + 0.02 + r() * 0.07;
@@ -834,10 +935,13 @@ export function drawWD3out(g: Ctx): void {
       c.lineWidth = P;
       c.stroke();
     }
-    plank(c, -0.62, YB + 0.05, -0.38, YB + 0.085, "#6f5235", 4720);
-    plank(c, 0.28, YB + 0.065, 0.46, YB + 0.095, "#7a6040", 4721);
-    cinder(c, 0.72, YB + 0.11);
+    const bx = -0.7 + r() * 1.2;
+    plank(c, bx, YB + 0.05, bx + 0.2 + r() * 0.1, YB + 0.085, "#6f5235", seed + 620);
+    if (r() < 0.6) cinder(c, -0.8 + r() * 1.6, YB + 0.11);
   });
+}
+export function drawWD3out(g: Ctx): void {
+  drawWD3outV(g, 0);
 }
 
 /** RF3: the scavenged wall reinforced: corrugated steel sheets bolted on, chains, razor wire coiled along the top. */
@@ -902,13 +1006,13 @@ const SN = SIDE_C - 1; // north end of the base line
 const SS_ = SIDE_C + 1; // south end (nearest the camera)
 
 /** WD3 side view: the near end, the top edge running up the screen, props on the INSIDE only (east = +x). */
-function wd3Side(g: Ctx, braceSide: 1 | -1): void {
+function wd3Side(g: Ctx, braceSide: 1 | -1, variant = 0): void {
   const H = 1.0;
   const up = H * TILT;
-  const r = rng(4400);
+  const r = rng(4400 + variant * 577);
   // the parts, north to south (the same for both orientations)
   const parts: { y0: number; y1: number; h: number; col: string; w: number }[] = [];
-  let y = SN;
+  let y = SN - 0.04;
   while (y < SS_ - 0.01) {
     const k = r();
     const len = k < 0.15 ? 0.38 : k < 0.3 ? 0.42 : 0.075;
@@ -958,11 +1062,11 @@ function wd3Side(g: Ctx, braceSide: 1 | -1): void {
   }
   if (braceSide > 0) drawProps();
 }
-export function drawWD3sideE(g: Ctx): void {
-  wd3Side(g, 1);
+export function drawWD3sideE(g: Ctx, variant = 0): void {
+  wd3Side(g, 1, variant);
 }
-export function drawWD3sideW(g: Ctx): void {
-  wd3Side(g, -1);
+export function drawWD3sideW(g: Ctx, variant = 0): void {
+  wd3Side(g, -1, variant);
 }
 /** Kept for the round 3b demo. */
 export const drawWD3side = drawWD3sideE;

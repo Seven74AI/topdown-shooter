@@ -10,7 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { CB, SIDE_C, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3corner, drawWD3out, drawWD3sideE, drawWD3sideW, inFrameM } from "./barricadeTakes";
+import { CB, SIDE_C, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3corner, drawWD3outV, drawWD3sideE, drawWD3sideW, drawWD3v, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const REFS: Record<string, string>; // the Meshy references (round 3)
@@ -582,10 +582,12 @@ async function fort(): Promise<void> {
   const box = document.getElementById("fort") as HTMLElement;
   const mk = (id: string, draw: (g: Ctx) => void, wM: number, hM: number, seed: number): Lit => relight({ ...take(id, "", draw, "x", 0, ""), wM, hM }, seed);
   const L = {
-    inside: mk("fi", drawWD3, 2, 1, 1801),
-    outside: mk("fo", drawWD3out, 2, 1, 1802),
-    sideE: mk("se", drawWD3sideE, 1, 2.8, 1803),
-    sideW: mk("sw", drawWD3sideW, 1, 2.8, 1804),
+    inside: mk("fi", (g) => drawWD3v(g, 1), 2, 1, 1801),
+    inside2: mk("fi2", (g) => drawWD3v(g, 2), 2, 1, 1811),
+    outside: mk("fo", (g) => drawWD3outV(g, 3), 2, 1, 1802),
+    outside2: mk("fo2", (g) => drawWD3outV(g, 4), 2, 1, 1812),
+    sideE: mk("se", (g) => drawWD3sideE(g, 1), 1, 2.8, 1803),
+    sideW: mk("sw", (g) => drawWD3sideW(g, 2), 1, 2.8, 1804),
     NW: mk("nw", (g) => drawWD3corner(g, 1, 1, true), 1.4, 2, 1805),
     NE: mk("ne", (g) => drawWD3corner(g, -1, 1, true), 1.4, 2, 1806),
     SW: mk("sw2", (g) => drawWD3corner(g, 1, -1, false), 1.4, 2, 1807),
@@ -603,15 +605,15 @@ async function fort(): Promise<void> {
   type Kind = keyof typeof L;
   // footprint centres (m): north wall y 1.25 (two pieces), south wall y 4.25, west/east walls x 1.0 / 6.0, corner squares
   const pieces: [Kind, number, number][] = [
-    ["inside", 2.25, 1.25], ["inside", 4.25, 1.25], ["NW", 1.0, 1.25], ["NE", 5.5, 1.25],
+    ["inside", 2.25, 1.25], ["inside2", 4.25, 1.25], ["NW", 1.0, 1.25], ["NE", 5.5, 1.25],
     ["sideE", 1.0, 2.75], ["sideW", 5.5, 2.75],
-    ["outside", 2.25, 4.25], ["outside", 4.25, 4.25], ["SW", 1.0, 4.25], ["SE", 5.5, 4.25],
+    ["outside", 2.25, 4.25], ["outside2", 4.25, 4.25], ["SW", 1.0, 4.25], ["SE", 5.5, 4.25],
   ];
   const near = (p: [Kind, number, number]): number => (p[0].startsWith("side") ? p[2] + 1 : p[2] + (p[0].length === 2 ? 0.01 : 0));
   for (const p of [...pieces].sort((a, b) => near(a) - near(b))) {
     const [kind, x, y] = p;
     const lit = L[kind];
-    const anchorY = kind === "inside" || kind === "outside" ? 0.24 : kind.startsWith("side") ? SIDE_C : CB;
+    const anchorY = kind.startsWith("inside") || kind.startsWith("outside") ? 0.24 : kind.startsWith("side") ? SIDE_C : CB;
     g.drawImage(lit.base, (x + 0.35) * PX - (lit.w / 2) * k, (y + 0.35) * PX - (lit.h / 2 + anchorY * PXM) * k, lit.w * k, lit.h * k);
   }
   const card = document.createElement("article");
@@ -630,8 +632,10 @@ async function fort(): Promise<void> {
     gg.drawImage(lit.base, 15, 15, lit.w * s, lit.h * s);
     return fig(cc, cap);
   };
-  pieceRow.appendChild(show(L.inside, "Front · inside", 0.5));
-  pieceRow.appendChild(show(L.outside, "Front · outside", 0.5));
+  pieceRow.appendChild(show(L.inside, "Front · inside (variant 1)", 0.5));
+  pieceRow.appendChild(show(L.inside2, "Front · inside (variant 2)", 0.5));
+  pieceRow.appendChild(show(L.outside, "Front · outside (variant 3)", 0.5));
+  pieceRow.appendChild(show(L.outside2, "Front · outside (variant 4)", 0.5));
   pieceRow.appendChild(show(L.sideE, "Side · braces east", 0.5));
   pieceRow.appendChild(show(L.sideW, "Side · braces west", 0.5));
   pieceRow.appendChild(show(L.NW, "Corner", 0.5));
