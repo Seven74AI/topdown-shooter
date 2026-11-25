@@ -51,7 +51,7 @@ describe("Story 7.12: the loot bag is wired in", () => {
     const room = read("apps", "server", "src", "rooms", "RunRoom.ts");
     expect(room).toContain("const lootSalt = randomUint32();");
     expect(room).toMatch(/lootSalt,\s*\n\s*lootPrevVariant: lastLootVariant,\s*\n\s*devLoot: lootPick\.plan,/);
-    expect(room).toContain('this.log.info({ runSeed, lootSalt, players: players.length }, "run_started");');
+    expect(room).toMatch(/runSeed,\s*\n\s*lootSalt, \/\/ Story 7\.12[^\n]*\n\s*players:[\s\S]{0,400}"run_started"/); // the salt in the run_started log line (7.4 lists the players)
     const schema = read("apps", "server", "src", "rooms", "schema", "RunState.ts");
     expect(schema).not.toMatch(/loot(Salt|Plan|Wave|KillFrac|ItemRoll)/i);
     expect(read("apps", "server", "src", "rooms", "schema", "syncState.ts")).toContain("syncLootBag(state, world);");

@@ -90,7 +90,7 @@ describe("POST /account/training (Story 7.5 AC 3; T1, T3)", () => {
       const r = await train(port, { token: a.token, boost: "damage", level });
       expect(r.status).toBe(200);
       supplies -= 50 * level;
-      expect(trainResponseSchema.parse(r.body)).toEqual({ ok: true, boost: "damage", level, progress: { supplies, lifetimeSupplies: 800, unlocks: [], training: { ...T0, damage: level } } });
+      expect(trainResponseSchema.parse(r.body)).toEqual({ ok: true, boost: "damage", level, progress: { supplies, lifetimeSupplies: 800, unlocks: [], training: { ...T0, damage: level }, districts: [], cosmetics: [] } }); // + 7.7 / 7.11 lists
     }
     expect(supplies).toBe(50);
     const six = await train(port, { token: a.token, boost: "damage", level: 6 });
@@ -113,7 +113,7 @@ describe("POST /account/training (Story 7.5 AC 3; T1, T3)", () => {
   it("not enough → not_enough with need, the row unchanged", async () => {
     const a = await account(30);
     const r = await train(port, { token: a.token, boost: "max_hp", level: 1 });
-    expect(r.body).toEqual({ ok: false, boost: "max_hp", reason: "not_enough", need: 20, progress: { supplies: 30, lifetimeSupplies: 30, unlocks: [], training: T0 } });
+    expect(r.body).toEqual({ ok: false, boost: "max_hp", reason: "not_enough", need: 20, progress: { supplies: 30, lifetimeSupplies: 30, unlocks: [], training: T0, districts: [], cosmetics: [] } }); // + 7.7 / 7.11 lists
     expect(await row(a.id)).toMatchObject({ supplies: 30 });
   });
 
