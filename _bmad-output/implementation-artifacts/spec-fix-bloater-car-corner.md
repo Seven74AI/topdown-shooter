@@ -78,6 +78,16 @@ baseline_commit: '388b584'
   - **L5:** the escape prefilters the boxes within reach once per search, and caches dead ends per World and obstacle and building versions.
   - **L6:** the direction count grows with the ring (16 to 256, at most one ring step apart along the ring), using rotation literals (only × and +).
   - **Nits:** rings use an integer index; `PUSH_ESCAPED` is a distinct result code; `pushEscapes` is documented as process-global.
+  - **CI red on 55780e8: `sixWaveSim` "startingWallet 400" timed out.** The run was 3 bots, seed 1, which reached wave 10 and hit the 48,000-tick limit, so its ending was `none`.
+    - Cause, found by probing: from tick ~10,000 the Behemoth stood in WALK at (20.5, 13.73) for 38,000 ticks. By design it stands when its field can't reach its target (`steerPoint › steer.ok = false`, "6.6's throw handles it").
+    - Its targets, the last two bots, were pressed for 32 minutes into a 0.5 m slot between `street_car_west` (bottom face y 13) and their own wood barricade (top face y 12.5). A survivor is 0.8 m wide.
+    - The bots' boss hunt (`botPolicy.ts › huntStep`) sent them there. Its comment says a cell must be free "with its 8 neighbours", but the code checked only the cell, so the way ran through one-cell slots. That is a pre-existing sim-bot defect; FX-B1's new run paths exposed it.
+    - Fix: `huntCellClear` checks the cell and its 8 neighbours, as documented. This is bot code only, not the simulation. A new `botPolicy.test.ts` case pins it: before the fix the carrot was at (11.25, 10.75), inside the slot.
+    - After the fix the run extracts at tick 9,736. The AC is unchanged.
+  - FX-B1 knock-on in seeded sims:
+    - `replay.test.ts` seed 20 → 34, as in Story 6.3: seed 20's bots no longer reroll, and 34 has p0 rerolls and buildings standing at the end.
+    - `fiveWaveSim`'s ledger gains 6.10's `boss` + `event` terms, as `tenWaveSim` has. A survivor's pay now comes up in a five-wave run.
+    - `tenWaveSim`, `eventsRunSim`, `eventRunSim` and `starterBotsSim` pass unchanged.
   - Not done: a per-body cap on held ticks. A 120-body crowd round one player keeps a back row queued for all 30 s; every held tick is chained to a free body, and the longest held run is reported instead.
 
 ## Design Notes

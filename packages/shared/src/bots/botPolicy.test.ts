@@ -258,3 +258,27 @@ describe("Story 6.5: bots fight the Behemoth", () => {
     expect(out.moveX).toBeGreaterThan(0);
   });
 });
+
+describe("fix bloater-car-corner (review round 2): the hunt never routes a bot through a slot it doesn't fit", () => {
+  it("two barricades 0.5 m apart (one nav cell): the bot hunting the Behemoth beyond them is never sent into the slot", async () => {
+    const { BOSS_STATE } = await import("../boss/bossState");
+    const w = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    // [10, 14] × [10, 10.5] and [10, 14] × [11, 11.5]: a 0.5 m slot at y ∈ [10.5, 11]; a survivor is 0.8 m wide.
+    let id = 1;
+    for (const [x, y] of [[10, 10], [12, 10], [10, 11], [12, 11]] as const) addBuildingAt(w, { id: id++, type: "metal_barricade", ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot: 0, hp: 1e9 });
+    addPlayer(w, "p0", 9.4, 10.75); // at the slot's west mouth
+    w.run.phase = "wave";
+    w.boss.state = BOSS_STATE.WALK;
+    w.boss.x = 30;
+    w.boss.y = 10.75;
+    step(w, TICK_DT_S); // the nav grid picks the buildings up
+    const v = createBotView();
+    botViewFromWorld(w, "p0", v);
+    expect(v.nearestZombie).toMatchObject({ boss: true, rushing: true });
+    expect(v.huntStepX !== 0 || v.huntStepY !== 0, "liveness: the hunt gave a way").toBe(true);
+    const tx = 9.4 + v.huntStepX;
+    const ty = 10.75 + v.huntStepY;
+    const intoSlot = tx > 10 && ty > 10.5 && ty < 11;
+    expect(intoSlot, `carrot (${tx.toFixed(2)}, ${ty.toFixed(2)}) is in the slot`).toBe(false);
+  });
+});
