@@ -151,8 +151,19 @@ Not re-mutated (the dev's table covers them): AC 1, 2, 5, the gas-leak test, and
 - Gate (one full run, master b9aadaf merged): typecheck, lint, 394 files / 3,638 tests passed (3 skipped), build OK; load 1.04 → 4.13 (4 cores).
 - **L5** skipped (cosmetic, documented in the review). **L2** left as built (main session shows the designer). **L6** in Notes for the merge.
 
+### Re-review (AI) — fresh agent, fixes bdd5b6d..e607fda
+
+**Outcome: approve. No medium/high. 2 low.** Typecheck green; `hudLayout.test.ts` 46/46 green. Probes were scratch tests that were not committed. Insets 44/44/0/21, k = 1.
+
+- **L3, boss bar keep-off: holds.** Sizes 568 × 320, 640 × 360, 800 × 360 and 844 × 390. A stateful 0.01° sweep through 360° never overlaps the bar, which spans y 60–85. Oscillating ±0.01°/±0.1° every 0.5° caused no flicker. Toggling the boss on and off mid-event (off, then on, then off, 10 frames each, every 0.5°) moves the arrow at most twice, once when the bar appears and once when it goes; it never flickers. `bossBarShown` reads `hudModel.bossVisible`, set in `updateBoss` earlier in the same frame, so it is never stale and covers the 2 s death fade. The keep-off rect includes the name label. The worst bearing error is **36.75° at 568 × 320, at 269.95° (straight up)**, and 10° at the other sizes. Every other 6.8 rule is kept.
+- **L4, fan hold: no overlap, never more than 30°.** Same four sizes, beside spots forced off with 2 × 2 dots. NPC every 2°, flag swept ±8° at 0.01° with state, and oscillated ±0.01°/0.1°/1° at every 0.1°. Result: 0 overlaps (at bdd5b6d: 795 frames at 568 × 320), 0 frames over 30°, worst 30.00°.
+- **RL1 (low): the forced fan still flickers on ±0.01° jitter at a few points.** At e607fda, forced-fan oscillation points with an A/B toggle: ±0.01° 3 / 2 / 6 / 8 and ±0.1° 23 / 17 / 34 / 29 at 568 / 640 / 800 / 844. At bdd5b6d: 2 / 1 / 0 / 1 and 17 / 10 / 18 / 8. Example: 844 × 390, NPC at 60°, flag 53.3° ± 0.01°, a 4-frame cycle of about 30 px. The held −4° ray fails `tryFan` on the other side of the jitter because 6.8's placement on that ray is itself discontinuous there, at the dot or keep-off edge, which the bearing and clearance slack does not cover. The hold then releases (`side 0`) and a fresh pick takes the −10° ray. This is not player-visible: the fan was never used without the artificial dots (0 fan frames in the same sweeps, unforced). The unforced counts are identical to bdd5b6d.
+- **RL2 (low, design): 36.75° at 568 × 320 with the boss bar** breaks D10's 30° cap. As the fix record says, this is reachable only with dev-forced events on boss waves. The designer can choose.
+- **Mutations (each alone, reverted):** M1, the `tryFan` NPC-overlap check commented out: 2 tests fail. L1, `placeWaveText` scale × 0.9: fails (0.654 < 0.6875). L4, the fan-hold line commented out: 2 tests fail. All killed.
+
 ## Change Log
 
 - 2026-11-25: story written and built (items 1–8); status review.
 - 2026-11-25: Senior Developer Review (AI): approve; 1 medium, 6 low (test bite gaps, minor layout notes).
 - 2026-11-25: review fixes M1, L1, L3, L4 (+ the fan flicker L4's test found); L6 noted; L2, L5 left.
+- 2026-11-25: Re-review (AI) of the fixes: approve; 2 low (forced-fan residual jitter, 36.75° boss-bar trade-off).
