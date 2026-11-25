@@ -78,6 +78,93 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     expect(await repo.get(acct.id)).toMatchObject({ supplies: 150, lifetimeSupplies: 150 });
   });
 
+  it("Story 8.2 (AC 13, E8-J6): a top-up raises the run's row to the new total and pays only the difference (never negative)", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    await repo.addSupplies(RUN_A, acct.id, pays(60)); // the Leave at wave 3
+    const up = await repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true); // back, played to the end
+    expect(up).toMatchObject({ banked: true, supplies: 200, newTotal: 200 });
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 }); // = one uninterrupted run
+    const lower = await repo.addSupplies(RUN_A, acct.id, pays(150), undefined, true); // never pays back down
+    expect(lower).toMatchObject({ banked: false, supplies: 200 });
+    const noTop = await repo.addSupplies(RUN_A, acct.id, pays(900)); // without the flag: once per run, as 7.2
+    expect(noTop.banked).toBe(false);
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 });
+    const db = await database.db();
+    expect((await rows<{ n: number; s: number }>(db, sql`select count(*)::int as n, max(supplies)::int as s from run_rewards`))[0]).toEqual({ n: 1, s: 200 });
+  });
+
+  it("review H2: a top-up never grants a second loot item and never adds the stats twice", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    const seen: unknown[] = [];
+    const meta = (lootKey: string) => ({
+      statsDelta: { revives: 0, kills: 5, barricades: 0, runs: 1 },
+      grant(statsAfter: unknown, owned: ReadonlySet<string>) {
+        seen.push(statsAfter);
+        return owned.has(lootKey) ? { cosmetics: [], districts: [], breakdown: {} } : { cosmetics: [lootKey], districts: [], breakdown: { loot: { wave: 3, key: lootKey, name: lootKey } } };
+      },
+    });
+    await repo.addSupplies(RUN_A, acct.id, pays(60), meta("hat_a")); // the finder's Leave: the bag's item
+    const up = await repo.addSupplies(RUN_A, acct.id, pays(200), meta("hat_b"), true); // back; a re-pick would be hat_b
+    const row = await repo.get(acct.id);
+    expect(row?.cosmetics).toEqual(["hat_a"]); // exactly one loot item
+    expect(row?.stats).toMatchObject({ kills: 5, runs: 1 }); // once
+    expect(seen[1]).toMatchObject({ kills: 5, runs: 1 }); // the top-up's milestones see the stats once
+    expect(up.breakdown).toMatchObject({ loot: { key: "hat_a" } });
+  });
+
+  it("re-review L3: the play after the rejoin is counted once, and the part before it is never counted twice", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    const seen: unknown[] = [];
+    const meta = (kills: number, revives: number) => ({
+      statsDelta: { revives, kills, barricades: 0, runs: 1 },
+      grant(statsAfter: unknown) {
+        seen.push(statsAfter);
+        return { cosmetics: [], districts: [], breakdown: {} };
+      },
+    });
+    await repo.addSupplies(RUN_A, acct.id, pays(60), meta(5, 1)); // the Leave: 5 kills, 1 revive so far
+    await repo.addSupplies(RUN_A, acct.id, pays(200), meta(8, 1), true); // back; 3 more kills, no more revives
+    expect((await repo.get(acct.id))?.stats).toMatchObject({ kills: 8, revives: 1, runs: 1 });
+    expect(seen[1]).toMatchObject({ kills: 8, revives: 1, runs: 1 }); // the milestones see the run's whole play, once
+    await repo.addSupplies(RUN_A, acct.id, pays(200), meta(8, 1), true); // a repeat of the same top-up adds nothing
+    expect((await repo.get(acct.id))?.stats).toMatchObject({ kills: 8, revives: 1, runs: 1 });
+  });
+
+  it("review M1: the top-up's rookie rule sees the lifetime BEFORE this run; with no Supplies difference new items are still granted", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    await repo.addSupplies(RUN_B, acct.id, pays(250)); // an earlier run: lifetime 250 (< 300: still a rookie)
+    await repo.addSupplies(RUN_A, acct.id, pays(60)); // this run's Leave
+    const lifetimes: number[] = [];
+    await repo.addSupplies(RUN_A, acct.id, (lifetime) => {
+      lifetimes.push(lifetime);
+      return { supplies: 120, breakdown: {} };
+    }, undefined, true);
+    expect(lifetimes).toEqual([250]); // not 310
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 370, lifetimeSupplies: 370 });
+    const item = { statsDelta: { revives: 0, kills: 0, barricades: 0, runs: 0 }, grant: () => ({ cosmetics: ["cap_new"], districts: ["d2"], breakdown: { newItems: [{ key: "cap_new" }] } }) };
+    const same = await repo.addSupplies(RUN_A, acct.id, pays(120), item, true); // nothing more to pay
+    expect(same.banked).toBe(true);
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 370, cosmetics: ["cap_new"], districts: expect.arrayContaining(["d2"]) });
+  });
+
+  it("Story 8.2 (brief 18): a concurrent double-submit of one top-up pays the difference once", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    await repo.addSupplies(RUN_A, acct.id, pays(60));
+    const both = await Promise.all([repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true), repo.addSupplies(RUN_A, acct.id, pays(200), undefined, true)]);
+    expect(both.filter((r) => r.banked)).toHaveLength(1);
+    expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 });
+  });
+
   it("an account with no progress row gets one (empty) before the bank; an unknown account is refused (foreign key)", async () => {
     const database = fresh();
     const acct = await account(database);

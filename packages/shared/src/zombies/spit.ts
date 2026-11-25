@@ -11,6 +11,7 @@ import type { SurvivorState } from "../events/eventState";
 import { damageSurvivor, survivorTarget, survivorWanted } from "../events/survivor";
 import { AREA_KIND, clearAreas, spawnArea } from "../hazards/areaPool";
 import { freeSpit, clearSpits } from "./spitPool";
+import { zombieTypeOf } from "./zombiePool";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
 import { DAMAGE_SOURCE_ACID } from "../core/simEvents";
 
@@ -128,6 +129,37 @@ export function spitterStep(world: World, id: number, radiusM: number, spit: Rea
   // still gets to it and the wave always ends.
   if (isWindupState(z.state[id] as number)) return true; // a windup just started
   return !isRushState(state);
+}
+
+/**
+ * Spitter deadlock fix A (designer 2026-11-25, docs/epic-8-story-decisions.md "Designer answers";
+ * docs/investigations/cut-test-stall-2026-11-25.md, Side Findings): true when EVERY wave zombie still
+ * alive is a Spitter holding its spot (winding up, or with a player in range and acid line), so the
+ * wave director starts the last rush at once instead of waiting for ≤ `lastRushCount` left. Without
+ * it, 6+ Spitters holding behind a camper's barricade (acid passes barricades, bullets stop on them)
+ * never end the wave. Acid and bullet rules are unchanged. The caller checks `queued === 0`. No
+ * allocation: the standing list is refilled in place; the line checks run only once every alive
+ * wave zombie is a Spitter.
+ */
+export function allRemainingHoldingSpitters(world: World): boolean {
+  const z = world.zombies;
+  const types = world.balance.zombies.types;
+  let any = false;
+  for (let i = 0; i < z.aliveCount; i++) {
+    const id = z.aliveIds[i] as number;
+    if (z.waveZombie[id] !== 1) continue;
+    if (types[zombieTypeOf(z, id)]?.spit === undefined) return false;
+    any = true;
+  }
+  if (!any) return false;
+  collectStanding(world);
+  for (let i = 0; i < z.aliveCount; i++) {
+    const id = z.aliveIds[i] as number;
+    if (z.waveZombie[id] !== 1 || isWindupState(z.state[id] as number)) continue;
+    const spit = types[zombieTypeOf(z, id)]?.spit;
+    if (!spit || spitTargetFor(world, z.x[id] as number, z.y[id] as number, spit.rangeM) === null) return false;
+  }
+  return true;
 }
 
 /** Spawns a glob from the Spitter at (x, y) toward (tx, ty). False when the live cap is reached. */

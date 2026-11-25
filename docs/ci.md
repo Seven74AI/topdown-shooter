@@ -68,7 +68,7 @@ vitest has two projects (`vitest.config.ts`): **`slow`** = fuzzes (`*.fuzz`), wh
 | `npm run gate:fast` | typecheck + lint + test:fast in parallel, then release:check |
 | `npm run gate` | typecheck, lint, release:check, then the full `npm test` |
 
-Builders use `test:fast` / `gate:fast` while working and run the full `npm run gate` once, at hand-back. When several
+Builders use `test:fast` / `gate:fast` while working and at hand-back; the full suite runs in the PR's CI (designer 2026-11-25), so `npm run gate` locally is optional. Vitest defaults to 4 workers (`vitest.config.ts`). When several
 sessions share one box, set `VITEST_MAX_WORKERS=2` (or 3): `test:fast` reads it (default 4), and `vitest.config.ts`
 applies it to every other run when it is set (vitest's own default otherwise).
 

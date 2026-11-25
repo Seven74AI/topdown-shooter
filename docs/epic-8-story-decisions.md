@@ -6,7 +6,7 @@ Written 2026-11-25 by the story writer (`gds-create-story`, autonomous) for the 
 - `_bmad-output/implementation-artifacts/8-4-5-6-save-and-resume.md`
 - `_bmad-output/implementation-artifacts/8-7-pings.md`
 
-The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, accepted 2026-11-24) are **rules**. The decisions below are new: questions the story files had to answer that D1–D15 leave open. Each uses the **recommended value** (overnight style, designer: "follow the GDS recommendation"), and all are **recommended, to accept**. To change one, give its code and the alternative (e.g. "E8-J3 B").
+The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, accepted 2026-11-24) are **rules**. The decisions below are new: questions the story files had to answer that D1–D15 leave open. Each uses the **recommended value** (overnight style, designer: "follow the GDS recommendation"). **All 33 were accepted as recommended by the designer on 2026-11-25** (see "Designer answers" at the end). To change one, give its code and the alternative (e.g. "E8-J3 B").
 
 ## Joining mid-run (8.2)
 
@@ -73,7 +73,31 @@ The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, acce
 1. **8.2+8.3 ∥ 8.7**, both on master now. The only overlap is message names and `RunRoom.onCreate` lines. 8.2+8.3 task T9 (Supplies top-up) waits for 7.2 on master.
 2. **8.4–8.6** after 7.1 and 7.2 are on master **and** after 8.2+8.3 (it reuses late-join money, bans and the top-up). Preferably also after the Epic 7 stories that add run state, so the coverage test sorts their fields in one pass.
 
-## Designer answers (2026-11-25, ~12:00)
+## Designer answers
 
-- **All 33 decisions accepted as recommended**, except where noted below.
-- **Spitter deadlock:** keep today's rules. Spitter acid passes barricades; bullets stop on barricades (the 2026-11-23 rule stays). Add fix **A**: when every remaining zombie is a Spitter holding a spot, the Spitter rush starts at once instead of waiting for ≤ 5 left (`packages/shared/src/zombies/spit.ts`). The designer's reasoning: "bullets and acid are pretty much the same thing", so acid going through matters more to them than symmetry. Ride-along task on the first Epic 8 story touching the sim (8.2+8.3), with a headless test: 6 Spitters holding behind a barricade end the wave.
+**Designer, 2026-11-25: all 33 decisions above (E8-J1…J6, E8-H1…H4, E8-S1…S12, E8-R1…R5, E8-P1…P6) are accepted as recommended.** They are rules for 8.2+8.3, 8.4–8.6 and 8.7 from now on.
+
+**Ride-along (designer, 2026-11-25): Spitter deadlock fix A.** From `docs/investigations/cut-test-stall-2026-11-25.md` (Side Findings, option 1): the Spitter rush ("the wave always ends", 5.6 F6) also starts at once when **every** remaining wave zombie is a Spitter holding its spot, not only at ≤ 5 left (`lastRushCount`). Acid still passes barricades and bullets still stop on them (unchanged). Built with Story 8.2+8.3 (`packages/shared/src/zombies/spit.ts › allRemainingHoldingSpitters`, called from the wave director's rush check; test `spitterDeadlock.test.ts`: 6 Spitters holding behind a camper's barricade wall end the wave).
+
+## Builder decisions, Story 8.2+8.3 (auto-accepted overnight)
+
+Questions the build met that the story and E8-J/H leave open. Each takes the GDS/story recommendation (brief R7: defaults, not questions) and is **auto-accepted overnight**; the designer can change any by code.
+
+| Code | What it changes in play | Taken | Alternative |
+| --- | --- | --- | --- |
+| **8.2-B1** | A late joiner's unlocks and Training (7.4/7.5) need the database; the join must not read it (7.1 AC 9). | Read off the join (≤ 2 s, like a run start's read). A build-phase joiner is a waiting member for that moment ("Joining…"), then enters; a failed read plays the starter pool and Training 0 (7.4 D3). Training start money raises the J1 floor (E8-J1). | Enter at once with the starter pool, Training 0. |
+| **8.2-B2** | The last player's hold runs out mid-wave and only waiting joiners are left. | The run ends for them: Results (they played nothing, Supplies 0); logged `run_abandoned`. | The room closes ("run lost"). |
+| **8.2-B3** | Top-up (E8-J6) and the milestone writes (7.7/7.11). | The top-up pays the Supplies difference and grants new items and districts (a set union: nothing twice). Lifetime stats and the 7.6 nudge come from the first bank only (never counted twice). | Recompute the stats delta too. |
+| **8.2-B4** | A seat that banked on its Leave and came back, and the 7.12 bag. | It still can't take the bag (7.12 review M1 unchanged: "a banked seat"). | Allow the bag after a rejoin. |
+| **8.2-B5** | Remove in the lobby while Start's progress read runs. | Refused (`not_now`); the host taps again a moment later. | Allowed (Start re-checks members). |
+| **8.3-B6** | The host's Players list needs remembered seats (AC 11), which are not in the room state. | A new room-state string `leftSeats` (JSON `[[playerId, name], …]`, written on change only, ≈ 0 B/s); listed as "left the run" with Remove. | A host-only message on request. |
+| **8.3-B7** | Where the lobby Remove sits. | A 44 px ✕ in the top-right corner of every other player's card (host only); never on your own card or the host's. As built = the baseline (R7). | A text button under the name. |
+| **8.3-B8** | Texts. | "<name> was removed" (team toast); "You are now the host" (lobby notice line and in-run toast); "Joining…" while a build-phase join loads. | — |
+| **8.3-B9** | What a ban matches. | The seat (`sameSeat`: the same account OR the same guest token), for the room's lifetime (E8-H2). | The seat key only. |
+| **8.2-B10** | A waiting joiner and the host role. | Never host. If only waiting members are connected the role stays where it is until someone is back or enters (H1 "if none, it stays"). | A waiting member can be host. |
+| **8.2-B11** | What a waiting joiner sees on the HUD (AC 4: only ☰). | Sticks, weapon panel, quick-use, Ready and build bar hidden (`HudModel.watching`); the wave line, team list, status line and ☰ stay. | Controls shown but dead. |
+| **8.2-B12** | Fix A's "holding". | A wave Spitter winding up, or with a standing player within its 6 m range and a clear acid line; the queue must be empty; non-wave zombies are ignored. | Count any Spitter, holding or not. |
+| **8.3-B13** | The Players / confirm screens are DOM (Preact), not canvas HUD. | Their layout check is a real-browser test (`tools/checks/playersMenuDomLayout.test.ts`, 568×320, 640×360, 800×360, 844×390; ≥ 44 px), not the canvas HUD layout test. | — |
+| **8.3-B14** | Review M6: Remove + a fresh guest token can farm in-run late-join money (remove a friend, they rejoin as a "stranger" with J1 money). | **Accepted risk** (auto-accepted overnight): it needs the host's cooperation and pays in-run money only, never Supplies (the friend's Supplies count only the waves they were in, J7). No code change. | A host-side "no new players" lock, or no late money after a remove. |
+| **8.2-B15** | Review L5: fix A must fire only on a real stall. | The early rush starts only after every remaining wave zombie has been a holding Spitter for **8 s** (`waves.json › spitterStall.holdS`), sampled every **10 ticks** (`checkEveryTicks`); any break starts the 8 s over. Open fights are unchanged. | Rush at once (the first build). |
+| **8.2-B16** | Review L4: a rejoined seat that banked on its Leave and the loot bag. | Kept as 8.2-B4 (the "banked" mark stays): safe with H2 fixed too, and the review allowed keeping it when unsure. | Clear the mark on the rejoin. |

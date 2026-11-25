@@ -52,6 +52,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     trainDmg: 0,
     trainMoney: 0,
     trainReload: 0,
+    waiting: false, // Story 8.2
     ...over,
   };
 }
@@ -117,6 +118,7 @@ export interface FakeState {
   lootBagVariant: number;
   /** Story 7.7. */
   district: string;
+  leftSeats: string; // Story 8.3
   districtsOpen: number;
 }
 
@@ -177,6 +179,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     lootBagVariant: 0,
     district: "downtown", // Story 7.7
     districtsOpen: 1,
+    leftSeats: "", // Story 8.3
   };
 }
 

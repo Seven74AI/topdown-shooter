@@ -7,7 +7,9 @@ const mm = (message: string, code = 526) => new MatchMakeError(message, code);
 describe("joinErrorText", () => {
   it("maps server refusals to player text", () => {
     expect(joinErrorText(mm("balance_mismatch"))).toBe("Please refresh");
-    expect(joinErrorText(mm("run_started"))).toBe("This game has already started");
+    expect(joinErrorText(mm("run_started"))).toBe("This run is ending, try again in a moment"); // Story 8.2
+    expect(joinErrorText(mm("run_full"))).toBe("This run is full"); // Story 8.2 (J3)
+    expect(joinErrorText(mm("removed"))).toBe("You were removed from this run"); // Story 8.3 (H3)
     expect(joinErrorText(mm("rate_limited"))).toBe("Too many games created, try again in a minute");
     expect(joinErrorText(mm("invalid_options"))).toBe(JOIN_ERROR_TEXT.invalid);
     expect(joinErrorText(mm("already_joined"))).toBe("You're already in this game");

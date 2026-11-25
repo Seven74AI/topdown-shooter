@@ -18,6 +18,7 @@ import {
   MAX_PLAYERS,
   NO_LENDER,
   NO_TRAINING,
+  STARTER_ONLY,
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
@@ -53,6 +54,11 @@ import {
   spectateTarget,
   startBlocker,
   zombieNetId,
+  averageEarned,
+  endRun as endWorldRun,
+  hostRemoveSchema,
+  lateJoinWallet,
+  trainedStartMoney,
   type BuildingPlace,
   type BuildingRefused,
   type BuildingRepairRefused,
@@ -68,6 +74,7 @@ import {
   type PlayerInput,
   type PlayerLeft,
   type PlayerLeftReason,
+  type PlayerRemoved,
   type RunJoined,
   type RunRewards,
   type RunStarted,
@@ -86,11 +93,11 @@ import {
 import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { EventInterest } from "../net/eventInterest";
-import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
+import { CLOSE_REMOVED, CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
-import { assignSlot, hashGuestToken, nextHost, sameSeat, seatKey, type Member } from "../run/lobby";
+import { assignSlot, hashGuestToken, nextConnectedHost, sameSeat, seatIdOf, seatKey, type Member } from "../run/lobby";
 import { roomAccountsRepo, roomChecksTicketRows, roomProgressRepo, ticketAccountId } from "../auth/roomAccounts";
 import { BANK_RETRY_MS, RunBank } from "../meta/banking";
 import { RunController, parseDevHpFraction } from "../run/RunController";
@@ -198,6 +205,8 @@ export interface RememberedSeat {
   readonly kills: number;
   /** Review H2: `buildStartIndex` when the seat was held (restored with it: no free build-start heal). */
   readonly buildIdx: number;
+  /** Story 8.3 review H1: the seat's generation (`Member.seatGen`), kept so its bank and rewards stay its own. */
+  readonly seatGen?: number;
 }
 
 /** `ms` rounded to one decimal, for log lines. */
@@ -290,6 +299,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private unregisterDevices: (() => void) | null = null;
   /** Increments on every join; the lowest `joinOrder` is the longest-connected member. */
   private joinCounter = 0;
+  /** Story 8.3 review H1: increments for every NEW seat (never for a takeover, a return or a restored seat). */
+  private seatCounter = 0;
+  /** Story 8.3 review M5: the host's seat (`hostKeyOf`: player id + join order); `state.hostSlot` follows it. */
+  private hostKey: string | null = null;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
   allowSoloStart = false;
   /** Story 2.10: the test scenario this room's runs use (only with `allowTestScenarios`), or null. */
@@ -349,6 +362,17 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   bank: RunBank | null = null;
   /** Story 7.2: the bank's one retry delay (tests shorten it on a live room, like `holdS`). */
   bankRetryMs = BANK_RETRY_MS;
+  /**
+   * Story 8.3 (H3, decision E8-H2): seats the host removed, for the room's lifetime (the lobby and every later run).
+   * Matched with `sameSeat` (the same account or the same guest token). 8.4–8.6 save them (E8-S10).
+   */
+  readonly bannedSeats: { readonly seatKey: string; readonly guestTokenHash: string }[] = [];
+  /** Story 8.2: each waiting late joiner's run-start data (unlocks, Training) by player id, loaded off the join (absent: still loading). */
+  private readonly lateInits = new Map<string, RunPlayerInit>();
+  /** Story 8.2: this run's dev unlock mask (`DEV_UNLOCKS`, read at Start), applied to late joiners too. */
+  private devUnlocksMask: number | null = null;
+  /** Story 8.2: player ids of waiting members (kept with `Member.waiting`; the horde view reads it per tick without a scan). */
+  private readonly waitingIds = new Set<string>();
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -444,6 +468,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILDING_GHOST, this.net.guard(buildingGhostSchema, (c, m) => this.onGhost(c, m), "ghost")); // Story 5.24: own bucket (D1)
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
     this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
+    this.onMessage(C2S.HOST_REMOVE, this.net.guard(hostRemoveSchema, (c, m) => this.onHostRemove(c, m.playerId))); // Story 8.3 (D9)
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -493,14 +518,17 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const auth = client.auth;
     if (!auth) throw refuse("invalid_options");
     const key = seatKey(auth);
+    // Story 8.3 (H3, E8-H2): a removed seat never joins this room again (lobby or any later run).
+    if (this.bannedSeats.some((b) => sameSeat(b, auth))) throw refuse("removed");
     if (this.state.phase !== "lobby") {
-      // Story 8.1: a started run takes back only its own seats (Story 8.2 opens build-phase joins for new players).
+      // Story 8.1: a started run takes back its own seats first (J2: own seat, never late-joiner money).
       // Story 7.1: "its own" = the same account or the same guest token (`sameSeat`, decision 7.1 D5).
       for (const m of this.members.values()) if (sameSeat(m, auth)) return this.takeOver(m, client); // D5: the newest connection takes the seat
       for (const [seatKeyOf, seat] of this.rememberedSeats) {
+        // E8-J5: a remembered seat mid-wave keeps getting `seat_kept` (back at a build phase), never a waiting member.
         if (sameSeat({ seatKey: seatKeyOf, guestTokenHash: seat.guestTokenHash }, auth)) return this.restoreRemembered(seatKeyOf, seat, client);
       }
-      throw refuse("run_started");
+      return this.joinLate(client, auth, key); // Story 8.2: a new seat (build) or a waiting one (wave, vote)
     }
     for (const m of this.members.values()) if (sameSeat(m, auth)) throw refuse("already_joined"); // the lobby keeps the refusal (D5)
     const slot = assignSlot(Array.from(this.members.values(), (m) => m.slot));
@@ -517,9 +545,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       seatKey: key,
       joinOrder: ++this.joinCounter, // a counter, not the clock: a clock jump can't reorder hosts
       rttMs: 0,
+      seatGen: ++this.seatCounter,
     };
     // The creator is host (slot 0); later joiners never take it over.
-    if (this.members.size === 0) this.state.hostSlot = slot;
+    if (this.members.size === 0) {
+      this.state.hostSlot = slot;
+      this.hostKey = hostKeyOf(member); // review M5
+    }
     this.members.set(client.sessionId, member);
     this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false, look: auth.look }));
     this.attachClient(client, member);
@@ -541,12 +573,155 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 7.2 (RR-L1): the run's id first, during a run or on its Results, so the phone accepts only this run's rewards.
     if (this.bank && this.state.phase !== "lobby") client.send(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted);
     // Story 7.2: a seat that comes back on Results gets its run rewards again (it may have missed them while away).
-    const rewards = this.state.phase === "results" ? this.bank?.resultFor(member.playerId) : undefined;
+    const rewards = this.state.phase === "results" ? this.bank?.resultFor(seatIdOf(member)) : undefined;
     if (rewards) client.send(S2C.RUN_REWARDS, rewards);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
     client.ref.on("error", (e: { code?: string }) => {
       if (e.code === "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH") this.net.drop(client, "too_large");
     });
+  }
+
+  /**
+   * Story 8.2 (J3, decision E8-J3): THE taken slots — members (connected, held or waiting) and remembered seats. A late
+   * joiner never takes a teammate's slot (its player id, building cap and turret pay).
+   */
+  takenSlots(): number[] {
+    const out = Array.from(this.members.values(), (m) => m.slot);
+    for (const seat of this.rememberedSeats.values()) out.push(seat.slot);
+    return out;
+  }
+
+  /**
+   * Story 8.2 (AC 1, 4, 6; J1, J3, J4): a new player joins a started run. Results → `run_started` ("This run is
+   * ending"). No free slot (members + held + remembered seats hold all 4) → `run_full`. Otherwise a WAITING member
+   * with a reserved slot: not in the World, watching; its unlocks and Training load off the join (2 s timeout, the
+   * join reads no database, 7.1 AC 9); it enters the World in a build phase once they have loaded (at once in a
+   * build phase, else at the next `build.started`), with the late-join money computed then.
+   */
+  private joinLate(client: RunClient, auth: RunAuth, key: string): void {
+    const controller = this.controller;
+    if (!controller || !this.inRun()) throw refuse("run_started");
+    const slot = assignSlot(this.takenSlots());
+    if (slot < 0) throw refuse("run_full");
+    const playerId = `p${slot}`;
+    const member: Member = {
+      playerId,
+      slot,
+      sessionId: client.sessionId,
+      name: auth.name,
+      guestTokenHash: auth.guestTokenHash,
+      accountId: auth.accountId,
+      look: auth.look,
+      seatKey: key,
+      joinOrder: ++this.joinCounter,
+      rttMs: 0,
+      waiting: true,
+      seatGen: ++this.seatCounter, // review H1: a new seat, even in a removed player's slot
+    };
+    this.members.set(client.sessionId, member);
+    this.waitingIds.add(playerId);
+    this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false, look: auth.look, waiting: true }));
+    this.hordeStats.set(playerId, newHordeStats()); // J4: a waiting member watches the fight (horde frames from its spectate view)
+    this.runNames.set(slot, auth.name);
+    this.attachClient(client, member);
+    this.log.info({ playerId, slot, phase: this.state.phase, wave: controller.world.waves.number }, "player_waiting");
+    this.syncJoinPending();
+    void this.loadLateInit(member);
+    void this.loadMemberProgress(member, auth.rawLook); // review nit: its owned look parts (no districts mid-run)
+  }
+
+  /**
+   * Story 8.2 review L3: while a waiting joiner is loading in a build phase, everyone else being Ready does not start the
+   * wave early (`run.joinPending`; the build timer still runs). Recomputed whenever waiting members or the phase change.
+   */
+  private syncJoinPending(): void {
+    const w = this.controller?.world;
+    if (!w) return;
+    let pending = false;
+    if (this.state.phase === "build") for (const m of this.members.values()) if (m.waiting === true) pending = true;
+    if (w.run.joinPending !== pending) w.run.joinPending = pending;
+  }
+
+  /** Story 8.2: the waiting member's unlocks and Training (like a run start's read), then it enters if it can. */
+  private async loadLateInit(member: Member): Promise<void> {
+    let init: RunPlayerInit | undefined;
+    try {
+      [init] = await loadRunInits([{ playerId: member.playerId, slot: member.slot, accountId: member.accountId }], roomProgressRepo());
+    } catch {
+      init = undefined;
+    }
+    // Left meanwhile (a takeover keeps the seat's joinOrder; a new joiner in the freed slot has another).
+    const still = Array.from(this.members.values()).some((m) => m.playerId === member.playerId && m.joinOrder === member.joinOrder && m.waiting === true);
+    if (!still) return;
+    if (init?.source === "read_failed") this.log.warn({ playerId: member.playerId }, "run_progress_read_failed");
+    this.lateInits.set(member.playerId, init ?? { playerId: member.playerId, slot: member.slot, unlocks: STARTER_ONLY, training: NO_TRAINING, source: "read_failed" });
+    if (this.state.phase === "build") this.enterWaiting();
+  }
+
+  /**
+   * Story 8.2 (AC 1, 2, 3; J1, J5, J6): every waiting member whose start data has loaded enters the World — a build
+   * phase only (called on `build.started` and when a build-phase joiner's data arrives). Money: `lateJoinWallet` over
+   * the seats in the fight (present + held; E8-J2), with the member's own start money (Training) as the floor; dev
+   * `DEV_STARTING_WALLET` sets the exact number. The first entry of the build adds +15 s (E8-J4).
+   */
+  private enterWaiting(atBuildStart = false): void {
+    const controller = this.controller;
+    if (!controller || this.state.phase !== "build" || controller.world.run.phase !== "build") return;
+    let entered = false;
+    const world = controller.world;
+    // Review M4: the team average once, before anyone enters (a second waiter's money doesn't count the first one's 0).
+    const seats = [...world.players.values(), ...[...world.heldPlayers.values()].map((h) => h.player)];
+    const avgEarned = Math.round(averageEarned(seats));
+    for (const [sessionId, member] of this.members) {
+      const init = member.waiting === true ? this.lateInits.get(member.playerId) : undefined;
+      if (!init) continue;
+      const training = devStartingWallet !== null ? { ...init.training, startMoney: 0 } : init.training;
+      const ownStart = trainedStartMoney(world.balance, training.startMoney);
+      const wallet = devStartingWallet !== null ? devStartingWallet : lateJoinWallet(seats, world.balance, ownStart);
+      if (!controller.addLatePlayer(member.playerId, member.slot, wallet, { unlocks: this.devUnlocksMask ?? init.unlocks, training })) {
+        this.log.warn({ playerId: member.playerId }, "late_join_failed");
+        continue;
+      }
+      this.lateInits.delete(member.playerId);
+      this.waitingIds.delete(member.playerId);
+      member.waiting = false;
+      const s = this.state.players.get(member.playerId);
+      if (s) s.waiting = false;
+      entered = true;
+      this.log.info({ playerId: member.playerId, slot: member.slot, wave: world.waves.number, wallet, avgEarned, source: init.source }, "player_joined_mid_run");
+      const client = this.clients.getById(sessionId) as RunClient | undefined;
+      if (client && !atBuildStart) this.sendOffer(client, member.playerId); // at a build start `sendOffers` sends it (once)
+    }
+    this.syncJoinPending();
+    if (!entered) return;
+    syncState(this.state, controller); // the new survivors, wallets and the extended timer in the next patch
+    this.updateFreeze(); // review nit: no host move here (a held host keeps the role until a return or its hold ends, H1)
+  }
+
+  /**
+   * Story 8.3 (H1, AC 8, Epic 8 D8): if the host's member is held, gone or waiting, the role moves AT ONCE to the
+   * longest-connected connected, non-waiting member (`nextConnectedHost`); none → it stays (everyone is held: the room
+   * is frozen; the first one back takes it by this rule). It never moves back to a returning old host.
+   */
+  private moveHostIfGone(why: "left" | "held" | "removed" | "returned" | "lobby"): void {
+    const held = (id: string): boolean => this.holds.has(id);
+    // Review M5: the host is a SEAT (player id + join order), not a slot: a remembered old host coming back into the
+    // same slot is a new connection and never takes the role back silently.
+    for (const m of this.members.values()) {
+      if (hostKeyOf(m) === this.hostKey && m.waiting !== true && !held(m.playerId)) return; // the host is here
+    }
+    const host = nextConnectedHost(this.members.values(), held);
+    if (!host) return;
+    this.hostKey = hostKeyOf(host);
+    if (this.state.hostSlot !== host.slot) this.state.hostSlot = host.slot;
+    this.log.info({ playerId: host.playerId, slot: host.slot, why }, "host_changed");
+  }
+
+  /** Story 8.3 (AC 11): `state.leftSeats` follows `rememberedSeats` (the host's Players list can remove them). On change only. */
+  private syncLeftSeats(): void {
+    const list = Array.from(this.rememberedSeats.values(), (s) => [s.playerId, s.name]);
+    const json = list.length === 0 ? "" : JSON.stringify(list);
+    if (this.state.leftSeats !== json) this.state.leftSeats = json;
   }
 
   /** Story 8.1: build, wave and vote (and endless, which is build/wave): a drop is held. Lobby and results: a drop is a leave (D7). */
@@ -598,6 +773,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
     if (!controller.restoreSeat(seat.player, seat.kills, seat.buildIdx)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
+    this.syncLeftSeats();
+    this.bank?.reopen(seatIdOf(seat)); // Story 8.2 (AC 13, E8-J6): a seat that banked on its Leave banks the difference at the end
     const accountId = seat.accountId ?? client.auth?.accountId ?? null;
     const member: Member = {
       playerId: seat.playerId,
@@ -610,6 +787,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       seatKey: seatKey({ guestTokenHash: seat.guestTokenHash, accountId }), // review L1: `acct:` once it has an account
       joinOrder: ++this.joinCounter, // the newest member: the host role never moves back (Epic 8 D8)
       rttMs: 0,
+      ...(seat.seatGen !== undefined ? { seatGen: seat.seatGen } : {}), // review H1: the same seat
     };
     this.members.set(client.sessionId, member);
     this.state.players.set(seat.playerId, new PlayerState({ slot: seat.slot, name: seat.name, ready: false, look: seat.look }));
@@ -618,6 +796,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     syncState(this.state, controller); // the seat's fields in the first patch
     this.sendOffer(client, seat.playerId);
     this.log.info({ playerId: seat.playerId, slot: seat.slot, wallet: seat.player.wallet }, "seat_restored");
+    this.moveHostIfGone("returned"); // review M5: a remembered old host back in its slot is not the host by itself
+    this.updateFreeze();
     void this.loadMemberProgress(member, undefined, false); // review round 2 L2: its districts count again (finalLeave dropped them); the look stays
   }
 
@@ -656,6 +836,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // has really left the World — a B16 dropping body stays visible for its 3 s; `onDropHold` writes it at the vanish.
     if (s && fresh && !controller.isDropping(member.playerId)) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
     this.log.info({ playerId: member.playerId, reason, wave: controller.world.waves.number, phase: this.state.phase }, "player_held");
+    this.moveHostIfGone("held"); // Story 8.3 (H1): at once, not after the 120 s
     this.updateFreeze();
   }
 
@@ -665,6 +846,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!hold) return;
     hold.timer?.clear();
     this.holds.delete(member.playerId);
+    const wasHost = hostKeyOf(member) === this.hostKey;
+    member.joinOrder = ++this.joinCounter; // Story 8.3 (E8-H1): back from a hold = the newest connection (the role never moves back)
+    if (wasHost) this.hostKey = hostKeyOf(member); // still the host (the role had nowhere to go): the same seat
     // B16: back while the dropped body still stands: it plays on in place (no return placement, no protection).
     // Decision 8.1 B18: back into a frozen World, the 3-2-1 replaces the return protection (and placement).
     if (!this.controller?.returnPlayer(member.playerId, !this.state.frozen)) this.controller?.cancelDrop(member.playerId);
@@ -672,6 +856,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (s) s.heldUntilTick = 0;
     if (this.controller) syncState(this.state, this.controller); // the placed body and protection in the next patch
     this.log.info({ playerId: member.playerId, afterMs: Math.round(performance.now() - hold.atMs), via, reason: hold.reason }, "player_returned");
+    this.moveHostIfGone("returned"); // everyone was held: the first one back becomes host (H1)
     this.updateFreeze();
   }
 
@@ -770,7 +955,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
     world.loot.banked.add(member.playerId); // review M1: a banked seat can no longer take the bag
-    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
+    void this.bank.bank({ playerId: member.playerId, seatId: seatIdOf(member), accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
@@ -779,10 +964,96 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (member) this.bankLeaver(member);
   }
 
+  /**
+   * `host.remove` (Story 8.3, AC 10; H2, H3, Epic 8 D9; "other" bucket): the host removes a player — a member
+   * (connected, held or waiting) or a remembered seat — in the lobby or a build phase. Never on yourself, never in a
+   * wave, the vote or on Results. Anything else is ignored and logged `remove_refused {reason}`.
+   */
+  onHostRemove(client: RunClient, playerId: string): void {
+    const sender = this.members.get(client.sessionId);
+    if (!sender) return;
+    const refuse = (reason: string): void => this.log.info({ playerId: sender.playerId, target: playerId, reason }, "remove_refused");
+    if (hostKeyOf(sender) !== this.hostKey || sender.waiting === true || this.holds.has(sender.playerId)) return refuse("not_host"); // review M5: the host seat
+    const phase = this.state.phase;
+    if (phase !== "lobby" && phase !== "build") return refuse("not_now");
+    if (phase === "lobby" && this.starting) return refuse("not_now"); // Start's progress read is in flight
+    if (playerId === sender.playerId) return refuse("self");
+    const target = Array.from(this.members.values()).find((m) => m.playerId === playerId);
+    if (target) return this.removeSeat(target, sender);
+    for (const [key, seat] of this.rememberedSeats) if (seat.playerId === playerId) return this.removeRemembered(key, seat, sender);
+    return refuse("unknown");
+  }
+
+  /**
+   * Story 8.3 (H3, decisions E8-H2…H4): the seat is gone for this room: banned by `seatKey` and guest token (lobby and
+   * every later run), told `player.removed` and closed with 4022 (terminal, never 4000), a pending 8.1 reconnection
+   * rejected; mid-run it banks like a Leave ("quit", E8-H4), leaves the World and is NOT remembered (no stuff to come
+   * back to); its buildings stay and pay nobody (E8-H3). Everyone gets `player.left { reason: "removed" }`.
+   */
+  private removeSeat(member: Member, by: Member): void {
+    const { playerId, slot, name } = member;
+    this.bannedSeats.push({ seatKey: member.seatKey, guestTokenHash: member.guestTokenHash });
+    const controller = this.controller;
+    if (controller && this.inRun()) this.bankLeaver(member); // E8-H4: before the state leaves the World
+    const hold = this.holds.get(playerId);
+    hold?.timer?.clear();
+    if (hold?.reconnection) hold.reconnection.reject(new Error("removed"));
+    this.holds.delete(playerId);
+    this.members.delete(member.sessionId); // the socket's onDrop/onLeave find no member: nothing is held or remembered
+    this.state.players.delete(playerId);
+    this.memberProgress.delete(playerId);
+    this.lateInits.delete(playerId);
+    this.waitingIds.delete(playerId);
+    this.syncJoinPending();
+    if (controller) {
+      controller.removePlayer(playerId); // present or held: out of the World for good
+      controller.disownBuildings(playerId);
+    }
+    this.hordeStats.delete(playerId);
+    const gone = this.clients.getById(member.sessionId) as RunClient | undefined;
+    if (gone) this.horde?.forgetClient(gone);
+    this.lastPongId.delete(member.sessionId);
+    this.netMeters.delete(member.sessionId);
+    if (this.state.phase === "lobby") this.recomputeDistricts();
+    this.log.info({ playerId, slot, by: by.playerId, phase: this.state.phase, held: hold !== undefined, waiting: member.waiting === true, wave: controller?.world.waves.number ?? 0 }, "player_removed");
+    this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason: "removed" } satisfies PlayerLeft, gone ? { except: gone } : undefined); // review nit: the removed phone gets player.removed only
+    if (gone) {
+      gone.send(S2C.PLAYER_REMOVED, {} satisfies PlayerRemoved);
+      gone.leave(CLOSE_REMOVED);
+    }
+    if (controller) syncState(this.state, controller); // the disowned owner marks in the next patch
+    this.moveHostIfGone("removed");
+    this.updateFreeze();
+  }
+
+  /** Story 8.3 (H3): a remembered seat (its hold ran out, or it left) is removed: its slot frees, it banks `quit` now. */
+  private removeRemembered(key: string, seat: RememberedSeat, by: Member): void {
+    this.rememberedSeats.delete(key);
+    this.syncLeftSeats();
+    this.bannedSeats.push({ seatKey: key, guestTokenHash: seat.guestTokenHash });
+    const controller = this.controller;
+    if (controller && this.bank) {
+      const world = controller.world;
+      void this.bank.bank({ playerId: seat.playerId, seatId: seatIdOf(seat), accountId: seat.accountId, record: seat.player, ending: "quit", wave: world.waves.number, lockedUsed: seat.player.lockedUsed, meta: this.bank.seatMetaNow(world, seat.player) });
+    }
+    controller?.disownBuildings(seat.playerId);
+    if (controller) syncState(this.state, controller);
+    this.log.info({ playerId: seat.playerId, slot: seat.slot, by: by.playerId, phase: this.state.phase, remembered: true }, "player_removed");
+    this.broadcast(S2C.PLAYER_LEFT, { playerId: seat.playerId, name: seat.name, reason: "removed" } satisfies PlayerLeft);
+  }
+
+  /** Story 8.3 review H1: the members and remembered seats for `bankRunEnd`, each with its seat id. */
+  private bankMembers(): { playerId: string; accountId: string | null; seatId: string }[] {
+    return Array.from(this.members.values(), (m) => ({ playerId: m.playerId, accountId: m.accountId, seatId: seatIdOf(m) }));
+  }
+  private bankRemembered(): (RememberedSeat & { seatId: string })[] {
+    return Array.from(this.rememberedSeats.values(), (s) => ({ ...s, seatId: seatIdOf(s) }));
+  }
+
   /** Story 7.2: `run.rewards` to the seat's owner, if connected now. */
-  private deliverRewards(playerId: string, msg: RunRewards): void {
+  private deliverRewards(seatId: string, msg: RunRewards): void {
     for (const m of this.members.values()) {
-      if (m.playerId === playerId) this.clients.getById(m.sessionId)?.send(S2C.RUN_REWARDS, msg);
+      if (seatIdOf(m) === seatId) this.clients.getById(m.sessionId)?.send(S2C.RUN_REWARDS, msg); // review H1: the seat, not a reused id
     }
   }
 
@@ -804,7 +1075,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
-      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
+      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx, ...(member.seatGen !== undefined ? { seatGen: member.seatGen } : {}) });
+      this.syncLeftSeats();
     } else {
       controller?.removePlayer(playerId);
     }
@@ -817,16 +1089,22 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (why === "hold_expired") this.log.info({ playerId, wave: controller?.world.waves.number ?? 0 }, "player_hold_expired");
     this.log.info({ playerId, reason, code, wave: controller?.world.waves.number ?? 0 }, "player_left");
     this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason } satisfies PlayerLeft);
-    // The longest-connected member takes over as host (lobby and mid-run alike).
-    const host = slot === this.state.hostSlot ? nextHost(this.members.values()) : undefined;
-    if (host) {
-      this.state.hostSlot = host.slot;
-      this.log.info({ playerId: host.playerId, slot: host.slot }, "host_changed");
-    }
-    if (this.members.size === 0 && controller && this.inRun()) {
+    this.lateInits.delete(playerId);
+    this.waitingIds.delete(playerId);
+    this.syncJoinPending();
+    // The longest-connected connected member takes over as host (lobby and mid-run alike; Story 8.3 H1).
+    this.moveHostIfGone("left");
+    const players = Array.from(this.members.values()).filter((m) => m.waiting !== true).length;
+    if (players === 0 && this.members.size > 0 && controller && this.inRun()) {
+      // Story 8.2 (AC 4): only waiting late joiners are left: the run ends for them (Results; they played nothing).
+      this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase, waiting: this.members.size }, "run_abandoned");
+      endWorldRun(controller.world);
+      syncState(this.state, controller);
+      this.endRun(controller, controller.world.waves.number);
+    } else if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out): the run is lost (Story 8.4 saves build phases).
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase }, "run_abandoned");
-      this.runBanked = this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()) ?? this.runBanked; // Story 7.2: every remembered seat banks `quit`
+      this.runBanked = this.bank?.bankRunEnd(controller.world, this.bankMembers(), this.bankRemembered()) ?? this.runBanked; // Story 7.2: every remembered seat banks `quit`
     }
     this.updateFreeze();
   }
@@ -839,6 +1117,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   override onDrop(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member || !this.inRun()) return;
+    if (member.waiting === true) return; // Story 8.2: a waiting joiner has nothing to keep: the drop frees the reserved slot (onLeave)
     this.startHold(member, "drop", client);
   }
 
@@ -882,6 +1161,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         if (player) player.look = look;
       }
       this.recomputeDistricts();
+    } else if (relook && member.waiting === true) {
+      // Story 8.2 review nit: a late joiner hasn't entered yet: its look is checked against what its account owns
+      // (7.11/7.12 parts), like a lobby join's, before its survivor appears.
+      const look = encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
+      if (look !== member.look) {
+        member.look = look;
+        const player = this.state.players.get(member.playerId);
+        if (player) player.look = look;
+      }
     }
   }
 
@@ -1259,6 +1547,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Stories 7.4/7.5: each member's unlock mask and Training from the run-start read; a member who joined during the
     // read (or a test calling this directly) has none: the starter pool and Training 0 (decision 7.4 D3).
     const devUnlocks = pickDevUnlocks(process.env, devShopAll);
+    this.devUnlocksMask = devUnlocks.mask; // Story 8.2: late joiners get the same dev mask
     if (devUnlocks.mask !== null) this.log.warn({ mask: devUnlocks.mask }, "dev_unlocks");
     else if (devUnlocks.ignored !== null) this.log.warn({ value: process.env.DEV_UNLOCKS, reason: devUnlocks.ignored }, "dev_unlocks_ignored");
     const initOf = new Map(inits.map((i) => [i.playerId, i]));
@@ -1349,8 +1638,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs, district: this.state.district }); // Story 7.2 (+ 7.7: the run's district)
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
-    // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that
-    // are not one of the run's seats are refused in `join()` (run_started) whatever the count.
+    // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Story 8.2: the
+    // 4-seat limit is `join()`'s (`takenSlots`: members + held + remembered → `run_full`), not this count.
     this.maxClients = MAX_PLAYERS * 2;
     void this.unlock();
     const zombies = controller.world.zombies;
@@ -1405,8 +1694,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (alive > this.peakZombiesAlive) this.peakZombiesAlive = alive;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
-      if (e.type === "wave.started") this.startWaveStats();
+      if (e.type === "wave.started") {
+        this.startWaveStats();
+        this.syncJoinPending(); // re-review nit: a still-loading join's hold never carries into the wave
+      }
       else if (e.type === "loot.dropped") lastLootVariant = e.variant; // Story 7.12 (review M6): only a bag players saw
+      else if (e.type === "loot.found") {
+        // Story 8.3 review H1: the bank credits the finding SEAT (a removed finder's id may be reused later).
+        for (const m of this.members.values()) if (m.playerId === e.playerId) this.bank?.noteLootFinder(seatIdOf(m));
+      }
       else if (e.type === "wave.ended") {
         this.lastClearedWave = e.number;
         this.logWaveStats(e.number);
@@ -1414,7 +1710,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       else if (e.type === "team.wiped") this.endRun(controller, e.wave);
       else if (e.type === "run.extracted") this.endRun(controller, e.wave); // Story 6.11
       else if (e.type === "run.vote_resolved") this.log.info({ wave: controller.world.waves.number, extract: e.extract, stay: e.stay, silent: e.silent, choice: e.choice }, "vote_resolved"); // Story 6.11 (run stats)
-      else if (e.type === "build.started") this.sendOffers(); // Story 5.13: each player's new cards (after the tick's events)
+      else if (e.type === "build.started") {
+        this.enterWaiting(true); // Story 8.2 (J4): waiting late joiners enter now (before their offers go out)
+        this.sendOffers(); // Story 5.13: each player's new cards (after the tick's events)
+      }
       else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
     }
     this.tickErrors = 0;
@@ -1447,7 +1746,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
     this.log.info({ runSeed: this.runSeed, runId: this.bank?.runId, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
-    this.runBanked = this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()) ?? this.runBanked; // Story 7.2: one call (never awaited by the tick)
+    this.runBanked = this.bank?.bankRunEnd(controller.world, this.bankMembers(), this.bankRemembered()) ?? this.runBanked; // Story 7.2: one call (never awaited by the tick)
+    // Story 8.2 review M2: a joiner still waiting played nothing: a zero not_saved result now.
+    for (const m of this.members.values()) if (m.waiting === true) this.bank?.nothingFor(seatIdOf(m), run.ending === "none" ? "wiped" : run.ending);
   }
 
   /**
@@ -1468,6 +1769,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.pingTimer?.clear();
     this.pingTimer = null;
     this.clearHolds();
+    for (const m of this.members.values()) m.waiting = false; // Story 8.2: a late joiner still waiting is a lobby member now
+    this.waitingIds.clear();
+    this.lateInits.clear();
+    this.moveHostIfGone("lobby"); // review H3: a run that ended with only waiting joiners left the role with nobody
     this.maxClients = MAX_PLAYERS;
     resetRunFields(this.state);
     this.state.phase = "lobby";
@@ -1495,8 +1800,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    */
   viewTargetFor(playerId: string): { readonly x: number; readonly y: number } | undefined {
     const world = this.controller?.world;
-    const p = world?.players.get(playerId);
-    if (!world || !p) return undefined;
+    if (!world) return undefined;
+    const p = world.players.get(playerId);
+    // Story 8.2 (J4): a waiting late joiner (no survivor yet) watches like an out player.
+    if (!p) return this.waitingIds.has(playerId) ? (spectateTarget(world, playerId) ?? undefined) : undefined;
     return p.status === "out" ? (spectateTarget(world, playerId) ?? p) : p;
   }
 
@@ -1681,6 +1988,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     this.holds.clear();
     this.rememberedSeats.clear();
+    this.state.leftSeats = "";
     this.resumeTimer?.clear();
     this.resumeTimer = null;
   }
@@ -1711,4 +2019,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.holds.get(member.playerId)?.reason === "quiet" && this.controller && !this.controller.isStaleInput(input)) this.endHold(member, "input");
     this.controller?.queueInput(member.playerId, input);
   }
+}
+
+/** Story 8.3 review M5: the host's seat key (a takeover keeps it; a return from a hold or a restored seat gets a new join order). */
+function hostKeyOf(m: Pick<Member, "playerId" | "joinOrder">): string {
+  return `${m.playerId}#${m.joinOrder}`;
 }

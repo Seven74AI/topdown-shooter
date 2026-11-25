@@ -131,7 +131,7 @@ export function parseShopRefusedItem(m: unknown): ShopAnswer | null {
 export function parsePlayerLeft(m: unknown): PlayerLeft | null {
   const o = m as Partial<PlayerLeft> | null;
   if (!o || typeof o.playerId !== "string" || typeof o.name !== "string") return null;
-  if (o.reason !== "left" && o.reason !== "disconnected") return null;
+  if (o.reason !== "left" && o.reason !== "disconnected" && o.reason !== "removed") return null; // Story 8.3: + removed
   return { playerId: o.playerId, name: o.name, reason: o.reason };
 }
 
