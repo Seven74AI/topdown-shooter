@@ -250,3 +250,56 @@ Bandwidth (brief 8): `lobby.set_look` is lobby-only, ≤ 2/s, ≤ ~110 B; 0 B/s 
 
 - New: `apps/server/src/meta/look.ts`, `apps/server/src/meta/look.test.ts`, `apps/client/src/ui/SurvivorEditor.tsx`, `apps/client/src/ui/survivorEditorStore.ts`, `apps/client/src/ui/survivorEditorStore.test.ts`, `apps/client/src/render/editorPreview.ts`, `apps/client/src/render/editorPreview.raster.test.ts`, `apps/client/src/render/city/partTiles.ts`, `apps/client/src/render/playerRing.ts`, `apps/client/src/net/lookSave.ts`, `apps/client/src/net/lookSave.test.ts`, `packages/shared/src/config/milestones.json`, `packages/shared/src/config/milestones.ts`, `packages/shared/src/config/milestones.test.ts` (copied from story-7-12), `tools/checks/editorDomLayout.test.ts`, `tools/checks/survivorEditorWiring.test.ts`, `docs/playtests/epic-7-customization.md`, `docs/art/epic-7/built/7-10-head-tab.png`, `7-10-locked-milestone.png`, `7-10-loot-silhouette.png`, `7-10-random-done.png`.
 - Changed: `apps/server/src/app.ts`, `apps/server/src/auth/accountRoutes.ts`, `apps/server/src/db/progressRepo.ts`, `apps/server/src/net/limits.ts`, `apps/server/src/net/rateLimit.ts`, `apps/server/src/test/bootTestServer.ts`, `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/RunRoom.look.test.ts`, `apps/server/src/run/lobby.ts`, `apps/client/src/net/account.ts`, `apps/client/src/net/deviceLook.ts`, `apps/client/src/net/lobbyStore.ts`, `apps/client/src/net/progressStore.ts`, `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/city/palette.ts`, `apps/client/src/ui/App.tsx`, `apps/client/src/ui/LobbyScreen.tsx`, `apps/client/src/ui/ProgressScreen.tsx`, `apps/client/src/ui/StartScreen.tsx`, `apps/client/src/ui/hubModel.ts`, `apps/client/src/ui/hubModel.test.ts`, `apps/client/src/ui/uiState.ts`, `apps/client/src/ui/overlay.css`, `packages/shared/src/config/cosmetics.json`, `packages/shared/src/config/cosmetics.ts`, `packages/shared/src/index.ts`, `packages/shared/src/net/account.ts`, `packages/shared/src/net/messages.ts`, `tools/checks/progressHubWiring.test.ts`, `docs/epic-7-decisions.md`, `docs/epic-7-story-decisions-looks.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file.
+
+## Senior Developer Review (AI)
+
+Reviewer: fresh reviewer session, 2026-11-25. Type: LIGHT review (one checker) of the editor + full beat-the-rule on the look-save path (`meta/look.ts`, `auth/accountRoutes.ts › accountLook`, `progressRepo.saveLook`, `RunRoom.onSetLook`). Tree: `story-7-10` @ 233f099c.
+
+**Merge with current master (7fdf9b8) — CONFLICTS, not resolved here:** `git merge origin/master` conflicts in 11 files against Story 7.4+7.5 (Training route): `apps/server/src/app.ts` (5 hunks), `apps/server/src/auth/accountRoutes.ts` (5), `apps/server/src/db/progressRepo.ts`, `apps/server/src/net/rateLimit.ts`, `packages/shared/src/net/account.ts`, `apps/client/src/net/account.ts` (2), `apps/client/src/ui/{LobbyScreen.tsx, ProgressScreen.tsx, hubModel.ts, hubModel.test.ts, overlay.css}` (+ `tools/checks/progressHubWiring.test.ts`, regex). All look keep-both (accountLook beside accountTraining; hub tabs "Unlocks · Training · Survivor"), but they are interleaved code, so per HANDOFF §3 they go back to the builder: merge master, re-gate. The review below is of the pushed branch (on master db0beb7f).
+
+**Verdict: APPROVED (no high, no medium)** — land after the builder's master merge + gate.
+
+### Findings
+
+| # | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| L1 | low | `apps/server/src/rooms/RunRoom.ts:798` | `run.start` creates the controller but `state.phase` stays `"lobby"` until the first tick's `syncState`; a `lobby.set_look` arriving in that ≤ 50 ms window is applied (probe: set_look sent AFTER Start → the run started with it). The look is whole and canonical and lands in the same patch as phase "build", so "one of the two, never a mix" holds — but the rule "lobby phase only" is really "until the first tick". | Also return when `this.controller !== null`. |
+| L2 | low | `apps/client/src/net/lookSave.ts:61` | B3's "newer server look wins" is compared on the client, non-atomically: (a) ABA — phone B pending with base X; phone A saves Y then X again → B's pending overwrites A's latest Done; (b) another phone saving between B's session read and B's POST is overwritten. Cosmetic only; accepted by "last Done wins", but AC 9's promise is not strict. | Send `base` in the POST and compare it inside `saveLook`'s locked transaction (mismatch → answer the server look, client marks synced). |
+| L3 | low (visual) | `apps/client/src/ui/overlay.css:2350` (`.se-sw__chip`) | Chosen / In game chips on Head/Pack (default accent `#1f2326`) and any dark colour are invisible on the dark header (screens `7-10-head-tab.png`, `7-10-loot-silhouette.png` look like empty boxes; the LF5 sheet shows filled chips). | A 1–2 px light border (or the sheet's inset frame) on the chip. |
+| L4 | nit | `apps/client/src/net/lookSave.ts:47` | Any non-429 failure becomes a pending look retried at every start, also a deterministic 400/413 (unreachable with the editor's own encoder). | Keep pending only for status 0 / 401 / 5xx. |
+| L5 | nit | `apps/server/src/rooms/RunRoom.look.test.ts:259` | Test title says "20 looks at once", the test sends 8. | Rename or send 20. |
+| I1 | info | `progressRepo.ts progressColumns`, `RunRoom.onSetLook`/`onAuth` | Owned set = starter only until 7.11 adds `cosmetics` to `progressColumns` AND feeds the account's items into the room's join + `onSetLook` decode; otherwise earned items are stripped in the lobby. Already in "Notes for the merge"; 7.11's reviewer should check it. | — |
+
+### Beat the rule (run on a local server, port 2771, PGlite; curl + a probe room test, deleted after)
+
+| Attack | Result |
+| --- | --- |
+| POST /account/look without cookie | 401 `no_account` ✓ |
+| Milestone + loot parts (`top:camo head:riot pack:golf`, `head:prop`) | 200, stored canonical with default parts (all-default → `null`) ✓ |
+| `accountId` in body / extra keys / `__proto__` key / string body | 400 `invalid_body` (strict schema) ✓ |
+| Junk `v1|||__proto__:x|constructor:y|c:zz`, unicode/emoji/full-width | 200, stored default (`null`); never the raw text ✓ |
+| Body 259–261 B, `é`×125 (250 B / 125 chars), whitespace-padded JSON | 413 `too_large` (byte count, not char count) ✓ |
+| 3 kB / 10 kB body; chunked without length | 413 / 411 from the HTTP guard before the route ✓ |
+| `é`-escaped body (≤ 256 B on the wire) | 200 default ✓ |
+| 12 saves in a minute | 10 × 200 then 429 (400s don't count) ✓ |
+| DB slow/down on Done → pending → retry | server re-decodes against the locked row at every send, so a retry can never store an unowned part; a timed-out-but-committed save is reconciled (server look ≠ base → synced to it) ✓; newer server look wins except ABA/window (L2) |
+| Two phones at once | each save is one row-locked replace; last Done wins, nothing half-saved ✓ |
+| `lobby.set_look` unowned (camo/prop/golf) | default parts on state ✓ |
+| `lobby.set_look` oversize (500 chars), object, extra key | dropped by `net.guard`, no kick ✓ |
+| `lobby.set_look` in build/wave, in results | ignored ✓; applied again after lobby return ✓ |
+| `lobby.set_look` right after Start | applied before the first tick (L1), whole look ✓ |
+| Spam 3/s for 3 s | 6/9 applied (2 per rolling second), no kick ✓ |
+| Identity: a look in a slot ring colour | allowed (O6); ring stays slot colour in previews and game (ring drawn from slot, not look) ✓ |
+| Texture cost per remote `set_look` | one 256 px portrait + `toDataURL` per new code, ≤ 2/s per player; portrait cache capped at 16, tile cache capped (LRU) ✓ |
+| Offline Done | pending on the phone, used at the next join, one retry per page load (tests) ✓ |
+
+### Visual (light)
+
+Screens at 568 × 320 dpr 2 match ED1 (preview column left with Chosen / In game, big turning preview, game-size preview with 3 walkers + 2 teammates; tabs; tiles; colour row; Random + Done bottom-right), LK2 (darkened item + lock, "Gas mask: Kill the Behemoth" = milestones.json m3 `howTo`), LS1 (flat silhouette with "?", "Found during waves"); Random result shows owned parts only; ring = slot colour (blue, B8). `editorDomLayout.test.ts` (20 sizes × tabs) green. Only L3 differs from the sheet.
+
+### Checks run
+
+- `npm ci`; `npm run typecheck` ✓.
+- Touched tests: `meta/look.test.ts`, `RunRoom.look.test.ts`, `survivorEditorStore.test.ts`, `lookSave.test.ts`, `editorPreview.raster.test.ts`, `milestones.test.ts`, `survivorEditorWiring.test.ts`, `editorDomLayout.test.ts`, `hubModel.test.ts`, `progressHubWiring.test.ts`: 10 files, 103 tests ✓.
+- Mutations (each reverted): `ownedFor` adds `head:riot` → 2 look tests fail ✓; `onSetLook` without the phase check → "build or wave: ignored" fails ✓; `syncPendingLook` ignores the base → "server's newer look wins" fails ✓; no 413 body check → the 413 test fails ✓.
+- Not verified: real phones; PostgreSQL 18 (PGlite only); the merged tree with master 7fdf9b8 (conflicts).
