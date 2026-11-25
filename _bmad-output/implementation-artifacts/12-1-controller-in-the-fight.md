@@ -75,7 +75,7 @@ In a build phase this story's moving, swapping and consumable buttons still work
    - `GameScene.update:1892` reads `router.takeMenu()`, which merges `kbm.takeMenu()` with the controller's Start edge. Esc's rules then apply to Start: while I hold a building, Start puts it away first (5.23 D14), and Start closes the shop first (3.3).
    - Start is not "play": it never switches touch to the controller on its own. This mirrors the "Esc never switches to mouse" rule (`InputRouter.keyDown`).
 7. **Disconnect.**
-   - When the active pad disappears from `getGamepads()` or reports `connected=false`, while the source is `"gamepad"`, `uiStore` is `playing` with the menu closed, and the run is running and not over: the scene calls `onMenu("toggle")`. That path already does `router.releaseAll()` and `host.clearEdges()`.
+   - When the active pad disappears from `getGamepads()` or reports `connected=false`, while the source is `"gamepad"`, `uiStore` is `playing` with the menu closed, the run is running and not over, and Story 8.1's reconnecting screen is not showing (a lost connection already freezes my input): the scene calls `onMenu("toggle")`. That path already does `router.releaseAll()` and `host.clearEdges()`.
    - The source stays `"gamepad"`, so the touch sticks don't pop up. A touch on the game area switches to touch as usual.
    - Also listen for `gamepaddisconnected` on `window`. Attach it next to `attachDesktopInput` and detach it on scene `SHUTDOWN`. Polling alone also works; the event only speeds things up.
 8. **Releasing input.**
