@@ -1,5 +1,6 @@
 /* Lumen-LF5 applied to the other 8 Epic 7 screens, keeping the round-1 approved layouts and row orders:
- * PH1 hub + Unlocks · TR1 Training · BT2 borrowed tag (shop) · AC2 accounts · DP2 district picker · SC1 lobby slot card ·
+ * PH1 hub + Unlocks · TR1 Training (+ TL3 column on Results) · BT1 borrowed tag on the tape (shop) · AC1 accounts ·
+ * DP2 district picker + SC3 line-up cards (one lobby) ·
  * ED1 + LK2 + LS1 survivor editor · LB2 + OA2 + BF2 loot bag (in play: white = pick-ups, no theme accent).
  */
 const LF = LF5, UI = LF5.C, SK = UI.S;
@@ -136,18 +137,25 @@ function shopCard(g, x, y, w, h, c, i, sel) {
   castShadow(g, p, { blur: 6, a: 0.6, dx: 1.5, dy: 3 });
   const gr = g.createLinearGradient(x, y, x + w * 0.3, y + h); gr.addColorStop(0, '#2c3138'); gr.addColorStop(1, '#16191d'); g.fillStyle = gr; p(); g.fill();
   g.save(); p(); g.clip(); texture(g, TEX.grain, x, y, w, h, { op: 'overlay', a: 0.5 });
-  const hg = g.createLinearGradient(0, y, 0, y + 15); hg.addColorStop(0, cat === 'GEAR' ? '#9fb3c6' : '#e9edf1'); hg.addColorStop(1, cat === 'GEAR' ? '#6c8094' : '#b7c0ca'); g.fillStyle = hg; g.fillRect(x, y, w, 15);
-  text(g, `#0${i + 1}`, x + 6, y + 11, { px: 9.5, wt: 700, col: '#111418', shadow: false }); text(g, cat, x + w - 6, y + 11, { px: 9.5, wt: 700, ls: 1, col: '#111418', align: 'right', shadow: false });
-  bloom(g, x + w / 2, y + 36, w * 0.4, 'rgba(255,180,90,0.12)');
-  icon(g, id, kind, x + 8, y + 19, w - 16, 30);
+  // BT1: the tape says it. Tape 18 px on every card (card size unchanged); a borrowed card's tape is dark steel with the
+  // teammate's slot chip and "FROM MO" in 12.5 px white caps (the "#04" number gives way: it does not fit at 84 px).
+  const th = 18, bor = from != null;
+  const hg = g.createLinearGradient(0, y, 0, y + th);
+  if (bor) { hg.addColorStop(0, '#3a414a'); hg.addColorStop(1, '#1c2025'); } else { hg.addColorStop(0, cat === 'GEAR' ? '#9fb3c6' : '#e9edf1'); hg.addColorStop(1, cat === 'GEAR' ? '#6c8094' : '#b7c0ca'); }
+  g.fillStyle = hg; g.fillRect(x, y, w, th);
+  if (bor) {
+    g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(x, y + th - 1, w, 1);
+    const who = ['Mo', 'Ana', 'Kit', 'Lu'][from].toUpperCase();
+    UI.slotChip(g, x + 6, y + 3.5, 10, 11, from);
+    text(g, `FROM ${who}`, x + 21, y + 13.4, { px: 12.5, wt: 700, ls: 0.6, col: '#ffffff', shadow: false, maxW: w - 25 });
+  } else { text(g, `#0${i + 1}`, x + 6, y + 12.5, { px: 9.5, wt: 700, col: '#111418', shadow: false }); text(g, cat, x + w - 6, y + 12.5, { px: 9.5, wt: 700, ls: 1, col: '#111418', align: 'right', shadow: false }); }
+  bloom(g, x + w / 2, y + 38, w * 0.4, 'rgba(255,180,90,0.12)');
+  icon(g, id, kind, x + 8, y + 22, w - 16, 30);
   g.restore();
-  T(g, name, x + 6, y + 64, { px: 13, wt: 600, maxW: w - 10 });
-  UI.tnum(g, sel ? '' : '$' + price, x + 6, y + 80, 14, { wt: 600, col: SK.accentText, skew: 0 });
-  if (sel) T(g, `Buy for $${price}`, x + 6, y + 80, { px: 13, wt: 700, col: SK.accentText });
-  if (from != null) { // BT2: the dark "From Mo" strip at the foot, with the slot chip
-    const sy = y + h - 18; g.fillStyle = 'rgba(0,0,0,0.75)'; g.save(); p(); g.clip(); g.fillRect(x, sy, w, 18); g.restore();
-    UI.slotChip(g, x + 6, sy + 4, 10, 10, from); T(g, `From ${['Mo', 'Ana', 'Kit', 'Lu'][from]}`, x + 21, sy + 13, { px: 12, wt: 600 });
-  } else T(g, stat, x + 6, y + h - 6, { px: 11, col: SK.mute, maxW: w - 10 });
+  T(g, name, x + 6, y + 66, { px: 13, wt: 600, maxW: w - 10 });
+  UI.tnum(g, sel ? '' : '$' + price, x + 6, y + 82, 14, { wt: 600, col: SK.accentText, skew: 0 });
+  if (sel) T(g, `Buy for $${price}`, x + 6, y + 82, { px: 13, wt: 700, col: SK.accentText });
+  T(g, stat, x + 6, y + h - 6, { px: 11, col: SK.mute, maxW: w - 10 });
   g.strokeStyle = sel ? SK.accent : SK.line2; g.lineWidth = sel ? 1.6 : 1; if (sel) neon(g, () => { p(); g.stroke(); }, SK.accentGlow, 8); else { p(); g.stroke(); }
 }
 function shop(g, w, h) {
@@ -165,42 +173,69 @@ function shop(g, w, h) {
   [['medkit', 'Medkit ×1', 60], ['grenades', 'Grenades ×2', 80]].forEach(([id, n, p], i) => { const yy = gy + 60 + i * 50; UI.button(g, rx, yy, rw, 44, ' ', 'secondary', 'normal'); icon(g, id, 'c', rx + 6, yy + 6, 32, 32); T(g, n, rx + 44, yy + 19, { px: 13, wt: 600, maxW: rw - 48 }); UI.tnum(g, '$' + p, rx + 44, yy + 36, 13, { wt: 600, col: SK.accentText, skew: 0 }); });
   wrap(g, "1 card of 6 can come from a teammate's unlocks you don't have yet.", rw, 11.5, 500).slice(0, 3).forEach((ln, i) => T(g, ln, rx, gy + 172 + i * 14, { px: 11.5, col: SK.mute }));
 }
-// ---------- 4 · accounts (AC2) ----------
+// ---------- 4 · accounts (AC1: the main button in the header, the form scrolls above the keyboard) ----------
+function accBar(g, sf, logged) {
+  // AC1 start screen: one thin account line at the top right, out of the way of the menu
+  const ax = sf.x1;
+  if (logged) {
+    const lw = 96; UI.button(g, ax - lw, sf.y0, lw, 32, 'Log out', 'tertiary', 'normal', { px: 12 });
+    T(g, 'mo_42', ax - lw - 2, sf.y0 + 21, { px: 13, wt: 700, align: 'right' }); T(g, 'Logged in as', ax - lw - 7 - tw(g, 'mo_42', 13, 700), sf.y0 + 21, { px: 12, col: SK.ink2, align: 'right' });
+  } else {
+    const li = 74, sv = 160; UI.button(g, ax - li, sf.y0, li, 32, 'Log in', 'tertiary', 'normal', { px: 12 }); UI.button(g, ax - li - sv - 2, sf.y0, sv, 32, 'Save my progress', 'tertiary', 'normal', { px: 12 });
+    UI.micro(g, 'GUEST ·', ax - li - sv - 4, sf.y0 + 20, { align: 'right', px: 9.5, col: SK.ink2 });
+  }
+}
 function accStart(g, w, h, st = {}) {
   g.drawImage(menuBg(w, h), 0, 0, w, h);
   const sf = safe(w, h), pw = sf.sm ? 300 : 340, px = (w - pw) / 2;
-  const [fx, fy, fW] = UI.panel(g, px, sf.y0 + 2, pw, sf.y1 - sf.y0 - 4, { c: 12 });
-  text(g, 'HORDES', fx + fW / 2, fy + 34, { px: 30, wt: 700, ls: 6, align: 'center', shadow: false, fill: goldFill(g, fy + 34, 22), col: SK.ink });
-  UI.divider(g, fx + 30, fy + 44, fW - 60, true);
+  accBar(g, sf, st.logged);
+  const [fx, fy, fW] = UI.panel(g, px, sf.y0 + 38, pw, sf.y1 - sf.y0 - 38, { c: 12 });
+  text(g, 'HORDES', fx + fW / 2, fy + 32, { px: 30, wt: 700, ls: 6, align: 'center', shadow: false, fill: goldFill(g, fy + 32, 22), col: SK.ink });
+  UI.divider(g, fx + 30, fy + 42, fW - 60, true);
   const x0 = fx + 14, iw = fW - 28;
   field(g, x0, fy + 64, iw - 128, 40, 'Your name', 'Mo', 'normal');
   UI.button(g, x0 + iw - 120, fy + 62, 120, 44, 'Create game', 'primary', 'normal', { px: 14 });
-  const ac = st.logged ? 'Logged in as mo_42 ·' : 'Playing as a guest ·';
-  T(g, ac, fx + fW / 2 - 40, fy + 126, { px: 12.5, col: SK.ink2, align: 'right' });
-  UI.button(g, fx + fW / 2 - 36, fy + 112, st.logged ? 64 : 120, 22, st.logged ? 'Log out' : 'Save my progress', 'tertiary', 'normal', { px: 11 });
-  if (!st.logged) UI.button(g, fx + fW / 2 + 94, fy + 112, 54, 22, 'Log in', 'tertiary', 'normal', { px: 11 });
-  UI.micro(g, 'OR JOIN WITH A CODE', fx + fW / 2, fy + 152, { align: 'center' });
-  field(g, x0 + 40, fy + 160, 110, 40, '', '', 'normal', { mono: true, placeholder: 'CODE' });
-  UI.button(g, x0 + 158, fy + 158, 92, 44, 'Join', 'secondary', 'normal', { px: 14 });
-  UI.button(g, x0, fy + 214, iw / 2 - 4, 40, 'Practice solo', 'secondary', 'normal', { px: 13 });
-  UI.button(g, x0 + iw / 2 + 4, fy + 214, iw / 2 - 4, 40, 'Progress', 'secondary', 'normal', { px: 13 });
+  UI.micro(g, 'OR JOIN WITH A CODE', fx + fW / 2, fy + 126, { align: 'center' });
+  field(g, x0 + 40, fy + 134, 110, 40, '', '', 'normal', { mono: true, placeholder: 'CODE' });
+  UI.button(g, x0 + 158, fy + 132, 92, 44, 'Join', 'secondary', 'normal', { px: 14 });
+  UI.button(g, x0, fy + 186, iw / 2 - 4, 40, 'Practice solo', 'secondary', 'normal', { px: 13 });
+  UI.button(g, x0 + iw / 2 + 4, fy + 186, iw / 2 - 4, 40, 'Progress', 'secondary', 'normal', { px: 13 });
 }
 function accForm(g, w, h, mode) {
   g.drawImage(menuBg(w, h), 0, 0, w, h);
   const sf = safe(w, h), kh = sf.sm ? 140 : 150;
-  const [fx, fy, fW] = UI.panel(g, sf.x0, 4, sf.x1 - sf.x0, h - kh - 8, { c: 10 });
+  const [fx, fy, fW, fH] = UI.panel(g, sf.x0, 4, sf.x1 - sf.x0, h - kh - 8, { c: 10 });
+  // header: Back · title · the main button (always above the keyboard)
   backKey(g, fx + 4, fy + 4);
   const title = mode === 'save' ? 'SAVE MY PROGRESS' : mode === 'login' ? 'LOG IN' : 'FORGOT PASSWORD';
   text(g, title, fx + 58, fy + 29, { px: 18, wt: 700, ls: 2, col: SK.ink, shadow: false });
-  if (mode === 'login') UI.button(g, fx + fW - 150, fy + 6, 146, 30, 'Forgot password?', 'tertiary', 'normal', { px: 11.5 });
-  const y = fy + 64, bw = 92, gap = 8, fw = (fW - 20 - bw - gap * 2) / 2;
-  if (mode === 'forgot') { field(g, fx + 8, y, fw, 40, 'Username', 'mo_42'); field(g, fx + 8 + fw + gap, y, fw, 40, 'Recovery code', 'ABCD-EFGH-JK', 'focus', { mono: true }); UI.button(g, fx + fW - 8 - bw, y - 2, bw, 44, 'Next', 'primary', 'disabled', { px: 14 }); }
-  else {
-    field(g, fx + 8, y, fw, 40, 'Username', 'mo_42', mode === 'save' ? 'focus' : 'normal');
-    field(g, fx + 8 + fw + gap, y, fw, 40, 'Password', mode === 'login' ? '••••••••' : '', mode === 'login' ? 'error' : 'normal');
-    UI.button(g, fx + fW - 8 - bw, y - 2, bw, 44, mode === 'save' ? 'Save' : 'Log in', 'primary', 'normal', { px: 14 });
-    T(g, mode === 'save' ? '3–20 letters, numbers, _ - . · password 8 or more · works on any phone' : 'Wrong username or password', fx + 10, y + 58, { px: 12, col: mode === 'login' ? '#ff6b6b' : SK.mute, maxW: fW - 20 });
+  const bw = mode === 'save' ? 96 : 110, lbl = mode === 'save' ? 'Save' : mode === 'login' ? 'Log in' : 'Next';
+  UI.button(g, fx + fW - 4 - bw, fy + 2, bw, 40, lbl, 'primary', mode === 'forgot' ? 'disabled' : 'normal', { px: 14 });
+  UI.divider(g, fx + 4, fy + 46, fW - 8);
+  // the form scrolls: the field you type in sits at the top of the strip
+  const vx = fx + 10, vy = fy + 50, vw = fW - 34, vh = fH - 52;
+  g.save(); g.beginPath(); g.rect(fx, vy, fW, vh); g.clip();
+  let y = vy + 16, pos = 0, frac = 1;
+  if (mode === 'save') {
+    field(g, vx, y, vw, 38, 'Username · 3–20 letters, numbers, _ - .', 'mo_42', 'focus');
+    field(g, vx, y + 58, vw, 38, 'Password · 8 or more', '', 'normal');
+    T(g, 'Works on any phone. You get a recovery code next.', vx, y + 112, { px: 12, col: SK.mute }); frac = 0.62;
+  } else if (mode === 'login') {
+    // scrolled down: Username is above; the error line and the focused Password field are at the top
+    y = vy + 4;
+    g.fillStyle = '#ff5a5a'; g.beginPath(); g.arc(vx + 7, y + 9.5, 6.5, 0, TAU); g.fill(); text(g, '!', vx + 7, y + 13.5, { px: 11, wt: 700, col: '#1a0505', align: 'center', shadow: false });
+    T(g, 'Wrong username or password', vx + 20, y + 14, { px: 13, wt: 600, col: '#ff6b6b' });
+    field(g, vx, y + 38, vw, 38, 'Password', '••••••••', 'error');
+    UI.button(g, vx - 2, y + 82, 172, 30, 'Forgot password?', 'tertiary', 'normal', { px: 12 }); pos = 1; frac = 0.6;
+  } else {
+    field(g, vx, y, vw * 0.4, 38, 'Username', 'mo_42', 'normal');
+    field(g, vx + vw * 0.4 + 10, y, vw * 0.6 - 10, 38, 'Recovery code (from your screenshot)', 'ABCD-EFGH-JK', 'focus', { mono: true });
+    T(g, '2 letters to go: Next turns on when the code is complete.', vx, y + 56, { px: 12, col: SK.mute });
+    field(g, vx, y + 84, vw, 38, 'New password · 8 or more', '', 'normal'); frac = 0.55;
   }
+  g.restore();
+  const gr = g.createLinearGradient(0, vy + vh - 14, 0, vy + vh); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(10,11,13,0.9)'); g.fillStyle = gr; g.fillRect(fx, vy + vh - 14, fW, 14);
+  UI.scroll(g, fx + fW - 9, vy + 10, vh - 20, pos, frac);
   keyboard(g, w, h, kh);
 }
 function accModal(g, w, h, kind) {
@@ -219,22 +254,52 @@ function accModal(g, w, h, kind) {
     UI.button(g, fx + fW - 196, fH + fy - 44, 90, 38, 'Cancel', 'tertiary', 'normal', { px: 13 }); UI.button(g, fx + fW - 100, fH + fy - 44, 90, 38, 'Log out', 'primary', 'normal', { px: 13 });
   }
 }
-// ---------- 5 + 6 · lobby: DP2 district line + SC1 slot rows ----------
+// ---------- 5 + 6 · lobby: DP2 district line + SC3 line-up cards, one screen ----------
+// Top row: game code · District line (DP2) · Leave. Middle: four line-up cards (SC3). Bottom: Copy / Share · Ready / Start.
 const SLOTS = [['Mo', 'mo', 'Host', true], ['Ana', 'ana', 'You', false], ['Kit', 'kit', null, true], null];
-function slotRow(g, x, y, w, h, s, i, st = 'normal') {
-  const p = () => UI.shape(g, x, y, w, h, 5);
-  if (!s) { g.setLineDash([3, 3]); g.strokeStyle = SK.line2; g.lineWidth = 1; rrect(g, x + 6, y + 4, h - 8, h - 8, 4); g.stroke(); g.setLineDash([]); T(g, 'Open', x + h + 6, y + h / 2 + 5, { px: 14, col: SK.mute }); g.strokeStyle = 'rgba(255,255,255,0.06)'; p(); g.stroke(); return; }
-  const gr = g.createLinearGradient(x, 0, x + w, 0); gr.addColorStop(0, s[2] === 'You' ? SK.selA : 'rgba(255,255,255,0.05)'); gr.addColorStop(1, 'rgba(255,255,255,0.015)'); g.fillStyle = gr; p(); g.fill();
-  g.strokeStyle = SK.line; g.lineWidth = 1; p(); g.stroke();
-  portrait(g, s[1], x + 4, y + 3, h - 6, i);
-  UI.slotChip(g, x + h + 2, y + h / 2 - 8, 12, 16, i);
-  T(g, s[0], x + h + 20, y + h / 2 + 5, { px: 15, wt: 600 });
-  let rx = x + w - 8;
-  const rd = s[3] ? 'READY' : 'NOT READY';
-  if (s[3]) { g.strokeStyle = '#e9edf1'; g.lineWidth = 2; g.beginPath(); g.moveTo(rx - tw(g, rd, 12, 700, 1) - 16, y + h / 2); g.lineTo(rx - tw(g, rd, 12, 700, 1) - 12, y + h / 2 + 4); g.lineTo(rx - tw(g, rd, 12, 700, 1) - 5, y + h / 2 - 4); g.stroke(); }
-  text(g, rd, rx, y + h / 2 + 4.5, { px: 12, wt: 700, ls: 1, col: s[3] ? '#e9edf1' : SK.mute, align: 'right', shadow: false });
-  rx -= tw(g, rd, 12, 700, 1) + (s[3] ? 24 : 10);
-  if (s[2]) { const tw1 = tw(g, s[2].toUpperCase(), 10, 700, 1.2) + 14; UI.tag(g, rx - tw1, y + h / 2 - 8, s[2], s[2] === 'You' ? 'accent' : 'steel'); }
+function plate(g, x, y, w, h) {
+  const p = () => UI.shape(g, x, y, w, h, 6);
+  castShadow(g, p, { blur: 6, a: 0.5, dx: 1, dy: 3 });
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(48,54,62,0.96)'); gr.addColorStop(1, 'rgba(22,25,29,0.96)'); g.fillStyle = gr; p(); g.fill();
+  g.save(); p(); g.clip(); texture(g, TEX.grain, x, y, w, h, { op: 'overlay', a: 0.4 }); g.restore();
+  p(); bevel(g, x, y, w, h, 0.5, 0.6, 1);
+}
+function readyMark(g, x, y, on, align = 'left') {
+  const s = on ? 'READY' : 'NOT READY', tw0 = tw(g, s, 12, 700, 1) + (on ? 16 : 0), x0 = align === 'center' ? x - tw0 / 2 : x;
+  if (on) { g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0 + 1, y - 4); g.lineTo(x0 + 5, y); g.lineTo(x0 + 12, y - 8); g.stroke(); }
+  text(g, s, x0 + (on ? 16 : 0), y + 0.5, { px: 12, wt: 700, ls: 1, col: on ? '#ffffff' : SK.mute, shadow: false });
+}
+function lineupCard(g, x, y, w, h, s, i) {
+  const p = () => UI.shape(g, x, y, w, h, 7);
+  if (!s) {
+    g.fillStyle = 'rgba(10,11,13,0.45)'; p(); g.fill();
+    g.setLineDash([4, 3]); g.strokeStyle = SK.line2; g.lineWidth = 1.2; p(); g.stroke(); g.setLineDash([]);
+    const cx = x + w / 2, cy = y + h * 0.42;
+    g.strokeStyle = 'rgba(200,205,212,0.35)'; g.lineWidth = 1.5; g.setLineDash([3, 3]); g.beginPath(); g.arc(cx, cy, Math.min(w, h) * 0.2, 0, TAU); g.stroke(); g.setLineDash([]);
+    text(g, '+', cx, cy + 8, { px: 24, wt: 500, col: 'rgba(200,205,212,0.45)', align: 'center', shadow: false });
+    text(g, 'OPEN', cx, y + h - 34, { px: 14, wt: 700, ls: 2, col: SK.mute, align: 'center', shadow: false });
+    T(g, 'Share the code', cx, y + h - 16, { px: 11.5, col: SK.faint || SK.mute, align: 'center' });
+    return;
+  }
+  const you = s[2] === 'You', foot = 50, ph = h - foot - 3;
+  castShadow(g, p, { blur: 7, a: 0.6, dx: 1.5, dy: 3 });
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#2a2f35'); gr.addColorStop(1, '#14171a'); g.fillStyle = gr; p(); g.fill();
+  // the survivor, big (about 3× game size), on asphalt with the slot ring
+  g.save(); UI.shape(g, x + 3, y + 3, w - 6, ph, 5); g.clip(); asphaltBg(g, x + 3, y + 3, w - 6, ph);
+  const cx = x + w / 2, cy = y + 3 + ph * 0.54, r = Math.min(w * 0.3, ph * 0.27);
+  ringAt(g, cx, cy, r * 1.3, SLOT[i]); survivorAt(g, LOOKS[s[1]] || {}, cx, cy, r, -Math.PI / 2 - 0.45);
+  keyWash(g, x + 3, y + 3, w - 6, ph, 0.08, 0.25); g.restore();
+  // slot colour as a bar under the picture (never the accent)
+  g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x + 3, y + 3 + ph, w - 6, 4); g.fillStyle = SLOT[i]; g.fillRect(x + 3, y + 3 + ph, w - 6, 3);
+  // Host / You tags on the picture (You is white: Ana's slot is the orange one)
+  if (s[2]) UI.tag(g, x + 7, y + 7, s[2], you ? 'white' : 'steel', { px: 10, h: 17 });
+  // name + chip, then Ready
+  UI.slotChip(g, x + 8, y + ph + 13, 12, 16, i);
+  T(g, s[0], x + 26, y + ph + 26.5, { px: 16, wt: 600, maxW: w - 32 });
+  readyMark(g, x + 9, y + h - 9, s[3]);
+  // frame: You = white keyline with a soft white glow (not the orange accent); others steel
+  if (you) { g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 1.6; neon(g, () => { p(); g.stroke(); }, 'rgba(255,255,255,0.55)', 7); }
+  else { g.strokeStyle = SK.line2; g.lineWidth = 1; p(); g.stroke(); }
 }
 function districtThumb(g, x, y, w, h, locked = false) {
   const im = cached('lob-dt', () => G7.render({ stage: 3, ppm: 10 * DPR, x0: 12, y0: 8, w: 12, h: 8, power: 'on' }));
@@ -243,41 +308,43 @@ function districtThumb(g, x, y, w, h, locked = false) {
 }
 function lobby(g, w, h, st = {}) {
   g.drawImage(menuBg(w, h), 0, 0, w, h);
-  const sf = safe(w, h), lw = sf.sm ? 176 : 270;
-  const [lx, ly, lW] = UI.panel(g, sf.x0, sf.y0, lw, sf.y1 - sf.y0, { c: 10 });
-  UI.micro(g, 'GAME CODE', lx + lW / 2, ly + 18, { align: 'center', px: 9.5 });
-  UI.tnum(g, 'QXRT', lx + lW / 2, ly + 60, 42, { align: 'center', wt: 700, fill: SK.numFill, glow: SK.numGlow, skew: 0, cell: 0.8 });
-  T(g, 'hordes.sevend.io/j/QXRT', lx + lW / 2, ly + 80, { px: 12, col: SK.ink2, align: 'center' });
-  const bw = (lW - 30) / 2; UI.button(g, lx + 10, ly + 92, bw, 40, 'Copy', 'secondary', 'normal', { px: 13 }); UI.button(g, lx + 20 + bw, ly + 92, bw, 40, 'Share', 'secondary', 'normal', { px: 13 });
-  UI.button(g, lx + lW / 2 - 50, ly + 150, 100, 40, 'Leave', 'tertiary', 'normal', { px: 13 });
-  const rx = sf.x0 + lw + 10, rw = sf.x1 - rx;
-  // DP2: one district line
-  const dp = () => UI.shape(g, rx, sf.y0, rw, 44, 6);
-  castShadow(g, dp, { blur: 6, a: 0.5, dx: 1, dy: 3 });
-  let gr = g.createLinearGradient(0, sf.y0, 0, sf.y0 + 44); gr.addColorStop(0, 'rgba(48,54,62,0.96)'); gr.addColorStop(1, 'rgba(22,25,29,0.96)'); g.fillStyle = gr; dp(); g.fill(); dp(); bevel(g, rx, sf.y0, rw, 44, 0.5, 0.6, 1);
-  districtThumb(g, rx + 4, sf.y0 + 4, 54, 36);
-  UI.micro(g, 'DISTRICT', rx + 66, sf.y0 + 16, { col: SK.accentText });
-  T(g, 'Downtown', rx + 66, sf.y0 + 34, { px: 16, wt: 600 });
-  if (st.host) chevron(g, rx + rw - 16, sf.y0 + 22, 12, 1, SK.accentText); else UI.micro(g, 'HOST PICKS', rx + rw - 10, sf.y0 + 26, { align: 'right' });
-  const rh = sf.sm ? 36 : 40;
-  SLOTS.forEach((s, i) => slotRow(g, rx, sf.y0 + 50 + i * (rh + 4), rw, rh, s, i));
-  const by = sf.y1 - 44;
-  if (st.host) { UI.button(g, rx + rw - 230, by, 110, 44, 'Not ready', 'secondary', 'normal', { px: 14 }); UI.button(g, rx + rw - 112, by, 112, 44, 'Start', 'primary', 'normal', { px: 15 }); }
-  else UI.button(g, rx + rw / 2 - 60, by, 120, 44, 'Ready', 'primary', 'normal', { px: 15 });
+  const sf = safe(w, h), W = sf.x1 - sf.x0, y0 = sf.y0, th = 44;
+  // game code
+  const cw = sf.sm ? 128 : 236; plate(g, sf.x0, y0, cw, th);
+  UI.micro(g, 'GAME CODE', sf.x0 + 10, y0 + 16, { px: 8.5 });
+  UI.tnum(g, 'QXRT', sf.x0 + 10, y0 + 38, 22, { wt: 700, fill: SK.numFill, glow: SK.numGlow, skew: 0, cell: 0.8 });
+  if (!sf.sm) T(g, 'hordes.sevend.io/j/QXRT', sf.x0 + cw - 10, y0 + 37, { px: 12, col: SK.ink2, align: 'right' });
+  // DP2: one District line
+  const lw = sf.sm ? 96 : 110, rx = sf.x0 + cw + 6, rw = W - cw - lw - 12;
+  plate(g, rx, y0, rw, th);
+  districtThumb(g, rx + 4, y0 + 4, 54, 36);
+  UI.micro(g, 'DISTRICT', rx + 66, y0 + 16, { col: SK.accentText });
+  T(g, 'Downtown', rx + 66, y0 + 34, { px: 16, wt: 600 });
+  if (st.host) chevron(g, rx + rw - 16, y0 + 22, 12, 1, SK.accentText); else UI.micro(g, 'HOST PICKS', rx + rw - 10, y0 + 26, { align: 'right' });
+  // Leave stays in the top row, always reachable
+  UI.button(g, sf.x1 - lw, y0, lw, th, 'Leave', 'tertiary', 'normal', { px: 13 });
+  // SC3: line-up cards
+  const by = sf.y1 - 44, cy = y0 + th + 6, ch = by - 6 - cy, gap = sf.sm ? 6 : 10, cdw = (W - gap * 3) / 4;
+  SLOTS.forEach((s, i) => lineupCard(g, sf.x0 + i * (cdw + gap), cy, cdw, ch, s, i));
+  // bottom row
+  UI.button(g, sf.x0, by, 84, 44, 'Copy', 'secondary', 'normal', { px: 13 }); UI.button(g, sf.x0 + 90, by, 84, 44, 'Share', 'secondary', 'normal', { px: 13 });
+  if (st.host) { UI.button(g, sf.x1 - 230, by, 112, 44, 'Not ready', 'secondary', 'normal', { px: 14 }); UI.button(g, sf.x1 - 112, by, 112, 44, 'Start', 'primary', 'normal', { px: 15 }); }
+  else UI.button(g, sf.x1 - 124, by, 124, 44, 'Ready', 'primary', 'normal', { px: 15 });
   if (st.sheet) {
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 0, w, h);
     const pw = sf.sm ? 400 : 520, ph = 186, px = (w - pw) / 2, py = h - ph - (sf.sm ? 21 : 0);
     const [fx, fy, fW] = UI.panel(g, px, py, pw, ph + 10, { c: 12 });
     UI.header(g, fx, fy, fW, 30, 'PICK THE DISTRICT', { px: 15 });
-    const cw = (fW - 32) / 3, cy = fy + 40, chh = 132;
+    UI.button(g, fx + fW - 74, fy + 1, 70, 28, 'Close', 'tertiary', 'normal', { px: 11 });
+    const cw2 = (fW - 32) / 3, cy2 = fy + 40, chh = 132;
     const cards = [['Downtown', 'Selected', 'sel'], ['District 2', 'Extract from Downtown to unlock', 'lock'], ['Random city', 'Epic 11', 'later']];
     cards.forEach(([n, sub, k], i) => {
-      const cx = fx + 8 + i * (cw + 8), p = () => UI.shape(g, cx, cy, cw, chh, 7);
+      const cx = fx + 8 + i * (cw2 + 8), p = () => UI.shape(g, cx, cy2, cw2, chh, 7);
       if (k === 'later') { g.setLineDash([4, 3]); g.strokeStyle = SK.line2; p(); g.stroke(); g.setLineDash([]); }
-      else { castShadow(g, p, { blur: 6, a: 0.6, dx: 1, dy: 3 }); g.fillStyle = '#1b1e22'; p(); g.fill(); districtThumb(g, cx + 4, cy + 4, cw - 8, 66, k === 'lock'); }
-      if (k === 'lock') { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.arc(cx + cw / 2, cy + 37, 13, 0, TAU); g.fill(); g.strokeStyle = SK.ink; g.lineWidth = 2; g.beginPath(); g.arc(cx + cw / 2, cy + 34, 4.5, Math.PI, 0); g.stroke(); g.fillStyle = SK.ink; g.fillRect(cx + cw / 2 - 6, cy + 34, 12, 9); }
-      T(g, n, cx + 8, cy + (k === 'later' ? 24 : 90), { px: 15, wt: 600, col: k === 'later' ? SK.mute : SK.ink });
-      wrap(g, sub, cw - 16, 12, 500).slice(0, 2).forEach((ln, j) => T(g, ln, cx + 8, cy + (k === 'later' ? 40 : 106) + j * 14, { px: 12, col: k === 'sel' ? SK.accentText : SK.mute }));
+      else { castShadow(g, p, { blur: 6, a: 0.6, dx: 1, dy: 3 }); g.fillStyle = '#1b1e22'; p(); g.fill(); districtThumb(g, cx + 4, cy2 + 4, cw2 - 8, 66, k === 'lock'); }
+      if (k === 'lock') { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.arc(cx + cw2 / 2, cy2 + 37, 13, 0, TAU); g.fill(); g.strokeStyle = SK.ink; g.lineWidth = 2; g.beginPath(); g.arc(cx + cw2 / 2, cy2 + 34, 4.5, Math.PI, 0); g.stroke(); g.fillStyle = SK.ink; g.fillRect(cx + cw2 / 2 - 6, cy2 + 34, 12, 9); }
+      T(g, n, cx + 8, cy2 + (k === 'later' ? 24 : 90), { px: 15, wt: 600, col: k === 'later' ? SK.mute : SK.ink });
+      wrap(g, sub, cw2 - 16, 12, 500).slice(0, 2).forEach((ln, j) => T(g, ln, cx + 8, cy2 + (k === 'later' ? 40 : 106) + j * 14, { px: 12, col: k === 'sel' ? SK.accentText : SK.mute }));
       if (k === 'sel') { g.strokeStyle = SK.accent; g.lineWidth = 1.6; neon(g, () => { p(); g.stroke(); }, SK.accentGlow, 8); }
     });
   }
@@ -388,17 +455,17 @@ function lootFrame(g, w, h, mode, o = {}) {
   if (o.toast !== undefined) bf2(g, w, 40, o.toast);
 }
 
-// ---------- Results refreshed with the slot fix ----------
-function results(g, w, h, state) { LF.render(g, w, h, state, 0, {}); }
+// ---------- Results with the slot fix and the TL3 "Training" column ----------
+function results(g, w, h, state) { LF.render(g, w, h, state, 0, { tl3: true }); }
 
 const SCREENS = [
   { id: 'hub', title: 'Progress hub + Unlocks', code: 'PH1', note: 'Header (back key, Supplies, account row), tabs built for three, one long list: icon, name, one plain line, action. States: Confirm (pressed, 3 s), Not enough (with how many more), Unlocked / Starter, a placeholder silhouette, and Unlocking… (spinner).', frames: [[568, 320, (g, w, h) => hub(g, w, h), '568 × 320 · Unlocks'], [800, 360, (g, w, h) => hub(g, w, h), '800 × 360'], [568, 320, (g, w, h) => hub(g, w, h, { scroll: 250, busy: 'spike_trap', t: 1.2 }), '568 · scrolled to Buildings, Unlocking… state']] },
-  { id: 'training', title: 'Training tab (+ Results line)', code: 'TR1 + TL1', note: 'Same row shape as Unlocks: name and line, 5 pips (Lumen fill bars), Now / Next in words with the Supplies cost, Train · Confirm (pressed) · Maxed. The TL1 line under each player is on the Results frames below.', frames: [[568, 320, (g, w, h) => hub(g, w, h, { tab: 1 }), '568 × 320'], [800, 360, (g, w, h) => hub(g, w, h, { tab: 1 }), '800 × 360']] },
-  { id: 'shop', title: 'Borrowed tag on shop cards', code: 'BT2', note: 'The card\'s last line becomes a dark strip with the teammate\'s slot chip and "From Mo"; the full "borrowed from Mo" is in the selected-card message. Shown on shop cards redrawn in Lumen (the shop itself is the 5.13 screen).', frames: [[568, 320, (g, w, h) => shop(g, w, h), '568 × 320 · card #04 selected'], [800, 360, (g, w, h) => shop(g, w, h), '800 × 360']] },
-  { id: 'accounts', title: 'Account screens', code: 'AC2', note: 'Start screen with the account line under the name field; side-by-side fields above the keyboard; focus (accent outline + caret), error (red is allowed in menus), disabled; recovery code and log-out modals.', frames: [[568, 320, (g, w, h) => accStart(g, w, h), '568 · start, guest'], [568, 320, (g, w, h) => accForm(g, w, h, 'save'), '568 · Save my progress (focus)'], [568, 320, (g, w, h) => accForm(g, w, h, 'login'), '568 · Log in, wrong password (error)'], [568, 320, (g, w, h) => accModal(g, w, h, 'code'), '568 · recovery code modal'], [800, 360, (g, w, h) => accForm(g, w, h, 'forgot'), '800 · Forgot password (Next disabled)'], [568, 320, (g, w, h) => accModal(g, w, h, 'logout'), '568 · log out?']] },
-  { id: 'lobby', title: 'Lobby district picker', code: 'DP2', note: 'One 44 px "District" line with its picture; the host taps it to open the sheet (Downtown selected, District 2 locked, Random city reserved); a teammate sees "host picks" and no arrow.', frames: [[568, 320, (g, w, h) => lobby(g, w, h, { host: true }), '568 · host'], [568, 320, (g, w, h) => lobby(g, w, h, {}), '568 · teammate'], [568, 320, (g, w, h) => lobby(g, w, h, { host: true, sheet: true }), '568 · host tapped the line'], [800, 360, (g, w, h) => lobby(g, w, h, { host: true }), '800 · host']] },
-  { id: 'slots', title: 'Lobby slot card', code: 'SC1', note: 'Survivor close-up on asphalt with its slot ring, the slot chip with the player number, name, Host / You tags, Ready (white check) / Not ready; Open slots are a dashed square. Rows stay one line.', frames: [[300, 190, (g, w, h) => { g.drawImage(menuBg(w, h), 0, 0, w, h); SLOTS.forEach((s, i) => slotRow(g, 10, 10 + i * 44, w - 20, 40, s, i)); }, 'slot rows (shown at 2×)', 2], [800, 360, (g, w, h) => lobby(g, w, h, { host: true }), '800 · in the lobby']] },
+  { id: 'training', title: 'Training tab (+ Results column)', code: 'TR1 + TL3', note: 'Same row shape as Unlocks: name and line, 5 pips (Lumen fill bars), Now / Next in words with the Supplies cost, Train · Confirm (pressed) · Maxed. The TL3 "Training" column on Results is on the Results sheet below.', frames: [[568, 320, (g, w, h) => hub(g, w, h, { tab: 1 }), '568 × 320'], [800, 360, (g, w, h) => hub(g, w, h, { tab: 1 }), '800 × 360']] },
+  { id: 'shop', title: 'Borrowed tag on shop cards', code: 'BT1', note: 'BT1: the tape says it. A borrowed card\'s tape turns dark steel and reads "● FROM MO" in white caps with the teammate\'s slot chip (12.5 px, up from the 9.5 px tape text; the "#04" number gives way on borrowed cards). Nothing else on the card moves and the stat line stays. The selected card says "Buy for $330" and the message on the right spells out "borrowed from Mo". The shop itself is the 5.13 screen redrawn in Lumen.', frames: [[568, 320, (g, w, h) => shop(g, w, h), '568 × 320 · #04 selected (from Mo) + Chainsaw from Kit', 1, 'bt1'], [800, 360, (g, w, h) => shop(g, w, h), '800 × 360'], [300, 128, (g, w, h) => { g.drawImage(dawn(w, h, 'dw1', { dim: 0.6, blur: 3 }), 0, 0, w, h); const cw = 92, ch = 112; [0, 3, 5].forEach((k, j) => shopCard(g, 8 + j * (cw + 8), 8, cw, ch, CARDS[k], k, k === 3)); }, 'cards at 2× · normal, borrowed + selected, borrowed', 2]] },
+  { id: 'accounts', title: 'Account screens', code: 'AC1', note: 'AC1: the start screen has one thin account line at the top right ("Guest · Save my progress · Log in", or "Logged in as mo_42 · Log out"). Forms are full screen with the main button in the header (Back · title · Save / Log in / Next), so it never hides under the keyboard; the form scrolls and the field you type in sits at the top of the strip (scroll bar on the right). Focus = accent outline + caret; errors are red (allowed in menus); Next stays disabled until the recovery code is complete.', frames: [[568, 320, (g, w, h) => accStart(g, w, h), '568 · start, guest', 1, 'ac1'], [568, 320, (g, w, h) => accForm(g, w, h, 'save'), '568 · Save my progress (focus)'], [568, 320, (g, w, h) => accForm(g, w, h, 'login'), '568 · Log in, wrong password (error, scrolled)'], [800, 360, (g, w, h) => accForm(g, w, h, 'forgot'), '800 · Forgot password (Next disabled)'], [568, 320, (g, w, h) => accModal(g, w, h, 'code'), '568 · recovery code'], [568, 320, (g, w, h) => accModal(g, w, h, 'logout'), '568 · logged in, log out?']] },
+  { id: 'lobby', title: 'Lobby: district line + line-up cards', code: 'DP2 + SC3', note: 'One lobby with both picks. Top row: game code · the 44 px "District" line (DP2) · Leave (always reachable, top right). Middle: the four SC3 line-up cards. Bottom: Copy / Share · Not ready + Start (host) or Ready. The host taps the District line to open the sheet (Downtown selected, District 2 locked, Random city reserved, Close); a teammate sees "host picks" and no arrow. The share link shows only at 800 × 360.', frames: [[568, 320, (g, w, h) => lobby(g, w, h, { host: true }), '568 · host', 1, 'sc3-dp2'], [568, 320, (g, w, h) => lobby(g, w, h, {}), '568 · teammate'], [568, 320, (g, w, h) => lobby(g, w, h, { host: true, sheet: true }), '568 · host tapped the District line'], [800, 360, (g, w, h) => lobby(g, w, h, { host: true }), '800 · host']] },
+  { id: 'slots', title: 'Lobby slot card', code: 'SC3', note: 'SC3 line-up cards: the survivor drawn big (about 3× game size, whole body with pack) on asphalt with its slot ring, the slot colour as a bar under the picture, the slot chip with the player number and the name, Host / You tags on the picture and Ready (white check) / Not ready; an Open slot is a dashed card. Orange slot vs orange accent: "You" is a white tag and a white keyline, never the accent (Ana here is the orange slot). Ready is white, not green (green is Kit\'s slot).', frames: [[480, 200, (g, w, h) => { g.drawImage(menuBg(w, h), 0, 0, w, h); const cw = (w - 16 - 18) / 4; SLOTS.forEach((s, i) => lineupCard(g, 8 + i * (cw + 6), 8, cw, h - 16, s, i)); }, 'cards at 2× · Host + Ready, You + Not ready, Ready, Open', 2], [568, 320, (g, w, h) => lobby(g, w, h, { host: true }), '568 · in the lobby'], [800, 360, (g, w, h) => lobby(g, w, h, {}), '800 · teammate']] },
   { id: 'editor', title: 'Survivor editor + locked and loot tiles', code: 'ED1 + LK2 + LS1', note: 'Preview left (chosen / in-game swatches, game-size preview), tabs, tiles relit at tile size; LK2 locked milestone = darkened item with a lock in the middle, its line in the info row when tapped; LS1 loot = flat dark silhouette with "?"; colour row; Random + Done always in the same corner.', frames: [[568, 320, (g, w, h) => editor(g, w, h, { tab: 1 }), '568 · Head tab, Gas mask tapped (locked)'], [800, 360, (g, w, h) => editor(g, w, h, { tab: 0 }), '800 · Top tab']] },
   { id: 'loot', title: 'Loot bag, off-screen arrow, "Bag found!"', code: 'LB2 + OA2 + BF2', note: 'In play: the bag keeps its white edge glow (white = pick-ups) and the HUD pieces use the Lumen construction in neutral steel + white, never the orange accent (the in-play colour rule). OA2: badge with the bag, white arrowhead and the 20 s ring; BF2: the finder\'s name in their slot colour with the slot chip.', frames: [[568, 320, (g, w, h) => lootFrame(g, w, h, 'rain', { bagAt: [0.5, 0.35] }), '568 · bag in the street (rain)'], [568, 320, (g, w, h) => lootFrame(g, w, h, 'rain', { arrow: 'right' }), '568 · bag off screen (OA2)'], [568, 320, (g, w, h) => lootFrame(g, w, h, 'dark', { arrow: 'left' }), '568 · off screen, blackout'], [800, 360, (g, w, h) => lootFrame(g, w, h, 'rain', { toast: null }), '800 · the finder (BF2)'], [568, 320, (g, w, h) => lootFrame(g, w, h, 'dark', { toast: 1 }), '568 · a teammate (BF2)']] },
-  { id: 'results', title: 'Results + Run rewards with the slot fix', code: 'RW1 (LF5)', note: 'The orange player slot next to the orange accent: each player now has a filled slot chip with their number and a dark keyline (never orange-on-orange); the same chip is used in tags, cards, lobby rows and toasts.', frames: [[568, 320, (g, w, h) => results(g, w, h, 'full'), '568 · Extract'], [800, 360, (g, w, h) => results(g, w, h, 'endless'), '800 · endless'], [568, 320, (g, w, h) => results(g, w, h, 'mate'), '568 · teammate\'s find']] },
+  { id: 'results', title: 'Results + Run rewards with the Training column', code: 'RW1 + TL3 (LF5)', note: 'TL3: one "Training" column at the end of the team table: total boost levels of 20, a thin 4-step bar under it (one step per boost: HP, Dmg, $, Reload), MAX (white tag, not the orange accent) when all 20 are trained, a grey 0/20 when untrained. Kills and Earned move left to make room; the line under each name is gone. Slot fix: every player has a filled slot chip with their number and a dark keyline (never orange-on-orange).', frames: [[568, 320, (g, w, h) => results(g, w, h, 'full'), '568 · Extract · Mo 10/20, Ana MAX, Kit 0/20, Lu 3/20', 1, 'tl3'], [800, 360, (g, w, h) => results(g, w, h, 'endless'), '800 · endless'], [568, 320, (g, w, h) => results(g, w, h, 'mate'), '568 · teammate\'s find'], [200, 160, (g, w, h) => { const [c] = mk(568, 320); results(c.getContext("2d"), 568, 320, "full"); const k = c.width / 568; g.drawImage(c, 46 * k, 40 * k, 200 * k, 160 * k, 0, 0, w, h); }, 'team table at 2× (TL3 states)', 2]] },
 ];
