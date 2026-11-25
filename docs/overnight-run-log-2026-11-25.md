@@ -31,6 +31,9 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTcABfo1UYwRcPQb8p | Review 7.9 | review-7-9 |
 | session_01CgLgPXMt4tT4Lzwz7Bd28t | Review 7.3 | review-7-3 |
 | session_01CgLgPVyiHnZ4RFQttEnX2P | Builder 7.12 (early T0–T4) | story-7-12 |
+| session_01CgLgPXcaMeFp71mpWmJFfT | Re-review 3 8.1 | rereview3-8-1 |
+| session_01CgLgPVb5154pQmpqo1HyHj | Re-review 7.2 | rereview-7-2 |
+| session_01CgLgPTfz8BTj8YpUzPAoxH | Re-review 7.9 | rereview-7-9 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -114,3 +117,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 07:36 dispatched builder 7.12 early part (T0–T4: bag in the World + on screen, LB4–LB8 in game code) on master; T5 banking waits for 7.2 + 7.11.
 - 07:45 Asset session docs-only commit (8248be0: readability sheet pictures retaken in game + item 63 closed fort; docs/art/occlusion/ six options for bodies behind walls — designer is choosing, so OR-11 L2 is in the designer's hands) gated (415 files / 3778 tests) → on master.
 - 07:46 main work branch reset onto master (dropped the stale 8.1 pre-merge; 8.1 lands from its own branch).
+- 07:38 7.2 review fixes (9b9cb3e; gate fee1ae1 = 7.2 + story-7-1 + master: 450 files / 4054 tests; realPostgres.test 6/6 on PG 16): M1 PG-side lock/statement timeouts (B16) — 5.5 s lock now failed AND unpaid; L1 opt-in real-PG tests; L2 real-DOM Results layout test (B17); L3; L4 'Banked when you left'; L5 stale runId (B18); N1 YOU / $1,840 / wave number. Narrow re-review dispatched.
+- 07:39 7.9 code fixes (64e57a0; 1675 touched tests; 8/8 mutations killed): M1 gun alpha with blink, M4, L1–L8 (one body baked per frame, no bake before decay sync, dev ⚙ hidden in lobby, short Start hint, deploy server first). Narrow re-review dispatched; merge items wait.
+- 07:41 8.1 re-review-2 fixes (24e3aa8; gate 429 files / 3896 tests): RR2-M1 dropping body visible to teammates for 3 s, RR2-M2 B15 counts from the drop, B18, B19 doc, flaky tests hardened (20/20 at load 4.7). Narrow re-review 3 dispatched.
+- 07:45 Review 7.3 (9af96e75): CHANGES REQUESTED 3 M / 7 L / 2 nits. Money core holds on real PG 16 (parallel buys → 1 ok + not_enough, no deadlock with 7.2 banking, replay after memo loss not charged twice). F1 timeout → 503 but charged (same as 7.2 M1) · F2 hub stuck offline after a 503 · F3 memo-per-account untested · F4–F10 · F11 dev ⚙ over hub · F12 look pass (font width). Sent to builder.
