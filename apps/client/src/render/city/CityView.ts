@@ -4,7 +4,10 @@ import { lampOutAt } from "./lampFlicker";
 import { rainAlphaFor } from "./rainLook";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
-import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, resetPatternTiles, type CityScene } from "./drawCity";
+import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, policePieces, resetPatternTiles, type CityScene } from "./drawCity";
+import { PoliceLineView } from "./PoliceLineView";
+import type { PolicePiece } from "./streetPropsFrames";
+import { standDepth } from "../barricadeLook";
 import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
 import { ATLAS_FX, FX_ASH, FX_GLOW, FX_LAMP_DARK, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
@@ -73,6 +76,8 @@ const BLINK_BUS_HZ = 6 / (2 * Math.PI);
 const BLINK_BUS_M = 1.6;
 const BLINK_BARRIER_M = 1.1;
 const BLINK_COLOR = 0xff9628;
+/** Story 9.14: a standing line's blinker sits just over its drum (the drum is lifted 1e-4 over its row). */
+const BLINK_OVER_STAND = 2e-4;
 /** Burning cars: at most this many drawn (Story 4.12: each a pooled particle fire, `FireView`). */
 const FIRE_LIGHTS = 4;
 /** Story 6.2: the lamp drop-out disc (lab `lampDark`: R 5.8 m), drawn MULTIPLY over the baked pool. */
@@ -126,6 +131,9 @@ export class CityView {
   private readonly flickerCore: Phaser.GameObjects.Image;
   private readonly busBlink: Phaser.GameObjects.Image[] = [];
   private readonly barrierBlink: Phaser.GameObjects.Image[] = [];
+  /** Story 9.14 (AC 4): the standing sawhorse police lines (pooled images, placed per bake). */
+  readonly policeLines: PoliceLineView;
+  private readonly policeScratch: PolicePiece[] = [];
   /** Story 4.8 review M3: the thin ring at each zone's damage edge; Story 4.12: its soft glow just inside it. */
   private readonly fireRing: Phaser.GameObjects.Graphics;
   private readonly fireRingGlow: Phaser.GameObjects.Graphics;
@@ -212,6 +220,7 @@ export class CityView {
     });
     for (let i = 0; i < 2; i++) this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
     for (let i = 0; i < BARRIER_LAMPS; i++) this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
+    this.policeLines = new PoliceLineView(scene);
     this.fireRing = scene.add.graphics().setDepth(FIRE_RING_DEPTH);
     this.fireRingGlow = scene.add.graphics().setDepth(FIRE_RING_DEPTH).setBlendMode(Phaser.BlendModes.ADD);
     this.fireView = new FireView(scene, FIRE_LIGHTS, this.lowFx);
@@ -300,6 +309,12 @@ export class CityView {
     const spots = blinkerSpots(cs);
     this.placeBlinkers(this.busBlink, spots.bus);
     this.placeBlinkers(this.barrierBlink, spots.barrier);
+    // Story 9.14 (AC 4): a standing line's blinkers glow on its drums' lamps, just over the drum pictures
+    for (let i = 0; i < this.barrierBlink.length; i++) {
+      const y = spots.barrierStand[i] ?? -1;
+      (this.barrierBlink[i] as Phaser.GameObjects.Image).setDepth(y >= 0 ? standDepth(y) + BLINK_OVER_STAND : DYN_LIGHT_DEPTH);
+    }
+    this.policeLines.show(policePieces(cs, this.policeScratch));
     this.fires = cs.fires;
     this.ringZoom = -1; // redraw the ring
     // Story 4.12: the particle fires follow the bake's fires; flames on the car follow its facing.
@@ -478,6 +493,7 @@ export class CityView {
     this.fireRing.destroy();
     this.fireRingGlow.destroy();
     this.fireView.destroy();
+    this.policeLines.destroy();
     for (const img of [this.flickerPool, this.flickerCore, ...this.lampDark, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }

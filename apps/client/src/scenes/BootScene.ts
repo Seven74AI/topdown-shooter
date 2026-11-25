@@ -6,6 +6,7 @@ import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
+import { queueStreetProps } from "../render/city/streetPropsAtlas";
 
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
@@ -22,6 +23,11 @@ const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on
 export class BootScene extends Phaser.Scene {
   constructor() {
     super("Boot");
+  }
+
+  /** Story 9.14 (B1): the pre-rendered street props atlas (one image, ~0.5 MB), loaded behind the title. */
+  preload(): void {
+    queueStreetProps(this);
   }
 
   create(data?: BootSceneData): void {

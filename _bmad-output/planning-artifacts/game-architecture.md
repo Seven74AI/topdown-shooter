@@ -169,7 +169,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package; `progression.json` (Supplies, unlock prices, Training) and `cosmetics.json` (survivor parts, no gameplay numbers); per-district overrides in `districts.json` (Epic 11: spawn bands, pathing budget; global caps stay) join in Epic 7 | — | Rebalance without code changes; server and client read the same values |
 | Randomness | Seeded PRNG per run (run seed + named sub-streams: decay, events, spawns, combat, loot (Story 7.12), shop per player; `city` for the Random city seed, overridden by a city code the host types) | — | Reproducible runs for testing |
 | UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
-| Asset loading | Boot (tiny) → Preload (SFX, map data; the art atlases are generated in code at load, no character/district PNGs) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
+| Asset loading | Boot (tiny; its loader fetches the street props atlas image) → Preload (SFX, map data; the art atlases are generated in code at load, except the street props and vehicles, which ship as one pre-rendered atlas image since Story 9.14: `render/city/streetProps.webp`, rendered offline from the approved code by `npm run art:street-props`; characters stay code-baked, Story 9.13) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
 | Audio | Three buses: music, SFX, ambience; positional volume/pan for zombie cues | Phaser Web Audio | GDD audio direction, settings |
 | Testing | Vitest for shared simulation (headless, deterministic with seeds); bot clients for load tests | Vitest 5.1 |
 | Pathfinding | **Flow fields** on a 0.5 m grid toward players, rebuilt when buildings or decay change; Runners use a flanking field | — | Zombies must route around cars, bus, rubble and barricades on a changing map |
@@ -318,7 +318,7 @@ topdown-shooter/
 │   │   ├── index.html
 │   │   ├── vite.config.ts
 │   │   ├── public/assets/              # served as-is (see Game Assets)
-│   │   │   ├── atlases/                # (art atlases are generated in code at load: render/city/*, no character/district PNGs)
+│   │   │   ├── atlases/                # (art atlases are generated in code at load: render/city/*; the street props / vehicles atlas is a pre-rendered image bundled from src/render/city/streetProps.webp, Story 9.14; no character PNGs)
 │   │   │   ├── maps/                   # downtown.tmj (Tiled export)
 │   │   │   ├── audio/{sfx,ambience,music}/
 │   │   │   └── ui/

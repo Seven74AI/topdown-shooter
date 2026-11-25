@@ -1,6 +1,6 @@
 # Story 9.14: Photoreal street props and vehicles in the game
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -22,21 +22,21 @@ Approved look (designer 2026-11-25): `docs/art/photoreal-1/compare.html` (source
 
 ## Tasks / Subtasks
 
-- [ ] T1 Offline renderer (AC 1, 2)
-  - [ ] `tools/art/streetProps/` (or similar): run `pilot.ts` + `relief.ts` under Node (node canvas already used by raster tests: `@napi-rs/canvas`) to render the `ITEMS` rows (`pilot.ts:1053–1063`) into an atlas PNG/WebP + JSON (frame names = today's `ATLAS_DOWNTOWN` frames). Replace DOM-only bits (`document.createElement` → injected canvas; `ctx.filter` blur → box blur if node canvas lacks it; per-pixel `getImageData` rain-bead reads → read the alpha array). Deterministic output (seeded), an `npm run art:street-props` script, and a check test that the committed image matches the script's output hash (or at least frame names/sizes), so it can't drift silently.
-  - [ ] Pick PNG vs WebP by size and Safari support (WebP is fine on iOS 14+); stay ≤ 2 MB.
-- [ ] T2 Load and use (AC 1, 3)
-  - [ ] Load the atlas in Preload (Phaser loader) under the existing key; keep a canvas copy for `CityView`/`drawCity.ts › drawFrame` (it reads `atlas.canvas`), registered through `addGeneratedTexture` with a paint that draws from the loaded image. Keep the plain code frames that are NOT replaced (other downtown frames) unchanged.
-  - [ ] `drawCity.ts`: `coverPiece` / `drawOverlay` use the new frames; shorten or drop the code-drawn cover shadows where the picture now carries its own shading (no double shadow); keep `carStyle` / fire swap.
-  - [ ] Rubble: Downtown rubble is drawn by `ruinsArt` (`rubbleOf`, drawCity.ts:884), not `prop_block_a`. Use the pilot block for the rubble boxes if it fits the boxes without stretching; otherwise keep `ruinsArt` and log a B-code (do not invent a new look).
-- [ ] T3 Standing police lines (AC 4)
-  - [ ] A pooled sprite view for police lines (extend `BuildingView` patterns or a small `PoliceLineView`), pictures baked from `barricadeArt.ts` police functions — these are code drawings: either pre-render them with T1's tool into the same image atlas (preferred, one path) or reuse 9.11's relit worker bake. Remove the flat sawhorse from the ground bake.
-  - [ ] Drums at both line ends (B4); lamps/blinkers (`blinkerSpots`, drawCity.ts:984; CityView glow at 4.32) moved to the standing lamps and drawn above the standing sprites.
-  - [ ] Silhouettes: add the police sprites to the walls list fed to `WallSilhouetteView` (GameScene.ts:355–366 — a few lines; GameScene is free now) and extend `wallOccluderX` (buildingsFrames.ts:228–234) for the police frames.
-- [ ] T4 Gallery, docs, tests, perf (AC 5–7)
-  - [ ] Gallery, manifest, review-page `SUPERSEDED`, architecture line, readability sheet, screenshots.
-  - [ ] Tests: frame names/sizes of the loaded atlas match the old specs; police line layout (lengths 9.5 / 10 m → pieces cover exactly the box, drums at ends); silhouette occluder for police frames; restore repaint; map/digest unchanged.
-  - [ ] Perf table in `docs/perf/epic-9-street-props.md` (city bake ms, FPS/p95 before/after, 1× and 4×, load).
+- [x] T1 Offline renderer (AC 1, 2)
+  - [x] `tools/art/streetProps/` (or similar): run `pilot.ts` + `relief.ts` under Node (node canvas already used by raster tests: `@napi-rs/canvas`) to render the `ITEMS` rows (`pilot.ts:1053–1063`) into an atlas PNG/WebP + JSON (frame names = today's `ATLAS_DOWNTOWN` frames). Replace DOM-only bits (`document.createElement` → injected canvas; `ctx.filter` blur → box blur if node canvas lacks it; per-pixel `getImageData` rain-bead reads → read the alpha array). Deterministic output (seeded), an `npm run art:street-props` script, and a check test that the committed image matches the script's output hash (or at least frame names/sizes), so it can't drift silently.
+  - [x] Pick PNG vs WebP by size and Safari support (WebP is fine on iOS 14+); stay ≤ 2 MB.
+- [x] T2 Load and use (AC 1, 3)
+  - [x] Load the atlas in Preload (Phaser loader) under the existing key; keep a canvas copy for `CityView`/`drawCity.ts › drawFrame` (it reads `atlas.canvas`), registered through `addGeneratedTexture` with a paint that draws from the loaded image. Keep the plain code frames that are NOT replaced (other downtown frames) unchanged.
+  - [x] `drawCity.ts`: `coverPiece` / `drawOverlay` use the new frames; shorten or drop the code-drawn cover shadows where the picture now carries its own shading (no double shadow); keep `carStyle` / fire swap.
+  - [x] Rubble: Downtown rubble is drawn by `ruinsArt` (`rubbleOf`, drawCity.ts:884), not `prop_block_a`. Use the pilot block for the rubble boxes if it fits the boxes without stretching; otherwise keep `ruinsArt` and log a B-code (do not invent a new look).
+- [x] T3 Standing police lines (AC 4)
+  - [x] A pooled sprite view for police lines (extend `BuildingView` patterns or a small `PoliceLineView`), pictures baked from `barricadeArt.ts` police functions — these are code drawings: either pre-render them with T1's tool into the same image atlas (preferred, one path) or reuse 9.11's relit worker bake. Remove the flat sawhorse from the ground bake.
+  - [x] Drums at both line ends (B4); lamps/blinkers (`blinkerSpots`, drawCity.ts:984; CityView glow at 4.32) moved to the standing lamps and drawn above the standing sprites.
+  - [x] Silhouettes: add the police sprites to the walls list fed to `WallSilhouetteView` (GameScene.ts:355–366 — a few lines; GameScene is free now) and extend `wallOccluderX` (buildingsFrames.ts:228–234) for the police frames.
+- [x] T4 Gallery, docs, tests, perf (AC 5–7)
+  - [x] Gallery, manifest, review-page `SUPERSEDED`, architecture line, readability sheet, screenshots.
+  - [x] Tests: frame names/sizes of the loaded atlas match the old specs; police line layout (lengths 9.5 / 10 m → pieces cover exactly the box, drums at ends); silhouette occluder for police frames; restore repaint; map/digest unchanged.
+  - [x] Perf table in `docs/perf/epic-9-street-props.md` (city bake ms, FPS/p95 before/after, 1× and 4×, load).
 
 ## Dev Notes
 
@@ -74,8 +74,46 @@ Approved look (designer 2026-11-25): `docs/art/photoreal-1/compare.html` (source
 
 ### Agent Model Used
 
+Claude (builder session for Story 9.14, gds-dev-story flow).
+
+### Decisions taken while building (B7+)
+
+- **B7 Rubble keeps the Ruins art.** The stage 4 rubble boxes are 2 × 1.5, 1.5 × 2 and 3 × 10 m; the pilot block is 1.5 × 1.5 m (`prop_block_a`, 96 px). It can't fill them without stretching, so per T2 the rubble keeps `ruinsArt` (`rubbleOf`). `prop_block_a` is the pilot picture wherever a generic `block` mutation uses it (none in Downtown today).
+- **B8 Fallback.** If the image fails to download, `ensureAtlases` uses today's code drawings (same frame names) and the sawhorse lines lie flat as before. `isPhotoAtlas` (the atlas has `prop_policedrum_a`) picks the path.
+- **B9 Offline renderer in headless Chromium, not node canvas.** The pilot and the police drawings use `ctx.filter` blur, which `@napi-rs/canvas` lacks. The Chromium Playwright build is the browser the designer saw the approved pages in. `tools/art/streetProps.ts` (`npm run art:street-props`) bundles `docs/art/photoreal-1/src/atlas.ts` (imports the approved `pilot.ts › ITEMS` unchanged, plus the game's police drawings and relight) with esbuild and runs it on a blank page. It takes about 4 s. The output is seeded and deterministic for a given Chromium. A byte-for-byte re-render can't be a CI check, because Chromium builds differ. Drift is caught instead: `streetProps.json` records `sourcesHash` (the 8 drawing source files) and `imageSha`. `tools/checks/streetPropsAtlas.test.ts` fails when either no longer matches. Nothing new was installed (esbuild and the preinstalled Playwright were already there).
+- **B10 Lossless WebP**, 2032 × 536, 531 KB. PNG would be 892 KB. Lossy WebP q90 is 129 KB, but it would re-encode the approved pixels, so it was not used. Chromium writes VP8X + ICC + VP8L; iOS 14+ decodes it.
+- **B11 One texture key.** The image comes in through the Boot scene's Phaser loader (`street_props_src`). `ensureAtlases` paints `atlas_downtown` from it: a canvas laid out like the image, registered with `addGeneratedTexture`, so a lost context repaints it from the image (AC 3). Then it removes the loader texture, which leaves one GPU copy. The gallery's Collect scene loads the image the same way before cutting frames.
+- **B12 Police pictures in the same image**, at the standing barricades' 96 px/m. They are relit with the game's `bakeSteps` / `relight.ts` (amber lamps emissive), and the bloom is composited the same way as the approved page's stills. Frames: `prop_policefront_{1,2,3}{a,b}` (`drawPoliceFront` gained `units`, default 3: the first sawhorses only, identical to the full picture), `prop_policeside_{a,b}`, `prop_policedrum_a`.
+- **B13 Line layout** (`streetPropsFrames.ts › policeLineLayout`). Front lines: sawhorses = ceil(L / ⅔ m), in pieces of 3 with one shorter piece at the end. The joins close up evenly, so the run starts at one end of the box and stops at the other: overlap, never a gap or overhang. For 9.5 m that is 15 sawhorses in 5 pieces, with a 0.125 m overlap per join. Side lines: ceil(L / 2 m) pieces spread end to end (10 m: 5 pieces, exact). The drum is centred 0.23 m inside each end. Variants are fixed by the line's name.
+- **B14 Blinkers.** Each standing line's two alternating blinkers now sit on its drums' lamps (the same count as before; the pool of 8 still fits 6), drawn just over the drum (`standDepth + 2e-4`). The lamps on the sawhorses stay as baked, lit pictures. The concrete barrier keeps its two flat lamps.
+- **B15 Shadows.** Box and car shadows are replaced by the picture's own silhouette, smeared 4 times along `LIGHT_DIR` over the same length, plus a lighter contact shadow (the pictures carry their own edge shading). This covers cars, bus, sandbags (lighter), dumpster, block and pumps. A standing line adds no ground shadow; its picture has one.
+- **B16 Concrete barrier.** The pilot's 6 m picture is drawn at the line's depth and repeated, clipped, along a longer line. Downtown's `police_barrier_north` is exactly 6 m, so it is one copy.
+- **B17** The pilot's flat sawhorse `prop_barrier_a` stays in the atlas (frame names unchanged, gallery), but the game no longer uses it.
+- **B18 Silhouette occluders** (`policeOccluderX`): a front piece's sawhorses (units ⅓ of the width each), a side piece ±0.22 m about its middle, the drum ±0.23 m.
+- **B20 Shadow stamps.** The first perf run had the city bake +30 ms per stage change at 1× (+120 ms at 4×) because every bake blurred every picture's shadow. Each blurred shadow is now cached as a stamp (picture, facing, box, bake density) and dropped after a lost context. Stage changes now bake as fast as master; the first bake at load is +28 ms at 1× (+44–160 ms at 4×), once.
+- **B19 Perf at stage 2 too.** `?stress=150` runs at stage 1, which has no police line, so the table adds a stress row forced to stage 2 (`applyDecayStage`) on both trees.
+
 ### Debug Log References
+
+- `npm run art:street-props`: "rendered in 3.7 s (Chromium 158.0.8127.36); atlas 2032 × 536: PNG 892 KB, WebP lossless 531 KB, WebP q90 129 KB; 26 frames".
 
 ### Completion Notes List
 
+- AC 1: stills in `docs/art/9-14/` (stage 1 street, stage 2 police lot line with zombies behind it, stage 2 gas line + concrete barrier, stage 3 burning car in the rain, stage 4 rubble; 844 × 390, 568 × 320, 1280 × 720, DPR 2; `shots.cjs`), plus a side-by-side with `compare.html`.
+- AC 2: architecture asset-loading row and project tree updated. Download added: 531 KB.
+- AC 3: `streetPropsAtlas.test.ts` checks that the atlas is registered and that a repaint draws it from the image again. `noUnregisteredTextures` is green.
+- AC 4: standing lines, drums, blinkers and silhouettes (`streetPropsFrames.test.ts`, `PoliceLineView`, GameScene `joinWalls`).
+- AC 5: no `packages/shared` change. Readability key 142 notes the sedan's 15 cm gap per end (centred).
+- AC 6: `docs/perf/epic-9-street-props.md`.
+- AC 7: gallery loads the image before cutting. `SUPERSEDED` drops `atlas_downtown`. The export no longer adds `photoreal-1`. Manifest refreshed. Readability items 142–146.
+
 ### File List
+
+- `apps/client/src/render/city/streetProps.webp`, `streetProps.json` (new, generated)
+- `apps/client/src/render/city/streetPropsAtlas.ts`, `streetPropsFrames.ts`, `PoliceLineView.ts` (new)
+- `apps/client/src/render/city/streetPropsAtlas.test.ts`, `streetPropsFrames.test.ts` (new); `bakeTiles.test.ts`
+- `apps/client/src/render/city/spriteAtlas.ts`, `drawCity.ts`, `CityView.ts`, `buildingsFrames.ts`, `barricadeArt.ts`
+- `apps/client/src/scenes/BootScene.ts`, `GameScene.ts`; `apps/client/src/gallery/collect.ts`
+- `tools/art/streetProps.ts`, `tools/checks/streetPropsAtlas.test.ts` (new); `tools/gallery/export.ts`, `review-page.html`, `manifest.json`; `package.json`
+- `docs/art/photoreal-1/src/atlas.ts` (new), `pilot.ts` (exports + main guard only)
+- `docs/art/9-14/*`, `docs/perf/epic-9-street-props.md`, `docs/art/9-14/perf.cjs`, `docs/art/asset-review.md`, `docs/art/photoreal-decisions.md`, `docs/playtests/milestone-1/readability-{sheet,key}.md`, `_bmad-output/planning-artifacts/game-architecture.md`

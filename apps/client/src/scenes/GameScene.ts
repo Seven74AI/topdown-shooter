@@ -356,7 +356,9 @@ export class GameScene extends Phaser.Scene {
     const sv = this.wallSilhouettes;
     const bv = this.buildingView;
     if (!sv || !bv) return;
-    const walls = bv.standingSprites();
+    // Story 9.14 (AC 4): the standing police lines hide bodies too (joined into a reused list: no allocation per frame)
+    const police = this.cityView?.policeLines.sprites();
+    const walls = police && police.length > 0 ? this.joinWalls(bv.standingSprites(), police) : bv.standingSprites();
     let n = 0;
     if (walls.length > 0) {
       const zn = this.zombieView?.shownImages(this.silZombieImgs) ?? 0;
@@ -364,6 +366,13 @@ export class GameScene extends Phaser.Scene {
       for (const [id, v] of this.playerViews) n = this.putSilBody(n, v.bodyImage, SLOT_COLORS[(this.host?.playerInfo(id).slot ?? 0) % SLOT_COLORS.length] as number);
     }
     sv.update(walls, this.silBodies, n, this.time.now, darknessAlpha(world as World) > 0);
+  }
+  private joinWalls(a: readonly Phaser.GameObjects.Image[], b: readonly Phaser.GameObjects.Image[]): readonly Phaser.GameObjects.Image[] {
+    const out = this.silWalls;
+    out.length = 0;
+    for (const w of a) out.push(w);
+    for (const w of b) out.push(w);
+    return out;
   }
   private putSilBody(n: number, img: Phaser.GameObjects.Image, color: number): number {
     let e = this.silBodies[n];
@@ -382,6 +391,8 @@ export class GameScene extends Phaser.Scene {
   private wallSilhouettes: WallSilhouetteView | null = null;
   private readonly silBodies: SilhouetteBody[] = [];
   private readonly silZombieImgs: Phaser.GameObjects.Image[] = [];
+  /** Story 9.14: the standing walls plus the police lines, for the silhouettes (reused). */
+  private readonly silWalls: Phaser.GameObjects.Image[] = [];
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */

@@ -3,6 +3,7 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
 import { addGeneratedTexture } from "./canvasTexture";
+import { STREET_PROPS_FRAMES, STREET_PROPS_HEIGHT, STREET_PROPS_WIDTH, takeStreetProps } from "./streetPropsAtlas";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { TIER_PLATE_H, WEAPON_ART, WEAPON_BACK_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
@@ -422,12 +423,33 @@ function register(scene: Phaser.Scene, key: string, specs: () => FrameSpec[], dr
   return a;
 }
 
+/**
+ * Story 9.14 (B1): the downtown atlas from the pre-rendered street props image: a canvas of the image's layout painted
+ * from it (same frame names and sizes as the code atlas, plus the standing police pictures). Registered through
+ * `addGeneratedTexture` when `scene` is given (a lost context repaints it from the image, AC 3). Exported for tests.
+ */
+export function imageAtlas(img: HTMLImageElement, scene?: Phaser.Scene): AtlasCanvas {
+  const canvas = document.createElement("canvas");
+  canvas.width = STREET_PROPS_WIDTH;
+  canvas.height = STREET_PROPS_HEIGHT;
+  const frames = new Map<string, PlacedFrame>();
+  for (const [name, f] of Object.entries(STREET_PROPS_FRAMES)) frames.set(name, { name, x: f.x, y: f.y, w: f.w, h: f.h });
+  const paint = (g: CanvasRenderingContext2D): void => g.drawImage(img, 0, 0);
+  if (scene) {
+    addGeneratedTexture(scene, ATLAS_DOWNTOWN, canvas, paint, (tex) => {
+      for (const f of frames.values()) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+    });
+  } else paint(canvas.getContext("2d") as CanvasRenderingContext2D);
+  return { canvas, frames };
+}
+
 /** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
 export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
   register(scene, ATLAS_CHARACTERS, characterSpecs, drawCharacterFrame);
   register(scene, ATLAS_FX, fxSpecs, drawFxFrame);
-  const d = register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
-  if (d) downtownAtlas = d;
-  if (!downtownAtlas) downtownAtlas = build(downtownSpecs(), drawDowntownFrame);
+  // Story 9.14: the pre-rendered photoreal props when the image loaded; the code drawings otherwise (B8)
+  const img = takeStreetProps(scene);
+  if (!scene.textures.exists(ATLAS_DOWNTOWN)) downtownAtlas = img ? imageAtlas(img, scene) : register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
+  if (!downtownAtlas) downtownAtlas = img ? imageAtlas(img) : build(downtownSpecs(), drawDowntownFrame);
   return downtownAtlas;
 }
