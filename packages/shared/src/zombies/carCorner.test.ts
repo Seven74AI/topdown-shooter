@@ -134,6 +134,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
       const res = runCrowd(world, ids, 180 * 20, { untilGone: true });
       expect(res.inside, `seed ${seed}`).toEqual([]);
       expect(res.notReached, `seed ${seed}: Bloaters that never touched the player or swelled on it`).toBe(0);
+      expect(res.neverMoved, `seed ${seed}: never moved (review L1)`).toEqual([]);
       expect(res.left, `seed ${seed}: Bloaters left after 180 s`).toBe(0);
       expect(res.ticks, "liveness: the crowd lasted longer than the still bound").toBeGreaterThan(STILL_TICKS);
       expect(res.longestStill, `seed ${seed}: body ${res.longestStillId} stood still`).toBeLessThanOrEqual(STILL_TICKS);
@@ -160,6 +161,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
       const res = runCrowd(world, ids, 30 * 20, { approachOk: (s, c) => c < 8 || c <= s - 1 });
       expect(res.inside, `seed ${seed}`).toEqual([]);
       expect(res.farFrom, `seed ${seed}: bodies that got nowhere (start→closest m)`).toEqual([]);
+      expect(res.neverMoved, `seed ${seed}: bodies that never moved (review L1)`).toEqual([]);
       expect(res.longestStill, `seed ${seed}: body ${res.longestStillId} stood still`).toBeLessThanOrEqual(STILL_TICKS);
       expect(res.heldTicks / res.bodyTicks, "liveness: the still rule checked a real share of free body-ticks").toBeLessThan(0.95);
     }
