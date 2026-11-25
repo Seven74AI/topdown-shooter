@@ -1,6 +1,6 @@
 # Story 7.6: Upgrade to an account
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 6 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D9 (save nudge after the first run banking ≥ 200), D10 (username + password + one-time 12-character recovery code, no email) and D11 (logging in merges a device's guest progress) are rules here. Readiness U1/Q6/Q8 applied (entry points, merge of later fields, the Results nudge lives here). -->
 
