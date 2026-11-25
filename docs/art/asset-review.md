@@ -32,3 +32,7 @@ The notes live in the page's database, collection `reviews` (one document per as
 `ok` / `change`, `note`, `hash`, `updatedAt`). Read them with the ArtifactData tool (`action: "list"`,
 `collection: "reviews"`, `url`: the link above). New looks still follow the usual rule: draw options in code,
 the designer picks, then build.
+
+## Related
+
+Photoreal rework decisions per group (what was approved, what stays as it is): `docs/art/photoreal-decisions.md`.
