@@ -163,14 +163,77 @@ Round 1, in parallel with 8.8. Effort M (≈ one builder session). Risk medium (
 
 ### Agent Model Used
 
+Claude (claude-code-remote builder session, gds-dev-story), 2026-11-25 overnight run.
+
 ### Debug Log References
+
+- Before: master c57c1cc, `smoothRun.ts 60 3` on a worktree with the new harness patched to the old API (load 0.19–0.37). After: `story-8-9` (load 0.34–0.81). Raw lines in the hand-back; table in `docs/perf/network-pass-2026-11.md` § 8.9.
+- Tuning probes (not committed): ease-down 20/10/5 ms/s → 2.11/1.59/1.03 freezes per 30 s (12 × 60 s, 1 % × 200 ms); p99 instead of p95 → 3.15/2.63/2.28 (no better, noisy); overdue slowdown off → 3.02 (on: 1.03). Pacing variants: "until reported ≤ 2" 117 starved / 0 skips; "make up exactly the reported excess, then wait 1 s" 131; "excess − 1" 114 / 23 skips; pacing off 81 / 74 skips (1 % × 200 ms, 150 Walkers, 3 × 60 s).
+
+### Gate
+
+- Commit `GATE_COMMIT`, master `b0e491a` merged; `npm run typecheck && npm run lint && npm test && npm run build`: GATE_RESULT; load GATE_LOAD.
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.9 D1–D7 pending.
+- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.9 D1–D7 accepted by the designer 2026-11-24 (all 29, `docs/network-pass-decisions.md`).
+- Tasks and their named tests (brief R1):
+  - T1/T8: `tools/netsim/hitsSim.ts` (Story 8.9 `loss` copy of the audit model with its own loss RNG, `latencyStep`, `pacing`, `stepRate`, `Result.smooth` counters, real `StepPacing`/`AdaptiveDelay.advance`/`ServerClock`, `inputQueued` from `ctrl.queuedAtTick`), `tools/netsim/smoothRun.ts`. Tests: `tools/netsim/smooth.test.ts` › "F4: a clean 150 ms ± 10 ms line feels as today…", "F1, F6: on the lossy line…", "F2 (audit F5): a lasting +150 ms latency step…", "beat the rule 3…", "beat the rule 4…".
+  - T2/T3: `apps/client/src/net/adaptiveDelay.ts` rewritten. Tests: `adaptiveDelay.test.ts` › "a clean line (± 10 ms) stays at 100 ms and plays at 1×", "a 300 ms stall: the delay target rises at once…", "falls only after 5 s without a late sample, at ≤ 1.1×", "the target covers the p95 lateness plus one tick", "on the lossy line (200 ms stalls)…", "property: the render tick never decreases…", "R3 fine sweep: 1 ms frames…", "after a hidden tab the render clock re-anchors once…", "a woken tab never moves the render clock backwards…", "lateness samples that waited out a paused frame clock are skipped".
+  - T4: `serverClock.ts` slewed monotonic `estimateTick`, `rawOffsetMs`, `rawTick`. Tests: `serverClock.test.ts` › "Story 8.9: the first estimate snaps…", "…a lasting +150 ms latency rise never moves the estimate back…", "…a latency fall converges at ≤ 1.1×", "…after a hidden-tab gap the estimate snaps forward, never back".
+  - T5: `hordeBuffer.ts` `dropMissing` (one function, for 8.10), `HORDE_MISSING_TICKS = 3` (`hordeFormat.ts`; bots never used the constant). Tests: `hordeBuffer.test.ts` › "Story 8.9 (D4): holds a zombie missing…", "Story 8.9 (F5): three frames without a margin zombie landing in one burst…", "Story 8.9: a zombie really gone leaves 150 ms…"; kill rule unchanged (existing kill tests pass).
+  - T6: `PlayerState.inputQueued` (u8, appended last) — RunState → syncState (on change) → stateView `PLAYER_STATE_FIELDS` → fakeRoom → devThrottle StateCopy (follows the key list; its compile-time `SameKeys` check passes) — not World state, so not in snapshotWorld / Predictor / mirror; bots ignore it. It is `RunController.queuedAtTick(id)` (new: the depth when the last tick started, the one the drain rule compares), not `queued(id)` (after the tick took one: one lower, so the client would stop slowing while the server still counts "over target"). `INPUT_QUEUE_TARGET` moved to `packages/shared/src/config/constants.ts` (RunController re-exports it). Test: `syncState.test.ts` › "Story 8.9: inputQueued is my queue depth when the last tick started…". Bandwidth: 0–10 changes/s per player (harness count) × ~2 B → ≤ 0.1 KB/s per phone with 4 players.
+  - T7: `apps/client/src/net/stepPacing.ts` (`StepPacing`), `NetSimHost.stepInputs` `accumulatorS += frameDtS × pacing.frame()`. Tests: `stepPacing.test.ts` (both), `NetSimHost.test.ts` › "Story 8.9 (D5): steps at 0.9× while the server reports my queue over its target…", "Story 8.9: a hidden tab while slowed still never bursts". Edge flags untouched (existing swap/consumable tests pass).
+  - Wiring (brief R2), each fails when its line is deleted (checked): `NetSimHost.test.ts` › "Story 8.9 (D7, wiring): horde frames feed the clock and the lateness too…", "Story 8.9 (F1, wiring): an overdue horde frame slows the render clock…; … counts one freeze", the D5 pacing test (onPatch and the accumulator), `tools/checks/delayLineWiring.test.ts` (overlay), `apps/client/src/debug/delayLine.test.ts` (AC 7 text).
+  - T9: `bossTelegraph.test.ts` › "Story 8.9 (F7): … 0 at the start tick, 1 exactly at the hit, never above 1, never shrinks".
+  - T11 (part): `npm run bots -- --url http://localhost:2691 --count 4 --scenario net150 --until-wave 4` on this branch: wave 4 played (188 kills, 5.9 KB/s down avg), 0 `seq_gap_suspect` / `spread_cancel_suspect` in the server log. The `--lag/--jitter/--loss` run waits for 8.8 (bots have no line on master).
+  - T12: `docs/perf/network-pass-2026-11.md` § 8.9 (new file), `game-architecture.md` interpolation line, HANDOFF §4 netcode line.
+  - **Open: T10** (after-numbers on the real 8.8 loss + rewind re-check, 600 ms fallback if Runners > 5 %) and the lossy bots line of T11 — after 8.8 lands on master (main session tells me).
+- Builder decisions (no designer question needed: inside D1–D7; auto-accepted overnight, designer: follow the GDS recommendation), each with the alternative:
+  - B1 Target formula: `clamp(max(p95 + 50, held), 100, 250)` where `held` = the last sample's lateness + 50 that was over the target, held 5 s then easing down. The story's literal "100 + p95 + 50" would put a clean line at ≥ 150–170 ms (fails F4); "p95 alone" never covers a 1 % stall (they are < 5 % of samples): measured. Alternative: the literal formula.
+  - B2 Ease-down 5 ms/s after the 5 s calm (`DELAY_FALL_MS_PER_S`; 250 → 100 in 30 s). D3 says "5 s calm, then it eases back down" without a speed; 20 ms/s gave 2.1 freezes/30 s, 5 gives 1.0. Alternative: 20 ms/s (back to 100 in 7.5 s, twice the freezes).
+  - B3 Overdue slowdown: when the next horde frame is > p95 + 15 ms past its cadence, the render clock plays at 0.9× at once, and may stretch up to 25 ms past the 250 ms cap (`FRAME_OVERDUE_MS`, `STALL_STRETCH_MAX_MS`). A 200 ms stall + jitter needs 270 ms of delay; without this rule 3.0 freezes/30 s, with it 1.0. Max delay seen 261 ms. Alternative: hard 250 ms cap (every stall at the cap freezes for ~1 frame).
+  - B4 Clock and render clock run on the host's `now()` (ms), `advance(nowMs, estimate, newestTick)`, not `advance(frameDtS, estimate)` as written in T3: the server clock already runs on `now()`, the hidden-tab gap is then visible even if Phaser caps `delta`, and the existing timing tests (which move `now`) keep working. A wake also re-anchors when the delay is > 1 s past the cap.
+  - B5 `inputQueued` = depth at tick start (`queuedAtTick`), see T6. Alternative: `queued(id)` as written (off by one against the drain rule).
+  - B6 Pacing rule exactly as AC 5 ("until back at the target"); two smarter variants measured no better (Debug Log).
+- **AC misses (for the main session / reviewer):**
+  - **Starved ticks +27–53 % on the 1 % line (AC 6 "no worse ± 10 %": NOT met).** Cause measured: with the server drain, the post-stall backlog (~5 inputs) sat 2 s as cover for the next stall; the 0.9× pacing empties it gradually, so the next stall finds 1–2 queued instead of 5 (Story 2.4's trade-off, the reason the drain waits 2 s). A starved tick delays one move by a tick; before, the drain skipped 73–91 inputs per 3 min (lost moves/shots). The test bounds it (`smooth.test.ts` › beat the rule 3: ≤ 1.6 × pacing-off) so it can't get worse unseen. Options: accept (F6's "no lost input" over cover); or slow only after ~1 s of backlog (then the server's 40-tick skip races it); or designer revisit of D5.
+  - **Freezes 1.2 per 30 s on the 1 % Walker rows** (AC ≤ 1; Runners 0.9). What remains is mostly the first stall after > 10 s of calm (the delay is back at 100 ms, F4). The harness sends one down message per tick (20/s), so its stalls are ~2× rarer and more isolated than on a phone (~46 msg/s, audit §3.3), which makes this the harder case.
+  - Reversed hits rose on kiting rows with today's 300 ms window (older shots at 250 ms delay) — 8.8's 500 ms window is the planned fix; T10 measures it.
+- Brief lines 25–35 (Epic 6 retro addendum, landed on master during the build) applied: R1 named tests above; R2 wiring tests; R3 1 ms sweep; R6 Gate line; R8 text checked (story text still says `advance(frameDtS, …)`, `HORDE_MISSING_TICKS` compared with the render tick — B4 records the difference); R9: vote urgent sends, crate cancel window and dawn rule don't read the render clock and the pacing only ever sends fewer inputs; their tests pass in the gate; lossy-line re-measure of them waits for 8.8's browser line (R10 two-tab smoke is the main session's).
+
+### Notes for the merge (brief 12)
+
+- `tools/netsim/hitsSim.ts`: 8.8 also adds `loss` to `Link`. Keep ONE loss option: mine draws the stall from its own RNG (`lossRng`, seed × 7919 + 1) so a lossy run spawns the same zombies as a clean one; if 8.8's draws from the shared `rng`, keep 8.8's semantics but then re-run `smoothRun.ts` for the 8.9 table (T10 does). Keep my `latencyStep`, `pacing`, `stepRate`, `queued`, `Smooth` and the frame block.
+- `tools/netaudit/hitsLossSim.ts`: I only updated it to the new API (3 lines); 8.8 deletes it — the delete wins.
+- `docs/perf/network-pass-2026-11.md`: new file with a header and § 8.9; if 8.8 also creates it, keep both sections.
+- `apps/client/src/net/netConfig.ts`: 8.8 keeps its constants out of it; 8.1 may add a watchdog constant: append.
+- `NetSimHost.ts`: `update` (clock/advance/countFreeze), `stepInputs` (pacing), `receiveHorde`/`sampleClock`/`countFreeze` (new private methods after `receiveState`), `takeSnapshot` (`pacing.onPatch`), netStats fields. 8.1's watchdog goes in `update`: put it before the clock lines.
+- `RunState.ts` / `syncState.ts` / `stateView.ts` / `fakeRoom.ts`: `inputQueued` appended last; 8.1's hold fields append after it.
+- `hordeBuffer.ts`: the missing rule is `dropMissing(renderTick)` + `firstMissTick` set in `end()`/cleared in `record()`; 8.10's delta decoder keeps both.
+- `packages/shared/src/config/constants.ts`: `INPUT_QUEUE_TARGET` appended at the end (8.8 edits `REWIND_MAX_TICKS` higher up).
+
+### Not verified
+
+- Real phones, real 4G, iOS Safari (brief 23): the feel of 0.9–1.1× playback and of a 250 ms delay; no preview deploy, so no `?lag=150&jitter=20&loss=1` before/after link pair (not verified on a phone).
+- The browser dev throttle line `&loss=1` (8.8's) with this clock: not run (8.8 not on master).
+- T10 (after numbers on 8.8's loss, rewind re-check) and bots with `--lag 150 --jitter 20 --loss 1`: waiting for 8.8.
+- Epic 6 timers (vote urgent sends, crate cancel window, dawn) re-measured on the lossy line in a browser (brief R9/R10): their unit tests pass, no lossy browser run.
+- Hidden tab across a build start / late Game scene start in a real browser: covered only by unit tests (fake clocks).
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/8-9-smooth-through-hiccups.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/game-architecture.md`, `HANDOFF.md`, `docs/perf/network-pass-2026-11.md` (new)
+- `apps/client/src/net/adaptiveDelay.ts`, `adaptiveDelay.test.ts`, `serverClock.ts`, `serverClock.test.ts`, `netConfig.ts`, `hordeBuffer.ts`, `hordeBuffer.test.ts`, `fakeRoom.ts`, `stepPacing.ts` (new), `stepPacing.test.ts` (new)
+- `apps/client/src/sim/NetSimHost.ts`, `NetSimHost.test.ts`, `NetSimHost.flame.test.ts`
+- `apps/client/src/debug/perfStats.ts`, `PerfOverlay.ts`, `netSummary.test.ts`, `delayLine.test.ts` (new)
+- `apps/client/src/render/bossTelegraph.test.ts`
+- `apps/server/src/run/RunController.ts`, `apps/server/src/rooms/schema/RunState.ts`, `syncState.ts`, `syncState.test.ts`
+- `packages/shared/src/config/constants.ts`, `packages/shared/src/index.ts`, `packages/shared/src/net/hordeFormat.ts`, `packages/shared/src/net/stateView.ts`
+- `tools/netsim/hitsSim.ts`, `hits.test.ts`, `smooth.test.ts` (new), `smoothRun.ts` (new), `tools/netaudit/hitsLossSim.ts`, `tools/checks/delayLineWiring.test.ts` (new)
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
+- 2026-11-25: built (lateness delay, 0.9–1.1× render clock, monotonic server clock, missing by time, queue-depth pacing, harness counters); status review; T10 and the lossy bots run open until 8.8 lands.
