@@ -24,7 +24,12 @@ describe("account wiring (Story 7.1 T7)", () => {
 
   it("every join path in connection.ts fetches the ticket right before joining", () => {
     const src = readFileSync(join(NET, "connection.ts"), "utf8");
-    expect(src.match(/options\("(create|join)", name, await sessionTicket\(\)\)/g)).toHaveLength(3);
+    // Story 7.9: `joinAccount()` fetches the session (ticket + my look) right before each join.
+    expect(src.match(/options\("(create|join)", name, await joinAccount\(\)\)/g)).toHaveLength(3);
+    const account = readFileSync(join(NET, "account.ts"), "utf8");
+    const body = account.slice(account.indexOf("export async function joinAccount("));
+    expect(body.slice(0, body.indexOf("\n}\n"))).toContain("const s = await accountSession(over);");
+    expect(account).toMatch(/if \(s\?\.saved\) out\.ticket = s\.ticket;/);
     expect(src).not.toMatch(/options\("(create|join)", name\)/);
   });
 });
