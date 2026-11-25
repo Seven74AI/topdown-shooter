@@ -20,6 +20,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPWCdv2qWvJYtk8xk4F | Builder 8.10 | story-8-10 |
 | session_01CgLgPVuhvoUCGWv6MWJvbS | Re-review asset art | rereview-asset-art |
 | session_01CgLgPV9Purq8QkvbmAAZbE | Review 8.1 | review-8-1 |
+| session_01CgLgPV7qu43H4ppJzsJrHo | Re-review 2 asset art | rereview2-asset-art |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -65,3 +66,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 05:26 Asset session fixes (60ec1f4; gate 405 files / 3714 tests): M1 resumable bake ≤ 20000 units + 6 ms guard (long tasks 70–180 → 50–85 ms headless); M2 banner keeps 48 px (overBar / shrink); M3 relit cache re-bake after loss; L1, L4, L5, L6. Narrow re-review dispatched.
 - 05:37 Re-review asset art (4b0e2b4): NOT clean — M2/M3/L1/L4/L5/L6 fixed; R1 M unsplittable draw/readback steps 123–167 ms at 4× CPU; R2 M (fix-created) bake budget so small the bake takes ~63 s → relit pictures pop in during wave 1; R3–R7 L/nit; R8 noise table drop changed the approved look slightly. Round 2 sent (band readback, guard-driven budget, restore exact look).
 - 05:43 8.1 hand-back (db2cff2; gate 416 files / 3799 tests, load 3.54). Bot cut 8 s mid-wave back in ~0.3 s on the lossy line with HP/wallet/weapons kept; 130 s cut → restored at next build phase; phone shows 'reconnecting' after 3.1 s (was never); two-tab smoke found and fixed 3 bugs. Auto-accepted B1–B14 (docs/network-pass-decisions.md § 8.1). Open: app-switch escape is repeatable (no cooldown). Dispatched full review; 7.1 told to go on 8.1's branch; 8.10 told about reconnect keyframes.
+- 05:59 Asset round 2 (63a7ae2; gate 409 files / 3747 tests): bake moved to a Web Worker (OffscreenCanvas), atlas split in 4 sheets; main-thread max 5.5 ms (1×) / 17.7 ms (4× CPU); bake done 8 s / 15 s (inside the 30 s build phase); fallback sliced. R8 pushback: current pictures pixel-identical to the approved step-1 commit 583388c (digest pinned). Re-review 2 dispatched.
