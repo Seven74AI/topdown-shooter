@@ -21,6 +21,9 @@ import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { runSupplies, suppliesEnding, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo } from "../db/progressRepo";
 
+/** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
+export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
+
 /** AC 4: the one retry waits this long. */
 export const BANK_RETRY_MS = 2000;
 
@@ -179,7 +182,9 @@ export class RunBank {
         return message(this.runId, this.seed, "saved", b, r.newTotal);
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
-        this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record }, "supplies_bank_failed");
+        // Review M1: a failed bank never commits later (progressRepo bounds it inside PostgreSQL); still, a hand grant
+        // checks run_rewards first (docs/deploy.md › Database).
+        this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record, handGrant: HAND_GRANT_NOTE }, "supplies_bank_failed");
         if (attempt === 1) await new Promise((r) => setTimeout(r, this.deps.retryMs ?? BANK_RETRY_MS));
       }
     }

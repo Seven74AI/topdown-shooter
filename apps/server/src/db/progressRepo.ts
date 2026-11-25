@@ -7,6 +7,16 @@ import type { Database } from "./client";
 import { progress, runRewards } from "./schema";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
+/**
+ * Story 7.2 review M1 (brief 18, 20): `withDbTimeout` only stops WAITING; a bank must never commit after its caller
+ * gave up (the player would be told "Couldn't save" and paid anyway, and a hand grant would pay twice). So the bank
+ * transaction bounds itself inside PostgreSQL, under DB_TIMEOUT_MS: a lock wait or a statement longer than
+ * BANK_LOCK_TIMEOUT_MS fails, and on PostgreSQL ≥ 17 (production: 18) the whole transaction is cut at
+ * BANK_TX_TIMEOUT_MS; either way PostgreSQL rolls it back before the 2 s timeout reports a failure.
+ */
+export const BANK_LOCK_TIMEOUT_MS = 1500;
+export const BANK_TX_TIMEOUT_MS = 1800;
+
 export interface Progress {
   accountId: string;
   supplies: number;
@@ -47,6 +57,8 @@ export interface ProgressRepo {
 }
 
 export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): ProgressRepo {
+  /** `server_version_num` ≥ 170000 (transaction_timeout exists), read once per repository. */
+  let hasTxTimeout: Promise<boolean> | null = null;
   return {
     get: (accountId) =>
       withDbTimeout(
@@ -83,7 +95,19 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Pro
         "progress.addSupplies",
         async () => {
           const db = await database.db();
+          hasTxTimeout ??= db
+            .execute(sql`select current_setting('server_version_num')::int as v`)
+            .then((r) => ((r as unknown as { rows: { v: number }[] }).rows[0]?.v ?? 0) >= 170000)
+            .catch(() => {
+              hasTxTimeout = null;
+              return false;
+            });
+          const txTimeout = await hasTxTimeout;
           return db.transaction(async (tx) => {
+            // Review M1: bounded inside PostgreSQL (see BANK_LOCK_TIMEOUT_MS): never a commit after the caller gave up.
+            await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BANK_LOCK_TIMEOUT_MS}ms'`));
+            await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${BANK_LOCK_TIMEOUT_MS}ms'`));
+            if (txTimeout) await tx.execute(sql.raw(`SET LOCAL transaction_timeout = '${BANK_TX_TIMEOUT_MS}ms'`));
             await tx.insert(progress).values({ accountId }).onConflictDoNothing(); // a missing row is an empty one
             const locked = await tx
               .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies })
