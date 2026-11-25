@@ -183,6 +183,7 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 
 ### Gate (brief R6)
 
+- **FULL GATE after the review fixes ✅** `npm run typecheck && npm run lint && npm test && npm run build` on `story-7-2` fee1ae1 = story-7-2 merged with origin/story-7-1 `e1f97a39` (7.1 + re-review fixes, 8.1 inside) AND origin/master `f67154d7` (8.10): 450 test files passed / 2 skipped (realPostgres without `TEST_DATABASE_URL`, + the existing skip), 4054 tests passed / 9 skipped, build OK; load 1.78 → 3.82 (2026-11-25 07:30–07:38). Separately: `TEST_DATABASE_URL` real PostgreSQL 16 run of `realPostgres.test.ts` 6/6.
 - **FULL GATE ✅** `npm run typecheck && npm run lint && npm test && npm run build` on `story-7-2` 9c451d5 = story-7-2 merged with origin/story-7-1 `7519791` (7.1 + its review fixes, 8.1 inside) AND origin/master `02e7d8c`: 443 test files passed / 1 skipped, 4005 tests passed / 3 skipped, build OK; load 1.89 at start → 3.71 at end (2026-11-25 06:45–06:52).
 - First gate run on 1587e3f found 3 failures, fixed before this one: `noDbImports` (the room test imported drizzle-orm: now `db/testQueries.ts`), and two lobbyStore tests (a Leave while 8.1 is reconnecting now leaves at once; a live Leave mid-run waits for `run.rewards`, test updated).
 
