@@ -5,8 +5,9 @@
  *  1. delays every chunk by half the round trip ± half the jitter (uniform), in each direction,
  *     WITHOUT reordering (a chunk never overtakes an earlier one, like real TCP);
  *  2. optionally models a TCP retransmission stall (head-of-line blocking): with probability
- *     `--stall-prob` per server→client chunk, that chunk and everything behind it waits an extra
- *     `--stall-ms` (a lost segment waiting for its retransmit), then arrives in one burst;
+ *     `--stall-prob` per chunk, in EACH direction (Story 8.8; before it: server→client only), that
+ *     chunk and everything behind it waits an extra `--stall-ms` (a lost segment waiting for its
+ *     retransmit), then arrives in one burst;
  *  3. reads the server→client WebSocket frames (plain ws on localhost, unmasked) and splits the
  *     payload bytes by Colyseus protocol code and message type, per connection and per second, and
  *     records when each horde frame reaches the client (gaps and bursts).
@@ -16,9 +17,12 @@
  *
  * Point the bots at it: `npm run bots -- --url http://localhost:4167 ...`. On SIGINT / SIGTERM it
  * writes the JSON report (stdout, or `--out`) and exits.
+ *
+ * Story 8.8: the line itself (1–2) lives in `lagLine.ts` (also used in-process by
+ * `npm run bots -- --lag --jitter --loss`); this file adds the CLI and the report (3).
  */
-import { createServer, connect, type Socket } from "node:net";
 import { writeFileSync } from "node:fs";
+import { startLagLine } from "./lagLine";
 
 interface Args {
   listen: number;
@@ -88,50 +92,14 @@ interface ConnStats {
   /** Up direction: chunks and bytes from the client. */
   upChunks: number;
   upBytes: number;
+  /** Stalls injected on this connection (Story 8.8: both directions; `stallsUp` the client→server ones). */
   stalls: number;
+  stallsUp: number;
 }
 
 const conns: ConnStats[] = [];
 let nextId = 1;
 const t0 = performance.now();
-
-const rand = (): number => Math.random();
-const oneWay = (): number => args.rttMs / 2 + (rand() - 0.5) * args.jitterMs;
-
-/** Delivers chunks in order, each no earlier than its own delayed time. */
-class OrderedDelay {
-  private lastAt = 0;
-  private queue: { at: number; buf: Buffer }[] = [];
-  private timer: NodeJS.Timeout | null = null;
-  constructor(
-    private readonly dest: Socket,
-    private readonly onDeliver: (buf: Buffer) => void,
-  ) {}
-  push(buf: Buffer, extraMs: number): void {
-    const now = performance.now();
-    const at = Math.max(this.lastAt, now + oneWay() + extraMs);
-    this.lastAt = at;
-    this.queue.push({ at, buf });
-    this.schedule();
-  }
-  /** A stall holds this chunk and everything behind it (the ordered queue does the rest). */
-  private schedule(): void {
-    if (this.timer || this.queue.length === 0) return;
-    const head = this.queue[0];
-    if (!head) return;
-    const wait = Math.max(0, head.at - performance.now());
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      const now = performance.now();
-      while (this.queue.length > 0 && (this.queue[0] as { at: number }).at <= now + 0.5) {
-        const item = this.queue.shift() as { at: number; buf: Buffer };
-        if (!this.dest.destroyed) this.dest.write(item.buf);
-        this.onDeliver(item.buf);
-      }
-      this.schedule();
-    }, wait);
-  }
-}
 
 /** Incremental WebSocket frame reader for the server→client direction (after the 101 response). */
 class WsReader {
@@ -210,56 +178,54 @@ function msgType(p: Buffer, o: number): string {
   return `0x${b.toString(16)}`;
 }
 
-const server = createServer((client) => {
-  client.setNoDelay(true);
-  const upstream = connect({ host: args.targetHost, port: args.target });
-  upstream.setNoDelay(true);
-  const s: ConnStats = {
-    id: nextId++,
-    openedAt: performance.now(),
-    closedAt: null,
-    upgraded: false,
-    deflate: false,
-    bytes: {},
-    messages: {},
-    perSecond: {},
-    wsHeaderBytes: 0,
-    chunksToClient: 0,
-    hordeArrivals: [],
-    upChunks: 0,
-    upBytes: 0,
-    stalls: 0,
-  };
-  conns.push(s);
-  const reader = new WsReader(s);
-  const down = new OrderedDelay(client, (buf) => {
-    s.chunksToClient++;
-    reader.feed(buf, performance.now());
-  });
-  const up = new OrderedDelay(upstream, () => {});
-  client.on("data", (buf: Buffer) => {
-    s.upChunks++;
-    s.upBytes += buf.length;
-    up.push(buf, 0);
-  });
-  upstream.on("data", (buf: Buffer) => {
-    const stall = args.stallProb > 0 && s.upgraded && rand() < args.stallProb;
-    if (stall) s.stalls++;
-    down.push(buf, stall ? args.stallMs : 0);
-  });
-  const close = (): void => {
-    s.closedAt ??= performance.now();
-    client.destroy();
-    upstream.destroy();
-  };
-  client.on("close", close);
-  upstream.on("close", close);
-  client.on("error", close);
-  upstream.on("error", close);
-});
-
-server.listen(args.listen, () => {
-  process.stderr.write(`lagProxy :${args.listen} -> ${args.targetHost}:${args.target} rtt ${args.rttMs} ±${args.jitterMs / 2} stall ${args.stallProb}@${args.stallMs}ms\n`);
+void startLagLine({
+  listen: args.listen,
+  listenHost: "0.0.0.0",
+  targetHost: args.targetHost,
+  target: args.target,
+  rttMs: args.rttMs,
+  jitterMs: args.jitterMs,
+  lossPct: args.stallProb * 100,
+  stallMs: args.stallMs,
+  onConnection: (c) => {
+    const s: ConnStats = {
+      id: nextId++,
+      openedAt: performance.now(),
+      closedAt: null,
+      upgraded: false,
+      deflate: false,
+      bytes: {},
+      messages: {},
+      perSecond: {},
+      wsHeaderBytes: 0,
+      chunksToClient: 0,
+      hordeArrivals: [],
+      upChunks: 0,
+      upBytes: 0,
+      stalls: 0,
+      stallsUp: 0,
+    };
+    conns.push(s);
+    const reader = new WsReader(s);
+    c.client.on("close", () => (s.closedAt ??= performance.now()));
+    return {
+      onDown: (buf: Buffer) => {
+        s.chunksToClient++;
+        reader.feed(buf, performance.now());
+      },
+      onUp: (buf: Buffer) => {
+        s.upChunks++;
+        s.upBytes += buf.length;
+      },
+      canStall: () => s.upgraded, // the WebSocket stream only (as before), both directions
+      onStall: (dir: "up" | "down") => {
+        s.stalls++;
+        if (dir === "up") s.stallsUp++;
+      },
+    };
+  },
+}).then((line) => {
+  process.stderr.write(`lagProxy :${line.port} -> ${args.targetHost}:${args.target} rtt ${args.rttMs} ±${args.jitterMs / 2} stall ${args.stallProb}@${args.stallMs}ms (both directions)\n`);
 });
 
 const pct = (sorted: readonly number[], q: number): number => (sorted.length === 0 ? 0 : (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] as number));
@@ -292,6 +258,7 @@ function report(): unknown {
         upKBps: r1(c.upBytes / 1024 / lifeS),
         upWritesPerS: r1(c.upChunks / lifeS),
         stalls: c.stalls,
+        stallsUp: c.stallsUp,
         hordeFrames: c.hordeArrivals.length,
         hordeGapMs: { p50: r1(pct(gaps, 0.5)), p95: r1(pct(gaps, 0.95)), p99: r1(pct(gaps, 0.99)), max: r1(gaps[gaps.length - 1] ?? 0) },
         hordeBunchedPct: gaps.length ? r1((100 * bunched) / gaps.length) : 0,

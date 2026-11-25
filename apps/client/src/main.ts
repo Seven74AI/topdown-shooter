@@ -18,7 +18,7 @@ import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
 import { NetSession, type NetRoomLike } from "./net/session";
-import { DevThrottle } from "./net/devThrottle";
+import { DevThrottle, activeThrottle } from "./net/devThrottle";
 import { createOnlinePhaseHandler } from "./net/onlineFlow";
 import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
@@ -125,7 +125,7 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
 }
 
 /**
- * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release builds too): the fight reads this room through
+ * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release builds too; Story 8.8 `&loss=<pct>&stall=<ms>`): the fight reads this room through
  * the dev throttle. It wraps the room at the join, before the RunInbox exists, so pings, event
  * batches, patches and inputs are all delayed alike. Pumped from the game loop (no timers), in the
  * lobby too, until the room is left.
@@ -133,12 +133,14 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
 function throttled(room: RunConnection): NetRoomLike {
   const o = urlOptions().throttle;
   if (!o) return room;
-  const throttle = new DevThrottle(room, { lagMs: o.rttMs, jitterMs: o.jitterMs });
+  const throttle = new DevThrottle(room, { lagMs: o.rttMs, jitterMs: o.jitterMs, lossPct: o.lossPct, stallMs: o.stallMs });
+  activeThrottle.current = throttle; // Story 8.8: the overlay's loss line
   const pump = (): void => throttle.pump(performance.now());
   game.events.on(Phaser.Core.Events.PRE_STEP, pump);
   room.onLeave(() => {
     game.events.off(Phaser.Core.Events.PRE_STEP, pump);
     throttle.close();
+    if (activeThrottle.current === throttle) activeThrottle.current = null;
   });
   return throttle;
 }

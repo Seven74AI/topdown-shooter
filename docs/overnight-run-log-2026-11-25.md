@@ -11,6 +11,9 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTvgAGDYHqrNxgjxz9 | Lumen redraw BT1/AC1/SC3/TL3 | epic-7-lumen-picks |
 | session_01CgLgPTHBB6ZMNgxhetcmfH | Builder 7.1 (early part T1–T5, T8) | story-7-1 |
 | session_01CgLgPXkMujTFt9FkusaTPz | Builder 7.9 (early part T1, T4, T5) | story-7-9 |
+| session_01CgLgPT2yAMRMLRecGBwVue | Builder 8.1 | story-8-1 |
+| session_01CgLgPVUe4VgW93WEkr9VNn | Review 8.8 | review-8-8 |
+| session_01CgLgPTGmNZH64LunFYNBGt | Review 8.9 | review-8-9 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -19,6 +22,9 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-3: Epic 7 brief v1 written and pushed before the retro returned (retro lines appended later as R-lines).
 - OR-4: 7.1 and 7.9 start early on their tasks that don't touch 8.1's join rewrite (7.1: DB, repos, progression.json, account API, deploy; 7.9: look code, gun under the body, per-player textures). Their join/room tasks wait for 8.1 (alternative: wait for the Network pass to finish). Reason: HANDOFF §3 session 9 speed-up 1 (start by real file overlap).
 - OR-5: number ranges assigned: netEvents Network pass 100–109, 7.1–7.7 110–119, 7.9 120–124, 7.11 125–129, 7.12 130–139; readability items NP 100–104, 7.9 105–109, 7.12 110–114, 7.2–7.7 115–129.
+- OR-6: 8.1 starts before round 1 (8.8/8.9) lands, because it is on Epic 7's critical path (7.1 T6 waits for its join rewrite); it merges 8.8/8.9 when they land (alternative: round order 8.8 ∥ 8.9 → 8.1). Seat identity built around one identity-key function for 7.1.
+- OR-7 (= 8.9 B7): AC 6 starved ticks not met (+41–58 %); accepted as built — 0.9× pacing empties the backlog so 0 inputs are skipped and 0 % predicted shots never fire, at the cost of one-tick move delays at the next stall; bounded ≤ 1.6× pacing-off by smooth.test.ts. Alternative: designer revisits 8.9 D5 (server-only skip of every 2nd input after 2 s). Retro default A7.
+- OR-8: 8.9 merges 8.8's gated branch (not master) for T10/T11 while 8.8 is in review; 8.9's reviewer starts in parallel on 8.9 + 8.8 + master.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -29,3 +35,15 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - Follow-up (7.4): the BT1 shop still shows TWO borrowed cards (Mo, Kit) while the rule is 1 of 6 (designer D-rule) — the rule wins; the still kept the old sheet's state.
 - Follow-up (retro A12): one small "Epic 6 leftovers" tidy story (6.13 L-b/L-c/L-d/nit; 6.14 L6 top-band test) — schedule by file overlap in Epic 7.
 - 04:08 gate green on c87a707 (396 files / 3655 tests, load 3.67) → master.
+- 04:12 7.9 early part pushed (46d60e3): T1 look code, T4 gun under body, T5 per-player textures; 1360 touched tests, 11/11 mutations killed. Builder choices: D1 repaint by comparing decay stage per frame; missing look = 0 replaced fields; client decodes against full catalogue (server checks ownership); ?devlooks=N. Holding T2/T3/T6 for 7.1 + 8.1.
+- 04:17 7.1 early part pushed (6aa9b81): deps, schema+migration, repos, progression.json, account API, deploy/backups; 132 touched tests, 8/8 mutations caught. Auto-accepted B1–B7 (docs/epic-7-decisions.md › Story 7.1 build-time choices). Not verified: no Docker here; VPS steps are Hermes's. Holding T6/T7 for 8.1.
+- 04:18 dispatched 8.1 (early, OR-6).
+- 04:26 8.8 hand-back (c1c5ef1, gate on ddce305: 398 files / 3679 tests, load 3.98). Reversed hits kiting Runners: clean 0.2→0.2 %, 1 % 7.6→2.0 %, 2 % 11.9→1.3 %, 1 %×400 ms 12.7→7.2 %; shots over cap 50/73/64 % → 0/0/4.7 %; rewind p99 0.054→0.060 ms. Two-tab smoke report docs/perf/network-pass-smoke-2026-11-25.md (vote not reached: team wiped at the Behemoth; no online boss-HP switch). Finding for 8.9: 1 %×400 ms Walker rows ~1 pp worse with 500 ms window. Dispatched review.
+- 04:35 8.9 hand-back (b8109fb, gate 400 files / 3681 tests, load 4.52). Freezes per 30 s on the 1 % line 6–6.9 → 0.9–1; 2 % 11 → 0.3–0.9; clean line delay 118→100 ms; never-fired shots 1.5 % → 0 %; server skips 50–82 → 0–2. Pending T10 (500 ms window: kiting Runners rose 7.6→18 % with the longer delay on the old 300 ms window). Dispatched review 8.9.
+- 04:37 Review 8.8 (d6e042b): 2 M, 4 L, 3 nits; rule holds, 12 measurement rows reproduce exactly; 20/23 mutants killed (M19 survived → R1). R1 M lossy rows only count stalls (mutation stall-not-applied passes) · R2 M lagLine close drops in-flight bytes + close code · R3 L main.ts throttle wiring test · R4 L barricade broken < 500 ms before a rewound shot lets it pass (accepted as 8.8 B1, text fix) · R5 L netSummary raw query text · R6 L smoke script not reproducible · N1–N3. Sent to builder.
+- 04:41 Previous main session flagged the asset session (session_01CgLgPXQseA7Sjb9qkFpuZj, claude/dazzling-meitner-zhu5p0: relit traps/floodlights/med station, standing barricades, corner pieces; 114 files, client-only, unreviewed). Asked it to merge master + re-gate; main session will review + land it (OR-9: land before Epic 7 HudScene/shop stories).
+- 04:44 8.8 fixes pushed (008df68: R1 b88b1e4, R2 d5e4176, R3 55b3683, R4 c0533ab text + 8.8 B1, R5 b28f401, R6 61ffbf0, N2 351aa4f). Narrow re-review dispatched (session_01CgLgPUPAN4Mdh4kigceHmj, rereview-8-8). Main gate started on 8.8 merged.
+- 04:47 Review 8.9 (db15745): 2 M, 4 L. M1 clock lags after a latency FALL (real delay 366–666 ms, render behind the horde ring) · M2 boss telegraph fill ~200 ms late after a fall (F7) · L1 freeze bound 2→1 · L2 rate flip-flop at stretch cap · L3 snap-forward untested · L4 telegraph >1 untested. Beat-the-rule: 0 back steps, rate in [0.9,1.1] in every row; pacing lies hurt only the liar. Sent to builder with T10.
+- 04:50 Re-review 8.8 (d1df8f1): fixes close their findings; 0 H/M, 3 L test gaps (allowHalfOpen untested; wiring check fooled by comments; netSummary wiring untested) + 1 nit (timer re-armed after stop). Sent back as test-only fixes; no further re-review (OR-10: test-only fixes after a clean narrow re-review don't need another re-review). Main gate on 8.8 008df68 + master: 399 files / 3685 tests green, load 3.03.
+- 04:51 8.9 T10/T11 (19e6ea4): with 8.8's 500 ms window 16–33 % of lossy-line shots were over the cap → applied 8.8 D1's pre-approved fallback as 8.9 B8: REWIND 12 ticks / 600 ms. Reversed hits (kiting, 1 %/2 %): Runners 0.7/1.4 %, Walkers 0.3/1.1 %, 0 % over cap; rewind p99 0.070 ms. Bots lossy 4 × wave 4: 0 suspects, 7.6 KB/s down. B7 bound 1.6→1.7× after the merge.
+- 04:59 8.8 test-only fixes (c011273) merged; main gate 399 files / 3689 tests green (load 3.49) → 8.8 DONE on master.

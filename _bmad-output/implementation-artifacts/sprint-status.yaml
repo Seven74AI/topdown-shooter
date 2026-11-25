@@ -182,7 +182,7 @@ development_status:
   epic-8: in-progress  # Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
   # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
   # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
-  8-8-my-shots-count-on-a-bad-4g-line: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 1: 500 ms rewind + lossy-line test switch
+  8-8-my-shots-count-on-a-bad-4g-line: done  # 2026-11-25 overnight: 500 ms rewind (8.9 raises to 600) + lossy line; review 2M+4L fixed, narrow re-review 3L test gaps fixed
   8-9-smooth-through-hiccups: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 2: adaptive 100-250 ms delay, time-stretch, clock never backwards
   8-1-reconnect-within-2-minutes: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
   8-10-half-size-horde-stream: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 4: delta horde stream

@@ -3,6 +3,7 @@
  *
  *   npm run bots -- --room ABCD --count 3                   # fill a browser host's room
  *   npm run bots -- --count 4 --scenario net150 --until-wave 4   # 4 bots: create, start, measure
+ *   npm run bots -- --count 4 --scenario net150 --lag 150 --jitter 20 --loss 1   # on the lossy line
  *
  * Options:
  *   --url <http(s)://…>   game server (default http://localhost:2567; production: https://hordes.sevend.io/api)
@@ -15,6 +16,15 @@
  *   --max-seconds <S>     leave after S seconds whatever happens (default 900)
  *   --hold-fire <S>       don't fire for the first S seconds of each wave, so the horde reaches the
  *                         150-alive cap (the worst case for bandwidth; default 0)
+ *   --lag <ms>            Story 8.8: put a lagged TCP line between the bots and a LOCAL --url
+ *                         (round trip, ms; in-process, built on tools/netaudit/lagLine.ts)
+ *   --jitter <ms>         spread of each one-way delay on that line (± half; default 0)
+ *   --loss <pct>          head-of-line stalls on that line: per chunk, in BOTH directions, that
+ *                         chunk and everything behind it waits --stall ms (TCP retransmit; 0–20 %)
+ *   --stall <ms>          the extra wait of a stalled chunk (default 200, 0–1000)
+ *                         e.g. --lag 150 --jitter 20 --loss 1 (the network pass's lossy line).
+ *                         Refused for a remote --url. The summary adds a `bots_line` line with the
+ *                         stalls injected per direction.
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
  * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
@@ -24,6 +34,8 @@
 import { readFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
+import { startLagLine, type LagLine } from "../netaudit/lagLine";
+import { lineUrl, parseLine, type LineArgs } from "./lineArgs";
 
 interface Args {
   url: string;
@@ -34,10 +46,12 @@ interface Args {
   untilWave: number;
   maxSeconds: number;
   holdFireS: number;
+  /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
+  line: LineArgs | null;
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -68,8 +82,9 @@ function parseArgs(argv: readonly string[]): Args {
   const scenario = get("scenario");
   if (scenario !== undefined && !isTestScenario(scenario)) throw new Error(`--scenario ${scenario} is unknown`);
   const origin = get("origin");
+  const url = get("url") ?? "http://localhost:2567";
   return {
-    url: get("url") ?? "http://localhost:2567",
+    url,
     ...(origin ? { origin } : {}),
     ...(room ? { room } : {}),
     count,
@@ -77,7 +92,18 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
+    line: parseLine(get, url),
   };
+}
+
+/** Story 8.8: starts the line in front of the local --url; returns the URL the bots use instead. */
+async function startLine(args: Args, log: (line: Record<string, unknown>) => void): Promise<{ url: string; line: LagLine | null }> {
+  if (!args.line) return { url: args.url, line: null };
+  const u = new URL(args.url);
+  const target = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+  const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
+  log({ msg: "bots_line_on", via: line.port, target, ...args.line });
+  return { url: lineUrl(args.url, line.port), line };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -93,7 +119,8 @@ async function main(): Promise<void> {
   const args = parseArgs(argv);
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
-  const base = { url: args.url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
+  const { url, line } = await startLine(args, log);
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
   let roomId = args.room;
   if (!roomId) {
     const host = await BotClient.connect({ ...base, name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}) });
@@ -129,7 +156,9 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     summary(bots, reason, log);
+    if (line && args.line) log({ msg: "bots_line", ...args.line, ...line.stats() }); // Story 8.8: stalls per direction
     await Promise.all(bots.map((b) => b.stop()));
+    await line?.close();
     process.exit(0);
   };
   process.on("SIGINT", () => void stop("interrupted"));

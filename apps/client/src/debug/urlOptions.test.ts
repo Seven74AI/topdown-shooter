@@ -3,6 +3,7 @@ import {
   DEFAULT_STRESS_WALKERS,
   MAX_STRESS_WALKERS,
   MAX_THROTTLE_LAG_MS,
+  parseLossPct,
   parseUrlOptions,
   skipsStartScreen,
 } from "./urlOptions";
@@ -89,15 +90,37 @@ describe("parseUrlOptions: Story 2.1 start screen", () => {
 
 describe("parseUrlOptions: Story 2.6 network throttle", () => {
   it("reads ?lag=<rttMs>&jitter=<ms>", () => {
-    expect(parseUrlOptions("?lag=150&jitter=20").throttle).toEqual({ rttMs: 150, jitterMs: 20 });
-    expect(parseUrlOptions("?lag=150").throttle).toEqual({ rttMs: 150, jitterMs: 0 });
-    expect(parseUrlOptions("?jitter=30").throttle).toEqual({ rttMs: 0, jitterMs: 30 });
+    // Story 8.8: the throttle carries the lossy line too (off = loss 0, default stall 200 ms).
+    expect(parseUrlOptions("?lag=150&jitter=20").throttle).toEqual({ rttMs: 150, jitterMs: 20, lossPct: 0, stallMs: 200 });
+    expect(parseUrlOptions("?lag=150").throttle).toEqual({ rttMs: 150, jitterMs: 0, lossPct: 0, stallMs: 200 });
+    expect(parseUrlOptions("?jitter=30").throttle).toEqual({ rttMs: 0, jitterMs: 30, lossPct: 0, stallMs: 200 });
     expect(parseUrlOptions("?lag=99999").throttle?.rttMs).toBe(MAX_THROTTLE_LAG_MS);
   });
 
   it("is off without a usable value, and never skips the start screen", () => {
     for (const q of ["", "?lag=0", "?lag=abc", "?lag=-5&jitter=x", "?lag=1.5"]) expect(parseUrlOptions(q).throttle).toBeNull();
     expect(skipsStartScreen(parseUrlOptions("?lag=150&jitter=20"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 8.8 lossy line (&loss=<pct>&stall=<ms>)", () => {
+  it("reads &loss (0–20, one decimal) and &stall (0–1000 ms, default 200)", () => {
+    expect(parseUrlOptions("?lag=150&jitter=20&loss=1").throttle).toEqual({ rttMs: 150, jitterMs: 20, lossPct: 1, stallMs: 200 });
+    expect(parseUrlOptions("?lag=150&loss=0.5&stall=400").throttle).toEqual({ rttMs: 150, jitterMs: 0, lossPct: 0.5, stallMs: 400 });
+    expect(parseUrlOptions("?loss=2").throttle).toEqual({ rttMs: 0, jitterMs: 0, lossPct: 2, stallMs: 200 }); // &loss alone: lag 0 + stalls
+    expect(parseUrlOptions("?loss=99").throttle?.lossPct).toBe(20);
+    expect(parseUrlOptions("?loss=1&stall=5000").throttle?.stallMs).toBe(1000);
+    expect(parseUrlOptions("?loss=1&stall=0").throttle?.stallMs).toBe(0);
+  });
+
+  it("a bad &loss is off (0); a bad &stall is the default; &stall alone turns nothing on", () => {
+    for (const v of ["-1", "abc", "1.25", "0.", ".5", "1e1", ""]) expect(parseLossPct(v), v).toBe(0);
+    expect(parseLossPct(null)).toBe(0);
+    expect(parseUrlOptions("?lag=150&loss=x").throttle?.lossPct).toBe(0);
+    expect(parseUrlOptions("?lag=150&loss=1&stall=-3").throttle?.stallMs).toBe(200);
+    expect(parseUrlOptions("?stall=400").throttle).toBeNull();
+    expect(parseUrlOptions("?loss=0").throttle).toBeNull();
+    expect(skipsStartScreen(parseUrlOptions("?lag=150&jitter=20&loss=1"))).toBe(false);
   });
 });
 
