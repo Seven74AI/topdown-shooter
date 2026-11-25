@@ -3184,6 +3184,66 @@ So that I can fight by ear in the dark.
 **When** sounds would overlap
 **Then** a voice limit per sound type prevents clipping and keeps CPU use flat
 
+### Photoreal pass (stories 9.11–9.14, added 2026-11-25)
+
+The designer ran a photoreal art pass outside the story flow (the asset session, 2026-11-24/25): every look was picked by the designer on proposal pages, then the approved sets go into the game in game code. Decisions: `docs/art/photoreal-decisions.md`; art direction: `docs/art/visual-direction.md`; the asset review page (https://claude.ai/artifact/Eznwmb2BbdSoogcXKKN4Ro, `docs/art/asset-review.md`) shows only accepted looks. These stories overlap 9.3 (survivor animations), 9.4 (zombie animations), 9.6 (effects) and 9.2 (Downtown look): when those are written, start from what is already built and approved here.
+
+### Story 9.11: Photoreal things you build (done)
+
+As a player,
+I want the things I build to look real and alive,
+So that my base feels premium and readable.
+
+**Acceptance Criteria:**
+
+**Given** the traps, floodlights and med station
+**When** they are placed
+**Then** they use the approved relit look (volumes, materials, gloss) and animate: lamps flicker, the med cross beats, the mine's light blinks, glints run over steel
+
+**Given** a wood, reinforced or metal barricade
+**When** it is placed
+**Then** it is drawn standing (raised-camera look, its own cast shadow), with one picture per rotation (rot 0 outside, rot 2 inside, rot 1 / 3 side views, braces inside), a variant fixed by its spot, sorted above the bodies; where two lines meet a corner piece closes the gap (visual only)
+
+**Given** the game starts
+**When** the relit pictures are prepared
+**Then** a Web Worker bakes them (main-thread sliced fallback) so no frame stalls; the plain drawings show meanwhile; a graphics restore keeps or re-bakes them
+
+### Story 9.12: Bodies behind walls (done)
+
+As a player,
+I want to see zombies and teammates standing behind a standing wall,
+So that a barricade never hides a threat or a friend.
+
+**Acceptance Criteria:**
+
+**Given** a body just behind a standing wall or corner
+**When** the wall covers it
+**Then** the covered part shows through as a soft pulsing silhouette, zombies red (red = danger in play), survivors in their slot colour, cropped to the wall's solid part (never over open street), capped and pooled, off in a blackout, at no measurable FPS cost
+
+### Story 9.13: Photoreal characters in the game (backlog)
+
+As a player,
+I want the approved photoreal survivors and zombies in the game, animated,
+So that the characters match the premium look of the rest.
+
+**Acceptance Criteria:**
+
+**Given** the approved take 4 with today's grey see-through outline (`docs/art/photoreal-2/take4-grey.html`)
+**When** the game draws survivors, Walkers, Runners, Crawlers, Spitters, Brutes and Bloaters
+**Then** they use that relit look (prepared like 9.11, no stalls), with its animations: breathing and sway, the glow pulse, Bloater veins with travelling pulses and glossy acid sacs, Spitter drips, chainsaw shake, and the new Walker / Runner / Crawler walk loops, capped and pooled for 150 zombies at the phone FPS target; survivor looks (Story 7.8) keep working
+
+### Story 9.14: Photoreal street props and vehicles in the game (backlog)
+
+As a player,
+I want the approved photoreal cars, bus and street props in the city,
+So that the whole street matches.
+
+**Acceptance Criteria:**
+
+**Given** the approved street props and vehicles (`docs/art/photoreal-1/compare.html`)
+**When** the city is drawn
+**Then** cars, burnt cars, the bus, dumpster, gas pump, rubble and sandbags use that look, and the police sawhorse barriers stand (approved police set in `barricadeArt.ts`, traffic-drum corners), sorted with the bodies like the barricades
+
 ## Epic 10: Performance and polish
 
 Every technical target is met on the reference phones; quality settings, home-screen install, problem reports, run stats, a balance pass and friend-group playtests deliver v1 for weekly game nights.
