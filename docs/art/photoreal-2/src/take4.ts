@@ -19,6 +19,9 @@ import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fix
 import { drawCrawler2, drawRunner2, drawWalker2 } from "./commonz";
 
 const R = 68; // px per body radius (2× the game's)
+declare const KEEP_OUTLINE: boolean | undefined; // set by the page: keep today's grey see-through outline unlit
+/** Keep the drawing's outline exactly as today (grey, see-through at the silhouette) instead of shading it as a crease. */
+const keepOutline = (): boolean => typeof KEEP_OUTLINE !== "undefined" && KEEP_OUTLINE === true;
 
 export interface Lit {
   base: HTMLCanvasElement;
@@ -155,6 +158,11 @@ export function relight4(draw: (g: G, r: number) => void, extent: number, seed: 
       const sp = Math.pow(Math.max(0, rz), 20) * glossK;
       const grain = 1 + (hash2(x, y, seed) - 0.5) * 0.06 + (fbm(x / (1.1 * ss), y / (1.1 * ss), seed + 3, 2) - 0.5) * 0.18 * (1 - glossK);
       const ao = 1 - E[i]! * 0.3;
+      if (keepOutline() && l0 < 0.09) {
+        // today's outline: copied as drawn (no light, no gloss), so it stays grey and see-through
+        for (let c = 0; c < 4; c++) o[i * 4 + c] = d[i * 4 + c] as number;
+        continue;
+      }
       for (let c = 0; c < 3; c++) {
         const v = d[i * 4 + c] as number;
         const lit = (0.4 + 0.9 * diff * (tint[c] as number)) * grain * ao;
