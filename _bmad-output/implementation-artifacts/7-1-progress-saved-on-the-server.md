@@ -4,7 +4,7 @@ baseline_commit: 1fade848628c7738a860d491f1ca3e9ccdfb744f
 
 # Story 7.1: Progress saved on the server
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 1 of 7 (7.1–7.7). Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D1–D12 (docs/epic-7-decisions.md, docs/ideas/epic-7/proposal.md § 0) are rules here, not questions. New decisions: "Decisions to confirm" below and docs/epic-7-story-decisions-progress.md. Order of work: Epic 6 (landing) → Network pass (8.8, 8.9, 8.1, 8.10, 8.11) → Epic 7. -->
 
