@@ -41,6 +41,12 @@ export interface Relief {
   readonly ss?: number;
   /** Darkening along the footprint's inner edge (contact shadow / ambient occlusion), 0–1. */
   readonly edgeAO?: number;
+  /** Light colour (multipliers per channel) for the key light, and the ambient level per channel. Defaults: white, 0.32. */
+  readonly tint?: Rgb;
+  readonly ambient?: Rgb;
+  /** Key light strength (default 0.9) and how steeply slopes darken (height → slope, default 7). */
+  readonly key?: number;
+  readonly slope?: number;
 }
 
 export interface Sample {
@@ -106,7 +112,10 @@ export function render(o: Relief): HTMLCanvasElement {
   const L = [-0.5, -0.72, 0.48];
   const ll = Math.hypot(L[0] as number, L[1] as number, L[2] as number);
   const [lx, ly, lz] = [(L[0] as number) / ll, (L[1] as number) / ll, (L[2] as number) / ll];
-  const K = 7 * ss;
+  const K = (o.slope ?? 7) * ss;
+  const tint = o.tint ?? [1, 1, 1];
+  const amb = o.ambient ?? [0.32, 0.32, 0.32];
+  const key = o.key ?? 0.9;
   const r: Record<string, number> = {};
   const keys = Object.keys(regions);
   for (let y = 1; y < h - 1; y++) {
@@ -133,11 +142,11 @@ export function render(o: Relief): HTMLCanvasElement {
       const sp = Math.pow(Math.max(0, rz), 22) * gl;
       const sky = gl * 0.18 * nz; // a soft night-sky reflection on glossy, upward faces
       const ao = footSoft ? 1 - (o.edgeAO ?? 0) * (1 - (footSoft[i] as number)) * 2 : 1;
-      const lit = (0.32 + 0.9 * diff) * Math.max(0.3, ao);
+      const aoK = Math.max(0.3, ao);
       const k = i * 4;
-      d[k] = Math.min(255, cr * lit + sp * 255 + sky * 90);
-      d[k + 1] = Math.min(255, cg * lit + sp * 248 + sky * 100);
-      d[k + 2] = Math.min(255, cb * lit + sp * 240 + sky * 125);
+      d[k] = Math.min(255, cr * (amb[0] + key * diff * tint[0]) * aoK + sp * 255 * tint[0] + sky * 90);
+      d[k + 1] = Math.min(255, cg * (amb[1] + key * diff * tint[1]) * aoK + sp * 248 * tint[1] + sky * 100);
+      d[k + 2] = Math.min(255, cb * (amb[2] + key * diff * tint[2]) * aoK + sp * 240 * tint[2] + sky * 125);
       d[k + 3] = Math.round(a * 255);
     }
   }
