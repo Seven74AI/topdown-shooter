@@ -104,3 +104,7 @@ Once, the first time you deploy a master that contains Story 7.1 (`deploy/backup
 4. Backups: set up rclone + the R2 bucket, `deploy/backup.env`, run `deploy/backup.sh` once, add the cron line, run `deploy/restore.sh` once and fill in the restore-test table in `docs/deploy.md` (commit it on a branch or report it to the designer).
 5. Copy `deploy/.env` somewhere safe off the VPS (the designer's password manager): it holds the database password.
 6. Report: sha, each check's result, the backup file size, the restore row counts.
+
+## Stories 8.4–8.6 (save and resume)
+
+`deploy/deploy.sh` as usual: migration `0005_saved_runs` runs in its migration step (expect `db_migrated`). From then on a redeploy saves the runs in progress ("Server restarting, your run is saved"); see `docs/deploy.md` › Saved runs. Rolling back to an older image is safe: it ignores the two new tables.
