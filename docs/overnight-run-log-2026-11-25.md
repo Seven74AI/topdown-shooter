@@ -34,6 +34,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPWrQXL4UDA6K2D2r2Z | Builder 7.4+7.5 | story-7-4-5 |
 | session_01CgLgPWthwSZ9xrcBK3hSpi | Builder 7.6 | story-7-6 |
 | session_01CgLgPXYxZHCHN6vRXnC4s8 | Epic 8 merged story files | epic-8-stories |
+| session_01CgLgPV1eLFk5ts9nKEAyBU | Builder 7.10 | story-7-10 |
 | session_01CgLgPXcaMeFp71mpWmJFfT | Re-review 3 8.1 | rereview3-8-1 |
 | session_01CgLgPVb5154pQmpqo1HyHj | Re-review 7.2 | rereview-7-2 |
 | session_01CgLgPTfz8BTj8YpUzPAoxH | Re-review 7.9 | rereview-7-9 |
@@ -154,3 +155,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 10:09 Review 7.4+7.5 (9c785317): APPROVED — no H/M; 8 L + 3 nits (test gaps, HUD reload ring untrained, orange lender badge on amber tape, borrowed card not in DOM layout test). Borrow/Training rules held incl. real-PG races ×10. L6 → 7.4 B11 (2nd borrowed buy per build via a paid reroll allowed; auto-accepted). Small round → main-session check (cap).
 - 10:15 7.4+7.5 review round (c345d13e) checked by the main session (cap): reload ring uses reloadSecondsFor, init mapping moved to tested meta/runStart.runPlayers (same behaviour), tests + CSS + docs → 7.4+7.5 APPROVED; lands after 7.3.
 - 10:26 Batch 2 (7.3 + 7.4+7.5): 7.4+7.5 had real conflicts with 7.9/7.3 (state field order, one progress object) → back to its builder; 7.3 landed alone: master + 7.3 (4c193df9, merged with 7.9: one progress object, B17/B18) gated 470 files / 4274 tests → 7.3 DONE ON MASTER.
+- 10:27 dispatched builder 7.10 (survivor editor; reuses milestones.json from story-7-12; light review + beat the rule on the look save). 7.4+7.5 and 7.6 told to merge master (7.3).
