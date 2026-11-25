@@ -318,6 +318,16 @@ function everyoneReady(world: World): boolean {
 }
 
 /**
+ * Story 8.4 (D10, decision E8-S2): the coming tick ends the build phase (`updateRun` will `startWave`): checked BETWEEN
+ * ticks, before the step, so the room's "last tick" autosave holds every purchase of the build. Pure, allocates nothing.
+ */
+export function buildEndsThisTick(world: World): boolean {
+  const run = world.run;
+  if (run.phase !== "build" || world.teamWiped || world.waves.paused) return false;
+  return run.buildTicksLeft <= 1 || everyoneReady(world);
+}
+
+/**
  * The run system (the `waves` slot of `SYSTEM_ORDER`, after player, combat and zombies):
  * - Story 6.11: vote: the countdown (ticks), shortened once everyone voted; at 0 → `resolveEvacVote`;
  * - a team wipe this tick (or earlier) → `endRun`;

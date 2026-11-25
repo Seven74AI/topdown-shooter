@@ -3357,3 +3357,86 @@ button.lobby__district {
 .lobby-card--edit:active {
   filter: brightness(1.15);
 }
+
+/*
+ * Story 8.6 (AC 11, E8-R5): the start screen's Saved games (Lumen LF5 rows: gunmetal panel, the LF5 amber rule,
+ * "Downtown · Wave 6 · Ana, Bo, Theo" + "saved 2 days ago", Resume ≥ 44 px). No red (red = danger only).
+ */
+.saved-games {
+  width: min(100%, 420px);
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid #f59a2c;
+  background: rgba(40, 44, 50, 0.92);
+  box-sizing: border-box;
+}
+.saved-games__title {
+  margin: 0 0 6px;
+  color: #ffd9a3;
+  font: 700 13px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.saved-games__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.saved-games__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+.saved-games__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.saved-games__name {
+  overflow: hidden;
+  color: #fff;
+  font: 700 15px/1.25 system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-games__ago {
+  color: #b9bec6;
+  font: 400 13px/1.25 system-ui, sans-serif;
+}
+.saved-games__resume {
+  min-width: 96px;
+  min-height: 44px;
+}
+.saved-games__error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #ffd9a3;
+  font: 600 14px/1.3 system-ui, sans-serif;
+}
+
+/* Story 8.5: a greyed menu item's note ("You can save during the build phase"). */
+.in-run-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.in-run-menu__note--small {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+/* Story 8.5 (R9): four menu items (Resume, Players, Save and quit, Leave) fit a 320 px-high landscape phone in two columns. */
+@media (max-height: 420px) {
+  .in-run-menu__items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    align-items: start;
+  }
+}

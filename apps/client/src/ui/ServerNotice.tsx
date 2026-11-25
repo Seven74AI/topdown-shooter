@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { serverNotice } from "../net/serverNotice";
+import { RUN_SAVED_TEXT, serverNotice } from "../net/serverNotice";
 import { uiStore } from "./uiState";
 import { JOIN_ERROR_TEXT } from "../net/joinErrors";
 
@@ -21,7 +21,7 @@ export function ServerNotice() {
       <p id="server-notice-text">{text}</p>
       <button type="button" class="btn" onClick={back}>
         {/* Story 8.3 (AC 12): "You were removed from this run" with OK (back to the start screen too). */}
-        {text === JOIN_ERROR_TEXT.removed ? "OK" : "Back to start"}
+        {text === JOIN_ERROR_TEXT.removed || text === RUN_SAVED_TEXT ? "OK" : "Back to start"}
       </button>
     </div>
   );

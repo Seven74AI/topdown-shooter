@@ -134,3 +134,14 @@ export function mergeProgress(
   row.supplies = (row.supplies as number) + ctx.refunds.total;
   return { row: row as MergeRow, refunds: ctx.refunds };
 }
+
+/**
+ * Review M6 (Stories 8.4–8.6): every OTHER table keyed by an account, and what a guest merge does with it
+ * (`deviceTokensRepo.mergeGuest`). `db/mergeRules.test.ts` fails when a table with an `accountId` column is missing here.
+ */
+export const ACCOUNT_TABLE_MERGES = {
+  progress: "merged by MERGE_RULES",
+  deviceTokens: "the guest's devices are deleted (the device that logged in gets a fresh row)",
+  runRewards: "kept on the guest as history (a late bank of the guest pays the account: mergedInto)",
+  savedRunPlayers: "re-pointed to the account (a run both played keeps one link); a resume maps the save's guest seat by mergedInto",
+} as const;

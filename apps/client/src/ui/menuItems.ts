@@ -6,6 +6,8 @@ export interface MenuContext {
   readonly online: boolean;
   /** This player is the room's host (Story 8.5's Save and quit is host only). Solo: true. */
   readonly isHost: boolean;
+  /** Story 8.5: the run's phase (Save and quit is enabled in a build phase or the vote only). Absent = enabled. */
+  readonly phase?: string;
 }
 
 export interface MenuItem {
@@ -16,6 +18,9 @@ export interface MenuItem {
   /** Secondary style (grey button). */
   readonly secondary?: boolean;
   visible(ctx: MenuContext): boolean;
+  /** Story 8.5: shown but greyed when false, with `disabledNote` under it. Absent = always enabled. */
+  enabled?(ctx: MenuContext): boolean;
+  readonly disabledNote?: string;
 }
 
 const always = (): boolean => true;
@@ -30,6 +35,8 @@ export const MENU_ITEMS: readonly MenuItem[] = Object.freeze([
   // Story 8.3 (H2): the host's Players list (Remove a seat); online only.
   { id: "players", label: "Players", action: "players", secondary: true, visible: (c) => c.online && c.isHost },
   { id: "settings", label: "Settings", action: "settings", secondary: true, visible: always },
+  // Story 8.5 (D12, S7): host only, build phases / the vote only (greyed with a note during a wave).
+  { id: "save", label: "Save and quit", action: "save", secondary: true, visible: (c) => c.online && c.isHost, enabled: (c) => canSaveIn(c.phase), disabledNote: "You can save during the build phase" },
   { id: "leave", label: "Leave game", action: "leave", secondary: true, visible: always },
 ]);
 
@@ -65,6 +72,17 @@ export const MENU_TEXT = {
 
 /** Story 8.3 (H2, AC 11): the confirm line, in the lobby and the in-run menu alike. */
 export const removeConfirmText = (name: string): string => `Remove ${name} from this run? They can't come back.`;
+
+/** Story 8.5 (D12, E8-S12): Save and quit in a build phase or the vote (absent phase: a test context, enabled). */
+export const canSaveIn = (phase: string | undefined): boolean => phase === undefined || phase === "build" || phase === "vote";
+
+/** Story 8.5 (AC 10): the confirm step and its states. */
+export const SAVE_TEXT = {
+  confirm: "Save and quit? The run ends for everyone tonight. Anyone from this run can resume it for 7 days.",
+  save: "Save",
+  saving: "Saving…",
+  failed: "Couldn't save the run. Try again.",
+} as const;
 
 /** Story 8.3: Remove only in the lobby and build phases (D9: never while anyone is fighting or voting). */
 export const canRemoveIn = (phase: string): boolean => phase === "lobby" || phase === "build";

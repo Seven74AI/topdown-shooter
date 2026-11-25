@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RunRewards } from "@topdown/shared";
 import { COLLECTOR_TEXT, REWARD_GROUPS, rewardsView } from "./rewardsModel";
+import { resultName } from "./ResultsScreen";
 
 /** Stories 7.7 / 7.11 / 7.12 (brief 26): the Run rewards panel's items and unlocks groups. */
 const base: RunRewards = {
@@ -34,6 +35,20 @@ describe("Run rewards: items (7.11, 7.12) and unlocks (7.7)", () => {
     expect(t).toMatchObject({ kind: "team", text: "Cid found: Cat in the backpack", slot: 2, big: false });
     const c = rewardsView({ ...base, teamLoot: { playerId: "p1", wave: 5, key: null, name: "" } }, true, 7, undefined, names).items[0];
     expect(c?.sub).toBe("(Collector: they have every surprise item)");
+  });
+
+  it("PR #9 review L1: a find is named by the finder's SEAT: Di (p3#4) found it, Eve (p3#6) sits in p3 now → 'A teammate', never 'Eve found'", () => {
+    const rows = [
+      { slot: 0, name: "Ana", seat: "p0#1" },
+      { slot: 3, name: "Eve", seat: "p3#6" },
+    ];
+    const by = (slot: number, seatId?: string) => resultName(rows, slot, seatId);
+    const gone = rewardsView({ ...base, teamLoot: { playerId: "p3", seatId: "p3#4", wave: 4, key: "pack:cat", name: "Cat in the backpack" } }, true, 7, undefined, by).items[0];
+    expect(gone?.text).toBe("A teammate found: Cat in the backpack");
+    const here = rewardsView({ ...base, teamLoot: { playerId: "p3", seatId: "p3#6", wave: 4, key: "pack:cat", name: "Cat in the backpack" } }, true, 7, undefined, by).items[0];
+    expect(here?.text).toBe("Eve found: Cat in the backpack");
+    const old = rewardsView({ ...base, teamLoot: { playerId: "p0", wave: 4, key: "pack:cat", name: "Cat in the backpack" } }, true, 7, undefined, by).items[0];
+    expect(old?.text).toBe("Ana found: Cat in the backpack"); // an older server (no seat id): by slot, as 7.12
   });
 
   it("B33 (designer override 2026-11-25): my bank failed → the find is a 'Couldn't save' row (7.2's wording), never 'Found in…'", () => {
