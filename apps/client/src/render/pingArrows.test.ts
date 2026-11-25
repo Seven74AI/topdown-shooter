@@ -233,10 +233,10 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
   // Review M3 / L6 / L7: in a build phase and in the vote the arrows also keep off that mode's controls (build bar,
   // Ready, build-row swap / quick-use, undo; Extract / Stay), the open wheel and the loot badge / flag arrow.
   const MODES: [string, PingKeepOffMode][] = [
-    ["build", { build: true, ready: true, vote: false, wheel: false, flag: null, loot: null }],
-    ["build + wheel", { build: true, ready: true, vote: false, wheel: true, flag: null, loot: null }],
-    ["vote", { build: false, ready: false, vote: true, wheel: false, flag: null, loot: null }],
-    ["wave + wheel + loot badge", { build: false, ready: false, vote: false, wheel: true, flag: null, loot: { x: 60, y: 140, w: 32, h: 32 } }],
+    ["build", { build: true, ready: true, vote: false, wheel: false, wheelColumn: false, flag: null, loot: null }],
+    ["build + wheel", { build: true, ready: true, vote: false, wheel: true, wheelColumn: true, flag: null, loot: null }],
+    ["vote + wheel", { build: false, ready: false, vote: true, wheel: true, wheelColumn: false, flag: null, loot: null }],
+    ["wave + wheel + loot badge", { build: false, ready: false, vote: false, wheel: true, wheelColumn: true, flag: null, loot: { x: 60, y: 140, w: 32, h: 32 } }],
   ];
   for (const [w, h] of SIZES) {
     it(`${w} × ${h}: build, vote, wheel and loot-badge keep-offs — one ping swept at 0.01° both ways and three crowded pings, every rule each frame`, () => {

@@ -156,7 +156,7 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 - **L4** boss bar keeps its 12 px gap to the ping button (216 px at 568 with a 44 px inset; B10 text fixed). Tests: `bossBar.test.ts`, `hudLayout.test.ts`.
 - **L5** `pingDropped` cleared after each `net_stats` line. **L9** chips read left → right, top → bottom (keys 1–4). **L10** → B14. **L11** 568 × 320 stills → B15.
 - Nits: `PingHud.escape()` removed (GameScene closes the wheel on Esc); `MAX_PLAYERS` in `updatePings`; `--ping-every` validated; `step()`'s doc comment back in place; a dev-build throw past `MAX_NOTCHES` keep-offs; the dev ⚙ moved under the top band; no chirp for a ping already in its last 0.5 s.
-- **L8** (B5 hides swap / quick-use / build bar for ≤ 3 s in a wave): waiting on the designer, unchanged.
+- **L8** decided by the designer (B5 amended, 2026-11-25): quick-use stays while the wheel is open; only swap and the build bar hide. While quick-use shows, the chips stand in one column under the ping button (`layoutPingWheel(…, column)`, `pingWheelColumn`); the vote keeps the 2 × 2 block. Tests: `hudLayout.test.ts` (open-wheel modes with quick-use, "wheel open, quick-use visible, no overlap", 568 × 320 … 1920 × 1080 + 20 px top inset), `pingArrows.test.ts` keep-off modes; fresh stills `8-7-568-wheel-open.png`, `8-7-phone-wheel-open.png` (844 × 390). Dev builds only: the ⚙ overlaps quick-use at 568 × 320.
 
 ### Notes for the merge
 

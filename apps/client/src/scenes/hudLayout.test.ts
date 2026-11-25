@@ -75,8 +75,8 @@ function pingBtn(w: number): Box {
   return { id: "ping", ...layoutPingButton(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) };
 }
 /** Story 8.7 (AC 3, B5): the open wheel's four chips (HudScene draws and hit-tests them from `layoutPingWheel`). */
-function pingChips(w: number): Box[] {
-  return layoutPingWheel(w, INSET, K, newPingChipRects()).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
+function pingChips(w: number, column = false): Box[] {
+  return layoutPingWheel(w, INSET, K, newPingChipRects(), column).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
 }
 
 /** Every mode's pressable controls. */
@@ -99,9 +99,10 @@ function modes(w: number, h: number): Record<string, Box[]> {
     // selected (the action bar: decision 8.7 B9) or reconnecting.
     wave: [menu(w), pingBtn(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
     build: [menu(w), pingBtn(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
-    // Story 8.7 (B5): the wheel open — the right-hand buttons under it (swap, quick-use, build bar, action bar) hide.
-    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w), bossBar(w)],
-    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 8.7 (B5 amended, designer 2026-11-25): the wheel open — swap and the build bar hide; quick-use STAYS, so
+    // the chips stand in one column (wave, build); in the vote (no quick-use) they are the 2 × 2 block.
+    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w, true), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
+    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w, true), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size), sq("consumable", row.consX, row.consY, row.size)],
     ping_wheel_vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
       return [menu(w), pingBtn(w), ...pingChips(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
@@ -862,12 +863,12 @@ describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () 
 });
 
 /**
- * Story 8.7 (P6): the ping button and the open wheel at all four test sizes (568 × 320, 640 × 360, 800 × 360,
- * 844 × 390) and under a 20 px top inset: inside the safe area, off every other control of the modes they show in,
+ * Story 8.7 (P6): the ping button and the open wheel at 568 × 320, 640 × 360, 800 × 360, 844 × 390, 1280 × 720 and
+ * 1920 × 1080, and under a 20 px top inset: inside the safe area, off every other control of the modes they show in,
  * clear of the survivor's 48 px, in the right half; the chips ≥ 44 px and apart.
  */
 describe("Story 8.7: the ping button and wheel at every test size", () => {
-  for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
+  for (const [w, h] of [...SIZES, [800, 360], [844, 390], [1280, 720], [1920, 1080]] as const) {
     it(`${w} × ${h}`, () => {
       const m = modes(w, h);
       let checked = 0;
@@ -890,6 +891,13 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
         }
       }
       expect(checked).toBe(3 + 3 * 5); // liveness: wave, build, vote + the three open-wheel modes
+      // B5 amended (designer 2026-11-25): wheel open, quick-use visible, no overlap — in a wave and in a build phase
+      for (const mode of ["ping_wheel_wave", "ping_wheel_build"]) {
+        const boxes = m[mode] as Box[];
+        const cons = boxes.find((b) => b.id === "consumable");
+        expect(cons, `${mode}: quick-use shown`).toBeDefined();
+        for (const c of boxes.filter((b) => b.id.startsWith("ping_chip"))) expect(overlaps(c, cons as Box), `${w}x${h} ${mode}: ${c.id} on quick-use`).toBe(false);
+      }
       // the band: the ping button keeps off the wave line and the boss bar keeps its 12 px gap to it
       const r0 = { x: 0, y: 0, w: 0, h: 0 };
       const wl = layoutWaveLine(w, INSET, K, { ...r0 });
@@ -900,7 +908,7 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
       expect(p.x - (boss.x + boss.w), "review L4: the boss bar keeps its 12 px gap to the ping button").toBeGreaterThanOrEqual(BOSS_BAR_GAP_CSS_PX - 1e-6);
       // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
       const top = { ...INSET, top: 20 };
-      for (const c of layoutPingWheel(w, top, K, newPingChipRects())) {
+      for (const c of [...layoutPingWheel(w, top, K, newPingChipRects()), ...layoutPingWheel(w, top, K, newPingChipRects(), true)]) {
         expect(c.y + c.h).toBeLessThanOrEqual(h - top.bottom);
         expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
       }

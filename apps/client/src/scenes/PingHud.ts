@@ -6,7 +6,7 @@ import { SLOT_COLORS } from "../render/playerColors";
 import { PING_CHIP_H_CSS_PX } from "../ui/sizes";
 import type { HudModel } from "./hudModel";
 import { layoutPingButton, type HudInsets, type HudRect } from "./hudTopLayout";
-import { closePingWheel, layoutPingWheel, newPingChipRects, pickPing, pingCooldownFrac, stepPingWheel, togglePingWheel } from "./pingWheel";
+import { closePingWheel, layoutPingWheel, newPingChipRects, pickPing, pingCooldownFrac, pingWheelColumn, stepPingWheel, togglePingWheel } from "./pingWheel";
 
 /** HudButtons ids: the ping button and the wheel's chips (in `PING_KINDS` order). */
 export const PING_BUTTON_ID = "ping";
@@ -34,6 +34,10 @@ export class PingHud {
   private readonly chipText: Phaser.GameObjects.Text[] = [];
   private readonly btnRect: HudRect = { x: 0, y: 0, w: 0, h: 0 };
   private readonly chips = newPingChipRects();
+  /** B5 amended: the chips' two layouts (2 × 2 block; one column while quick-use shows) and which one is applied. */
+  private readonly chipsGrid = newPingChipRects();
+  private readonly chipsColumn = newPingChipRects();
+  private column = false;
   private shownButton: boolean | null = null;
   private shownOpen: boolean | null = null;
   private shownRing = -1;
@@ -77,7 +81,18 @@ export class PingHud {
     g.lineStyle(2 * k, 0xffffff, 0.5).strokeCircle(b.w / 2, b.h / 2, b.w / 2 - k);
     g.setPosition(b.x, b.y);
     this.glyph.setPosition(b.x + b.w / 2, b.y + b.h / 2).setDisplaySize(b.w * 0.72, b.h * 0.72);
-    layoutPingWheel(width, insets, k, this.chips);
+    layoutPingWheel(width, insets, k, this.chipsGrid);
+    layoutPingWheel(width, insets, k, this.chipsColumn, true);
+    this.placeChips();
+    this.shownButton = null; // re-apply visibility
+    this.shownRing = -1;
+  }
+
+  /** B5 amended: (re)places the chips in the layout the quick-use button needs now. */
+  private placeChips(): void {
+    const k = this.k;
+    const src = this.column ? this.chipsColumn : this.chipsGrid;
+    for (let i = 0; i < 4; i++) Object.assign(this.chips[i] as HudRect, src[i]);
     const disc = PING_CHIP_H_CSS_PX * 0.56 * k;
     for (let i = 0; i < PING_KINDS.length; i++) {
       const c = this.chips[i] as HudRect;
@@ -94,8 +109,6 @@ export class PingHud {
       (this.chipGlyph[i] as Phaser.GameObjects.Image).setPosition(cx, iy).setDisplaySize(disc * 0.86, disc * 0.86);
       (this.chipText[i] as Phaser.GameObjects.Text).setFontSize(Math.round(PING_CHIP_TEXT_CSS_PX * k)).setPosition(cx, c.y + c.h - 2 * k);
     }
-    this.shownButton = null; // re-apply visibility
-    this.shownRing = -1;
   }
 
   /** The wheel is open (the scene hides swap, quick-use and the build bar under it). */
@@ -117,6 +130,11 @@ export class PingHud {
   draw(nowMs: number, slot: number): void {
     const m = this.model;
     stepPingWheel(m.ping, nowMs, m.pingButton);
+    const column = pingWheelColumn(m);
+    if (column !== this.column) {
+      this.column = column;
+      this.placeChips();
+    }
     const shown = m.pingButton;
     if (shown !== this.shownButton) {
       this.shownButton = shown;

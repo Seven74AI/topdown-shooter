@@ -324,8 +324,9 @@ export interface PingKeepOffMode {
   ready: boolean;
   /** The evacuation vote (Extract / Stay). */
   vote: boolean;
-  /** The ping wheel is open (its chips). */
+  /** The ping wheel is open (its chips), in one column (B5 amended: while quick-use shows) or 2 × 2. */
   wheel: boolean;
+  wheelColumn: boolean;
   flag: Readonly<ScreenRect> | null;
   loot: Readonly<ScreenRect> | null;
 }
@@ -382,7 +383,7 @@ export function fillPingKeepOffs(base: readonly ScreenRect[], mode: Readonly<Pin
     n = put(out, n, readyLeftX(w, rw, bar.left, k), h - (READY_BUTTON_BOTTOM_CSS_PX + insets.bottom) * k - rh, rw, rh);
   }
   if (mode.wheel) {
-    const chips = layoutPingWheel(w, insets, k, chipScratch);
+    const chips = layoutPingWheel(w, insets, k, chipScratch, mode.wheelColumn);
     const a = chips[0];
     const d = chips[3];
     const x0 = Math.min(a.x, chips[1].x);

@@ -12,6 +12,10 @@ import { MENU_BUTTON_INSET_CSS_PX, PING_CHIP_GAP_CSS_PX, PING_CHIP_H_CSS_PX, PIN
  * under the top band instead (Help! · Over here / Big one! · Ready, left → right, top → bottom = keys 1–4; right-aligned with ☰), below the boss bar's row so it never
  * covers it. While the wheel is open the right-hand buttons under it (swap, quick-use, the build bar, the action bar)
  * hide (≤ 3 s; the sticks keep working), so nothing pressable is ever under a chip.
+ *
+ * B5 amended (designer 2026-11-25, review L8): quick-use STAYS while the wheel is open (only swap and the build bar
+ * hide). Whenever quick-use shows, the chips stand in one right-hand column under the ping button instead (`column`),
+ * clear of it in a wave and in a build phase; the 2 × 2 block is used when quick-use is hidden (the vote).
  */
 export { PING_WHEEL_OPEN_MS, closePingWheel, markPingSent, newPingWheelState, pickPing, pingCooldownFrac, stepPingWheel, togglePingWheel, type PingWheelState } from "./pingWheelState";
 
@@ -28,12 +32,25 @@ const btnScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
  * The chips: a 2 × 2 block whose right edge is ☰'s right edge, its top a band gap under the lower of the ping button
  * and the boss bar's row. Read left → right, top → bottom (keys 1–4): Help! · Over here / Big one! · Ready.
  */
-export function layoutPingWheel(width: number, insets: HudInsets, k: number, out: PingChipRects): PingChipRects {
+export function layoutPingWheel(width: number, insets: HudInsets, k: number, out: PingChipRects, column = false): PingChipRects {
   const cw = PING_CHIP_W_CSS_PX * k;
   const ch = PING_CHIP_H_CSS_PX * k;
   const gap = PING_CHIP_GAP_CSS_PX * k;
   const right = width - (MENU_BUTTON_INSET_CSS_PX + insets.right) * k;
   const btn = layoutPingButton(width, insets, k, btnScratch);
+  if (column) {
+    // B5 as amended (designer 2026-11-25, L8): quick-use stays up while the wheel is open, so the chips stand in one
+    // column right-aligned with ☰, from just under the ping button (x ≥ the ping button's middle: right of quick-use in
+    // a wave and in a build phase, right of the boss bar), top → bottom = keys 1–4.
+    for (let i = 0; i < 4; i++) {
+      const r = out[i] as HudRect;
+      r.w = cw;
+      r.h = ch;
+      r.x = right - cw;
+      r.y = btn.y + btn.h + HUD_BAND_GAP_CSS_PX * k + i * (ch + gap);
+    }
+    return out;
+  }
   const boss = layoutBossBar(width, insets.left, insets.top, insets.right, k, bossScratch);
   const top = Math.max(btn.y + btn.h, boss.y + boss.h) + HUD_BAND_GAP_CSS_PX * k;
   for (let i = 0; i < 4; i++) {
@@ -46,6 +63,11 @@ export function layoutPingWheel(width: number, insets: HudInsets, k: number, out
     r.y = top + row * (ch + gap);
   }
   return out;
+}
+
+/** B5 amended (L8): the wheel stands in one column while the quick-use button shows (HudScene's rule for it). */
+export function pingWheelColumn(m: { consumableVisible: boolean; consumableItem: string | null; voting: boolean }): boolean {
+  return m.consumableVisible && m.consumableItem !== null && !m.voting;
 }
 
 /** The chip under canvas point (x, y), or −1. */

@@ -1186,7 +1186,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined && !m.voting && !this.pingHud.wheelOpen; // Story 6.11: hidden in the vote; 8.7: under the open ping wheel
+    const show = m.consumableVisible && frame !== undefined && !m.voting; // Story 6.11: hidden in the vote (8.7 B5 amended: it stays while the ping wheel is open)
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;

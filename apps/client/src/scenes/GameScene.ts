@@ -187,6 +187,7 @@ import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
 import { fillPingKeepOffs, growRect, newPingKeepOffs, type PingKeepOffMode } from "../render/pingArrows";
 import { PAIR_GAP_CSS_PX } from "../render/eventArrowPair";
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
+import { pingWheelColumn } from "./pingWheel";
 import { eventArrowDrawnRect } from "../render/eventArrow";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
@@ -2020,7 +2021,7 @@ export class GameScene extends Phaser.Scene {
   private readonly pingLootRect = { x: 0, y: 0, w: 0, h: 0 };
   private readonly pingKeepOffs = newPingKeepOffs();
   private readonly pingKeepOffsLite = newPingKeepOffs();
-  private readonly pingMode: PingKeepOffMode = { build: false, ready: false, vote: false, wheel: false, flag: null, loot: null };
+  private readonly pingMode: PingKeepOffMode = { build: false, ready: false, vote: false, wheel: false, wheelColumn: false, flag: null, loot: null };
   private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
     const now = performance.now(); // the model's clock (decision 8.7 B4)
     const host = this.host;
@@ -2047,6 +2048,7 @@ export class GameScene extends Phaser.Scene {
     mode.ready = m.readyButton;
     mode.vote = m.voting;
     mode.wheel = m.pingButton && m.ping.open;
+    mode.wheelColumn = pingWheelColumn(m); // B5 amended
     const flag = ev?.flagArrowAt() ?? null;
     mode.flag = flag ? growRect(eventArrowDrawnRect(flag, size, this.pingFlagRect), PAIR_GAP_CSS_PX * k) : null;
     const badge = this.lootView?.badgeArrowAt() ?? null;

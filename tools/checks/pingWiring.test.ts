@@ -45,13 +45,13 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/mode\.wheel = m\.pingButton && m\.ping\.open;/);
   });
 
-  it("HudScene: the button + wheel are made, laid out, drawn; a tap off the wheel closes it; the open wheel hides swap, quick-use and the build bar", () => {
+  it("HudScene: the button + wheel are made, laid out, drawn; a tap off the wheel closes it; the open wheel hides swap and the build bar (quick-use stays)", () => {
     const src = read("apps", "client", "src", "scenes", "HudScene.ts");
     expect(src).toMatch(/this\.pingHud = new PingHud\(this, this\.buttons, this\.model\)/);
     expect(src).toMatch(/this\.pingHud\.layout\(this\.scale\.width, this\.insets, k\)/);
     expect(src).toMatch(/this\.pingHud\.draw\(this\.time\.now, this\.model\.pingSlot\)/);
     expect(src).toMatch(/this\.pingHud\.pointerDown\(this\.buttons\.hit\(p\.x, p\.y, this\.scale\.width\)\)/);
-    expect(src.match(/!this\.pingHud\.wheelOpen/g)?.length).toBe(3);
+    expect(src.match(/!this\.pingHud\.wheelOpen/g)?.length).toBe(2); // swap + build bar (B5 amended: quick-use stays)
     expect(src).toMatch(/fitWaveText\(this\.scale\.width, this\.insets, dpr\(\), fullW, compactW, this\.waveFit\)/);
     expect(src).toMatch(/if \(\(m\.pingArrowSlots & \(1 << slot\)\) !== 0\) \{\s*if \(arrow\.visible\) arrow\.setVisible\(false\);/); // review M2
   });

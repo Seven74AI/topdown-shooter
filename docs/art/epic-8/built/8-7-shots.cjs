@@ -68,6 +68,10 @@ const pingState = (page) =>
   await waitRun(desk);
   await waitRun(phone);
   await sleep(2500);
+  // B5 amended (designer 2026-11-25): quick-use stays while the wheel is open — buy the phone a medkit so it shows.
+  await phone.evaluate(() => window.__game.scene.getScene("Game").host.buyItem("medkit"));
+  await sleep(800);
+  console.log("phone quick-use", await phone.evaluate(() => { const m = window.__game.scene.getScene("Hud").model; return { item: m.consumableItem, visible: m.consumableVisible }; }));
   // Phone: tap the ping button → the wheel opens.
   const btn = await buttonAt(phone, "ping");
   console.log("phone ping button", btn, await pingState(phone));
