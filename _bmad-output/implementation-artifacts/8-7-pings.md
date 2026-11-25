@@ -115,6 +115,8 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 
 - **Gate (R6):** story commit + master `06e8356` merged (merge `c292148`); `npm run typecheck && npm run lint && npm test && npm run build && REQUIRE_DIST=1 npx vitest run tools/checks/noCheatsInRelease.test.ts` → exit 0. **526 test files passed / 4 skipped, 4738 tests passed / 31 skipped**; lint 0 problems; build OK; release no-cheats scan 3/3. Load at the end 3.71 (1-min). Only docs (this file) changed after the gate.
 
+- **Gate, review round 1 (designer's process change 2026-11-25: gate:fast locally, PR CI runs the full suite):** fixes + master `388b584` merged; `npm ci`; `npm run gate:fast` → exit 0 (typecheck, lint, 460 unit files / 4458 tests passed, release:check 3/3) + the slow files touched (`tools/bots/ping.test.ts` and the 7 `*DomLayout` checks: 8 files / 124 tests passed). Load 3.59. Full suite: PR #8's CI on the pushed head.
+
 ### Tests per task (brief R1: "file > test name")
 
 - **T1** `apps/server/src/rooms/RunRoom.ping.test.ts` > "P1 + P3: broadcast to everyone (the sender too) with the sender's slot and SERVER position…", "P5: a ping changes nothing in the World — its snapshotWorld digest is the same…", "P2: at most 1 per second per player (own bucket, counted as pingDropped)…", "P4 rule table (pingRefusal)…", "P4: downed can ping; out, held, frozen, lobby and results can't"; `apps/client/src/render/pingModel.test.ts` (5 tests: 4 s, replace, > 4 s late not shown, malformed, clears). The `packages/shared/src/replay/` digest test is replaced by the P5 handler-digest test (pings never enter shared sim code: no shared file but `messages.ts` changed).
