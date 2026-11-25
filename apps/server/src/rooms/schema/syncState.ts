@@ -269,7 +269,7 @@ function visitHeld(h: { readonly player: SimPlayer }): void {
   if (s) syncWallet(s, h.player);
 }
 
-/** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
+/** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot, name and (Story 7.9) look stay. */
 export function resetRunFields(state: RunState): void {
   state.players.forEach(resetPlayer);
   state.tick = 0;

@@ -18,7 +18,14 @@ vi.mock("@colyseus/sdk", () => ({
   },
 }));
 const ticket = vi.fn<() => Promise<string | undefined>>();
-vi.mock("./account", () => ({ sessionTicket: () => ticket(), recoveryTicket: () => ticket() }));
+const look = vi.fn<() => string | undefined>(() => undefined);
+// Story 7.9: create / join read the ticket and my look from `joinAccount`; seat recovery from `recoveryAccount` (N-R3: reused ticket).
+const account = async () => {
+  const t = await ticket();
+  const l = look();
+  return { ...(t === undefined ? {} : { ticket: t }), ...(l === undefined ? {} : { look: l }) };
+};
+vi.mock("./account", () => ({ joinAccount: () => account(), recoveryAccount: () => account() }));
 vi.mock("./netMeter", () => ({ netMeter: { attach: () => {} } }));
 
 beforeEach(() => {
@@ -50,5 +57,18 @@ describe("connection.ts join options (Story 7.1 AC 5)", () => {
     expect(r.ok).toBe(true);
     expect(calls[0]?.options).not.toHaveProperty("ticket");
     expect(calls[0]?.options.guestToken).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it("Story 7.9 (AC 5, R2): every join path carries my look; none → no field (the default look)", async () => {
+    const c = await import("./connection");
+    ticket.mockResolvedValue("T");
+    look.mockReturnValue("v1|top:hoodie");
+    await c.createGame("Ana");
+    await c.joinGame("ABCD", "Bo");
+    await c.rejoinGame("ABCD", "Bo");
+    expect(calls.map((x) => x.options.look)).toEqual(["v1|top:hoodie", "v1|top:hoodie", "v1|top:hoodie"]);
+    look.mockReturnValue(undefined);
+    await c.createGame("Ana");
+    expect(calls[3]?.options).not.toHaveProperty("look");
   });
 });

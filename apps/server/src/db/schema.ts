@@ -58,6 +58,8 @@ export const progress = pgTable("progress", {
   unlocks: jsonb("unlocks").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   training: jsonb("training").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
   districts: jsonb("districts").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  /** Story 7.9: the survivor look code (`lookCode.ts`, ≤ 96 chars); null = the default look. Written by 7.10's editor. */
+  look: text("look"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Brief 18: a balance can never go below 0, whatever a later story's bank or purchase code does.

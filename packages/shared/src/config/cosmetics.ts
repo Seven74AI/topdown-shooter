@@ -132,6 +132,9 @@ function deepFreeze<T>(value: T): T {
 
 export const COSMETICS: Cosmetics = loadCosmetics();
 
+/** Story 7.9: the longest look code `encodeLook` may write (the longest legal look is 94 characters). */
+export const LOOK_CODE_MAX = 96;
+
 /** The default survivor (jacket, the picked cap, short hair under it, backpack, skin 1). */
 export const DEFAULT_LOOK: SurvivorLook = COSMETICS.defaultLook;
 

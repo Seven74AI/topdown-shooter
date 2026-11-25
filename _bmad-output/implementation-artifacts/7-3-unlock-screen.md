@@ -1,6 +1,6 @@
 # Story 7.3: Unlock screen
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 3 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D4 (starter pool + Fire Axe + Revive kit), D5 (free order, "Good next pick", no tree), D8 (unlocks can't be turned off) are rules here. -->
 
@@ -135,7 +135,9 @@ Claude (builder cloud session, gds-dev-story), 2026-11-25 overnight autonomous r
 
 ### Gate
 
-**Gate (latest, after the review fixes):** commit `fed5cc51`, 4,140 tests passed (20 skipped), 457 files, 7 min 48 s, load 0.4 → 4.5 — see Review fixes.
+**Gate (landing, merged with master incl. 7.9):** commit `38e7c834` = story-7-3 + master `1da29b92` (7.1, 7.2, 7.9, 8.1, 8.10 landed): typecheck && lint && test && build green — 470 files passed (3 skipped), **4,274 tests passed (23 skipped)**, build OK, 8 min 6 s, load 1.6 → 3.7 (4 cores).
+
+**Gate (after the review fixes):** commit `fed5cc51`, 4,140 tests passed (20 skipped), 457 files, 7 min 48 s, load 0.4 → 4.5 — see Review fixes.
 
 **Gate (before review):** commit `b9511c0b` on `story-7-3` = story-7-1 `e1f97a39` (with 8.1) + story-7-2 `9b9cb3ef` (review fixes) + master `8248be06` merged; `npm run typecheck && npm run lint && npm test && npm run build` green — **457 test files passed (2 skipped: realPostgres without TEST_DATABASE_URL, noCheatsInRelease before dist), 4,125 tests passed (13 skipped)**, build OK; 7 min 47 s; load 0.8 at start, 4.7 at the end (4 cores). Includes the real-browser hub test (12 cases) and 7.2's.
 
@@ -364,5 +366,6 @@ Typecheck + lint + touched tests (no full gate, as asked); tree = fed5cc51 + the
 - 2026-11-25: Senior Developer Review (AI): changes requested (F1–F3 medium, F4–F10 low, F11–F12 nit).
 - 2026-11-25: review fixes F1–F11 (F12 left for the designer); merged story-7-2 fac177da (boundedTx); gate green on fed5cc51.
 - 2026-11-25: narrow re-review 1: F1–F11 hold; RR-M1 (7.1 db/client.ts, 7.1's to fix), RR-L1, RR-N1.
+- 2026-11-25: batch landing came back with real conflicts against 7.9: merged master 1da29b92; one `progress` object (Supplies, unlocks, look) from one read (B17); lobby Progress button in 7.9's SC3 header (B18); 7.9's look tests updated to the merged reply; gate green on 38e7c834.
 - 2026-11-25: re-review 1 fixes RR-L1 (unlock client timeout 7 s, delayed refresh) and RR-N1 (text-width check).
 - 2026-11-25 (earlier): merged story-7-2's review fixes (8c702472); B15 real-browser hub layout test (tag wraps under long names), B16 purchase bounded like the bank (7.2 M1) + real-PostgreSQL unlock tests; re-gated.

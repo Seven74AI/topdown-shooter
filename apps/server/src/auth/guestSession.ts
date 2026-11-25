@@ -8,7 +8,7 @@
  * a token and plays unsaved. New guests are limited per IP (decision 7.1 D6); resolving an existing one never is.
  * Never logs a token or a hash.
  */
-import { guestTokenSchema, type AccountSessionResponse, type ProgressView } from "@topdown/shared";
+import { catalogueParts, decodeLook, encodeLook, guestTokenSchema, type AccountSessionResponse, type ProgressView } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
 import type { ProgressRepo } from "../db/progressRepo";
 import { log } from "../ops/logger";
@@ -20,7 +20,7 @@ import { toView } from "./unlock";
 
 export interface GuestSessionDeps {
   accounts: AccountsRepo;
-  /** Story 7.3 (AC 4): the session reply carries the account's progress; omitted (older tests) → no `progress`. */
+  /** Story 7.3 (AC 4) + 7.9: the session reply carries the account's progress (Supplies, unlocks, look); omitted (7.1 tests) → no `progress`. */
   progress?: Pick<ProgressRepo, "get">;
   newGuestLimiter: SlidingWindowLimiter;
   /** Review L4: every call per IP, checked before any database work. */
@@ -108,16 +108,32 @@ export async function resolveGuestSession(
     return { response: { ...saved(token, account, deps.sessionSecret, now()), ...(await progressOf(account.id)) }, source: "new" };
   }
 
-  /** Story 7.3 (AC 4, U5): the server's progress (a missing row = the empty one); a failed read → null, still saved. */
+  /**
+   * Story 7.3 (AC 4, U5) + 7.9: the server's progress from ONE read inside this call's deadline: Supplies, bought
+   * unlocks and the canonical look (a missing row = the empty one); a failed read → null, still saved.
+   */
   async function progressOf(accountId: string): Promise<{ progress?: ProgressView | null }> {
     if (!deps.progress) return {};
     try {
       const row = await deps.progress.get(accountId);
-      return { progress: row ? toView(row) : { supplies: 0, lifetimeSupplies: 0, unlocks: [] } };
+      if (!row) return { progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null } };
+      return { progress: { ...toView(row), look: canonicalLook(row.look) } };
     } catch {
       return { progress: null }; // logged as db_error by the repository
     }
   }
+}
+
+/** The client decodes against the whole catalogue; ownership is checked again at join (L2). */
+const ANY_PART = catalogueParts();
+
+/**
+ * Story 7.9 (AC 1): adds the saved look (canonical, so the client's schema always accepts it). A failed progress
+ * read keeps the session saved, with the default look (null): the look never costs the player their account.
+ */
+/** Story 7.9: the stored look, canonicalised (unknown parts dropped, the code re-encoded); null = the default look. */
+function canonicalLook(stored: string | null | undefined): string | null {
+  return stored === null || stored === undefined ? null : encodeLook(decodeLook(stored, ANY_PART).look);
 }
 
 function saved(token: string, account: { id: string; displayName: string; username: string | null }, secret: string, nowMs: number): AccountSessionResponse {

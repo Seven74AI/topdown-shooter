@@ -29,6 +29,7 @@ import {
   type UnlockResponse,
 } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
+import { deviceLook, type DeviceLookStore } from "./deviceLook";
 import { serverUrl } from "./serverUrl";
 import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 import { accountStore } from "./accountStore";
@@ -106,6 +107,34 @@ export async function recoveryTicket(over: Partial<AccountDeps> = {}, nowMs: () 
 /** Tests only: forget the cached ticket. */
 export function forgetTicket(): void {
   last = null;
+}
+
+/**
+ * Story 7.9 (AC 5): what a join carries from the account: the ticket (as `sessionTicket`) and my look — the
+ * server's copy first (and kept on this device), then the device copy, then none (the default look).
+ */
+export async function joinAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
+  const s = await accountSession(over);
+  last = s?.saved ? { ticket: s.ticket, atMs: Date.now() } : null; // seat recovery may reuse it (N-R3)
+  if (s?.saved && s.progress) looks.set(s.progress.look ?? null);
+  const out: { ticket?: string; look?: string } = {};
+  if (s?.saved) out.ticket = s.ticket;
+  const look = s?.saved && s.progress ? (s.progress.look ?? undefined) : looks.get();
+  if (look !== undefined) out.look = look;
+  return out;
+}
+
+/**
+ * Story 7.9 + re-review N-R3: seat recovery's join — the reused ticket (`recoveryTicket`) and this device's look copy
+ * (no extra session call per retry). Mid-run the server keeps the seat's own look anyway (a takeover ignores it).
+ */
+export async function recoveryAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
+  const out: { ticket?: string; look?: string } = {};
+  const ticket = await recoveryTicket(over);
+  if (ticket !== undefined) out.ticket = ticket;
+  const look = looks.get();
+  if (look !== undefined) out.look = look;
+  return out;
 }
 
 /**

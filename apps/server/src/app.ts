@@ -58,7 +58,7 @@ export function createGameServer({
   const progress = progressRepo(database);
   const { accountSession, accountUnlock, accountUpgrade, accountLogin, accountRecover, accountLogout } = createAccountRoutes({
     accounts,
-    progress, // Story 7.3 (AC 4): the session reply carries the progress
+    progress, // Story 7.3 (AC 4) + 7.9: the session reply carries the progress (Supplies, unlocks, look); one repo shared with the rooms
     newGuestLimiter,
     sessionLimiter: accountSessionLimiter,
     logGate: rateLimitLogGate,
