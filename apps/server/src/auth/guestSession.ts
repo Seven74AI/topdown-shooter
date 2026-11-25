@@ -12,14 +12,21 @@ import { guestTokenSchema, type AccountSessionResponse } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
-import type { SlidingWindowLimiter } from "../net/rateLimit";
+import { ipKey, type SlidingWindowLimiter } from "../net/rateLimit";
+import { DB_TIMEOUT_MS } from "../db/timeout";
 import { signTicket } from "./ticket";
 
 export interface GuestSessionDeps {
   accounts: AccountsRepo;
   newGuestLimiter: SlidingWindowLimiter;
+  /** Review L4: every call per IP, checked before any database work. */
+  sessionLimiter: SlidingWindowLimiter;
+  /** Review L4: one rate-limit warning per IP and kind per window. */
+  logGate: SlidingWindowLimiter;
   sessionSecret: string;
   now?: () => number;
+  /** Review L3: the whole resolution (all lookups + the create) gets this long, so the server answers before the client's 3 s. */
+  deadlineMs?: number;
 }
 
 export interface GuestSessionInput {
@@ -45,12 +52,37 @@ export async function resolveGuestSession(
   const device = valid(input.deviceToken) ? input.deviceToken : null;
   // Kept if nothing matches (cookie first, D3), so an unsaved device still keeps one identity.
   const presented = cookie ?? device;
+  // One token for every outcome of this call (a late create after the deadline names the token the device got).
+  const fallback = presented ?? mintGuestToken();
   const now = deps.now ?? Date.now;
   const unsaved = (token: string): { response: AccountSessionResponse; source: GuestSessionSource } => ({
     response: { saved: false, deviceToken: token, ticket: null, account: null },
     source: "unsaved",
   });
+  if (!deps.sessionLimiter.allow(input.ip)) {
+    if (deps.logGate.allow(`session:${ipKey(input.ip)}`)) log.warn({ ip: input.ip }, "account_session_rate_limited");
+    return unsaved(fallback);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<"deadline">((resolve) => {
+    timer = setTimeout(() => resolve("deadline"), deps.deadlineMs ?? DB_TIMEOUT_MS);
+  });
   try {
+    const work = lookUp();
+    work.catch(() => undefined); // a failure after the deadline is already logged by the repository
+    const result = await Promise.race([work, deadline]);
+    if (result !== "deadline") return result;
+    log.warn("account_session_deadline");
+    return unsaved(fallback);
+  } catch {
+    // Already logged as db_error {op} by the repository; play goes on unsaved (P3).
+    log.warn("account_session_unsaved");
+    return unsaved(fallback);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  async function lookUp(): Promise<{ response: AccountSessionResponse; source: GuestSessionSource }> {
     const candidates: [string, GuestSessionSource][] = [];
     if (cookie !== null) candidates.push([cookie, "cookie"]);
     if (device !== null && device !== cookie) candidates.push([device, "device"]);
@@ -61,18 +93,14 @@ export async function resolveGuestSession(
         return { response: saved(token, account, deps.sessionSecret, now()), source };
       }
     }
-    const token = presented ?? mintGuestToken();
+    const token = fallback;
     if (!deps.newGuestLimiter.allow(input.ip)) {
-      log.warn({ ip: input.ip }, "new_guest_rate_limited");
+      if (deps.logGate.allow(`guest:${ipKey(input.ip)}`)) log.warn({ ip: input.ip }, "new_guest_rate_limited");
       return unsaved(token);
     }
     const account = await deps.accounts.createGuest(hashGuestToken(token), "");
     log.info({ accountId: account.id, source: "new" }, "account_session");
     return { response: saved(token, account, deps.sessionSecret, now()), source: "new" };
-  } catch {
-    // Already logged as db_error {op} by the repository; play goes on unsaved (P3).
-    log.warn("account_session_unsaved");
-    return unsaved(presented ?? mintGuestToken());
   }
 }
 

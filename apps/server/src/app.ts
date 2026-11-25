@@ -9,7 +9,7 @@ import { type Database, openPglite } from "./db/client";
 import { createGuardedHttpServer } from "./net/httpGuard";
 import { MAX_CLIENT_MESSAGE_BYTES, TRANSPORT_PING_INTERVAL_MS, TRANSPORT_PING_MAX_RETRIES } from "./net/limits";
 import { originAllowed } from "./net/origin";
-import { newGuestLimiter } from "./net/rateLimit";
+import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate } from "./net/rateLimit";
 import { health } from "./ops/health";
 import { log } from "./ops/logger";
 import { RunRoom } from "./rooms/RunRoom";
@@ -48,7 +48,7 @@ export function createGameServer({
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   const accounts = accountsRepo(database);
-  const { accountSession } = createAccountRoutes({ accounts, newGuestLimiter, sessionSecret, allowedOrigins });
+  const { accountSession } = createAccountRoutes({ accounts, newGuestLimiter, sessionLimiter: accountSessionLimiter, logGate: rateLimitLogGate, sessionSecret, allowedOrigins });
   setRoomAccounts({ sessionSecret, accounts });
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
