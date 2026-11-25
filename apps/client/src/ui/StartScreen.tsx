@@ -6,6 +6,9 @@ import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
 import { accountSession, prefillName } from "../net/account";
 import { syncPendingLookOnce } from "../net/lookSave";
 import { rewardsStore } from "../net/rewardsStore";
+import { accountStore, type AccountSnapshot } from "../net/accountStore";
+import { accountLine } from "./accountModel";
+import { AccountLineView } from "./AccountScreen";
 
 const NAME_KEY = "topdown.name";
 const NAME_MAX = 16;
@@ -46,6 +49,8 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
   const [code, setCode] = useState(() => (joinCode && joinCode.length === ROOM_CODE_LENGTH ? joinCode : ""));
   const [busy, setBusy] = useState<"" | "create" | "join">("");
   const nameRef = useRef<HTMLInputElement>(null);
+  const [account, setAccount] = useState<AccountSnapshot>(accountStore.get());
+  useEffect(() => accountStore.subscribe(setAccount), []);
   const focused = useRef(false);
   useEffect(
     () =>
@@ -124,6 +129,8 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
 
   return (
     <div class="menu" role="dialog" aria-labelledby="start-title">
+      {/* Story 7.6 (AC 9, AC1): the thin account line, top right. */}
+      <AccountLineView line={accountLine(account)} from={screen} />
       <h1 id="start-title">{GAME_TITLE}</h1>
       {banked ? (
         <p class="menu__banked" role="status" data-testid="banked-line">

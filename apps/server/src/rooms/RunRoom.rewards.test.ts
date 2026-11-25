@@ -21,9 +21,11 @@ const SECRET = "rewards-secret-".padEnd(48, "w");
 let colyseus: ColyseusTestServer;
 let database: Database;
 
+// Story 7.6 review L1: these tickets name made-up accounts with no device rows (seat keys / banking are tested here);
+// the device-row re-check has its own tests in auth/accountAuth.test.ts.
 beforeAll(async () => {
   database = openPglite();
-  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET, checkTicketRows: false }));
 });
 afterEach(async () => {
   vi.restoreAllMocks();

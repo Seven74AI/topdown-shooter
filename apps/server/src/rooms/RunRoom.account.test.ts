@@ -22,9 +22,11 @@ let colyseus: ColyseusTestServer;
 let port: number;
 let database: Database;
 
+// Story 7.6 review L1: these tickets name made-up accounts with no device rows (seat keys / banking are tested here);
+// the device-row re-check has its own tests in auth/accountAuth.test.ts.
 beforeAll(async () => {
   database = openPglite();
-  ({ colyseus, port } = await bootTestServer({ database, sessionSecret: SECRET }));
+  ({ colyseus, port } = await bootTestServer({ database, sessionSecret: SECRET, checkTicketRows: false }));
 });
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -291,13 +293,13 @@ describe("Story 7.1 AC 7: the join name becomes the display name", () => {
 });
 
 describe("Story 7.1 AC 9: the tick never waits for the database", () => {
-  it("onTick has no await and the room reaches the database only through roomAccountsRepo in saveDisplayName", () => {
+  it("onTick has no await and the room reaches the database only through roomAccountsRepo in saveDisplayName (and 7.6's ticketStillCurrent, in onAuth)", () => {
     const src = readFileSync(new URL("./RunRoom.ts", import.meta.url), "utf8");
     const start = src.indexOf("  onTick(): void {");
     expect(start).toBeGreaterThan(0);
     const body = src.slice(start, src.indexOf("\n  }\n", start));
     expect(body).not.toMatch(/\bawait\b|roomAccountsRepo|Repo\(/);
-    expect(src.match(/roomAccountsRepo\(\)/g)).toHaveLength(1);
+    expect(src.match(/roomAccountsRepo\(\)/g)).toHaveLength(2); // saveDisplayName + ticketStillCurrent (onAuth, never the tick)
     expect(src).not.toMatch(/\.then\(|await accounts|await .*setDisplayName/);
   });
 });

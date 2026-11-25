@@ -47,7 +47,7 @@ describe("Story 7.10 wiring", () => {
 
   it("server: the look route is on the router and the lobby message under net.guard", () => {
     const app = read("apps/server/src/app.ts");
-    expect(app).toMatch(/routes: createRouter\(\{ health, accountSession, accountUnlock, accountTraining, accountLook \}\)/);
+    expect(app).toMatch(/routes: createRouter\(\{ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook \}\)/);
     expect(app).toMatch(/look: \{ progress, ipLimiter: lookIpLimiter, accountLimiter: lookAccountLimiter \}/);
     expect(read("apps/server/src/rooms/RunRoom.ts")).toMatch(/this\.onMessage\(C2S\.LOBBY_SET_LOOK, this\.net\.guard\(lobbySetLookSchema, \(c, m\) => this\.onSetLook\(c, m\.look\)\)\)/);
     expect(read("apps/client/src/net/lobbyStore.ts")).toMatch(/this\.room\?\.send\(C2S\.LOBBY_SET_LOOK, \{ look \}\)/);

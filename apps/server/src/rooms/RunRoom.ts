@@ -1,3 +1,4 @@
+import { isSwitching, registerRoomDevices } from "../auth/devicesInRooms";
 import { randomBytes } from "node:crypto";
 import {
   CloseCode,
@@ -84,12 +85,12 @@ import {
 import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { EventInterest } from "../net/eventInterest";
-import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S } from "../net/limits";
+import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, sameSeat, seatKey, type Member } from "../run/lobby";
-import { roomAccountsRepo, roomProgressRepo, ticketAccountId } from "../auth/roomAccounts";
+import { roomAccountsRepo, roomChecksTicketRows, roomProgressRepo, ticketAccountId } from "../auth/roomAccounts";
 import { BANK_RETRY_MS, RunBank } from "../meta/banking";
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
@@ -220,6 +221,31 @@ export function randomUint32(): number {
 const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
+
+/**
+ * Story 7.6 review L1: the ticket's account if the token's device row still names it, null if the row is gone or
+ * names another account (an old ticket after a log in / reset / log out). No database, a failure or no answer within
+ * TICKET_ROW_CHECK_MS → the ticket's account, as before the check (P3: the save server being down never refuses).
+ */
+export async function ticketStillCurrent(accountId: string, guestTokenHash: string): Promise<string | null> {
+  const repo = roomAccountsRepo();
+  if (repo === null || !roomChecksTicketRows()) return accountId;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => resolve("late"), TICKET_ROW_CHECK_MS);
+  });
+  try {
+    const found = repo.findByTokenHash(guestTokenHash);
+    found.catch(() => undefined);
+    const r = await Promise.race([found, late]);
+    if (r === "late") return accountId;
+    return r !== null && r.id === accountId ? accountId : null;
+  } catch {
+    return accountId;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 /**
  * Story 8.10 (brief 19, D5): a client built for another wire format would decode garbage; it is
  * refused at join. Review RM1 (like Story 4.1 M1): a pre-8.10 tab sends no version and only knows
@@ -246,6 +272,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   );
   /** sessionId → server-only member record, in join order (Story 2.3). */
   readonly members = new Map<string, Member>();
+  /** Story 7.6: removes this room from `auth/devicesInRooms` (set in onCreate). */
+  private unregisterDevices: (() => void) | null = null;
   /** Increments on every join; the lowest `joinOrder` is the longest-connected member. */
   private joinCounter = 0;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
@@ -305,7 +333,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
     try {
-      return RunRoom.checkAuth(options, ctx);
+      const auth = RunRoom.checkAuth(options, ctx);
+      // Story 7.6 review L1: a valid ticket counts only while its token's device row still names that account (an old
+      // ticket after a log in, a reset or a log out stops seating). Save server slow or down → the ticket as before (P3).
+      if (auth.accountId !== null) auth.accountId = await ticketStillCurrent(auth.accountId, auth.guestTokenHash);
+      return auth;
     } catch (e) {
       // Logged here because Colyseus's own line has no context (no IP, no token: just the reason).
       if (e instanceof ServerError) authLog.info({ reason: e.message }, "join_refused");
@@ -341,6 +373,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 7.1 (P4): only a server-signed ticket names an account; pure HMAC, no database (AC 9). Never logged.
     // Review M1: the ticket counts only with the guest token it was issued for.
     const guestTokenHash = hashGuestToken(parsed.data.guestToken);
+    // Story 7.6 review L2: this device is in the middle of a log in / reset / log out: its token is about to change.
+    if (isSwitching(guestTokenHash)) throw refuse("rate_limited");
     const accountId = ticketAccountId(parsed.data.ticket, guestTokenHash);
     // Story 7.9 (L1, L2): a look never refuses a join; parts the account doesn't own (until 7.11: non-starter parts)
     // become default parts. Logged as a count only, never the player-chosen text.
@@ -354,6 +388,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.allowSoloStart = options.allowSoloStart === true;
     const code = uniqueRoomCode((c) => reservedCodes.has(c) || matchMaker.getLocalRoomById(c) !== undefined);
     reservedCodes.add(code);
+    // Story 7.6 (AC 9): account switches are refused while a device is a member here (connected or held).
+    this.unregisterDevices = registerRoomDevices(() => Array.from(this.members.values(), (m) => m.guestTokenHash));
     this.roomId = code;
     this.log = roomLog(code);
     this.takeScenario(options as { scenario?: unknown; allowTestScenarios?: unknown });
@@ -404,8 +440,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (pick.ignored) this.log.warn({ seed: requested, reason: pick.ignored }, "dev_run_seed_ignored");
   }
 
-  override onJoin(client: RunClient): void {
+  override async onJoin(client: RunClient): Promise<void> {
     try {
+      // Story 7.6 re-review RR2: the ticket's device row is checked AGAIN when the socket arrives — a seat reserved
+      // (≤ 15 s) before a reset, a log in or a log out must not seat the account (nor rename it): the seat is unsaved.
+      if (client.auth && client.auth.accountId !== null) client.auth.accountId = await ticketStillCurrent(client.auth.accountId, client.auth.guestTokenHash);
+      // Story 7.6 review L2: re-checked here, synchronously with the member being added (an account switch that
+      // started after onAuth either sees this member in its room re-check, or this join sees its mark).
+      if (client.auth && isSwitching(client.auth.guestTokenHash)) throw refuse("rate_limited");
       this.join(client);
     } catch (e) {
       if (e instanceof ServerError) this.log.info({ reason: e.message }, "join_refused");
@@ -1528,6 +1570,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   override onDispose(): void {
+    this.unregisterDevices?.();
     this.clearHolds();
     reservedCodes.delete(this.roomId);
     this.controller = null;

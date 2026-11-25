@@ -38,7 +38,7 @@ describe("Story 7.3 wiring", () => {
 
   it("the server registers /account/unlock with the account limiter, the IP limiter, the request memo and the progress repo", () => {
     const app = read("apps/server/src/app.ts");
-    expect(app).toMatch(/createRouter\(\{ health, accountSession, accountUnlock(, accountTraining)?(, accountLook)? \}\)/); // 7.5 Training, 7.10 Look
+    expect(app).toMatch(/createRouter\(\{ health, accountSession, accountUnlock[,} ]/); // 7.5 / 7.6 append their routes
     expect(app).toMatch(/unlock: \{ progress, ipLimiter: unlockIpLimiter, accountLimiter: unlockAccountLimiter, requests: unlockRequests \}/);
     expect(app).toMatch(/progress, \/\/ Story 7\.3 \(AC 4\)/);
     const routes = read("apps/server/src/auth/accountRoutes.ts");

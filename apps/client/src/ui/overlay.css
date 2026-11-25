@@ -2339,6 +2339,332 @@ body:has(.menu.ph) .dev-gear {
   }
 }
 
+/*
+ * Story 7.6 (AC 3, 9, 10; layout AC1 in Lumen LF5, docs/art/epic-7/lumen/accounts.jpg + picks/ac1.png): the thin
+ * account line (start screen top right, hub header right end), the full-screen forms with the main button in the
+ * header (it never hides under the phone keyboard) and a scrolling strip of fields under it, the recovery-code card,
+ * the log-out confirm, and the Results "Save my progress" nudge. Every tap target is ≥ 44 px (brief 13); errors are
+ * red (allowed in menus, 7-UI-3). Layout checked by tools/checks/accountDomLayout.test.ts (R9 sizes + keyboard strip).
+ */
+.ac-line {
+  --ac-accent: #f59a2c;
+  --ac-dim: #9aa1aa;
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0 4px;
+  margin: -8px 0 -8px; /* thin: the 44 px tap row overlaps the menu's own padding and gap */
+  font: 700 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ac-dim);
+}
+
+.ac-line__name {
+  color: #f4f1ea;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.ac-link {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--ac-accent, #f59a2c);
+  font: 800 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-color: rgba(245, 154, 44, 0.55);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ac-link::before {
+  content: "◆ ";
+  font-size: 11px;
+  vertical-align: 1px;
+  text-decoration: none;
+}
+
+.ac-link:active {
+  color: #ffc46b;
+}
+
+/* In the hub header: no prefix ("mo_42 · Log out", "Save my progress · Log in"), pushed to the right end. */
+.ac-line--compact {
+  margin: -2px -4px -2px auto;
+  flex-wrap: nowrap;
+  align-self: center;
+  min-width: 0;
+}
+
+.ac-line--compact .ac-line__prefix {
+  display: none;
+}
+
+.ac-line--compact .ac-line__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  white-space: nowrap;
+}
+
+.ac-line--compact .ac-link {
+  padding: 0 4px;
+}
+
+/* The forms: header (Back · title · main button), then the strip that scrolls above the keyboard. */
+.menu.ph.ac {
+  overflow: hidden;
+}
+
+.ac-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+
+.ph-btn.ac-main {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 96px;
+  height: 44px;
+  margin: -2px -10px -2px 0;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.ph-btn.ac-main:disabled {
+  background: #2b3036;
+  box-shadow: none;
+}
+
+.ac-strip {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  background: linear-gradient(180deg, #1e2125 0%, #16181c 100%);
+  border: 2px solid #3b4048;
+  border-top: 0;
+  box-sizing: border-box;
+  scrollbar-color: var(--ph-accent) transparent;
+}
+
+.ac-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px 12px;
+}
+
+@media (min-width: 700px) {
+  /* Forgot password at 800 px: username and code side by side, the new password under both (AC1 sheet). */
+  .ac-strip--forgot .ac-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  }
+  .ac-strip--forgot .ac-field--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.ac-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  scroll-margin-top: 4px;
+}
+
+.ac-label {
+  color: var(--ph-dim);
+  font: 700 11px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ac-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 2px solid #50565e;
+  background: #0b0c0e;
+  color: #fff;
+  font: 700 16px/1 system-ui, sans-serif; /* ≥ 16 px: iOS Safari doesn't zoom the page on focus */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ac-input:focus {
+  outline: none;
+  border-color: var(--ph-accent);
+  box-shadow: 0 0 0 1px rgba(245, 154, 44, 0.4), inset 0 0 12px rgba(245, 154, 44, 0.12);
+}
+
+.ac-input--code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.ac-input--bad {
+  border-color: #ff5a4f;
+}
+
+.ac-hint {
+  color: var(--ph-dim);
+  font: 600 12px/1.25 system-ui, sans-serif;
+}
+
+.ac-error {
+  margin: 0;
+  color: #ff6a5f;
+  font: 700 14px/1.25 system-ui, sans-serif;
+}
+
+.ac-error::before {
+  content: "! ";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ff5a4f;
+  color: #16181c;
+  font: 900 12px/16px system-ui, sans-serif;
+  text-align: center;
+}
+
+.ac-note {
+  margin: 0;
+  color: var(--ph-dim);
+  font: 600 12px/1.3 system-ui, sans-serif;
+}
+
+.ac-strip .ac-link {
+  align-self: flex-start;
+  margin-left: -8px;
+}
+
+.ac-hidden-submit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The recovery-code card and the log-out confirm: one Lumen card in the middle. */
+.menu.ph.ac--modal {
+  justify-content: center;
+  overflow-y: auto;
+  background: rgba(8, 9, 11, 0.92);
+}
+
+.ac-card {
+  box-sizing: border-box;
+  width: min(440px, 100%);
+  margin: auto 0;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #262a30 0%, #1e2125 100%);
+  border: 2px solid #3b4048;
+  border-top-color: #6b727c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.6);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ac-card__title {
+  margin: 0;
+  color: #f4f1ea;
+  font: 800 15px/1.1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ac-code {
+  margin: 0;
+  padding: 8px 4px;
+  border: 2px dashed var(--ph-accent);
+  color: #fff;
+  font: 800 30px/1.1 ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: nowrap;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.ac-card__line {
+  margin: 0;
+  color: #d9dde2;
+  font: 600 14px/1.3 system-ui, sans-serif;
+}
+
+.ac-card__row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.ph-btn.ac-btn {
+  width: auto;
+  min-width: 112px;
+  padding: 0 14px;
+}
+
+/* Story 7.6 (AC 10, brief 26 group 4): the Results nudge, the last row of the Run rewards card. */
+.rw-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  --ph-accent: #f59a2c;
+  --ph-accent-hi: #ffc46b;
+}
+
+.rw-nudge__text {
+  color: #d9dde2;
+  font: 600 13px/1.25 system-ui, sans-serif;
+}
+
+.ph-btn.rw-nudge__btn {
+  width: auto;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* Story 7.6 review M2 / L7: the reset card's "every other phone was logged out" and the login form's merge warning. */
+.ac-card__line--note {
+  color: #ffc46b;
+}
+
+.ac-note--warn {
+  color: #ffc46b;
+}
+
 /* Story 7.4 (K7): group 3 of the Run rewards panel (brief 26): the supply-drop / borrowed-card unlock hint. */
 .rw-group--unlocks {
   margin-top: 6px;

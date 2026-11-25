@@ -27,13 +27,20 @@ export async function withDbTimeout<T>(op: string, run: () => Promise<T>, timeou
     return await Promise.race([run(), timeout]);
   } catch (e) {
     const reason = e instanceof DbUnavailableError ? e.reason : "error";
-    log.error({ op, reason, err: e instanceof DbUnavailableError ? undefined : errMessage(e) }, "db_error");
+    log.error({ op, reason, err: e instanceof DbUnavailableError ? undefined : dbErrText(e) }, "db_error");
     throw e instanceof DbUnavailableError ? e : new DbUnavailableError(op, "error");
   } finally {
     clearTimeout(timer);
   }
 }
 
-function errMessage(e: unknown): string {
-  return e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
+/**
+ * The error text a `db_error` line may carry (review L5): at most 200 characters and NEVER the query parameters —
+ * Drizzle's message is "Failed query: <sql>\nparams: <values>", and the values can be token hashes or password hashes.
+ */
+export function dbErrText(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  const cut = raw.indexOf("\nparams:");
+  return (cut === -1 ? raw : raw.slice(0, cut)).slice(0, 200);
 }
+

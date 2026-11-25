@@ -8,6 +8,18 @@
  * without a ticket (P3: unsaved play, never a refused join).
  */
 import {
+  ACCOUNT_ERRORS,
+  ACCOUNT_LOGIN_PATH,
+  ACCOUNT_LOGOUT_PATH,
+  ACCOUNT_RECOVER_PATH,
+  ACCOUNT_UPGRADE_PATH,
+  deviceSessionResponseSchema,
+  recoverResponseSchema,
+  upgradeResponseSchema,
+  type AccountErrorCode,
+  type DeviceSessionResponse,
+  type RecoverResponse,
+  type UpgradeResponse,
   ACCOUNT_LOOK_PATH,
   ACCOUNT_SESSION_PATH,
   ACCOUNT_TRAINING_PATH,
@@ -26,6 +38,8 @@ import { guestTokens, type GuestTokenStore } from "./guestToken";
 import { deviceLook, type DeviceLookStore } from "./deviceLook";
 import { serverUrl } from "./serverUrl";
 import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
+import { accountStore } from "./accountStore";
+import { progressStore } from "./progressStore";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -60,6 +74,10 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
     if (!parsed.success) return null;
     // P2: both copies end up naming the same account (the cookie is renewed by the server).
     deps.tokens.set(parsed.data.deviceToken);
+    if (parsed.data.saved) {
+      accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
+      if (parsed.data.progress) progressStore.accept(parsed.data.progress); // review L7: the Log in merge warning knows the guest's progress
+    }
     return parsed.data;
   } catch {
     return null;
@@ -196,6 +214,87 @@ export async function trainBoost(boost: TrainingBoostId, level: number, requestI
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Story 7.6 (AC 2, 4, 5, 7): the account actions. Each answers `ok` with the server's body, or `error` with the
+ * player text to show (`ACCOUNT_ERRORS`; no network / timeout / a 5xx = "Can't reach the save server, try later").
+ * Never throws. A login, reset or logout answer is a whole new session for this phone: the new device token replaces
+ * the `localStorage` copy (the cookie was set by the server), the cached join ticket is dropped (it was bound to the
+ * old token), and the account line and the progress show the server's answer.
+ */
+export type AccountCall<T> = { kind: "ok"; body: T } | { kind: "error"; code: AccountErrorCode; text: string };
+
+/** Argon2 on the server + one transaction: a little longer than the session call. */
+export const ACCOUNT_ACTION_TIMEOUT_MS = 8000;
+
+const errorOf = (code: AccountErrorCode): { kind: "error"; code: AccountErrorCode; text: string } => ({ kind: "error", code, text: ACCOUNT_ERRORS[code] });
+
+async function action<T>(path: string, body: unknown, parse: (raw: unknown) => T | null, over: Partial<AccountDeps>): Promise<AccountCall<T>> {
+  const deps = { ...defaults(), url: () => `${serverUrl()}${path}`, timeoutMs: ACCOUNT_ACTION_TIMEOUT_MS, ...over };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
+  try {
+    const res = await deps.fetch(deps.url(), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: abort.signal,
+    });
+    let raw: unknown = null;
+    try {
+      raw = await res.json();
+    } catch {
+      raw = null;
+    }
+    if (!res.ok) {
+      const msg = (raw as { message?: unknown } | null)?.message;
+      return errorOf(typeof msg === "string" && msg in ACCOUNT_ERRORS && res.status < 500 ? (msg as AccountErrorCode) : "save_unavailable");
+    }
+    const parsed = parse(raw);
+    return parsed === null ? errorOf("save_unavailable") : { kind: "ok", body: parsed };
+  } catch {
+    return errorOf("save_unavailable");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** A new session for this phone (login / reset / logout): token, ticket cache, account line, progress. */
+function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
+  tokens.set(s.deviceToken);
+  forgetTicket();
+  accountStore.accept(s.account.username);
+  if (s.progress) {
+    progressStore.accept(s.progress);
+    // Story 7.9 + 7.10: this phone's look copy follows the account it now is; a look pending for the OLD account is dropped
+    deviceLook.markSynced(s.progress.look ?? null);
+  }
+}
+
+export async function upgradeAccount(username: string, password: string, over: Partial<AccountDeps> = {}): Promise<AccountCall<UpgradeResponse>> {
+  const r = await action(ACCOUNT_UPGRADE_PATH, { username, password }, (raw) => upgradeResponseSchema.safeParse(raw).data ?? null, over);
+  if (r.kind === "ok") accountStore.accept(r.body.username);
+  return r;
+}
+
+export async function logInAccount(username: string, password: string, over: Partial<AccountDeps> = {}): Promise<AccountCall<DeviceSessionResponse>> {
+  const r = await action(ACCOUNT_LOGIN_PATH, { username, password }, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
+  if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
+  return r;
+}
+
+export async function recoverAccount(username: string, code: string, newPassword: string, over: Partial<AccountDeps> = {}): Promise<AccountCall<RecoverResponse>> {
+  const r = await action(ACCOUNT_RECOVER_PATH, { username, code, newPassword }, (raw) => recoverResponseSchema.safeParse(raw).data ?? null, over);
+  if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
+  return r;
+}
+
+export async function logOutAccount(over: Partial<AccountDeps> = {}): Promise<AccountCall<DeviceSessionResponse>> {
+  const r = await action(ACCOUNT_LOGOUT_PATH, {}, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
+  if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
+  return r;
 }
 
 /**

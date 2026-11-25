@@ -13,6 +13,11 @@ export interface RoomAccounts {
   accounts: AccountsRepo | null;
   /** Story 7.2: the progress repository (banking a run's Supplies); null = no database (everyone `not_saved`). */
   progress?: ProgressRepo | null;
+  /**
+   * Story 7.6 review L1: a join's valid ticket is re-checked against its token's device row (default true). Off only in
+   * the 7.1 / 7.2 room tests that sign tickets for made-up accounts with no device rows.
+   */
+  checkTicketRows?: boolean;
 }
 
 let current: RoomAccounts = { sessionSecret: randomSessionSecret(), accounts: null, progress: null };
@@ -36,4 +41,9 @@ export function roomAccountsRepo(): AccountsRepo | null {
 /** Story 7.2: the progress repository for banking, or null. */
 export function roomProgressRepo(): ProgressRepo | null {
   return current.progress ?? null;
+}
+
+/** Story 7.6 review L1: whether joins re-check a ticket's device row. */
+export function roomChecksTicketRows(): boolean {
+  return current.checkTicketRows !== false;
 }

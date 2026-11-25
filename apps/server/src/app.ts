@@ -10,7 +10,9 @@ import { type Database, openPglite } from "./db/client";
 import { createGuardedHttpServer } from "./net/httpGuard";
 import { MAX_CLIENT_MESSAGE_BYTES, TRANSPORT_PING_INTERVAL_MS, TRANSPORT_PING_MAX_RETRIES } from "./net/limits";
 import { originAllowed } from "./net/origin";
-import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, lookAccountLimiter, lookIpLimiter, trainAccountLimiter, trainIpLimiter, unlockAccountLimiter, unlockIpLimiter } from "./net/rateLimit";
+import { accountActionIpLimiter, accountActionLimiter, accountSessionLimiter, nameCheckIpLimiter, loginIpLimiter, loginNameLimiter, newGuestLimiter, rateLimitLogGate, lookAccountLimiter, lookIpLimiter, trainAccountLimiter, trainIpLimiter, unlockAccountLimiter, unlockIpLimiter } from "./net/rateLimit";
+import { deviceTokensRepo } from "./db/deviceTokensRepo";
+import { warmDummyHash } from "./auth/passwords";
 import { unlockRequests } from "./auth/unlock";
 import { trainRequests } from "./auth/train";
 import { health } from "./ops/health";
@@ -34,10 +36,12 @@ export interface GameServerOptions {
   database?: Database;
   /** Story 7.1: HMAC key of the session tickets. Required in production (index.ts); random per start otherwise. */
   sessionSecret?: string;
+  /** Story 7.6 review L1: re-check a join ticket's device row (default true; off only in tests with made-up accounts). */
+  checkTicketRows?: boolean;
 }
 
 /**
- * The game server: the `run` room, `GET /health`, `POST /account/session` (Story 7.1), `POST /account/unlock` (7.3), `POST /account/training` (7.5), `POST /account/look` (7.10), a WebSocket transport that refuses frames over
+ * The game server: the `run` room, `GET /health`, `POST /account/session` (Story 7.1), `POST /account/unlock` (7.3), `POST /account/training` (7.5), `POST /account/upgrade|login|recover|logout` (7.6), `POST /account/look` (7.10), a WebSocket transport that refuses frames over
  * 1 KB (Story 2.1 AC 5) and upgrades from other origins (Story 2.2 AC 2), on our own HTTP server
  * that refuses oversized request bodies before Colyseus buffers them (Story 2.1 review).
  * Not listening yet: `index.ts` (or a test) calls `listen(port)`.
@@ -48,11 +52,12 @@ export function createGameServer({
   allowTestScenarios = false,
   database = openPglite(),
   sessionSecret = randomSessionSecret(),
+  checkTicketRows = true,
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   const accounts = accountsRepo(database);
   const progress = progressRepo(database);
-  const { accountSession, accountUnlock, accountTraining, accountLook } = createAccountRoutes({
+  const { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook } = createAccountRoutes({
     accounts,
     progress, // Story 7.3 (AC 4) + 7.9: the session reply carries the progress (Supplies, unlocks, look); one repo shared with the rooms
     newGuestLimiter,
@@ -62,12 +67,15 @@ export function createGameServer({
     allowedOrigins,
     unlock: { progress, ipLimiter: unlockIpLimiter, accountLimiter: unlockAccountLimiter, requests: unlockRequests }, // Story 7.3
     train: { progress, ipLimiter: trainIpLimiter, accountLimiter: trainAccountLimiter, requests: trainRequests }, // Story 7.5
+    // Story 7.6: upgrade / login / recover / logout
+    auth: { devices: deviceTokensRepo(database), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter, nameCheckIpLimiter },
     look: { progress, ipLimiter: lookIpLimiter, accountLimiter: lookAccountLimiter }, // Story 7.10
   });
-  setRoomAccounts({ sessionSecret, accounts, progress }); // Story 7.2: banking
+  void warmDummyHash(); // Story 7.6 review N3: the missing-name verify costs the same from the first login
+  setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
-    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountLook }),
+    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook }),
     transport: new WebSocketTransport({
       server: createGuardedHttpServer(),
       maxPayload: MAX_CLIENT_MESSAGE_BYTES,

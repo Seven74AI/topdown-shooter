@@ -1,7 +1,7 @@
 import { ColyseusTestServer } from "@colyseus/testing";
 import { createServer } from "node:net";
 import { createGameServer, type GameServerOptions } from "../app";
-import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter, unlockAccountLimiter, lookIpLimiter, lookAccountLimiter, unlockIpLimiter } from "../net/rateLimit";
+import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter, unlockAccountLimiter, unlockIpLimiter, lookIpLimiter, lookAccountLimiter, loginIpLimiter, loginNameLimiter, accountActionIpLimiter, accountActionLimiter, nameCheckIpLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 
 /**
@@ -31,6 +31,7 @@ export async function bootTestServer(
     rateLimitLogGate.reset();
     unlockIpLimiter.reset();
     unlockAccountLimiter.reset();
+    resetAccountLimiters();
     lookIpLimiter.reset();
     lookAccountLimiter.reset();
     await cleanup();
@@ -41,9 +42,19 @@ export async function bootTestServer(
   rateLimitLogGate.reset();
   unlockIpLimiter.reset();
   unlockAccountLimiter.reset();
+  resetAccountLimiters();
   lookIpLimiter.reset();
   lookAccountLimiter.reset();
   return { colyseus, port };
+}
+
+/** Story 7.6: the login / account-action limiters. */
+function resetAccountLimiters(): void {
+  loginIpLimiter.reset();
+  loginNameLimiter.reset();
+  accountActionIpLimiter.reset();
+  accountActionLimiter.reset();
+  nameCheckIpLimiter.reset();
 }
 
 /** A port that was free a moment ago (bind to 0, read it, close). */
