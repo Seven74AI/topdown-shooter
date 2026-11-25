@@ -14,6 +14,8 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPT2yAMRMLRecGBwVue | Builder 8.1 | story-8-1 |
 | session_01CgLgPVUe4VgW93WEkr9VNn | Review 8.8 | review-8-8 |
 | session_01CgLgPTGmNZH64LunFYNBGt | Review 8.9 | review-8-9 |
+| session_01CgLgPUPAN4Mdh4kigceHmj | Re-review 8.8 | rereview-8-8 |
+| session_01CgLgPVqsFQcix6hLu748Sj | Review asset-session art | review-asset-art |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -47,3 +49,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:50 Re-review 8.8 (d1df8f1): fixes close their findings; 0 H/M, 3 L test gaps (allowHalfOpen untested; wiring check fooled by comments; netSummary wiring untested) + 1 nit (timer re-armed after stop). Sent back as test-only fixes; no further re-review (OR-10: test-only fixes after a clean narrow re-review don't need another re-review). Main gate on 8.8 008df68 + master: 399 files / 3685 tests green, load 3.03.
 - 04:51 8.9 T10/T11 (19e6ea4): with 8.8's 500 ms window 16–33 % of lossy-line shots were over the cap → applied 8.8 D1's pre-approved fallback as 8.9 B8: REWIND 12 ticks / 600 ms. Reversed hits (kiting, 1 %/2 %): Runners 0.7/1.4 %, Walkers 0.3/1.1 %, 0 % over cap; rewind p99 0.070 ms. Bots lossy 4 × wave 4: 0 suspects, 7.6 KB/s down. B7 bound 1.6→1.7× after the merge.
 - 04:59 8.8 test-only fixes (c011273) merged; main gate 399 files / 3689 tests green (load 3.49) → 8.8 DONE on master.
+- 05:02 Asset session acked (f8a16b9, includes master b0e491a; gate 400 files / 3674 tests; in-session review fixed its Mediums). Dispatched light+ fresh review in its own session (focus: 70–180 ms long tasks during the progressive bake, depth vs darkness, context loss mid-bake).
