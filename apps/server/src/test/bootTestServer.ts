@@ -1,7 +1,7 @@
 import { ColyseusTestServer } from "@colyseus/testing";
 import { createServer } from "node:net";
 import { createGameServer, type GameServerOptions } from "../app";
-import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter, unlockAccountLimiter, unlockIpLimiter, loginIpLimiter, loginNameLimiter, accountActionIpLimiter, accountActionLimiter } from "../net/rateLimit";
+import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter, unlockAccountLimiter, unlockIpLimiter, loginIpLimiter, loginNameLimiter, accountActionIpLimiter, accountActionLimiter, nameCheckIpLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 
 /**
@@ -50,6 +50,7 @@ function resetAccountLimiters(): void {
   loginNameLimiter.reset();
   accountActionIpLimiter.reset();
   accountActionLimiter.reset();
+  nameCheckIpLimiter.reset();
 }
 
 /** A port that was free a moment ago (bind to 0, read it, close). */

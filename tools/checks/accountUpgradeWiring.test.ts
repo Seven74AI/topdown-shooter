@@ -49,7 +49,7 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
   it("the server registers the four routes with their limiters and the device repository; rooms register their devices", () => {
     const app = read(`${SRV}app.ts`);
     expect(app).toMatch(/createRouter\(\{ health, accountSession, accountUnlock, accountUpgrade, accountLogin, accountRecover, accountLogout \}\)/);
-    expect(app).toMatch(/auth: \{ devices: deviceTokensRepo\(database\), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter \}/);
+    expect(app).toMatch(/auth: \{ devices: deviceTokensRepo\(database\), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter, nameCheckIpLimiter \}/);
     const r = read(`${SRV}auth/accountRoutes.ts`);
     expect(r).toMatch(/if \(!loginIpAllowed\(ip, authDeps\)\) throw ctx\.error\(429[\s\S]*?const body = loginRequestSchema/);
     expect(r).toMatch(/if \(!loginIpAllowed\(ip, authDeps\)\) throw ctx\.error\(429[\s\S]*?const body = recoverRequestSchema/);

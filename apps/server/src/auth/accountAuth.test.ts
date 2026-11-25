@@ -128,6 +128,24 @@ describe("Story 7.6: Save my progress (POST /account/upgrade)", () => {
   });
 });
 
+describe("Story 7.6 review L6 (B18): Save's name check is limited per address", () => {
+  it("10 name checks a minute from one address, then 429 (whatever the name); another address is still served", async () => {
+    const ip = "10.90.0.1";
+    for (let i = 0; i < 10; i++) {
+      const g = await guest();
+      expect((await post("/account/upgrade", { username: "Taken_Name_X", password: "x" }, { cookie: g.token, ip })).status).toBe(400); // bad_password: no name check yet
+    }
+    await account("Taken_Name_X");
+    for (let i = 0; i < 10; i++) {
+      const g = await guest();
+      expect(await post("/account/upgrade", { username: "taken_name_x", password: PASSWORD }, { cookie: g.token, ip })).toMatchObject({ status: 409, body: { message: "name_taken" } });
+    }
+    const g = await guest();
+    expect(await post("/account/upgrade", { username: "TAKEN_NAME_X", password: PASSWORD }, { cookie: g.token, ip })).toMatchObject({ status: 429, body: { message: "rate_limited" } });
+    expect((await post("/account/upgrade", { username: uname(), password: PASSWORD }, { cookie: g.token, ip: "10.90.0.2" })).status).toBe(200);
+  });
+});
+
 describe("Story 7.6: log in (POST /account/login)", () => {
   it("A2 + A5: a guest phone with progress logs in: merged (refund), new token in the cookie, the old token is a stranger now", async () => {
     const a = await account();
@@ -394,6 +412,7 @@ describe("Story 7.6 review L2: a join and an account switch of one device can't 
       loginNameLimiter: new NameFailureLimiter(10, 60_000),
       actionIpLimiter: new SlidingWindowLimiter(30, 60_000),
       actionLimiter: new SlidingWindowLimiter(10, 60_000),
+      nameCheckIpLimiter: new SlidingWindowLimiter(10, 60_000),
       logGate: new SlidingWindowLimiter(1, 60_000),
       sessionSecret: SECRET,
       inRoom: (hash: string) => hash === h && ++calls > 1, // not in a room at the first check, seated by the second

@@ -127,3 +127,9 @@ export const ARGON2_LANES = 1;
 
 /** Story 7.6 review L1: how long a join waits for the ticket's device-row check before trusting the ticket (P3). */
 export const TICKET_ROW_CHECK_MS = 1000;
+
+/**
+ * Story 7.6 review L6 (decision 7.6 B18): Save my progress's name check ("That name is taken" tells a name exists)
+ * per client IP per minute: an enumeration costs one address a minute per 10 names.
+ */
+export const MAX_NAME_CHECKS_PER_IP_PER_MIN = 10;

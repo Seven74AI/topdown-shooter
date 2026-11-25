@@ -10,7 +10,7 @@ import { type Database, openPglite } from "./db/client";
 import { createGuardedHttpServer } from "./net/httpGuard";
 import { MAX_CLIENT_MESSAGE_BYTES, TRANSPORT_PING_INTERVAL_MS, TRANSPORT_PING_MAX_RETRIES } from "./net/limits";
 import { originAllowed } from "./net/origin";
-import { accountActionIpLimiter, accountActionLimiter, accountSessionLimiter, loginIpLimiter, loginNameLimiter, newGuestLimiter, rateLimitLogGate, unlockAccountLimiter, unlockIpLimiter } from "./net/rateLimit";
+import { accountActionIpLimiter, accountActionLimiter, accountSessionLimiter, nameCheckIpLimiter, loginIpLimiter, loginNameLimiter, newGuestLimiter, rateLimitLogGate, unlockAccountLimiter, unlockIpLimiter } from "./net/rateLimit";
 import { deviceTokensRepo } from "./db/deviceTokensRepo";
 import { unlockRequests } from "./auth/unlock";
 import { health } from "./ops/health";
@@ -65,7 +65,7 @@ export function createGameServer({
     allowedOrigins,
     unlock: { progress, ipLimiter: unlockIpLimiter, accountLimiter: unlockAccountLimiter, requests: unlockRequests }, // Story 7.3
     // Story 7.6: upgrade / login / recover / logout
-    auth: { devices: deviceTokensRepo(database), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter },
+    auth: { devices: deviceTokensRepo(database), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter, nameCheckIpLimiter },
   });
   setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
   const server = defineServer({

@@ -14,6 +14,7 @@ import {
   MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN,
   MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN,
   MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN,
+  MAX_NAME_CHECKS_PER_IP_PER_MIN,
 } from "./limits";
 
 /**
@@ -197,3 +198,6 @@ export const loginNameLimiter = new NameFailureLimiter(MAX_LOGIN_ATTEMPTS_PER_NA
 /** Story 7.6: upgrade / logout per IP (before any work) and per account. */
 export const accountActionIpLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
 export const accountActionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN, LOGIN_WINDOW_MS, Date.now, (key) => key);
+
+/** Story 7.6 review L6 (B18): Save's name checks per IP (the answer "That name is taken" reveals a name). */
+export const nameCheckIpLimiter = new SlidingWindowLimiter(MAX_NAME_CHECKS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);

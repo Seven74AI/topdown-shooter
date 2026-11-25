@@ -47,6 +47,8 @@ export interface AccountAuthDeps {
   /** Upgrade + logout, per IP (before any work) and per account. */
   actionIpLimiter: SlidingWindowLimiter;
   actionLimiter: SlidingWindowLimiter;
+  /** Review L6 (B18): Save's name checks per IP. */
+  nameCheckIpLimiter: SlidingWindowLimiter;
   logGate: SlidingWindowLimiter;
   sessionSecret: string;
   now?: () => number;
@@ -104,8 +106,13 @@ export async function upgradeAccount(
   if (!validPassword(input.password)) return fail(400, "bad_password");
   if (isCommonPassword(input.password)) return fail(400, "common_password"); // review N1
   try {
-    // Cheap check before hashing; the unique index decides a race. "That name is taken" reveals a name exists:
-    // accepted (names are shown in lobbies anyway; story "Beat the rule" 1).
+    // Cheap check before hashing; the unique index decides a race. "That name is taken" reveals that a name exists
+    // (usernames are NOT shown to other players, brief 28): kept because Save needs it, at 10 checks a minute per
+    // address (review L6, decision 7.6 B18).
+    if (!deps.nameCheckIpLimiter.allow(input.ip)) {
+      gateWarn(deps, "name_check", input.ip, {}, "name_check_rate_limited");
+      return fail(429, "rate_limited");
+    }
     if ((await deps.accounts.findByUsernameLower(input.username.toLowerCase())) !== null) return fail(409, "name_taken");
     const code = newRecoveryCode();
     const [passwordHash, recoveryCodeHash] = await Promise.all([hashSecret(input.password), hashSecret(code)]);
