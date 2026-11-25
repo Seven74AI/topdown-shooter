@@ -30,7 +30,10 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTfCVzk2GJjpwuKhpW | Re-review 2 8.1 | rereview2-8-1 |
 | session_01CgLgPTcABfo1UYwRcPQb8p | Review 7.9 | review-7-9 |
 | session_01CgLgPXMt4tT4Lzwz7Bd28t | Review 7.3 | review-7-3 |
-| session_01CgLgPVyiHnZ4RFQttEnX2P | Builder 7.12 (early T0–T4) | story-7-12 |
+| session_01CgLgPVyiHnZ4RFQttEnX2P | Builder 7.12 → merged 7.7+7.11+7.12 | story-7-12 |
+| session_01CgLgPWrQXL4UDA6K2D2r2Z | Builder 7.4+7.5 | story-7-4-5 |
+| session_01CgLgPWthwSZ9xrcBK3hSpi | Builder 7.6 | story-7-6 |
+| session_01CgLgPXYxZHCHN6vRXnC4s8 | Epic 8 merged story files | epic-8-stories |
 | session_01CgLgPXcaMeFp71mpWmJFfT | Re-review 3 8.1 | rereview3-8-1 |
 | session_01CgLgPVb5154pQmpqo1HyHj | Re-review 7.2 | rereview-7-2 |
 | session_01CgLgPTfz8BTj8YpUzPAoxH | Re-review 7.9 | rereview-7-9 |
@@ -137,3 +140,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:00 8.1 final fixes (7dff724) checked by the main session (RR3-M1 one-line mirror, tests) per the re-review cap; gated master + 8.1 (429 files / 3897 tests, load 4.23) → 8.1 DONE ON MASTER. Network pass core (8.8, 8.9, 8.10, 8.1) complete; 8.11 optional. Follow-up: cut.test 'run goes on' flake 1/37.
 - 09:02 7.2 round-3 fixes (e9cb004; gate 84263fe = 7.2 + story-7-1 5819a641 + master: 451 files / 4061 tests; realPostgres 14/14) checked by the main session per the re-review cap (diff read: 3 s client query_timeout, migrations 0; 7.1's pool guard kept; wording; Leave wait 2500 ms) → 7.2 APPROVED; lands right after 7.1.
 - 09:05 DESIGNER DECISION (live): "Yes merge what can be merged" → 7.4+7.5, 7.7+7.11+7.12(T5), 8.4+8.5+8.6, 8.2+8.3; 7.6, 7.10, 8.7, 8.11 separate (docs/story-merges-2026-11-25.md; sprint-status annotated). Epic 8 merged story files prepared now (docs only); building them stays the stretch goal.
+- 09:05 dispatched builders 7.4+7.5 and 7.6 (early start on story-7-3, which carries 7.1 + 7.2), the Epic 8 merged story writer (docs only), and re-scoped the 7.12 builder to the merged 7.7+7.11+7.12 (waits for 7.2 + 7.9).
