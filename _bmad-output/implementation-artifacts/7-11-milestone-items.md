@@ -1,6 +1,6 @@
 # Story 7.11: Milestone items
 
-Status: ready-for-dev
+Status: review (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47. Customization story 4 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.11. -->
 
@@ -53,14 +53,14 @@ so that my survivor shows what I've done.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Data** (AC 4) — `packages/shared/src/config/milestones.json` + `milestones.ts` (zod, strict): `m1`–`m10` `{ id, howTo, resultLine, rule: { kind, n?, district? } }` (table in 7.10's Dev Notes, plus `resultLine`). Cross check at load: each `mN` has exactly one part with `unlock: milestone:mN` in `cosmetics.json`. If 7.10 created the file, add `resultLine` only.
-- [ ] **T2 Migration + repository** (AC 1, 5) — Drizzle columns `cosmetics text[] not null default '{}'`, `stats jsonb not null default '{"revives":0,"kills":0,"barricades":0,"runs":0}'`; repository functions `grantCosmetics(tx, accountId, keys)` (union, returns the keys that were new), `addStats(tx, accountId, delta)` (SQL increment, returns the new totals). DB tests.
-- [ ] **T3 Per-run counters** (AC 3, M-F2) — in the server's per-seat run record (7.2's, next to `RunController`'s `PlayerSlot.kills`, `RunController.ts:144`): `revives`, `downs`, `barricadesPending` (ids placed this build by this player, wood barricades only), `barricades` (moved from pending to counted for every pending id still in `world.buildings` at `wave.started`; cleared at `build.started`), `bossKilledWhileIn`, `extractedStanding`, `inWaveOneEnd`. Counted in `RunController.step`'s event loop (`:563–579`), the same place kills are counted. Held seats (8.1) keep their record.
-- [ ] **T4 Milestone check** (AC 4–6, 9, 10) — `apps/server/src/meta/milestones.ts`: `milestonesReached(runRecord, statsAfter, run) → mN[]` (pure, table-driven from `milestones.json`), `milestoneParts(ids, owned) → new keys`. Called inside 7.2's banking transaction for each seat (and for a quitter at their bank point); idempotent per run id (7.2's retry key).
-- [ ] **T5 Ownership** (AC 2) — `ownedParts(progress.cosmetics)` in 7.9's `checkAuth` path and 7.10's look route; the session/progress response (7.1) includes `cosmetics` so the editor shows owned items.
-- [ ] **T6 Results line** (AC 7) — 7.2's Run rewards panel: the "New item" line with the part tile and reason; with D8 the "Wear it" button (sets the part in my look, saves through 7.10's `saveLook`, works only for my own row). The server sends the new keys per player with 7.2's rewards message.
-- [ ] **T7 Merge** (AC 8) — 7.6's merge function: `cosmetics` union, `stats` added (+ its test), or a note for 7.6 if it isn't on master.
-- [ ] **T8 Tests + gate** (AC 11) — unit (rules, boundaries), DB (increment race, idempotent retry), room (bank on wipe / extract / quit / held), bots to wave 5 (M1 liveness), headless 10-wave sim with a never-downed bot for M10 (`tools/sims`), full gate, "Notes for the merge", "Not verified".
+- [x] **T1 Data** (AC 4) — `packages/shared/src/config/milestones.json` + `milestones.ts` (zod, strict): `m1`–`m10` `{ id, howTo, resultLine, rule: { kind, n?, district? } }` (table in 7.10's Dev Notes, plus `resultLine`). Cross check at load: each `mN` has exactly one part with `unlock: milestone:mN` in `cosmetics.json`. If 7.10 created the file, add `resultLine` only.
+- [x] **T2 Migration + repository** (AC 1, 5) — Drizzle columns `cosmetics text[] not null default '{}'`, `stats jsonb not null default '{"revives":0,"kills":0,"barricades":0,"runs":0}'`; repository functions `grantCosmetics(tx, accountId, keys)` (union, returns the keys that were new), `addStats(tx, accountId, delta)` (SQL increment, returns the new totals). DB tests.
+- [x] **T3 Per-run counters** (AC 3, M-F2) — in the server's per-seat run record (7.2's, next to `RunController`'s `PlayerSlot.kills`, `RunController.ts:144`): `revives`, `downs`, `barricadesPending` (ids placed this build by this player, wood barricades only), `barricades` (moved from pending to counted for every pending id still in `world.buildings` at `wave.started`; cleared at `build.started`), `bossKilledWhileIn`, `extractedStanding`, `inWaveOneEnd`. Counted in `RunController.step`'s event loop (`:563–579`), the same place kills are counted. Held seats (8.1) keep their record.
+- [x] **T4 Milestone check** (AC 4–6, 9, 10) — `apps/server/src/meta/milestones.ts`: `milestonesReached(runRecord, statsAfter, run) → mN[]` (pure, table-driven from `milestones.json`), `milestoneParts(ids, owned) → new keys`. Called inside 7.2's banking transaction for each seat (and for a quitter at their bank point); idempotent per run id (7.2's retry key).
+- [x] **T5 Ownership** (AC 2) — `ownedParts(progress.cosmetics)` in 7.9's `checkAuth` path and 7.10's look route; the session/progress response (7.1) includes `cosmetics` so the editor shows owned items.
+- [x] **T6 Results line** ("Wear it" not built: needs 7.10's save path — B21) (AC 7) — 7.2's Run rewards panel: the "New item" line with the part tile and reason; with D8 the "Wear it" button (sets the part in my look, saves through 7.10's `saveLook`, works only for my own row). The server sends the new keys per player with 7.2's rewards message.
+- [ ] **T7 Merge** (7.6 not on master: note left for 7.6 — B28) (AC 8) — 7.6's merge function: `cosmetics` union, `stats` added (+ its test), or a note for 7.6 if it isn't on master.
+- [x] **T8 Tests + gate** (AC 11) — unit (rules, boundaries), DB (increment race, idempotent retry), room (bank on wipe / extract / quit / held), bots to wave 5 (M1 liveness), headless 10-wave sim with a never-downed bot for M10 (`tools/sims`), full gate, "Notes for the merge", "Not verified".
 
 ## Dev Notes
 
@@ -171,3 +171,5 @@ Already decided (not asked again): the ten milestones and their items (customiza
 - Story context created 2026-11-25 from master 7385b47: comprehensive developer guide, status ready-for-dev.
 
 ### File List
+
+- 2026-11-25: built in the merged story 7.7 + 7.11 + 7.12 (branch `story-7-12`); the named tests per task, the Gate line, Notes for the merge and Not verified are in `7-12-surprise-loot-bag.md` › Dev Agent Record.

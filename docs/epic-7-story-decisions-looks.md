@@ -135,3 +135,25 @@ Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; early part T0–T4). Every lin
 | 7.12 B13 | Liveness bot | A test-only `seekLoot` switch in `runHeadless` (default off): bot 0 walks to the bag | No other sim changes (R5 n/a) |
 | 7.12 B14 | Golden replay digests | No stored digest exists in the repo (the replay tests compute both sides per run); the digest now covers `world.loot`, so nothing to regenerate | Story note "regenerate once" is moot |
 | 7.12 B15 | Glint timing | One flash of 8 ticks every 40 ticks (2 s), from the drop tick; the ring breathes on the same period | `loot.json › glint` |
+
+## 7.7 + 7.11 + 7.12 (merged) build-time choices
+
+Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; the merged story, banking part). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.
+
+| Code | Choice | Taken | Why |
+| --- | --- | --- | --- |
+| 7.12 B16 | Milestone counters' home | On the player's state in the shared World next to 7.2's record (`waveMask`, `kills`, `revives`, `downs10`, `barricades`), counted in the economy pass from World events | A held (8.1) or remembered seat carries them for free; one place with 7.2's waves |
+| 7.12 B17 | The wave a team wipe falls in | Paid by 7.2 (D8) but **not** "survived" for milestones (M1 "Survive wave 5" needs wave 5 to end) | Text of M1; tested |
+| 7.12 B18 | Lifetime stats write | Added in code under the bank's row lock (`SELECT … FOR UPDATE`), the AC 5 "row lock" variant | Same safety as an SQL increment (two runs at once both add: tested) |
+| 7.12 B19 | "A run counts" (M9, D4) | Wave 1 ended with me in it (a wipe in wave 1 doesn't count) | D4 + B17 |
+| 7.12 B20 | The item's picture on Results | The default survivor wearing it (7.9's portrait drawing) | 7.10's `partTileUrl` close-up isn't on master; swap when it lands |
+| 7.12 B21 | "Wear it" (7.11 D8) | **Not built**: needs 7.10's save path | Follow-up for 7.10 |
+| 7.12 B22 | Teammates' line (7.12 D1) | The finder banks first; the others' `run.rewards` carry `teamLoot` (they wait one bank) | Everyone's Results names the item |
+| 7.12 B23 | An unsaved / failed finder | Still sees "Found in wave N: …" (what it would have been); nothing is granted | Honest: the status line says not saved |
+| 7.12 B24 | DP2 district sheet | The district line is a button; the sheet covers the cards with three card slots (Downtown, District 2, room for Epic 11) | DP2 "line + sheet" |
+| 7.12 B25 | R3 notice | A `lobby.district_reset { from }` message, shown in the lobby's 2 s notice line | Late joiners don't see a stale notice |
+| 7.12 B26 | Owned parts in the join's look check | The join stays database-free (7.1 AC 9); the room loads the account's parts right after the join and re-checks the asked look in the lobby only | A look never changes mid-run |
+| 7.12 B27 | Practice solo | Banks nothing (7.2 D1) → no milestones, no bag (7.12 D2) | 7.2's rule |
+| 7.12 B28 | 7.6 merge rules | 7.6 isn't on master: note for 7.6 (`cosmetics` union, `stats` added per key) | Whoever lands second adds them |
+| 7.12 B29 | Hub "Districts" line (7.7 D2) | In the hub's rule line: "District 2: unlocked · coming soon" / "extract from Downtown to unlock" | D2 recommended value |
+| 7.12 B30 | Progress view | The session / unlock answers also carry `districts` and `cosmetics` (optional fields) | 7.7 hub line, 7.11 T5 (editor tiles) |
