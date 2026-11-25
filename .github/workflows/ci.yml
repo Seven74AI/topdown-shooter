@@ -29,37 +29,119 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
+  # CI speed-up (designer 2026-11-25; docs/ci.md): static, release, test (4 shards) and docker run in parallel; `gate`
+  # is the one check to require. Action versions are pinned to exact releases.
+  static:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
-      - run: npm run build
-      # Story 1.11: the release bundle must not contain the dev cheats (fails if dist is missing).
-      - run: npx vitest run tools/checks/noCheatsInRelease.test.ts
-        env: { REQUIRE_DIST: "1" }
+
+  release:
+    # Story 1.11: the release bundle must not contain the dev cheats. Own job so a cheat-string leak fails in ~1 min
+    # (release:check = npm run build + the cheat scan with REQUIRE_DIST=1, which fails if dist is missing).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm run release:check
+
+  test:
+    # 4 shards balanced by LPT on tools/ci/timings.json (tools/ci/shard.mjs). Shard 1 also runs the browser DOM
+    # checks (*DomLayout), so only it installs Chromium.
+    name: test (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - name: Playwright version
+        if: matrix.shard == 1
+        id: pw
+        run: |
+          echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        if: matrix.shard == 1
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium (+ system deps) for the DOM checks
+        if: matrix.shard == 1
+        run: npx playwright install --with-deps chromium
+      - name: Files of this shard
+        run: |
+          node tools/ci/shard.mjs ${{ matrix.shard }} 4 > shard-files.txt
+          # an empty list would make `vitest run` run every file
+          [ -s shard-files.txt ] || { echo "::error::shard ${{ matrix.shard }} has no files"; exit 1; }
+          echo "$(wc -l < shard-files.txt) files"; cat shard-files.txt
+      - name: Tests
+        run: |
+          mapfile -t files < shard-files.txt
+          npx vitest run --reporter=default --reporter=json --outputFile.json=reports/test-report-${{ matrix.shard }}.json "${files[@]}"
+      - name: The browser DOM checks ran (passed, not skipped)
+        if: matrix.shard == 1
+        run: node tools/ci/check-browser-ran.mjs reports/test-report-1.json
+      - name: Upload the JSON report (timings refresh, docs/ci.md)
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: test-report-${{ matrix.shard }}
+          path: reports/test-report-${{ matrix.shard }}.json
+          if-no-files-found: warn
 
   docker:
     # Story 2.2: the VPS images must build. Build only, nothing is pushed: deploys run on the VPS
-    # with deploy/deploy.sh (docs/deploy.md).
-    needs: check
+    # with deploy/deploy.sh (docs/deploy.md). Layers are cached in the GitHub Actions cache (one scope per target);
+    # load: true puts the images in the local docker for the smoke test.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       GIT_SHA: ci # the compose file refuses to run without it; matches the tags built below
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Throwaway stack secrets (Story 7.1 made the compose file require them; never real ones)
         run: |
           echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
           echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-      - run: docker build -f deploy/server.Dockerfile --target server -t topdown-server:ci .
-      - run: docker build -f deploy/server.Dockerfile --target web -t topdown-web:ci .
+      - uses: docker/setup-buildx-action@v4.4.1
+      - name: Build the server image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          file: deploy/server.Dockerfile
+          target: server
+          tags: topdown-server:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server,ignore-error=true
+      - name: Build the web image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          file: deploy/server.Dockerfile
+          target: web
+          tags: topdown-web:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web,ignore-error=true
       - name: Caddyfile is valid
         run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.9-alpine caddy validate --config /etc/caddy/Caddyfile
       - name: Smoke-test the stack (hardened compose, as on the VPS)
@@ -95,3 +177,16 @@ jobs:
       - name: Stop the stack
         if: always()
         run: docker compose -f deploy/docker-compose.yml down --timeout 20 || true
+
+  gate:
+    # The single required check: green only if every job above succeeded (a failed, cancelled or skipped job fails it).
+    needs: [static, release, test, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+          echo "$NEEDS" | jq -e 'length > 0 and all(.[]; .result == "success")' > /dev/null || { echo "::error::a required job did not succeed"; exit 1; }
