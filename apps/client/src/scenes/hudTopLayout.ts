@@ -40,7 +40,11 @@ export const HP_ROW_RESERVE_CSS_PX = HP_TEXT_RESERVE_CSS_PX + 8 + MAX_GEAR_ICONS
 /** What HudScene measured (CSS px; 0 = not yet). */
 export const hudTextWidths = { waveLine: 0, hpText: 0, money: 0 };
 
-/** HudScene (create, and on a DPR / font change): the measured widths of the widest strings, in CSS px. */
+/**
+ * HudScene, at create only: the measured widths of the widest strings, in CSS px. Once is enough
+ * (Story 6.14, 6.8 re-review 4 nit): these HUD texts are `system-ui` (no web-font swap), and the widths
+ * are stored in CSS px, so a resize or DPR change moves them by < 1 px (inside the reserves' margins).
+ */
 export function reportHudTextWidths(waveLineCss: number, hpTextCss: number, moneyCss: number): void {
   hudTextWidths.waveLine = waveLineCss;
   hudTextWidths.hpText = hpTextCss;

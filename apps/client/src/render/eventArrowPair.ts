@@ -14,16 +14,26 @@ import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, 
  *    the NPC rect + a margin, so a bearing jittering on the rect's edge never flips it frame to frame
  *    (6.8 RR3-1's hold idea).
  *
+ * 3. Story 6.14 (6.9 RR2-1): a beside spot more than 30° off the flag's bearing is never taken; then
+ *    the flag takes the nearest ray of its own ±30° fan (6.8's placement) whose spot keeps every rule
+ *    and clears the NPC arrow, held while it still works.
+ *
  * No allocation: fixed rects; the hold lives in the caller's `PairHold`.
  */
 export interface PairHold {
-  /** 1–8: the flag sits at that spot beside the NPC arrow (`trySpot`); 0: at its own spot. */
+  /** 1–8: the flag sits at that spot beside the NPC arrow (`trySpot`); 9: on a ray of its own fan (`fanRad`); 0: at its own spot. */
   side: number;
+  /** Story 6.14: with side 9, the ray's offset from the flag's bearing (radians, |·| ≤ 30°). */
+  fanRad: number;
 }
 
 export function createPairHold(): PairHold {
-  return { side: 0 };
+  return { side: 0, fanRad: 0 };
 }
+
+/** Story 6.14 (6.9 RR2-1): the fan fallback's ray step (radians). */
+const FAN_STEP_RAD = (0.5 * Math.PI) / 180;
+const FAN = 9;
 
 /** Gap between the two drawn arrows (CSS px). */
 export const PAIR_GAP_CSS_PX = 4;
@@ -90,7 +100,9 @@ export function placeSecondEventArrow(
   // Re-review RR1: the spots right beside the NPC arrow — above, below, left, right, then the same two
   // steps out (a notch beside the HUD buttons can block one or two). Keep the held one while it is
   // legal and within 30° of the flag's bearing; else the legal one closest to the flag's bearing.
-  if (hold.side > 0 && trySpot(hold.side, first, w, h, insets, k, size, avoid, out, gap) <= EVENT_ARROW_MAX_BEARING_ERR_RAD) return true;
+  if (hold.side > 0 && hold.side <= SPOTS && trySpot(hold.side, first, w, h, insets, k, size, avoid, out, gap) <= EVENT_ARROW_MAX_BEARING_ERR_RAD) return true;
+  // Story 6.14: a held fan ray is kept while it still works (no flicker between fan and beside spots).
+  if (hold.side === FAN && tryFan(hold.fanRad, sx, sy, w, h, insets, k, size, avoid, out, gap)) return true;
   let best = 0;
   let bestErr = Infinity;
   for (let c = 1; c <= SPOTS; c++) {
@@ -100,10 +112,52 @@ export function placeSecondEventArrow(
       best = c;
     }
   }
-  if (best > 0) {
+  // Story 6.14 (6.9 RR2-1): a beside spot only within 30° of the flag's bearing (6.8 D10's cap).
+  if (best > 0 && bestErr <= EVENT_ARROW_MAX_BEARING_ERR_RAD) {
     trySpot(best, first, w, h, insets, k, size, avoid, out, gap);
     hold.side = best;
-  } else hold.side = 0; // nowhere beside it (never on the tested layouts): its own spot
+    return true;
+  }
+  // Else the flag keeps 6.8's single-arrow rule on a ray of its own ≤ 30° fan, nearest its bearing
+  // first, at a spot that keeps every rule and clears the NPC arrow.
+  for (let d = FAN_STEP_RAD; d <= EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9; d += FAN_STEP_RAD) {
+    for (const sgn of FAN_SIGNS) {
+      if (tryFan(sgn * d, sx, sy, w, h, insets, k, size, avoid, out, gap)) {
+        hold.side = FAN;
+        hold.fanRad = sgn * d;
+        return true;
+      }
+    }
+  }
+  // Nowhere (never on the tested layouts): its own 6.8 spot.
+  placeEventArrow(sx, sy, w, h, insets, k, size, avoid, out);
+  hold.side = 0;
+  return true;
+}
+
+const FAN_SIGNS = [1, -1] as const;
+const fanPlace: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 };
+
+/**
+ * Story 6.14: the 6.8 placement for a ray `off` radians from the flag's bearing (fresh, no hold),
+ * accepted when the flag drawn there (tip along its TRUE bearing) keeps every rule, is within 30° of
+ * that bearing and clears the NPC arrow (`rn`); writes `out` then.
+ */
+function tryFan(off: number, sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace, gap: number): boolean {
+  const angle = probeAngle;
+  const ray = angle + off;
+  const R = Math.hypot(sx - w / 2, sy - h / 2);
+  fanPlace.side = 0;
+  if (!placeEventArrow(w / 2 + Math.cos(ray) * R, h / 2 + Math.sin(ray) * R, w, h, insets, k, size, avoid, fanPlace)) return false;
+  if (!legalAt(fanPlace.x, fanPlace.y, angle, w, h, insets, k, size, avoid)) return false;
+  if (bearingErr(fanPlace.x, fanPlace.y, angle, w, h) > EVENT_ARROW_MAX_BEARING_ERR_RAD) return false;
+  probe.x = fanPlace.x;
+  probe.y = fanPlace.y;
+  probe.angle = angle;
+  if (overlapGrown(eventArrowDrawnRect(probe, size, cand), rn, gap)) return false;
+  out.x = fanPlace.x;
+  out.y = fanPlace.y;
+  out.angle = angle;
   return true;
 }
 

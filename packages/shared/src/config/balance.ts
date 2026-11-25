@@ -4,6 +4,7 @@ import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { THREAT_BUCKETS, THREAT_BUCKET_TICKS } from "../boss/bossState";
 import { TICK_RATE_HZ } from "./constants";
+import { ticksFor } from "../core/time";
 import { MAX_PLAYERS } from "../net/messages";
 import { MAX_FIXED_PER_WAVE, ZOMBIE_POOL_CAPACITY } from "./constants";
 
@@ -301,10 +302,8 @@ function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void
   if (b2.throw.unreachableMinM > b2.throw.minM) issues.push(`boss.json: throw.unreachableMinM exceeds minM`);
   // Review L2: the Predictor tells the charge's shove from every other knock by its mm per tick
   // (it slides in up to PREDICTION_CHARGE_SNAP_M); no other knock may share that step.
-  const step = (m: number, s: number): number => {
-    const t = Math.max(1, Math.round(s * TICK_RATE_HZ));
-    return Math.round((m * 1000) / t);
-  };
+  // Story 6.14 (6.6 R3): the same tick count as runtime (`ticksFor`, as `knockStepMmOf` uses), not round(s × 20).
+  const step = (m: number, s: number): number => Math.round((m * 1000) / ticksFor(s));
   const bk = parsed.boss as { charge: { shoveM: number; shoveS: number }; slam: { pushM: number; pushS: number }; enrage: { roarPushM: number; roarPushS: number } };
   const chargeStep = step(bk.charge.shoveM, bk.charge.shoveS);
   const others: [string, number][] = [

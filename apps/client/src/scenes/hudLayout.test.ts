@@ -301,6 +301,57 @@ describe("Story 6.10 review L11 / re-review RR1–RR2: the survivor's two edge a
       (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: max flag bearing error ${((worst * 180) / Math.PI).toFixed(1)}°`);
     });
 
+    it(`${w} × ${h}: story 6.14 (6.9 RR2-1) — NPC every 6°, the flag swept ±40° past it at 0.01° both ways with state kept: never > 30° off its bearing, never overlapping, every rule kept`, () => {
+      const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
+      const wave = modes(w, h).wave!.filter((b) => b.id !== "boss_bar");
+      const keepOff: Box[] = [
+        { id: "hp_block", ...layoutHpBlock(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+        { id: "wave_line", ...layoutWaveLine(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+        { id: "money_line", ...layoutMoneyLine(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+      ];
+      const size = EVENT_ARROW_CSS_PX * K;
+      const rn = { x: 0, y: 0, w: 0, h: 0 };
+      const rf = { x: 0, y: 0, w: 0, h: 0 };
+      let worst = 0;
+      let frames = 0;
+      let bad = 0;
+      let firstBad = "";
+      const fail = (m: string): void => {
+        bad++;
+        if (!firstBad) firstBad = m;
+      };
+      for (let da = 0; da < 360; da += 6) {
+        const npc = { x: 0, y: 0, angle: 0, side: 0 };
+        const flag = { x: 0, y: 0, angle: 0, side: 0 };
+        const hold = createPairHold();
+        const a = (da * Math.PI) / 180;
+        placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
+        eventArrowDrawnRect(npc, size, rn);
+        for (const dir of [1, -1]) {
+          for (let i = 0; i <= 8000; i++) {
+            const db = da + dir * (-40 + i / 100);
+            const b = (db * Math.PI) / 180;
+            placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
+            placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag, hold);
+            frames++;
+            eventArrowDrawnRect(npc, size, rn);
+            eventArrowDrawnRect(flag, size, rf);
+            const tag = `npc@${da} flag@${db.toFixed(2)}`;
+            const e = bearingErr(flag, w, h);
+            worst = Math.max(worst, e);
+            if (e > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-6) fail(`${tag}: ${((e * 180) / Math.PI).toFixed(2)}° off`);
+            if (overlaps({ id: "n", ...rn }, { id: "f", ...rf })) fail(`${tag}: overlap`);
+            if (rf.x < INSET.left * K - 1e-6 || rf.x + rf.w > w - INSET.right * K + 1e-6 || rf.y < INSET.top * K - 1e-6 || rf.y + rf.h > h - INSET.bottom * K + 1e-6) fail(`${tag}: outside the safe area`);
+            for (const c of [...wave, ...keepOff]) if (overlaps({ id: "f", ...rf }, c)) fail(`${tag}: overlaps ${c.id}`);
+            if (rectCentreGap(rf.x, rf.y, rf.w, rf.h, w / 2, h / 2) < CENTRE_CLEAR_CSS_PX * K - 1e-6) fail(`${tag}: within 48 px`);
+          }
+        }
+      }
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: stateful 0.01° sweep, ${frames} frames, max flag bearing error ${((worst * 180) / Math.PI).toFixed(2)}°`);
+      expect(frames).toBe(60 * 2 * 8001);
+      expect(bad, firstBad).toBe(0);
+    }, 60_000);
+
     it(`${w} × ${h}: re-review RR2 — the flag bearing jittering ±0.01° round every 0.25° of a sweep past the NPC arrow never flips its spot frame to frame`, () => {
       const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
       const size = EVENT_ARROW_CSS_PX * K;
@@ -468,6 +519,47 @@ describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () 
       }
       expect(freshErr).toBeLessThanOrEqual(30 + 1e-6);
       console.info(`RR3-1 ${cw}×${ch} k${k}: fresh max bearing error ${freshErr.toFixed(2)}°, fresh-placement jumps at [${jumps.map((d) => d.toFixed(2)).join(", ")}]°, worst flips ${worst}`);
+    });
+  }
+
+  // Story 6.14 (6.8 re-review 4): the hold keeps last frame's spot only while it is still legal NOW
+  // (`legalAt(prev…)`): a resize / rotation mid-hold must not leave the arrow where the old layout had it.
+  for (const k of [1, 3]) {
+    it(`a resize mid-hold at k ${k} (844 × 390 → 800 × 360, and a rotation to 390 × 844): every bearing (0.5° steps) — the drawn arrow keeps every rule on the new screen`, () => {
+      const size = EVENT_ARROW_CSS_PX * k;
+      const drawn = { x: 0, y: 0, w: 0, h: 0 };
+      let checked = 0;
+      for (const [[w0, h0], [w1, h1]] of [
+        [[844, 390], [800, 360]],
+        [[844, 390], [390, 844]],
+      ] as const) {
+        const avoid0 = waveControlRects(w0 * k, h0 * k, INSET, k, newWaveControlRects());
+        const avoid1 = waveControlRects(w1 * k, h1 * k, INSET, k, newWaveControlRects());
+        const keepOff = avoid1.map((r, i) => ({ id: `avoid${i}`, x: r.x, y: r.y, w: r.w, h: r.h }));
+        for (let i = 0; i < 720; i++) {
+          const a = ((i / 2) * Math.PI) / 180;
+          const at = { x: 0, y: 0, angle: 0, side: 0 };
+          const put = (w: number, h: number, avoid: ReturnType<typeof newWaveControlRects>): void => {
+            const R = Math.hypot(w, h);
+            expect(placeEventArrow(w / 2 + Math.cos(a) * R, h / 2 + Math.sin(a) * R, w, h, INSET, k, size, avoid, at)).toBe(true);
+          };
+          put(w0 * k, h0 * k, avoid0);
+          put(w0 * k, h0 * k, avoid0); // held there (side 1)
+          put(w1 * k, h1 * k, avoid1); // the screen changed between two frames
+          const W = w1 * k;
+          const H = h1 * k;
+          const r = eventArrowDrawnRect(at, size, drawn);
+          const tag = `${w0}×${h0} → ${w1}×${h1} arrow@${i / 2}`;
+          expect(r.x, tag).toBeGreaterThanOrEqual(INSET.left * k - 1e-6);
+          expect(r.x + r.w, tag).toBeLessThanOrEqual(W - INSET.right * k + 1e-6);
+          expect(r.y, tag).toBeGreaterThanOrEqual(INSET.top * k - 1e-6);
+          expect(r.y + r.h, tag).toBeLessThanOrEqual(H - INSET.bottom * k + 1e-6);
+          for (const c of keepOff) expect(overlaps({ id: tag, ...r }, c), `${tag} overlaps ${c.id}`).toBe(false);
+          expect(rectCentreGap(r.x, r.y, r.w, r.h, W / 2, H / 2), `${tag}: within 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * k - 1e-6);
+          checked++;
+        }
+      }
+      expect(checked).toBe(2 * 720);
     });
   }
 });

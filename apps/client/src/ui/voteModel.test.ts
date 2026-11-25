@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createRng } from "@topdown/shared";
 import { VOTE_PENDING_MS, VOTE_SEND_BURST, VOTE_SEND_PER_S, VOTE_URGENT_DEBT, VOTE_URGENT_GAP_MS, VoteRequest, VoteSender, voteFrameKey, voteResultLine, voteUrgent, voteView, type VotePlayerIn } from "./voteModel";
 
 /** Story 6.11 (EX1, F1–F4, brief 30): the vote panel, pure. */
@@ -116,6 +117,80 @@ describe("VoteSender (review M1 + re-review RM1: pace the flood, never hold back
     }
     for (const t of at) expect(at.filter((u) => u > t - 1000 && u <= t).length).toBeLessThanOrEqual(VOTE_SEND_BURST + VOTE_SEND_PER_S + VOTE_URGENT_DEBT);
     expect(at.filter((u) => u >= 2000).length).toBeLessThanOrEqual(VOTE_SEND_PER_S + 1);
+  });
+
+  it("story 6.14 (6.11 N5): VOTE_URGENT_DEBT bounds the borrowing — a second borrow past the urgent gap is still refused until a token refills", () => {
+    const s = new VoteSender();
+    s.poll(10, 0, 0);
+    let t = 1000;
+    for (const c of ["stay", "extract", "stay"] as const) {
+      s.want(c);
+      expect(s.poll(10, 0, t)).toBe(c); // drains the 3 tokens
+      t += 1;
+    }
+    s.want("extract");
+    expect(s.poll(10, 0, t + VOTE_URGENT_GAP_MS, true)).toBe("extract"); // borrows the one token (bucket ≈ −1)
+    const borrowedAt = t + VOTE_URGENT_GAP_MS;
+    s.want("stay");
+    // Past the gap again, but the bucket is still below 0 (refill 3/s): a second borrow would take it under −DEBT.
+    const second = borrowedAt + VOTE_URGENT_GAP_MS + 1;
+    expect((second - borrowedAt) * VOTE_SEND_PER_S).toBeLessThan(1000); // still before one token refills
+    expect(s.poll(10, 0, second, true)).toBe(null);
+    // Once the debt is paid back and a token is in, it goes out (no stall).
+    expect(s.poll(10, 0, borrowedAt + 2 * (1000 / VOTE_SEND_PER_S) + 1, true)).toBe("stay");
+  });
+
+  it("story 6.14 (6.11 RR3-L2): frantic taps over the last 1.5 s (1 s all-voted hold), 2000 runs → ≤ ~2 % (≤ 3 %) lost final choices, 0 server drops (pongs included)", () => {
+    const rng = createRng(614);
+    const FRAME = 1000 / 60;
+    const T = 20_000; // the vote ends (the hold started at T − 1000: everyone has voted)
+    let lost = 0;
+    let drops = 0;
+    let sends = 0;
+    const RUNS = 2000;
+    for (let run = 0; run < RUNS; run++) {
+      const s = new VoteSender();
+      // The server's shared non-input bucket (apps/server messageGuard: TokenBucket(10, 10)) and ~1 pong/s.
+      let bucket = 10;
+      let bucketAt = 0;
+      const take = (now: number): boolean => {
+        bucket = Math.min(10, bucket + ((now - bucketAt) * 10) / 1000);
+        bucketAt = now;
+        if (bucket < 1) return false;
+        bucket -= 1;
+        return true;
+      };
+      let nextPong = rng.range(0, 1000);
+      let server = 0;
+      let last: "extract" | "stay" = "extract";
+      s.poll(10, 0, 0);
+      s.want(last);
+      // The first vote, at a random moment; then frantic changes every 50–450 ms from T − 1500.
+      let nextTap = T - 1500;
+      for (let now = 0; now < T; now += FRAME) {
+        while (nextPong <= now) {
+          if (!take(nextPong)) drops++;
+          nextPong += 1000;
+        }
+        if (now >= nextTap) {
+          last = last === "extract" ? "stay" : "extract";
+          s.want(last);
+          nextTap = now + rng.range(50, 450);
+        }
+        const urgent = now >= T - 1000;
+        const c = s.poll(10, server, now, urgent);
+        if (c) {
+          sends++;
+          if (take(now)) server = c === "stay" ? 2 : 1;
+          else drops++;
+        }
+      }
+      if (server !== (last === "stay" ? 2 : 1)) lost++;
+    }
+    expect(sends, "liveness: votes were sent").toBeGreaterThan(RUNS * 3);
+    expect(drops, "the server dropped a message").toBe(0);
+    // Measured in this model: gap 100 → 2.5 %, gap 0 → 2.35 % (the debt's floor), gap 150 → 3.3 %, old gap 250 → 5.8 %.
+    expect(lost / RUNS, `lost final choices ${lost}/${RUNS}`).toBeLessThanOrEqual(0.03);
   });
 
   it("re-review 2 (N3): voteUrgent — the last 500 ms, or everyone has voted", () => {
