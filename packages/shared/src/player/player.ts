@@ -176,6 +176,8 @@ export interface PlayerState {
   downs10: number;
   barricades: number;
   barricadesPending: number[];
+  /** Review M2 (B31): who downed this player (a teammate's blast or fire), null: a zombie, a world hazard or standing. */
+  downedBy: string | null;
 }
 
 /** Story 7.4 + 7.5 (one type, Notes for the merge): what a survivor starts a run with, beyond the balance. */
@@ -258,6 +260,7 @@ export function addPlayer(world: World, id: string, x: number, y: number, init: 
     downs10: 0,
     barricades: 0,
     barricadesPending: [],
+    downedBy: null,
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

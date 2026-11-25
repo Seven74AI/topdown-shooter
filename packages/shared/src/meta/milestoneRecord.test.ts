@@ -6,6 +6,8 @@ import { addBuildingAt, buildingStats, removeBuilding } from "../buildings/build
 import { updateEconomy } from "../economy/economy";
 import { addPlayer } from "../player/player";
 import { holdPlayer } from "../player/hold";
+import { downPlayer } from "../player/downed";
+import { damagePlayerBy } from "../combat/damage";
 import { countWipedWave } from "./runRecord";
 import { hadWave } from "./milestoneRecord";
 
@@ -51,6 +53,45 @@ describe("Story 7.11: milestone counters", () => {
     w.waves.number = 11;
     run(w, { type: "player.downed", playerId: "p1" });
     expect(p(w, "p0").revives).toBe(1);
+    expect(p(w, "p1").downs10).toBe(1);
+  });
+
+  it("review M2 (B31): a revive counts in phase wave only, and not of a down the reviver caused (friendly fire)", () => {
+    const w = setup();
+    addPlayer(w, "p2", 14, 10);
+    const revive = (by: string) => run(w, { type: "player.revived", playerId: "p1", reviverId: by });
+    const standUp = () => Object.assign(p(w, "p1"), { status: "alive", hp: 100, protectTicks: 0 });
+    // build phase: no zombies, no risk → nothing, whoever downed them
+    w.run.phase = "build";
+    standUp();
+    downPlayer(w, p(w, "p1"));
+    revive("p0");
+    expect(p(w, "p0").revives).toBe(0);
+    // wave, the reviver's own grenade did it → nothing; a teammate reviving that down → counts
+    w.run.phase = "wave";
+    standUp();
+    expect(damagePlayerBy(w, p(w, "p1"), 100_000, "explosion", "p0")).toBeGreaterThan(0);
+    expect(p(w, "p1").status).toBe("downed");
+    expect(p(w, "p1").downedBy).toBe("p0");
+    revive("p0");
+    expect(p(w, "p0").revives).toBe(0);
+    revive("p2");
+    expect(p(w, "p2").revives).toBe(1);
+    // wave, a zombie's down: counts
+    standUp();
+    downPlayer(w, p(w, "p1"));
+    expect(p(w, "p1").downedBy).toBeNull();
+    revive("p0");
+    expect(p(w, "p0").revives).toBe(1);
+  });
+
+  it("review L2: a down in the build phase is no down for M9 (friendly fire between waves)", () => {
+    const w = setup();
+    w.run.phase = "build";
+    run(w, { type: "player.downed", playerId: "p1" });
+    expect(p(w, "p1").downs10).toBe(0);
+    w.run.phase = "wave";
+    run(w, { type: "player.downed", playerId: "p1" });
     expect(p(w, "p1").downs10).toBe(1);
   });
 

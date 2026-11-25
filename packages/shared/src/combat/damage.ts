@@ -51,7 +51,7 @@ export function damagePlayerBy(world: World, target: PlayerState, amount: number
   }
   if (target.hp <= 0) {
     if (sourcePlayerId !== null) friendlyFireStats.downs++;
-    downPlayer(world, target);
+    downPlayer(world, target, sourcePlayerId);
   }
   return taken;
 }
