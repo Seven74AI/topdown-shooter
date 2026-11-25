@@ -1,8 +1,10 @@
+import type { EventKind, EventOutcome } from "../events/eventState";
+
 /**
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
  * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
  */
-export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss"] as const; // Story 6.7: + "boss" (append only: the wire sends the index)
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss", "event"] as const; // Story 6.7: + "boss"; 6.10: + "event" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
@@ -71,8 +73,12 @@ export type SimEvent =
   | { type: "player.out"; playerId: string }
   | { type: "player.returned"; playerId: string; x: number; y: number }
   | { type: "team.wiped"; wave: number }
-  /** Story 3.10: the team cleared the run's last wave (`waves.runWaves`); the run is over ("You held out!"). */
-  | { type: "run.held_out"; wave: number }
+  /** Story 6.11: the evacuation vote opened after clearing `wave`; it lasts `ticks` server ticks (F4). (Replaces 3.10's `run.held_out`.) */
+  | { type: "run.vote_opened"; wave: number; ticks: number }
+  /** Story 6.11: the vote's result (F3): the counts of the players in the run when it resolved. */
+  | { type: "run.vote_resolved"; choice: "extract" | "stay"; extract: number; stay: number; silent: number }
+  /** Story 6.11: the team extracted after clearing `wave` (`endless`: after Stay, 6.12: the DW2 dawn); Results follow the same tick. */
+  | { type: "run.extracted"; wave: number; endless: boolean }
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }
@@ -142,6 +148,8 @@ export type SimEvent =
   | { type: "zombie.brute_spawned"; zombieId: number; x: number; y: number; first: boolean; /** Client only: seconds since it happened (a woken tab's backlog: no late banner). */ ageS?: number }
   /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
   | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
+  /** Story 6.9 (G6): `playerId` took the supply crate: `weapon` at `level` into `slot` (any phase; no money). */
+  | { type: "weapon.crate_taken"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   /**
    * Story 5.5: `playerId` lobbed round `grenadeId` (u8, wraps) from the muzzle (x, y); it bursts at
    * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on
@@ -215,6 +223,14 @@ export type SimEvent =
   | { type: "boss.enraged"; x: number; y: number; /** Client only. */ ageS?: number }
   | { type: "boss.crawler_dropped"; x: number; y: number }
   | { type: "boss.killed"; killerId: string | null; weapon: string; x: number; y: number; number: number; /** Client only. */ ageS?: number }
+  // Story 6.8: the special events (global on the wire: team cues). `kind` = an `EVENT_KINDS` id.
+  /** It started (banner + sound + marker on every phone, F1); `phase` its first phase, `lane` the stampede's lane (−1: none). */
+  | { type: "event.triggered"; kind: EventKind; wave: number; x: number; y: number; startTick: number; phase: number; lane: number; /** Client only: seconds since it happened (a woken tab: no late banner). */ ageS?: number }
+  /** Its phase changed on `tick` (armed → alarm with the shooter, or null for the timer; warning → running). */
+  | { type: "event.phase_changed"; kind: EventKind; phase: number; tick: number; playerId: string | null; /** Client only. */ ageS?: number }
+  | { type: "event.ended"; kind: EventKind; outcome: EventOutcome }
+  /** A scheduled event could not start (F9 safety net) or its wave passed without it. */
+  | { type: "event.skipped"; kind: EventKind; wave: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

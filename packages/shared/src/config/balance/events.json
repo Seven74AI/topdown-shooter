@@ -1,0 +1,39 @@
+{
+  "perRun": 2,
+  "waves": [3, 4, 6, 7, 8],
+  "startFractionMin": 0.2,
+  "startFractionMax": 0.6,
+  "lateBannerS": 3,
+  "carAlarm": { "armedS": 20, "alarmS": 15, "pullRadiusM": 15, "distractBreakM": 2, "pickMinM": 8, "pickMaxM": 25, "lureSeedM": 0.75 },
+  "stampede": {
+    "warningS": 3,
+    "runS": 12,
+    "laneWidthM": 8,
+    "speedMps": 5,
+    "contactDamage": 8,
+    "countByPlayers": [12, 18, 24, 30],
+    "overCap": 30,
+    "rowSize": 6,
+    "rowGapS": 0.3,
+    "laneNearTeamM": 10,
+    "stuckS": 1,
+    "stuckProgressM": 0.5,
+    "deflectLookM": 4,
+    "sidestepAlongFrac": 0.25
+  },
+  "gasLeak": { "hissS": 10, "armDelayS": 3, "radiusM": 6, "playerDamage": 60, "killDamage": 10000, "buildingDamage": 150, "tankAt": "zone_centre", "tankRadiusM": 0.6, "bossDamage": 150 },
+  "supplyDrop": { "flareS": 5, "minFromTeamM": 12, "takeRadiusM": 0.8, "takeS": 1, "level": 2, "weapons": ["flamethrower", "gas_torch", "grenade_launcher", "chainsaw", "assault_rifle"], "spotClearM": 1 },
+  "powerFailure": { "waves": [6, 7, 8], "flickerS": 2 },
+  "survivor": { "hp": 50, "radiusM": 0.4, "speedMps": 4.0, "followGapM": 1.0, "pickUpM": 3, "loseM": 6, "minFromTeamM": 15, "safeMinFromNpcM": 20, "saveRadiusM": 2, "reward": 100, "helpCallS": 6, "waveOffS": 1.5, "waitIgnoreM": 5 },
+  "fx": { "maxDustParticles": 64, "maxMarkers": 4, "maxChevrons": 12, "maxGasParticles": 48, "maxFlareParticles": 48 },
+  "banners": {
+    "car_alarm": "CAR ALARM · shoot it to set it off",
+    "stampede": "STAMPEDE!",
+    "gas_leak": "GAS LEAK · get out of the ring",
+    "supply_drop": "SUPPLY DROP",
+    "power_failure": "POWER FAILURE",
+    "survivor": "SURVIVOR · lead them to the flag",
+    "survivor_saved": "Survivor saved · +100",
+    "survivor_lost": "Survivor lost"
+  }
+}

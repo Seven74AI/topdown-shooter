@@ -9,6 +9,7 @@ import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { shotLineClear } from "./cover";
 import { applyKnockback, applyZombieDamage, applyZombieDamageQuiet, damagePlayerBy, knockbackShare, knockbacks } from "./damage";
 import type { WeaponId } from "./weapons";
+import { damageSurvivor, survivorTarget } from "../events/survivor";
 
 /**
  * One blast, shared by mines (5.9), the Grenade Launcher (5.5, owner of this module), Bloaters (5.8)
@@ -39,7 +40,7 @@ import type { WeaponId } from "./weapons";
  */
 
 /** Append only: the index goes on the wire (`explosion.happened.kind`). 5.8 appends "bloater"; 5.12 "hand_grenade" (the EX2 look). */
-export const EXPLOSION_KINDS = ["grenade", "mine", "bloater", "hand_grenade"] as const;
+export const EXPLOSION_KINDS = ["grenade", "mine", "bloater", "hand_grenade", "gas_leak"] as const; // Story 6.9: + "gas_leak"
 export type ExplosionKind = (typeof EXPLOSION_KINDS)[number];
 
 export interface ExplosionSpec {
@@ -72,11 +73,13 @@ export interface ExplosionSpec {
   grenadeId: number;
   /** Emit `explosion.happened` (false: the caller sends its own visual event, the Bloater's `bloater.burst`). */
   announce: boolean;
+  /** Story 6.9 review L4: damage to the Behemoth (−1: `zombieDamage`, as every blast before; the gas leak's `bossDamage`). */
+  bossDamage: number;
 }
 
 /** A spec with every field at rest (callers keep one and fill it: no allocation per blast). */
 export function createExplosionSpec(): ExplosionSpec {
-  return { x: 0, y: 0, radiusM: 0, zombieDamage: 0, playerDamage: 0, friendlyFire: true, buildingDamage: 0, pushM: 0, kind: "grenade", sourcePlayerId: null, weapon: "", buildingId: 0, quiet: false, grenadeId: 0, announce: true };
+  return { x: 0, y: 0, radiusM: 0, zombieDamage: 0, playerDamage: 0, friendlyFire: true, buildingDamage: 0, pushM: 0, kind: "grenade", sourcePlayerId: null, weapon: "", buildingId: 0, quiet: false, grenadeId: 0, announce: true, bossDamage: -1 };
 }
 
 /**
@@ -151,6 +154,7 @@ export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
   const kind = spec.kind;
   const grenadeId = spec.grenadeId;
   const announce = spec.announce;
+  const bossDamage = spec.bossDamage >= 0 ? spec.bossDamage : zombieDamage; // review L4
   const f = frames[depth] as BlastFrame;
   f.world = world;
   f.x = x;
@@ -204,8 +208,13 @@ export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
       }
     }
     world.players.forEach(blastPlayer); // reads frames[depth - 1]: this blast's, nested ones restore it
+    // Story 6.10 (S3/S4): a Bloater blast hurts the survivor by the same overlap + clear-line rule; no other blast kind does.
+    if (kind === "bloater") {
+      const npc = survivorTarget(world);
+      if (npc && (npc.x - x) ** 2 + (npc.y - y) ** 2 < (radiusM + npc.radiusM) ** 2 && shotLineClear(world, x, y, npc.x, npc.y)) damageSurvivor(world, f.playerDamage);
+    }
     // Story 6.5 (D4): the Behemoth within radius + its body, by the normal blast line of sight to its nearest point; full damage.
-    if (bossInCircle(world, x, y, radiusM) && shotLineClear(world, x, y, bossNear.x, bossNear.y)) applyBossDamage(world, zombieDamage, source, weapon);
+    if (bossInCircle(world, x, y, radiusM) && shotLineClear(world, x, y, bossNear.x, bossNear.y)) applyBossDamage(world, bossDamage, source, weapon);
     if (buildingDamage > 0) buildingsHit = blastBuildings(world, x, y, radiusM, buildingDamage);
   } finally {
     targetTop = base;

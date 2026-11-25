@@ -284,6 +284,33 @@ describe("syncState", () => {
     expect(state.players.get("p0")).toMatchObject({ level0: 0, level1: 0 });
   });
 
+  it("Story 6.11/6.12: a vote, its ticks, the ending and endless are synced on change and reset on lobby return", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    const p0 = w.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    p0.vote = 2;
+    w.run.voteTicksLeft = 120;
+    w.run.endless = true;
+    syncState(state, controller);
+    expect(state.players.get("p0")?.vote).toBe(2);
+    expect(state.voteTicksLeft).toBe(120);
+    expect(state.endless).toBe(true);
+    expect(encoder.encode().length).toBeLessThan(24); // three small field patches
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // nothing per tick when nothing changed
+    state.resultEnding = "lost";
+    resetRunFields(state);
+    expect(state.players.get("p0")?.vote).toBe(0);
+    expect(state.voteTicksLeft).toBe(0);
+    expect(state.endless).toBe(false);
+    expect(state.resultEnding).toBe("");
+  });
+
   it("Story 5.11: gear (with maxHp/hp) written on change only (one small patch), reset on lobby return", () => {
     const { controller, state, encoder } = setup();
     const w = controller.world;
@@ -570,5 +597,98 @@ describe("Story 6.5 syncState: the boss record", () => {
     resetRunFields(state);
     expect(state.boss.state).toBe(0);
     expect(state.boss.target).toBe(255);
+  });
+});
+
+describe("Story 6.8 syncState: the active event record", () => {
+  it("writes kind, phase, ticks, marker (cm) and lane on change only; none = 255; resets with the run", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    expect([state.eventKind, state.eventLane]).toEqual([255, 255]);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    encoder.discardChanges();
+    const a = w.special.active;
+    Object.assign(a, { kind: 1, phase: 3, startTick: 1234, phaseTick: 1234, x: 1, y: 16, lane: 2 });
+    syncState(state, controller);
+    expect([state.eventKind, state.eventPhase, state.eventStartTick, state.eventPhaseTick, state.eventX, state.eventY, state.eventLane]).toEqual([1, 3, 1234, 1234, 100, 1600, 2]);
+    const change = encoder.encode().length;
+    encoder.discardChanges();
+    expect(change - idle).toBeGreaterThan(0);
+    expect(change - idle).toBeLessThanOrEqual(20); // brief 11: ≤ 20 B per change
+    syncState(state, controller);
+    expect(encoder.encode().length).toBeLessThanOrEqual(idle); // nothing per tick while it runs
+    encoder.discardChanges();
+    Object.assign(a, { phase: 4, phaseTick: 1294 });
+    syncState(state, controller);
+    expect([state.eventPhase, state.eventPhaseTick]).toEqual([4, 1294]);
+    a.kind = -1;
+    syncState(state, controller);
+    expect(state.eventKind).toBe(255);
+    Object.assign(a, { kind: 0, phase: 1 });
+    syncState(state, controller);
+    resetRunFields(state);
+    expect([state.eventKind, state.eventPhase, state.eventStartTick, state.eventPhaseTick, state.eventX, state.eventY, state.eventLane]).toEqual([255, 0, 0, 0, 0, 0, 255]);
+  });
+});
+
+describe("Stories 6.9 + 6.10 syncState: the crate and the survivor", () => {
+  it("writes the crate's weapon / claim and the NPC's record on change only (nothing while idle); bandwidth while the NPC walks; reset clears them", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    encoder.discardChanges();
+    // a supply drop (as the module writes it)
+    const a = w.special.active;
+    a.kind = 3; // supply_drop
+    a.phase = 7;
+    a.x = 10;
+    a.y = 20;
+    const d = w.special.supplyDrop;
+    d.weapon = 9;
+    d.level = 2;
+    d.claimSlot = 1;
+    d.claimTicks = 4;
+    syncState(state, controller);
+    expect([state.crateWeapon, state.crateClaimSlot, state.crateClaimTicks]).toEqual([9, 1, 4]);
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.encode().length).toBe(0); // unchanged (and no tick): no bytes
+    encoder.discardChanges();
+    // a survivor walking: ≤ ~12 B per tick on top of the idle patch (≈ 240 B/s at 20 Hz)
+    a.kind = 5;
+    a.phase = 12;
+    d.weapon = -1;
+    d.claimSlot = -1;
+    d.claimTicks = 0;
+    const n = w.special.survivor;
+    Object.assign(n, { x: 26, y: 21, hp: 50, state: 2, look: 1, leaderSlot: 0, safeX: 8.5, safeY: 17, status: "alive" });
+    syncState(state, controller);
+    expect([state.npcX, state.npcY, state.npcHp, state.npcState, state.npcLook, state.npcLeaderSlot, state.safeX, state.safeY]).toEqual([2600, 2100, 50, 2, 1, 0, 850, 1700]);
+    encoder.encode();
+    encoder.discardChanges();
+    let walk = 0;
+    for (let i = 0; i < 20; i++) {
+      n.x += 0.2;
+      a.x = n.x;
+      syncState(state, controller);
+      walk += encoder.encode().length; // no tick: only the NPC's (and marker's) fields
+      encoder.discardChanges();
+    }
+    expect(idle).toBeGreaterThan(0);
+    expect(walk / 20).toBeLessThanOrEqual(12);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] survivor walking: +${(walk / 20).toFixed(1)} B per patch (≈ ${Math.round(walk)} B/s at 20 Hz)`);
+    resetRunFields(state);
+    expect([state.crateWeapon, state.crateClaimSlot, state.crateClaimTicks, state.npcX, state.npcState, state.npcLeaderSlot, state.safeX]).toEqual([255, 255, 0, 0, 0, 255, 0]);
   });
 });

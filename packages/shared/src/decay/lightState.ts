@@ -152,10 +152,18 @@ export function lightRadiusOf(world: World, l: Readonly<LightSource>): number {
   return isBlackout(world) ? l.blackoutRadiusM : l.radiusM;
 }
 
-/** `lightPctByWave` entry of wave `n` (1-based); 0 outside the table. */
-function wavePct(world: World, n: number): number {
+/**
+ * `lightPctByWave` entry of wave `n` (1-based); 0 outside the table. Story 6.10: exported so the
+ * power failure's gate (P3) never picks a wave that is already a full blackout wave.
+ */
+export function wavePct(world: Readonly<World>, n: number): number {
   const t = world.balance.decay.blackout.lightPctByWave;
   return n >= 1 && n <= t.length ? (t[n - 1] as number) : 0;
+}
+
+/** Story 6.12: wave `n` is an endless wave (past `runWaves`, after Stay). */
+function endlessWave(world: World, n: number): boolean {
+  return world.run.endless && n > world.balance.waves.runWaves;
 }
 
 /** Darkness alpha of a level (pct 0 = none), at half strength or not. */
@@ -170,7 +178,10 @@ function alphaOf(pct: number, half: boolean, halfDarkK: number): number {
  * in `startWave`, in `endRun`, by the dev force switch and by any mid-wave change (6.10's power
  * failure). The rule: a wave whose `lightPctByWave` entry is > 0 → it; a power failure during a wave
  * → `powerFailureLightPct`; a build phase with `halfDarkInBuild` and the coming (else the last)
- * wave's entry > 0 → that entry at half strength; else 0. (6.12 adds the endless rule here.)
+ * wave's entry > 0 → that entry at half strength; else 0. Story 6.12: odd endless waves →
+ * `endlessLightPct` (before a power failure); even endless waves → `endlessLightPct` at half
+ * strength (after it: a power failure turns the half dark into 20 %); endless build phases half dark.
+ * Story 6.11: the vote keeps the wave's rule.
  * Review H1 (FR87): the dev `forcedPct` (cheat, `?blackout=`, `DEV_FORCE_BLACKOUT`) may only DARKEN:
  * it applies (never half) when its darkness is at least the rule's, else the rule stands. Results
  * are always lit (review L8).
@@ -181,16 +192,24 @@ export function refreshBlackout(world: World): void {
   const phase = world.run.phase;
   let pct = 0;
   let half = false;
+  const n = world.waves.number;
   if (phase === "results") {
     // lit, whatever the inputs
-  } else if (phase === "wave") {
-    const w = wavePct(world, world.waves.number);
+  } else if (phase === "wave" || phase === "vote") {
+    // Story 6.11: the vote keeps the cleared wave's light (it is still that night).
+    const w = wavePct(world, n);
     if (w > 0) pct = w;
-    else if (s.powerFailure) pct = b.powerFailureLightPct;
+    else if (endlessWave(world, n) && n % 2 === 1 && b.endlessOddWaves) pct = b.endlessLightPct; // Story 6.12 (F5): odd endless waves are pitch black
+    else if (s.powerFailure) pct = b.powerFailureLightPct; // 6.12 D6/D8: a power failure in an even endless wave → 20 %, full strength
+    else if (endlessWave(world, n) && b.endlessEvenHalfDark) {
+      pct = b.endlessLightPct; // Story 6.12 (D3): even endless waves are half dark
+      half = true;
+    }
   } else if (phase === "build" && b.halfDarkInBuild) {
-    const coming = wavePct(world, world.waves.number + 1);
-    const last = wavePct(world, world.waves.number);
+    const coming = wavePct(world, n + 1);
+    const last = wavePct(world, n);
     pct = coming > 0 ? coming : last;
+    if (pct === 0 && endlessWave(world, n + 1)) pct = b.endlessLightPct; // Story 6.12: endless build phases half dark, as at stage 5
     half = pct > 0;
   }
   const forcedA = alphaOf(s.forcedPct, false, b.halfDarkK);

@@ -1,3 +1,4 @@
+import { mirrorSpecialEvent } from "../net/mirrorEvent";
 import { FlameCues } from "../render/flameCues";
 import {
   C2S,
@@ -46,6 +47,7 @@ import {
   type SimEventsFlushed,
   type WeaponSlot,
   type World,
+  type EvacChoice,
 } from "@topdown/shared";
 import { viewTickOf } from "../net/viewTick";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
@@ -63,6 +65,7 @@ import { mirrorDecay } from "../net/mirrorDecay";
 import { bossDrawAt, bossRenderPos, createBossTrack, mirrorBoss, trackBoss, type BossTrack } from "../net/mirrorBoss";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
+import { endingOf } from "../net/onlineFlow";
 import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
 import { LocalFireClock } from "../net/localFire";
 import { CosmeticProjectiles } from "../net/cosmeticProjectiles";
@@ -451,6 +454,11 @@ export class NetSimHost implements SimHost {
     if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
   }
 
+  /** Story 6.11: `evac.vote` (the server ignores it outside the vote); my `vote` comes back in the state. */
+  castVote(choice: EvacChoice): void {
+    if (!this.disposed) this.session.room.send(C2S.EVAC_VOTE, { choice });
+  }
+
   /** Story 3.4: `building.place`; the building comes back in the state, a refusal as `building.refused`. */
   placeBuilding(req: PlaceRequest): void {
     if (!this.disposed) this.session.room.send(C2S.BUILDING_PLACE, { type: req.type, gx: req.gx, gy: req.gy, rot: req.rot });
@@ -646,6 +654,9 @@ export class NetSimHost implements SimHost {
       } else if (e.type === "building.placed") {
         // Story 5.23 (AC 6): its age, so a woken tab's backlog plays no thunk, haptic or dust.
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
+      } else if (e.type === "event.triggered" || e.type === "event.phase_changed") {
+        // Story 6.8 (brief 14): its age, so a woken tab's backlog shows no late banner or sound (the marker follows the room state).
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "bloater.burst" || e.type === "bloater.swell_started") {
         // Story 5.8: its age: BloaterFx back-dates a burst's cloud (and drops one older than gasS: no
         // ghost cloud after a woken tab), GameScene plays no burst sound for a stale one.
@@ -751,7 +762,10 @@ export class NetSimHost implements SimHost {
     // Story 3.1: the run state machine's phase and build timer (the mirror never steps it).
     this.world.run.phase = state.phase;
     this.world.run.buildTicksLeft = state.buildTicksLeft;
-    this.world.run.heldOut = state.resultHeldOut === true; // Story 3.10 (the Results come from the room state)
+    // Story 6.11 / 6.12: the vote's ticks, the ending and endless (server truth; the Results come from the room state).
+    this.world.run.voteTicksLeft = state.voteTicksLeft ?? 0;
+    this.world.run.ending = state.phase === "results" ? endingOf(state.resultEnding) : "none";
+    this.world.run.endless = state.endless === true;
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
@@ -763,6 +777,7 @@ export class NetSimHost implements SimHost {
     // Story 6.5: the Behemoth (server truth) and its last two positions (drawn at the render tick).
     mirrorBoss(this.world, state.boss);
     if (state.boss) trackBoss(this.bossTrack, state.boss.x, state.boss.y, state.tick);
+    mirrorSpecialEvent(this.world, state); // Story 6.8: the active event (EventView reads one source in solo and online)
   }
 
   /**
@@ -902,6 +917,7 @@ export class NetSimHost implements SimHost {
     p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;
     p.buildReady = s.buildReady;
+    p.vote = s.vote ?? 0; // Story 6.11
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)
     p.slowPct = s.slowPct;
     p.knockTicks = s.knockTicks; // Story 5.7: mirrored for the look (the predictor has its own copy)

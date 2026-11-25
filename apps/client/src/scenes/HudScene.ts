@@ -1,3 +1,5 @@
+import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, hpRowText, layoutBanner, placeWaveText, reportHudTextWidths } from "./hudTopLayout";
+import { layoutBossBar } from "./bossBar";
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -45,7 +47,7 @@ import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { BossHud } from "./BossHud";
 import { MAX_PLAYERS } from "@topdown/shared";
-import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark } from "./hudModel";
+import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark, waveLine } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
@@ -66,10 +68,6 @@ export interface HudSceneData {
 }
 
 /** Health bar size and placement in CSS px (× dpr). */
-const HP_BAR_W = 200;
-const HP_BAR_H = 16;
-const HP_MARGIN = 16;
-const HP_TEXT_PX = 14;
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
@@ -106,8 +104,6 @@ const RELOAD_BAR_H = 6;
 /** Story 5.4: the fuel bar of a flame weapon (orange, under the fuel percent). */
 const FUEL_BAR_COLOR = 0xff8a2a;
 /** Wave panel (top-center) and banner. */
-const WAVE_TEXT_PX = 16;
-const BANNER_TEXT_PX = 34;
 const BANNER_SHOW_MS = 1500;
 const BANNER_FADE_MS = 400;
 /** Edge arrows for off-screen rushers. */
@@ -240,14 +236,10 @@ const TILE_LABEL = "#ffffff";
 const COUNT_OK = "#ffffff";
 const COUNT_FULL = "#ff8a80";
 /** Wave text → status line → toast line, CSS px from the top inset. */
-const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
 
 /** Story 3.2: the wallet line under the HP text, and the "+N" pops above my survivor. */
-const MONEY_TEXT_PX = 16;
-const MONEY_GAP_PX = 4;
 /** A text line's height as a multiple of its font size. */
-const LINE_HEIGHT = 1.3;
 const MONEY_COLOR = "#ffd54a";
 const MONEY_POPS = 6;
 const MONEY_POP_TEXT_PX = 16;
@@ -349,6 +341,8 @@ export class HudScene extends Phaser.Scene {
   private shownBarItems: readonly BuildTile[] | null = null;
   private shownBarKey = -1;
   private shownBuildSecs = -2;
+  private shownEndless = false; // Story 6.12
+  private shownVoting = false; // Story 6.11
   private buttons = new HudButtons();
   /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line; Story 5.15: the hand cluster, the 🔒 badge. */
   private readonly placeBtns: Phaser.GameObjects.Graphics[] = [];
@@ -438,6 +432,11 @@ export class HudScene extends Phaser.Scene {
   private shownRemaining = -1;
   private shownBanner = "";
   private shownBannerColor = "";
+  private shownBannerBoss = false;
+  /** Story 6.14: layout scratch (no allocation per frame). */
+  private readonly waveAt = { x: 0, scale: 1 };
+  private readonly bannerAt = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly bannerBoss = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
   private shownWeapon = "";
   private shownAmmo = Number.NaN;
   private shownMag = Number.NaN;
@@ -489,6 +488,7 @@ export class HudScene extends Phaser.Scene {
     this.shownOtherLevel = -1;
     this.shownWave = -1;
     this.shownBanner = "";
+    this.shownBannerBoss = false;
     this.shownStatus = "";
     this.shownSecs.fill(-1);
     this.shownNames.fill("");
@@ -716,6 +716,18 @@ export class HudScene extends Phaser.Scene {
     });
     // Story 3.2: wallet and "+N" pops (Phaser reuses this scene: the old objects died at shutdown).
     this.moneyText = this.add.text(0, 0, "", this.moneyStyle(MONEY_TEXT_PX)).setVisible(false);
+    // Story 6.8 re-review 3 RR3-3: measure the widest wave line / HP text / money line with these very
+    // styles (once per create, before the first frame), so the event arrow's keep-off rects match.
+    {
+      const k = dpr();
+      const wave = this.waveText.setText(WIDEST_WAVE_LINE).width / k;
+      const hp = this.hpText.setText(WIDEST_HP_TEXT).width / k;
+      const money = this.moneyText.setText(WIDEST_MONEY_TEXT).width / k;
+      this.waveText.setText("");
+      this.hpText.setText("");
+      this.moneyText.setText("");
+      reportHudTextWidths(wave, hp, money);
+    }
     this.moneyPops.length = 0;
     for (let i = 0; i < MONEY_POPS; i++) {
       const text = this.add.text(0, 0, "", this.moneyStyle(MONEY_POP_TEXT_PX)).setOrigin(0, 1).setVisible(false);
@@ -1154,7 +1166,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined;
+    const show = m.consumableVisible && frame !== undefined && !m.voting; // Story 6.11: hidden in the vote
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;
@@ -1754,7 +1766,7 @@ export class HudScene extends Phaser.Scene {
     this.hpBar.fillStyle(mixColor(HP_LOW, HP_HIGH, frac), 1).fillRect(x, y, w * frac, h);
     // Story 4.8: "Burning" while the server's fire damage keeps arriving (HP stays the server's, ceil).
     this.hpText
-      .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : inAcid ? `HP ${Math.ceil(hp)} / ${maxHp}   Acid` : `HP ${Math.ceil(hp)} / ${maxHp}`)
+      .setText(hpRowText(hp, maxHp, burning, inAcid))
       .setColor(burning ? BURNING_TEXT : inAcid ? ACID_TEXT : "#ffffff")
       .setPosition(x, y + h + 4 * k);
     this.drawGear(this.hpText.x + this.hpText.width + 8 * k, this.hpText.y + this.hpText.height / 2);
@@ -1819,7 +1831,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   override update(): void {
-    const touch = !this.router.isMouse; // mouse mode hides the sticks
+    const touch = !this.router.isMouse && !this.model.voting; // mouse mode hides the sticks; Story 6.11: so does the vote
     this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
@@ -1989,26 +2001,33 @@ export class HudScene extends Phaser.Scene {
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
   private drawWave(): void {
     const m = this.model;
-    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs) {
+    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs || m.endless !== this.shownEndless || m.voting !== this.shownVoting) {
       this.shownWave = m.wave;
       this.shownRemaining = m.remaining;
       this.shownBuildSecs = m.buildSecs;
+      this.shownEndless = m.endless; // Story 6.12
+      this.shownVoting = m.voting; // Story 6.11
       // Story 3.1: during a build the top line counts down to the next wave.
-      const text =
-        m.buildSecs >= 0 ? `Wave ${m.wave + 1} in ${m.buildSecs} s` : m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready";
-      this.waveText
-        .setText(text)
-        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
+      const text = waveLine(m);
+      this.waveText.setText(text);
+      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit).
+      const at = placeWaveText(this.scale.width, this.insets, dpr(), this.waveText.width, this.waveAt);
+      this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
-    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor) {
+    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor || m.bossVisible !== this.shownBannerBoss) {
       this.shownBanner = m.bannerText;
       this.shownBannerColor = m.bannerColor; // Stories 6.6 / 6.7: CRASH! / EVAC INBOUND amber, ENRAGED red
-      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it.
+      this.shownBannerBoss = m.bossVisible;
+      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it
+      // (Story 6.14: inside the safe area), and sits below the HP block, wave line and boss bar.
+      const k = dpr();
       this.bannerText
-        .setWordWrapWidth(this.scale.width * 0.92)
+        .setWordWrapWidth(bannerWrapWidth(this.scale.width, this.insets, k))
         .setText(m.bannerText)
-        .setColor(m.bannerColor || "#ffffff")
-        .setPosition(this.scale.width / 2, this.scale.height * 0.32);
+        .setColor(m.bannerColor || "#ffffff");
+      const boss = m.bossVisible ? layoutBossBar(this.scale.width, this.insets.left, this.insets.top, this.insets.right, k, this.bannerBoss) : null;
+      const r = layoutBanner(this.scale.width, this.scale.height, this.insets, k, this.bannerText.width, this.bannerText.height, boss, this.bannerAt);
+      this.bannerText.setPosition(this.scale.width / 2, r.y + r.h / 2);
     }
     const age = this.time.now - m.bannerAtMs;
     const showMs = m.bannerShowMs > 0 ? m.bannerShowMs : BANNER_SHOW_MS;
@@ -2046,7 +2065,7 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3); Story 5.21: under the action bar.
-    const hidden = m.placementActive || m.buildBar || m.repairOpen;
+    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting; // Story 6.11: under the vote's buttons too
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;
@@ -2059,7 +2078,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen; // Story 5.21 (D3): not under the action bar either
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

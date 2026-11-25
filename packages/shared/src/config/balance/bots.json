@@ -6,5 +6,7 @@
   "reviveStopM": 1,
   "shoppingList": ["smg", "wood_barricade", "wood_barricade", "auto_turret"],
   "maxRerollsPerBuild": 2,
-  "buildRadiiM": [2.5, 4]
+  "buildRadiiM": [2.5, 4],
+  "laneMarginM": 1,
+  "strafeFlipSeqs": 64
 }

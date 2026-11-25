@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
 import { fxSchema } from "./balanceSchema";
 import { MAX_FIXED_PER_WAVE } from "./constants";
+import { knockStepMmOf } from "../player/knockback";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -15,9 +16,10 @@ import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
 import boss from "./balance/boss.json" with { type: "json" };
+import eventsJson from "./balance/events.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
 const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;
@@ -619,5 +621,50 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
     const f = raw();
     (f.boss as { slam: { pushM: number } }).slam.pushM = 2.5; // 2.5 m over 4 ticks = 625 mm, the charge's step
     expect(() => loadBalance(f)).toThrow(/charge shove step 625 mm\/tick equals the slam push step/);
+    // Story 6.14 (6.6 R3): the check counts ticks like runtime (`ticksFor`): a Brute knock over 0.175 s is 3 ticks
+    // at runtime (round(3.4999…)), so 1.875 m makes 625 mm/tick, the charge's step (round(0.175 × 20) = 4 would miss it).
+    const g = raw();
+    const brute = (g.zombies as { types: Record<string, { hitKnockbackM?: number; knockbackS?: number }> }).types.brute as { hitKnockbackM?: number; knockbackS?: number };
+    brute.hitKnockbackM = 1.875;
+    brute.knockbackS = 0.175;
+    expect(knockStepMmOf(1.875, 0.175)).toBe(625);
+    expect(() => loadBalance(g)).toThrow(/charge shove step 625 mm\/tick equals the brute knockback step/);
+  });
+});
+
+describe("Story 6.8: events.json", () => {
+  it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 12 s, 6.8 B2)", () => {
+    const e = loadBalance().events;
+    expect(e.perRun).toBe(2);
+    expect(e.waves).toEqual([3, 4, 6, 7, 8]);
+    expect([e.startFractionMin, e.startFractionMax]).toEqual([0.2, 0.6]);
+    expect(e.carAlarm).toMatchObject({ armedS: 20, alarmS: 15, pullRadiusM: 15, distractBreakM: 2, pickMinM: 8, pickMaxM: 25 });
+    expect(e.stampede).toMatchObject({ warningS: 3, runS: 12, laneWidthM: 8, speedMps: 5, contactDamage: 8, countByPlayers: [12, 18, 24, 30], overCap: 30, rowSize: 6, rowGapS: 0.3, stuckS: 1, stuckProgressM: 0.5 });
+    expect(e.banners).toMatchObject({ car_alarm: "CAR ALARM · shoot it to set it off", stampede: "STAMPEDE!" });
+  });
+
+  it("refuses wave 5, only neighbouring waves, fractions out of order, an over-cap past the pool, a missing banner, fractional ticks", () => {
+    const bad = (edit: (e: Record<string, unknown>) => void, msg: RegExp): void => {
+      const r = raw();
+      edit(r.events as Record<string, unknown>);
+      expect(() => loadBalance(r)).toThrow(msg);
+    };
+    bad((e) => (e.waves = [3, 5, 7]), /events\.json: waves: 5 is never an event wave/);
+    bad((e) => (e.waves = [3, 4]), /no two waves that are not neighbours/);
+    bad((e) => {
+      e.startFractionMin = 0.7;
+    }, /startFractionMin must be ≤ startFractionMax/);
+    bad((e) => ((e.stampede as Record<string, unknown>).overCap = 200), /exceeds the zombie pool/);
+    bad((e) => (e.banners = { car_alarm: "x" }), /banners\.stampede is missing/);
+    bad((e) => ((e.stampede as Record<string, unknown>).rowGapS = 0.33), /whole ticks/);
+    bad((e) => ((e.stampede as Record<string, unknown>).countByPlayers = [12, 18, 24]), /countByPlayers/);
+  });
+});
+
+describe("Story 6.11/6.12 review L5", () => {
+  it("evac.everyWaves must equal endless.bossEveryWaves (a vote after every endless Behemoth wave)", () => {
+    const files = bundledBalanceFiles();
+    (files.waves as { evac: { everyWaves: number } }).evac.everyWaves = 4;
+    expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
   });
 });

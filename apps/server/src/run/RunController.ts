@@ -23,6 +23,8 @@ import {
   DOWNTOWN_MAP,
   removePlayer,
   setBuildReady,
+  castVote,
+  type EvacChoice,
   setZombieHistoryEnabled,
   setInput,
   skippedInputWeaponTick,
@@ -224,6 +226,8 @@ export interface RunControllerOptions {
   forceBlackoutPct?: number | null;
   /** Story 6.5 dev (`DEV_BOSS_WAVES=3`): the Behemoth's waves instead of `boss.json`. null = the real list. */
   bossWaves?: readonly number[] | null;
+  /** Story 6.8 dev (`DEV_EVENTS=car_alarm@3,stampede@4`): the run's event schedule instead of the draw. null = the real draw. */
+  events?: readonly { readonly kind: string; readonly wave: number }[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
@@ -290,6 +294,7 @@ export class RunController {
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     this.world.debug.shopCards = opts.shopCards ?? null; // Story 5.13: before the first offers are drawn
     this.world.debug.bossWaves = opts.bossWaves ?? null; // Story 6.5
+    this.world.debug.events = opts.events ?? null; // Story 6.8: before the first build start draws the schedule
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1 dev switch, before the first build start
     const lagComp = opts.lagCompensation !== false;
@@ -305,6 +310,11 @@ export class RunController {
     this.world.events.subscribe((e) => this.events.push(e));
     startBuild(this.world); // Story 3.1: Lobby → Build; `build.started` goes out with the first tick
     if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
+  }
+
+  /** Story 6.11: an evacuation vote (the World ignores it outside phase "vote"). */
+  castVote(playerId: string, choice: EvacChoice): void {
+    castVote(this.world, playerId, choice);
   }
 
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */

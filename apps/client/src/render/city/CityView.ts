@@ -349,6 +349,12 @@ export class CityView {
    * the lights, rain and vignette for the camera view (metres). `dtS` = 0 while the run is paused.
    * `synced` = false until an online World has its first server state (nothing is drawn before).
    */
+  /**
+   * Story 6.10 (P1): the power failure's flicker this frame (−1: none; 0: lamps on; 1: lamps out),
+   * set by the Game scene from `EventView.powerFlicker()` before `update`.
+   */
+  powerFlicker: -1 | 0 | 1 = -1;
+
   update(world: Readonly<World>, viewX: number, viewY: number, viewW: number, viewH: number, dtS: number, synced = true): void {
     // Review L (late join): online, wait for the first server state (it carries the decay stage)
     // instead of baking stage 1 and baking again a moment later.
@@ -368,8 +374,9 @@ export class CityView {
       this.flickerPool.setVisible(lampsOn);
       this.flickerCore.setVisible(lampsOn);
     }
-    this.flickerPool.setAlpha(on ? 0.18 : 0.02);
-    this.flickerCore.setAlpha(on ? 0.5 : 0.04);
+    const pf = this.powerFlicker;
+    this.flickerPool.setAlpha(pf === 1 ? 0.02 : pf === 0 ? 0.18 : on ? 0.18 : 0.02);
+    this.flickerCore.setAlpha(pf === 1 ? 0.04 : pf === 0 ? 0.5 : on ? 0.5 : 0.04);
     this.updateLampFlicker(world);
     const bus = Math.sin(t * 2 * Math.PI * BLINK_BUS_HZ) > 0 ? 0.55 : 0;
     for (const b of this.busBlink) b.setAlpha(bus);
@@ -435,10 +442,13 @@ export class CityView {
     const active = this.stage === 4 && !this.powerOut && !isBlackout(world as World);
     const cfg = world.balance.decay.ruins;
     const seed = this.runSeed();
+    // Story 6.10 (P1): the power failure's 2 s flicker drives every lamp together (any stage; keyed off
+    // the server's phase tick, so every phone flickers in step), then the blackout takes over.
+    const power = this.powerFlicker;
     let out = 0;
     for (let i = 0; i < this.lampDark.length; i++) {
       const img = this.lampDark[i] as Phaser.GameObjects.Image;
-      const show = active && i !== this.dressing.flickerLamp && lampOutAt(seed, i, world.tick, cfg);
+      const show = power >= 0 ? power === 1 && !this.powerOut : active && i !== this.dressing.flickerLamp && lampOutAt(seed, i, world.tick, cfg);
       if (show) out++;
       if (img.visible !== show) img.setVisible(show);
     }

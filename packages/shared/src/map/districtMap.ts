@@ -135,6 +135,36 @@ export interface DecayVariant {
   readonly stage: number;
 }
 
+/** Story 6.8: the way a stampede lane's Runners run (east, west, south, north), from its start edge. */
+export const LANE_DIRS = ["e", "w", "s", "n"] as const;
+export type LaneDir = (typeof LANE_DIRS)[number];
+
+/**
+ * Story 6.8 (`events` layer): a stampede lane, a rect as wide as the stampede (`events.json ›
+ * stampede.laneWidthM`) spanning the map along `dir`; open while `minStage` ≤ stage ≤ `maxStage`.
+ */
+export interface StampedeLane extends MapBox {
+  readonly dir: LaneDir;
+  readonly minStage: number;
+  readonly maxStage: number;
+}
+
+/**
+ * Story 6.8: kinds of `events` spots (6.9 supply drop: crate; 6.10: survivor, safe; 6.11: the
+ * helicopter's `evac_pad`, random-city CCP: map anchors are map data). Append only.
+ */
+export const EVENT_SPOT_KINDS = ["crate", "survivor", "safe", "evac_pad"] as const;
+export type EventSpotKind = (typeof EVENT_SPOT_KINDS)[number];
+
+/** Story 6.8: a point of the `events` layer on open road (from `minStage`). */
+export interface EventSpot {
+  readonly name: string;
+  readonly kind: EventSpotKind;
+  readonly x: number;
+  readonly y: number;
+  readonly minStage: number;
+}
+
 /** A visual prop of a `stageN_*` group (drawn by the client only; no gameplay). */
 export interface VisualProp extends MapBox {
   readonly kind: string;
@@ -166,4 +196,8 @@ export interface DistrictMap extends DistrictBounds {
   readonly decay: readonly DecayMutation[];
   /** Story 4.5: the variation candidates, in first-appearance order (bit i of a variant mask = candidate i). */
   readonly decayVariants: readonly DecayVariant[];
+  /** Story 6.8: the `events` layer's spots (crate / survivor / safe; empty without the layer). */
+  readonly eventSpots: readonly EventSpot[];
+  /** Story 6.8: the `events` layer's stampede lanes (map order = the wire's `eventLane` index). */
+  readonly stampedeLanes: readonly StampedeLane[];
 }

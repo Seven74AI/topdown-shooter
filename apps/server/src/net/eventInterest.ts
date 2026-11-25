@@ -31,7 +31,7 @@ import {
  * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.
  * Story 6.5: `boss.hit` (the hit flash) is local at the boss's position; warning, arrival, telegraph,
  * slam and target change are global (the team cue). Stories 6.6 / 6.7: `boss.crashed`,
- * `boss.thrown_impact`, `boss.enraged` and `boss.killed` are global; `boss.crawler_dropped` is local.
+ * `boss.thrown_impact`, `boss.enraged` and `boss.killed` are global; `boss.crawler_dropped` is local. Story 6.8: every `event.*` is global (team cues).
  * Story 5.8: `bloater.swell_started`, `bloater.burst` and a Bloater blast's non-killing `zombie.hit`
  * are local (their point); the blast damage, kills and the gas slow stay server truth for everyone.
  *

@@ -391,6 +391,34 @@ describe("Story 6.6 the charge (F1, F3, F4, F6, F10; AC 3)", () => {
     expect(hp0 - (w.zombies.hp[z] as number)).toBe(C.zombieDamage);
   });
 
+  it("story 6.14 (6.6 R2): a slot reused mid-rush (generation bumped) is a new zombie — trampled again in the same charge", () => {
+    const { w } = setup();
+    const z = spawnZombie(w, "brute", 30, 30);
+    w.zombies.state.fill(0);
+    const t = chargeAt(w, 12, 16, 21, 16);
+    t.x = 40;
+    t.y = 28;
+    const hp0 = w.zombies.hp[z] as number;
+    const under = (): void => {
+      w.zombies.x[z] = w.boss.x - 0.3;
+      w.zombies.y[z] = 16.5;
+    };
+    tickN(w, TELE + 3);
+    under();
+    tickN(w);
+    expect(hp0 - (w.zombies.hp[z] as number), "the first zombie in the slot is trampled").toBe(C.zombieDamage);
+    under();
+    tickN(w);
+    expect(hp0 - (w.zombies.hp[z] as number), "and only once while it is the same zombie").toBe(C.zombieDamage);
+    // The slot is recycled mid-rush (a balance with a rush longer than ZOMBIE_SLOT_HOLD_TICKS): same id, next generation.
+    w.zombies.generation[z] = ((w.zombies.generation[z] as number) + 1) & 0xff;
+    w.zombies.hp[z] = hp0;
+    under();
+    tickN(w);
+    expect(w.boss.attack.kind, "still the same charge").toBe(BOSS_ATTACK.CHARGE);
+    expect(hp0 - (w.zombies.hp[z] as number), "the new zombie in the slot is trampled too").toBe(C.zombieDamage);
+  });
+
   it("F2 + F5: into the bus — the CRASH mark is in the telegraph, it stops at the face, stuns 2 s (40 ticks), cannot attack, then walks after its gap", () => {
     const { w, ev } = setup(DOWNTOWN_MAP);
     const bus = w.obstacles.solids.find((s) => s.name === "city_bus") as MapBox;

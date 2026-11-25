@@ -875,16 +875,6 @@ p.in-run-menu__title {
   height: 28px;
 }
 
-.shop-card__glyph {
-  width: 24px;
-  height: 24px;
-}
-
-.shop-card__glyph--weapon {
-  width: 56px;
-  height: 24px;
-}
-
 .shop-card__name {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -975,4 +965,169 @@ p.in-run-menu__title {
   .shop__panel--cards .shop__title {
     font-size: 18px;
   }
+}
+
+/* Story 6.11 (look EX1): the evacuation vote over the live game. Only the buttons take touches. */
+.evac {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: max(36px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  color: #e8e4da;
+  font: 500 12px/1.3 system-ui, sans-serif;
+  text-align: center;
+}
+
+.evac__title {
+  margin: 0;
+  font: 700 20px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.evac__sub {
+  margin: 2px 0 0;
+  color: rgba(232, 228, 218, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* Centred on the screen's middle line (voteModel.ts › layoutEvacVote uses the same numbers). */
+.evac__bottom {
+  position: absolute;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.evac__chips {
+  display: flex;
+  gap: 10px;
+}
+
+.evac__chip {
+  min-width: 52px;
+  height: 26px;
+  padding: 0 6px;
+  border: 2px solid;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.55);
+  font: 600 11px/22px system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+.evac__chip--in {
+  color: #0c0d0f;
+}
+
+.evac__chip--dim {
+  opacity: 0.7;
+}
+
+.evac__row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.evac__btn {
+  pointer-events: auto;
+  width: 140px;
+  height: 56px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  color: #fff;
+  font: 700 20px/1 system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.evac__btn--extract {
+  background: #2f9e52;
+}
+
+.evac__btn--stay {
+  background: #b3261e;
+}
+
+.evac__btn--on {
+  border: 3px solid #fff;
+}
+
+.evac__btn--lost {
+  opacity: 0.35;
+}
+
+.evac__ring {
+  flex: none;
+}
+
+.evac__secs {
+  fill: #e8e4da;
+  font: 700 16px system-ui, sans-serif;
+}
+
+/* Story 6.11 (DW1 / DW2): the 4 s dawn after Extract, over the live map; a tap skips it. */
+.dawn {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.dawn__dark,
+.dawn__light {
+  position: absolute;
+  inset: 0;
+}
+
+.dawn--dw1 .dawn__dark {
+  background: rgba(4, 6, 12, 0.85);
+}
+
+.dawn--dw2 .dawn__dark {
+  background: rgba(14, 22, 40, 0.85);
+}
+
+/* DW1 warm sunrise: orange-pink light sweeping in from the east (right) edge. */
+.dawn--dw1 .dawn__light {
+  background: linear-gradient(240deg, rgba(255, 170, 90, 0.75) 0%, rgba(255, 140, 120, 0.42) 45%, rgba(80, 90, 140, 0) 100%);
+  mix-blend-mode: soft-light;
+}
+
+/* DW2 blue hour: the district lifts to a cold grey-blue, mist low on the street. */
+.dawn--dw2 .dawn__light {
+  background: linear-gradient(180deg, rgba(70, 88, 120, 0.35) 0%, rgba(150, 165, 190, 0.3) 100%);
+  mix-blend-mode: screen;
+}
+
+.dawn__hint {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 100%;
+  margin: 0;
+  color: rgba(232, 228, 218, 0.6);
+  font: 500 12px system-ui, sans-serif;
+  text-align: center;
+}
+
+/* Story 6.11 / 6.12: the Results card's backdrop after a dawn (DW1 warm, DW2 cold blue hour behind "Lost in the city"). */
+.results-backdrop--dw1 .game-over {
+  background: linear-gradient(240deg, rgba(120, 70, 40, 0.78) 0%, rgba(30, 30, 44, 0.82) 70%);
+}
+
+.results-backdrop--dw2 .game-over {
+  background: linear-gradient(180deg, rgba(28, 38, 60, 0.84) 0%, rgba(52, 64, 86, 0.82) 100%);
+}
+
+.results--lost h1 {
+  color: #9fb3d1;
 }

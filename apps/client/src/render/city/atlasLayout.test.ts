@@ -101,3 +101,35 @@ describe("Story 6.5 boss atlas (brief 12)", () => {
     expect(layoutIsValid(fx)).toBe(true);
   });
 });
+
+describe("Story 6.8 event atlas (brief 12 / 20)", () => {
+  it("event_<name>_<variant> frames fit 2048², a valid layout; baked once and repainted after a lost context", async () => {
+    const { eventSpecs, ensureEventTextures, EVENT_ATLAS, EVENT_FRAMES } = await import("./eventArt");
+    const l = packAtlas(eventSpecs());
+    expect(l.width).toBeLessThanOrEqual(2048);
+    expect(l.height).toBeLessThanOrEqual(2048);
+    expect(layoutIsValid(l)).toBe(true);
+    const { RecordCanvas, asContext } = await import("./recordCanvas");
+    const { textureRegistry } = await import("../gfx/textureRegistry");
+    const rec = new RecordCanvas();
+    const canvas = { width: 0, height: 0, getContext: () => asContext(rec), addEventListener: () => {}, removeEventListener: () => {} } as unknown as HTMLCanvasElement;
+    const keys = new Set<string>();
+    const added: string[] = [];
+    let refreshes = 0;
+    const tex = { add: (name: string) => added.push(name), refresh: () => refreshes++, getFrameNames: () => added, get: () => ({ cutX: 0, cutY: 0, cutWidth: 1, cutHeight: 1 }) };
+    const scene = { textures: { exists: (k: string) => keys.has(k), addCanvas: (k: string) => (keys.add(k), tex) } } as unknown as Phaser.Scene;
+    ensureEventTextures(scene, () => canvas);
+    expect(added.sort()).toEqual(Object.values(EVENT_FRAMES).sort());
+    const first = rec.ops.length;
+    expect(first).toBeGreaterThan(20);
+    ensureEventTextures(scene, () => canvas); // idempotent
+    expect(rec.ops.length).toBe(first);
+    try {
+      textureRegistry.rebuildAll();
+      expect(rec.ops.length).toBe(2 * first);
+      expect(refreshes).toBe(1);
+    } finally {
+      textureRegistry.unregister(EVENT_ATLAS);
+    }
+  });
+});

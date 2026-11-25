@@ -5,6 +5,7 @@ import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
 import { EXPLOSION_KINDS } from "../combat/explosion";
+import { EVENT_KINDS, EVENT_OUTCOMES } from "../events/eventState";
 
 /**
  * Sim events on the wire (Story 2.4). Each forwarded event is a short tuple `[kind, …fields]`
@@ -42,7 +43,7 @@ export const NET_EVENT_KIND = {
   BUILDING_DESTROYED: 22, // Story 3.5
   TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
-  RUN_HELD_OUT: 25, // Story 3.10
+  // 25 was RUN_HELD_OUT (Story 3.10; replaced by Story 6.11's vote): never reuse a kind number.
   DECAY_STAGE_CHANGED: 26, // Story 4.5
   // Story 5.9 (next free numbers at merge; never reuse):
   BUILDING_UPGRADED: 27,
@@ -78,6 +79,17 @@ export const NET_EVENT_KIND = {
   BOSS_ENRAGED: 52,
   BOSS_CRAWLER_DROPPED: 53,
   BOSS_KILLED: 54,
+  // Story 6.8 (55–64 are 6.8's; 50–54 are 6.6's boss kinds; never reuse)
+  EVENT_TRIGGERED: 55,
+  EVENT_PHASE_CHANGED: 56,
+  EVENT_ENDED: 57,
+  EVENT_SKIPPED: 58,
+  // Stories 6.11 + 6.12 (kinds 65–74 reserved; 55–64 are 6.8's; never reuse)
+  RUN_VOTE_OPENED: 65,
+  RUN_VOTE_RESOLVED: 66,
+  RUN_EXTRACTED: 67,
+  // Stories 6.9 + 6.10 (75–84 are theirs; never reuse)
+  WEAPON_CRATE_TAKEN: 75,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -192,8 +204,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.PLAYER_RETURNED, playerSlotOf(e.playerId), cm(e.x), cm(e.y)];
     case "team.wiped":
       return [K.TEAM_WIPED, e.wave];
-    case "run.held_out":
-      return [K.RUN_HELD_OUT, e.wave];
+    case "run.vote_opened":
+      return [K.RUN_VOTE_OPENED, e.wave, e.ticks];
+    case "run.vote_resolved":
+      return [K.RUN_VOTE_RESOLVED, e.choice === "stay" ? 1 : 0, e.extract, e.stay, e.silent];
+    case "run.extracted":
+      return [K.RUN_EXTRACTED, e.wave, e.endless ? 1 : 0];
     case "wave.started":
       return [K.WAVE_STARTED, e.number, e.size];
     case "wave.ended":
@@ -253,6 +269,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "zombie.brute_spawned":
       // Story 5.7: the roar and (first only) the banner; the Brute itself comes in the horde stream.
       return [K.BRUTE_SPAWNED, zid(ctx, e.zombieId), cm(e.x), cm(e.y), e.first ? 1 : 0];
+    case "weapon.crate_taken": // Story 6.9
+      return [K.WEAPON_CRATE_TAKEN, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
     case "weapon.upgraded":
       // Story 5.1: one per upgrade (the level itself comes from schema level0/level1).
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
@@ -305,6 +323,15 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.BOSS_CRAWLER_DROPPED, cm(e.x), cm(e.y)];
     case "boss.killed":
       return [K.BOSS_KILLED, playerSlotOf(e.killerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), e.number & 0xff];
+    // Story 6.8: kinds and outcomes as indices; ticks absolute (the client draws countdowns from the server's ticks).
+    case "event.triggered":
+      return [K.EVENT_TRIGGERED, EVENT_KINDS.indexOf(e.kind), e.wave, cm(e.x), cm(e.y), e.startTick, e.phase, e.lane < 0 ? NET_NONE : e.lane];
+    case "event.phase_changed":
+      return [K.EVENT_PHASE_CHANGED, EVENT_KINDS.indexOf(e.kind), e.phase, e.tick, playerSlotOf(e.playerId)];
+    case "event.ended":
+      return [K.EVENT_ENDED, EVENT_KINDS.indexOf(e.kind), EVENT_OUTCOMES.indexOf(e.outcome)];
+    case "event.skipped":
+      return [K.EVENT_SKIPPED, EVENT_KINDS.indexOf(e.kind), e.wave];
     case "test.ping":
       return null;
   }
@@ -422,8 +449,12 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "player.returned", playerId: pid(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.TEAM_WIPED:
       return { type: "team.wiped", wave: n(t, 1) };
-    case K.RUN_HELD_OUT:
-      return { type: "run.held_out", wave: n(t, 1) };
+    case K.RUN_VOTE_OPENED:
+      return { type: "run.vote_opened", wave: n(t, 1), ticks: n(t, 2) };
+    case K.RUN_VOTE_RESOLVED:
+      return { type: "run.vote_resolved", choice: n(t, 1) === 1 ? "stay" : "extract", extract: n(t, 2), stay: n(t, 3), silent: n(t, 4) };
+    case K.RUN_EXTRACTED:
+      return { type: "run.extracted", wave: n(t, 1), endless: n(t, 2) === 1 };
     case K.WAVE_STARTED:
       return { type: "wave.started", number: n(t, 1), size: n(t, 2) };
     case K.WAVE_ENDED:
@@ -480,6 +511,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "acid.splashed", puddleId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100, hitPlayerId: playerIdOfSlot(n(t, 4)) };
     case K.BRUTE_SPAWNED:
       return { type: "zombie.brute_spawned", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100, first: n(t, 4) === 1 };
+    case K.WEAPON_CRATE_TAKEN:
+      return { type: "weapon.crate_taken", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
     case K.WEAPON_UPGRADED:
       return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
     case K.GRENADE_LAUNCHED: {
@@ -549,6 +582,28 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "boss.crawler_dropped", x: n(t, 1) / 100, y: n(t, 2) / 100 };
     case K.BOSS_KILLED:
       return { type: "boss.killed", killerId: playerIdOfSlot(n(t, 1)), weapon: weaponOf(b, n(t, 2)), x: n(t, 3) / 100, y: n(t, 4) / 100, number: n(t, 5) };
+    case K.EVENT_TRIGGERED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      const lane = n(t, 7);
+      return { type: "event.triggered", kind, wave: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, startTick: n(t, 5), phase: n(t, 6), lane: lane === NET_NONE ? -1 : lane };
+    }
+    case K.EVENT_PHASE_CHANGED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      return { type: "event.phase_changed", kind, phase: n(t, 2), tick: n(t, 3), playerId: playerIdOfSlot(n(t, 4)) };
+    }
+    case K.EVENT_ENDED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      const outcome = EVENT_OUTCOMES[n(t, 2)];
+      if (kind === undefined || outcome === undefined) return null;
+      return { type: "event.ended", kind, outcome };
+    }
+    case K.EVENT_SKIPPED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      return { type: "event.skipped", kind, wave: n(t, 2) };
+    }
     default:
       return null;
   }
