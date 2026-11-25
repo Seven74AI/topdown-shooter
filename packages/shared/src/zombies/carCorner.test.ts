@@ -247,5 +247,9 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
   });
 });
 
-/** `worldDigest` of the determinism scenario above (Node / V8; a change here is a behaviour change: say why). */
-const GOLDEN_DIGEST = 1728716985;
+/**
+ * `worldDigest` of the determinism scenario above (Node / V8; a change here is a behaviour change: say why).
+ * Story 9.13: re-pinned (was 1728716985) only because the digest includes `balance.version`, which the four new
+ * client-only `controls.fx` caps change (B28); the simulation is unchanged.
+ */
+const GOLDEN_DIGEST = 3587910981;

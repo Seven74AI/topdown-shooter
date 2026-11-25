@@ -1,4 +1,5 @@
 import type { BossStateView, BuildingStateView, PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
+import { BYTES, NEUTRAL_INPUT, decodeInput, type PlayerInput } from "@topdown/shared";
 import type { NetRoomLike } from "./session";
 
 /** Test helpers (Story 2.4): a plain room state and a fake room behind `NetRoomLike`. */
@@ -204,6 +205,23 @@ export class FakeRoom implements NetRoomLike {
 
   send(type: string, message: unknown): void {
     this.sent.push({ type, message: structuredClone(message) }); // the SDK encodes at once
+  }
+
+  /**
+   * Story 8.11: binary messages, copied (the SDK copies at once), kept in `sent` under `bytes:<type>` (so tests that
+   * clear `sent` clear them too); `inputsSent()` decodes the inputs.
+   */
+  sendBytes(type: number, bytes: Uint8Array): void {
+    this.sent.push({ type: `bytes:${type}`, message: bytes.slice() });
+  }
+
+  /** Story 8.11: every `BYTES.INPUT` sent so far, decoded like the server does (a bad one throws: tests must notice). */
+  inputsSent(): PlayerInput[] {
+    return this.sentOf(`bytes:${BYTES.INPUT}`).map((b) => {
+      const out = { ...NEUTRAL_INPUT };
+      if (!decodeInput(b as Uint8Array, out)) throw new Error("FakeRoom: an input the server would refuse");
+      return out;
+    });
   }
 
   onMessage<T>(type: string | number, cb: (m: T) => void): () => void {

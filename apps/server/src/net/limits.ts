@@ -6,7 +6,7 @@
 /** Largest client frame (and join options JSON) accepted, in bytes. A real client sends ~200. */
 export const MAX_CLIENT_MESSAGE_BYTES = 1024;
 
-/** `input.send` bucket: capacity and refill per second (inputs are sent 20/s). */
+/** The input bucket (`BYTES.INPUT` since Story 8.11; `input.send` before): capacity and refill per second (inputs are sent 20/s). */
 export const MAX_INPUTS_PER_S = 25;
 
 /** Shared bucket for every other client message type: capacity and refill per second. */

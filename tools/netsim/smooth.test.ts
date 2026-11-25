@@ -49,7 +49,7 @@ const expectMonotonicAndBounded = (s: Sum): void => {
 };
 
 describe("netsim: smooth through hiccups (Story 8.9)", () => {
-  it("F4: a clean 150 ms ± 10 ms line feels as today: delay 100–150 ms, no freeze, reversed ≤ 0.5 %, nothing skipped", () => {
+  it("F4: a clean 150 ms ± 10 ms line feels as today: delay 100–150 ms, no freeze, reversed ≤ 0.5 % (float-input control; 8.11 B3: quantised ≤ control + 1 shot), nothing skipped", () => {
     for (const [name, o] of [
       ["150 Walkers standing", { walkers: 150, kite: false }],
       ["20 Runners kiting", { zombieType: "runner", kite: true }],
@@ -63,7 +63,13 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
         expect(r.smooth.slowFrames).toBe(0); // clean lines don't pay: my steps never slowed
         expect(r.apparentHits).toBeGreaterThan(50); // liveness
       }
-      expect(s.reversedPct).toBeLessThanOrEqual(0.5);
+      // Story 8.11 (decision 8.11 B3): with the phone's 1/127-step input the Runners row reads 2/218 (0.92 %) on these
+      // 3 seeds against 1/220 with the float input: one shot of seed noise (30 seeds: 18/2124 = 0.85 % quantised vs
+      // 23/2117 = 1.09 % float). Bound: ≤ 0.5 % with the float input (unchanged), and the paired control + 1 shot.
+      const float = sum(`clean ${name} (8.11 float input, control)`, { seconds: 30, ...o, quantizeInput: false });
+      expect(float.reversedPct).toBeLessThanOrEqual(0.5);
+      const reversed = (x: Sum) => x.runs.reduce((a, r) => a + r.reversed, 0);
+      expect(reversed(s)).toBeLessThanOrEqual(reversed(float) + 1);
       expect(s.neverFiredPct).toBe(0);
     }
   }, 60_000);

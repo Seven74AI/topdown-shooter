@@ -160,3 +160,38 @@ The review (RM2) measured the far rule's stutter on the clean line: between a fa
 | Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 | 1.0 / 0.9 / 0.7 |
 
 Horde budget unchanged at ≤ 16 KB/s (13.5 + 20 %). The 64 kbit/s backpressure finding (B6) is owed to Story 8.11.
+
+## 8.11 One packet per tick
+
+Branched from master `c9726a5`. Change: the state patch comes from the tick (`onTick` = one step, then `broadcastPatch`; `patchRate` null once the fixed timestep runs, so Results, the lobby after a run and an 8.1 frozen room still patch on change at 20 Hz from the same timestep); Colyseus 0.18.29's `autoBatchMessages` corks each socket for the timestep's callback, so the tick's horde frame, events, ping and patch leave as one TCP write (decisions D2, D3; B1); the input is a 14-byte binary `BYTES.INPUT` (int8 sticks at 1/127, D4) instead of the ~116 B msgpack `input.send`, validated like the zod schema, quantised on the phone before prediction; `NET_PROTOCOL_VERSION` 3.
+
+**Method.** Same machine, same scenario and lines, load 0.1–0.8 (recorded per run). Before = `c9726a5` server + the branch's measurement-only bot changes (`tools/bots/wireMeter.ts`, per-wave line counters in `run.ts`; no game code), after = `story-8-11`. Server in its own process (`PORT=2611 ALLOW_TEST_SCENARIOS=1 node --import tsx src/index.ts`), `npm run bots -- --url http://localhost:2611 --count 4 --scenario net150 --until-wave 5 --hold-fire 45 --lag 150 --jitter 20` (+ `--loss 1`). Down/up writes = chunks the separate-process lag line read from each socket (TCP_NODELAY on both ends: one per write), per phone (`bots_line_wave`); message bytes by kind, patches and their tick steps from each bot's WebSocket (`bot_wave.wire`, payload bytes). Waves 4–5 (150 alive).
+
+| Metric (4 bots, waves 4–5) | Line | Before | After | Target |
+| --- | --- | --- | --- | --- |
+| Down writes per phone per s | clean | 46.0 / 46.5 | **20.3 / 20.1** | ≤ 25 ✓ |
+| | lossy | 47.0 | **20.3 / 20.2** | ≤ 25 ✓ |
+| Down messages per phone per s (unchanged: same messages, fewer writes) | clean | 46.2–48.0 | 47.0–49.6 | — |
+| Up writes per phone per s | clean / lossy | 21.3 / 21.3 | 21.3 / 21.3 | — |
+| Input upload payload KB/s | clean | 2.28–2.38 | **0.31** | ≤ 0.6 ✓ |
+| | lossy | 2.30–2.38 | **0.31** | ≤ 0.6 ✓ |
+| Input message on the wire | — | ~116 B msgpack + header | 14 B + 2 B header | ≈ 14 B ✓ |
+| Patches per s / ticks per s | clean | 19.87–19.94 / 20.0 | **20.0 / 20.0** | equal (± 1 %) ✓ |
+| Ticks per patch (0 / 1 / 2), per wave | clean | 0 / 1641 / 5 · 0 / 1720 / 12 | **0 / 1401 / 0 · 0 / 1556 / 0** | exactly 1 ✓ |
+| | lossy | 0 / 1528 / 6 · 0 / 1496 / 9 | **0 / 1874 / 0 · 0 / 1465 / 0** | exactly 1 ✓ |
+| Patch bytes per phone KB/s | clean / lossy | 1.40–1.42 / 1.37–1.49 | 1.45–1.46 / 1.31–1.43 | — |
+| Horde (bot means) KB/s | clean / lossy | 2.6–4.9 / 4.1–5.0 | 4.3–5.8 / 4.0–5.1 | see below |
+| Events KB/s | clean / lossy | 0.38–0.57 / 0.52–0.60 | 0.47–0.65 / 0.42–0.69 | see below |
+| Horde stream, audit replay (deterministic, `hordeEncodings.ts 600`) | — | 8.2 KB/s (8.10 as shipped) | **8.2 KB/s**, 0 mismatches | ± 2 % ✓ |
+| Server tick avg / max (step only; `tick_stats`) | clean+lossy | 1.26–1.30 / 3.1–8.7 ms | 0.87–1.02 / 2.5–5.2 ms | ≤ +0.1 ms ✓ |
+| Patch avg / max (`tick_stats`) | — | 0.09–0.14 / 0.5–3.2 ms | 0.02 / 0.2–0.4 ms | — |
+| Horde decode errors (bots) | lossy | 0 | 0 | 0 |
+| Lag line stalls injected up / down (lossy run) | lossy | 145 / 301 | 143 / 150 | liveness |
+
+**Horde and event bytes (± 2 %).** The horde encoder, the event encoding and the interest filter are untouched (`git diff c9726a5 -- apps/server/src/net/hordeEncoder.ts packages/shared/src/net/{hordeFormat,hordeStream,netEvents,interest}.ts` is empty) and the deterministic audit replay gives the same 8.2 KB/s with 0 mismatches. The bot runs' horde/event KB/s move by ± 30 % between any two runs on either side (where the bots walk and what they shoot differs run to run; the bots also aim with 1/127 sticks now), so they are recorded, not compared (decision 8.11 B8).
+
+**Tick cost.** The patch moved out of its own interval into the timestep, after the step's timing (`slow_tick` still times the step only; `slow_patch` the patch). Both got cheaper: the corked socket buffers the tick's sends and writes once (avg tick 1.26–1.30 → 0.87–1.02 ms, patch 0.09–0.14 → 0.02 ms). No p99 is logged by the server; avg and max are recorded.
+
+**Estimated 4G wire saving (not asserted, H4).** Down: ≈ 26 fewer segments/s × ~78 B of TCP/IP + radio overhead ≈ **2.0 KB/s** per phone (Cloudflare may already coalesce some). Up: the input payload 2.3 → 0.31 KB/s (**−2.0 KB/s**); up segments stay at ~21/s (one input each, plus the pong). On the lossy line model (a stall per chunk) the down direction sees half the stall events because it has half the chunks; a real line loses per segment too, so fewer, fuller segments also mean fewer retransmit stalls (each now holds one whole tick).
+
+**Tests.** `tools/bots/onePacket.test.ts` (2 bots, real server: ≤ 25 kernel writes per phone per s counted on the server's sockets, every patch one tick, 16 B per input on the wire; fails at 47 writes/s with `autoBatchMessages` off), `apps/server/src/rooms/RunRoom.patch.test.ts` (one tick per patch on the server and the phone, the horde frame before its tick's patch; Ready reaches the other phone < 150 ms after Back to lobby; fails with a double patch per tick), `packages/shared/src/net/input.test.ts` (round trip, boundaries, refusals, 20 000-case fuzz against the zod schema), `apps/server/src/net/messageGuard.test.ts` (bytes parser: `invalid` counted, 25/s bucket unchanged), `apps/server/src/rooms/RunRoom.test.ts` (short, long, −128 stick, extra flag bit and the old msgpack input refused and counted; a 2 KB binary closes only that client), `apps/client/src/sim/NetSimHost.test.ts` (wiring: the predictor sees exactly what was sent; fails without the decode-back).
