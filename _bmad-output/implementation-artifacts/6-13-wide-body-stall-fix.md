@@ -1,6 +1,6 @@
 # Story 6.13: Wide-body stall fix (6.8 review M1)
 
-Status: review (review fixes in, re-review pending)
+Status: done
 
 ## Story
 
@@ -222,3 +222,8 @@ Reviewer: fresh agent, 2026-11-25. Narrow re-review of the review fixes: commit 
 - 7 (fuzz): OK. One inner building is now in the fuzz. Moving campers are not covered (L-d).
 - 8 (determinism): OK. The digest was re-run and all 16 match, and the new arrays are hashed.
 - 10 (no per-tick allocation): OK (code read).
+
+### Main session close-out (2026-11-25)
+
+- Re-review approved (0 high/medium); AC 4 digest re-run after the fixes: 16/16 identical, net fired 0×. Follow-ups (Epic 7 tidy or later): L-a A↔B give-up cycle with two overlapping inner buildings (only via addBuildingAt, unreachable in play); L-b delete or mark the open-way exit as defensive (stuckOpen never > 0); L-c tests for stuckSkip and touch in the give-up; L-d pre-existing: a fidgeting camper keeps a RUSH Bloater wandering 51–87 s in layout 128 (4 s rule holds) — fuzz with moving campers; nit balanceSchema.ts:329 comment.
+- Main-session full gate on fix-bloater-stall 20d551c + review docs + master 45fc6fb: typecheck, lint, 396 files / 3,655 tests passed (3 skipped), build OK; load → 3.34 (4 cores). Story done.
