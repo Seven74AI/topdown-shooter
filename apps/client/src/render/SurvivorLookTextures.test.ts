@@ -11,6 +11,8 @@ import { SurvivorLayerPool } from "./SurvivorLayerPool";
 import { SLOT_COLORS } from "./playerColors";
 import { ATLAS_CHARACTERS, SURVIVOR_GUN_FRAMES, SURVIVOR_GUN_PLAIN } from "./city/spriteAtlas";
 import { devLookCodes } from "./devLooks";
+import { gunSheetOf } from "./city/charactersFrames";
+import { SURV_ANIM } from "./charAnim";
 
 const napiCanvas = (): HTMLCanvasElement => Object.assign(createCanvas(1, 1), { addEventListener: () => {}, removeEventListener: () => {} }) as unknown as HTMLCanvasElement;
 const pixels = (c: HTMLCanvasElement): Uint8ClampedArray => (c.getContext("2d") as CanvasRenderingContext2D).getImageData(0, 0, c.width, c.height).data;
@@ -190,11 +192,11 @@ describe("PlayerView: the gun under the body (Story 7.9 AC 7, 11)", () => {
     v.update(player(), 1, 0);
     expect(body.texture).toBe(lookTextureKey("p1"));
     expect(body.frame).toBe(LOOK_FRAME_PACK);
-    expect(gun.texture).toBe(ATLAS_CHARACTERS);
+    expect(gun.texture).toBe(gunSheetOf(SURVIVOR_GUN_PLAIN)); // Story 9.13: the gun frames live on their relit sheets
     expect(gun.frame).toBe(SURVIVOR_GUN_PLAIN);
     expect(gun.depth).toBeLessThan(body.depth);
     expect([gun.x, gun.y, gun.rotation]).toEqual([body.x, body.y, body.rotation]);
-    expect(body.rotation).toBeCloseTo(Math.PI / 2, 9);
+    expect(Math.abs(body.rotation - Math.PI / 2)).toBeLessThanOrEqual(SURV_ANIM.sway + 1e-9); // Story 9.13: take 4's weight shift (≤ 0.012 rad)
     expect(gun.visible).toBe(true);
     expect([gun.displayWidth, gun.displayHeight]).toEqual([body.displayWidth, body.displayHeight]);
     tx.dispose();

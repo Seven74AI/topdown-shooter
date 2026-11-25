@@ -7,6 +7,8 @@ import { CHAR_R_PX } from "./city/spriteAtlas";
 import { CHAR_EXTENT_R, drawSurvivorBody } from "./city/spriteArt";
 import { resolveLook, type ResolvedLook } from "./city/survivorLook";
 import { textureRegistry } from "./gfx/textureRegistry";
+import { cancelBodyRelight, picPixels, requestBodyRelight, pumpCharacters, type BodyDone } from "./city/charactersAtlas";
+import { SHEEN_STEPS, sheenSide } from "./city/charRelight";
 
 /** Story 7.9: texture key prefix of the per-player survivor bodies (`survivorlook_<playerId>`). */
 export const SURVIVOR_LOOK_PREFIX = "survivorlook_";
@@ -20,6 +22,15 @@ export const LOOK_FRAME_SIDE = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX)
 const DRAWABLE = catalogueParts();
 
 export const lookTextureKey = (playerId: string): string => SURVIVOR_LOOK_PREFIX + playerId;
+/**
+ * Story 9.13: texture key prefix of the per-player body sheens (B5: `SHEEN_STEPS` pictures of the pack body on the
+ * first row, of the no-pack body on the second, at half size), made when the relit body lands.
+ */
+export const SURVIVOR_SHEEN_PREFIX = "survivorsheen_";
+export const sheenTextureKey = (playerId: string): string => SURVIVOR_SHEEN_PREFIX + playerId;
+const SHEEN_SIDE = sheenSide(LOOK_FRAME_SIDE);
+/** The sheen frame names (built once): `[pack][step]`. */
+export const LOOK_SHEEN_FRAMES: readonly (readonly string[])[] = [0, 1].map((row) => Array.from({ length: SHEEN_STEPS }, (_, k) => `${row === 0 ? LOOK_FRAME_PACK : LOOK_FRAME_NOPACK}_sheen${k}`));
 
 /** The animated layer (e.g. the propeller) the look's headgear declares, or null (Story 7.8 rule, AC 10). */
 export function lookLayer(code: string): AnimatedLayerId | null {
@@ -27,6 +38,8 @@ export function lookLayer(code: string): AnimatedLayerId | null {
   return cosmeticPart("head", head)?.animated?.layer ?? null;
 }
 
+type Relit = { readonly pack: ImageData; readonly nopack: ImageData };
+type Strips = { readonly pack: ImageData; readonly nopack: ImageData };
 type Entry = {
   readonly key: string;
   readonly canvas: HTMLCanvasElement;
@@ -35,6 +48,10 @@ type Entry = {
   stage: number;
   /** What the paint callback draws; replaced (not mutated) on a repaint, so a lost context repaints the current look. */
   look: ResolvedLook;
+  /** Story 9.13 (AC 5): the relit bodies (pixels: a lost context can't empty them), once the bake sent them; null = the plain drawing. */
+  relit: Relit | null;
+  /** The sheen texture (made with the body, empty) and its relit strips once landed. */
+  sheen: { readonly canvas: HTMLCanvasElement; strips: Strips | null; readonly tex: Phaser.Textures.CanvasTexture } | null;
 };
 
 /**
@@ -61,7 +78,7 @@ export class SurvivorLookTextures {
   ) {
     // Phaser keeps textures across a scene restart: drop a previous run's bodies (the DarknessView pattern).
     const keys = (scene.textures as { getTextureKeys?: () => string[] }).getTextureKeys?.() ?? [];
-    for (const k of keys) if (k.startsWith(SURVIVOR_LOOK_PREFIX)) this.drop(k);
+    for (const k of keys) if (k.startsWith(SURVIVOR_LOOK_PREFIX) || k.startsWith(SURVIVOR_SHEEN_PREFIX)) this.drop(k);
   }
 
   /**
@@ -77,9 +94,13 @@ export class SurvivorLookTextures {
       e.code = code;
       e.stage = stage;
       e.look = resolveLook(decodeLook(code, DRAWABLE).look, stage);
-      paintBodies(e.canvas.getContext("2d") as CanvasRenderingContext2D, e.look, e.canvas);
-      e.tex.refresh();
+      // Story 9.13 (B15): a relit body stays until the new one lands (no flash of the plain drawing); else plain now
+      if (!e.relit) {
+        paintBodies(e.canvas.getContext("2d") as CanvasRenderingContext2D, e.look, e.canvas);
+        e.tex.refresh();
+      }
       this.bakes++;
+      this.askRelit(playerId, e);
       return e.key;
     }
     if (this.repaintBudget <= 0) return null; // review L7: next frame
@@ -88,12 +109,12 @@ export class SurvivorLookTextures {
     const canvas = this.makeCanvas();
     canvas.width = 2 * LOOK_FRAME_SIDE;
     canvas.height = LOOK_FRAME_SIDE;
-    const entry = { key, canvas, code, stage, look: resolveLook(decodeLook(code, DRAWABLE).look, stage) } as Entry;
+    const entry = { key, canvas, code, stage, look: resolveLook(decodeLook(code, DRAWABLE).look, stage), relit: null, sheen: null } as Entry;
     const tex = addGeneratedTexture(
       this.scene,
       key,
       canvas,
-      (g) => paintBodies(g, entry.look, canvas),
+      (g) => (entry.relit ? paintRelit(g, entry.relit, canvas) : paintBodies(g, entry.look, canvas)),
       (t) => {
         t.add(LOOK_FRAME_PACK, 0, 0, 0, LOOK_FRAME_SIDE, LOOK_FRAME_SIDE);
         t.add(LOOK_FRAME_NOPACK, 0, LOOK_FRAME_SIDE, 0, LOOK_FRAME_SIDE, LOOK_FRAME_SIDE);
@@ -101,21 +122,71 @@ export class SurvivorLookTextures {
     );
     if (!tex) return key;
     (entry as { tex: Phaser.Textures.CanvasTexture }).tex = tex;
+    entry.sheen = this.makeSheen(playerId, entry);
     this.entries.set(playerId, entry);
     this.repaintBudget--;
     this.bakes++;
+    this.askRelit(playerId, entry);
     return key;
+  }
+
+  /** Story 9.13 (AC 5): asks the character bake (worker) for this body relit; it lands in a later pump. */
+  private askRelit(playerId: string, e: Entry): void {
+    requestBodyRelight(e.key, e.look, (d) => {
+      if (this.entries.get(playerId) === e) this.landRelit(playerId, e, d);
+    });
+  }
+
+  private landRelit(_playerId: string, e: Entry, d: BodyDone): void {
+    // B18: pixels straight into the canvases (no copies, no new canvas): a landing costs a put and one upload
+    e.relit = { pack: picPixels(d.pack, LOOK_FRAME_SIDE, LOOK_FRAME_SIDE), nopack: picPixels(d.nopack, LOOK_FRAME_SIDE, LOOK_FRAME_SIDE) };
+    paintRelit(e.canvas.getContext("2d") as CanvasRenderingContext2D, e.relit, e.canvas);
+    e.tex.refresh();
+    if (!d.sheenPack || !d.sheenNopack || !e.sheen) return;
+    e.sheen.strips = { pack: picPixels(d.sheenPack, SHEEN_SIDE * SHEEN_STEPS, SHEEN_SIDE), nopack: picPixels(d.sheenNopack, SHEEN_SIDE * SHEEN_STEPS, SHEEN_SIDE) };
+    paintStrips(e.sheen.canvas.getContext("2d") as CanvasRenderingContext2D, e.sheen.strips, e.sheen.canvas);
+    e.sheen.tex.refresh();
+  }
+
+  /** The player's sheen texture, made empty with the body (its first paint is then free of a readback later). */
+  private makeSheen(playerId: string, e: Entry): Entry["sheen"] {
+    const key = sheenTextureKey(playerId);
+    if (this.scene.textures.exists(key)) this.drop(key);
+    const canvas = this.makeCanvas();
+    canvas.width = SHEEN_SIDE * SHEEN_STEPS;
+    canvas.height = 2 * SHEEN_SIDE;
+    const tex = addGeneratedTexture(
+      this.scene,
+      key,
+      canvas,
+      (g) => {
+        if (e.sheen?.strips) paintStrips(g, e.sheen.strips, canvas);
+      },
+      (t) => {
+        for (let row = 0; row < 2; row++) for (let k = 0; k < SHEEN_STEPS; k++) t.add((LOOK_SHEEN_FRAMES[row] as readonly string[])[k] as string, 0, k * SHEEN_SIDE, row * SHEEN_SIDE, SHEEN_SIDE, SHEEN_SIDE);
+      },
+    );
+    return tex ? { canvas, strips: null, tex } : null;
+  }
+
+  /** Story 9.13: the player's sheen texture once their relit body landed, else null. */
+  sheenOf(playerId: string): string | null {
+    return this.entries.get(playerId)?.sheen?.strips ? sheenTextureKey(playerId) : null;
   }
 
   /** Once per frame, before the views sync: one repaint of an existing body is allowed again. */
   beginFrame(): void {
     this.repaintBudget = 1;
+    pumpCharacters(undefined, undefined, (this.scene.game as { loop?: { frame?: number } } | undefined)?.loop?.frame ?? -2); // Story 9.13: bodies land here too
   }
 
   /** A player left: their texture goes (so 50 rejoins never keep 50 textures). */
   remove(playerId: string): void {
-    if (!this.entries.delete(playerId)) return;
+    const e = this.entries.get(playerId);
+    if (!e || !this.entries.delete(playerId)) return;
+    cancelBodyRelight(e.key);
     this.drop(lookTextureKey(playerId));
+    this.drop(sheenTextureKey(playerId));
   }
 
   /** Bodies held now (tests: ≤ the players on screen). */
@@ -149,6 +220,18 @@ function paintBodies(g: CanvasRenderingContext2D, look: ResolvedLook, canvas: HT
   }
 }
 
+/** Story 9.13: the relit bodies, as `paintBodies` lays them out. */
+function paintRelit(g: CanvasRenderingContext2D, r: Relit, canvas: HTMLCanvasElement): void {
+  void canvas;
+  g.putImageData(r.pack, 0, 0);
+  g.putImageData(r.nopack, LOOK_FRAME_SIDE, 0);
+}
+function paintStrips(g: CanvasRenderingContext2D, s: Strips, canvas: HTMLCanvasElement): void {
+  void canvas;
+  g.putImageData(s.pack, 0, 0);
+  g.putImageData(s.nopack, 0, SHEEN_SIDE);
+}
+
 /**
  * Story 7.9: one frame of a view's look (GameScene's `syncLook`). The body texture from the code and the decay stage
  * (two compares when nothing changed; one repaint on a new code or stage, D1); when the code changed, the animated
@@ -167,6 +250,7 @@ export function syncViewLook(
   const key = textures.setLook(id, code, stage);
   if (key === null) return; // review L7: this body is baked on a later frame (the default picture until then)
   view.setBodyTexture(key);
+  view.setBodySheen(textures.sheenOf(id)); // Story 9.13: the relit body's sheen, once landed
   if (view.lookCode === code) return;
   view.lookCode = code;
   const layer = devLayer ?? lookLayer(code);

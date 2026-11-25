@@ -283,3 +283,35 @@ Player:
 
 ## 133: which chip says "I'm done building"? (Story 8.7: the "Ready" ping — a check; the wheel on a phone in landscape)
 ![133](../../art/epic-8/built/8-7-phone-wheel-open.png)
+
+## 134: which ones are zombies, which one is you? Do they read as a crowd closing in at night? (Story 9.13: the photoreal characters — take 4's relit look with today's grey see-through outline; the new Walkers shamble, the nearest 12 crossfade their walk loop, all of them breathe)
+![134](../../art/9-13/9-13-844x390-horde-night.png)
+![134 small phone](../../art/9-13/9-13-568x320-horde-night.png)
+
+## 135: the same horde in the heavy rain (stage 3): can you still tell the zombies from the street and from you?
+![135](../../art/9-13/9-13-844x390-rain-stage3.png)
+![135 small phone](../../art/9-13/9-13-568x320-rain-stage3.png)
+
+## 136: in the blackout, can you see what is coming? (Story 9.13 + 6.3: relit bodies under the darkness, the eyes above it, your survivor above it)
+![136](../../art/9-13/9-13-844x390-blackout.png)
+![136 small phone](../../art/9-13/9-13-568x320-blackout.png)
+
+## 137: which survivor is whose? (Story 9.13 + 7.9: four survivors with their own looks, relit, each on their slot-colour ring)
+![137](../../art/9-13/9-13-844x390-survivor-looks.png)
+![137 small phone](../../art/9-13/9-13-568x320-survivor-looks.png)
+
+## 138: which zombies are about to attack? (Story 9.13: the Brute raising its arms and the Spitter rearing back with its acid mouth glowing and dripping, next to a calm Brute and Spitter)
+![138](../../art/9-13/9-13-844x390-brute-spitter-windup.png)
+![138 small phone](../../art/9-13/9-13-568x320-brute-spitter-windup.png)
+
+## 139: which Bloaters are about to burst, and how far? (Story 9.13: the swelling Bloaters — glowing veins pulsing faster, throbbing acid sacs, the green pulse and the fuse ring — next to calm ones)
+![139](../../art/9-13/9-13-844x390-bloater-swell.png)
+![139 small phone](../../art/9-13/9-13-568x320-bloater-swell.png)
+
+## 140: what is behind the wall? (Story 9.13 + 9.12: zombies behind the fort's walls still show as red silhouettes on the new sprites)
+![140](../../art/9-13/9-13-844x390-fort-silhouette.png)
+![140 small phone](../../art/9-13/9-13-568x320-fort-silhouette.png)
+
+## 141: can you name every zombie type at a glance? (Story 9.13: Walkers, Runners, a Crawler, a Spitter, a Brute and a Bloater round the survivor; the Spitter's acid and the Bloater's sacs glow)
+![141](../../art/9-13/9-13-844x390-all-types.png)
+![141 small phone](../../art/9-13/9-13-568x320-all-types.png)

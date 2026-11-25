@@ -17,8 +17,9 @@ gallery, so new art can't skip the review.
 ## Keep it up to date (after any art change, and when new art lands)
 
 1. Build the approved photoreal pages first (`node docs/art/photoreal-1/src/build.mjs`,
-   `node docs/art/photoreal-2/src/build4grey.mjs`, `node docs/art/photoreal-3/src/build.mjs`): the export adds their pictures as the three "approved"
-   sections (looks approved but not in the game yet). The page shows only the accepted version of each picture:
+   `node docs/art/photoreal-3/src/build.mjs`): the export adds their pictures as the "approved"
+   sections (looks approved but not in the game yet). The characters' take 4 (`photoreal-2`) is in the game since
+   Story 9.13: its relit sheets (`chars_*`) are exported as the game draws them, grouped as `characters_relit`. The page shows only the accepted version of each picture:
    groups replaced by an accepted look are listed in `SUPERSEDED` in `review-page.html` (today: the current
    characters, street props and things you build). Then `npm run gallery:export` — draws everything, writes `tools/gallery/out/assets.json` (not committed) and
    updates `tools/gallery/manifest.json` (committed: a pixel hash and the date each asset was added/changed).
