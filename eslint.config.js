@@ -13,7 +13,7 @@ export default defineConfig(
   tseslint.configs.recommended,
   { files: ["apps/client/src/**/*.{ts,tsx}"], languageOptions: { globals: globals.browser } },
   {
-    files: ["apps/server/**/*.ts", "tools/**/*.ts", "*.config.{js,ts}", "apps/client/vite.config.ts"],
+    files: ["apps/server/**/*.ts", "tools/**/*.{ts,mjs}", "*.config.{js,ts}", "apps/client/vite.config.ts"],
     languageOptions: { globals: globals.node },
   },
   {
