@@ -8,13 +8,14 @@
  *   while holding a building it puts it away first)
  * - Story 5.23 (BX-11, ux-spec §9): `KeyR` rotate, `Space` place, `Digit1`–`Digit7` / `Numpad1`–`Numpad7`
  *   pick build-bar tile 1–7 (only while building; nothing else is bound to them).
+ * - Story 10.10 (AC 9): `KeyB` opens / closes the Build panel (Esc closes it before the menu); 1–7 still pick directly.
  *
  * Story 5.23 (D15, D16): **undo** and **pick up** are mnemonic letters, read by the layout's letter
  * (`KeyboardEvent.key`) and only when that key's `code` isn't already a game key (`letterAction`): on
  * AZERTY the Z key is `KeyW` (walk up, ZQSD), so a plain Z walks there and Ctrl+Z undoes; QWERTZ's Z
  * sits on `KeyY`. Ctrl/Cmd + letter z undoes on every layout (`desktopInput`).
  */
-export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "consumable" | "menu" | "rotate" | "place" | "build" | "undo" | "pickUp" | "ping";
+export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "consumable" | "menu" | "rotate" | "place" | "build" | "undo" | "pickUp" | "ping" | "buildPanel";
 
 /** Story 5.23: the build-bar tile keys (index 0–6) by code. */
 const BUILD_KEYS: Readonly<Record<string, number>> = Object.freeze({
@@ -49,6 +50,7 @@ export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   KeyF: "ping", // Story 8.7 (AC 3): opens / closes the ping wheel; 1–4 pick while it is open
   KeyR: "rotate", // Story 5.23
   Space: "place", // Story 5.23
+  KeyB: "buildPanel", // Story 10.10 (AC 9): opens / closes the Build panel (by position, like WASD)
   ...Object.fromEntries(Object.keys(BUILD_KEYS).map((code) => [code, "build" as const])),
 });
 

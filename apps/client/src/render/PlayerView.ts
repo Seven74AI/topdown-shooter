@@ -5,7 +5,10 @@ import type { PlayerState } from "@topdown/shared";
 import { SLOT_COLORS } from "./playerColors";
 import { pulseAlpha, pulseScale } from "./pulse";
 import { ATLAS_CHARACTERS, SURVIVOR_FRAME, SURVIVOR_GUN_PLAIN, ensureAtlases, survivorFrameFor, survivorGunFrameFor, weaponHidesPack } from "./city/spriteAtlas";
-import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK } from "./SurvivorLookTextures";
+import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK, LOOK_SHEEN_FRAMES } from "./SurvivorLookTextures";
+import { charFx, ensureCharacterSheets, needSheet, gunSheetOf, layerNames } from "./city/charactersAtlas";
+import { sheenStep } from "./city/charRelight";
+import { SURV_ANIM, SURV_SAW_ANIM, breath, glowPulse, phaseOffset, sway } from "./charAnim";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
 import { ABOVE_DARK } from "./darkness/aboveDark";
 import type { AnimatedLayerId } from "@topdown/shared";
@@ -38,6 +41,15 @@ export const DARK_PLUS_DEPTH = ABOVE_DARK.teammate + 0.001;
 const LAYER_DEPTH_STEP = 0.0005;
 /** Story 7.9 (D2): the held gun is its own image just under the body (above the ring and the revive ring). */
 const GUN_DEPTH_STEP = 0.0005;
+/** Story 9.13: the sheen over the body / the gun, and the gun's glow (additive), just above each. */
+const SHEEN_DZ = 0.0002;
+const GLOW_DZ = 0.0003;
+/** take 4's page px per radius (the chainsaw shake is 1.2 of them). */
+const PAGE_PX_PER_R = 68;
+const shakeNoise = (n: number): number => {
+  const h = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d);
+  return (((h ^ (h >>> 15)) >>> 0) / 4294967296) - 0.5;
+};
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
 export class PlayerView {
@@ -73,6 +85,14 @@ export class PlayerView {
   private layer: { id: AnimatedLayerId; img: Phaser.GameObjects.Image; pool: SurvivorLayerPool } | null = null;
   private readonly layerAt: LayerPose = { x: 0, y: 0, rotation: 0 };
   private readonly radiusM: number;
+  /** Story 9.13 (AC 2, 5): the relit layers: the body's sheen, the gun's sheen and the gun's glow (pilot flames). */
+  private readonly bodySheen: Phaser.GameObjects.Image;
+  private readonly gunSheen: Phaser.GameObjects.Image;
+  private readonly gunGlow: Phaser.GameObjects.Image;
+  private sheenKey: string | null = null;
+  private readonly side: number;
+  private readonly t0: number;
+  private shakeN = 0;
 
   constructor(scene: Phaser.Scene, radiusM: number) {
     this.radiusM = radiusM;
@@ -82,9 +102,16 @@ export class PlayerView {
       .setStrokeStyle(RING_WIDTH_M, SLOT_COLORS[0], RING_ALPHA)
       .setDepth(RING_DEPTH);
     ensureAtlases(scene);
+    ensureCharacterSheets(scene); // Story 9.13: the relit gun frames (plain until the bake lands)
     const side = 2 * radiusM * CHAR_EXTENT_R.survivor;
+    this.side = side;
+    this.t0 = phaseOffset(Math.floor(Math.random() * 97)); // each survivor breathes on its own beat (visual only)
     this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(BODY_DEPTH);
-    this.gun = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_GUN_PLAIN).setDisplaySize(side, side).setDepth(BODY_DEPTH - GUN_DEPTH_STEP).setVisible(false);
+    needSheet(gunSheetOf(SURVIVOR_GUN_PLAIN));
+    this.gun = scene.add.image(0, 0, gunSheetOf(SURVIVOR_GUN_PLAIN), SURVIVOR_GUN_PLAIN).setDisplaySize(side, side).setDepth(BODY_DEPTH - GUN_DEPTH_STEP).setVisible(false);
+    this.bodySheen = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setBlendMode(Phaser.BlendModes.ADD).setDepth(BODY_DEPTH + SHEEN_DZ).setVisible(false);
+    this.gunSheen = scene.add.image(0, 0, gunSheetOf(SURVIVOR_GUN_PLAIN), SURVIVOR_GUN_PLAIN).setBlendMode(Phaser.BlendModes.ADD).setDepth(BODY_DEPTH - GUN_DEPTH_STEP + SHEEN_DZ).setVisible(false);
+    this.gunGlow = scene.add.image(0, 0, gunSheetOf(SURVIVOR_GUN_PLAIN), SURVIVOR_GUN_PLAIN).setBlendMode(Phaser.BlendModes.ADD).setDepth(BODY_DEPTH + GLOW_DZ).setVisible(false);
     const h = HEAL_PLUS_M / 2;
     const t = HEAL_PLUS_BAR_M / 2;
     this.plus = scene.add.graphics().setDepth(HEAL_PLUS_DEPTH).setVisible(false);
@@ -118,8 +145,21 @@ export class PlayerView {
     if (key === this.bodyKey) return;
     this.bodyKey = key;
     this.body.setTexture(key, this.shownPack ? LOOK_FRAME_PACK : LOOK_FRAME_NOPACK);
-    this.gun.setTexture(ATLAS_CHARACTERS, this.shownGunFrame).setVisible(this.body.visible);
+    this.gun.setTexture(gunSheetOf(this.shownGunFrame), this.shownGunFrame).setVisible(this.body.visible);
     this.shownStatus = null; // the tint and visibility are applied to both images at the next update
+  }
+
+  /** Story 9.13: the relit body's sheen texture (`SurvivorLookTextures.sheenOf`), or null: no sheen yet. */
+  setBodySheen(key: string | null): void {
+    if (key === this.sheenKey) return;
+    this.sheenKey = key;
+    if (key === null) this.bodySheen.setVisible(false);
+    else this.bodySheen.setTexture(key, (LOOK_SHEEN_FRAMES[0] as readonly string[])[0] as string);
+  }
+
+  /** Story 9.13 (tests): the relit layers. */
+  get relitLayers(): { readonly bodySheen: Phaser.GameObjects.Image; readonly gunSheen: Phaser.GameObjects.Image; readonly gunGlow: Phaser.GameObjects.Image } {
+    return { bodySheen: this.bodySheen, gunSheen: this.gunSheen, gunGlow: this.gunGlow };
   }
 
   /** Story 7.9 (tests): the gun image. */
@@ -161,6 +201,9 @@ export class PlayerView {
     this.ring.setDepth(on ? DARK_RING_DEPTH : RING_DEPTH);
     this.body.setDepth(on ? DARK_BODY_DEPTH : BODY_DEPTH);
     this.gun.setDepth(this.body.depth - GUN_DEPTH_STEP);
+    this.bodySheen.setDepth(this.body.depth + SHEEN_DZ);
+    this.gunSheen.setDepth(this.gun.depth + SHEEN_DZ);
+    this.gunGlow.setDepth(this.body.depth + GLOW_DZ);
     this.plus.setDepth(on ? DARK_PLUS_DEPTH : HEAL_PLUS_DEPTH);
     this.layer?.img.setDepth(this.body.depth + LAYER_DEPTH_STEP);
   }
@@ -195,18 +238,33 @@ export class PlayerView {
     this.ring.setPosition(this.x, this.y);
     this.facingX = p.facingX;
     this.facingY = p.facingY;
-    const rotation = Math.atan2(p.facingY, p.facingX);
-    this.body.setPosition(this.x, this.y).setRotation(rotation);
     // Story 5.2: a Chainsaw that is cutting shows its running (blurred chain) frame.
     const weapon = p.loadout.slots[p.loadout.active]?.weapon ?? "";
     const running = sawRunning && p.status === "alive";
+    // Story 9.13 (AC 2): take 4's survivor breathing and weight shift; the running chainsaw shakes the figure
+    const anim = running ? SURV_SAW_ANIM : SURV_ANIM;
+    const t = timeMs / 1000 + this.t0;
+    const br = breath(anim, t);
+    const rotation = Math.atan2(p.facingY, p.facingX) + sway(anim, t);
+    let bx = this.x;
+    let by = this.y;
+    if (anim.shake) {
+      const k = (anim.shake / PAGE_PX_PER_R) * this.radiusM;
+      const j = shakeNoise(++this.shakeN);
+      bx += j * k;
+      by += j * k * 0.6;
+    }
+    const sx = this.side * br;
+    const sy = this.side * (1 + (br - 1) * 0.6);
+    this.body.setPosition(bx, by).setRotation(rotation).setDisplaySize(sx, sy);
     if (this.bodyKey !== null) {
       // Story 7.9 (D2): the gun frame under the body; the body drops its pack for a weapon with a back piece.
-      this.gun.setPosition(this.x, this.y).setRotation(rotation);
+      this.gun.setPosition(bx, by).setRotation(rotation).setDisplaySize(sx, sy);
       const gunFrame = survivorGunFrameFor(weapon, running);
       if (gunFrame !== this.shownGunFrame) {
         this.shownGunFrame = gunFrame;
-        this.gun.setFrame(gunFrame);
+        needSheet(gunSheetOf(gunFrame));
+        this.gun.setTexture(gunSheetOf(gunFrame), gunFrame);
       }
       const pack = !weaponHidesPack(weapon);
       if (pack !== this.shownPack) {
@@ -249,6 +307,37 @@ export class PlayerView {
       this.gun.setAlpha(blink); // Story 7.9 review M1: the gun blinks with the body
       this.layer?.img.setAlpha(blink);
     }
+    this.relit(p, bx, by, rotation, sx, sy, t, anim); // review L4: after the blink, so the sheen and glow take this frame's alpha
+  }
+
+  /**
+   * Story 9.13 (AC 2, 5): the relit layers once their pictures landed: the body's sheen (B5, its own texture), the
+   * gun's sheen and the gun's glow flickering with a bloom (take 4's pilot flames). Hidden for a downed or out
+   * survivor (the tint and the ring tell those states) and on the 7.8 one-piece fallback.
+   */
+  private relit(p: PlayerState, x: number, y: number, rot: number, sx: number, sy: number, t: number, anim: typeof SURV_ANIM): void {
+    const on = p.status === "alive" && this.bodyKey !== null;
+    const step = sheenStep(t);
+    const a = this.shownBlink;
+    if (on && this.sheenKey !== null) {
+      const name = (LOOK_SHEEN_FRAMES[this.shownPack ? 0 : 1] as readonly string[])[step] as string;
+      if (this.bodySheen.frame.name !== name) this.bodySheen.setFrame(name);
+      this.bodySheen.setPosition(x, y).setRotation(rot).setDisplaySize(sx, sy).setAlpha(a).setVisible(true);
+    } else if (this.bodySheen.visible) this.bodySheen.setVisible(false);
+    const fx = on ? charFx(this.shownGunFrame) : undefined;
+    const names = fx ? layerNames(this.shownGunFrame) : null;
+    const sheet = gunSheetOf(this.shownGunFrame);
+    if (fx?.sheen && names) {
+      const name = names.sheen[step] as string;
+      if (this.gunSheen.texture.key !== sheet) this.gunSheen.setTexture(sheet, name);
+      else if (this.gunSheen.frame.name !== name) this.gunSheen.setFrame(name);
+      this.gunSheen.setPosition(x, y).setRotation(rot).setDisplaySize(sx, sy).setAlpha(a).setVisible(true);
+    } else if (this.gunSheen.visible) this.gunSheen.setVisible(false);
+    if (fx?.glow && names) {
+      if (this.gunGlow.texture.key !== sheet) this.gunGlow.setTexture(sheet, names.glow);
+      else if (this.gunGlow.frame.name !== names.glow) this.gunGlow.setFrame(names.glow);
+      this.gunGlow.setPosition(x, y).setRotation(rot).setDisplaySize(sx, sy).setAlpha(a * glowPulse(anim, t)).setVisible(true);
+    } else if (this.gunGlow.visible) this.gunGlow.setVisible(false);
   }
 
   /** Story 8.1: the body alpha last set by the protection blink (1 = none). */
@@ -258,6 +347,9 @@ export class PlayerView {
     this.ring.destroy();
     this.body.destroy();
     this.gun.destroy();
+    this.bodySheen.destroy();
+    this.gunSheen.destroy();
+    this.gunGlow.destroy();
     this.plus.destroy();
     if (this.layer) this.layer.pool.release(this.layer.id, this.layer.img);
     this.layer = null;

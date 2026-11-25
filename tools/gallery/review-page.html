@@ -80,7 +80,7 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 
 <header class="intro">
   <h1>Dead City <span>asset review</span></h1>
-  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; survivors, zombies, street props and vehicles show their accepted photoreal looks, which are not in the game yet.</p>
+  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; street props and vehicles show their accepted photoreal looks, which are not in the game yet; survivors and zombies show the relit pictures the game now draws.</p>
   <p class="notice" id="notice" hidden></p>
 </header>
 
@@ -106,6 +106,7 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 <script>
 const GROUPS = {
   atlas_characters: ["Survivors and zombies", "Bodies seen from above: the survivor with each weapon, every zombie type and look, windup and swell poses."],
+  characters_relit: ["Survivors and zombies", "In the game (Story 9.13): take 4's relit look with today's grey outline. Per look: the walk loop (10 pictures, crossfaded in the game), windup and swell poses, the glow layer (pulsing), the sheen at 8 positions (drifting), the Bloaters' vein pulses; each held gun. The game animates these with breathing, sway, drips and acid sacs."],
   approved_characters_take4: ["Survivors and zombies", "The accepted look: take 4 (not in the game yet). Today's drawings relit with today's grey outline; new detailed walkers, runners and crawlers; Bloater veins and acid sacs. Shown still here: they breathe, pulse and move on the take 4 page."],
   boss_atlas: ["The Behemoth", "The wave-10 boss: body poses and parts."],
   boss_fx: ["Boss ground damage and debris", "The slam's ground damage (R1 + R2 + R3), the thrown chunks, the throw crater and the charge's CRASH mark."],
