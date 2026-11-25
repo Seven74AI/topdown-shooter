@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ACTION_IDS, layoutActionBar, newActionBarLayout } from "./actionBar";
-import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
-import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
+import { PANEL_CELLS, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyLeftX } from "./buildBar";
+import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
@@ -81,15 +81,23 @@ function pingChips(w: number, column = false): Box[] {
 
 /** Every mode's pressable controls. */
 function modes(w: number, h: number): Record<string, Box[]> {
-  const bar = layoutBuildBar(w, h, INSET.right, INSET.bottom, K, newBuildBarLayout());
-  const tiles: Box[] = Array.from({ length: BUILD_BAR_SLOTS }, (_, s) => ({ id: `tile${s}`, x: bar.x[s] as number, y: bar.y[s] as number, w: bar.tile, h: bar.tile }));
+  // Story 10.10 (BU-1 = B): the closed Build cluster (quick tile + Build + Shop chip; BU-3's short list uses the same
+  // two tile spots) and the open 3 × 3 panel (cells 0–7 + Close on Build's spot).
+  const cl = layoutBuildCluster(w, h, INSET.right, INSET.bottom, K, newBuildClusterLayout());
+  const pn = layoutBuildPanel(w, h, INSET.right, INSET.bottom, K, newBuildPanelLayout(), INSET.top);
+  const cluster: Box[] = [
+    { id: "quick", x: cl.quickX, y: cl.quickY, w: cl.tile, h: cl.tile },
+    { id: "build", x: cl.buildX, y: cl.buildY, w: cl.tile, h: cl.tile },
+    { id: "shopchip", x: cl.chipX, y: cl.chipY, w: cl.chip, h: cl.chip },
+  ];
+  const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile }));
   const wave = layoutRightButtons(w, h, INSET.right, INSET.bottom, K, false, 0, 0, newRightButtonsLayout());
-  const row = layoutRightButtons(w, h, INSET.right, INSET.bottom, K, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);
+  const row = layoutRowAboveCluster(w, h, INSET.right, INSET.bottom, K, cl.top, cl.right, newRightButtonsLayout());
   const rw = READY_BUTTON_W_CSS_PX * K;
   const rh = READY_BUTTON_H_CSS_PX * K;
-  const ready: Box = { id: "ready", x: readyLeftX(w, rw, bar.left, K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
-  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, bar.left, bar.top, bar.countX, K, false, { x: 0, y: 0, size: 0 });
-  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, bar.left, bar.top, bar.countX, K, true, { x: 0, y: 0, size: 0 });
+  const ready: Box = { id: "ready", x: readyLeftX(w, rw, pn.cardX, K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
+  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, cl.left, cl.top, K, false, { x: 0, y: 0, size: 0 });
+  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, cl.left, cl.top, K, true, { x: 0, y: 0, size: 0 });
   const hand = layoutHandCluster(w, h, INSET.right, INSET.bottom, K, newHandLayout(), INSET.top);
   const act = layoutActionBar(w, h, INSET.right, INSET.bottom, K, ACTION_IDS.map(() => true), newActionBarLayout());
   const sq = (id: string, x: number, y: number, s: number): Box => ({ id, x, y, w: s, h: s });
@@ -98,7 +106,11 @@ function modes(w: number, h: number): Record<string, Box[]> {
     // Story 8.7: the ping button shows in wave, build and vote (and while downed); never holding, with a building
     // selected (the action bar: decision 8.7 B9) or reconnecting.
     wave: [menu(w), pingBtn(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
-    build: [menu(w), pingBtn(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    build: [menu(w), pingBtn(w), ...cluster, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 10.10 (BU-3): 1–2 unlocked types — the tiles on the quick tile's and Build's spots, the Shop chip, no panel.
+    build_short: [menu(w), pingBtn(w), { ...(cluster[0] as Box), id: "quick" }, { ...(cluster[1] as Box), id: "quick2" }, cluster[2] as Box, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 10.10 (AC 5): the panel open — the cells and Close; 5.12's row and ↶ hide under its card; Ready stays.
+    build_open: [menu(w), pingBtn(w), ...cells, ready],
     // Story 8.7 (B5 amended, designer 2026-11-25): the wheel open — swap and the build bar hide; quick-use STAYS, so
     // the chips stand in one column (wave, build); in the vote (no quick-use) they are the 2 × 2 block.
     ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w, true), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
@@ -165,17 +177,20 @@ const TOLERANCE_PX = 0.5;
  * arrows) must come in clean, and fixing one of these means deleting its line.
  */
 const KNOWN_LIST: [string, number][] = [
-  ["568x320 build tile0: within 48 px of the centre", 3],
-  ["568x320 build tile1: within 48 px of the centre", 40.11],
-  ["568x320 build ready: in the move-stick half", 120],
+  // Story 10.10: the 4 × 2 grid's "568x320 build tile0 / tile1" and "640x360 build tile0" lines are gone (the Build
+  // cluster and panel keep the survivor's 48 px), and Ready came back toward 40 px left of centre (was 120 / 84; now 46 / 40).
+  ["568x320 build ready: in the move-stick half", 46],
+  ["568x320 build_short ready: in the move-stick half", 46],
+  ["568x320 build_open ready: in the move-stick half", 46],
   ["568x320 holding rotate: within 48 px of the centre", 35.23],
   ["568x320 holding chip: within 48 px of the centre", 41.19],
   ["568x320 holding undo: in the move-stick half", 30],
   ["568x320 selected action_move: within 48 px of the centre", 36.06],
   ["568x320 selected action_move: in the move-stick half", 73],
   ["568x320 selected action_upgrade: within 48 px of the centre", 12],
-  ["640x360 build tile0: within 48 px of the centre", 25.94],
-  ["640x360 build ready: in the move-stick half", 84],
+  ["640x360 build ready: in the move-stick half", 40],
+  ["640x360 build_short ready: in the move-stick half", 40],
+  ["640x360 build_open ready: in the move-stick half", 40],
   ["640x360 holding chip: within 48 px of the centre", 45.18],
   ["640x360 selected action_move: within 48 px of the centre", 19],
   ["640x360 selected action_move: in the move-stick half", 37],
@@ -186,8 +201,8 @@ const KNOWN_LIST: [string, number][] = [
   ["568x320 vote vote_extract: in the move-stick half", 118],
   ["640x360 vote vote_extract: in the move-stick half", 118],
   // Story 8.7: the same baseline lines in the open-wheel modes (the wheel leaves Ready and the vote buttons where they are).
-  ["568x320 ping_wheel_build ready: in the move-stick half", 120],
-  ["640x360 ping_wheel_build ready: in the move-stick half", 84],
+  ["568x320 ping_wheel_build ready: in the move-stick half", 46],
+  ["640x360 ping_wheel_build ready: in the move-stick half", 40],
   ["568x320 ping_wheel_vote vote_extract: in the move-stick half", 118],
   ["640x360 ping_wheel_vote vote_extract: in the move-stick half", 118],
 ];
@@ -892,7 +907,7 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
           checked++;
         }
       }
-      expect(checked).toBe(3 + 3 * 5); // liveness: wave, build, vote + the three open-wheel modes
+      expect(checked).toBe(3 + 2 + 3 * 5); // liveness: wave, build, vote, Story 10.10's build_short + build_open, and the three open-wheel modes
       // B5 amended (designer 2026-11-25): wheel open, quick-use visible, no overlap — in a wave and in a build phase
       for (const mode of ["ping_wheel_wave", "ping_wheel_build"]) {
         const boxes = m[mode] as Box[];
@@ -915,5 +930,88 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
         expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
       }
     });
+  }
+});
+
+describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 1920 × 1080, with and without insets", () => {
+  const BUILD_SIZES: readonly [number, number][] = [
+    [568, 320],
+    [640, 360],
+    [800, 360],
+    [844, 390],
+    [1024, 768],
+    [1920, 1080],
+  ];
+  const INSETS = [
+    { left: 0, right: 0, top: 0, bottom: 0 },
+    { left: 44, right: 44, top: 0, bottom: 21 },
+  ] as const;
+  const gapOf = (a: Box, b: Box): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+  for (const [w, h] of BUILD_SIZES) {
+    for (const ins of INSETS) {
+      it(`${w} × ${h}, insets ${ins.right}/${ins.bottom}: inside the safe area, ≥ 48 px from the survivor, in the right half, no overlap, ≥ 12 px between separate controls (8 px inside a tile group); the open card ≥ 12 px from ping / ☰`, () => {
+        const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
+        const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
+        const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout());
+        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, cl.left, cl.top, 1, false, { x: 0, y: 0, size: 0 });
+        const ms = MENU_BUTTON_CSS_PX;
+        const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: ms, h: ms };
+        const ping: Box = { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) };
+        const rw = READY_BUTTON_W_CSS_PX;
+        const rh = READY_BUTTON_H_CSS_PX;
+        const ready: Box = { id: "ready", x: readyLeftX(w, rw, pn.cardX, 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh };
+        // groups: boxes in one group may sit 8 px apart (the tiles); separate groups keep 12 px.
+        const closed: Box[][] = [
+          [
+            { id: "quick", x: cl.quickX, y: cl.quickY, w: cl.tile, h: cl.tile },
+            { id: "build", x: cl.buildX, y: cl.buildY, w: cl.tile, h: cl.tile },
+          ],
+          [{ id: "shopchip", x: cl.chipX, y: cl.chipY, w: cl.chip, h: cl.chip }],
+          [{ id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size }],
+          [{ id: "consumable", x: row.consX, y: row.consY, w: row.size, h: row.size }],
+          [{ id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size }],
+          [ready],
+          [ping],
+          [menuBox],
+        ];
+        const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile }));
+        const open: Box[][] = [cells, [ready], [ping], [menuBox]];
+        const mine = new Set(["quick", "build", "shopchip", "undo", "consumable", "swap", ...cells.map((c) => c.id)]);
+        for (const [mode, groups] of [
+          ["closed", closed],
+          ["open", open],
+        ] as const) {
+          const all = groups.flat();
+          for (const b of all) {
+            if (!mine.has(b.id)) continue; // Ready, ping and ☰ have their own checks (Ready's move-half line is the 5.15 baseline)
+            const tag = `${w}x${h} ${ins.right}/${ins.bottom} ${mode} ${b.id}`;
+            expect(b.x, `${tag}: left`).toBeGreaterThanOrEqual(ins.left - 1e-6);
+            expect(b.x + b.w, `${tag}: right`).toBeLessThanOrEqual(w - ins.right + 1e-6);
+            expect(b.y, `${tag}: top`).toBeGreaterThanOrEqual(ins.top - 1e-6);
+            expect(b.y + b.h, `${tag}: bottom`).toBeLessThanOrEqual(h - ins.bottom + 1e-6);
+            expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${tag}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
+            expect(b.x + b.w / 2, `${tag}: move-stick half`).toBeGreaterThan(w / 2);
+            expect(Math.min(b.w, b.h), `${tag}: ≥ 48 px`).toBeGreaterThanOrEqual(48);
+          }
+          for (let i = 0; i < groups.length; i++) {
+            const gi = groups[i] as Box[];
+            for (let a = 0; a < gi.length; a++) for (let b = a + 1; b < gi.length; b++) expect(gapOf(gi[a] as Box, gi[b] as Box), `${w}x${h} ${mode}: ${gi[a]!.id} / ${gi[b]!.id}`).toBeGreaterThanOrEqual(8 - 1e-6);
+            for (let j = i + 1; j < groups.length; j++) {
+              for (const a of gi) for (const b of groups[j] as Box[]) expect(gapOf(a, b), `${w}x${h} ${ins.right}/${ins.bottom} ${mode}: ${a.id} / ${b.id}`).toBeGreaterThanOrEqual(12 - 1e-6);
+            }
+          }
+        }
+        // The card behind the cells (not pressable): inside the safe area, off the survivor, ≥ 12 px from ping and ☰ and Ready.
+        const card: Box = { id: "card", x: pn.cardX, y: pn.cardY, w: pn.cardW, h: pn.cardH };
+        expect(card.x + card.w).toBeLessThanOrEqual(w - ins.right + 1e-6);
+        expect(card.y + card.h).toBeLessThanOrEqual(h - ins.bottom + 1e-6);
+        expect(rectCentreGap(card.x, card.y, card.w, card.h, w / 2, h / 2), "card vs survivor").toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
+        for (const o of [ping, menuBox, ready]) expect(gapOf(card, o), `card vs ${o.id}`).toBeGreaterThanOrEqual(12 - 1e-6);
+        // BU-4: the 9th cell (Close) is on Build's own spot; the same 56 px cells wherever they fit (10.10-B3: shrunk only at 568 × 320 with 44 px insets)
+        expect(pn.x[PANEL_CELLS - 1]! + pn.tile).toBeCloseTo(cl.buildX + cl.tile);
+        expect(pn.y[PANEL_CELLS - 1]! + pn.tile).toBeCloseTo(cl.buildY + cl.tile);
+        if (!(w === 568 && ins.right === 44)) expect(pn.tile).toBe(56);
+      });
+    }
   }
 });

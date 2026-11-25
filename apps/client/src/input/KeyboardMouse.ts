@@ -12,7 +12,7 @@ const MIN_AIM_DIST_M = 1e-3;
 export class KeyboardMouse {
   /** Held codes and the action each was bound to at its press (Story 5.23: a letter binding is found by `key`, not code). */
   private readonly heldCodes = new Map<string, KeyAction>();
-  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0, consumable: 0, menu: 0, rotate: 0, place: 0, build: 0, undo: 0, pickUp: 0, ping: 0 };
+  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0, consumable: 0, menu: 0, rotate: 0, place: 0, build: 0, undo: 0, pickUp: 0, ping: 0, buildPanel: 0 };
   /** Story 8.7: F pressed since the last `takePing()` (one edge per press, no auto-repeat). */
   private pingLatched = false;
   private swapLatched = false;
@@ -26,6 +26,7 @@ export class KeyboardMouse {
   private buildLatched = -1;
   private undoLatched = false;
   private pickUpLatched = false;
+  private buildPanelLatched = false;
   leftButton = false;
   private readonly move: Vec2 = { x: 0, y: 0 };
   /** Last aim direction (unit), kept while the cursor sits on the survivor. */
@@ -54,6 +55,7 @@ export class KeyboardMouse {
     else if (action === "undo") this.undoLatched = true;
     else if (action === "pickUp") this.pickUpLatched = true;
     else if (action === "ping") this.pingLatched = true;
+    else if (action === "buildPanel") this.buildPanelLatched = true;
     return true;
   }
 
@@ -77,7 +79,7 @@ export class KeyboardMouse {
     this.heldCodes.clear();
     const c = this.heldCount;
     c.up = c.down = c.left = c.right = c.swap = c.consumable = c.menu = 0;
-    c.rotate = c.place = c.build = c.undo = c.pickUp = c.ping = 0;
+    c.rotate = c.place = c.build = c.undo = c.pickUp = c.ping = c.buildPanel = 0;
     this.leftButton = false;
     this.swapLatched = false;
     this.consumableLatched = false;
@@ -87,6 +89,7 @@ export class KeyboardMouse {
     this.undoLatched = false;
     this.pickUpLatched = false;
     this.pingLatched = false;
+    this.buildPanelLatched = false;
   }
 
   /** Story 8.7: true once per F press (opens / closes the ping wheel); clears the latch. */
@@ -126,6 +129,13 @@ export class KeyboardMouse {
   takeUndo(): boolean {
     const r = this.undoLatched;
     this.undoLatched = false;
+    return r;
+  }
+
+  /** Story 10.10: true once per B press (opens / closes the Build panel); clears the latch. */
+  takeBuildPanel(): boolean {
+    const r = this.buildPanelLatched;
+    this.buildPanelLatched = false;
     return r;
   }
 

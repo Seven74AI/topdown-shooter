@@ -1,6 +1,5 @@
 import { buildingById, type World } from "@topdown/shared";
-import { UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
-import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton"; // review M2: 5.12's own row layout
+import { BUILD_TILE_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
 
 /**
  * Story 5.20 (BX-6, ux-spec §4/§5): the undo chip ↶ (Phaser-free, unit-tested). Shown for
@@ -128,26 +127,19 @@ export class UndoChip {
   }
 }
 
-/** Scratch for 5.12's row (no allocation per layout). */
-const rowScratch = newRightButtonsLayout();
-
 /**
- * Story 5.20 (D4; ux-spec §4 + alignment Q4; review M2): where ↶ goes (canvas px, top-left + size;
+ * Story 5.20 (D4; ux-spec §4) + Story 10.10 (BU-1 = B, AC 8): where ↶ goes (canvas px, top-left + size;
  * insets in CSS px, `k` = dpr):
  *
- * - **build bar up** (empty hands; Ready shown, slid left): above the bar, in Story 5.12's
- *   consumable/swap row as 5.12's own `layoutRightButtons` places it (its review L6 fallback included:
- *   on a narrow screen the row is right-aligned above the count line, clear of the screen centre):
- *   **left of the consumable button**, 12 px apart, centred on the row;
- * - **holding** (Ready, the bar and 5.12's row are hidden): the spec's hand-cluster spot, centre
- *   (270, 64) from the bottom-right safe-area corner, left of ⟳ — away from the survivor and the
- *   ghost (a spot above the grid covered the just-placed building at 568 × 320).
+ * - **hands empty** (the Build cluster up): above the quick tile, centred on it, level with the Shop
+ *   chip (`clusterLeft` = the quick tile's left edge, `clusterTop` = the chip's top: the cluster box of
+ *   `layoutBuildCluster`) — B's still. 5.12's row (consumable, swap) sits 12 px above that line;
+ * - **holding** (Ready, the cluster and 5.12's row are hidden): the spec's hand-cluster spot, centre
+ *   (270, 64) from the bottom-right safe-area corner, left of ⟳ — away from the survivor and the ghost.
  *
- * `gridRight` = the build bar's right edge (5.12 passes the count line's x). Pure (`undoChip.test.ts`
- * checks 568 × 320, 800 × 360 and 1024 × 768 against the real row, Ready, the hand cluster, the item
- * chip, the count line, ☰ and the screen centre).
+ * Pure (`undoChip.test.ts`, `hudLayout.test.ts`).
  */
-export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, gridLeft: number, gridTop: number, gridRight: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
+export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, clusterLeft: number, clusterTop: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
   const size = UNDO_CHIP_CSS_PX * k;
   out.size = size;
   if (holding) {
@@ -155,11 +147,7 @@ export function layoutUndoChip(width: number, height: number, insetRight: number
     out.y = height - (UNDO_HAND.bottomCss + insetBottom) * k - size / 2;
     return out;
   }
-  const row = layoutRightButtons(width, height, insetRight, insetBottom, k, true, gridLeft, gridTop, rowScratch, gridRight);
-  out.x = row.consX - ABOVE_BAR_GAP_CSS_PX * k - size;
-  out.y = row.consY + row.size / 2 - size / 2;
-  // Re-review: with big safe-area insets the centred spot can come within 5.12's centre clearance
-  // (the survivor stands at the screen centre): then top-align ↶ with the row instead (still on it).
-  if (rectCentreGap(out.x, out.y, size, size, width / 2, height / 2) < CENTRE_CLEAR_CSS_PX * k) out.y = row.consY;
+  out.x = clusterLeft + (BUILD_TILE_CSS_PX * k - size) / 2;
+  out.y = clusterTop;
   return out;
 }

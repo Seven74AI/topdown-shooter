@@ -1,6 +1,10 @@
+---
+baseline_commit: a06c9cf
+---
+
 # Story 10.10: Build button (hybrid build-phase UI)
 
-Status: ready-for-dev
+Status: review
 
 (Waiting on the designer's layout pick, **Decision BU-1** below. Building UX follow-up to Stories 5.15–5.21. Designer decision 2026-11-25: "hybrid" — a **Build** button plus the **last-placed building** as a one-tap quick tile; Build opens the full grid as a panel and a pick closes it. Options page: `docs/art/build-ui/index.html`. Written with `gds-create-story` (+ `gds-ux` for the layout thinking), headless.)
 
@@ -53,15 +57,15 @@ The layout numbers below are for the recommended **B**; when the designer picks 
 
 ## Tasks / Subtasks
 
-- [ ] Designer picks BU-1 (and answers BU-3 / BU-5); copy the pick into this file's decision log, then set `ready-for-dev` (AC all)
-- [ ] `buildBar.ts`: `quickType(items, lastPlaced)`; `layoutBuildCluster` + `layoutBuildPanel` (pure, reused out objects); `buildPanelSlots` (reuse `buildBarSlots` with 9 cells: 8 + Close); keep `stepBuildBar`/`pickError`/`tileState` as they are (AC 1–5, 11)
-- [ ] `ui/sizes.ts`: `BUILD_BTN_*`, `SHOP_CHIP_*`, `BUILD_PANEL_*` constants; remove the 4 × 2 constants only if nothing else reads them (AC 1, 3)
-- [ ] `HudScene.ts`: replace the 8-slot grid drawing (`barTiles`, `layoutBuildBar`, `drawBuildBar`, `placeBarSlots`, `pressTile`) with the cluster + panel; button ids `build`, `quick`, `shopchip`, `ptile0…8`; the state-key redraw stays on-change only, no per-frame allocation (AC 1–7)
-- [ ] `HudModel`: `buildPanelOpen`, `buildQuick` (type id); `GameScene`: set `lastPlaced` on a confirmed placement send; close causes (AC 2, 6)
-- [ ] `consumableButton.ts` / `undoChip.ts` / `readyLeftX`: take the cluster box (AC 8)
-- [ ] `keyMap.ts` / `KeyboardMouse.ts` / `buildKeys.ts`: `KeyB` → toggle; Esc closes the panel first (AC 9)
-- [ ] `hudLayout.test.ts`: closed + open modes at every size, baseline lines removed; `buildBar.test.ts` unit tests (AC 11)
-- [ ] Browser stills `docs/art/10-10/` (AC 12)
+- [x] Designer picks BU-1 (and answers BU-3 / BU-5); copy the pick into this file's decision log, then set `ready-for-dev` (AC all)
+- [x] `buildBar.ts`: `quickType(items, lastPlaced)`; `layoutBuildCluster` + `layoutBuildPanel` (pure, reused out objects); `buildPanelSlots` (reuse `buildBarSlots` with 9 cells: 8 + Close); keep `stepBuildBar`/`pickError`/`tileState` as they are (AC 1–5, 11)
+- [x] `ui/sizes.ts`: `BUILD_BTN_*`, `SHOP_CHIP_*`, `BUILD_PANEL_*` constants; remove the 4 × 2 constants only if nothing else reads them (AC 1, 3)
+- [x] `HudScene.ts`: replace the 8-slot grid drawing (`barTiles`, `layoutBuildBar`, `drawBuildBar`, `placeBarSlots`, `pressTile`) with the cluster + panel; button ids `build`, `quick`, `shopchip`, `ptile0…8`; the state-key redraw stays on-change only, no per-frame allocation (AC 1–7)
+- [x] `HudModel`: `buildPanelOpen`, `buildQuick` (type id); `GameScene`: set `lastPlaced` on a confirmed placement send; close causes (AC 2, 6)
+- [x] `consumableButton.ts` / `undoChip.ts` / `readyLeftX`: take the cluster box (AC 8)
+- [x] `keyMap.ts` / `KeyboardMouse.ts` / `buildKeys.ts`: `KeyB` → toggle; Esc closes the panel first (AC 9)
+- [x] `hudLayout.test.ts`: closed + open modes at every size, baseline lines removed; `buildBar.test.ts` unit tests (AC 11)
+- [x] Browser stills `docs/art/10-10/` (AC 12)
 
 ## Dev Notes
 
@@ -97,8 +101,53 @@ The layout numbers below are for the recommended **B**; when the designer picks 
 
 ### Agent Model Used
 
+Claude Code (gds-dev-story, autonomous builder session).
+
 ### Completion Notes List
 
 - 2026-11-25: story written (gds-create-story, headless); status `backlog` until the designer picks BU-1.
+- 2026-11-25 (build): BU-1 = B as picked; BU-2 / BU-4 / BU-5 as recommended; BU-3 as recommended (designer). Client UI only: no change to `packages/shared`, the server, balance, prices, the cap, the 5.15 / 5.18 placement rules or any message.
+  - `buildBar.ts`: `quickType`, `panelAllowed` (BU-3), `layoutBuildCluster`, `layoutBuildPanel` (pure, reused out objects), `panelStaysOpen` (AC 6), `panelTapOutside` (AC 6), `togglePanelKey` (AC 9); `buildBarSlots` reused for the panel's first 8 cells (`PANEL_CELLS` = 9, the 9th = Close); `stepBuildBar` / `pickError` / `tileState` / `pickRefusalText` unchanged (quick tile and panel picks both go through `buildPick`, so 5.16 AC 10 and 5.18 Q2 still hold). The 4 × 2 `layoutBuildBar` and `BUILD_BAR_COLS/ROWS` are gone (nothing else read them).
+  - `HudScene.ts`: the 8-slot grid became 10 tile objects (`ptile0…7` panel cells, `quick`, `quick2`) + Build / Close (`build`), the Shop chip (`shopchip`), the count badge / header, the card, the ↻ mark. Redrawn only on a mode / slot / state-key change (no per-frame allocation). Hidden under the open ping wheel exactly like the old bar (`barMode()`); consumable, swap and ↶ hide under the open card.
+  - `GameScene.ts`: `lastPlacedType` (set in `queuePlace`, reset per run) → `m.buildQuick`; the close causes via `panelStaysOpen` right after `m.buildBar` is set; B via `routeBuildKeys` → `togglePanelKey`; Esc closes the panel before the menu.
+  - Neighbours (AC 8): 5.12's row via `layoutRowAboveCluster` (right-aligned 12 px above the Shop chip); 5.20's ↶ above the quick tile (`layoutUndoChip` now takes the cluster box); Ready via `readyLeftX` against the open card's left edge.
+  - Tests: `hudLayout.test.ts` — `build` (closed), `build_short` (BU-3), `build_open` modes; the `568x320 build tile0/tile1` and `640x360 build tile0` baseline lines deleted; Ready's baseline lines improved (568: 120 → 46, 640: 84 → 40; the same Ready in the new modes); a new block checks closed + open at 568 × 320, 640 × 360, 800 × 360, 844 × 390, 1024 × 768, 1920 × 1080 with and without insets 44/21 (safe area, ≥ 48 px from the centre, right half, no overlap, ≥ 12 px between separate controls, 8 px inside a tile group, card ≥ 12 px from ping / ☰ / Ready). `buildBar.test.ts` (cluster / panel geometry vs mock.html, quick type incl. fallback, BU-3, every close cause, tap outside, B), `buildKeys.test.ts` (B), `consumableButton.test.ts`, `undoChip.test.ts` re-anchored to the cluster.
+  - Stills: `docs/art/10-10/` (closed, open, short of money, at the cap closed + open, ≤ 2 types; 568 × 320 and 844 × 390; README + `stills.cjs`). Measured hit rects equal B's mock.
+  - `npm run gate:fast`: typecheck, lint, 4677 unit tests, release:check all green. No slow test is affected by the changed files (`vitest --project slow --changed origin/master`: none).
+- B-codes (autonomous build, auto-accepted; the designer can overturn any):
+  - **10.10-B1** Shop stays in the open panel as its 8th cell (BU-2) and the 5.16 paging rule ("More ▸" past 7 types) is kept unchanged in the panel.
+  - **10.10-B2** ↶ sits above the quick tile, level with the Shop chip (B's still); 5.12's consumable + swap row sits right-aligned 12 px above that line (AC 8 "the cluster's box").
+  - **10.10-B3** The panel's cells shrink (never below 48 px) only where 3 × 56 px plus the card would come within 48 px of the survivor: of the tested sizes only 568 × 320 with 44 px side insets (50 px cells). Close stays the 9th cell on Build's corner.
+  - **10.10-B4** Ready keeps 12 px from the open card's left edge (not the closed cluster's), so it never jumps when the panel opens; without insets that is today's "40 px left of centre" at every size.
+  - **10.10-B5** While the panel is open, 5.12's consumable / swap and 5.20's ↶ hide (they would sit under the card); they return when it closes.
+  - **10.10-B6** A tap outside the open panel: off every button it closes the panel and is consumed (no stick, no fire, no selection); on another HUD button (Ready, ping, ☰) the panel closes and that button still gets the press.
+  - **10.10-B7** BU-3 layout: 1 type → its tile on Build's spot; 2 types → balance order left to right on the quick tile's and Build's spots; the count badge on the corner tile; Shop chip above; no ↻ mark (they are not "again" tiles).
+  - **10.10-B8** Button ids: one `build` id for Build and Close (toggle), `quick`, `quick2` (BU-3's 2nd tile), `shopchip`, `ptile0…7`; the story's `ptile8` (Close) is `build`.
+  - **10.10-B9** "Last placed" = the type of my last Place queued (5.18's pending box, `queuePlace`), set before the server answers; a later refusal does not roll it back. Reset per run, kept across phases; a type no longer unlocked falls back to the first.
+  - **10.10-B10** B does nothing while holding a building or while blocked (wave, menu, shop); Esc closes the panel before it opens the menu (like the ping wheel).
+  - **10.10-B11** Build's hammer and Close's ✕ are drawn with Graphics (no emoji font); the Shop chip reuses the 5.16 Shop tile's 🛒 glyph.
+  - **10.10-B12** The count badge (a dark pill) uses today's `COUNT_OK` / `COUNT_FULL` colours as AC 4 says; `COUNT_FULL` is the same red tint as the short price (#ff8a80). Flagged for the designer against "red = danger" (kept, as built in 5.16).
 
 ### File List
+
+- apps/client/src/input/KeyboardMouse.ts
+- apps/client/src/input/keyMap.ts
+- apps/client/src/scenes/GameScene.ts
+- apps/client/src/scenes/HudScene.ts
+- apps/client/src/scenes/buildBar.ts
+- apps/client/src/scenes/buildBar.test.ts
+- apps/client/src/scenes/buildKeys.ts
+- apps/client/src/scenes/buildKeys.test.ts
+- apps/client/src/scenes/consumableButton.ts
+- apps/client/src/scenes/consumableButton.test.ts
+- apps/client/src/scenes/hudLayout.test.ts
+- apps/client/src/scenes/hudModel.ts
+- apps/client/src/scenes/undoChip.ts
+- apps/client/src/scenes/undoChip.test.ts
+- apps/client/src/ui/sizes.ts
+- docs/art/10-10/README.md, docs/art/10-10/stills.cjs, docs/art/10-10/10-10-{568,844}-{closed,open,money,cap,cap-open,short}.png
+- _bmad-output/implementation-artifacts/10-10-build-button.md, _bmad-output/implementation-artifacts/sprint-status.yaml
+
+### Change Log
+
+- 2026-11-25: implemented (BU-1 = B): Build cluster + 3 × 3 panel replace the 4 × 2 build bar; B toggles the panel; layout tests at six sizes; stills in docs/art/10-10/. Status → review.

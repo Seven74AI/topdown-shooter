@@ -142,6 +142,13 @@ export interface HudModel {
   buildCap: number;
   /** Set by the HUD when a building tile is tapped (its type id, "" = none); the GameScene consumes it. */
   buildPick: string;
+  /**
+   * Story 10.10: the Build panel is open (the HUD's Build / Close and a tap outside toggle it; the
+   * GameScene closes it on a pick, the shop, the menu, the ping wheel, the phase's end, downed, a selection).
+   */
+  buildPanelOpen: boolean;
+  /** Story 10.10 (BU-5): the quick tile's type id (`quickType`: last placed, else the first unlocked; "" = none). */
+  buildQuick: string;
   /** Set by the HUD when the build bar's Shop tile is tapped (Story 3.3's shop); the GameScene consumes it. */
   shopPressed: boolean;
   /** Story 3.7: taps on the game view select buildings now (a build phase, no placement, shop or menu). */
@@ -377,6 +384,8 @@ export const createHudModel = (): HudModel => ({
   buildOwned: 0,
   buildCap: 0,
   buildPick: "",
+  buildPanelOpen: false,
+  buildQuick: "",
   shopPressed: false,
   tapsEnabled: false,
   worldTap: false,

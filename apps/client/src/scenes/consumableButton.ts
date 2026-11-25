@@ -120,6 +120,16 @@ export function layoutRightButtons(width: number, height: number, insetRight: nu
   return out;
 }
 
+/**
+ * Story 10.10 (AC 8): the row above the Build cluster — consumable then swap, right-aligned to the
+ * cluster's right edge, 12 px above its top (the Shop chip); 5.12's own `layoutRightButtons` with the
+ * cluster's box in place of the old grid's (its L6 fallback kept).
+ */
+export function layoutRowAboveCluster(width: number, height: number, insetRight: number, insetBottom: number, k: number, clusterTop: number, clusterRight: number, out: RightButtonsLayout): RightButtonsLayout {
+  const rowW = (2 * RIGHT_BUTTON_CSS_PX + ABOVE_BAR_GAP_CSS_PX) * k;
+  return layoutRightButtons(width, height, insetRight, insetBottom, k, true, clusterRight - rowW, clusterTop, out, clusterRight);
+}
+
 /** Review L6: the round buttons keep at least this far from the screen centre (the survivor stands there). */
 export const CENTRE_CLEAR_CSS_PX = 48;
 /** The build count's text box height per CSS px of font size. */

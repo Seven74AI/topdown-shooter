@@ -1,14 +1,25 @@
 import { ALL_UNLOCKED, buildingStats, inPoolOnly, shopBuildings, turretStats, type Balance } from "@topdown/shared";
 import {
-  BUILD_BAR_COLS,
+  BUILD_BADGE_OUT_X_CSS_PX,
+  BUILD_BADGE_OUT_Y_CSS_PX,
   BUILD_BAR_INSET_CSS_PX,
-  BUILD_BAR_ROWS,
-  BUILD_COUNT_GAP_CSS_PX,
+  BUILD_BTN_CSS_PX,
+  BUILD_PANEL_COLS,
+  BUILD_PANEL_HEADER_CSS_PX,
+  BUILD_PANEL_HEADER_MIN_CSS_PX,
+  BUILD_PANEL_PAD_CSS_PX,
+  BUILD_PANEL_ROWS,
+  BUILD_PANEL_TOP_CLEAR_CSS_PX,
   BUILD_TILE_CSS_PX,
   BUILD_TILE_GAP_CSS_PX,
+  MENU_BUTTON_CSS_PX,
+  MENU_BUTTON_INSET_CSS_PX,
   READY_BAR_GAP_CSS_PX,
   READY_SHIFT_LEFT_CSS_PX,
+  SHOP_CHIP_CSS_PX,
+  SHOP_CHIP_GAP_CSS_PX,
 } from "../ui/sizes";
+import { CENTRE_CLEAR_CSS_PX } from "./consumableButton";
 
 /**
  * Story 5.16 (BX-2, ux-spec §3–§4): the build bar, the right-thumb cluster's "hands empty" state in
@@ -17,8 +28,12 @@ import {
  * GameScene decides when it shows and runs the pick.
  */
 
-/** Slots in the grid (4 × 2). */
-export const BUILD_BAR_SLOTS = BUILD_BAR_COLS * BUILD_BAR_ROWS;
+/**
+ * Item slots (Story 5.16's 8: up to 7 types + Shop, "More ▸" past 7). Story 10.10: they are the open
+ * panel's first 8 cells of its 3 × 3; the 9th (bottom right, Build's own spot) is Close.
+ */
+export const PANEL_CELLS = BUILD_PANEL_COLS * BUILD_PANEL_ROWS;
+export const BUILD_BAR_SLOTS = PANEL_CELLS - 1;
 /** Slot contents other than an item index (≥ 0). */
 export const SLOT_EMPTY = -1;
 export const SLOT_SHOP = -2;
@@ -95,49 +110,130 @@ export function buildBarSlots(count: number, page: number, out: Int16Array): Int
   return out;
 }
 
-export interface BuildBarLayout {
-  /** Tile top-left corners (canvas px), slot order; every tile is `tile` × `tile`. */
-  readonly x: Float32Array;
-  readonly y: Float32Array;
-  tile: number;
-  /** The grid's left and top edges, and the count line's bottom-right anchor (canvas px). */
-  left: number;
-  top: number;
-  countX: number;
-  countY: number;
+/**
+ * Story 10.10 (BU-5): the quick tile's type — the type I last placed this run (a Place sent), or the
+ * first unlocked type in balance order before any placement or when that type is no longer in the
+ * list (an unlock mask change). "" when there are no types.
+ */
+export function quickType(items: readonly BuildTile[], lastPlaced: string): string {
+  if (lastPlaced !== "") for (let i = 0; i < items.length; i++) if ((items[i] as BuildTile).id === lastPlaced) return lastPlaced;
+  return items.length > 0 ? (items[0] as BuildTile).id : "";
 }
 
-export function newBuildBarLayout(): BuildBarLayout {
-  return { x: new Float32Array(BUILD_BAR_SLOTS), y: new Float32Array(BUILD_BAR_SLOTS), tile: 0, left: 0, top: 0, countX: 0, countY: 0 };
+/** Story 10.10 (BU-3): with this many unlocked types or fewer the tiles sit in the corner themselves (no Build, no panel). */
+export const SHORT_LIST_MAX = 2;
+
+export function panelAllowed(itemCount: number): boolean {
+  return itemCount > SHORT_LIST_MAX;
+}
+
+/** Story 10.10: the closed Build cluster (canvas px; one reused object). */
+export interface BuildClusterLayout {
+  /** Tile / Build size and the Shop chip's diameter. */
+  tile: number;
+  chip: number;
+  /** Build (the corner; the 2nd short-list tile in BU-3), the quick tile 8 px left of it (the 1st short-list tile), the Shop chip 12 px above Build. */
+  buildX: number;
+  buildY: number;
+  quickX: number;
+  quickY: number;
+  chipX: number;
+  chipY: number;
+  /** The count badge's top-right anchor (it sticks out of Build's top-right corner). */
+  badgeX: number;
+  badgeY: number;
+  /** The cluster's box for its neighbours (AC 8): left = the quick tile, top = the Shop chip, right = Build's right edge. */
+  left: number;
+  top: number;
+  right: number;
+}
+
+export function newBuildClusterLayout(): BuildClusterLayout {
+  return { tile: 0, chip: 0, buildX: 0, buildY: 0, quickX: 0, quickY: 0, chipX: 0, chipY: 0, badgeX: 0, badgeY: 0, left: 0, top: 0, right: 0 };
 }
 
 /**
- * The grid's tiles, measured from the bottom-right safe-area corner (insets in CSS px, `k` = dpr()):
- * 4 × 2 tiles of 56 px with 8 px gaps, 16 px inside the insets; the count line right-aligned 4 px
- * above the grid. Written into `out` (layout only, no allocation).
+ * Story 10.10 (BU-1 = B, AC 1): from the bottom-right safe-area corner with the 16 px inset (insets in
+ * CSS px, `k` = dpr): Build 56 px in the corner, the quick tile 8 px left of it, the 48 px Shop chip
+ * 12 px above Build (centred on it), the count badge on Build's top-right corner. Written into `out`.
  */
-export function layoutBuildBar(width: number, height: number, insetRight: number, insetBottom: number, k: number, out: BuildBarLayout): BuildBarLayout {
-  const tile = BUILD_TILE_CSS_PX * k;
-  const gap = BUILD_TILE_GAP_CSS_PX * k;
+export function layoutBuildCluster(width: number, height: number, insetRight: number, insetBottom: number, k: number, out: BuildClusterLayout): BuildClusterLayout {
+  const tile = BUILD_BTN_CSS_PX * k;
+  const chip = SHOP_CHIP_CSS_PX * k;
   const right = width - (BUILD_BAR_INSET_CSS_PX + insetRight) * k;
   const bottom = height - (BUILD_BAR_INSET_CSS_PX + insetBottom) * k;
   out.tile = tile;
-  out.left = right - BUILD_BAR_COLS * tile - (BUILD_BAR_COLS - 1) * gap;
-  out.top = bottom - BUILD_BAR_ROWS * tile - (BUILD_BAR_ROWS - 1) * gap;
-  for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-    const col = s % BUILD_BAR_COLS;
-    const row = Math.floor(s / BUILD_BAR_COLS);
-    out.x[s] = out.left + col * (tile + gap);
-    out.y[s] = out.top + row * (tile + gap);
+  out.chip = chip;
+  out.buildX = right - tile;
+  out.buildY = bottom - tile;
+  out.quickX = out.buildX - BUILD_TILE_GAP_CSS_PX * k - BUILD_TILE_CSS_PX * k;
+  out.quickY = out.buildY;
+  out.chipX = out.buildX + (tile - chip) / 2;
+  out.chipY = out.buildY - SHOP_CHIP_GAP_CSS_PX * k - chip;
+  out.badgeX = right + BUILD_BADGE_OUT_X_CSS_PX * k;
+  out.badgeY = out.buildY - BUILD_BADGE_OUT_Y_CSS_PX * k;
+  out.left = out.quickX;
+  out.top = out.chipY;
+  out.right = right;
+  return out;
+}
+
+/** Story 10.10: the open panel (canvas px; one reused object). */
+export interface BuildPanelLayout {
+  /** Cell top-left corners, row by row from the top-left: 0–7 = Story 5.16's slots, 8 = Close (Build's spot). */
+  readonly x: Float32Array;
+  readonly y: Float32Array;
+  tile: number;
+  /** The card behind the cells (not pressable) and its header line's centre height (title left, count right). */
+  cardX: number;
+  cardY: number;
+  cardW: number;
+  cardH: number;
+  headerY: number;
+}
+
+/** Story 10.10: the panel's cells never shrink below this (CSS px; the touch-target floor). */
+export const MIN_PANEL_CELL_CSS_PX = 48;
+
+export function newBuildPanelLayout(): BuildPanelLayout {
+  return { x: new Float32Array(PANEL_CELLS), y: new Float32Array(PANEL_CELLS), tile: 0, cardX: 0, cardY: 0, cardW: 0, cardH: 0, headerY: 0 };
+}
+
+/**
+ * Story 10.10 (BU-4, AC 3, 5): the 3 × 3 panel over the thumb corner — 56 px cells, 8 px gaps, the
+ * bottom-right cell on Build's own spot (Close), the same cells on every phone. Only where 3 × 56 px
+ * (or the card round them) would come within 48 px of the screen centre (568 × 320 with 44 px side insets) the cells shrink to
+ * fit, never under 48 px (B-code 10.10-B3). The card pads the cells by 8 px and carries a 24 px header
+ * (Build · n/6), shrunk to keep 12 px below ping / ☰ (min 18 px).
+ */
+export function layoutBuildPanel(width: number, height: number, insetRight: number, insetBottom: number, k: number, out: BuildPanelLayout, insetTop = 0): BuildPanelLayout {
+  const gap = BUILD_TILE_GAP_CSS_PX * k;
+  const right = width - (BUILD_BAR_INSET_CSS_PX + insetRight) * k;
+  const bottom = height - (BUILD_BAR_INSET_CSS_PX + insetBottom) * k;
+  const room = (right - (width / 2 + (CENTRE_CLEAR_CSS_PX + BUILD_PANEL_PAD_CSS_PX) * k) - (BUILD_PANEL_COLS - 1) * gap) / BUILD_PANEL_COLS; // the card too keeps the survivor's 48 px
+  const tile = Math.max(MIN_PANEL_CELL_CSS_PX * k, Math.min(BUILD_TILE_CSS_PX * k, Math.floor(room)));
+  const left = right - BUILD_PANEL_COLS * tile - (BUILD_PANEL_COLS - 1) * gap;
+  const top = bottom - BUILD_PANEL_ROWS * tile - (BUILD_PANEL_ROWS - 1) * gap;
+  out.tile = tile;
+  for (let c = 0; c < PANEL_CELLS; c++) {
+    out.x[c] = left + (c % BUILD_PANEL_COLS) * (tile + gap);
+    out.y[c] = top + Math.floor(c / BUILD_PANEL_COLS) * (tile + gap);
   }
-  out.countX = right;
-  out.countY = out.top - BUILD_COUNT_GAP_CSS_PX * k;
+  const pad = BUILD_PANEL_PAD_CSS_PX * k;
+  const topRow = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BUILD_PANEL_TOP_CLEAR_CSS_PX) * k;
+  const header = Math.max(BUILD_PANEL_HEADER_MIN_CSS_PX * k, Math.min(BUILD_PANEL_HEADER_CSS_PX * k, top - pad - topRow));
+  out.cardX = left - pad;
+  out.cardY = top - pad - header;
+  out.cardW = right - left + 2 * pad;
+  out.cardH = bottom + pad - out.cardY;
+  out.headerY = out.cardY + (pad + header) / 2;
   return out;
 }
 
 /**
  * Ready's left edge (canvas px): centred 40 px left of the screen centre (5.15), or further left when
- * that would bring its right edge within 12 px of the grid (D4: below ~640 px wide).
+ * that would bring its right edge within 12 px of `gridLeft` (D4: below ~640 px wide). Story 10.10:
+ * `gridLeft` = the open panel's card (`layoutBuildPanel().cardX`), so Ready never moves when the panel opens.
  */
 export function readyLeftX(width: number, readyW: number, gridLeft: number, k: number): number {
   const centred = (width - readyW) / 2 - READY_SHIFT_LEFT_CSS_PX * k;
@@ -219,4 +315,36 @@ export function stepBuildBar(
     break;
   }
   return out;
+}
+
+/**
+ * Story 10.10 (AC 6): a touch while the panel is open. On a panel cell or Close (`ptile…`, `build`):
+ * nothing here (the button handles it). On another HUD button (Ready, ping, ☰, …): the panel closes and
+ * the button still gets the press. Off every button: the panel closes and the touch is consumed (no
+ * stick, no fire, no building selected that frame).
+ */
+export const PANEL_TAP_NONE = 0;
+export const PANEL_TAP_CLOSE = 1;
+export const PANEL_TAP_CONSUME = 2;
+
+export function panelTapOutside(open: boolean, hitId: string | null): number {
+  if (!open) return PANEL_TAP_NONE;
+  if (hitId === null) return PANEL_TAP_CONSUME;
+  return hitId === "build" || hitId.startsWith("ptile") ? PANEL_TAP_NONE : PANEL_TAP_CLOSE;
+}
+
+/**
+ * Story 10.10 (AC 6): whether the open panel stays open this frame. It closes when the cluster is no
+ * longer up (`shown` = `HudModel.buildBar`: the phase ended, I'm downed, the menu or the shop opened, I
+ * hold a building, a building got selected, I'm waiting), on a pick, when the ping wheel opens, and
+ * when there is no panel (BU-3: ≤ 2 types). Close / Build, B, Esc and a tap outside close it elsewhere.
+ */
+export function panelStaysOpen(open: boolean, shown: boolean, picked: boolean, wheelOpen: boolean, itemCount: number): boolean {
+  return open && shown && !picked && !wheelOpen && panelAllowed(itemCount);
+}
+
+/** Story 10.10 (AC 9): B toggles the panel — only while the cluster is on screen and there is a panel (BU-3). */
+export function togglePanelKey(m: { buildPanelOpen: boolean; buildBar: boolean; buildItems: readonly BuildTile[] }): void {
+  if (!m.buildBar || !panelAllowed(m.buildItems.length)) return;
+  m.buildPanelOpen = !m.buildPanelOpen;
 }
