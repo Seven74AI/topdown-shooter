@@ -8,6 +8,7 @@ import { ensureConsumableIcons, CONSUMABLE_ICON_FRAMES, consumableIconUrl } from
 import { ensureFireFxAtlas } from "../render/city/fireFxAtlas";
 import { ensureGearIcons, GEAR_ICON_FRAMES, gearIconUrl } from "../render/city/gearIcons";
 import { ensureThrowFxAtlas } from "../render/city/throwArt";
+import { ensurePingAtlas } from "../render/pingArt";
 import { ensureHudWarnTextures } from "../render/city/hudWarnArt";
 import { ensureHeliAtlas } from "../render/city/heliArt";
 import { ensureEventTextures } from "../render/city/eventArt";
@@ -47,6 +48,7 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureFireFxAtlas(this);
           ensureGearIcons(this);
           ensureThrowFxAtlas(this);
+          ensurePingAtlas(this); // Story 8.7: the four ping icons, their words, the button glyph, the edge arrow tip
           ensureHudWarnTextures(this);
           ensureHeliAtlas(this);
           ensureEventTextures(this);

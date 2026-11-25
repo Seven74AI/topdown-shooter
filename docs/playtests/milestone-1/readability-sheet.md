@@ -271,3 +271,15 @@ Player:
 
 ## 112: what is the round white badge at the left edge, and what does the orange line mean? (Story 7.12: OA2 — the off-screen badge points to the bag, its white ring empties over the bag's 20 s; BF2 — "Ana found a bag!" with the bag icon, in the finder's slot colour)
 ![112](../../art/epic-7/built/7-12-hud.png)
+
+## 130: what does the orange disc with the white cross mean, and whose is it? (Story 8.7: the "Help!" ping — a white cross on the sender's slot-colour disc, "Help!" above it, 4 s; decision E8-P2, no red: red = danger)
+![130](../../art/epic-8/built/8-7-phone-help.png)
+
+## 131: what does the blue pin say? Where is that teammate? (Story 8.7: the "Over here" ping — a pin on the slot-colour disc; off screen the same icon rides a slot-colour edge arrow pointing to it)
+![131](../../art/epic-8/built/8-7-phone-edge-arrow.png)
+
+## 132: which chip warns of the Brute / the Behemoth? (Story 8.7: the "Big one!" ping — a heavy "!!" in a triangle; shown on the open wheel, top right)
+![132](../../art/epic-8/built/8-7-desktop-wheel-open.png)
+
+## 133: which chip says "I'm done building"? (Story 8.7: the "Ready" ping — a check; the wheel on a phone in landscape)
+![133](../../art/epic-8/built/8-7-phone-wheel-open.png)

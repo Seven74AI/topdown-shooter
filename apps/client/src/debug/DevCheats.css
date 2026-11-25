@@ -2,8 +2,10 @@
 .dev-gear {
   position: fixed;
   /* Story 2.11: left of the in-run menu ☰ (top-right, 48 px at 12 px), clear of the perf overlay under it. */
-  top: calc(env(safe-area-inset-top) + 14px);
-  right: calc(env(safe-area-inset-right) + 68px);
+  /* Story 8.7 (review nit): under the top band (☰ and the ping button end at 60 px), so it never covers the wave line at
+     568 / 640 px; left of the ping button's column. Dev builds only. */
+  top: calc(env(safe-area-inset-top) + 66px);
+  right: calc(env(safe-area-inset-right) + 128px);
   z-index: 5; /* under the in-run menu (6): no cheats while paused (2.11 review) */
   pointer-events: auto;
   width: 44px;
@@ -21,7 +23,7 @@
   position: fixed;
   /* Left of the ⚙ button, full height: a landscape phone is only ~390 px tall. */
   top: calc(env(safe-area-inset-top) + 12px);
-  right: calc(env(safe-area-inset-right) + 120px);
+  right: calc(env(safe-area-inset-right) + 180px); /* Story 8.7: follows the ⚙ (moved past the ping button) */
   z-index: 5; /* under the in-run menu (6): no cheats while paused (2.11 review) */
   pointer-events: auto;
   width: min(320px, 70vw);

@@ -77,6 +77,12 @@ export const C2S = {
    * the host, for a playable district some member has unlocked; anything else is logged and ignored.
    */
   LOBBY_DISTRICT: "lobby.district",
+  // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
+  /**
+   * `{ kind }` (Story 8.7, D15): "ping where I am". Only the kind: the server stamps the sender's own position and slot
+   * (P1). Build, wave and vote, standing or downed (E8-P4); its own 1/s bucket (E8-P5); dropped silently otherwise.
+   */
+  PING_SEND: "ping.send",
   // ── Story 8.3 (host remove) ──
   /**
    * `{ playerId }` (Story 8.3, H2/H3, Epic 8 D9): the host removes a player (connected, reconnecting, waiting or a
@@ -142,6 +148,9 @@ export const S2C = {
   RUN_STARTED: "run.started",
   /** `{ from }` (Story 7.7 R3): the picked district's last holder left the lobby; the pick went back to Downtown. */
   LOBBY_DISTRICT_RESET: "lobby.district_reset",
+  // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
+  /** `PingShown` `[slot, kindIdx, x, y, tick]` to every player, the sender too (Story 8.7): a teammate's ping (never World state, P5). */
+  PING_SHOWN: "ping.shown",
   // ── Story 8.3 (host remove) ──
   /** `{}` (Story 8.3, H3): to the removed player only, right before the server closes their socket with 4022. */
   PLAYER_REMOVED: "player.removed",
@@ -585,6 +594,34 @@ export interface PlayerLeft {
   reason: PlayerLeftReason;
 }
 
+// ── Story 8.7: pings (kept in one block for the 8.2+8.3 merge) ───────────────────────────────────────────────────
+
+/** Story 8.7 (FR76, D15): the four pings, in wire order (`PingShown` carries the index). Labels: `PING_LABELS`. */
+export const PING_KINDS = ["help", "here", "big", "ready"] as const;
+export type PingKind = (typeof PING_KINDS)[number];
+/** Story 8.7 (AC 1): the words under each icon ("Big one!" covers the Brute and the Behemoth). */
+export const PING_LABELS: Readonly<Record<PingKind, string>> = { help: "Help!", here: "Over here", big: "Big one!", ready: "Ready" };
+
+/** `ping.send` (Story 8.7, P1): only the kind, strict — a position or a slot in the payload makes the message invalid. */
+export const pingSendSchema = z.object({ kind: z.enum(PING_KINDS) }).strict();
+export type PingSend = z.infer<typeof pingSendSchema>;
+
+/**
+ * `ping.shown` payload (Story 8.7, AC 5), to everyone: `[slot, kindIdx, xDm, yDm, tick]` — the sender's slot and the
+ * sender's SERVER position at the tick the ping arrived, in whole decimetres (0.1 m), both stamped by the server (P1);
+ * `tick16` = that tick & 0xffff (review L1: always 3 B; the client unwraps it against its own tick estimate).
+ * An array of integers like `building.ghosted` (decision 8.7 B1): 24 B per message on the wire (msgpack floats would
+ * be 36 B), so 4 pings/s cost a phone ≤ 96 B/s.
+ */
+export type PingShown = [slot: number, kindIdx: number, xDm: number, yDm: number, tick16: number];
+
+/** Story 8.7 (D15): a ping stays on every screen this long (frame clock, ms). */
+export const PING_SHOW_MS = 4000;
+/**
+ * Story 8.7 (AC 4, E8-P5; review M4): the client's own cooldown after a send. The server bucket is 1/s, burst 1; 1200 ms
+ * leaves 200 ms for send jitter (a frame's quantisation, ±100 ms of line jitter), so an honest ping is never dropped.
+ */
+export const PING_COOLDOWN_MS = 1200;
 // ── Story 8.3 (host remove) ──
 /** `host.remove` (Story 8.3): the seat to remove, by player id (`p0`–`p3`). */
 export const hostRemoveSchema = z.object({ playerId: z.string().regex(/^p[0-3]$/) }).strict();
