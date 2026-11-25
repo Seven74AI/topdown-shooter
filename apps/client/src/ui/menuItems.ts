@@ -22,13 +22,14 @@ const always = (): boolean => true;
 
 /**
  * The in-run menu's items, top to bottom (Story 2.11). Later items slot in here without touching
- * the menu screen: Save and quit (Story 8.5, `visible: (c) => c.online && c.isHost`), Settings
- * (Story 10.1).
+ * the menu screen: Save and quit (Story 8.5, `visible: (c) => c.online && c.isHost`). Settings opens
+ * the Settings view (Always full speed; Story 10.1 adds the rest to it).
  */
 export const MENU_ITEMS: readonly MenuItem[] = Object.freeze([
   { id: "resume", label: "Resume", action: "resume", visible: always },
   // Story 8.3 (H2): the host's Players list (Remove a seat); online only.
   { id: "players", label: "Players", action: "players", secondary: true, visible: (c) => c.online && c.isHost },
+  { id: "settings", label: "Settings", action: "settings", secondary: true, visible: always },
   { id: "leave", label: "Leave game", action: "leave", secondary: true, visible: always },
 ]);
 
@@ -57,6 +58,9 @@ export const MENU_TEXT = {
   reconnecting: "reconnecting",
   waiting: "joins at the build phase",
   left: "left the run", // Story 8.3: a remembered seat (its slot stays kept until removed)
+  settings: "Settings",
+  alwaysFullSpeed: "Always full speed",
+  alwaysFullSpeedHint: "Move at full speed however far you drag the stick",
 } as const;
 
 /** Story 8.3 (H2, AC 11): the confirm line, in the lobby and the in-run menu alike. */

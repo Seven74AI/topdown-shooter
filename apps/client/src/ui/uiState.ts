@@ -69,15 +69,17 @@ export const openProgress = (from: ProgressBack): UiScreen => ({ kind: "progress
 /**
  * The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. Story 8.3 (H2): the
  * host's `players` list (Remove per seat) and `confirmRemove` ("Remove <name> from this run? They can't come back.").
+ * `settings`: the Settings view (Always full speed; Story 10.1 adds the rest).
  */
-export type MenuState = "closed" | "open" | "confirmLeave" | "players" | "confirmRemove";
+export type MenuState = "closed" | "open" | "confirmLeave" | "players" | "confirmRemove" | "settings";
 
 /**
  * What the player did: `toggle` (☰ or Esc), `resume`, `leave` (Leave game: asks first), `cancel`
  * (the confirm step's Cancel), `confirm` (the confirm step's Leave). Story 8.3: `players` (open the
- * host's Players list), `remove` (a seat's Remove: asks first), `back` (Players → the menu).
+ * host's Players list), `remove` (a seat's Remove: asks first), `back` (Players or Settings → the menu).
+ * `settings` opens the Settings view.
  */
-export type MenuAction = "toggle" | "resume" | "leave" | "cancel" | "confirm" | "players" | "remove" | "back";
+export type MenuAction = "toggle" | "resume" | "leave" | "cancel" | "confirm" | "players" | "remove" | "back" | "settings";
 
 /**
  * The in-run menu's state machine (Story 2.11). Returns the next state, or "left" when the player
@@ -93,7 +95,7 @@ export function menuStep(state: MenuState, action: MenuAction): MenuState | "lef
       return state === "open" ? "confirmLeave" : state;
     case "cancel":
       if (state === "confirmRemove") return "players"; // Story 8.3
-      if (state === "players") return "open";
+      if (state === "players" || state === "settings") return "open";
       return state === "confirmLeave" ? "open" : state;
     case "confirm":
       if (state === "confirmRemove") return "players"; // Story 8.3: the menu already sent `host.remove`
@@ -103,7 +105,9 @@ export function menuStep(state: MenuState, action: MenuAction): MenuState | "lef
     case "remove":
       return state === "players" ? "confirmRemove" : state;
     case "back":
-      return state === "players" ? "open" : state;
+      return state === "players" || state === "settings" ? "open" : state;
+    case "settings":
+      return state === "open" ? "settings" : state;
   }
 }
 

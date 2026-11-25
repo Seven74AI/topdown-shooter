@@ -1,4 +1,5 @@
 import { stickDeflection, stickVector, type StickVector } from "./stick";
+import { getSettings } from "../settings/settings";
 
 /** Stick sizes in CSS px; multiplied by dpr() into canvas pixels. */
 export const STICK_RADIUS_CSS_PX = 60;
@@ -121,6 +122,6 @@ export class TouchSticks {
       this.moveVec.magnitude = 0;
       return this.moveVec;
     }
-    return stickVector(m.originX, m.originY, m.x, m.y, this.radiusPx, this.moveDeadZone, this.moveVec);
+    return stickVector(m.originX, m.originY, m.x, m.y, this.radiusPx, this.moveDeadZone, this.moveVec, getSettings().alwaysFullSpeed);
   }
 }

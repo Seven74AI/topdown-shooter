@@ -66,6 +66,18 @@ describe("menuStep (Story 2.11)", () => {
     expect(menuStep("closed", "players")).toBe("closed");
   });
 
+  it("Settings opens from the menu; Back / Cancel return to it; Esc closes", () => {
+    expect(run("closed", "toggle", "settings")).toBe("settings");
+    expect(run("closed", "toggle", "settings", "back")).toBe("open");
+    expect(run("closed", "toggle", "settings", "cancel")).toBe("open");
+    expect(run("closed", "toggle", "settings", "confirm")).toBe("settings"); // never "left"
+    expect(run("closed", "toggle", "settings", "leave")).toBe("settings");
+    expect(menuStep("settings", "toggle")).toBe("closed");
+    expect(menuStep("settings", "resume")).toBe("closed");
+    expect(menuStep("closed", "settings")).toBe("closed");
+    expect(menuStep("players", "settings")).toBe("players");
+  });
+
   it("leaves only from the confirm step", () => {
     expect(menuStep("closed", "confirm")).toBe("closed");
     expect(menuStep("open", "confirm")).toBe("open");
