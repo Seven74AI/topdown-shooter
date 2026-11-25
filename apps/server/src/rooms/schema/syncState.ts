@@ -189,6 +189,9 @@ function visitPlayer(p: SimPlayer): void {
     syncDowned(s, p, pass.controller.kills(p.id));
     syncWallet(s, p);
     syncConsumable(s, p, pass.controller.world.balance);
+    // Story 8.9: the queue depth my client paces its steps by (room state, not World state).
+    const queued = Math.min(255, pass.controller.queuedAtTick(p.id));
+    if (s.inputQueued !== queued) s.inputQueued = queued;
   }
 }
 
@@ -318,6 +321,7 @@ function resetPlayer(s: PlayerState): void {
   s.maxHp = 0;
   s.status = "alive";
   s.ackSeq = 0;
+  s.inputQueued = 0; // Story 8.9
   s.active = 0;
   s.weapon0 = "";
   s.weapon1 = "";

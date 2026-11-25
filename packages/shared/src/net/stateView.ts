@@ -65,6 +65,8 @@ export interface PlayerStateView {
   readonly consumableCount: number;
   /** Story 6.11: my evacuation vote (0 none, 1 extract, 2 stay), on change only; every phone shows the chips (F2). */
   readonly vote: number;
+  /** Story 8.9: my inputs queued on the server when its last tick started; my steps run at 0.9× above 2 (D5, D6). */
+  readonly inputQueued: number;
   /**
    * Story 8.1: 0 = connected; else the World tick at which this player's 120 s hold runs out (the
    * team list's grey chip counts down from it; no body is drawn while held). Written on change only.
@@ -266,6 +268,7 @@ export const PLAYER_STATE_FIELDS = {
   consumable: true, // Story 5.12
   consumableCount: true,
   vote: true, // Story 6.11
+  inputQueued: true, // Story 8.9
   heldUntilTick: true, // Story 8.1
   protectTicks: true,
 } as const satisfies Record<keyof PlayerStateView, true>;

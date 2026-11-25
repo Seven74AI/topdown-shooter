@@ -1,7 +1,7 @@
 /** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
 import { REWIND_CAP_TICKS } from "../../apps/server/src/run/RunController";
-import { simulate, type Options, type Result } from "./hitsSim";
+import { emptySmooth, simulate, type Options, type Result } from "./hitsSim";
 
 const pct = (r: Result) => (r.apparentHits > 0 ? (100 * r.reversed) / r.apparentHits : 0);
 const report = (name: string, r: Result): void => {
@@ -87,7 +87,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 } };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 }, smooth: emptySmooth() };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
@@ -122,7 +122,7 @@ describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", ()
       expect(pct(on)).toBeLessThan(5);
       // The harness does see the problem the rewind fixes (review M3: a margin, not an absolute control level).
       expect(pct(off) - pct(on)).toBeGreaterThan(5);
-      // The view offset at 150 ms RTT fits the 500 ms cap (one-way + queue wait + render delay; Story 8.8: was < 6 for 300 ms).
+      // The view offset at 150 ms RTT fits the 600 ms cap (one-way + queue wait + render delay; Story 8.8: was < 6 for 300 ms).
       const offs = [...on.viewOffsets].sort((a, b) => a - b);
       expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(10);
     }
@@ -172,21 +172,23 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
       expect(r.viewOffsets.filter((v) => v > 6)).toEqual([]); // review R1: the control for the lossy rows' "> 6 ticks" share
     });
     for (const lossPct of [1, 2]) {
-      it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 500 ms window)`, () => {
+      it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 600 ms window, Story 8.9 T10)`, () => {
         const r = runSeeds(`8.8 loss ${lossPct}% ${c.name}`, { ...LINE, ...c.o, loss: { pct: lossPct, stallMs: 200 } }, SEEDS_88);
         console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: stalls up ${r.stalls.up} down ${r.stalls.down}, shots over the ${REWIND_CAP_TICKS}-tick cap ${overCapPct(r).toFixed(1)} %`);
         expect(r.stalls.up).toBeGreaterThan(10 * lossPct); // liveness: the line really stalled, both ways
         expect(r.stalls.down).toBeGreaterThan(10 * lossPct);
-        expect(r.apparentHits).toBeGreaterThan(300);
+        // Story 8.9: with the 250 ms lossy-line delay fewer cosmetic bullets cross a drawn Runner (~290 vs ~410): liveness only.
+        expect(r.apparentHits).toBeGreaterThan(250);
         expect(pct(r)).toBeLessThan(5);
-        // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none do.
+        // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none did, until Story 8.9's
+        // 250 ms delay (view offset p95 11.4–11.7 ticks: 18–29 % over 10); with 600 ms (Story 8.9 T10, 8.8 D1's fallback):
         expect(overCapPct(r)).toBeLessThan(5);
         // Review R1: the stalls really hurt the shots (not only counted): many ask for a view older than
         // 6 ticks (300 ms), which never happens on the clean line (0 %).
         const oldPct = (100 * r.viewOffsets.filter((v) => v > 6).length) / r.viewOffsets.length;
         console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: shots asking > 6 ticks back ${oldPct.toFixed(1)} %`);
         expect(oldPct).toBeGreaterThan(20);
-        expect(REWIND_CAP_TICKS).toBe(10);
+        expect(REWIND_CAP_TICKS).toBe(12); // Story 8.9 T10 (B8): 600 ms
       });
     }
   }

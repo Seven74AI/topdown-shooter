@@ -1,4 +1,5 @@
 import {
+  INPUT_QUEUE_TARGET,
   NEUTRAL_INPUT,
   REWIND_MAX_TICKS,
   activeSlot,
@@ -74,8 +75,8 @@ export const REWIND_CAP_TICKS = Math.min(REWIND_MAX_TICKS, Math.floor(REWIND_CAP
 
 /** Inputs kept per player: 6 steps = 300 ms of jitter (Story 2.4 › Input queue). */
 export const INPUT_QUEUE_MAX = 6;
-/** Backlog the queue should settle at: 2 inputs = 100 ms of jitter cover (Story 2.4 review). */
-export const INPUT_QUEUE_TARGET = 2;
+/** Backlog the queue should settle at: 2 inputs = 100 ms of jitter cover (Story 2.4 review; shared since Story 8.9). */
+export { INPUT_QUEUE_TARGET };
 /**
  * Ticks in a row above the target before the server starts skipping (40 = 2 s). Long on purpose:
  * after a 4G spike the burst refills the queue, and draining it too soon removes the cover for
@@ -147,6 +148,8 @@ class PlayerSlot {
   drainSkips = 0;
   /** Ticks in a row that started with more than INPUT_QUEUE_TARGET inputs queued. */
   overTargetTicks = 0;
+  /** Story 8.9: inputs queued when the last tick started (the depth the drain rule reads). */
+  depthAtTick = 0;
   /** Zombies this player killed this run (Story 2.8 Results). */
   kills = 0;
   /** Story 8.1 (F7): inputs dropped because they were made while the line was down (`isStaleInput`). */
@@ -182,6 +185,7 @@ const resetQueue = (s: PlayerSlot): void => {
   s.weaponDebt = 0;
   s.carrySwap = s.carryConsumable = s.carryFire = false;
   s.quietTicks = 0;
+  s.depthAtTick = 0; // Story 8.9's synced backlog: none after a hold / return (the phone runs at 1×)
   s.spreadWatch.reset();
 };
 
@@ -524,6 +528,14 @@ export class RunController {
     return this.slots.get(playerId)?.count ?? 0;
   }
 
+  /**
+   * Story 8.9: inputs that were queued when the last tick started (before it took one): the depth
+   * the drain rule compares with INPUT_QUEUE_TARGET. Synced as `PlayerState.inputQueued`.
+   */
+  queuedAtTick(playerId: string): number {
+    return this.slots.get(playerId)?.depthAtTick ?? 0;
+  }
+
   /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
   drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number; offline: number } {
     const s = this.slots.get(playerId);
@@ -666,6 +678,7 @@ export class RunController {
     for (let i = 0; i < this.order.length; i++) {
       const s = this.order[i] as PlayerSlot;
       const cur = s.current;
+      s.depthAtTick = s.count;
       // Story 8.1 (D1): nothing queued for this wave tick (build and vote phases don't count: nothing hurts a
       // standing player there, and a tab hidden across a build start is held 3 s into the wave).
       if (s.count === 0 && wave) s.quietTicks++;

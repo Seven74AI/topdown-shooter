@@ -41,8 +41,11 @@ export const SHOT_ADVANCE_CAP_MS = 150;
  * the `min` of both, audit H1). An honest player whose inputs waited behind a 200 ms TCP stall asks
  * for ~415 ms; the targets are zombies, so a cheater claiming an old view only helps their team
  * (decision 8.8 D1).
+ * Story 8.9 T10 (8.8 D1's fallback): 500 → 600 ms with `REWIND_MAX_TICKS` 10 → 12. With 8.9's 250 ms
+ * render delay on a lossy line a shot's view is ~75 + queue + 250 ms: at 500 ms 18–29 % of kiting
+ * shots were over the cap (view offset p95 11.4–11.7 ticks); at 600 ms see docs/perf/network-pass-2026-11.md § 8.9.
  */
-export const REWIND_CAP_MS = 500;
+export const REWIND_CAP_MS = 600;
 
 /**
  * Story 2.12 re-review M-A: the server accepts only the next seq (an honest client sends every seq

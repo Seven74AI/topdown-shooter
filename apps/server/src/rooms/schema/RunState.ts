@@ -81,6 +81,8 @@ const playerFields = {
   consumableCount: t.uint8().default(0),
   // Story 6.11: the evacuation vote (0 none, 1 extract, 2 stay), on change only (F2). Appended last.
   vote: t.uint8().default(0),
+  // Story 8.9: my inputs queued on the server when the last tick started (my client slows its steps above 2). Room-only, on change only. Appended last.
+  inputQueued: t.uint8().default(0),
   // Story 8.1: 0 = connected, else the World tick the 120 s hold runs out (on change only: a drop / return).
   heldUntilTick: t.uint32().default(0),
   // Story 8.1 (D3): spawn-protection ticks left (40 → 0 once after a mid-wave return; 0 otherwise).
