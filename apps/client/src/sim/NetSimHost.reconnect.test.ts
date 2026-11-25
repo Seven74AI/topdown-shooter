@@ -78,3 +78,43 @@ describe("Story 8.1 × 8.9: a same-room reconnect keeps the render clock monoton
     expect(last).toBeGreaterThan(tick - 20); // and the render clock caught up forward
   });
 });
+
+describe("Story 8.1 review M3: the phone's clock after a freeze", () => {
+  it("6 s frozen (server tick stands still): within 1 s of the resume the estimate leads the data by < 200 ms; monotonic after it", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10 })]));
+    let now = 0;
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => now });
+    let tick = 0;
+    let base = 0; // client ms at server tick 0 (moves on by the freeze)
+    const step = (live: boolean): void => {
+      now += 1000 / 60;
+      if (live && now - base >= (tick + 1) * 50) {
+        tick++;
+        room.state.tick = tick;
+        room.patch();
+      }
+      host.update(FRAME);
+    };
+    for (let i = 0; i < 180; i++) step(true); // 3 s live
+    room.state.frozen = true;
+    room.patch();
+    const frozenAt = now;
+    while (now - frozenAt < 6000) step(false);
+    const leadBefore = (host.serverTick - tick) * 50;
+    expect(leadBefore).toBeGreaterThan(4000); // liveness: without the fix the phone is 6 s ahead here
+    base += now - frozenAt; // the server resumes from the same tick
+    room.state.frozen = false;
+    room.patch();
+    const resumedAt = now;
+    let last = Number.NEGATIVE_INFINITY;
+    while (now - resumedAt < 1000) {
+      step(true);
+      if (Number.isFinite(host.renderTick)) {
+        expect(host.renderTick).toBeGreaterThanOrEqual(last - 1e-9);
+        last = host.renderTick;
+      }
+    }
+    expect((host.serverTick - tick) * 50).toBeLessThan(200);
+  });
+});

@@ -11,7 +11,7 @@ import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel";
-import { leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
+import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -57,12 +57,13 @@ function bossBar(w: number): Box {
 }
 
 /**
- * Story 8.1: the held chips' box, mirrored from overlay.css (.held-chips: top left under the money
- * line — top 86 px, left inset + 16 px, ≤ 3 rows × 20 px, ≤ 170 px wide). The top right is full of
- * buttons on these small screens; the chips aren't pressable (pointer-events: none).
+ * Story 8.1: the held chips' box from `connectionModel.ts › HELD_CHIPS` (review L4: its CSS twin
+ * `.held-chips` / `.held-chip` in overlay.css is cross-checked in tools/checks/heldChipsCss.test.ts;
+ * ≤ 3 rows: 3 teammates). Top left under the money line: the top right is full of buttons on these
+ * small screens; the chips aren't pressable (pointer-events: none).
  */
 function heldChipsBox(): Box {
-  return { id: "held_chips", x: INSET.left + 16, y: 86, w: 170, h: 3 * 20 };
+  return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
 }
 
 /** Every mode's pressable controls. */

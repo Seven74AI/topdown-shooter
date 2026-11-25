@@ -51,15 +51,27 @@ export function holdPlayer(world: World, id: string): boolean {
   world.pendingInputs.delete(id);
   world.inputs.delete(id);
   world.lastAppliedSeq.delete(id);
-  world.heldPlayers.set(id, { player: p, wave: world.waves.number, phase: world.run.phase });
+  world.heldPlayers.set(id, { player: p, buildIdx: buildStartIndex(world), atTick: world.tick });
   return true;
+}
+
+/**
+ * Review H1: how many build starts the run has had — `waves.number` counts a wave at its START, so
+ * during a build phase (which leads into wave N + 1) one more build start has happened than the
+ * wave number says. A held player missed a build start iff this grew while they were held.
+ */
+export function buildStartIndex(world: Readonly<World>): number {
+  return world.waves.number + (world.run.phase === "build" ? 1 : 0);
 }
 
 /**
  * Story 8.1: puts a held player back (F2: as held). Placement (F4): mid-wave next to the
  * lowest-slot standing teammate (`placeNextToTeammate`, the build-start spot rule) with
- * `returnProtectTicks` of spawn protection (decision 8.1 D3); in a build phase (or with nobody
- * standing) where they were. A build start they missed while held is applied to them now
+ * `returnProtectTicks` of spawn protection (decision 8.1 D3) — review M1 / decision 8.1 B15: at
+ * most ONCE per player per wave, and only after a hold of at least `returnMinHoldTicks` (3 s);
+ * any other mid-wave return lands where they vanished (their last server position), unprotected
+ * (a reload or a socket loop is never an escape or an invulnerability). In a build phase (or with
+ * nobody standing) where they were. A build start they missed while held is applied to them now
  * (`catchUpBuildStart`: the same heal, return of an out player, and per-build clocks as
  * `startBuild`); an `out` player returning mid-wave stays out until the next build start (F1).
  * Returns false for an id that is not held.
@@ -70,12 +82,13 @@ export function returnPlayer(world: World, id: string): boolean {
   world.heldPlayers.delete(id);
   const p = h.player;
   const phase = world.run.phase;
-  const missedBuildStart = h.wave !== world.waves.number || (h.phase !== "build" && phase === "build");
-  if (missedBuildStart) catchUpBuildStart(world, p);
-  if (phase === "wave" && p.status === "alive" && placeNextToTeammate(world, p)) {
-    p.protectTicks = world.balance.player.returnProtectTicks;
-  } else if (phase === "wave" && p.status === "alive") {
-    p.protectTicks = world.balance.player.returnProtectTicks; // nobody standing: where they were, still protected
+  if (buildStartIndex(world) > h.buildIdx) catchUpBuildStart(world, p); // review H1: only a build start really missed
+  const stats = world.balance.player;
+  const longHold = world.tick - h.atTick >= stats.returnMinHoldTicks;
+  if (phase === "wave" && p.status === "alive" && longHold && p.protectedReturnWave !== world.waves.number) {
+    p.protectedReturnWave = world.waves.number; // B15: once per wave
+    placeNextToTeammate(world, p); // nobody standing: where they were
+    p.protectTicks = stats.returnProtectTicks;
   }
   world.players.set(id, p);
   claimFlameSlot(world, p);
@@ -113,19 +126,20 @@ export function isHeld(world: Readonly<World>, id: string): boolean {
  * state leaves the World and is returned to the caller (the room remembers the seat). Their
  * buildings stay and pay nobody from now on (F5). Null for an id that is not held.
  */
-export function releaseHeldPlayer(world: World, id: string): PlayerState | null {
+export function releaseHeldPlayer(world: World, id: string): { player: PlayerState; buildIdx: number } | null {
   const h = world.heldPlayers.get(id);
   if (!h) return null;
   world.heldPlayers.delete(id);
-  return h.player;
+  return { player: h.player, buildIdx: h.buildIdx }; // review H2: the remembered seat keeps its build-start index
 }
 
 /**
  * Story 8.1 (F8): a remembered seat comes back (a build phase only; the room checks): it re-enters
- * as held at this tick and `returnPlayer` places it. False if the id is in the World already.
+ * as held at this tick with the build-start index it was held at (review H2: a Leave and a rejoin
+ * in the same build is no build start) and `returnPlayer` places it. False if the id is in the World already.
  */
-export function restoreSeat(world: World, p: PlayerState, heldWave: number, heldPhase: string): boolean {
+export function restoreSeat(world: World, p: PlayerState, buildIdx: number): boolean {
   if (world.players.has(p.id) || world.heldPlayers.has(p.id)) return false;
-  world.heldPlayers.set(p.id, { player: p, wave: heldWave, phase: heldPhase });
+  world.heldPlayers.set(p.id, { player: p, buildIdx, atTick: world.tick }); // review H2: the seat's own build-start index
   return returnPlayer(world, p.id);
 }

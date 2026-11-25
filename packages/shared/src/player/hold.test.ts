@@ -5,7 +5,9 @@ import type { SimEvent } from "../core/simEvents";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
 import { NEUTRAL_INPUT } from "../net/input";
-import { startBuild, startWave } from "../run/runStateMachine";
+import { castVote, countVotes, resolveEvacVote, startBuild, startWave } from "../run/runStateMachine";
+import { waveSize } from "../waves/waveDirector";
+import { bossMaxHp } from "../boss/bossState";
 import { spawnZombie } from "../zombies/zombiePool";
 import { createExplosionSpec, explode } from "../combat/explosion";
 import { earn } from "../economy/economy";
@@ -84,6 +86,7 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   lastAimM: "kept",
   lastAimTicks: "kept",
   protectTicks: "reset", // set by the mid-wave return (its own test)
+  protectedReturnWave: "kept", // B15: set by a protected mid-wave return (its own test)
 };
 
 /** Gives every field a non-default value so "kept" really means kept. */
@@ -271,6 +274,7 @@ describe("Story 8.1 F4: a mid-wave return is safe, not an escape", () => {
     b.x = 40;
     b.y = 30;
     holdPlayer(world, "p1");
+    run(world, balance.player.returnMinHoldTicks); // a real hold (B15: ≥ 3 s)
     returnPlayer(world, "p1");
     const d = Math.hypot(b.x - a.x, b.y - a.y);
     expect(d).toBeLessThan(balance.player.spawnOffsetM * balance.player.returnSearchRings + 0.01);
@@ -296,6 +300,7 @@ describe("Story 8.1 F4: a mid-wave return is safe, not an escape", () => {
     const p = players[0] as PlayerState;
     p.x = 33;
     holdPlayer(world, "p0");
+    world.tick += balance.player.returnMinHoldTicks; // solo: the room freezes the World, but a hold that long (B15)
     returnPlayer(world, "p0");
     expect(p.x).toBe(33);
     expect(p.protectTicks).toBe(40);
@@ -312,7 +317,7 @@ describe("Story 8.1 F5: my turret keeps working for me, for the hold", () => {
     expect(b.wallet).toBe(w0 + 10);
     expect(b.earned).toBe(10);
     const seat = releaseHeldPlayer(world, "p1");
-    expect(seat).toBe(b);
+    expect(seat?.player).toBe(b);
     earn(world, "p1", 10, "kill");
     expect(b.wallet).toBe(w0 + 10);
     expect(isHeld(world, "p1")).toBe(false);
@@ -325,9 +330,9 @@ describe("Story 8.1 F8: a remembered seat comes back with its own stuff", () => 
     const b = players[1] as PlayerState;
     b.wallet = 555;
     holdPlayer(world, "p1");
-    const seat = releaseHeldPlayer(world, "p1") as PlayerState;
+    const seat = releaseHeldPlayer(world, "p1");
     expect(world.players.has("p1")).toBe(false);
-    expect(restoreSeat(world, seat, 0, "build")).toBe(true);
+    expect(restoreSeat(world, seat?.player as PlayerState, seat?.buildIdx ?? -1)).toBe(true);
     expect(world.players.get("p1")).toBe(b);
     expect(b.wallet).toBe(555);
   });
@@ -386,5 +391,128 @@ describe("Story 8.1 brief 5: hold and return replay to the same digest", () => {
     holdPlayer(world, "p1");
     startWave(world);
     expect(world.players.has("p1")).toBe(false);
+  });
+});
+
+describe("Story 8.1 review H1: a build start counts as missed only if one really happened while held (sweep)", () => {
+  /** Puts the run in `phase` with `waves.number` = n (no wave director: one mechanic). */
+  const at = (world: World, phase: "build" | "wave" | "vote", n: number): void => {
+    world.run.phase = phase;
+    world.waves.number = n;
+  };
+  const cases: { from: ["build" | "wave" | "vote", number]; to: ["build" | "wave" | "vote", number]; missed: boolean }[] = [
+    { from: ["build", 2], to: ["build", 2], missed: false }, // same build
+    { from: ["build", 2], to: ["wave", 3], missed: false }, // H1: dropped in the build, back in the wave it led into
+    { from: ["build", 2], to: ["build", 3], missed: true }, // the next build
+    { from: ["wave", 3], to: ["wave", 3], missed: false },
+    { from: ["wave", 3], to: ["build", 3], missed: true },
+    { from: ["wave", 3], to: ["vote", 3], missed: false },
+    { from: ["vote", 3], to: ["build", 3], missed: true },
+    { from: ["vote", 3], to: ["wave", 4], missed: true },
+    { from: ["wave", 3], to: ["wave", 4], missed: true },
+  ];
+  for (const c of cases) {
+    it(`held in ${c.from[0]} (wave ${c.from[1]}), back in ${c.to[0]} (wave ${c.to[1]}): ${c.missed ? "build-start heal" : "HP kept"}`, () => {
+      const { world, players } = setup();
+      const p = players[1] as PlayerState;
+      p.hp = 20;
+      at(world, c.from[0], c.from[1]);
+      holdPlayer(world, "p1");
+      at(world, c.to[0], c.to[1]);
+      returnPlayer(world, "p1");
+      expect(p.hp).toBe(c.missed ? 20 + p.maxHp * balance.player.buildHealFrac : 20);
+    });
+  }
+});
+
+describe("Story 8.1 review M1 / decision 8.1 B15: the return is no escape and no invulnerability", () => {
+  it("5 hold/return cycles in one wave (3 s+ each): only the first teleports and protects; the rest land in place, unprotected", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    inWave(world);
+    const b = players[1] as PlayerState;
+    const results: { protectedTicks: number; movedM: number }[] = [];
+    for (let k = 0; k < 5; k++) {
+      b.x = 40;
+      b.y = 30;
+      b.prevX = b.x;
+      b.prevY = b.y;
+      holdPlayer(world, "p1");
+      world.tick += balance.player.returnMinHoldTicks;
+      returnPlayer(world, "p1");
+      results.push({ protectedTicks: b.protectTicks, movedM: Math.hypot(b.x - 40, b.y - 30) });
+      b.protectTicks = 0;
+    }
+    expect(results[0]?.protectedTicks).toBe(balance.player.returnProtectTicks);
+    expect(results[0]?.movedM).toBeGreaterThan(5);
+    for (const r of results.slice(1)) expect(r).toEqual({ protectedTicks: 0, movedM: 0 });
+  });
+
+  it("a hold shorter than 3 s (a reload: back in 150 ms) returns in place, unprotected; the next wave allows one protected return again", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    inWave(world);
+    const b = players[1] as PlayerState;
+    b.x = 40;
+    b.y = 30;
+    holdPlayer(world, "p1");
+    world.tick += 3; // 150 ms
+    returnPlayer(world, "p1");
+    expect([b.x, b.y, b.protectTicks]).toEqual([40, 30, 0]);
+    holdPlayer(world, "p1");
+    world.tick += balance.player.returnMinHoldTicks - 1; // 1 tick short of 3 s
+    returnPlayer(world, "p1");
+    expect(b.protectTicks).toBe(0);
+    world.waves.number += 1; // the next wave
+    holdPlayer(world, "p1");
+    world.tick += balance.player.returnMinHoldTicks;
+    returnPlayer(world, "p1");
+    expect(b.protectTicks).toBe(balance.player.returnProtectTicks);
+  });
+});
+
+describe("Story 8.1 review H3: held seats count where a run-long number is fixed", () => {
+  it("a wave begun with 3 of 4 seats held is sized for 4 (no wave-size cheese by reloading at the end of a build)", () => {
+    const { world } = setup(["p0", "p1", "p2", "p3"], null);
+    startBuild(world);
+    for (const id of ["p1", "p2", "p3"]) holdPlayer(world, id);
+    startWave(world);
+    expect(world.waves.size).toBe(waveSize(balance, world.waves.number, 4));
+    expect(world.waves.size).toBeGreaterThan(waveSize(balance, world.waves.number, 1)); // liveness: the count matters
+  });
+
+  it("the Behemoth arriving with 3 of 4 seats held gets 4-player HP (no boss-HP cheese at the warning)", () => {
+    const { world } = setup(["p0", "p1", "p2", "p3"], null);
+    world.debug.bossWaves = [1];
+    startBuild(world);
+    startWave(world);
+    for (const id of ["p1", "p2", "p3"]) holdPlayer(world, id);
+    for (let t = 0; t < 400 && world.boss.maxHp === 0; t++) step(world, TICK_DT_S);
+    expect(world.boss.maxHp).toBe(bossMaxHp(balance, 4, 1, 1));
+    expect(bossMaxHp(balance, 4, 1, 1)).toBeGreaterThan(bossMaxHp(balance, 1, 1, 1));
+  });
+});
+
+describe("Story 8.1 review M2: a held seat is a silent vote (6.11 D1: silent = Extract)", () => {
+  it("4 seats, 2 Stay + 2 held → Extract (not Stay); the vote doesn't end early while a seat is held", () => {
+    const { world } = setup(["p0", "p1", "p2", "p3"]);
+    world.run.phase = "vote";
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "stay");
+    holdPlayer(world, "p2");
+    holdPlayer(world, "p3");
+    expect(countVotes(world)).toMatchObject({ stay: 2, silent: 2 });
+    resolveEvacVote(world);
+    expect(world.run.ending).toBe("extracted");
+  });
+
+  it("3 Stay of 4 with 1 held → Stay, and the held seat's earnedAtEvac is set too", () => {
+    const { world, players } = setup(["p0", "p1", "p2", "p3"]);
+    world.run.phase = "vote";
+    for (const id of ["p0", "p1", "p2"]) castVote(world, id, "stay");
+    const held = players[3] as PlayerState;
+    held.earned = 555;
+    holdPlayer(world, "p3");
+    resolveEvacVote(world);
+    expect(world.run.endless).toBe(true);
+    expect(held.earnedAtEvac).toBe(555);
   });
 });

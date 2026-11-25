@@ -63,6 +63,13 @@ export class AdaptiveDelay {
   private heldMs = 0;
   private heldAtMs = 0;
 
+  /** Story 8.1 review M3: the render clock starts again from the next estimate (with `ServerClock.rebase`; lateness kept). */
+  rebase(): void {
+    this.renderTickNow = Number.NaN;
+    this.lastNowMs = Number.NaN;
+    this.rate = 1;
+  }
+
   /** The delay in ticks (fractional). */
   get delayTicks(): number {
     return this.delayMs / TICK_MS;
