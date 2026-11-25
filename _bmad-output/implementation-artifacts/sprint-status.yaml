@@ -186,7 +186,7 @@ development_status:
 
   8-9-smooth-through-hiccups: done  # 2026-11-25 overnight: adaptive 100-250 ms delay, render clock 0.9-1.1x, 600 ms rewind (B8), B7 starved ticks, B9 F1 <= 1.2/30 s; review 2M+4L fixed, re-review 1M (B9) + 2L text
   8-1-reconnect-within-2-minutes: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
-  8-10-half-size-horde-stream: review  # 2026-11-25 overnight: delta horde stream v2 (keys + deltas; B7: every zombie at 20 Hz), replay 18.6 -> 8.2 KB/s, stampede 28.2 -> 13.5; review fixes RM1 RM2(B7) RL1-RL3 -> narrow re-review
+  8-10-half-size-horde-stream: done  # 2026-11-25 overnight: delta horde stream 18.6 -> 8.2 KB/s, stampede 28.2 -> 13.5 (6.8 B1 closed); B7 all zombies 20 Hz (supersedes D1); review 2M+3L fixed, re-review approved
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: backlog
   8-3-host-migration: backlog

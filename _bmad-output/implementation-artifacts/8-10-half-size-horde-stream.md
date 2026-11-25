@@ -1,6 +1,6 @@
 # Story 8.10: Half-size horde stream
 
-Status: review
+Status: done
 
 <!-- Network pass story 4 of 5 (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Closes Epic 6 decision 6.8 B1 ("accept the stampede's 28.2 KB/s until Story 8.10"). -->
 
