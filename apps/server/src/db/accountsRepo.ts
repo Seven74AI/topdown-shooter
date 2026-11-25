@@ -89,7 +89,7 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
           } catch (e) {
             if (!isUniqueViolation(e)) throw e;
             const other = await byToken(tokenHash);
-            if (other === null) throw new Error("guest vanished after conflict");
+            if (other === null) throw new Error("guest vanished after conflict", { cause: e });
             return other;
           }
         },

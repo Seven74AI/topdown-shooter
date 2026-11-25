@@ -17,6 +17,12 @@ export type UiScreen =
    */
   | { kind: "progress"; back: ProgressBack }
   /**
+   * Story 7.6 (AC 3, 7, 9; layout AC1): an account screen — the Save my progress / Log in / Forgot password forms, the
+   * one-time recovery-code card (`code`) or the log-out confirm. `back` is the screen it returns to (the start screen,
+   * the hub, or Results for the nudge); a room stays joined meanwhile.
+   */
+  | { kind: "account"; view: AccountView; back: UiScreen; code?: string }
+  /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
    */
@@ -29,6 +35,15 @@ export type UiScreen =
    * `dawnEndsAtMs` (performance.now() ms; the dawn plays until then, `dawnModel.ts`).
    */
   | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; ending: RunEnding; endless: boolean; seed: number; dawnEndsAtMs: number; /** Story 7.2 review N1: this phone's slot (the "YOU" row); absent = none marked. */ mySlot?: number };
+
+/** Story 7.6: which account screen. */
+export type AccountView = "save" | "login" | "forgot" | "code" | "logout";
+
+/** Story 7.6: an account screen over `from` (an account screen's own back is kept: Back never returns to a form). */
+export const openAccount = (view: AccountView, from: UiScreen, code?: string): UiScreen => {
+  const back = from.kind === "account" ? from.back : from.kind === "start" ? { kind: "start" as const } : from;
+  return code === undefined ? { kind: "account", view, back } : { kind: "account", view, back, code };
+};
 
 /** Story 7.3: where the Progress hub can be opened from, and returns to. */
 export type ProgressBack = { kind: "start" } | { kind: "lobby"; code: string };

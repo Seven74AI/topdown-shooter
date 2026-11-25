@@ -78,8 +78,9 @@ async function mergeGuest(tx: Tx, accountId: string, guestId: string): Promise<{
   const g = rows.find((r) => r.accountId === guestId);
   if (!a || !g) throw new Error("progress rows missing after insert");
   const { row, refunds } = mergeProgress(a as unknown as MergeRow, g as unknown as MergeRow);
-  const { accountId: _keep, ...values } = row;
-  await tx.update(progress).set(values as Partial<ProgressRow>).where(eq(progress.accountId, accountId));
+  const values: Partial<ProgressRow> = { ...(row as unknown as ProgressRow) };
+  delete values.accountId; // the row stays the account's
+  await tx.update(progress).set(values).where(eq(progress.accountId, accountId));
   await tx.delete(progress).where(eq(progress.accountId, guestId));
   await tx.update(accounts).set({ mergedInto: accountId }).where(eq(accounts.id, guestId));
   await tx.delete(deviceTokens).where(eq(deviceTokens.accountId, guestId));

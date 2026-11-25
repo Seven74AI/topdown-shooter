@@ -41,6 +41,7 @@ interface Measure {
   you: string;
   note: string;
   nCards: number;
+  nudge: { w: number; h: number } | null;
 }
 
 let pw: Pw | null = null;
@@ -59,9 +60,12 @@ interface Case {
   readonly newTotal: number;
   readonly endless: boolean;
   readonly ending: "extracted" | "wiped" | "lost";
+  /** Story 7.6 (AC 10): the guest's one-time "Save my progress" row, last in the rewards card (brief 26 group 4). */
+  readonly nudge?: boolean;
 }
 const CASES: readonly Case[] = [
   { name: "short names", names: ["Mo", "Ana", "Kit", "Lu"], kills: 212, earned: 1840, total: 500, newTotal: 1240, endless: false, ending: "extracted" },
+  { name: "Story 7.6: a guest's first ≥ 200 bank with the Save my progress nudge", names: ["Mo", "Ana", "Kit", "Lu"], kills: 212, earned: 1840, total: 250, newTotal: 250, endless: false, ending: "extracted", nudge: true },
   { name: "worst case (16 × W names, 7-digit money and totals, endless)", names: ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénic", "QQQQQQQQQQQQQQQQ"], kills: 99999, earned: 9_999_999, total: 1_311_900, newTotal: 1_234_567, endless: true, ending: "lost" },
 ];
 
@@ -103,6 +107,8 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
         const m = (await page.evaluate(`(async (k) => {
           const ui = await import("/src/ui/uiState.ts");
           const rs = await import("/src/net/rewardsStore.ts");
+          const as = await import("/src/net/accountStore.ts");
+          as.accountStore.accept(null); // a guest (Story 7.6: the nudge shows only for a guest)
           const rows = k.names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: k.kills, earned: k.earned }));
           ui.uiStore.set({ kind: "results", wave: k.endless ? 47 : 10, rows, online: true, ending: k.ending, endless: k.endless, seed: 4294967295, dawnEndsAtMs: 0, mySlot: 0 });
           rs.rewardsStore.setRun({ runId: k.endless ? "1f1e2d3c-4b5a-4968-8776-655443322111" : "0f1e2d3c-4b5a-4968-8776-655443322110" });
@@ -118,6 +124,7 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             newTotal: k.newTotal,
             ending: k.endless ? "quit" : "extracted",
             leftWave: k.endless ? 47 : 0,
+            ...(k.nudge ? { nudge: true } : {}),
           });
           for (let i = 0; i < 40 && !document.querySelector(".rw-btn"); i++) await new Promise((r) => setTimeout(r, 50));
           await new Promise((r) => setTimeout(r, 150));
@@ -140,7 +147,9 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           const rects = cards.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.left, y: r.top, right: r.right, bottom: r.bottom }));
           const you = document.querySelector(".rw-row--me .rw-you")?.textContent || "";
           const note = document.querySelector("[data-testid=rewards-note]")?.textContent || "";
-          return { out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length };
+          const nb = document.querySelector("[data-testid=rewards-nudge] button")?.getBoundingClientRect();
+          const nudge = nb ? { w: nb.width, h: nb.height } : null;
+          return { out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, nudge };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.nCards).toBe(2);
         expect(m.out, m.out.join("\n")).toEqual([]);
@@ -155,6 +164,9 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
         }
         expect(m.you.toUpperCase()).toBe("YOU"); // N1: my own row is marked
         if (c.endless) expect(m.note).toBe("Banked when you left (wave 47)"); // L4
+        // Story 7.6 (AC 10): the nudge row is drawn exactly when asked, inside the card, its button ≥ 44 px
+        if (c.nudge) expect(m.nudge && m.nudge.h >= 44 && m.nudge.w >= 44).toBe(true);
+        else expect(m.nudge).toBeNull();
       }, 30_000);
     }
   }

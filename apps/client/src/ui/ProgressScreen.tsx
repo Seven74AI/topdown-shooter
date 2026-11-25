@@ -15,6 +15,9 @@ import {
   type HubRow,
 } from "./hubModel";
 import { progressStore, type ProgressSnapshot } from "../net/progressStore";
+import { accountStore, type AccountSnapshot } from "../net/accountStore";
+import { accountLine } from "./accountModel";
+import { AccountLineView } from "./AccountScreen";
 import { unlockItem } from "../net/account";
 import { formatSupplies } from "../net/rewardsStore";
 import { weaponIconUrl } from "../render/city/weaponArt";
@@ -58,6 +61,8 @@ export function ProgressScreen() {
   buyRef.current = buy;
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => progressStore.subscribe(setSnap), []);
+  const [account, setAccount] = useState<AccountSnapshot>(accountStore.get());
+  useEffect(() => accountStore.subscribe(setAccount), []);
   const open = screen.kind === "progress";
   useEffect(() => {
     if (!open) {
@@ -122,6 +127,8 @@ export function ProgressScreen() {
             <span class="rw-crate" aria-hidden="true" />
             <span class="ph-supplies__n">{suppliesText(progress)}</span>
           </p>
+          {/* Story 7.6 (AC 9): the same account line as the start screen, at the header's right end. */}
+          <AccountLineView line={accountLine(account)} from={screen} compact />
         </header>
         <p class="ph-rule">
           {HUB_TEXT.rule}
