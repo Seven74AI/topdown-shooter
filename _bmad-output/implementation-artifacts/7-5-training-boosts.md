@@ -1,6 +1,6 @@
 # Story 7.5: Training boosts
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 5 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D6 (Training keeps its caps and its GDD cost 50 × level; always applies in full, solo too; never scaled to the team) is a rule here. FR80 base number fixed by the readiness pass (200 → 250). -->
 

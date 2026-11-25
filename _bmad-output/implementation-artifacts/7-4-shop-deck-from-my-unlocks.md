@@ -1,6 +1,6 @@
 # Story 7.4: Shop deck from my unlocks
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 4 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D7 (borrowed card: 1 of 6 from a teammate's unlocks I lack) and D8 (no turning unlocks off) are rules here. Replaces Story 5.13's `cardPool` seam. -->
 
