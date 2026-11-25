@@ -159,6 +159,19 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - Mutations (brief 6), each made a test fail: no cookie read (4 failed), accept expired tickets (1), no new-guest limit (1), localStorage wins over the cookie (1), no progress row (3), 5 s timeout (1), no Origin check (1), cookie not HttpOnly (1).
 - Build-time choices 7.1 B1–B7: `docs/epic-7-decisions.md` › Story 7.1 build-time choices (auto-accepted overnight (designer: follow the GDS recommendation)).
 
+### Test evidence per task (brief R1: file > test name)
+
+- **T1:** `apps/server/src/db/db.test.ts` > "applies once, and a second run is a no-op …" (drivers load, migrator runs); lockfile check: no existing package changed version (manual, Debug Log).
+- **T2:** `apps/server/src/db/db.test.ts` > "the committed SQL creates exactly two tables: accounts and progress"; > "applies once, and a second run is a no-op (same tables, one recorded migration, rows kept)"; > "a balance can't go below 0 (check constraint)".
+- **T3:** `apps/server/src/db/db.test.ts` > "createGuest makes an account and an empty progress row; find and setDisplayName round-trip"; > "two createGuest calls for one token at once give one account"; > "progress.createEmpty is idempotent …"; > "P5: a second database opened on the same PGlite directory finds the same account"; > "a call that never answers fails after the timeout with db_error {op}"; > "the default timeout is 2 s"; > "a failing database (unreachable Postgres) rejects as DbUnavailableError"; > "production without DATABASE_URL refuses; dev falls back to PGlite"; `apps/server/src/db/noDbImports.test.ts` > "no file outside src/db imports drizzle-orm, pg, PGlite or db/schema".
+- **T4:** `packages/shared/src/config/progression.test.ts` > "starts with exactly the 13 FR79 starter ids"; > "every starter id exists in weapons / gear / buildings / consumables"; > "refuses duplicates, bad ids, extra keys and an empty pool"; > "is frozen".
+- **T5:** `apps/server/src/auth/ticket.test.ts` > "a fresh ticket verifies to its account until it expires (10 min)"; > "refuses another secret's ticket"; > "refuses a hand-made ticket …"; > "refuses garbage …"; > "refuses a correctly signed payload that is not <uuid>.<ms>". `apps/server/src/auth/accountRoutes.test.ts` > "P1: a new device gets a guest account and an empty progress row with no form"; > "keeps a valid presented token that has no account yet"; > "P2: localStorage cleared (cookie only) and cookie gone (token only) …"; > "P2 / D3: cookie and localStorage disagree → the cookie wins …"; > "P4: never logs the token, its hash or the ticket"; > "limits: the 21th new guest from one IP …"; > "refuses a body over 2 KB (413), a malformed or oversized token or extra fields (400)"; > "refuses a foreign or missing Origin with 403 …"; > "P3 … answers 200 saved:false with no ticket …"; > "P5 … two test servers one after the other on one PGlite directory …". `apps/server/src/auth/guestSession.test.ts` > "a database that times out gives saved:false …"; > "a failing createGuest … is unsaved too …"; > "ignores malformed cookie values …"; > "mints distinct 32-hex tokens".
+- **T8:** no automated test (no Docker daemon here): `docker compose -f deploy/docker-compose.yml config -q` passed; `bash -n` on deploy.sh / backup.sh / restore.sh; production start without `DATABASE_URL` / `SESSION_SECRET` exits 1 (manual, port 2713). Runs on the VPS: Hermes.
+
+### Gate (brief R6)
+
+- Early part (not the full gate): `npm run typecheck` ✅, `npm run lint` ✅ (whole repo), touched tests 132/132 ✅, load 1.17 (2026-11-25 04:16). Full gate after T6/T7.
+
 ### File List
 
 - `package.json`, `package-lock.json`, `.gitignore`, `.dockerignore`
