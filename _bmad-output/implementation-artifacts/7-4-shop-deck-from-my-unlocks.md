@@ -1,6 +1,6 @@
 # Story 7.4: Shop deck from my unlocks
 
-Status: ready-for-dev
+Status: review
 
 <!-- Epic 7 progression story 4 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D7 (borrowed card: 1 of 6 from a teammate's unlocks I lack) and D8 (no turning unlocks off) are rules here. Replaces Story 5.13's `cardPool` seam. -->
 
@@ -43,12 +43,12 @@ so that unlocks change which choices I get and new friends can try the good stuf
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Shared** (AC 1, 3, 4, 7–9): `PlayerState.unlocks`, `lockedUsed`; `addPlayer` options; `cardPool`; the borrow draw + snapshot; `shopOffers` fields; `not_unlocked` in `ShopError` / placement / upgrade / consumable errors; `meta/pool.ts` helpers from 7.3. Tests in `shopCards.test.ts` (`setup` helper `:17-23` gains per-player masks), `buildings/*.test.ts`, `consumables.test.ts`.
-- [ ] **T2 Wire** (AC 1, 5): schema field, every copy (brief 2), message fields, `offerFor`/`readOffer`.
-- [ ] **T3 Server** (AC 2, 10): `startRun` progress load (shared with 7.5), "Starting…" state, dev switches, logs `run_started {players: [{accountId, unlocks}]}`.
-- [ ] **T4 Client** (AC 6–8, 11): card tag, build bar + consumable filters, action-bar hide, red-chip reason, Results line, practice pool, `?unlocks`.
-- [ ] **T5 Sims**: bots and `tenWaveSim` keep `ALL_UNLOCKED` (assert it, so a sim can't silently change); one new sim with starter-only bots runs 10 waves (liveness: waves ended, cards bought).
-- [ ] **T6 Gate + hand-back.**
+- [x] **T1 Shared** (AC 1, 3, 4, 7–9): `PlayerState.unlocks`, `lockedUsed`; `addPlayer` options; `cardPool`; the borrow draw + snapshot; `shopOffers` fields; `not_unlocked` in `ShopError` / placement / upgrade / consumable errors; `meta/pool.ts` helpers from 7.3. Tests in `shopCards.test.ts` (`setup` helper `:17-23` gains per-player masks), `buildings/*.test.ts`, `consumables.test.ts`.
+- [x] **T2 Wire** (AC 1, 5): schema field, every copy (brief 2), message fields, `offerFor`/`readOffer`.
+- [x] **T3 Server** (AC 2, 10): `startRun` progress load (shared with 7.5), "Starting…" state, dev switches, logs `run_started {players: [{accountId, unlocks}]}`.
+- [x] **T4 Client** (AC 6–8, 11): card tag, build bar + consumable filters, action-bar hide, red-chip reason, Results line, practice pool, `?unlocks`.
+- [x] **T5 Sims**: bots and `tenWaveSim` keep `ALL_UNLOCKED` (assert it, so a sim can't silently change); one new sim with starter-only bots runs 10 waves (liveness: waves ended, cards bought).
+- [x] **T6 Gate + hand-back.**
 
 ## Dev Notes
 
@@ -129,16 +129,174 @@ so that unlocks change which choices I get and new friends can try the good stuf
 
 ## Dev Agent Record
 
+**One record for the merged story 7.4+7.5** (designer 2026-11-25, `docs/story-merges-2026-11-25.md`); the 7.5 file points here. Built with `gds-dev-story` on branch `story-7-4-5` (from `story-7-3` + master), 7.4 first, then 7.5.
+
 ### Agent Model Used
+
+Claude (cloud builder session, story-7-4-5).
+
+### Gate
+
+GATE_LINE
+
+### Tasks → tests (R1: "file > test name")
+
+7.4
+- **T1 Shared** — `packages/shared/src/economy/shopUnlocks.test.ts` > "K1 … 200 seeds × starter/all/random masks …", "exactly shop.json › cards rng.next() per offer, with and without a borrow list", "owned items are never drawn …"; "K2 … me starter + Mo with the Chainsaw → exactly one borrowed card …", "never more than one borrowed card, and only items some teammate has and I lack (200 seeds, random masks)"; "K3 … same seed + same masks → identical offers", "the lender leaves mid-build → … my reroll still borrows from the build-start snapshot", "a teammate joining mid-build changes nothing until the next build", "a held teammate (8.1) still lends", "a reroll that could change only the borrowed slot is still a new draw (canReroll)"; "K4 … (200 seeds)"; "K5 placement … not_unlocked", "buying a locked consumable → not_unlocked", "upgrading a wood barricade without Barricade upgrades → not_unlocked; with it → ok (decision 7.4 D2)", "the build bar list for the starter mask = wood barricade + auto-turret …"; "K6 … ≥ 2 different offers over 5 rerolls and Reroll starts enabled"; "K7 a crate Grenade Launcher to a starter player → given, lockedUsed set …"; "Q13 fewer than 6 candidates → fewer cards and Reroll off"; "defaults (T5) addPlayer without options = ALL_UNLOCKED". `packages/shared/src/player/hold.test.ts` > the field table (unlocks, lockedUsed kept across a hold).
+- **T2 Wire** — `tools/checks/progressionWiring.test.ts` > "the schema copies (syncState, NetSimHost mirror) carry unlocks and the four Training levels"; `apps/client/src/ui/unlocksTraining.test.ts` > "shop.offered carries borrowed / lender / lenderName; an older server's message reads as none"; `apps/server/src/rooms/RunRoom.progress.test.ts` > "K8 + T5 … the schema carries both"; `apps/server/src/run/shopBandwidth.test.ts` (offer message with the new fields).
+- **T3 Server** — `apps/server/src/rooms/RunRoom.progress.test.ts` > "K8 + T5: an unlock and a Training level bought in the LOBBY count …", "decision 7.4 D3: the progress read fails at Start → the run starts anyway with the starter pool and Training 0 (logged)", "K2 + AC 5: Mo (starter) gets one card borrowed from Ana's unlocks, named \"Ana\" in shop.offered", "K7 + decision 7.4 D4: a supply-drop Grenade Launcher … run.rewards says \"unlock it for 500\""; `apps/server/src/rooms/RunRoom.test.ts` > "refuses a start while someone isn't Ready, and starts when everyone is" (`run_started {players: [{accountId, unlocks, training, source}]}`); `apps/client/src/ui/unlocksTraining.test.ts` > "\"Starting…\" … for STARTING_MS after the tap, then back to Start".
+- **T4 Client** — `apps/client/src/ui/unlocksTraining.test.ts` > "starter = wood barricade + auto-turret; all = every shop building; cached per mask", "cached unlocks and Training apply; none → starter and 0; ?unlocks / ?shopall / ?training override …", "the cache reader never throws …", "dev switches: ?unlocks=all|starter and ?training=a,b,c,d in dev builds only", "\"You used the Grenade Launcher: unlock it for 500\" when lockedUsed is set …"; `tools/checks/progressionWiring.test.ts` > "GameScene: practice solo starts from my cached progress; the build bar and the shop consumables use my unlocks", "the shop card draws the borrowed tag; Results draws … the unlock line; …" (incl. the action-bar hide in `repairPanel.ts`); `tools/checks/resultsDomLayout.test.ts` > every case now asserts the unlock line (R9, 4 sizes).
+- **T5 Sims** — `packages/shared/src/economy/tenWaveSim.test.ts` (asserts the 4 bots keep `ALL_UNLOCKED`); `packages/shared/src/economy/starterBotsSim.test.ts` > "4 bots on the starter pool play all 10 waves (god mode) and buy only starter cards".
+- **T6 Gate + hand-back** — the Gate line above; hand-back message to `@parent`.
+
+7.5 (tasks in `7-5-training-boosts.md`)
+- **T1 Data + helpers** — `packages/shared/src/meta/training.test.ts` > "max HP 102/104/106/108/110; money 210…250; damage × 1.01…1.05; costs 50…250; level 6 clamps to 5", "the reload tick table for every ammo weapon at levels 0–5 (decision 7.5 D4 …)", "the progression schema refuses a training block out of order …", "Training numbers are part of the balance version (decision 7.5 D3)"; `packages/shared/src/config/progression.test.ts`.
+- **T2 Sim** — `packages/shared/src/meta/training.test.ts` > "p0 at 5/5/5/5, p1 at 0: p0 trained, p1 untouched", "level 0 keeps the 5.1 damage table exactly (every weapon × level)", "armor adds on top, unscaled (decision 7.5 D1): Training 5 + Armor II = 160; Training 3 + Armor I bought mid-run = 131"; `tools/checks/progressionWiring.test.ts` > "every player-weapon damage read goes through playerWeaponDamage …", "no team-scaled Training code path exists …", "every reload start in firing.ts uses reloadSecondsFor (5 sites …)".
+- **T3 Wire + server** — `apps/server/src/auth/trainRoute.test.ts` > "T3: levels 1–5 cost 50, 100, 150, 200, 250 …; level 6 → maxed …", "beat the rule: { level: 5 } at level 0 → already_trained …; a cost in the body → 400", "not enough → not_enough with need …", "T3 brief 18: the same requestId twice at once → one charge; two devices training the same level at once → one level", "two concurrent trains with Supplies for one → exactly one wins …", "the session reply carries progress.training", "no cookie → 401; the database down → 503 …"; `apps/server/src/rooms/RunRoom.progress.test.ts` > "K8 + T5 …", "T5: a Training level bought DURING the run … is not applied until the next Start".
+- **T4 Client** — `apps/client/src/ui/unlocksTraining.test.ts` > "the hub's second tab is Training", "rows: Now / Next with the price, short with need, MAXED at 5 …", "Train → Confirm 50 (3 s) → sending; …", "\"3/20\" with four bars; MAX at 20/20 …"; `apps/client/src/net/localFire.test.ts` > "Story 7.5 (AC 4): the predicted reload at Training reload 5 matches the server" (pistol, shotgun, smg; mutation-checked: a view without `trainReload` fails 3 of them); `tools/checks/hubTrainingDomLayout.test.ts` (R9: 3 cases × 4 sizes); `tools/checks/resultsDomLayout.test.ts` (Train column on every row, 4 sizes).
+- **T5 Tests + gate + hand-back** — the Gate line; `packages/shared/src/economy/starterBotsSim.test.ts` > "Training 5 vs 0 on the same seed (log only, brief 15)".
 
 ### Debug Log References
 
+- The first master merge (8.1 landed, master force-updated) conflicted in `hudLayout.test.ts`, `RunRoom.reconnect.test.ts`, `sprint-status.yaml`: master's side taken (comments only); a duplicate `NET_PROTOCOL_VERSION` import in `RunRoom.reconnect.test.ts` removed.
+- The second master merge (7.1 landed) conflicted in `accountRoutes.test.ts` (join options formatting: master's side) and `sprint-status.yaml`.
+- Mutation checks run while building: the predicted reload test with `trainReload` 0 in the view → 3 failures; the K-tests check every borrowed card against "not in my pool" (a borrow drawn from my own pool fails K2).
+
 ### Completion Notes List
 
-- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.4 D1–D5 pending.
+- Story files written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.4 D1–D5 and 7.5 D1–D5 accepted 2026-11-25.
+- **Unlock mask in the World** (`PlayerState.unlocks`, u32, set once) and the pool check `need === 0 || (mask & need) !== 0` from a per-catalog `Uint32Array` (no allocation in the draw). `cardPool` is the 5.13 seam, now my pool.
+- **Borrowed card** (D7): `drawAllOffers` snapshots `world.shop.teamMasks` / `present` (players + 8.1 held) at the build start; the first real draw picks from the borrow list (same rarity weights, still one `rng.next()`), counts toward the floor, `world.shop.borrowed/lender` mark it; rerolls read the snapshot. `shop.offered` gains `borrowed`, `lender`, `lenderName` (the run-start name).
+- **`not_unlocked`** in placement (placer's mask), consumables and barricade upgrades (payer = owner, D2); the 5.17 chip text "Locked: unlock it in Progress"; the action bar hides Upgrade for a player without the unlock.
+- **Supply drop** gives its weapon whatever the mask; `lockedUsed` (also after buying a borrowed card, D4) → `run.rewards.lockedUsed` → Results group 3 "You used the Grenade Launcher: unlock it for 500".
+- **Run-start read** (`meta/runStart.ts`, shared by 7.4 and 7.5): parallel `progressRepo.get` at Start, 2 s each; a failed read plays starter / Training 0 (D3, logged `run_progress_read_failed`); `run_started` logs each player's accountId, unlocks, training and source. Dev: `DEV_UNLOCKS=all|starter` (dev only; `DEV_SHOP_ALL` implies all), client `?unlocks=`, `?training=`.
+- **Training** (D6: in full, only to its owner): `progression.json › training` folded into `balanceVersion` (one bump, `760b0734`); max HP and start money at creation, `effectiveMaxHp(balance, mask, trainHp)` (armor on top, D1), `playerWeaponDamage` at melee / bullets / flames / launcher (D2), `reloadSecondsFor` at the five reload starts and in the client's predicted reload (D4: whole ticks). `POST /account/training` (one conditional update in `boundedTransaction`, request-id memo, limits); session reply carries `progress.training`.
+- **Client**: BT1 tag on the 5.13 card tape, build bar / consumables of my unlocks, Practice solo from the cached progress (D1, T2), TR1 Training tab (pips, Now/Next · price, Train → Confirm → spinner, MAXED, offline line), TL3 "Train" column on Results, "Starting…" on the host's Start.
+- **Bandwidth**: `unlocks` (u32) + 4 × u8 written once at run start (≈ 0 B/s); `shop.offered` grows by three small fields (≈ 25 B per offer, a few per build phase).
+- Screenshots (568×320 @2×): `docs/art/epic-7/built/7-4-5-shop-borrowed.png`, `7-4-5-training-tab.png`, `7-4-5-results-training.png`.
+- Build-time choices 7.4 B1–B10 and 7.5 B1–B8: `docs/epic-7-decisions.md › Story 7.4+7.5 build-time choices`, each "auto-accepted (designer: follow the GDS recommendation)".
+
+### Notes for the merge
+
+- **Balance version bumped once** (7.5 D3): `bbdd6c4d` → `760b0734` (Training numbers in the hash; `config/balance.ts` now imports `PROGRESSION`). Clients and server must deploy together; a stale tab sees "Please reload".
+- **No migration** (`progress.training` jsonb is in 7.1's `0000_init`); 7.9's 0002 is untouched.
+- `player/player.ts › addPlayer(world, id, x, y, init?)` and `PlayerInit` — 7.6 / 7.10 / 8.2 add fields to the same object. Six new `PlayerState` fields (`unlocks`, `lockedUsed`, `trainHp/Dmg/Money/Reload`); `hold.test.ts` field table updated.
+- `RunRoom.ts`: `onStart` now calls `loadAndStart()` (async: Start → read → `startRun(inits)`); `startRun` builds players with masks + Training; `runNames`; `sendOffer` adds the lender's name; the quit bank passes `lockedUsed`. Tests that need every item in a room set `DEV_UNLOCKS=all` (buildings / shop / upgrade room tests).
+- Schema `PlayerState` appends `unlocks` (u32) and `trainHp`, `trainDmg`, `trainMoney`, `trainReload` (u8) after `protectTicks`; `syncState`, `resetPlayer`, `stateView` keys, `fakeRoom`, NetSimHost mirror updated (devThrottle copies by the key list).
+- `economy/shopCards.ts`, `shopOffers.ts`: `world.shop` gains `borrowed`, `lender`, `teamMasks`, `present`; `snapshotShop` includes them (8.4 snapshots `world.shop`). `ShopOfferView` / `ShopOffered` gain `borrowed`, `lender`, `lenderName`.
+- `ShopError`, `PlaceError`, `UpgradeError` gain `not_unlocked` (client lists in `net/session.ts`, texts in `placement.ts`, `repairPanel.ts`, `shopStore.ts`).
+- `combat/weapons.ts › playerWeaponDamage`, `reloadSecondsFor`: any NEW player-weapon damage or reload site must use them (`tools/checks/progressionWiring.test.ts` greps).
+- `economy/gear.ts › effectiveMaxHp(balance, mask, trainHp = 0)`.
+- `net/account.ts` (shared): `progressViewSchema.training` (optional record), `ACCOUNT_TRAINING_PATH`, `trainRequestSchema`, `trainResponseSchema`. `run.rewards` schema gains optional `lockedUsed`.
+- `auth/unlock.ts`: `RequestMemo<T>` is generic; `toView` adds `training` (all four boosts). `/account/unlock` route tests expect `training` in `progress`.
+- Client: `hubModel.ts › HUB_TABS` has Training second (7.10 adds Survivor third); `ProgressScreen.tsx` tab switching; `ResultsScreen.tsx` Train column (4th `col`) and group 3 unlock line (7.7 appends its line after it, brief 26); `buildBarItems(balance, unlocks)`; `GameScene.localUnlocks`.
+- `replay/inputLog.ts`: `InputLog.inits?`, `createHeadlessWorld(…, map, inits?)`; `runHeadless({ inits })`.
+- Stories that depend on borrowed cards / Training: 8.2 (mid-run joiner: Training start money vs "100 + 60 % of the team average" is 8.2's call).
+
+### Not verified
+
+- Real phones (Xiaomi Mi 11i, iOS Safari), the VPS / PostgreSQL 18 (only PGlite here); the opt-in real-PostgreSQL test file (`realPostgres.test.ts`, `TEST_DATABASE_URL`) has no Training case yet.
+- `?stress=150` before/after and `PERF_ASSERT=1` tick asserts were not re-run for this story (the draw runs only at build start / reroll; no per-tick code added except the unchanged-cost `playerWeaponDamage` multiply).
+- `?lag=150&jitter=20&loss=1`, hidden-tab sleep and a reconnect during the run-start read were not tried in a browser (the hold round-trip of the new fields is unit-tested).
+- The shop with a borrowed card is not in a DOM layout test (only the screenshot at 568×320); the TR1 tab and the TL3 column are (4 sizes).
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/7-4-shop-deck-from-my-unlocks.md` (modified)
+- `_bmad-output/implementation-artifacts/7-5-training-boosts.md` (modified)
+- `apps/client/src/debug/urlOptions.test.ts` (modified)
+- `apps/client/src/debug/urlOptions.ts` (modified)
+- `apps/client/src/net/account.ts` (modified)
+- `apps/client/src/net/fakeRoom.ts` (modified)
+- `apps/client/src/net/localFire.test.ts` (modified)
+- `apps/client/src/net/localFire.ts` (modified)
+- `apps/client/src/net/onlineFlow.test.ts` (modified)
+- `apps/client/src/net/onlineFlow.ts` (modified)
+- `apps/client/src/net/practicePool.ts` (new)
+- `apps/client/src/net/progressStore.test.ts` (modified)
+- `apps/client/src/net/session.ts` (modified)
+- `apps/client/src/scenes/GameScene.ts` (modified)
+- `apps/client/src/scenes/buildBar.ts` (modified)
+- `apps/client/src/scenes/placement.ts` (modified)
+- `apps/client/src/scenes/repairPanel.ts` (modified)
+- `apps/client/src/sim/NetSimHost.shop.test.ts` (modified)
+- `apps/client/src/sim/NetSimHost.ts` (modified)
+- `apps/client/src/ui/LobbyScreen.tsx` (modified)
+- `apps/client/src/ui/ProgressScreen.tsx` (modified)
+- `apps/client/src/ui/ResultsScreen.tsx` (modified)
+- `apps/client/src/ui/ShopScreen.tsx` (modified)
+- `apps/client/src/ui/hubModel.test.ts` (modified)
+- `apps/client/src/ui/hubModel.ts` (modified)
+- `apps/client/src/ui/overlay.css` (modified)
+- `apps/client/src/ui/rewardsModel.ts` (modified)
+- `apps/client/src/ui/shopStore.test.ts` (modified)
+- `apps/client/src/ui/shopStore.ts` (modified)
+- `apps/client/src/ui/startButton.ts` (new)
+- `apps/client/src/ui/uiState.ts` (modified)
+- `apps/client/src/ui/unlocksTraining.test.ts` (new)
+- `apps/server/src/app.ts` (modified)
+- `apps/server/src/auth/accountRoutes.ts` (modified)
+- `apps/server/src/auth/guestSession.ts` (modified)
+- `apps/server/src/auth/train.ts` (new)
+- `apps/server/src/auth/trainRoute.test.ts` (new)
+- `apps/server/src/auth/unlock.ts` (modified)
+- `apps/server/src/auth/unlockRoute.test.ts` (modified)
+- `apps/server/src/db/progressRepo.ts` (modified)
+- `apps/server/src/meta/banking.ts` (modified)
+- `apps/server/src/meta/runStart.ts` (new)
+- `apps/server/src/net/limits.ts` (modified)
+- `apps/server/src/net/rateLimit.ts` (modified)
+- `apps/server/src/rooms/RunRoom.buildings.test.ts` (modified)
+- `apps/server/src/rooms/RunRoom.progress.test.ts` (new)
+- `apps/server/src/rooms/RunRoom.reconnect.test.ts` (modified)
+- `apps/server/src/rooms/RunRoom.shop.test.ts` (modified)
+- `apps/server/src/rooms/RunRoom.test.ts` (modified)
+- `apps/server/src/rooms/RunRoom.ts` (modified)
+- `apps/server/src/rooms/RunRoom.upgrade.test.ts` (modified)
+- `apps/server/src/rooms/schema/RunState.ts` (modified)
+- `apps/server/src/rooms/schema/syncState.ts` (modified)
+- `apps/server/src/run/RunController.ts` (modified)
+- `apps/server/src/run/shopBandwidth.test.ts` (modified)
+- `docs/art/epic-7/built/7-4-5-results-training.png` (new)
+- `docs/art/epic-7/built/7-4-5-shop-borrowed.png` (new)
+- `docs/art/epic-7/built/7-4-5-training-tab.png` (new)
+- `docs/epic-7-decisions.md` (modified)
+- `packages/shared/src/bots/botShop.test.ts` (modified)
+- `packages/shared/src/bots/headlessRun.ts` (modified)
+- `packages/shared/src/buildings/buildings.ts` (modified)
+- `packages/shared/src/buildings/upgrade.ts` (modified)
+- `packages/shared/src/combat/firing.ts` (modified)
+- `packages/shared/src/combat/flame.ts` (modified)
+- `packages/shared/src/combat/grenades.ts` (modified)
+- `packages/shared/src/combat/weapons.ts` (modified)
+- `packages/shared/src/config/balance.ts` (modified)
+- `packages/shared/src/config/progression.json` (modified)
+- `packages/shared/src/config/progression.test.ts` (modified)
+- `packages/shared/src/config/progression.ts` (modified)
+- `packages/shared/src/economy/consumables.ts` (modified)
+- `packages/shared/src/economy/gear.ts` (modified)
+- `packages/shared/src/economy/shop.ts` (modified)
+- `packages/shared/src/economy/shopCards.ts` (modified)
+- `packages/shared/src/economy/shopOffers.ts` (modified)
+- `packages/shared/src/economy/shopUnlocks.test.ts` (new)
+- `packages/shared/src/economy/starterBotsSim.test.ts` (new)
+- `packages/shared/src/economy/tenWaveSim.test.ts` (modified)
+- `packages/shared/src/index.ts` (modified)
+- `packages/shared/src/meta/pool.ts` (modified)
+- `packages/shared/src/meta/training.test.ts` (new)
+- `packages/shared/src/meta/training.ts` (new)
+- `packages/shared/src/net/account.ts` (modified)
+- `packages/shared/src/net/messages.ts` (modified)
+- `packages/shared/src/net/stateView.ts` (modified)
+- `packages/shared/src/player/hold.test.ts` (modified)
+- `packages/shared/src/player/player.ts` (modified)
+- `packages/shared/src/replay/inputLog.ts` (modified)
+- `tools/checks/hubTrainingDomLayout.test.ts` (new)
+- `tools/checks/progressHubWiring.test.ts` (modified)
+- `tools/checks/progressionWiring.test.ts` (new)
+- `tools/checks/resultsDomLayout.test.ts` (modified)
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+- 2026-11-25: built with 7.5 (merged story) on `story-7-4-5`; status review.
