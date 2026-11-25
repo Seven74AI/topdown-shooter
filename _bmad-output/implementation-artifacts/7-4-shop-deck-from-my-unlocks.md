@@ -137,7 +137,7 @@ Claude (cloud builder session, story-7-4-5).
 
 ### Gate
 
-GATE_LINE
+**Gate (R6):** commit `1d7a1c18` (branch `story-7-4-5` = story-7-3 `18a328ad` + this story, merged with master `c26d1bcf`: 7.1 + 7.2 + 8.1) — `npm run typecheck && npm run lint && npm test && npm run build` all green: **466 test files / 4,238 tests passed, 3 files / 23 tests skipped** (opt-in real-PostgreSQL and the other env-gated files), build ok; 8 min 14 s wall, load average 1.9 → 3.1 on 4 cores (no other job). The commit after it only fills this line (docs).
 
 ### Tasks → tests (R1: "file > test name")
 
