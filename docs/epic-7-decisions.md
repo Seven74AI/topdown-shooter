@@ -173,3 +173,8 @@ Story decisions 7.4 D1–D5 and 7.5 D1–D5 were accepted with the progress file
 | 7.5 B6 | Dev start money | **`DEV_STARTING_WALLET` / `?wallet` set the exact start money (Training's start money is ignored then)** (add Training on top) |
 | 7.5 B7 | A launcher round whose owner is held or gone when it lands | **Training 0 (the owner is not in `world.players`)** (keep the owner's level on the round: one more pool field) |
 | 7.5 B8 | Migration | **None: `progress.training` jsonb exists since 7.1's `0000_init`** |
+
+
+### 7-UI-3 amended (designer, 2026-11-25)
+
+After a 6-colour comparison (`docs/art/occlusion/colours.html`), zombie wall silhouettes stay **red**. Designer: "Red is better, red shouldn't be only for bosses. I mean that the color usually used to show danger. So it works for zombie silhouette." The in-play colour rule becomes **red = danger** (boss danger and zombies), not boss-only. Menu screens keep 7-UI-3 (red allowed).
