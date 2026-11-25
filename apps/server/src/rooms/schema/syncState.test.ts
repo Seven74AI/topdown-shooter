@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setForcedBlackout, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { NEUTRAL_INPUT, disownBuildings, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setForcedBlackout, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -205,6 +205,21 @@ describe("syncState", () => {
     encoder.discardChanges();
     console.info(`[bandwidth] building upgraded: ${bytes} B patch (incl. wallet)`);
     expect(bytes).toBeLessThan(40);
+  });
+
+  it("Story 8.3 E8-H3: disowning a building already sent clears its owner on the same entry", () => {
+    const { controller, state } = setup();
+    const w = controller.world;
+    w.run.phase = "build";
+    expect(controller.placeBuilding("p0", { type: "wood_barricade", gx: 18, gy: 28, rot: 1 }).ok).toBe(true);
+    controller.tick();
+    syncState(state, controller);
+    const entry = state.buildings.get("1");
+    expect(entry?.owner).toBe("p0");
+    expect(disownBuildings(w, "p0")).toBe(1);
+    syncState(state, controller);
+    expect(state.buildings.get("1")).toBe(entry);
+    expect(state.buildings.get("1")?.owner).toBe("");
   });
 
   it("Story 5.14: a bear trap's jaws go out on change only (a 1-field patch), never per tick", () => {
