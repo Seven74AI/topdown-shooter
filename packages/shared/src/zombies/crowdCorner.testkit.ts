@@ -32,6 +32,11 @@ export interface CrowdResult {
   longestHeld: number;
   /** Bodies that never reached a standing player (touched one, wound up on one or swelled) before the bound. */
   notReached: number;
+  /**
+   * Review L1: bodies alive at the bound that never reached a player and never moved `STILL_M` from where they started,
+   * the whole run (first 10 ids). Held or not: a crowd can't vouch for a body that never got anywhere.
+   */
+  neverMoved: number[];
   /** Bodies alive at the bound whose closest approach to a standing player broke `approachOk` (first 10: "id start→closest"). */
   farFrom: string[];
   ticks: number;
@@ -63,6 +68,9 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
   const ax = ids.map((id) => z.x[id] as number);
   const ay = ids.map((id) => z.y[id] as number);
   const start = ids.map((id) => playerDistance(world, z.x[id] as number, z.y[id] as number));
+  const sx = ids.map((id) => z.x[id] as number);
+  const sy = ids.map((id) => z.y[id] as number);
+  const farthest = new Float64Array(n);
   const closest = start.slice();
   const still = new Int32Array(n);
   const heldRun = new Int32Array(n);
@@ -101,6 +109,7 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
       const attacking = z.state[id] === ZOMBIE_STATE.SWELL || isWindupState(z.state[id] as number) || touchingPlayer(world, x, y, r);
       if (attacking) reached[k] = 1;
       closest[k] = Math.min(closest[k] as number, playerDistance(world, x, y));
+      farthest[k] = Math.max(farthest[k] as number, Math.hypot(x - (sx[k] as number), y - (sy[k] as number)));
       moved[k] = Math.hypot(x - (ax[k] as number), y - (ay[k] as number)) >= STILL_M ? 1 : 0;
       free[k] = attacking || moved[k] === 1 ? 1 : 0;
     }
@@ -156,15 +165,17 @@ export function runCrowd(world: World, ids: readonly number[], boundTicks: numbe
   let bloatersLeft = 0;
   let notReached = 0;
   const farFrom: string[] = [];
+  const neverMoved: number[] = [];
   for (let k = 0; k < n; k++) {
     const id = ids[k] as number;
     if (reached[k] === 0) notReached++;
     if (!isZombieAlive(z, id) || z.generation[id] !== gen[k]) continue; // gone (burst, or killed by a blast): no progress to judge
+    if (reached[k] === 0 && (farthest[k] as number) < STILL_M && neverMoved.length < 10) neverMoved.push(id);
     if (opts.approachOk && !opts.approachOk(start[k] as number, closest[k] as number) && farFrom.length < 10) farFrom.push(`${id} ${(start[k] as number).toFixed(2)}→${(closest[k] as number).toFixed(2)}`);
     left++;
     if (z.type[id] === BLOATER) bloatersLeft++;
   }
-  return { inside, longestStill, longestStillId, left: opts.untilGone ? left : 0, bloatersLeft, bodyTicks, heldTicks, longestHeld, notReached, farFrom, ticks };
+  return { inside, longestStill, longestStillId, left: opts.untilGone ? left : 0, bloatersLeft, bodyTicks, heldTicks, longestHeld, notReached, neverMoved, farFrom, ticks };
 }
 
 const near = new Int32Array(512);

@@ -150,7 +150,7 @@ import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from ".
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { cachedProgress, practiceInit } from "../net/practicePool";
 import { progressStore } from "../net/progressStore";
-import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
+import { buildBarItems, dropQuietPresses, dropUndoAfterPick, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { HOST_TOAST_TEXT, HostToastWatch } from "../ui/hostToast";
 import { getSettings } from "../settings/settings";
@@ -517,7 +517,7 @@ export class GameScene extends Phaser.Scene {
   private seenPlaces = 0;
   private wasMouse = false;
   /** Story 5.23: the building keys' reused answer. */
-  private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false };
+  private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false, panel: false };
   private readonly feelBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   /** Story 5.23 (D4, review L2): the placed sounds of this frame's events, one per kind (mine wins). */
   private readonly placedSounds = new PlacedSoundPicker();
@@ -569,6 +569,10 @@ export class GameScene extends Phaser.Scene {
   private readonly barStep: BuildBarStep = { show: false, pick: "", toast: "" };
   /** Story 5.16: the bar's last refusal toast ("" = none), withdrawn once a pick succeeds. */
   private barToast = "";
+  /** Story 10.10 (BU-5, B9): the type of my last confirmed building this run — the server's (solo: the sim's) `building.placed` for me (the quick tile; client-side only). */
+  private lastPlacedType = "";
+  /** Story 10.10 (re-review 2, M): scene clock when a panel pick or the quick tile last started a hold. */
+  private barPickMs = Number.NEGATIVE_INFINITY;
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
   /** Story 5.20: the undo chip ↶ (the last Place's take-back) and what I paid per building this build phase (the panel's label). */
@@ -712,6 +716,9 @@ export class GameScene extends Phaser.Scene {
     this.pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs, balance.buildings.maxPerPlayer);
     this.refusalsDropped.seen = host.placeRefusalsDropped;
     this.handEmptiedMs = Number.NEGATIVE_INFINITY;
+    this.lastPlacedType = ""; // Story 10.10: the quick tile starts from the first unlocked type each run
+    this.barPickMs = Number.NEGATIVE_INFINITY;
+    this.hudModel.buildPanelOpen = false;
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
     this.undo.clear(); // Story 5.20: no undo nor spend from the last run
@@ -1486,6 +1493,7 @@ export class GameScene extends Phaser.Scene {
   private buildKeys(host: SceneHost, router: InputRouter, blocked: boolean): void {
     const k = routeBuildKeys(router.kbm, this.hudModel, this.placement.active, blocked, this.buildKeysOut);
     if (k.slot >= 0) this.keyPick(host, k.slot, blocked);
+    if (k.panel) togglePanelKey(this.hudModel); // Story 10.10 (AC 9): B opens / closes the Build panel
     if (k.pickUp && this.canPlace(host, blocked)) this.onPickUpKey(); // review L5: only while building is possible (5.21: also needs a selection)
   }
 
@@ -1669,6 +1677,7 @@ export class GameScene extends Phaser.Scene {
    */
   private updateUndo(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
     const m = this.hudModel;
+    dropUndoAfterPick(m, this.time.now - this.barPickMs, host.world.balance.controls.build.barQuietMs); // Story 10.10 (re-review 2, M)
     const press = m.undoPressed;
     m.undoPressed = false;
     const standing = this.canPlace(host, false);
@@ -1821,6 +1830,7 @@ export class GameScene extends Phaser.Scene {
     if (r.pick !== "") {
       this.startPlacement(r.pick);
       if (this.placement.active) {
+        this.barPickMs = this.time.now; // re-review 2 (M): a double tap on the pick doesn't reach ↶ beneath it
         if (this.barToast !== "") this.toasts.withdraw(this.barToast); // an old refusal off the screen
         this.barToast = "";
         holdBuildingInput(this.input_); // the hold starts now: no aim or fire in this frame's input either
@@ -1828,6 +1838,12 @@ export class GameScene extends Phaser.Scene {
       }
     }
     m.buildBar = r.show && !m.watching; // Story 8.2: nothing to build while waiting
+    m.buildQuick = quickType(m.buildItems, this.lastPlacedType); // Story 10.10 (BU-5)
+    if (m.buildPanelPressed) {
+      m.buildPanelPressed = false; // Build / Close (its quiet-window press was dropped by `dropQuietPresses`)
+      togglePanelKey(m);
+    }
+    m.buildPanelOpen = panelStaysOpen(m.buildPanelOpen, m.buildBar, r.pick !== "", m.ping.open, m.buildItems.length); // Story 10.10 (AC 6)
   }
 
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
@@ -2081,6 +2097,7 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     // Story 5.5: with the launcher in hand the aim's length carries the lob distance (FR-A, D1).
     // Story 5.12 (D11): with no launcher in hand, a throwable in my slot sets the aim length (its throw range).
+    dropQuietPresses(this.hudModel, this.barQuiet(host)); // Story 10.10 (review 1, 2): a stray Place / ✕ tap lands on ↶, swap, quick-use or Build
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed, this.localThrow(host));
     this.hudModel.swapPressed = false;
     this.hudModel.consumablePressed = false;
@@ -2091,6 +2108,11 @@ export class GameScene extends Phaser.Scene {
     // Story 8.7 (AC 3): Esc closes an open ping wheel before it opens the menu.
     if (menuKey && this.hudModel.ping.open) {
       this.hudModel.ping.open = false;
+      menuKey = false;
+    }
+    // Story 10.10 (AC 9): Esc closes the open Build panel before it opens the menu.
+    if (menuKey && this.hudModel.buildPanelOpen) {
+      this.hudModel.buildPanelOpen = false;
       menuKey = false;
     }
     const menuTap = this.hudModel.menuPressed;
@@ -2185,6 +2207,7 @@ export class GameScene extends Phaser.Scene {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
       } else if (e.type === "building.placed") {
+        if (e.ownerId === localId) this.lastPlacedType = e.buildingType; // Story 10.10 (AC 2, review 3): the quick tile repeats my last building that went down (server truth; a refused Place never counts)
         this.placedFeel(host, e);
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
