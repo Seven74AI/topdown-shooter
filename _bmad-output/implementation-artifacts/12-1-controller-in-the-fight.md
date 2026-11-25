@@ -2,7 +2,7 @@
 
 Status: ready-for-dev
 
-<!-- Epic 12 story 1 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y (27ee720). Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`; epics.md Epic 12. Build after the Network pass, before 12.2 and before Epic 7's screen stories. Decisions D1–D6 at the end: pending the designer's approval. -->
+<!-- Epic 12 story 1 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y (27ee720). Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`; epics.md Epic 12. Build after the Network pass, before 12.2 and before Epic 7's screen stories. Decisions D1–D6 accepted by the designer 2026-11-25 ("ok", all recommendations). -->
 
 ## Story
 
@@ -211,9 +211,9 @@ There's no `project-context.md`. Follow the README: dependencies pinned exactly 
 - [W3C Gamepad spec, standard mapping](https://w3c.github.io/gamepad/#remapping)
 - [WebKit bug 217675: gamepad presses and user gestures](https://bugs.webkit.org/show_bug.cgi?id=217675)
 
-## Decisions (pending the designer)
+## Decisions (accepted by the designer 2026-11-25: all recommendations are rules)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 | --- | --- | --- |
 | D1 | Ping button (Story 8.7) | **D-pad up** (the common ping button in co-op shooters), reserved now and wired in 8.7. The menus use the d-pad only while a screen is open, so there's no clash |
 | D2 | Should a trigger fire too? | **No.** Firing stays automatic while aiming, as on touch (GDD). The triggers are free for 12.4 (rotate) |

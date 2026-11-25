@@ -2,7 +2,7 @@
 
 Status: ready-for-dev
 
-<!-- Epic 12 story 2 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y (27ee720). Depends on 12.1 (GamepadState, the "gamepad" source). Build before Epic 7's screen stories (7.3, 7.6, 7.10 join this focus system). Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D7 at the end: pending the designer's approval. -->
+<!-- Epic 12 story 2 of 4. Story file 2026-11-25 (gds-create-story) from the real code on branch claude/lucid-lamport-r1st1y (27ee720). Depends on 12.1 (GamepadState, the "gamepad" source). Build before Epic 7's screen stories (7.3, 7.6, 7.10 join this focus system). Sources: forge `_bmad-output/forge/controller-support/forged-idea.md`; `planning-artifacts/sprint-change-proposal-2026-11-25-controller.md`. Decisions D1–D7 accepted by the designer 2026-11-25 ("ok", all recommendations). -->
 
 ## Story
 
@@ -248,9 +248,9 @@ There's no `project-context.md`. Follow the README conventions: exact dependency
 - [WebKit bug 217675: Safari has no gamepad user gesture](https://bugs.webkit.org/show_bug.cgi?id=217675)
 - [W3C: iOS needs user activation to show the keyboard](https://lists.w3.org/Archives/Public/public-webapps-github/2021Aug/0238.html)
 
-## Decisions (pending the designer)
+## Decisions (accepted by the designer 2026-11-25: all recommendations are rules)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 | --- | --- | --- |
 | D1 | Focus movement | **Spatial (nearest control in that direction)**, not a fixed tab order. It works for the shop grid and for future screens without per-screen lists |
 | D2 | Wrap at edges | **No wrap**. Focus stops at the edge, so you always know where you are |
