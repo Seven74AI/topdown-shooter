@@ -57,6 +57,11 @@ export interface HeadlessRunOptions {
   /** Story 6.5: called once with the World before the first tick (dev switches: `debug.bossWaves`, `debug.bossHpScale`). */
   setup?: (world: World) => void;
   /**
+   * Investigation cut-test-stall-2026-11-25: called on each bot's view after `botViewFromWorld`, before
+   * `botInput` (tests: rebuild it as `tools/bots` sees it over the wire, to replay that bot headless).
+   */
+  viewHook?: (world: World, playerId: string, view: BotView) => void;
+  /**
    * Story 7.12 (tests only, default off: no other sim changes): while the loot bag is out, bot 0
    * walks straight to it instead of its policy's move (the liveness run: a bot really takes it).
    */
@@ -313,6 +318,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       const view = views[i] as BotView;
       const input = inputs[i] as PlayerInput;
       botViewFromWorld(world, id, view);
+      opts.viewHook?.(world, id, view);
       botInput(view, cfg, seq, input);
       if (opts.seekLoot && i === 0 && world.loot.state === LOOT_BAG.OUT) seekBag(world, id, input); // Story 7.12 (tests)
       if (swapNext[i] && world.run.phase === "wave") {
