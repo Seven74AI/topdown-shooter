@@ -579,4 +579,51 @@ describe("the escape never squeezes a body through an opening narrower than itse
     expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55, true, true)).toBe(PUSH_ESCAPED);
     expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });
+
+  it("review M1-new: a segmented fort (2 m barricade pieces, 10 × 11 m inside) with a 0.5 m hole: from the 0.3 m outer gap or a car over the hole, nobody ends inside", () => {
+    for (const car of [false, true]) {
+      // Inside x (14, 24.5), y (9, 20). North wall at y [8.5, 9]: pieces [14, 20] and [20.5, 24.5]; the hole is x [20, 20.5].
+      const solids = [car ? { name: "car", minX: 19, minY: 6.5, maxX: 22, maxY: 8.5 } : { name: "bar", minX: 19, minY: 7.7, maxX: 21.5, maxY: 8.2 }];
+      const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+      const pieces: [number, number, BuildingRotation][] = [];
+      for (const x of [14, 16, 18, 20.5, 22.5]) pieces.push([x, 8.5, 0]); // north (hole at [20, 20.5])
+      for (const x of [14, 16, 18, 20, 22]) pieces.push([x, 20, 0]); // south
+      for (const y of [8.5, 10.5, 12.5, 14.5, 16.5, 18.5]) pieces.push([13.5, y, 1], [24.5, y, 1]); // west and east
+      for (const [x, y, rot] of pieces) expect(addBuildingAt(world, { id: nextId++, type: "metal_barricade", ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot, hp: 1e9 })).not.toBeNull();
+      const bad: string[] = [];
+      let tried = 0;
+      for (let x = 19.1; x < 21.45; x += 0.05) {
+        for (const y of car ? [7.6, 7.9, 8.2, 8.4] : [8.35]) {
+          tried++;
+          pushOutOfBuildings(world, x, y, RZ_W, x, y, true, true);
+          if (pushed.x > 14 && pushed.x < 24.5 && pushed.y > 9 && pushed.y < 20 && bad.length < 5) bad.push(`${car ? "car" : "gap"}: (${x.toFixed(2)}, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`);
+        }
+      }
+      expect(tried).toBeGreaterThan(40);
+      expect(bad).toEqual([]);
+    }
+  });
+
+  it("review M2-new: a player wedged inside their own sealed fort (between the wall and a crate) stays inside, within 1 m", () => {
+    // Fort inside x (19.5, 24), y (9, 15), the 0.5 m hole at x [21.5, 22] in the north wall; a crate [20.25, 21] × [12, 14]
+    // leaves 0.75 m to the west wall, less than a player (0.8 m).
+    const solids = [
+      { name: "n1", minX: 19.5, minY: 8.5, maxX: 21.5, maxY: 9 },
+      { name: "n2", minX: 22, minY: 8.5, maxX: 24, maxY: 9 },
+      { name: "w", minX: 19, minY: 8.5, maxX: 19.5, maxY: 15.5 },
+      { name: "e", minX: 24, minY: 8.5, maxX: 24.5, maxY: 15.5 },
+      { name: "s", minX: 19.5, minY: 15, maxX: 24, maxY: 15.5 },
+      { name: "crate", minX: 20.25, minY: 12, maxX: 21, maxY: 14 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    // The review's start (12.3) and one near the crate's other end: out past the crate's end, under 1 m. Mid-crate (13), every
+    // way along it is a squeeze (0.75 m < 0.8 m), so it squeezes within the fort to the nearest end (~1.45 m), not out.
+    for (const [y, within] of [[12.3, 1], [13.7, 1], [13, 1.6]] as const) {
+      expect(pushOutOfBuildings(world, 19.875, y, R, 19.875, y, true, true)).toBe(PUSH_ESCAPED);
+      const at = `(19.875, ${y}) -> (${pushed.x.toFixed(2)}, ${pushed.y.toFixed(2)})`;
+      expect(pushed.x > 19.5 && pushed.x < 24 && pushed.y > 9 && pushed.y < 15, `${at}: squeezed out of the fort`).toBe(true);
+      expect(Math.hypot(pushed.x - 19.875, pushed.y - y), at).toBeLessThan(within);
+      expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, R - 1e-6, s.minX, s.minY, s.maxX, s.maxY)), at).toBe(true);
+    }
+  });
 });

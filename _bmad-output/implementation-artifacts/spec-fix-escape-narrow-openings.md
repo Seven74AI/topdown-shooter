@@ -55,6 +55,16 @@ Each new test fails without its part of the fix: (a) and (b) without the open-ar
     - New test (e′) keeps the clearance rule pinned: a 0.68 m slot whose far exit keeps the body's clearance beats a nearer 0.5 m gap. It fails with clearance off.
   - **Nit:** PR #12's golden digest is unchanged (its escapes don't change), so there was nothing to re-pin.
 
+- Re-review round 1 (parent, 993b1a1: changes requested, 2 M / 1 L / 1 nit, dev-only paths):
+  - **M1-new, the square window's corners leaked.** Near boxes were filtered by the reach circle, but the flood window is a square, so boxes entirely in its corners were missing and their cells read as free. A big fort's corner then made it "open". The filter is now the window square grown by the body (Chebyshev); it contains the reach circle, so one list serves the candidates, paths and flood. Test: a segmented fort of 2 m barricade pieces, 10 × 11 m inside, both the 0.3 m outer-gap and car-over-hole variants. Nobody ends inside; it fails with the circle filter.
+  - **M2-new, the L-D squeeze pushed a player out of their own fort.** The start's side is now decided by its nearest free flood cell (the flood is built at every escape). Pass orders:
+    - open start: (0) clearance open → (1) squeeze open → (2) clearance any → (3) squeeze any;
+    - enclosed start: (0) → (2) → (3). It stays in its own pocket, squeezing within it if it must.
+    - Pass 3 is new: a body is never frozen while a centre-clear way out exists. Mid-crate in the reviewer's fort, every way out is a squeeze, and it moves to the crate's nearest end, inside.
+    - Test: the reviewer's fort and crate, a player wedged at (19.875, 12.3), 13 and 13.7. It always stays inside, under 1 m from the starts at the crate's ends (12.3, 13.7) and under 1.6 m mid-crate (13). It fails with the open order for every start.
+  - **L1:** `buildFlood` documents its cost (~1.4–3.9 ms per escape) and says to cache it per (World, versions, r) if the escape ever runs in real play.
+  - **N1:** `buildFlood` documents the resolution condition 2 · minR + minWallDepth > 1.5 · √2 · FLOOD_CELL_M (1.2 m > 0.53 m today).
+
 ## Design Notes
 
 - Case (b) has no answer by distance (both mouths can be equally near), so the open-area preference decides it. The flood area covers the escape's whole reach (±12.5 m, since review M-A), so only a pocket deeper than that counts as open.
