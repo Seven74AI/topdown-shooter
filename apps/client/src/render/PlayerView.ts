@@ -99,6 +99,11 @@ export class PlayerView {
   }
 
   /** Story 7.8 (tests): the layer sprite now, or null. */
+  /** Designer pick C: the body image (the silhouette behind a standing wall copies it). */
+  get bodyImage(): Phaser.GameObjects.Image {
+    return this.body;
+  }
+
   get layerSprite(): Phaser.GameObjects.Image | null {
     return this.layer?.img ?? null;
   }
