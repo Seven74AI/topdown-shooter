@@ -194,7 +194,7 @@ development_status:
   8-5-save-and-quit: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: ready-for-dev  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: ready-for-dev  # story file 8-7-pings.md (2026-11-25; parallel with 8.2+8.3; decisions docs/epic-8-story-decisions.md)
-  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): held seats and downed players leave the evac vote count, tie = Extract; reverses 8.1 review M2
+  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio

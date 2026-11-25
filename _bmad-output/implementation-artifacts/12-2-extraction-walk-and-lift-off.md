@@ -17,7 +17,7 @@ so that the end of a won run feels like an ending, not a cut to a menu.
 ## Designer decisions (2026-11-25)
 
 - When Extract wins, everybody is frozen and moved automatically to the helicopter. When everybody is inside, it flies off.
-- Extract wins on a tie (6.11 D1, unchanged). Disconnected and downed players don't count in the vote (Story 8.12).
+- Extract wins on a tie (6.11 D1, unchanged). Only connected, living players count in the vote: disconnected, downed and dead players don't (Story 8.12).
 
 ## Acceptance Criteria
 
