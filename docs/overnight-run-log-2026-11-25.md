@@ -60,6 +60,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-20: landing order for Epic 7 stories with migrations: 7.1 → 7.2 (0001_run_rewards) → 7.9 (renumbered 0002_look) → 7.3 (next free).
 - OR-21 (= 8.1 B19): solo drop runs the 3 s dropping body before freezing, and a re-drop during the 3-2-1 doesn't cancel it (doc fixed). Alternative: hold a solo dropping body at once while frozen.
 - DESIGNER DECISION (08:45, live): cap re-reviews at two narrow rounds per story; after that the main session checks remaining fixes itself (diff + touched tests, logged); a new high still gets a re-review. Recorded in HANDOFF §3. Applies now: 7.2's round-3 fixes and 8.1's last round are main-session checks.
+- DESIGNER DECISION (09:45, live): consolidation batches for approved stories waiting on each other — one integration branch, one gate, straight to master, no PR (rules in HANDOFF §3). First batch: 7.9 + 7.3.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
