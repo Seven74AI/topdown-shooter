@@ -10,7 +10,7 @@ describe("backup scripts (Story 7.1)", () => {
     const src = readFileSync(join(DEPLOY, "backup.sh"), "utf8");
     expect(src).toContain('local keep="${KEEP_DAYS:-14}"');
     expect(src).toContain('-mtime "+$((keep - 1))"');
-    expect(src).toContain('rclone delete --min-age "$((keep - 1))d"');
+    expect(src).toContain('rclone delete --min-age "${keep}d"'); // re-review L-R1: rclone's min-age 14d keeps 14
   });
 
   it("N2: restore.sh drops the scratch database on any exit", () => {

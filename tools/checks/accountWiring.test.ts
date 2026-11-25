@@ -24,7 +24,9 @@ describe("account wiring (Story 7.1 T7)", () => {
 
   it("every join path in connection.ts fetches the ticket right before joining", () => {
     const src = readFileSync(join(NET, "connection.ts"), "utf8");
-    expect(src.match(/options\("(create|join)", name, await sessionTicket\(\)\)/g)).toHaveLength(3);
+    expect(src.match(/options\("(create|join)", name, await sessionTicket\(\)\)/g)).toHaveLength(2);
+    // Re-review N-R3: seat recovery (rejoinGame) reuses a recent ticket.
+    expect(src).toMatch(/export async function rejoinGame[\s\S]*?options\("join", name, await recoveryTicket\(\)\)/);
     expect(src).not.toMatch(/options\("(create|join)", name\)/);
   });
 });

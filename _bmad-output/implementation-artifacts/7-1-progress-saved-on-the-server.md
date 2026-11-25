@@ -65,6 +65,10 @@ so that my progress is kept from my very first run.
 - [x] [AI-Review][Low] L5 cookie `__Host-tdg`, Path=/, no Domain — `accountRoutes.test.ts` > "P1 …" (name, Path=/, no Domain); > "review L5: a cookie under the old name `tdg` … is not read".
 - [x] [AI-Review][Low] L6 `cache-control: no-store` asserted — `accountRoutes.test.ts` > "P1 …".
 - [x] [AI-Review][Nit] N1 off-VPS retention 14 dumps, N2 restore.sh trap (globals), N3 docs line — `tools/checks/backupScripts.test.ts` > "N1 …", "N2 …"; `docs/deploy.md` › Database (N3).
+- [x] [AI-Review][Low] L-R1 (re-review 1) off-VPS retention back to `--min-age "${keep}d"` (rclone 1.68.2 keeps 14 with it) — `tools/checks/backupScripts.test.ts` > "N1: local and off-VPS copies keep the same 14 dumps".
+- [x] [AI-Review][Nit] N-R1 restore-path re-key asserted — `RunRoom.account.test.ts` > "re-review N-R1: a remembered unsaved seat restored with a ticket is re-keyed to acct: …" (mutation `seatKey: key` → 1 failed).
+- [x] [AI-Review][Nit] N-R2 deadline with no presented token — `guestSession.test.ts` > "re-review N-R2: past the deadline with NO presented token …" (mutation `presented ?? mintGuestToken()` → 1 failed).
+- [x] [AI-Review][Nit] N-R3 seat recovery reuses a ticket < 9 min old (B12) — `account.test.ts` > "re-review N-R3: 10 seat-recovery attempts make at most 1 /account/session call …"; `tools/checks/accountWiring.test.ts` > "every join path in connection.ts fetches the ticket right before joining" (rejoinGame → recoveryTicket). Mutation (no reuse) → 1 failed. Waits in `RunRoom.account.test.ts` raised to 5 s (a 1 s default flaked once under parallel load).
 
 ## Dev Notes
 

@@ -50,8 +50,8 @@ main() {
 	fi
 	echo "==> copying to ${remote}"
 	rclone copyto "$file" "${remote}/${day}.dump"
-	# Review N1: the same 14 dumps as locally (files older than KEEP_DAYS - 1 days go, like `find -mtime +13`).
-	rclone delete --min-age "$((keep - 1))d" --include '*.dump' "$remote"
+	# Re-review L-R1 (checked with rclone 1.68.2): `--min-age 14d` keeps the same 14 dumps as `find -mtime +13` locally.
+	rclone delete --min-age "${keep}d" --include '*.dump' "$remote"
 	echo "$(date -u +%FT%TZ) ==> backup ${day} done"
 }
 
