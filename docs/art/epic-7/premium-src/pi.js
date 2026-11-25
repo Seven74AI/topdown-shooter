@@ -357,7 +357,7 @@ function makePI(S) {
   function base(L, state) {
     return cached(`pi-base-${S.code}-${L.w}-${state}`, () => {
       const [c, g] = mk(L.w, L.h);
-      g.drawImage(S.bg(L.w, L.h), 0, 0, L.w, L.h);
+      g.drawImage(S.bg(L.w, L.h, state), 0, 0, L.w, L.h);
       // left: team
       const [fx, fy, fW] = panel(g, L.left.x, L.left.y, L.left.w, L.left.h);
       header(g, fx, fy, fW, L.hb, 'EXTRACTED', { caption: 'RUN COMPLETE · DOWNTOWN', px: L.small ? 19 : 24 });
@@ -444,21 +444,22 @@ function makePI(S) {
 function piMicro(g, s, x, y, o = {}) { text(g, s, x, y, { px: o.px || 8.5, wt: 600, ls: o.ls != null ? o.ls : 1.4, col: o.col || 'rgba(200,205,212,0.6)', align: o.align || 'left', shadow: false }); }
 // ---------- the three skins ----------
 const PI_BG = (look, dim) => (w, h) => dawn(w, h, look, { dim, blur: 2.5 });
-const PI1 = makePI({
-  code: 'PI1', shape: 'notch', corner: 10, fw: 3, cardCorner: 7,
-  bg: PI_BG('dw1', 0.5), sheetBg: '#0b0d10', fade: 'rgba(9,12,17,0.95)',
-  frame: ['#c3cfdb', '#5d6a78', '#252c35'], frameTex: 'fbm', edgeHi: 'rgba(255,255,255,0.85)',
-  face: ['rgba(30,38,50,0.9)', 'rgba(9,12,18,0.95)'],
-  band: ['rgba(242,195,107,0.16)', 'rgba(242,195,107,0)'],
-  ink: '#f4f6f8', ink2: '#c2cbd5', mute: '#8693a1', line: 'rgba(190,205,225,0.14)', lineStrong: 'rgba(242,195,107,0.75)', line2: 'rgba(200,214,232,0.35)',
-  accent: '#f2c36b', accentText: '#f7d48f', accentGlow: 'rgba(255,190,90,0.85)', titleLs: 2.4, titleGlow: 'rgba(255,240,215,0.25)', btnLs: 2,
-  numWt: 500, numSkew: 0, numFill: (g, px) => goldFill(g, 0, px * 0.75), numGlow: 'rgba(255,170,60,0.55)',
-  btnPrimary: ['#fff0c8', '#f2c36b', '#b77f22'], btnSecondary: ['rgba(40,50,64,0.95)', 'rgba(20,26,34,0.95)', 'rgba(12,16,22,0.95)'], btnOff: ['#3a4048', '#2a2f35', '#1e2227'], btnInk: '#1b1306', btnGlow: 'rgba(255,190,90,0.18)',
-  track: 'rgba(0,0,0,0.55)', fill: ['#b77f22', '#ffe2a0'], selA: 'rgba(242,195,107,0.24)', selB: 'rgba(242,195,107,0.02)',
-  tagAccent: ['#ffe3a3', '#e2a94a'], tagAccentInk: '#1b1306', tagWhite: ['#ffffff', '#d5dce4'], tagDark: ['rgba(40,50,64,0.95)', 'rgba(16,20,28,0.95)'],
+function lumenSkin(P) {
+  return {
+  code: P.code, shape: 'notch', corner: 10, fw: 3, cardCorner: 7,
+  bg: (w, h, st) => dawn(w, h, st === 'endless' ? 'dw2' : 'dw1', { dim: 0.5, blur: 2.5 }), sheetBg: '#0b0d10', fade: 'rgba(9,12,17,0.95)',
+  frame: P.frame, frameTex: 'fbm', edgeHi: 'rgba(255,255,255,0.85)',
+  face: P.face,
+  band: [P.tint(0.16), P.tint(0)],
+  ink: '#f4f6f8', ink2: '#c2cbd5', mute: '#8693a1', line: 'rgba(190,205,225,0.14)', lineStrong: P.tint(0.75), line2: 'rgba(200,214,232,0.35)',
+  accent: P.accent, accentText: P.accentText, accentGlow: P.glow, titleLs: 2.4, titleGlow: 'rgba(255,240,215,0.25)', btnLs: 2,
+  numWt: 500, numSkew: 0, numFill: (g, px) => P.numFill(g, px), numGlow: P.numGlow,
+  btnPrimary: P.btn, btnSecondary: ['rgba(40,50,64,0.95)', 'rgba(20,26,34,0.95)', 'rgba(12,16,22,0.95)'], btnOff: ['#3a4048', '#2a2f35', '#1e2227'], btnInk: P.ink0, btnGlow: P.tint(0.18),
+  track: 'rgba(0,0,0,0.55)', fill: P.fill, selA: P.tint(0.24), selB: P.tint(0.02),
+  tagAccent: P.tag, tagAccentInk: P.ink0, tagWhite: ['#ffffff', '#d5dce4'], tagDark: ['rgba(40,50,64,0.95)', 'rgba(16,20,28,0.95)'],
   nudge: 'rgba(160,190,225,0.07)', badgeW: 96,
   rarity: {
-    gold: { frame: ['#fff0c8', '#e2a94a', '#8a5a14'], bg: ['#5a4320', '#1a130a'], head: ['#f2c36b', '#c48d34'], headInk: '#1b1306', edge: '#ffe2a0', glow: 'rgba(255,190,90,0.9)', floor: 'rgba(255,200,120,0.55)', back: 'rgba(255,190,100,0.35)' },
+    gold: P.rNew,
     white: { frame: ['#ffffff', '#aeb8c4', '#4c5562'], bg: ['#3e4652', '#14181e'], head: ['#eef2f6', '#b9c3ce'], headInk: '#11161c', edge: '#ffffff', glow: 'rgba(220,235,255,0.8)', floor: 'rgba(220,230,245,0.45)', back: 'rgba(210,225,245,0.25)' },
     steel: { frame: ['#9fb3c6', '#4f5f70', '#222a33'], bg: ['#2a3542', '#0e1218'], head: ['#5a6b7d', '#3a4756'], headInk: '#eef3f8', edge: '#a9c0d6', glow: 'rgba(150,190,230,0.7)', floor: 'rgba(160,190,230,0.35)', back: 'rgba(150,190,230,0.2)' },
     slot: { frame: ['#9cc4ff', '#3d8bff', '#173a78'], bg: ['#1e3456', '#0b1424'], head: ['#3d8bff', '#2a62c0'], headInk: '#ffffff', edge: '#a8ccff', glow: 'rgba(80,150,255,0.8)', floor: 'rgba(110,170,255,0.4)', back: 'rgba(80,150,255,0.25)' },
@@ -468,24 +469,46 @@ const PI1 = makePI({
     g.strokeStyle = 'rgba(200,215,235,0.05)'; g.lineWidth = 1; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(x + w - 70 + i * 8, y); g.lineTo(x + w + i * 8, y + 70); g.stroke(); }
     const gr = g.createLinearGradient(0, y, 0, y + h * 0.35); gr.addColorStop(0, 'rgba(220,235,255,0.06)'); gr.addColorStop(1, 'rgba(220,235,255,0)'); g.fillStyle = gr; g.fillRect(x, y, w, h);
   },
-  bandDetail(g, x, y, w, h) { g.fillStyle = '#f2c36b'; g.fillRect(x, y, 2, h); },
-  endCaps(g, x, y, w, strong) { if (!strong) return; g.fillStyle = '#f2c36b'; for (const ex of [x, x + w]) { g.save(); g.translate(ex, y + 0.5); g.rotate(Math.PI / 4); g.fillRect(-2.2, -2.2, 4.4, 4.4); g.restore(); } },
-  inlays(g, x, y, w, h, fw, c) { g.fillStyle = '#f2c36b'; for (const [ix, iy] of [[x + c + 6, y + 1.5], [x + w - c - 6, y + h - 1.5]]) { g.save(); g.translate(ix, iy); g.rotate(Math.PI / 4); g.fillRect(-1.6, -1.6, 3.2, 3.2); g.restore(); } g.fillStyle = 'rgba(255,255,255,0.5)'; for (let i = 0; i < 5; i++) g.fillRect(x + w - 16 - i * 4, y + 1, 2, 1); },
+  bandDetail(g, x, y, w, h) { g.fillStyle = P.accent; g.fillRect(x, y, 2, h); },
+  endCaps(g, x, y, w, strong) { if (!strong) return; g.fillStyle = P.accent; for (const ex of [x, x + w]) { g.save(); g.translate(ex, y + 0.5); g.rotate(Math.PI / 4); g.fillRect(-2.2, -2.2, 4.4, 4.4); g.restore(); } },
+  inlays(g, x, y, w, h, fw, c) { g.fillStyle = P.accent; for (const [ix, iy] of [[x + c + 6, y + 1.5], [x + w - c - 6, y + h - 1.5]]) { g.save(); g.translate(ix, iy); g.rotate(Math.PI / 4); g.fillRect(-1.6, -1.6, 3.2, 3.2); g.restore(); } g.fillStyle = 'rgba(255,255,255,0.5)'; for (let i = 0; i < 5; i++) g.fillRect(x + w - 16 - i * 4, y + 1, 2, 1); },
   btnDetail(g, x, y, w, h, v, off) { if (v === 'primary' && !off) { g.fillStyle = 'rgba(27,19,6,0.25)'; for (let i = 0; i < 3; i++) g.fillRect(x + w - 14 + i * 3, y + h / 2 - 4, 1.2, 8); } },
-  btnIcon(g, x, y, w, h, v, off, tw0, cx) { if (v === 'tertiary') { g.fillStyle = off ? 'rgba(200,205,212,0.35)' : '#f2c36b'; g.save(); g.translate(cx - tw0 / 2 - 9, y + h / 2); g.rotate(Math.PI / 4); g.fillRect(-2.5, -2.5, 5, 5); g.restore(); g.fillStyle = off ? 'rgba(200,205,212,0.2)' : 'rgba(242,195,107,0.6)'; g.fillRect(cx - tw0 / 2, y + h / 2 + 9, tw0, 1); } },
+  btnIcon(g, x, y, w, h, v, off, tw0, cx) { if (v === 'tertiary') { g.fillStyle = off ? 'rgba(200,205,212,0.35)' : P.accent; g.save(); g.translate(cx - tw0 / 2 - 9, y + h / 2); g.rotate(Math.PI / 4); g.fillRect(-2.5, -2.5, 5, 5); g.restore(); g.fillStyle = off ? 'rgba(200,205,212,0.2)' : P.tint(0.6); g.fillRect(cx - tw0 / 2, y + h / 2 + 9, tw0, 1); } },
   barTicks(g, x, y, w, h) { g.fillStyle = 'rgba(255,255,255,0.08)'; for (let i = 1; i < 10; i++) g.fillRect(x + w * i / 10, y + 1, 1, h - 2); },
   barFillDetail() {},
   cardPattern(g, x, y, w, h) { g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1; for (let i = -h; i < w; i += 6) { g.beginPath(); g.moveTo(x + i, y + h); g.lineTo(x + i + h, y); g.stroke(); } },
   badge(g, x, y, w, h, shape) {
     const p = () => { g.beginPath(); g.moveTo(x + 10, y); g.lineTo(x + w - 10, y); g.lineTo(x + w, y + h / 2); g.lineTo(x + w - 10, y + h); g.lineTo(x + 10, y + h); g.lineTo(x, y + h / 2); g.closePath(); };
     castShadow(g, p, { blur: 6, a: 0.6, dx: 1, dy: 3 });
-    let gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#fff0c8'); gr.addColorStop(0.5, '#f2c36b'); gr.addColorStop(1, '#a8701c'); g.fillStyle = gr; p(); g.fill();
-    g.fillStyle = 'rgba(20,14,4,0.9)'; g.beginPath(); g.moveTo(x + 13, y + 3); g.lineTo(x + w - 13, y + 3); g.lineTo(x + w - 4, y + h / 2); g.lineTo(x + w - 13, y + h - 3); g.lineTo(x + 13, y + h - 3); g.lineTo(x + 4, y + h / 2); g.closePath(); g.fill();
-    text(g, 'ROOKIE', x + w / 2 - 12, y + 13, { px: 9, wt: 700, ls: 1.6, col: '#f7d48f', align: 'center', shadow: false });
-    text(g, 'BONUS', x + w / 2 - 12, y + 23, { px: 9, wt: 700, ls: 1.6, col: '#f7d48f', align: 'center', shadow: false });
-    text(g, '×2', x + w - 24, y + 21, { px: 17, wt: 700, col: '#fff', align: 'center', shadow: false, glow: 'rgba(255,190,90,0.9)', blur: 8 });
+    let gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#fff0c8'); gr.addColorStop(0.5, P.accent); gr.addColorStop(1, '#a8701c'); g.fillStyle = gr; p(); g.fill();
+    g.fillStyle = P.badgeIn; g.beginPath(); g.moveTo(x + 13, y + 3); g.lineTo(x + w - 13, y + 3); g.lineTo(x + w - 4, y + h / 2); g.lineTo(x + w - 13, y + h - 3); g.lineTo(x + 13, y + h - 3); g.lineTo(x + 4, y + h / 2); g.closePath(); g.fill();
+    text(g, 'ROOKIE', x + w / 2 - 12, y + 13, { px: 9, wt: 700, ls: 1.6, col: P.accentText, align: 'center', shadow: false });
+    text(g, 'BONUS', x + w / 2 - 12, y + 23, { px: 9, wt: 700, ls: 1.6, col: P.accentText, align: 'center', shadow: false });
+    text(g, '×2', x + w - 24, y + 21, { px: 17, wt: 700, col: '#fff', align: 'center', shadow: false, glow: P.glow, blur: 8 });
   },
-});
+};
+}
+
+const rgbaOf = (rgb) => (a) => `rgba(${rgb},${a})`;
+const LUMEN = {
+  LG0: { name: 'Gold (reference)', accent: '#f2c36b', accentText: '#f7d48f', glow: 'rgba(255,190,90,0.85)', tint: rgbaOf('242,195,107'), btn: ['#fff0c8', '#f2c36b', '#b77f22'], ink0: '#1b1306', fill: ['#b77f22', '#ffe2a0'], tag: ['#ffe3a3', '#e2a94a'], badgeIn: 'rgba(20,14,4,0.9)',
+    frame: ['#c3cfdb', '#5d6a78', '#252c35'], face: ['rgba(30,38,50,0.9)', 'rgba(9,12,18,0.95)'], numFill: (g, px) => goldFill(g, 0, px * 0.75), numGlow: 'rgba(255,170,60,0.55)',
+    rNew: { frame: ['#fff0c8', '#e2a94a', '#8a5a14'], bg: ['#5a4320', '#1a130a'], head: ['#f2c36b', '#c48d34'], headInk: '#1b1306', edge: '#ffe2a0', glow: 'rgba(255,190,90,0.9)', floor: 'rgba(255,200,120,0.55)', back: 'rgba(255,190,100,0.35)' } },
+  LC1: { name: 'Ice cyan', accent: '#6fe0ff', accentText: '#a9eeff', glow: 'rgba(90,210,255,0.85)', tint: rgbaOf('111,224,255'), btn: ['#e6fbff', '#76dcf7', '#2a8fb0'], ink0: '#04202a', fill: ['#1f86a8', '#c8f6ff'], tag: ['#c8f6ff', '#5fc6e6'], badgeIn: 'rgba(3,18,26,0.92)',
+    frame: ['#d2e2ee', '#5f7486', '#222c36'], face: ['rgba(22,36,50,0.9)', 'rgba(6,11,18,0.95)'], numFill: (g, px) => { const gr = g.createLinearGradient(0, -px * 0.75, 0, 0); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#bff3ff'); gr.addColorStop(0.55, '#5fd0f2'); gr.addColorStop(1, '#1d6f8c'); return gr; }, numGlow: 'rgba(80,200,255,0.55)',
+    rNew: { frame: ['#e6fbff', '#5fc6e6', '#165a73'], bg: ['#163d52', '#08141c'], head: ['#76dcf7', '#3fa8cc'], headInk: '#04202a', edge: '#c8f6ff', glow: 'rgba(90,210,255,0.9)', floor: 'rgba(120,220,255,0.5)', back: 'rgba(90,210,255,0.32)' } },
+  LP2: { name: 'Platinum', accent: '#e4e9ef', accentText: '#f1e3cc', glow: 'rgba(235,240,250,0.75)', tint: rgbaOf('228,233,239'), btn: ['#ffffff', '#d9dfe6', '#8d97a3'], ink0: '#14181d', fill: ['#8d97a3', '#ffffff'], tag: ['#ffffff', '#c9d0d8'], badgeIn: 'rgba(14,16,20,0.92)',
+    frame: ['#eef2f6', '#7c8794', '#2b3139'], face: ['rgba(30,33,38,0.9)', 'rgba(10,11,14,0.95)'], numFill: (g, px) => { const gr = g.createLinearGradient(0, -px * 0.75, 0, 0); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#f3ead9'); gr.addColorStop(0.56, '#b9b3a8'); gr.addColorStop(1, '#efe6d6'); return gr; }, numGlow: 'rgba(255,240,215,0.4)',
+    rNew: { frame: ['#fff8ea', '#d8c3a0', '#6e5f48'], bg: ['#3d3933', '#121110'], head: ['#efe2c8', '#c9b28c'], headInk: '#1b1710', edge: '#fff5e2', glow: 'rgba(255,235,200,0.75)', floor: 'rgba(255,240,215,0.45)', back: 'rgba(255,240,215,0.25)' } },
+  LT3: { name: 'Teal + brass', accent: '#3fd6c0', accentText: '#9cefe2', glow: 'rgba(60,220,200,0.8)', tint: rgbaOf('63,214,192'), btn: ['#f3dca0', '#c9a052', '#7a5a22'], ink0: '#1a1205', fill: ['#1d8f80', '#c4fff4'], tag: ['#c4fff4', '#3fbfac'], badgeIn: 'rgba(4,22,20,0.92)',
+    frame: ['#e9d5a2', '#9a7a3e', '#3a2c14'], face: ['rgba(14,32,34,0.9)', 'rgba(5,12,13,0.95)'], numFill: (g, px) => { const gr = g.createLinearGradient(0, -px * 0.75, 0, 0); gr.addColorStop(0, '#fff6dc'); gr.addColorStop(0.45, '#e9cf8c'); gr.addColorStop(0.55, '#b88a3c'); gr.addColorStop(1, '#6e4f1a'); return gr; }, numGlow: 'rgba(230,190,110,0.45)',
+    rNew: { frame: ['#f6e3b2', '#c9a052', '#6a4c18'], bg: ['#4a3a1c', '#15100a'], head: ['#e3c27c', '#b38a3e'], headInk: '#1a1205', edge: '#f6e3b2', glow: 'rgba(240,200,120,0.85)', floor: 'rgba(240,210,140,0.5)', back: 'rgba(240,200,120,0.3)' } },
+};
+const LG0 = makePI(lumenSkin({ code: 'LG0', ...LUMEN.LG0 }));
+const LC1 = makePI(lumenSkin({ code: 'LC1', ...LUMEN.LC1 }));
+const LP2 = makePI(lumenSkin({ code: 'LP2', ...LUMEN.LP2 }));
+const LT3 = makePI(lumenSkin({ code: 'LT3', ...LUMEN.LT3 }));
+const PI1 = makePI(lumenSkin({ code: 'PI1', ...LUMEN.LG0 }));
 const PI2 = makePI({
   code: 'PI2', shape: 'cut', corner: 12, fw: 4, cardCorner: 8,
   bg: PI_BG('dw1', 0.58), sheetBg: '#0c0d0e', fade: 'rgba(18,20,23,0.97)',

@@ -156,3 +156,20 @@ Component set (one system, three skins, `premium-src/pi.js`):
 
 Reveal: the bars fill one by one, the counter ticks, the badge stamps on, then the cards land one by one with a sweep, a white-hot edge burst and sparks, and the panel auto-scrolls.
 Captures: `node docs/art/epic-7/premium-src/shots.cjs PI1 --page=premium-rewards-2.html --out=docs/art/epic-7/premium-2/ --frames=<scratch>`.
+
+## Premium round 3: Lumen colour themes (`premium-rewards-3.html`, captures in `premium-3/`)
+
+The designer chose **Lumen** (PI1) as the Epic 7 interface language and asked for other colour themes. The
+construction, components, layout and motion are identical; only the palette changes (`lumenSkin(P)` in
+`premium-src/pi.js`). Each theme is shown on DW1 dawn (568 × 320) and DW2 blue hour (800 × 360).
+
+| Code | Theme | Mood | Colour-rule check |
+| --- | --- | --- | --- |
+| LG0 | Gold (reference) | Warm, triumphant, loot-coded | Close to amber (= event you can use) and to the orange slot; slot colour only appears as a dot or bar |
+| **LC1** (favourite) | Ice cyan | Cool, clean, high-tech; strongest contrast on the warm dawn | Near the blue slot: teammate cards keep the slot-blue frame, dot and name; new items use a lighter, greener cyan; Supplies are no longer amber |
+| LP2 | Platinum | Quiet luxury: white-silver chrome, champagne only on new items | White = pick-ups and people: silver chrome lowers the pop of names, so new items get a warm champagne frame |
+| LT3 | Teal + brass | Crafted, instrument-like | Teal sits between the green slot and gas yellow-green; it stays blue-leaning and never fills large areas; new items are brass |
+
+Files per theme: `premium-3/<code>-components.jpg` (sheet at 2×), `-results-568.jpg`, `-results-800.jpg`,
+`-reveal-at-2.9s.jpg`, `-section.jpg` (half size), `-reveal.webm` (about 1.5 MB). The PI3 label overflow (the
+chevron past the button edge) was fixed in the shared button code in round 2.
