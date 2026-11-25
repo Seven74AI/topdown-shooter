@@ -96,6 +96,8 @@ After a merge to `master` with CI green: `cd /root/topdown-shooter && deploy/dep
 
 Once, the first time you deploy a master that contains Story 7.1 (`deploy/backup.sh` exists). Details: `docs/deploy.md` › Database.
 
+**Deploy 7.1 together with 7.3 (unlocks):** do the first Epic 7 deploy from a master that already contains Story 7.3 (`apps/server/src/auth/unlock.ts` exists). A 7.1-only client left open across a later 7.3 deploy would play unsaved until reloaded (`docs/deploy.md` › Database › Unlocks). Extra check after the deploy: `curl -s -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' -d '{"unlockId":"mine","requestId":"00000000-0000-4000-8000-000000000000"}' https://hordes.sevend.io/api/account/unlock` answers 401 (no cookie: nobody is charged).
+
 1. Check free disk (`df -h /`; the postgres image is ~110 MB, the database starts tiny) and that `docker compose version` is 2.17 or newer (`up --wait`).
 2. `deploy/deploy.sh` as usual. Expect the new lines `==> generating POSTGRES_PASSWORD in deploy/.env`, `==> generating SESSION_SECRET in deploy/.env`, `==> starting postgres and applying database migrations` and a `db_migrated` log line. Never print or paste the two secrets anywhere.
 3. Checks: `docker compose -f deploy/docker-compose.yml ps` shows `postgres` healthy; `docker volume ls | grep topdown_pgdata`; `curl -s -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' -d '{}' https://hordes.sevend.io/api/account/session` answers `{"saved":true,...}` with a `set-cookie: __Host-tdg=...; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Lax` header (no Domain); the same call with `-H 'origin: https://example.com'` answers 403.

@@ -38,7 +38,7 @@ describe("session response look (Story 7.9 AC 1)", () => {
     const database = openPglite();
     open.push(database);
     const r = await session(database);
-    expect(r.saved && r.progress).toEqual({ look: null });
+    expect(r.saved && r.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null }); // Story 7.3 merge: one progress object
   });
 
   it("a stored look comes back as saved; junk in the column comes back canonical (never a client parse failure)", async () => {
@@ -50,12 +50,12 @@ describe("session response look (Story 7.9 AC 1)", () => {
     expect(r.saved && r.progress?.look).toBe("v1|top:jacket|head:cap|hair:short|pack:backpack|skin:1|c:3c5670,231f1c,1f2326");
   });
 
-  it("beat the rule 5: a progress read that fails keeps the session saved with the default look", async () => {
+  it("beat the rule 5 (as merged with 7.3, decision 7.3 B17): a progress read that fails keeps the session saved; progress is null, so the phone keeps its own look copy", async () => {
     const database = openPglite();
     open.push(database);
     const broken: ProgressRepo = { ...progressRepo(database), get: async () => Promise.reject(new Error("db hiccup")) };
     const r = await session(database, broken);
     expect(r.saved).toBe(true);
-    expect(r.saved && r.progress).toEqual({ look: null });
+    expect(r.saved && r.progress).toBeNull();
   });
 });

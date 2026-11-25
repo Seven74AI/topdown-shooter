@@ -1,0 +1,231 @@
+// Re-review 7.3 (narrow) 1: scratch exploit probes — NOT committed as a test (kept as a .txt probe).
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+import { accountSessionResponseSchema } from "@topdown/shared";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { accountsRepo } from "./accountsRepo";
+import { openPostgres, type Database } from "./client";
+import { migrateDb } from "./migrate";
+import { progressRepo } from "./progressRepo";
+import { log } from "../ops/logger";
+import { hashGuestToken } from "../run/lobby";
+import { bootTestServer } from "../test/bootTestServer";
+import { unlockRequests } from "../auth/unlock";
+
+const URL = process.env.TEST_DATABASE_URL as string;
+log.level = "silent";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let n = 0;
+const out: string[] = [];
+
+describe.skipIf(!URL)("RR 7.3 exploit", () => {
+  let database: Database;
+  let port: number;
+  let shutdown: () => Promise<void>;
+  beforeAll(async () => {
+    database = openPostgres(URL);
+    await migrateDb({ kind: "postgres", db: await database.db() });
+    const b = await bootTestServer({ database, sessionSecret: "s".padEnd(48, "x") });
+    port = b.port;
+    shutdown = () => b.colyseus.shutdown();
+  });
+  afterEach(() => unlockRequests.clear());
+  afterAll(async () => {
+    (await import("node:fs")).appendFileSync("/tmp/claude-0/rr73-results.txt", "\n=== RUN " + new Date().toISOString() + "\n" + out.join("\n") + "\n");
+    await shutdown();
+  });
+
+  async function account(supplies: number) {
+    ++n; const token = randomUUID().replace(/-/g, "");
+    const res = await fetch(`http://127.0.0.1:${port}/account/session`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-real-ip": `10.${(n >> 8) + 40}.${n % 250}.${(n * 7) % 250}` },
+      body: JSON.stringify({ deviceToken: token }),
+    });
+    const s = accountSessionResponseSchema.parse(await res.json());
+    if (!s.saved) throw new Error("not saved");
+    const a = await accountsRepo(database).findByTokenHash(hashGuestToken(token));
+    if (!a) throw new Error("no acct");
+    if (supplies) await progressRepo(database).addSupplies(randomUUID(), a.id, () => ({ supplies, breakdown: {} }));
+    return { token, id: a.id };
+  }
+  async function unlock(token: string, unlockId: string, requestId: string, ip = "10.7.0.1") {
+    const t0 = Date.now();
+    const res = await fetch(`http://127.0.0.1:${port}/account/unlock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: `__Host-tdg=${token}`, "x-real-ip": ip },
+      body: JSON.stringify({ unlockId, requestId }),
+    });
+    const body = await res.json().catch(() => null);
+    return { status: res.status, body, ms: Date.now() - t0 };
+  }
+  async function lockFor(id: string, ms: number) {
+    const c = new pg.Client({ connectionString: URL, application_name: "rr73_locker" });
+    c.on("error", (e) => out.push(`locker client error: ${e.message}`));
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [id]);
+    return new Promise<void>((res) => setTimeout(() => void c.query("commit").then(() => c.end()).then(() => res()), ms));
+  }
+  const row = async (id: string) => progressRepo(database).get(id);
+  function check(label: string, r: { status: number; body: unknown; ms: number }, after: { supplies: number; unlocks: string[] } | null, start: number, price: number, item: string) {
+    const charged = after?.supplies === start - price && after.unlocks.includes(item);
+    const unchanged = after?.supplies === start && !after.unlocks.includes(item);
+    const ok = r.status === 200 && (r.body as { ok?: boolean })?.ok === true;
+    const consistent = ok ? charged : r.status === 503 ? unchanged : false;
+    out.push(`${label}: status ${r.status} ok=${ok} in ${r.ms} ms; after=${JSON.stringify(after && { s: after.supplies, u: after.unlocks })} → ${consistent ? "CONSISTENT" : "MISMATCH"}${r.ms > 3000 ? " [> client 3 s abort]" : ""}`);
+    return consistent;
+  }
+
+  // chainsaw price
+  const ITEM = "mine";
+  let PRICE = 0;
+  beforeAll(async () => {
+    const { findUnlock } = await import("@topdown/shared");
+    PRICE = findUnlock(ITEM)!.price;
+  });
+
+  for (const lockMs of [1400, 1790, 1810, 2500, 5500]) {
+    it(`row locked ${lockMs} ms → answer = committed; same-id retry never double-charges`, async () => {
+      const a = await account(1000);
+      const rel = lockFor(a.id, lockMs);
+      await sleep(50);
+      const rid = randomUUID();
+      const r = await unlock(a.token, ITEM, rid);
+      await rel;
+      await sleep(1500);
+      const after = await row(a.id);
+      expect(check(`lock ${lockMs}`, r, after, 1000, PRICE, ITEM)).toBe(true);
+      const r2 = await unlock(a.token, ITEM, rid);
+      const r3 = await unlock(a.token, ITEM, rid);
+      const after2 = await row(a.id);
+      out.push(`  retry same id: ${r2.status} ${JSON.stringify(r2.body)}; again ${r3.status} ok=${r3.body?.ok}; supplies ${after2?.supplies}, unlocks ${JSON.stringify(after2?.unlocks)}`);
+      expect(after2?.supplies).toBe(1000 - PRICE);
+    }, 30_000);
+  }
+
+  for (const [hold, lock] of [[1300, 2300], [1900, 1400], [1950, 1450]] as const) {
+    it(`pool saturated (5 held ${hold} ms) + row lock ${lock} ms → answer = committed`, async () => {
+      const a = await account(1000);
+      const others = await Promise.all(Array.from({ length: 5 }, () => account(1)));
+      const relA = lockFor(a.id, lock);
+      const rels = others.map((o) => lockFor(o.id, hold));
+      await sleep(100);
+      const repo = progressRepo(database);
+      const busy = others.map((o) => repo.addSupplies(randomUUID(), o.id, () => ({ supplies: 1, breakdown: {} })).catch((e: unknown) => e));
+      await sleep(20);
+      const r = await unlock(a.token, ITEM, randomUUID());
+      await Promise.all([relA, ...rels, ...busy]);
+      await sleep(2000);
+      expect(check(`pool5 hold ${hold} + lock ${lock}`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    }, 40_000);
+  }
+
+  for (const [sleepS, lockMs] of [[1.9, 3300], [1.9, 3600], [1.95, 4000]] as const) {
+    it(`pool held by 5 slow plain queries (${sleepS} s) + row lock until ${lockMs} ms → answer = committed; time vs client 3 s abort`, async () => {
+      const { sql } = await import("drizzle-orm");
+      const a = await account(1000);
+      const rel = lockFor(a.id, lockMs);
+      const db = await database.db();
+      const hogs = Array.from({ length: 5 }, () => db.execute(sql.raw(`select pg_sleep(${sleepS})`)).catch((e: unknown) => e));
+      await sleep(30);
+      const r = await unlock(a.token, ITEM, randomUUID());
+      await Promise.all([rel, ...hogs]);
+      await sleep(1500);
+      expect(check(`hogs 5x${sleepS}s + lock ${lockMs}`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    }, 40_000);
+  }
+
+  it("client-side view: unlock answered after the client's 3 s abort; the F2 refresh at 3.0 s reads what?", async () => {
+    const { sql } = await import("drizzle-orm");
+    const a = await account(1000);
+    const rel = lockFor(a.id, 3300);
+    const db = await database.db();
+    const hogs = Array.from({ length: 5 }, () => db.execute(sql.raw(`select pg_sleep(1.9)`)).catch((e: unknown) => e));
+    await sleep(30);
+    const t0 = Date.now();
+    const pu = unlock(a.token, ITEM, randomUUID());
+    await sleep(3000 - (Date.now() - t0)); // the client aborts here → "failed" → markOffline → refresh()
+    const sres = await fetch(`http://127.0.0.1:${port}/account/session`, { method: "POST", headers: { "content-type": "application/json", cookie: `__Host-tdg=${a.token}`, "x-real-ip": "10.99.0.1" }, body: JSON.stringify({ deviceToken: a.token }) });
+    const sj = await sres.json();
+    const tRefresh = Date.now() - t0;
+    const r = await pu;
+    await Promise.all([rel, ...hogs]);
+    await sleep(500);
+    out.push(`client view: refresh answered at ${tRefresh} ms with progress ${JSON.stringify(sj.progress)} (source server); unlock answered ${r.status} ok=${r.body?.ok} at ${r.ms} ms; committed ${JSON.stringify(await row(a.id).then((x) => x && { s: x.supplies, u: x.unlocks }))}`);
+  }, 40_000);
+
+  it.skipIf(!process.env.RR_KILL)("backend terminated mid-transaction (waiting on the lock) → 503 and unchanged; retry same id → charged once", async () => {
+    const a = await account(1000);
+    const rel = lockFor(a.id, 1200);
+    await sleep(50);
+    const rid = randomUUID();
+    const p = unlock(a.token, ITEM, rid);
+    await sleep(400);
+    const k = new pg.Client({ connectionString: URL });
+    await k.connect();
+    const killed = await k.query(`select pg_terminate_backend(pid) from pg_stat_activity where wait_event_type = 'Lock' and application_name <> 'rr73_locker' and datname = current_database()`);
+    await k.end();
+    const r = await p;
+    await rel;
+    await sleep(500);
+    expect(check(`terminated (${killed.rowCount} killed)`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    const r2 = await unlock(a.token, ITEM, rid);
+    out.push(`  retry same id: ${r2.status} ok=${r2.body?.ok}; supplies ${(await row(a.id))?.supplies}`);
+    expect((await row(a.id))?.supplies).toBe(1000 - PRICE);
+  }, 30_000);
+
+  it.skipIf(!process.env.RR_KILL)("backend terminated after the UPDATE, before COMMIT (slow trigger) → 503 and unchanged", async () => {
+    const a = await account(1000);
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create or replace function rr73_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(1.0); return new; end $$`);
+    await c.query(`drop trigger if exists rr73 on progress; create trigger rr73 before update on progress for each row when (new.supplies = ${1000 - PRICE} and new.account_id = '${a.id}') execute function rr73_slow()`);
+    try {
+      const p = unlock(a.token, ITEM, randomUUID());
+      await sleep(500);
+      const killed = await c.query(`select pg_terminate_backend(pid) from pg_stat_activity where wait_event = 'PgSleep' and datname = current_database()`);
+      const r = await p;
+      await sleep(300);
+      expect(check(`terminated in UPDATE (${killed.rowCount})`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    } finally {
+      await c.query(`drop trigger if exists rr73 on progress`);
+      await c.end();
+    }
+  }, 30_000);
+
+  it("UPDATE slow (1.6 s trigger, under no lock) → statement_timeout 1.5 s → 503 unchanged", async () => {
+    const a = await account(1000);
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create or replace function rr73_slow2() returns trigger language plpgsql as $$ begin perform pg_sleep(1.6); return new; end $$`);
+    await c.query(`drop trigger if exists rr73b on progress; create trigger rr73b before update on progress for each row when (new.account_id = '${a.id}') execute function rr73_slow2()`);
+    try {
+      const r = await unlock(a.token, ITEM, randomUUID());
+      await sleep(500);
+      expect(check(`slow update 1.6 s`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    } finally {
+      await c.query(`drop trigger if exists rr73b on progress`);
+      await c.end();
+    }
+  }, 30_000);
+
+  it("lock 1.2 s + 0.7 s UPDATE (each under 1.5 s, sum 1.9 > 1.8 budget) → 503 unchanged (PG16 budget path)", async () => {
+    const a = await account(1000);
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create or replace function rr73_slow3() returns trigger language plpgsql as $$ begin perform pg_sleep(0.7); return new; end $$`);
+    await c.query(`drop trigger if exists rr73c on progress; create trigger rr73c before update on progress for each row when (new.account_id = '${a.id}' and new.supplies = ${1000 - PRICE}) execute function rr73_slow3()`);
+    try {
+      const rel = lockFor(a.id, 1200);
+      await sleep(30);
+      const r = await unlock(a.token, ITEM, randomUUID());
+      await rel;
+      await sleep(500);
+      expect(check(`lock 1.2 + update 0.7`, r, await row(a.id), 1000, PRICE, ITEM)).toBe(true);
+    } finally {
+      await c.query(`drop trigger if exists rr73c on progress`);
+      await c.end();
+    }
+  }, 30_000);
+});

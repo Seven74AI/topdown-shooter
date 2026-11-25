@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { uiStore, type UiScreen } from "./uiState";
+import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { copyLink, share, shareLink } from "./share";
 import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
@@ -93,6 +93,10 @@ export function LobbyScreen() {
           <span class="lobby__district-name">{DISTRICT_NAME}</span>
         </span>
       </section>
+      {/* Story 7.3 (D2): spend Supplies between runs without leaving the room; beside Leave in the header. */}
+      <button type="button" class="lobby__leave lobby__progress" style={place(L.progress)} onClick={() => uiStore.set(openProgress({ kind: "lobby", code }))}>
+        Progress
+      </button>
       <button type="button" class="lobby__leave" style={place(L.leave)} onClick={() => uiStore.request("leaveLobby")}>
         <span aria-hidden="true">◆ </span>Leave
       </button>

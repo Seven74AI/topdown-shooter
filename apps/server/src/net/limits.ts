@@ -96,3 +96,13 @@ export const SESSION_TICKET_TTL_MS = 600_000;
 
 /** Story 7.1: the guest cookie lives a year and is renewed on every `/account/session` call. */
 export const GUEST_COOKIE_MAX_AGE_S = 31_536_000;
+
+/** Story 7.3 (AC 5): `/account/unlock` calls per account per minute (no one taps faster); over it → 429. */
+export const MAX_UNLOCKS_PER_ACCOUNT_PER_MIN = 20;
+/** Story 7.3 (brief 15): `/account/unlock` calls per client IP per minute, checked before any database work. */
+export const MAX_UNLOCK_CALLS_PER_IP_PER_MIN = 60;
+export const UNLOCK_WINDOW_MS = 60_000;
+/** Story 7.3 (AC 5, U3): a repeated `requestId` within this long gets the first answer (in-memory, per process). */
+export const UNLOCK_REQUEST_TTL_MS = 600_000;
+/** Story 7.3: the request-id map holds at most this many answers (oldest dropped first). */
+export const UNLOCK_REQUEST_CAP = 10_000;

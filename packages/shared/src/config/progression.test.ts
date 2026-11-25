@@ -39,20 +39,22 @@ describe("progression.json (Story 7.1)", () => {
 
   it("refuses duplicates, bad ids, extra keys and an empty pool", () => {
     const supplies = PROGRESSION.supplies;
-    expect(() => loadProgression({ starterPool: ["pistol", "pistol"], supplies })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: ["Pistol"], supplies })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: [], supplies })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: ["pistol"], supplies, extra: 1 })).toThrow(ProgressionError);
-    expect(loadProgression({ starterPool: ["pistol"], supplies }).starterPool).toEqual(["pistol"]);
+    const rest = { supplies, unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" } };
+    expect(() => loadProgression({ ...rest, starterPool: ["pistol", "pistol"] })).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...rest, starterPool: ["Pistol"] })).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...rest, starterPool: [] })).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...rest, starterPool: ["pistol"], extra: 1 })).toThrow(ProgressionError);
+    expect(loadProgression({ ...rest, starterPool: ["pistol"] }).starterPool).toEqual(["pistol"]);
   });
 
   it("Story 7.2: supplies are the FR78 / D1 / D3 / D5 numbers, integers only, all present", () => {
     expect(PROGRESSION.supplies).toEqual({ perWave: 10, behemoth: 50, extract: 100, perEndlessWave: 20, endlessBehemoth: 50, rookieLift: { belowLifetime: 300, multiplier: 2 } });
     const s = PROGRESSION.supplies;
-    expect(() => loadProgression({ starterPool: ["pistol"] })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: ["pistol"], supplies: { ...s, perWave: 10.5 } })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: ["pistol"], supplies: { ...s, extract: -1 } })).toThrow(ProgressionError);
-    expect(() => loadProgression({ starterPool: ["pistol"], supplies: { ...s, bonus: 1 } })).toThrow(ProgressionError);
+    const r = { starterPool: ["pistol"], unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" } };
+    expect(() => loadProgression(r)).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...r, supplies: { ...s, perWave: 10.5 } })).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...r, supplies: { ...s, extract: -1 } })).toThrow(ProgressionError);
+    expect(() => loadProgression({ ...r, supplies: { ...s, bonus: 1 } })).toThrow(ProgressionError);
     expect(Object.isFrozen(PROGRESSION.supplies)).toBe(true);
   });
 

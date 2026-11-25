@@ -39,6 +39,15 @@ export interface BankResult {
   breakdown: Record<string, unknown>;
 }
 
+/**
+ * Story 7.3 (AC 5): the result of an unlock attempt, with the progress row as it is after it (U5: the hub shows this).
+ * A missing progress row counts as the empty one (0 Supplies: `not_enough`).
+ */
+export type UnlockResult =
+  | { outcome: "unlocked"; progress: Progress }
+  | { outcome: "already_unlocked"; progress: Progress }
+  | { outcome: "not_enough"; need: number; progress: Progress };
+
 export interface ProgressRepo {
   get(accountId: string): Promise<Progress | null>;
   /** The empty row ("starter pool only"); a no-op when it exists. */
@@ -51,10 +60,53 @@ export interface ProgressRepo {
    * Later writers (7.7 district, 7.11 milestones, 7.12 loot) join this transaction.
    */
   addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout): Promise<BankResult>;
+  /**
+   * Story 7.3 (AC 5, brief 18): buys `unlockId` for `price` (from the SERVER's progression.json, never the request) in
+   * ONE conditional update: `supplies >= price AND NOT unlocks ? id`. Two concurrent buys for one account serialize on
+   * the row lock and the second re-checks the condition, so the balance never goes below 0 and nothing is bought
+   * twice. 0 rows → the row is re-read in the same transaction to say why. Review F1: the same `boundedTransaction` as
+   * the bank (7.2 M1 / RR-M1): a purchase never commits after the route answered 503.
+   */
+  unlock(accountId: string, unlockId: string, price: number): Promise<UnlockResult>;
 }
+
+const progressColumns = {
+  accountId: progress.accountId,
+  supplies: progress.supplies,
+  lifetimeSupplies: progress.lifetimeSupplies,
+  unlocks: progress.unlocks,
+  training: progress.training,
+  districts: progress.districts,
+  look: progress.look,
+};
 
 export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bankOptions: BoundedOptions = {}): ProgressRepo {
   return {
+    unlock: async (accountId, unlockId, price) => {
+      if (!Number.isInteger(price) || price <= 0) throw new Error("unlock price must be a positive integer");
+      return boundedTransaction(
+        database,
+        "progress.unlock",
+        async (tx): Promise<UnlockResult> => {
+          const updated = await tx
+            .update(progress)
+            .set({
+              supplies: sql`${progress.supplies} - ${price}`,
+              unlocks: sql`${progress.unlocks} || jsonb_build_array(${unlockId}::text)`,
+              updatedAt: sql`now()`,
+            })
+            .where(and(eq(progress.accountId, accountId), sql`${progress.supplies} >= ${price}`, sql`NOT (${progress.unlocks} ? ${unlockId})`))
+            .returning(progressColumns);
+          const row = updated[0];
+          if (row) return { outcome: "unlocked", progress: row };
+          const now = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).limit(1);
+          const current: Progress = now[0] ?? { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null };
+          if (current.unlocks.includes(unlockId)) return { outcome: "already_unlocked", progress: current };
+          return { outcome: "not_enough", need: Math.max(1, price - current.supplies), progress: current };
+        },
+        bankOptions,
+      );
+    },
     get: (accountId) =>
       withDbTimeout(
         "progress.get",

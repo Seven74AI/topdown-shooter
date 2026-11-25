@@ -26,7 +26,8 @@ const savedWith = (look: string | null | undefined) => ({
   deviceToken: TOKEN,
   ticket: "T",
   account: { displayName: "", username: null },
-  ...(look === undefined ? {} : { progress: { look } }),
+  // Story 7.3 merge: the reply's progress carries Supplies and unlocks beside the look
+  ...(look === undefined ? {} : { progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look } }),
 });
 const deps = (f: typeof globalThis.fetch) => ({ fetch: f, url: () => "/x", tokens: guestTokenStore(() => ({ getItem: () => TOKEN, setItem: () => {} })) });
 
@@ -82,5 +83,13 @@ describe("joinAccount: the look a join carries (Story 7.9 AC 5)", () => {
     const looks = deviceLookStore(() => s);
     looks.set(CODE);
     expect(await joinAccount(deps(reply(savedWith(undefined))), looks)).toEqual({ ticket: "T", look: CODE });
+  });
+
+  it("Story 7.3 merge (decision 7.3 B17): progress null (the server's read failed) keeps the device copy too", async () => {
+    const s = mem();
+    const looks = deviceLookStore(() => s);
+    looks.set(CODE);
+    expect(await joinAccount(deps(reply({ ...savedWith(undefined), progress: null })), looks)).toEqual({ ticket: "T", look: CODE });
+    expect(looks.get()).toBe(CODE);
   });
 });

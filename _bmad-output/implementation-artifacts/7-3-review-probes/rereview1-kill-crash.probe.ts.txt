@@ -1,0 +1,24 @@
+import pg from "pg";
+import { sql } from "drizzle-orm";
+import { it, expect } from "vitest";
+import { openPostgres } from "./client";
+import { boundedTransaction } from "./boundedTx";
+const URL = process.env.TEST_DATABASE_URL as string;
+it.skipIf(!URL)("rr73 crash probe: terminate the backend of a boundedTransaction", async () => {
+  const uncaught: string[] = [];
+  const h = (e: Error) => uncaught.push(e.message);
+  // vitest installs its own handlers; record ours too
+  process.prependListener("uncaughtException", h);
+  const database = openPostgres(URL);
+  const p = boundedTransaction(database, "probe", async (tx) => { await tx.execute(sql`select pg_sleep(1.0)`); return 1; }).then(() => "resolved", (e: Error) => `rejected: ${e.message}`);
+  await new Promise((r) => setTimeout(r, 300));
+  const k = new pg.Client({ connectionString: URL }); await k.connect();
+  const killed = await k.query(`select pg_terminate_backend(pid) from pg_stat_activity where wait_event = 'PgSleep' and pid <> pg_backend_pid()`);
+  await k.end();
+  const res = await p;
+  await new Promise((r) => setTimeout(r, 300));
+  process.removeListener("uncaughtException", h);
+  (await import("node:fs")).appendFileSync("/tmp/claude-0/rr73-results.txt", `crash probe: killed ${killed.rowCount}; tx ${res}; uncaught=${JSON.stringify(uncaught)}\n`);
+  await database.close().catch(() => {});
+  expect(uncaught).toEqual([]);
+});

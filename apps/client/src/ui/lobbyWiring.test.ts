@@ -17,7 +17,7 @@ describe("lobby look wiring (Story 7.9 T6)", () => {
   });
   it("the screen is placed from lobbyLayout(viewport, safe-area insets)", () => {
     expect(screen).toMatch(/const L = lobbyLayout\(vp\.w, vp\.h, vp\.inset\);/);
-    for (const part of ["L.code", "L.district", "L.leave", "L.copy", "L.share", "L.ready", "L.start", "c.card", "c.picture", "c.bar", "c.name"]) expect(screen).toContain(part);
+    for (const part of ["L.code", "L.district", "L.leave", "L.progress", "L.copy", "L.share", "L.ready", "L.start", "c.card", "c.picture", "c.bar", "c.name"]) expect(screen).toContain(part);
   });
   it("'You' is the white tag + keyline class, never the accent", () => {
     expect(screen).toMatch(/lobby-card--you/);

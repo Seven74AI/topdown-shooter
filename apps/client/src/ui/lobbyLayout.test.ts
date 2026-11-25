@@ -25,6 +25,7 @@ describe("lobby layout (Story 7.9 T6, R9)", () => {
           ["code", l.code],
           ["district", l.district],
           ["leave", l.leave],
+          ["progress", l.progress], // Story 7.3: Progress beside Leave
           ["copy", l.copy],
           ["share", l.share],
           ["ready", l.ready],
