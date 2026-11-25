@@ -619,7 +619,7 @@ async function fort(): Promise<void> {
   const h3 = document.createElement("h3");
   h3.textContent = "WD3 as a closed fort";
   card.appendChild(h3);
-  card.appendChild(fig(c, "Far wall: inside face (braces, junk) · near wall: outside face (clean, spikes at the street) · side walls: braces inside · corner pieces close every corner"));
+  card.appendChild(fig(c, "Far wall: inside face (braces, junk) · near wall: outside face (clean, rubble at its foot) · side walls: braces inside · corner pieces close every corner"));
   const pieceRow = document.createElement("div");
   pieceRow.className = "pieces";
   const show = (lit: Lit, cap: string, s: number): HTMLElement => {

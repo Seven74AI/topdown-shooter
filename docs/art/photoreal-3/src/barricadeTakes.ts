@@ -816,22 +816,27 @@ export function drawWD3out(g: Ctx): void {
     c.scale(-1, 1);
     wd3Wall(c, false);
     c.restore();
+    // the foot of the wall on the street side: rubble, broken plank ends, a cinder block
     const r = rng(4700);
-    for (let x = -0.86; x < 0.9; x += 0.24 + r() * 0.06) {
-      // crossed pairs of sharpened stakes driven in at the wall's foot, pointing out at the street
-      for (const dir of [-1, 1]) {
-      const tipX = x + dir * (0.09 + r() * 0.03);
-      const tipY = YB + 0.13 + r() * 0.03;
-      bar(c, x - dir * 0.03, YB - 0.01, tipX, tipY, 0.036, "wood", "#6a4e33", 4710 + Math.round(x * 100) + dir);
-      c.fillStyle = "#c2a175";
+    for (let i = 0; i < 26; i++) {
+      const x = -0.95 + r() * 1.9;
+      const y = YB + 0.02 + r() * 0.07;
+      const sz = 0.01 + r() * 0.022;
+      c.fillStyle = ["#5d5a55", "#6e6a63", "#4a4743", "#7a6a55"][Math.floor(r() * 4)] as string;
       c.beginPath();
-      c.arc(tipX, tipY, 0.016, 0, TAU);
+      c.moveTo(x - sz, y);
+      c.lineTo(x - sz * 0.3, y - sz * 0.8);
+      c.lineTo(x + sz, y - sz * 0.3);
+      c.lineTo(x + sz * 0.6, y + sz * 0.5);
+      c.closePath();
       c.fill();
-      c.strokeStyle = "#0a0806";
-      c.lineWidth = 1.1 * P;
+      c.strokeStyle = "rgba(0,0,0,0.6)";
+      c.lineWidth = P;
       c.stroke();
-      }
     }
+    plank(c, -0.62, YB + 0.05, -0.38, YB + 0.085, "#6f5235", 4720);
+    plank(c, 0.28, YB + 0.065, 0.46, YB + 0.095, "#7a6040", 4721);
+    cinder(c, 0.72, YB + 0.11);
   });
 }
 
