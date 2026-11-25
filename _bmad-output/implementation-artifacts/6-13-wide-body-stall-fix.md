@@ -81,7 +81,7 @@ The mouth of the box is narrower than a wide body (a 0.5 m diagonal gap, or a 1 
 
 ### Notes for the merge
 
-- `zombieAi.ts`: the diff touches pass 1 only inside `if (!steered && blocked) { … }` (the wide/normal choice is now an if/else) and adds one `wideStallClear` call after the target block. Story 6.9+6.10's ChaseTarget list (players, then the survivor) replaces `target`. `wideStall` takes the chase target as a `PlayerState` (it reads only `.x/.y`). If the target becomes a union, widen the parameter to `{ x: number; y: number }`. If a survivor is the target, the net still applies; the reach and tie rules are unchanged.
+- `zombieAi.ts`: the diff touches pass 1 only inside `if (!steered && blocked) { … }` (the wide/normal choice is now an if/else) and adds one `wideStallClear` call after the target block. Merged with 6.9+6.10 (`62dd2ef`): the one conflict was the `steer` declaration next to the new `ChaseTarget` list. `wideStall` now takes a `ChaseTarget` (it reads only `.x/.y`), so a wide body shut out from the survivor gets the same net.
 - `flowField.ts`: only the `ZombieProgress` interface, `createProgress` and `snapshotPathing.progressHash` changed. The survivor seed (6.9/6.10) doesn't touch them.
 - `zombies.json › pathing`: 3 new keys at the end of the block.
 
