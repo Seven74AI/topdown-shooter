@@ -15,7 +15,7 @@
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
 }
 body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 60px; margin: 0; }
-header, section, #list, #loading { max-width: 1200px; margin-inline: auto; }
+header, section, #list, #loading, #takes { max-width: 1200px; margin-inline: auto; }
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; }
 h1 span { color: var(--accent); }
 p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
@@ -30,6 +30,10 @@ p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
 figure canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
 figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
 .sides figure:last-child figcaption { color: var(--accent); }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin: 28px 0 8px; }
+h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
+.takes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 12px; }
+#takes .pair.wide figure + figure { margin-top: 8px; }
 #loading { color: var(--muted); margin-top: 16px; }
 .pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 36px; }
 .pick p { margin: 0; color: var(--fg); }
@@ -40,8 +44,14 @@ figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-tra
   <p>The same recipe as the accepted characters: today's drawings are kept exactly (every plank, bolt and spike), then rendered with real volume and the cool street light, with materials read from the drawing: wood grain along the planks, brushed and pitted steel, rough rust, woven sandbags. Then details come alive: floodlights hum and flicker, the med cross beats and scans, the mine's LED blinks with a sensor ping, and glints run over steel jaws, spikes and wire. Game code; both sides drawn at twice the game's resolution.</p>
 </header>
 <p id="loading">Drawing…</p>
+<section id="new">
+  <h2 class="big">New: barricades turned like the police barricade</h2>
+  <p>You asked for the wood, reinforced and metal barricades to take the police barricade's orientation and perspective: seen straight from above, the top board along the line with its side just showing, legs splayed evenly to the front and back with feet, and lower rails near both edges. Two options for each, already in the photoreal look, with steel glints. Today's version is first in each row for comparison.</p>
+  <div id="takes"></div>
+</section>
+<section><h2 class="big">All 10 things you build</h2><p>Approved ("All OK"). The three barricades will change to whichever new option you pick above.</p></section>
 <div id="list"></div>
-<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, or "go" to put them in the game.</p></div></section>
+<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, and which barricade option to keep (WD1/WD2, RF1/RF2, MT1/MT2), or "go" to put them in the game.</p></div></section>
 <script>
 /*@JS@*/
 </script>

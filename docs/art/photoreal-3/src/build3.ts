@@ -10,6 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
+import { drawMT1, drawMT2, drawRF1, drawRF2, drawWD1, drawWD2, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const CURRENT: Record<string, string>; // today's frames (data URLs), injected by build.mjs
@@ -70,6 +71,23 @@ const ITEMS: Item[] = [
   { id: "prop_floodlight_a", name: "Floodlight (tripod)", wM: 1, hM: 1, draw: drawFloodlightFL1, inFrame: drawPropInFrame, dir: "y", emissive: lampWhite, glow: "flicker", glints: 4, note: "The lamp hums with a soft flicker and a wide bloom; brushed yellow housing." },
   { id: "prop_floodlight_b", name: "Floodlight (sandbags)", wM: 1, hM: 1, draw: drawFloodlightFL5, inFrame: drawPropInFrame, dir: "x", emissive: lampWhite, glow: "flicker", glints: 4, note: "Woven sandbag cloth; the caged lamp flickers like a generator light." },
   { id: "prop_medstation_a", name: "Med station", wM: 1, hM: 1, draw: drawMedStation, inFrame: drawPropInFrame, dir: "x", emissive: crossGreen, glow: "heartbeat", glints: 4, note: "The green cross beats like a pulse and a scan line runs down it." },
+];
+
+/** New orientation for the barricades, like the police sawhorse (designer 2026-11-25). */
+const take = (id: string, name: string, draw: (g: Ctx) => void, dir: "x" | "y", glints: number, note: string): Item => ({ id, name, wM: 2, hM: 0.5, draw: (g) => draw(g), inFrame: inFrameM, dir, glow: "none", glints, note });
+const TAKES: { title: string; now: string; items: Item[] }[] = [
+  { title: "Wood barricade", now: "building_barricade_wood", items: [
+    take("WD1", "WD1 · Wooden sawhorses", drawWD1, "x", 6, "Three sawhorses like the police barrier, each topped with two mismatched nailed planks."),
+    take("WD2", "WD2 · Long plank beam", drawWD2, "x", 6, "One long beam of planks with staggered joints on four wooden A-frames: reads as one wall."),
+  ] },
+  { title: "Reinforced barricade", now: "building_barricade_reinforced", items: [
+    take("RF1", "RF1 · Timber beam + razor wire on top", drawRF1, "x", 16, "A heavy three-plank beam, steel straps bolted at each frame, razor wire coiled along the top."),
+    take("RF2", "RF2 · Sawhorses + razor wire at the feet", drawRF2, "x", 16, "Strapped wooden sawhorses with razor wire coils running along both sides on the ground."),
+  ] },
+  { title: "Metal barricade", now: "building_barricade_metal", items: [
+    take("MT1", "MT1 · Steel sawhorses", drawMT1, "x", 10, "Three steel sawhorses: riveted box beams with hazard stripes, tube legs, rubber feet."),
+    take("MT2", "MT2 · Long steel plate", drawMT2, "x", 10, "One long riveted plate barrier on steel A-frames, hazard chevrons at both ends, a bolted seam strap."),
+  ] },
 ];
 
 interface Lit {
@@ -468,7 +486,77 @@ const io = new IntersectionObserver((es) => {
   }
 });
 
+function refCanvas(id: string, label: string): HTMLElement {
+  const c = canvas(1152, 200);
+  const g = ctx(c);
+  asphalt(g, 1152, 200, 9);
+  night(g, 1152, 200, 0.3, [[100, 20, 900]]);
+  const img = new Image();
+  img.onload = () => {
+    const s = 1100 / img.width;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, 26, 100 - (img.height * s) / 2, img.width * s, img.height * s);
+  };
+  img.src = CURRENT[id] ?? "";
+  return fig(c, label);
+}
+
+async function takes(): Promise<void> {
+  const box = document.getElementById("takes") as HTMLElement;
+  const ref = document.createElement("article");
+  ref.className = "pair wide";
+  const rh = document.createElement("h3");
+  rh.textContent = "Reference: the police barricade (accepted B1 and B3)";
+  ref.appendChild(rh);
+  ref.appendChild(refCanvas("prop_barrier_a", "Police B1 · sawhorses"));
+  ref.appendChild(refCanvas("prop_barrier_b", "Police B3 · concrete + tape"));
+  box.appendChild(ref);
+  let n = 0;
+  for (const grp of TAKES) {
+    const h = document.createElement("h2");
+    h.textContent = grp.title;
+    box.appendChild(h);
+    const grid = document.createElement("div");
+    grid.className = "takes";
+    const nowCard = document.createElement("article");
+    nowCard.className = "pair";
+    const nh = document.createElement("h3");
+    nh.textContent = "Today (photoreal, below)";
+    nowCard.appendChild(nh);
+    const nowItem = ITEMS.find((x) => x.id === grp.now) as Item;
+    const nl = relight(nowItem, 1700 + n);
+    const na = animated(nl, nowItem, 1, n + 20);
+    na.frame(0);
+    nowCard.appendChild(fig(na.c, "Today"));
+    live.push({ el: na.c, frame: na.frame, on: true });
+    io.observe(na.c);
+    grid.appendChild(nowCard);
+    for (const it of grp.items) {
+      await new Promise((r) => setTimeout(r, 0));
+      const lit = relight(it, 1500 + n * 13);
+      const a = animated(lit, it, 1, n + 30);
+      a.frame(0);
+      const card = document.createElement("article");
+      card.className = "pair";
+      card.id = it.id;
+      const h3 = document.createElement("h3");
+      h3.textContent = it.name;
+      card.appendChild(h3);
+      card.appendChild(fig(a.c, "New orientation"));
+      const p = document.createElement("p");
+      p.textContent = it.note;
+      card.appendChild(p);
+      grid.appendChild(card);
+      live.push({ el: a.c, frame: a.frame, on: true });
+      io.observe(a.c);
+      n++;
+    }
+    box.appendChild(grid);
+  }
+}
+
 async function main(): Promise<void> {
+  await takes();
   const list = document.getElementById("list") as HTMLElement;
   for (let i = 0; i < ITEMS.length; i++) {
     const it = ITEMS[i] as Item;
