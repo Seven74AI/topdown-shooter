@@ -6,13 +6,14 @@ import { createHudModel } from "./hudModel";
 import { pingFrame, pingPan } from "./pingFrame";
 
 /** Story 8.7 (AC 2–4, P4, P6, brief 30 latch): the GameScene's ping step, with a fake host. */
-function fakeHost(phase: string, status: string, online = true) {
+function fakeHost(phase: string, status: string, online = true, frozen = false) {
   const sent: number[] = [];
   const pings = online ? new PingModel() : null;
   const host = {
     localPlayerId: "p1",
     world: { run: { phase }, players: new Map([["p1", { status }]]) },
     pings,
+    roomFrozen: frozen,
     playerInfo: () => ({ slot: 1 }),
     sendPing: (k: number) => sent.push(k),
   } as unknown as SimHost;
@@ -38,6 +39,9 @@ describe("pingFrame (Story 8.7)", () => {
     expect(shown("build", "alive", { busy: true }), "holding a building / one selected").toBe(false);
     expect(shown("build", "alive", { blocked: true }), "menu or shop open").toBe(false);
     expect(shown("wave", "alive", { run: false }), "game over / not running").toBe(false);
+    const m = createHudModel();
+    pingFrame(m, kb, fakeHost("wave", "alive", true, true).host, true, true, false, false, 0);
+    expect(m.pingButton, "review L2: the room is frozen (8.1)").toBe(false);
   });
 
   it("F toggles the wheel only while the button shows; 1–4 pick (sent once, latched with the press), 5–7 ignored, no build pick while open", () => {
@@ -80,6 +84,14 @@ describe("pingFrame (Story 8.7)", () => {
     pingFrame(m, kb, host, true, true, false, false, 0);
     expect(sent).toEqual([0]);
     expect(m.ping.pick).toBe(-1);
+    expect(m.ping.cooldownUntilMs, "review L3: the ring starts with the send").toBe(1200);
+    // review L3: a pick latched the frame the button hid (here: I'm out) is dropped, and no ring starts
+    const out = fakeHost("wave", "out");
+    m.ping.pick = 1;
+    m.ping.cooldownUntilMs = 0;
+    pingFrame(m, kb, out.host, true, true, false, false, 5000);
+    expect(out.sent).toEqual([]);
+    expect([m.ping.pick, m.ping.cooldownUntilMs]).toEqual([-1, 0]);
     pings?.show(0, 0, 1, 1, 0);
     const res = fakeHost("results", "alive");
     (res.host as { pings: PingModel | null }).pings = pings;

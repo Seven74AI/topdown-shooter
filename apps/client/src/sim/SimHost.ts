@@ -129,6 +129,8 @@ export interface SimHost {
    * and who); nothing while the link is down. Solo has no teammates: no pings (decision 8.7 B8).
    */
   sendPing(kind: number): void;
+  /** Story 8.7 review L2: the room is frozen (8.1; online only — solo: false). */
+  readonly roomFrozen: boolean;
   /** Story 8.7: everyone's pings on this device (online: the inbox's model, listened since the join); solo: null. */
   readonly pings: PingModel | null;
   /**

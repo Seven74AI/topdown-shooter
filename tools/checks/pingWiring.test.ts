@@ -36,6 +36,13 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/this\.updatePings\(host\.pings, ev\.x, ev\.y, ev\.width\)/);
     expect(src).toMatch(/playSfx\(p\.kind === 0 \? "ping_double" : "ping", pingPan\(sx, sw\), PING_SFX_VOLUME\)/);
     expect(src).toMatch(/if \(menuKey && this\.hudModel\.ping\.open\) \{/); // Esc closes the wheel before the menu
+    // review M2 / M3 / L6 / L7 / B16: the mode keep-offs (with the lite set) reach the view; the arrow mask reaches the HUD
+    expect(src).toMatch(/fillPingKeepOffs\(ev\?\.controlRects\(\) \?\? \[\], mode, sw, sh, this\.eventInsets, k, this\.pingKeepOffs, this\.pingKeepOffsLite\)/);
+    expect(src).toMatch(/this\.pingView\?\.update\(pings, now, vx, vy, vw, sw, sh, k, this\.eventInsets, keepOffs, rect, this\.pingKeepOffsLite\)/);
+    expect(src).toMatch(/m\.pingArrowSlots = this\.pingView\?\.arrowMask\(\) \?\? 0;/);
+    expect(src).toMatch(/mode\.flag = flag \?/);
+    expect(src).toMatch(/mode\.loot = badge \?/);
+    expect(src).toMatch(/mode\.wheel = m\.pingButton && m\.ping\.open;/);
   });
 
   it("HudScene: the button + wheel are made, laid out, drawn; a tap off the wheel closes it; the open wheel hides swap, quick-use and the build bar", () => {
@@ -46,6 +53,7 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/this\.pingHud\.pointerDown\(this\.buttons\.hit\(p\.x, p\.y, this\.scale\.width\)\)/);
     expect(src.match(/!this\.pingHud\.wheelOpen/g)?.length).toBe(3);
     expect(src).toMatch(/fitWaveText\(this\.scale\.width, this\.insets, dpr\(\), fullW, compactW, this\.waveFit\)/);
+    expect(src).toMatch(/if \(\(m\.pingArrowSlots & \(1 << slot\)\) !== 0\) \{\s*if \(arrow\.visible\) arrow\.setVisible\(false\);/); // review M2
   });
 
   it("the view puts every ping object above the darkness", () => {

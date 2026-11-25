@@ -59,6 +59,8 @@ export interface HudModel {
   readonly ping: PingWheelState;
   /** Story 8.7: my lobby slot (the wheel's discs take its colour); −1 = none. */
   pingSlot: number;
+  /** Story 8.7 review M2: a bit per slot whose ping shows as an edge arrow: that teammate's own edge arrow hides meanwhile. */
+  pingArrowSlots: number;
   /** The in-run menu is open (the HUD drops held sticks and buttons when it opens). */
   menuOpen: boolean;
   /** Story 2.11: the toast line under the wave text ("Bo left"), "" when none. */
@@ -329,6 +331,7 @@ export const createHudModel = (): HudModel => ({
   pingButton: false, // Story 8.7
   ping: newPingWheelState(),
   pingSlot: -1,
+  pingArrowSlots: 0,
   menuOpen: false,
   toastText: "",
   toastLoot: false,

@@ -32,7 +32,8 @@ export function layoutBossBar(width: number, insetLeft: number, insetTop: number
   const menuLeft = pingButtonLeft(width, { right: insetRight }, k);
   const leftLimit = (MENU_BUTTON_INSET_CSS_PX + insetLeft + MENU_BUTTON_CSS_PX) * k; // a mirrored corner keeps it symmetric
   const half = Math.min(BOSS_BAR_MAX_W_CSS_PX * k, 2 * Math.min(width / 2 - leftLimit, menuLeft - width / 2) - 2 * BOSS_BAR_GAP_CSS_PX * k) / 2;
-  const w = Math.max(BOSS_BAR_MIN_W_CSS_PX * k, 2 * half);
+  // Story 8.7 review L4: the minimum width never eats the 12 px gap to the ping button (568 × 320 with a 44 px inset: 216 px).
+  const w = Math.min(Math.max(BOSS_BAR_MIN_W_CSS_PX * k, 2 * half), 2 * (menuLeft - BOSS_BAR_GAP_CSS_PX * k - width / 2));
   out.w = w;
   out.x = width / 2 - w / 2;
   out.y = (BOSS_BAR_TOP_CSS_PX + insetTop) * k;

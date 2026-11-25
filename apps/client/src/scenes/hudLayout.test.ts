@@ -16,7 +16,7 @@ import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/heldChipsCss.test.ts
-import { BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
+import { BOSS_BAR_GAP_CSS_PX, BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
  * EPIC 6 BRIEF line 31 — THE ONE HUD LAYOUT TEST (created by Story 6.3). Every on-screen control, in
@@ -897,6 +897,7 @@ describe("Story 8.7: the ping button and wheel at every test size", () => {
       expect(wl.x + wl.w, "wave line ends a band gap before the ping button").toBeLessThanOrEqual(p.x - 6 + 1e-6);
       const boss = bossBar(w);
       expect(overlaps(boss, p)).toBe(false);
+      expect(p.x - (boss.x + boss.w), "review L4: the boss bar keeps its 12 px gap to the ping button").toBeGreaterThanOrEqual(BOSS_BAR_GAP_CSS_PX - 1e-6);
       // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
       const top = { ...INSET, top: 20 };
       for (const c of layoutPingWheel(w, top, K, newPingChipRects())) {

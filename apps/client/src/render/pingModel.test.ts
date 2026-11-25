@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PING_KINDS, PING_SHOW_MS } from "@topdown/shared";
-import { PingModel } from "./pingModel";
+import { PingModel, unwrapTick16 } from "./pingModel";
 
 /** Story 8.7 AC 6 / P2 / P3: the client's ping store (4 slots, 4 s, one live ping per player, late pings not shown). */
 describe("PingModel (Story 8.7)", () => {
@@ -49,9 +49,20 @@ describe("PingModel (Story 8.7)", () => {
     expect(m.live(1)).toBeNull();
   });
 
+  it("review L1: the 16-bit wire tick is unwrapped against the host's tick estimate (a run past tick 65535; a late ping still dropped)", () => {
+    expect(unwrapTick16(70_000 & 0xffff, 70_010)).toBe(70_000);
+    expect(unwrapTick16(65_530, 65_540)).toBe(65_530); // estimate already wrapped past 65536, the ping not
+    expect(unwrapTick16(5, 65_530)).toBe(65_541); // the ping is a hair ahead of the estimate, across the wrap
+    const m = new PingModel();
+    m.receive([0, 0, 10, 10, 200_000 & 0xffff], 0);
+    expect(m.update(0, 200_000 + 3)).toBe(1); // fresh: shown
+    m.receive([1, 0, 10, 10, 200_000 & 0xffff], 0);
+    expect(m.update(0, 200_000 + 10 * 20)).toBe(0); // 10 s late past the wrap: not shown
+  });
+
   it("ignores malformed payloads (slot, kind, position, tick)", () => {
     const m = new PingModel();
-    for (const bad of [null, {}, [0, 0, 1, 1], [4, 0, 1, 1, 1], [-1, 0, 1, 1, 1], [0, PING_KINDS.length, 1, 1, 1], [0, 0.5, 1, 1, 1], [0, 0, Number.NaN, 1, 1], [0, 0, 1.5, 1, 1], [0, 0, 1, "1", 1], [0, 0, 1, 1, -3]]) m.receive(bad, 0);
+    for (const bad of [null, {}, [0, 0, 1, 1], [4, 0, 1, 1, 1], [-1, 0, 1, 1, 1], [0, PING_KINDS.length, 1, 1, 1], [0, 0.5, 1, 1, 1], [0, 0, Number.NaN, 1, 1], [0, 0, 1.5, 1, 1], [0, 0, 1, "1", 1], [0, 0, 1, 1, -3], [0, 0, 1, 1, 65536]]) m.receive(bad, 0);
     expect(m.update(0, 1)).toBe(0);
     for (let i = 0; i < 4; i++) expect(m.live(i)).toBeNull();
   });

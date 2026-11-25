@@ -592,13 +592,17 @@ export type PingSend = z.infer<typeof pingSendSchema>;
 
 /**
  * `ping.shown` payload (Story 8.7, AC 5), to everyone: `[slot, kindIdx, xDm, yDm, tick]` — the sender's slot and the
- * sender's SERVER position at the tick the ping arrived, in whole decimetres (0.1 m), both stamped by the server (P1).
+ * sender's SERVER position at the tick the ping arrived, in whole decimetres (0.1 m), both stamped by the server (P1);
+ * `tick16` = that tick & 0xffff (review L1: always 3 B; the client unwraps it against its own tick estimate).
  * An array of integers like `building.ghosted` (decision 8.7 B1): 24 B per message on the wire (msgpack floats would
  * be 36 B), so 4 pings/s cost a phone ≤ 96 B/s.
  */
-export type PingShown = [slot: number, kindIdx: number, xDm: number, yDm: number, tick: number];
+export type PingShown = [slot: number, kindIdx: number, xDm: number, yDm: number, tick16: number];
 
 /** Story 8.7 (D15): a ping stays on every screen this long (frame clock, ms). */
 export const PING_SHOW_MS = 4000;
-/** Story 8.7 (AC 4, E8-P5): the client's own cooldown after a send (the server bucket is 1/s, burst 1). */
-export const PING_COOLDOWN_MS = 1000;
+/**
+ * Story 8.7 (AC 4, E8-P5; review M4): the client's own cooldown after a send. The server bucket is 1/s, burst 1; 1200 ms
+ * leaves 200 ms for send jitter (a frame's quantisation, ±100 ms of line jitter), so an honest ping is never dropped.
+ */
+export const PING_COOLDOWN_MS = 1200;

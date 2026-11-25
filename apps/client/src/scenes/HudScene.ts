@@ -2012,6 +2012,13 @@ export class HudScene extends Phaser.Scene {
         const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
         name.setPosition(lx, ly).setVisible(true);
       } else if (name.visible) name.setVisible(false);
+      // Story 8.7 review M2: while this teammate's ping shows as an edge arrow on the same bearing, it stands in for
+      // their arrow (a downed teammate keeps the red "Bo · 14 s" label).
+      if ((m.pingArrowSlots & (1 << slot)) !== 0) {
+        if (arrow.visible) arrow.setVisible(false);
+        if (cross.visible) cross.setVisible(false);
+        continue;
+      }
       arrow
         .setPosition(mk.x, mk.y)
         .setRotation(mk.angle)

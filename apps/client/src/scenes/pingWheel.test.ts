@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PING_COOLDOWN_MS } from "@topdown/shared";
-import { PING_WHEEL_OPEN_MS, closePingWheel, layoutPingWheel, newPingChipRects, newPingWheelState, pickPing, pingChipAt, pingCooldownFrac, stepPingWheel, togglePingWheel } from "./pingWheel";
+import { PING_WHEEL_OPEN_MS, closePingWheel, markPingSent, layoutPingWheel, newPingChipRects, newPingWheelState, pickPing, pingChipAt, pingCooldownFrac, stepPingWheel, togglePingWheel } from "./pingWheel";
 
 /** Story 8.7 AC 3 / AC 4: the wheel opens and closes, sends one kind per pick, closes itself after 3 s, and keeps a 1 s cooldown. */
 describe("ping wheel (Story 8.7)", () => {
-  it("the button toggles it; a chip picks (latched for the scene), closes it and starts the 1 s cooldown ring", () => {
+  it("the button toggles it; a chip picks (latched for the scene) and closes it; a real send starts the 1.2 s cooldown ring", () => {
     const s = newPingWheelState();
     togglePingWheel(s, 1000);
     expect(s.open).toBe(true);
@@ -13,6 +13,8 @@ describe("ping wheel (Story 8.7)", () => {
     togglePingWheel(s, 1200);
     expect(pickPing(s, 2, 1300)).toBe(true);
     expect([s.pick, s.open]).toEqual([2, false]);
+    expect(pingCooldownFrac(s, 1300)).toBe(0); // review L3: no ring until it is really sent
+    markPingSent(s, 1300);
     expect(pingCooldownFrac(s, 1300)).toBe(1);
     expect(pingCooldownFrac(s, 1300 + PING_COOLDOWN_MS / 2)).toBeCloseTo(0.5);
     // honest players never hit the server's 1/s drop: the button ignores taps during the ring
@@ -30,6 +32,7 @@ describe("ping wheel (Story 8.7)", () => {
     expect(pickPing(s, 4, 0)).toBe(false);
     expect(pickPing(s, -1, 0)).toBe(false);
     expect(pickPing(s, 3, 0)).toBe(true);
+    markPingSent(s, 0);
     s.open = true; // forced open (cannot happen through the button during the ring)
     expect(pickPing(s, 1, 500)).toBe(false);
   });
@@ -56,8 +59,9 @@ describe("ping wheel (Story 8.7)", () => {
     const b = chips[1];
     expect(pingChipAt(chips, (a.x + b.x + b.w) / 2, a.y + a.h / 2)).toBe(-1); // the gap between the columns
     expect(pingChipAt(chips, 10, 10)).toBe(-1);
-    // help top-right, here top-left, big under help, ready under here
-    expect(a.x).toBeGreaterThan(b.x);
+    // review L9: left → right, top → bottom (keys 1–4): help · here / big · ready
+    expect(a.x).toBeLessThan(b.x);
+    expect(chips[3].x).toBe(b.x);
     expect(chips[2].y).toBeGreaterThan(a.y);
     expect(chips[2].x).toBe(a.x);
   });

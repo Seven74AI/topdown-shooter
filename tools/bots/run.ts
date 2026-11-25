@@ -108,7 +108,7 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
-    pingEveryS: Number(get("ping-every") ?? 0),
+    pingEveryS: pingEveryOf(get("ping-every")),
     line: parseLine(get, url),
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
@@ -124,6 +124,14 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
   return { url: lineUrl(args.url, line.port), line };
+}
+
+/** Story 8.7 (review nit): `--ping-every` is a finite number of seconds ≥ 0 (0 = off). */
+function pingEveryOf(raw: string | undefined): number {
+  if (raw === undefined) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new Error("--ping-every must be a number of seconds ≥ 0");
+  return n;
 }
 
 /** Story 8.1: `--cut-bot` must name one of the bots. */

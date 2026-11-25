@@ -610,6 +610,11 @@ export class NetSimHost implements SimHost {
     this.session.room.send(C2S.PING_SEND, this.pingMsg);
   }
 
+  /** Story 8.7 review L2: the room's World is frozen now (8.1: nobody connected, or the 3-2-1): no ping button. */
+  get roomFrozen(): boolean {
+    return this.session.room.state?.frozen === true;
+  }
+
   /** Story 8.7: the inbox's ping model (listened since the join). */
   get pings(): PingModel {
     return this.session.inbox.pings;

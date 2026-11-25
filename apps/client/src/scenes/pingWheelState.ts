@@ -32,13 +32,17 @@ export function togglePingWheel(s: PingWheelState, nowMs: number): void {
   s.openedAtMs = nowMs;
 }
 
-/** A chip (or 1–4 on a keyboard) while open: latches that kind for the scene to send, closes, starts the cooldown. */
+/** A chip (or 1–4 on a keyboard) while open: latches that kind for the scene to send and closes (review L3: the cooldown starts only on a real send, `markPingSent`). */
 export function pickPing(s: PingWheelState, kind: number, nowMs: number): boolean {
   if (!s.open || kind < 0 || kind >= PING_KINDS.length || nowMs < s.cooldownUntilMs) return false;
   s.pick = kind;
   s.open = false;
-  s.cooldownUntilMs = nowMs + PING_COOLDOWN_MS;
   return true;
+}
+
+/** Story 8.7 review L3: a ping really went out: the 1.2 s cooldown ring starts. */
+export function markPingSent(s: PingWheelState, nowMs: number): void {
+  s.cooldownUntilMs = nowMs + PING_COOLDOWN_MS;
 }
 
 /** A tap anywhere but the wheel, Esc, or the button hiding (holding, reconnecting, out…): closes it. */

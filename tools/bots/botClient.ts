@@ -458,7 +458,6 @@ export class BotClient {
   /** Story 6.11: server tick of the last evacuation vote sent. */
   private voteAtTick = -1;
 
-  /** One input: the policy on the newest data, every 50 ms while the room fights. */
   /** Story 8.7: ping cadence (ms, 0 = off), its seeded kind stream, and what was sent / seen (`[slot, kindIdx]`). */
   private pingEveryMs = 0;
   private lastPingMs = Number.NEGATIVE_INFINITY;
@@ -481,6 +480,7 @@ export class BotClient {
     this.pingsSent++;
   }
 
+  /** One input: the policy on the newest data, every 50 ms while the room fights. */
   private step(): void {
     const state = this.room.state;
     if (state?.phase) this.pingStep(state.phase); // Story 8.7

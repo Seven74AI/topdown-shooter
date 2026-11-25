@@ -113,13 +113,6 @@ export class PingHud {
     closePingWheel(this.model.ping);
   }
 
-  /** Esc while the wheel is open closes it (before the menu); true when it did. */
-  escape(): boolean {
-    if (!this.model.ping.open) return false;
-    closePingWheel(this.model.ping);
-    return true;
-  }
-
   /** Each frame: the 3 s close, visibility, the cooldown ring (redrawn only while it runs), my slot colour. */
   draw(nowMs: number, slot: number): void {
     const m = this.model;

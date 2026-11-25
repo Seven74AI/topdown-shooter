@@ -268,6 +268,8 @@ function buildNotches(avoid: readonly ScreenRect[], half: number, L: number, R: 
   nb.B = B;
   notchCount = 0;
   obstacleCount = 0;
+  // Story 8.7 review nit: a keep-off past the capacity would be dropped silently — a programming error in dev builds and tests.
+  if (avoid.length > MAX_NOTCHES && import.meta.env?.DEV) throw new Error(`eventArrow: ${avoid.length} keep-offs, more than ${MAX_NOTCHES}`);
   for (let i = 0; i < avoid.length && notchCount < MAX_NOTCHES; i++) {
     const a = avoid[i] as ScreenRect;
     const x0 = a.x - half;

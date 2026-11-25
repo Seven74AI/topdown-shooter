@@ -63,6 +63,8 @@ import {
   type ShopOfferView,
   isBlackout as isBlackoutNow,
   setForcedBlackout,
+  MAX_PLAYERS,
+  PING_SHOW_MS,
 } from "@topdown/shared";
 import { dpr, safeArea, type SafeArea } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -181,7 +183,9 @@ import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStre
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
-import { PingView } from "../render/PingView"; // Story 8.7
+import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
+import { fillPingKeepOffs, growRect, newPingKeepOffs, type PingKeepOffMode } from "../render/pingArrows";
+import { PAIR_GAP_CSS_PX } from "../render/eventArrowPair";
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
 import { eventArrowDrawnRect } from "../render/eventArrow";
 
@@ -2012,22 +2016,44 @@ export class GameScene extends Phaser.Scene {
 
   /** Story 8.7 (AC 6–8): the pings this frame — new ones start (with their chirp, panned by screen x), old ones expire, then the view. */
   private readonly pingArrowRect = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly pingFlagRect = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly pingLootRect = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly pingKeepOffs = newPingKeepOffs();
+  private readonly pingKeepOffsLite = newPingKeepOffs();
+  private readonly pingMode: PingKeepOffMode = { build: false, ready: false, vote: false, wheel: false, flag: null, loot: null };
   private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
     const now = performance.now(); // the model's clock (decision 8.7 B4)
     const host = this.host;
     const sw = this.cameras.main.width;
+    const sh = this.cameras.main.height;
+    const k = dpr();
     const started = pings.update(now, host?.serverTick ?? 0);
-    for (let i = 0; started !== 0 && i < 4; i++) {
+    for (let i = 0; started !== 0 && i < MAX_PLAYERS; i++) {
       if ((started & (1 << i)) === 0) continue;
       const p = pings.live(i);
-      if (!p) continue;
+      if (!p || now - p.startMs > PING_SHOW_MS - PING_FADE_MS) continue; // review nit: no chirp for a ping already fading out
       const sx = vw > 0 ? ((p.x - vx) / vw) * sw : sw / 2;
       playSfx(p.kind === 0 ? "ping_double" : "ping", pingPan(sx, sw), PING_SFX_VOLUME); // "Help!" twice (E8-P3)
     }
     const ev = this.eventView;
+    const size = EVENT_ARROW_CSS_PX * k;
     const arrow = ev?.edgeArrowAt() ?? null;
-    const rect = arrow ? eventArrowDrawnRect(arrow, EVENT_ARROW_CSS_PX * dpr(), this.pingArrowRect) : null;
-    this.pingView?.update(pings, now, vx, vy, vw, sw, this.cameras.main.height, dpr(), this.eventInsets, ev?.controlRects() ?? [], rect);
+    const rect = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
+    // Review M3 / L6 / L7: the mode's own controls (build bar, Ready, vote, the open wheel), the 6.10 flag arrow and
+    // the loot badge are keep-offs too (the badge is placed before the pings, so the two never overlap).
+    const m = this.hudModel;
+    const mode = this.pingMode;
+    mode.build = m.buildBar;
+    mode.ready = m.readyButton;
+    mode.vote = m.voting;
+    mode.wheel = m.pingButton && m.ping.open;
+    const flag = ev?.flagArrowAt() ?? null;
+    mode.flag = flag ? growRect(eventArrowDrawnRect(flag, size, this.pingFlagRect), PAIR_GAP_CSS_PX * k) : null;
+    const badge = this.lootView?.badgeArrowAt() ?? null;
+    mode.loot = badge ? growRect(eventArrowDrawnRect(badge, size, this.pingLootRect), PAIR_GAP_CSS_PX * k) : null;
+    const keepOffs = fillPingKeepOffs(ev?.controlRects() ?? [], mode, sw, sh, this.eventInsets, k, this.pingKeepOffs, this.pingKeepOffsLite);
+    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, keepOffs, rect, this.pingKeepOffsLite); // B16
+    m.pingArrowSlots = this.pingView?.arrowMask() ?? 0; // review M2: HudScene hides those senders' teammate arrows
   }
 
   override update(_time: number, deltaMs: number): void {

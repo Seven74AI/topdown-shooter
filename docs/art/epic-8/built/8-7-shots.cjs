@@ -11,6 +11,9 @@ const { chromium } = require("playwright");
 const out = process.argv[2] || "docs/art/epic-8/built";
 const portArg = process.argv.find((s) => s.startsWith("--port="));
 const BASE = `http://localhost:${portArg ? portArg.slice(7) : "5287"}/`;
+// Review L11: PHONE=568x320 runs the phone tab at 568 × 320 and names its stills 8-7-568-*.png.
+const PHONE = (process.env.PHONE || "844x390").split("x").map(Number);
+const PFX = PHONE[0] === 844 ? "8-7-phone" : `8-7-${PHONE[0]}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const logs = [];
 
@@ -54,7 +57,7 @@ const pingState = (page) =>
   await desk.click("text=Create game");
   await desk.waitForSelector(".lobby__code");
   const code = (await desk.textContent(".lobby__code")).trim();
-  const phone = await mk("phone", { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const phone = await mk("phone", { viewport: { width: PHONE[0], height: PHONE[1] }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await phone.fill('input[placeholder="Name"]', "Bo");
   await phone.fill('input[placeholder="CODE"]', code);
   await phone.click("button:has-text('Join')");
@@ -71,12 +74,12 @@ const pingState = (page) =>
   await phone.touchscreen.tap(btn.x, btn.y);
   await sleep(250);
   console.log("after tap", await pingState(phone));
-  await phone.screenshot({ path: `${out}/8-7-phone-wheel-open.png` });
+  await phone.screenshot({ path: `${out}/${PFX}-wheel-open.png` });
   const help = await buttonAt(phone, "ping_chip0");
   await phone.touchscreen.tap(help.x, help.y);
   await sleep(700);
   console.log("after Help!", await pingState(phone), await pingState(desk));
-  await phone.screenshot({ path: `${out}/8-7-phone-help.png` });
+  await phone.screenshot({ path: `${out}/${PFX}-help.png` });
   await desk.screenshot({ path: `${out}/8-7-desktop-help-seen.png` });
   // Desktop: F opens the wheel (keys 1–4 pick).
   await desk.mouse.move(900, 300);
@@ -99,7 +102,7 @@ const pingState = (page) =>
   await sleep(600);
   console.log("both pinged", await pingState(desk), await pingState(phone));
   await desk.screenshot({ path: `${out}/8-7-desktop-pings.png` });
-  await phone.screenshot({ path: `${out}/8-7-phone-edge-arrow.png` });
+  await phone.screenshot({ path: `${out}/${PFX}-edge-arrow.png` });
   console.log(logs.join("\n") || "no page errors");
   await browser.close();
 })().catch((e) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playerInputSchema, NEUTRAL_INPUT } from "@topdown/shared";
+import { PING_COOLDOWN_MS, playerInputSchema, NEUTRAL_INPUT } from "@topdown/shared";
 import { MessageGuard } from "./messageGuard";
 import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S, PING_PER_S } from "./limits";
 
@@ -79,6 +79,30 @@ describe("MessageGuard", () => {
     setNow(1000);
     hp(client, {});
     expect(pings).toBe(2); // an empty shared bucket doesn't stop pings
+  });
+
+  it("Story 8.7 review M4: an honest client (1 ping per PING_COOLDOWN_MS = 1200 ms, arrivals jittered ±100 ms, whole ms) is never dropped", () => {
+    expect(PING_COOLDOWN_MS).toBe(1200);
+    for (let seed = 1; seed <= 50; seed++) {
+      const { guard, client, setNow } = setup();
+      let shown = 0;
+      const any = { safeParse: (v: unknown) => ({ success: true as const, data: v }) };
+      const hp = guard.guard(any, () => shown++, "ping");
+      let r = seed;
+      const rnd = (): number => {
+        r = (Math.imul(r, 1103515245) + 12345) | 0;
+        return ((r >>> 8) & 0xffff) / 0x10000;
+      };
+      // worst case first: two arrivals as close as the jitter allows (1200 − 200 = 1000 ms), then random ±100 ms
+      const times = [0, 1000];
+      for (let i = 2; i < 200; i++) times.push(Math.round(i * PING_COOLDOWN_MS + (rnd() * 200 - 100)));
+      for (const t of times) {
+        setNow(t);
+        hp(client, {});
+      }
+      expect(shown, `seed ${seed}`).toBe(times.length);
+      expect(guard.pending(client)?.rate ?? 0).toBe(0);
+    }
   });
 
   it("charges unknown message types against the shared bucket (rate once it is empty)", () => {

@@ -129,7 +129,7 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 
 ### Measurements
 
-- **Bandwidth (AC 9, brief 8):** `ping.shown` = 24 B on the wire (protocol byte + type string + msgpack integer array; asserted ≤ 30 B in RunRoom.ping.test). Worst case 4 pings/s per room → **≤ 96 B/s per phone** (budget 120). `ping.send` from a phone: ≈ 25 B, ≤ 1/s. Before: 0 (new feature).
+- **Bandwidth (AC 9, brief 8):** `ping.shown` = 24 B on the wire (tick & 0xffff keeps it at 24 B past tick 65535, review L1) (protocol byte + type string + msgpack integer array; asserted ≤ 30 B in RunRoom.ping.test). Worst case 4 pings/s per room → **≤ 96 B/s per phone** (budget 120). `ping.send` from a phone: ≈ 25 B, ≤ 1/s. Before: 0 (new feature).
 - **Arrows (R3):** bearing error ≤ 30° in every frame of the 0.01° sweeps for one ping and for up to three crowded pings; ≤ 45° for a 4th on the same bearing at 568×320 only (B7, measured 43.5°); jumps > 40 px ≤ 3 per turn, each oscillation flips at most once; ≥ 4 px between ping arrows and from the event arrow.
 
 ### Debug Log References
@@ -145,6 +145,19 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 - Bots: `pingEveryS` / `--ping-every <S>`, seeded kinds per bot.
 - netEvents kinds 150–154: none used (pings are an S2C message). Readability numbers 130–133 used.
 
+### Review round 1 (fresh review of fe98dfd: 0 H / 4 M / 11 L + nits) — fixes
+
+- **M1** a ping whose lifted icon is off the top or under a HUD block got no arrow → `pingArrows.ts` `iconVisible`: on screen only when the icon + word rect is inside the safe area and the disc is off every keep-off; else an arrow along the bearing to the point. Seen icons are keep-offs for the arrows too. Tests: `pingArrows.test.ts` > "review M1: at 568 × 320 a teammate 30–95 px from the top …" (+ an arrow never lands on my own icon, my own ping stays an icon at every size).
+- **M2** the ping arrow sat under the sender's 2.9 teammate arrow → `hudModel.pingArrowSlots` (from `PingView.arrowMask()`): HudScene hides that teammate's arrow while their ping arrow shows (a downed teammate keeps the red label). Test: `tools/checks/pingWiring.test.ts` (GameScene + HudScene lines).
+- **M3** (+ **L6**, **L7**) arrows kept off the wave controls only → `fillPingKeepOffs`: build bar incl. Shop, build-row swap / quick-use, undo, Ready, Extract / Stay, the open wheel, the 6.10 flag arrow, the loot badge. Where those leave no spot within 30° (568 / 640 in a build phase), decision **B16**: placed again without the build-phase controls and the wheel. Tests: `pingArrows.test.ts` > "build, vote, wheel and loot-badge keep-offs …" at 4 sizes (0.01° both ways + three crowded).
+- **M4** honest pings dropped under jitter → `PING_COOLDOWN_MS` 1200 (server stays 1/s burst 1). Test: `messageGuard.test.ts` > "review M4: an honest client … arrivals jittered ±100 ms … never dropped" (50 seeds × 200 pings, the 1000 ms worst case first).
+- **L1** `ping.shown` carries `tick & 0xffff`; `unwrapTick16` on the client. Test: `pingModel.test.ts` > "review L1 …".
+- **L2** no ping button while the room is frozen (`host.roomFrozen`). **L3** a pick is sent only while the button shows; the cooldown starts with the send (`markPingSent`). Tests: `pingFrame.test.ts`, `pingWheel.test.ts`.
+- **L4** boss bar keeps its 12 px gap to the ping button (216 px at 568 with a 44 px inset; B10 text fixed). Tests: `bossBar.test.ts`, `hudLayout.test.ts`.
+- **L5** `pingDropped` cleared after each `net_stats` line. **L9** chips read left → right, top → bottom (keys 1–4). **L10** → B14. **L11** 568 × 320 stills → B15.
+- Nits: `PingHud.escape()` removed (GameScene closes the wheel on Esc); `MAX_PLAYERS` in `updatePings`; `--ping-every` validated; `step()`'s doc comment back in place; a dev-build throw past `MAX_NOTCHES` keep-offs; the dev ⚙ moved under the top band; no chirp for a ping already in its last 0.5 s.
+- **L8** (B5 hides swap / quick-use / build bar for ≤ 3 s in a wave): waiting on the designer, unchanged.
+
 ### Notes for the merge
 
 - `packages/shared/src/net/messages.ts`: 8.7 appends `PING_SEND` at the end of `C2S` and `PING_SHOWN` at the end of `S2C` under a `// Story 8.7 (pings) ↓` comment, and one block at the end of the file (`PING_KINDS`, `PING_LABELS`, `pingSendSchema`, `PingShown`, `PING_SHOW_MS`, `PING_COOLDOWN_MS`). 8.2+8.3's own entries go beside them: keep both.
@@ -152,9 +165,11 @@ Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autono
 - `apps/server/src/rooms/RunRoom.ts` `onCreate`: one block of 3 lines (`// Story 8.7 (pings) ↓ … ↑`) just before the `"*"` handler; plus `pingRefusal` (module level, before `randomUint32`), `onPing` / `countPingDrop` / `pingDropped` (before `ghostMsg`), `pingDropped` in `logNetStats`, a clear in `startWaveStats`. If 8.2+8.3 adds waiting joiners WITH a World player, add them to `pingRefusal` (today a waiting joiner has no World player → refused as "status").
 - `apps/server/src/net/messageGuard.ts`: bucket type gains `"ping"`; the bucket pick is now `g[bucket]`.
 - `apps/client/src/scenes/hudLayout.test.ts`: 8.7 adds `pingBtn` / `pingChips`, the ping in `wave` / `build` / `vote`, three `ping_wheel_*` modes and 4 KNOWN_LIST lines; 8.2+8.3's waiting mode: add it to the "no ping button" list in the 8.7 describe at the end.
-- `apps/client/src/render/eventArrow.ts`: `newWaveControlRects()` makes 8 rects (8th = ping button); `MAX_NOTCHES` 24.
+- `apps/client/src/render/eventArrow.ts`: `newWaveControlRects()` makes 8 rects (8th = ping button); `MAX_NOTCHES` 24 (dev builds throw past it).
+- `apps/client/src/render/EventView.ts` (`flagArrowAt`) and `LootBagView.ts` (`badgeArrowAt`): new getters; `HudScene.drawTeammates` hides a teammate's arrow while their ping arrow shows.
+- `apps/client/src/scenes/bossBar.ts`: width capped by the 12 px gap to the ping button (216 px at 568 / 44 px inset).
 - `apps/client/src/scenes/hudModel.ts` `waveLine(m, compact?)`: new optional arg.
-- `apps/client/src/debug/DevCheats.css`: ⚙ at right 128 px, panel at 180 px.
+- `apps/client/src/debug/DevCheats.css`: ⚙ at top 66 px / right 128 px, panel at right 180 px.
 
 ### Not verified
 

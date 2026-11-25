@@ -3,19 +3,14 @@ import { MAX_PLAYERS, PING_SHOW_MS } from "@topdown/shared";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 import { ATLAS_PING, PING_DISC, PING_GLYPHS, PING_RING, PING_TIP, PING_WORDS, PING_WORD_H_PX, PING_WORD_W_PX, ensurePingAtlas } from "./pingArt";
-import { newPingArrows, placePingArrows, type PingArrows } from "./pingArrows";
+import { PING_ICON_CSS_PX, PING_LIFT_CSS_PX, PING_WORD_CSS_PX, newPingArrows, placePingArrows, type PingArrows } from "./pingArrows";
 import type { PingModel } from "./pingModel";
 import { SLOT_COLORS } from "./playerColors";
 
-/** Story 8.7 (AC 6): the world icon's disc (CSS px on screen, whatever the zoom) and the word under it (≥ 11 px text). */
-export const PING_ICON_CSS_PX = 34;
-export const PING_WORD_CSS_PX = 20;
-/** The icon floats this far above the ping point (CSS px): over the sender's slot ring and name label, its word above it. */
-export const PING_LIFT_CSS_PX = 76;
 /** The pop-in (ms of the clock): the icon grows from 40 % to full size. */
 export const PING_POP_MS = 150;
 /** The last share of its 4 s the icon fades out over. */
-const FADE_MS = 500;
+export const PING_FADE_MS = 500;
 
 interface SlotObjs {
   ring: Phaser.GameObjects.Image;
@@ -55,6 +50,13 @@ export class PingView {
     }
   }
 
+  /** Review M2: a bit per slot whose ping shows as an edge arrow this frame. */
+  arrowMask(): number {
+    let m = 0;
+    for (let i = 0; i < MAX_PLAYERS; i++) if (this.arrows.shown[i]) m |= 1 << i;
+    return m;
+  }
+
   /** Where slot `i`'s edge arrow is (screen px) when shown — for tests and the loot arrow's keep-off. */
   arrowAt(i: number): Readonly<EventArrowPlace> | null {
     return this.arrows.shown[i] ? (this.arrows.at[i] as EventArrowPlace) : null;
@@ -65,9 +67,9 @@ export class PingView {
    * safe area (CSS px); `controls` the HUD keep-offs (`waveControlRects`, 8 with the ping button) and `eventArrow`
    * the event's drawn edge arrow (or null).
    */
-  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, controls: readonly ScreenRect[], eventArrow: Readonly<ScreenRect> | null): void {
+  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, controls: readonly ScreenRect[], eventArrow: Readonly<ScreenRect> | null, lite: readonly ScreenRect[] | null = null): void {
     const pxPerM = vw > 0 ? sw / vw : 1;
-    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, controls, eventArrow, this.arrows);
+    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, controls, eventArrow, this.arrows, lite);
     const iconM = (PING_ICON_CSS_PX * k) / pxPerM;
     const wordHM = (PING_WORD_CSS_PX * k) / pxPerM;
     const liftM = (PING_LIFT_CSS_PX * k) / pxPerM;
@@ -85,7 +87,7 @@ export class PingView {
       o.aTip.setVisible(onEdge);
       if (!p) continue;
       const age = nowMs - p.startMs;
-      const alpha = age > PING_SHOW_MS - FADE_MS ? Math.max(0, (PING_SHOW_MS - age) / FADE_MS) : 1;
+      const alpha = age > PING_SHOW_MS - PING_FADE_MS ? Math.max(0, (PING_SHOW_MS - age) / PING_FADE_MS) : 1;
       const glyphFrame = PING_GLYPHS[p.kind] as string;
       if (inView) {
         const pop = age < PING_POP_MS ? 0.4 + (0.6 * Math.max(0, age)) / PING_POP_MS : 1;

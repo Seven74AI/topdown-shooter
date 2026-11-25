@@ -31,6 +31,11 @@ interface Pending {
 
 const isInt = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
 
+/** Story 8.7 review L1: the full server tick of a 16-bit wire tick, the one nearest the host's estimate `nowTick`. */
+export function unwrapTick16(tick16: number, nowTick: number): number {
+  return tick16 + 65536 * Math.round((nowTick - tick16) / 65536);
+}
+
 export class PingModel {
   readonly slots: readonly PingSlot[];
   private readonly pending: readonly Pending[];
@@ -48,11 +53,11 @@ export class PingModel {
     this.pending = p;
   }
 
-  /** A `ping.shown` payload `[slot, kindIdx, xDm, yDm, tick]` (decimetres) that arrived at `atMs`; anything malformed is ignored. */
+  /** A `ping.shown` payload `[slot, kindIdx, xDm, yDm, tick16]` (decimetres, tick & 0xffff) that arrived at `atMs`; anything malformed is ignored. */
   receive(m: unknown, atMs: number): void {
     if (!Array.isArray(m) || m.length !== 5) return;
     const [slot, kind, x, y, tick] = m as unknown[];
-    if (!isInt(slot, 0, MAX_PLAYERS - 1) || !isInt(kind, 0, PING_KINDS.length - 1) || !isInt(x, -1e6, 1e6) || !isInt(y, -1e6, 1e6) || !isInt(tick, 0, Number.MAX_SAFE_INTEGER)) return;
+    if (!isInt(slot, 0, MAX_PLAYERS - 1) || !isInt(kind, 0, PING_KINDS.length - 1) || !isInt(x, -1e6, 1e6) || !isInt(y, -1e6, 1e6) || !isInt(tick, 0, 0xffff)) return;
     const q = this.pending[slot] as Pending;
     q.has = true; // a second one from the same slot before the next frame replaces it (one live ping per player)
     q.kind = kind;
@@ -90,7 +95,7 @@ export class PingModel {
       if (q.has) {
         q.has = false;
         const waited = nowMs - q.atMs;
-        const ticksOld = serverTick > 0 ? ((serverTick - q.tick) * 1000) / TICK_RATE_HZ : 0;
+        const ticksOld = serverTick > 0 ? ((serverTick - unwrapTick16(q.tick, serverTick)) * 1000) / TICK_RATE_HZ : 0;
         if (this.show(i, q.kind, q.x, q.y, nowMs, Math.max(waited, ticksOld))) started |= 1 << i;
       }
     }

@@ -2,8 +2,9 @@
 .dev-gear {
   position: fixed;
   /* Story 2.11: left of the in-run menu ☰ (top-right, 48 px at 12 px), clear of the perf overlay under it. */
-  top: calc(env(safe-area-inset-top) + 14px);
-  /* Story 8.7: further left, past the ping button (☰ 12 + 48, a 12 px gap, the 48 px ping button, 8 px): dev builds only. */
+  /* Story 8.7 (review nit): under the top band (☰ and the ping button end at 60 px), so it never covers the wave line at
+     568 / 640 px; left of the ping button's column. Dev builds only. */
+  top: calc(env(safe-area-inset-top) + 66px);
   right: calc(env(safe-area-inset-right) + 128px);
   z-index: 5; /* under the in-run menu (6): no cheats while paused (2.11 review) */
   pointer-events: auto;

@@ -1132,7 +1132,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     g[1] = PING_KINDS.indexOf(m.kind);
     g[2] = Math.round(p.x * 10); // decimetres (B1: integers are 3 B on the wire, floats 9)
     g[3] = Math.round(p.y * 10);
-    g[4] = world.tick;
+    g[4] = world.tick & 0xffff; // review L1: 16 bits on the wire (3 B); the client unwraps it
     this.log.debug({ playerId: member.playerId, kind: m.kind, x: g[2], y: g[3], tick: g[4] }, "ping_shown");
     this.broadcast(S2C.PING_SHOWN, g);
   }
@@ -1639,6 +1639,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         "net_stats",
       );
     }
+    this.pingDropped.clear(); // review L5: each net_stats line counts its own wave only
   }
 
   /** `horde_stats` per player for the wave that just ended; the counters restart for the next. */
