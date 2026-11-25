@@ -1,6 +1,6 @@
 # Story 10.10: Build button (hybrid build-phase UI)
 
-Status: backlog
+Status: ready-for-dev
 
 (Waiting on the designer's layout pick, **Decision BU-1** below. Building UX follow-up to Stories 5.15–5.21. Designer decision 2026-11-25: "hybrid" — a **Build** button plus the **last-placed building** as a one-tap quick tile; Build opens the full grid as a panel and a pick closes it. Options page: `docs/art/build-ui/index.html`. Written with `gds-create-story` (+ `gds-ux` for the layout thinking), headless.)
 
@@ -15,11 +15,11 @@ so that repeat placements stay instant and the right edge of the screen stays cl
 | # | Decision | Status |
 | --- | --- | --- |
 | BU-0 | **Story key `10-10-build-button`, Epic 10 (Performance and polish).** Epic 5 (where the building UX lives, 5.15–5.28) is `done` with its retro closed; Epic 10 is the open polish epic and still `backlog`, so a client-only UX polish story belongs there without reopening a closed epic. Builds any time after the designer picks BU-1 (no dependency on 10.1–10.9). | auto-accepted |
-| BU-1 | **Layout (designer pick, A / B / C / D)** — see "Decision BU-1 (designer pick)" below. Recommended: **B**. | **open — designer** |
-| BU-2 | Where Shop lives. Recommended: a round 48 px Shop chip above Build when closed (B), and the panel's last tile when open. | open — follows BU-1 |
-| BU-3 | Only 1–2 shop types unlocked (every new account, Story 7.4). Recommended: no Build button and no panel — the 1–2 tiles sit where quick tile + Build would be (zero extra taps, same footprint); Build appears from the 3rd unlocked type. | open — designer |
-| BU-4 | Where the panel opens. Recommended: over the thumb corner, Close on Build's own spot, the same 3 × 3 cells on every phone; never inside the survivor's 48 px, never over Ready's row on the left of it, never within 12 px of ping / ☰. | open — follows BU-1 |
-| BU-5 | The quick tile's states. Recommended: today's tile rules unchanged (below, AC 4). Before the first placement of the run it shows the first unlocked type in balance order. | open — designer |
+| BU-1 | **Layout (designer pick, A / B / C / D)** — see "Decision BU-1 (designer pick)" below. Recommended: **B**. | **designer 2026-11-25: B** |
+| BU-2 | Where Shop lives. Recommended: a round 48 px Shop chip above Build when closed (B), and the panel's last tile when open. | auto-accepted (follows B) |
+| BU-3 | Only 1–2 shop types unlocked (every new account, Story 7.4). Recommended: no Build button and no panel — the 1–2 tiles sit where quick tile + Build would be (zero extra taps, same footprint); Build appears from the 3rd unlocked type. | **designer 2026-11-25: as recommended** |
+| BU-4 | Where the panel opens. Recommended: over the thumb corner, Close on Build's own spot, the same 3 × 3 cells on every phone; never inside the survivor's 48 px, never over Ready's row on the left of it, never within 12 px of ping / ☰. | auto-accepted (follows B) |
+| BU-5 | The quick tile's states. Recommended: today's tile rules unchanged (below, AC 4). Before the first placement of the run it shows the first unlocked type in balance order. | auto-accepted |
 
 ## Decision BU-1 (designer pick)
 

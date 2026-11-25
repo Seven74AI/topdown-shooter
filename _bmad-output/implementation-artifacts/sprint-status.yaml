@@ -210,7 +210,7 @@ development_status:
   9-10-weapon-and-zombie-sounds: backlog
   9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
-  9-13-photoreal-characters-in-game: ready-for-dev  # 2026-11-25 art orchestrator: story file written (runtime worker bake like 9.11, B1–B10); builder next
+  9-13-photoreal-characters-in-game: in-progress  # 2026-11-25 art orchestrator: story file written (runtime worker bake like 9.11, B1–B10); builder next
   9-14-photoreal-street-props-in-game: backlog  # after 9.13 (approved docs/art/photoreal-1/compare.html)
   epic-9-retrospective: optional
 
@@ -225,7 +225,7 @@ development_status:
   10-7-run-stats: backlog
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story
-  10-10-build-button: backlog  # added 2026-11-25 (designer: hybrid Build button); story file written; waits on the designer's layout pick BU-1 (A/B/C/D, recommended B), options docs/art/build-ui/index.html; key auto-accepted (Epic 5 closed)
+  10-10-build-button: ready-for-dev  # added 2026-11-25 (designer: hybrid Build button); story file written; waits on the designer's layout pick BU-1 (A/B/C/D, recommended B), options docs/art/build-ui/index.html; key auto-accepted (Epic 5 closed)
   epic-10-retrospective: optional
 
   # Epic 11: Random city (post-v1; sprint-change-proposal-2026-11-24-random-city.md)
