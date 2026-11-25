@@ -248,7 +248,7 @@ Claude (Claude Code cloud session, branch `story-6-9`).
 ### Review follow-ups (fresh review of fb1d6f1: 0 H, 2 M, 11 L)
 
 - **M1 fixed [behaviour]** `supplyDrop.ts`: per-slot `onSince` (the tick a player stepped on the spot and stood there since, kept during FLARE and LANDED; `SupplyDropState.onSince`, in the snapshot); the landing claim goes to the earliest arrival (ties: slot). Test: slot 1 on the spot the whole flare, slot 0 arrives 2 ticks before the landing → slot 1 takes it.
-- **M2** (design: survivor save rate) — waiting for the designer via the main session; nothing built.
+- **M2** (design: survivor save rate) — designer decision 6.10 B2: keep B1, judge it in a playtest; nothing built.
 - **L1 fixed** `survivor.test.ts`: a held Spitter 4.5 m from a waiting survivor spits at it; 5.5 m (inside its 6 m range) doesn't until a player leads it; an acid puddle hurts it on its own clock.
 - **L2 fixed** `powerFailure.test.ts`: balance override with wave 7 at 10 % → no power failure.
 - **L3 fixed [behaviour]** `decay/fire.ts`: a car fire hurts the survivor on its own 4.8 clock (`SurvivorState.fireTicks`); molotov zones never (S4). Test.
