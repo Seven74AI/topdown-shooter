@@ -132,7 +132,7 @@ Claude (gds-dev-story, autonomous overnight run, 2026-11-25). The client part (T
 
 ### Gate
 
-GATE_LINE
+Gate 2026-11-25: tree `48316a9` (branch story-8-2-3 with master `06e8356` merged in `ecc022f`): `npm run typecheck` ✓, `npm run lint` ✓, `npm test` ✓ (529 files passed / 4 skipped; 4,772 tests passed / 31 skipped), `npm run build` ✓, `REQUIRE_DIST=1 npx vitest run tools/checks/noCheatsInRelease.test.ts` ✓ (3/3). Load 2.1 → 4.4 (4 cores) over the 9.5 min gate. The first gate run at `ecc022f` failed 17 tests in 3 files (run-state shape, the Players layout harness, wireCover seed 3); fixed in `48316a9` and the whole gate rerun.
 
 ### Debug Log References
 
@@ -166,7 +166,91 @@ GATE_LINE
 
 ### File List
 
-FILE_LIST
+- `_bmad-output/implementation-artifacts/8-2-3-join-mid-run-and-host-role.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/client/src/main.ts`
+- `apps/client/src/net/connection.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/joinErrors.test.ts`
+- `apps/client/src/net/joinErrors.ts`
+- `apps/client/src/net/lobbyLost.test.ts`
+- `apps/client/src/net/lobbyStore.reconnect.test.ts`
+- `apps/client/src/net/lobbyStore.test.ts`
+- `apps/client/src/net/lobbyStore.ts`
+- `apps/client/src/net/recoveryFailure.test.ts`
+- `apps/client/src/net/serverNotice.ts`
+- `apps/client/src/net/session.test.ts`
+- `apps/client/src/net/session.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/scenes/toastQueue.test.ts`
+- `apps/client/src/scenes/toastQueue.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/ui/InRunMenu.tsx`
+- `apps/client/src/ui/LobbyScreen.tsx`
+- `apps/client/src/ui/ServerNotice.tsx`
+- `apps/client/src/ui/hostToast.test.ts`
+- `apps/client/src/ui/hostToast.ts`
+- `apps/client/src/ui/lobbyLayout.test.ts`
+- `apps/client/src/ui/lobbyLayout.ts`
+- `apps/client/src/ui/menuItems.test.ts`
+- `apps/client/src/ui/menuItems.ts`
+- `apps/client/src/ui/overlay.css`
+- `apps/client/src/ui/uiState.test.ts`
+- `apps/client/src/ui/uiState.ts`
+- `apps/client/src/ui/waitingView.test.ts`
+- `apps/client/src/ui/waitingView.ts`
+- `apps/server/src/db/progressRepo.ts`
+- `apps/server/src/db/runRewards.test.ts`
+- `apps/server/src/meta/banking.ts`
+- `apps/server/src/net/limits.ts`
+- `apps/server/src/rooms/RunRoom.account.test.ts`
+- `apps/server/src/rooms/RunRoom.host.test.ts`
+- `apps/server/src/rooms/RunRoom.latejoin.test.ts`
+- `apps/server/src/rooms/RunRoom.reconnect.test.ts`
+- `apps/server/src/rooms/RunRoom.rewards.test.ts`
+- `apps/server/src/rooms/RunRoom.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/lobby.test.ts`
+- `apps/server/src/run/lobby.ts`
+- `docs/epic-8-story-decisions.md`
+- `docs/perf/smoke-8-2-3/8-2-C-entered.png`
+- `docs/perf/smoke-8-2-3/8-2-C-waiting.png`
+- `docs/perf/smoke-8-2-3/8-3-C-removed.png`
+- `docs/perf/smoke-8-2-3/8-3-host-confirm.png`
+- `docs/perf/smoke-8-2-3/8-3-host-players.png`
+- `docs/perf/smoke-8-2-3/8-3-new-host-toast.png`
+- `docs/perf/smoke-8-2-3/smoke-8-2-3.log`
+- `packages/shared/src/buildings/buildings.ts`
+- `packages/shared/src/config/balance/economy.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/economy/lateJoin.test.ts`
+- `packages/shared/src/economy/lateJoin.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/net/reconnect.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/player/lateJoin.test.ts`
+- `packages/shared/src/player/lateJoin.ts`
+- `packages/shared/src/replay/inputLog.ts`
+- `packages/shared/src/run/runStateMachine.test.ts`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/waves/waveDirector.ts`
+- `packages/shared/src/zombies/spit.ts`
+- `packages/shared/src/zombies/spitterDeadlock.test.ts`
+- `tools/bots/botClient.ts`
+- `tools/bots/lateJoin.test.ts`
+- `tools/bots/run.ts`
+- `tools/bots/wireCover.test.ts`
+- `tools/checks/lateJoinHostWiring.test.ts`
+- `tools/checks/metaWiring.test.ts`
+- `tools/checks/playersMenuDomLayout.test.ts`
+- `tools/netaudit/smokeLateJoin.cjs`
 
 ### Change Log
 
