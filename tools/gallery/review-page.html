@@ -79,7 +79,7 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 
 <header class="intro">
   <h1>Dead City <span>asset review</span></h1>
-  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again.</p>
+  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. The two <b>approved photoreal</b> sections show looks you approved that are not in the game yet.</p>
   <p class="notice" id="notice" hidden></p>
 </header>
 
@@ -105,10 +105,16 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 <script>
 const GROUPS = {
   atlas_characters: ["Survivors and zombies", "Bodies seen from above: the survivor with each weapon, every zombie type and look, windup and swell poses."],
+  approved_characters_take4: ["Survivors and zombies: approved photoreal (take 4)", "Approved, not in the game yet. Today's drawings relit with today's grey outline; new detailed walkers, runners and crawlers; Bloater veins and acid sacs. Shown still here: they breathe, pulse and move on the take 4 page."],
   boss_atlas: ["The Behemoth", "The wave-10 boss: body poses and parts."],
-  boss_fx: ["Boss effects", "Slam, shockwave and debris pieces for the Behemoth."],
-  boss_tele_disc: ["Boss slam warning", "The disc that warns where the Behemoth will land."],
-  atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers, dumpster, sandbags."],
+  boss_fx: ["Boss ground damage and debris", "The slam's ground damage (R1 + R2 + R3), the thrown chunks, the throw crater and the charge's CRASH mark."],
+  boss_hud: ["Boss warning display (P1)", "The THE BEHEMOTH banner, TARGET tag, DANGER edge panel and the SLAM / CHARGE / THROW plates."],
+  boss_tele_disc: ["Boss slam warning", "The glowing disc under the countdown: the ticks light up in turn and sparks drift in while the slam winds up."],
+  boss_tele_ring: ["Boss throw warning", "The hatched ring where a thrown chunk will land."],
+  boss_tele_lane: ["Boss charge warning", "The hatched lane the Behemoth will charge down."],
+  atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers (sawhorses and concrete with tape), dumpster, sandbags."],
+  approved_photoreal_props: ["Street props and vehicles: approved photoreal", "Approved, not in the game yet. Cars on a real sedan body, burnt cars, the bus, dumpster, pump, rubble, sandbags and both barriers."],
+  atlas_heli: ["Helicopter", "The helicopter's frames."],
   atlas_buildings: ["Things you build", "Barricades by tier, spike trap, mine, bear trap, turret and more, as placed on the street."],
   atlas_fx: ["Effects", "Acid, bile, gas, rain, splashes, glows, eyes, vignette. White or grey ones are tinted in the game."],
   atlas_blastfx: ["Explosions", "Flame puffs, flash, glow and smoke for grenades, mines and Bloaters. White ones are tinted in the game."],

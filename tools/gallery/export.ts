@@ -10,6 +10,10 @@ import { createServer } from "vite";
  * `tools/gallery/out/assets.json` for the review page (`tools/gallery/review-page.html`, published at the
  * URL in `docs/art/asset-review.md`).
  *
+ * It also adds the approved photoreal looks that are not in the game yet (`docs/art/photoreal-1/compare.html`,
+ * street props and vehicles; `docs/art/photoreal-2/take4-grey.html`, characters), from those pages' export hooks,
+ * as groups of their own, so the designer can review them on the same page. Build those pages first.
+ *
  * Each asset gets a `hash` of its pixels and an `added` date. `tools/gallery/manifest.json` (committed)
  * remembers both, so the review page can mark art that is new since the first export, and art whose
  * pixels changed after the designer reviewed it.
@@ -44,6 +48,25 @@ try {
   await page.goto(`${url}gallery.html`);
   await page.waitForFunction(() => "__assets" in globalThis, null, { timeout: 120_000 });
   assets = await page.evaluate(() => (globalThis as unknown as { __assets: Asset[] }).__assets);
+  // the approved photoreal looks (not in the game yet), from their pages' hooks
+  for (const [file, hook, group, ready] of [
+    ["docs/art/photoreal-1/compare.html", "__photoreal", "approved_photoreal_props", "loading"],
+    ["docs/art/photoreal-2/take4-grey.html", "__take4", "approved_characters_take4", "loading"],
+  ] as const) {
+    const path = join(ROOT, file);
+    if (!existsSync(path)) {
+      console.warn(`skipped ${file} (not built)`);
+      continue;
+    }
+    await page.goto(`file://${path}`);
+    await page.waitForFunction(new Function(`return document.getElementById("${ready}") === null && "${hook}" in globalThis`) as () => boolean, null, { timeout: 180_000 });
+    const items = await page.evaluate(new Function(`return globalThis.${hook}`) as () => { id?: string; name: string; group?: string; url: string }[]);
+    for (const it of items) {
+      const png = Buffer.from(it.url.split(",")[1] as string, "base64");
+      const slug = (it.id ?? `${it.group ?? ""}_${it.name}`).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+      assets.push({ id: `${group}/${slug}`, group, name: it.group ? `${it.group}: ${it.name}` : it.name, w: png.readUInt32BE(16), h: png.readUInt32BE(20), url: it.url });
+    }
+  }
 } finally {
   await browser.close();
   await server.close();

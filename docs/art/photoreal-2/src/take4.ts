@@ -575,6 +575,9 @@ function staticNow(row: Row, size: number): HTMLCanvasElement {
   return c;
 }
 
+/** The approved stills (each frame's take 4 base, the first pose of animated ones), for the asset review export. */
+const EXPORT: { group: string; name: string; url: string }[] = [];
+
 async function main(): Promise<void> {
   if (!document.getElementById("groups")) return; // imported by another page (outline test)
   const host = document.getElementById("groups") as HTMLElement;
@@ -613,6 +616,7 @@ async function main(): Promise<void> {
     const bfx = row.anim.bloater ? prepareBloater(lit, row.anim.bloater, 1300 + i * 17) : undefined;
     const fr = row.frames;
     const loop = fr ? { lits: Array.from({ length: LOOP_FRAMES }, (_, k) => relight4((g, r) => fr.draw(g, r, k / LOOP_FRAMES), row.extent, 900 + i * 7)), loopS: fr.loopS } : undefined;
+    EXPORT.push({ group: row.group, name: row.name, url: (loop ? (loop.lits[0] as Lit) : lit).base.toDataURL("image/png") });
     const a = animated(loop ? (loop.lits[0] as Lit) : lit, row.anim, row.zoom, 220, i * 0.37, bfx, loop);
     a.frame(0);
     (figs[1] as HTMLElement).prepend(a.c);
@@ -623,6 +627,7 @@ async function main(): Promise<void> {
     status.textContent = `Drawing ${i + 1} of ${ROWS.length}…`;
     await new Promise((res) => setTimeout(res, 0));
   }
+  Object.assign(window, { __take4: EXPORT });
   status.remove();
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const t0 = performance.now();

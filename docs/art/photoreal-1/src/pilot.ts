@@ -1161,6 +1161,8 @@ async function main(): Promise<void> {
   const sa = document.getElementById("scene-after");
   sb?.append(scene((id) => before[id] ?? (after[id] as HTMLCanvasElement)));
   sa?.append(scene((id) => after[id] as HTMLCanvasElement));
+  // for the asset review export (tools/gallery/export.ts): the approved photoreal frames
+  Object.assign(window, { __photoreal: ITEMS.map((it) => ({ id: it.id.replace("atlas_downtown/", ""), name: it.name, url: (after[it.id] as HTMLCanvasElement).toDataURL("image/png") })) });
   document.getElementById("loading")?.remove();
 }
 
