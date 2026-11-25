@@ -202,3 +202,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - Follow-ups: RunRoom.host.test.ts flaky under load (fails on master too); RunRoom.shop.test random-seed card collision; dev spawn cheats place bodies in solids.
 - 21:12 Master red on 044522bf (#18): RunRoom.host.test.ts:206. Not a flake: syncBuildings (server) and mirrorBuildings (client) copied a building's owner only on add, so a disown (8.3 E8-H3) never reached an entry that was already sent. 6861275e (#20) was green by timing luck.
 - 21:41 Fix PR #21 merged 9addaf02 (fresh review: 1 low (client mirror) + 1 nit (no wire-encoding check, deferred) → fixed → narrow re-review: no findings; CI green).
+- 21:51 Shop F1 offer test pinned to a run seed (no chance-equal fillers), PR #23 merged c106fd49 (test-only; CI green).
