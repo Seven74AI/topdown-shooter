@@ -2,7 +2,8 @@
  * Desktop key bindings by `KeyboardEvent.code` (physical key position, so WASD works on AZERTY and
  * other layouts). One table so later shortcuts slot in:
  * - `KeyE` → "consumable" (Story 5.12)
- * - `KeyF` → "ping" (Story 8.7)
+ * - `KeyF` → "ping" (Story 8.7: opens / closes the wheel; while it is open `Digit1`–`Digit4` pick a ping instead of
+ *   a build tile, and Esc closes it before the menu)
  * - `Escape` → "menu" (Story 2.11: opens and closes the in-run menu; never game input; Story 5.23:
  *   while holding a building it puts it away first)
  * - Story 5.23 (BX-11, ux-spec §9): `KeyR` rotate, `Space` place, `Digit1`–`Digit7` / `Numpad1`–`Numpad7`
@@ -13,7 +14,7 @@
  * AZERTY the Z key is `KeyW` (walk up, ZQSD), so a plain Z walks there and Ctrl+Z undoes; QWERTZ's Z
  * sits on `KeyY`. Ctrl/Cmd + letter z undoes on every layout (`desktopInput`).
  */
-export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "consumable" | "menu" | "rotate" | "place" | "build" | "undo" | "pickUp";
+export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "consumable" | "menu" | "rotate" | "place" | "build" | "undo" | "pickUp" | "ping";
 
 /** Story 5.23: the build-bar tile keys (index 0–6) by code. */
 const BUILD_KEYS: Readonly<Record<string, number>> = Object.freeze({
@@ -45,6 +46,7 @@ export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   KeyQ: "swap",
   KeyE: "consumable", // Story 5.12: latched once per press like swap
   Escape: "menu",
+  KeyF: "ping", // Story 8.7 (AC 3): opens / closes the ping wheel; 1–4 pick while it is open
   KeyR: "rotate", // Story 5.23
   Space: "place", // Story 5.23
   ...Object.fromEntries(Object.keys(BUILD_KEYS).map((code) => [code, "build" as const])),

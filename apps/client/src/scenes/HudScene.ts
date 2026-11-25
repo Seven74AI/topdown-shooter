@@ -1,7 +1,8 @@
 import { LOOT_ICON_CSS_PX, LOOT_ICON_GAP_CSS_PX, layoutLootLine } from "./hudTopLayout";
 import { LOOT_ATLAS, LOOT_BADGE_FRAME } from "../render/city/lootBagAtlas";
-import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, hpRowText, layoutBanner, placeWaveText, reportHudTextWidths } from "./hudTopLayout";
+import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, fitWaveText, hpRowText, layoutBanner, reportHudTextWidths } from "./hudTopLayout";
 import { layoutBossBar } from "./bossBar";
+import { PingHud } from "./PingHud"; // Story 8.7
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -314,6 +315,9 @@ export class HudScene extends Phaser.Scene {
   /** The build bar was up at the last layout (the button then sits above the grid). */
   private consAboveBar = false;
   private menuBtn!: Phaser.GameObjects.Graphics;
+  /** Story 8.7: the ping button and its wheel. */
+  private pingHud!: PingHud;
+  private readonly waveFit = { x: 0, scale: 1, compact: false };
   private shownMenuButton: boolean | null = null;
   private shownMenuOpen = false;
   private toastText!: Phaser.GameObjects.Text;
@@ -445,7 +449,6 @@ export class HudScene extends Phaser.Scene {
   private shownBannerColor = "";
   private shownBannerBoss = false;
   /** Story 6.14: layout scratch (no allocation per frame). */
-  private readonly waveAt = { x: 0, scale: 1 };
   private readonly bannerAt = { x: 0, y: 0, w: 0, h: 0 };
   private readonly bannerBoss = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
   private shownWeapon = "";
@@ -608,6 +611,7 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
+    this.pingHud = new PingHud(this, this.buttons, this.model); // Story 8.7: left of ☰
     // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 5.16: Shop is a build-bar tile.
     this.readyBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
@@ -783,6 +787,7 @@ export class HudScene extends Phaser.Scene {
     // nothing (no aim stick, no fire: the right half belongs to the build cluster; BX-5 drags with it).
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
+      this.pingHud.pointerDown(this.buttons.hit(p.x, p.y, this.scale.width)); // Story 8.7: a tap off the wheel closes it
       if (this.model.placementActive) {
         // Story 5.23 (AC 10, D13): a mouse while holding: right button puts away; a left press that
         // misses the HUD buttons places (on press, like the buttons); no mouse drag (the ghost follows the cursor).
@@ -1055,6 +1060,7 @@ export class HudScene extends Phaser.Scene {
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutConsumableButton();
     this.layoutMenuButton();
+    this.pingHud.layout(this.scale.width, this.insets, k); // Story 8.7
     this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
     this.layoutPlacementButtons();
@@ -1180,7 +1186,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined && !m.voting && !m.watching; // Story 6.11: hidden in the vote; 8.2: and while waiting
+    const show = m.consumableVisible && frame !== undefined && !m.voting && !m.watching; // Story 6.11: hidden in the vote; 8.2: and while waiting (8.7 B5 amended: it stays while the ping wheel is open)
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;
@@ -1567,7 +1573,7 @@ export class HudScene extends Phaser.Scene {
    */
   private drawBuildBar(): void {
     const m = this.model;
-    const v = m.buildBar;
+    const v = m.buildBar && !this.pingHud.wheelOpen; // Story 8.7: hidden under the open ping wheel (≤ 3 s)
     if (m.buildItems !== this.shownBarItems) {
       this.shownBarItems = m.buildItems;
       this.barPage = 0;
@@ -1867,6 +1873,7 @@ export class HudScene extends Phaser.Scene {
     this.drawTeammates();
     this.drawGhostLabels(); // Story 5.24
     this.drawMenu();
+    this.pingHud.draw(this.time.now, this.model.pingSlot); // Story 8.7: before the buttons the open wheel hides
     this.drawReady();
     this.drawPlacement();
     this.drawBuildBar(); // Story 5.16
@@ -2012,6 +2019,13 @@ export class HudScene extends Phaser.Scene {
         const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
         name.setPosition(lx, ly).setVisible(true);
       } else if (name.visible) name.setVisible(false);
+      // Story 8.7 review M2: while this teammate's ping shows as an edge arrow on the same bearing, it stands in for
+      // their arrow (a downed teammate keeps the red "Bo · 14 s" label).
+      if ((m.pingArrowSlots & (1 << slot)) !== 0) {
+        if (arrow.visible) arrow.setVisible(false);
+        if (cross.visible) cross.setVisible(false);
+        continue;
+      }
       arrow
         .setPosition(mk.x, mk.y)
         .setRotation(mk.angle)
@@ -2054,10 +2068,13 @@ export class HudScene extends Phaser.Scene {
       this.shownEndless = m.endless; // Story 6.12
       this.shownVoting = m.voting; // Story 6.11
       // Story 3.1: during a build the top line counts down to the next wave.
-      const text = waveLine(m);
-      this.waveText.setText(text);
-      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit).
-      const at = placeWaveText(this.scale.width, this.insets, dpr(), this.waveText.width, this.waveAt);
+      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit). Story 8.7 (B3): beside
+      // the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
+      const compact = waveLine(m, true);
+      const compactW = this.waveText.setText(compact).width;
+      const fullW = this.waveText.setText(waveLine(m)).width;
+      const at = fitWaveText(this.scale.width, this.insets, dpr(), fullW, compactW, this.waveFit);
+      if (at.compact) this.waveText.setText(compact);
       this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
     if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor || m.bossVisible !== this.shownBannerBoss) {
@@ -2124,7 +2141,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting && !m.watching; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting && !m.watching && !this.pingHud.wheelOpen; // Story 8.2: nor while waiting; Story 8.7: not under the open ping wheel; Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

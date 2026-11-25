@@ -7,6 +7,7 @@ import {
   BYTES,
   ByteRate,
   C2S,
+  PING_KINDS,
   HORDE_MAX_RECORDS,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
@@ -88,6 +89,11 @@ export interface BotClientOptions {
    * horde builds up to the alive cap (150) before the bots thin it. Default 0.
    */
   holdFireS?: number;
+  /**
+   * Story 8.7 (AC 10): ping every this many seconds (a random kind from the bot's own seeded stream) in build phases,
+   * waves and the vote. 0 = off (default). Under 1 s the server's 1/s bucket drops the extra ones (counted there).
+   */
+  pingEveryS?: number;
   /** One JSON object per line goes here (default: stdout). */
   log?: (line: Record<string, unknown>) => void;
 }
@@ -318,6 +324,9 @@ export class BotClient {
     });
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
+    room.onMessage(S2C.PING_SHOWN, (m: unknown) => {
+      if (Array.isArray(m) && this.pingsSeen.length < 10_000) this.pingsSeen.push([Number(m[0]), Number(m[1])]); // Story 8.7
+    });
     room.onMessage(S2C.SHOP_BOUGHT, (m: ShopBought) => this.shopBought(m));
     room.onMessage(S2C.SHOP_OFFERED, (m: ShopOffered) => {
       const o = this.offer;
@@ -422,6 +431,7 @@ export class BotClient {
     // Story 8.1: the takeover joins the same room again with the same guest token (the seat's identity).
     const rejoin = (): Promise<Room<unknown, RunStateView>> => client.joinById<RunStateView>(room.roomId, { ...options, intent: "join" });
     const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0, rejoin);
+    bot.pingEveryMs = Math.max(0, (opts.pingEveryS ?? 0) * 1000); // Story 8.7
     room.send(C2S.LOBBY_SET_READY, { ready: true });
     bot.timer = setInterval(() => bot.step(), INPUT_INTERVAL_MS);
     return bot;
@@ -452,9 +462,32 @@ export class BotClient {
   /** Story 6.11: server tick of the last evacuation vote sent. */
   private voteAtTick = -1;
 
+  /** Story 8.7: ping cadence (ms, 0 = off), its seeded kind stream, and what was sent / seen (`[slot, kindIdx]`). */
+  private pingEveryMs = 0;
+  private lastPingMs = Number.NEGATIVE_INFINITY;
+  private pingRng = 0;
+  pingsSent = 0;
+  readonly pingsSeen: [number, number][] = [];
+
+  /** Story 8.7 (AC 10): one ping when due, in build / wave / vote, a random kind from the bot's own stream (mulberry32 seeded by its name). */
+  private pingStep(phase: string): void {
+    if (this.pingEveryMs <= 0 || this.link !== "ok" || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
+    const now = performance.now();
+    if (now - this.lastPingMs < this.pingEveryMs) return;
+    this.lastPingMs = now;
+    if (this.pingRng === 0) for (let i = 0; i < this.name.length; i++) this.pingRng = (Math.imul(this.pingRng ^ this.name.charCodeAt(i), 0x01000193) | 0) || 1;
+    this.pingRng = (this.pingRng + 0x6d2b79f5) | 0;
+    let t = Math.imul(this.pingRng ^ (this.pingRng >>> 15), 1 | this.pingRng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const kind = PING_KINDS[(((t ^ (t >>> 14)) >>> 0) % PING_KINDS.length) as number] as (typeof PING_KINDS)[number];
+    this.room.send(C2S.PING_SEND, { kind });
+    this.pingsSent++;
+  }
+
   /** One input: the policy on the newest data, every 50 ms while the room fights. */
   private step(): void {
     const state = this.room.state;
+    if (state?.phase) this.pingStep(state.phase); // Story 8.7
     // Story 6.11: in the evacuation vote every bot votes Extract (once; retried like Ready if it didn't arrive).
     if (state?.players && state.phase === "vote" && this.playerId) {
       const me = state.players.get(this.playerId);
