@@ -1,5 +1,7 @@
 # Epic 7: decisions to confirm and looks needed — Stories 7.9–7.12 (your look, editor, milestone items, loot bag)
 
+**Status: accepted.** Designer 2026-11-25: "Okay, for all" — every recommended value (first, in bold) accepted. Account / progress deletion: no story yet; default is Epic 10 polish (10.1 settings screen) unless the designer asks for an Epic 7 story.
+
 Written 2026-11-25 from the four story files (`_bmad-output/implementation-artifacts/7-9-my-look-in-the-game.md`, `7-10-survivor-editor.md`, `7-11-milestone-items.md`, `7-12-surprise-loot-bag.md`). The other Epic 7 stories (7.1–7.7: progress saved on the server, Supplies, unlock screen, shop deck, Training, account upgrade, district unlock) have their own file from the other writer.
 
 Each line is the story writer's **recommended value** (first, in bold), with the alternative after it. **"ok" accepts all 25.** Change any line by its code (e.g. "7.11 D5: any team size"). Everything already in `docs/epic-7-decisions.md` and the customization proposal (any colour with no warning, 1 bag in 5 runs, 20 s on the ground, whoever walks over it first, items never sold, identical looks allowed, the ten milestones and their items, the 51 parts) is a rule in the stories and is not asked again.
