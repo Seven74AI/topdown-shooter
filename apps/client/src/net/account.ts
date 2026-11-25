@@ -18,6 +18,7 @@ import {
 } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
 import { serverUrl } from "./serverUrl";
+import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -106,8 +107,10 @@ export function prefillName(current: string, session: AccountSessionResponse | n
  */
 export type UnlockCall = { kind: "answer"; body: UnlockResponse } | { kind: "failed"; status: number };
 
+export { UNLOCK_TIMEOUT_MS };
+
 export async function unlockItem(unlockId: string, requestId: string, over: Partial<AccountDeps> = {}): Promise<UnlockCall> {
-  const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_UNLOCK_PATH}`, ...over };
+  const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_UNLOCK_PATH}`, timeoutMs: UNLOCK_TIMEOUT_MS, ...over };
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
   try {

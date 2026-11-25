@@ -113,6 +113,10 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
             for (const el of row.children[1].querySelectorAll("*")) {
               const r = el.getBoundingClientRect();
               if (r.right > col.right + 0.5) out.push((el.className || el.tagName) + " past its column: " + row.textContent);
+              // RR-N1: the TEXT (ink), not only the box: text wider than its box must be clipped with an ellipsis
+              const cs = getComputedStyle(el);
+              const clipped = cs.overflow === "hidden" && cs.textOverflow === "ellipsis";
+              if (el.scrollWidth > el.clientWidth + 0.5 && !clipped && r.left + el.scrollWidth > col.right + 0.5) out.push((el.className || el.tagName) + " text paints past its column: " + row.textContent);
             }
             for (const el of row.children[2].querySelectorAll("*")) {
               const r = el.getBoundingClientRect();

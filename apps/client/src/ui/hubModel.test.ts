@@ -13,6 +13,7 @@ import {
   hubSections,
   layoutHub,
   notEnoughText,
+  refreshAfterFailureMs,
   rowAction,
   suppliesText,
   tapUnlock,
@@ -185,5 +186,15 @@ describe("Story 7.3 (R9): the hub layout at 568×320, 640×360, 800×360, 844×3
   it("text ≥ 11 px everywhere; the button is 44 px", () => {
     expect(Math.min(...Object.values(PH_TEXT_PX))).toBeGreaterThanOrEqual(11);
     expect(PH_BTN_H).toBe(44);
+  });
+});
+
+describe("re-review RR-L1: the refresh after a failed unlock waits out the route's worst case", () => {
+  it("never sooner than UNLOCK_TIMEOUT_MS after the send (1 ms sweep), at once after it", () => {
+    for (let now = 0; now <= 8000; now++) {
+      const d = refreshAfterFailureMs(1000, 1000 + now);
+      expect(1000 + now + d).toBeGreaterThanOrEqual(1000 + 7000);
+      expect(d).toBe(Math.max(0, 7000 - now));
+    }
   });
 });

@@ -31,7 +31,8 @@ describe("Story 7.3 wiring", () => {
     expect(s).toMatch(/answerUnlock\(buyRef\.current, send\.requestId, call\)/);
     expect(s).toMatch(/if \(r\.progress\) progressStore\.accept\(r\.progress\);/);
     // review F2 / F7: a failure marks the hub offline AND asks the server again (so "try again" can work)
-    expect(s).toMatch(/else if \(r\.offline\) \{\s*\/\/[^\n]*\n\s*progressStore\.markOffline\(\);\s*void progressStore\.refresh\(\);/);
+    expect(s).toMatch(/const sentAt = performance\.now\(\);\s*void unlockItem\(send\.unlockId, send\.requestId\)/);
+    expect(s).toMatch(/progressStore\.markOffline\(\);\s*setTimeout\(\(\) => void progressStore\.refresh\(\), refreshAfterFailureMs\(sentAt, performance\.now\(\)\)\);/);
     expect(s).toMatch(/expireConfirm\(b, performance\.now\(\)\)/);
   });
 

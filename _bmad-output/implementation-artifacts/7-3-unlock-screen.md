@@ -289,10 +289,80 @@ Fixes on `story-7-3` after merging origin/story-7-2 `fac177da` (7.2 re-review 1:
 
 F1, F2, F9 → narrow re-review.
 
+### Re-review (narrow) 1 (AI, 2026-11-25)
+
+Scope: the fix commit `a6987298` and F1's merge resolution in `fed5cc51` (unlock in `boundedTransaction`), on `rereview-7-3` = `story-7-3` 9bdbe687 + master. 7.1 / 7.2 / 8.1 code not reviewed except where F1's path runs through it. Real **PostgreSQL 16.15** scratch cluster (port 5791), route-level probes through the real HTTP server (`bootTestServer` on the Postgres pool). Probes and raw output: `_bmad-output/implementation-artifacts/7-3-review-probes/rereview1-*.txt`.
+
+**Verdict: changes requested — 1 medium (in F1's path, but the code is shared 7.1/7.2 code), 1 low, 1 nit.** F1–F11 do what they say; the money invariant held in every attempt.
+
+#### Findings
+
+| ID | Sev | Finding | Evidence / fix direction |
+| --- | --- | --- | --- |
+| RR-M1 | medium | **A PostgreSQL backend killed mid-transaction crashes the whole game server.** `pg-pool` removes its `error` listener while a client is checked out (`pg-pool/index.js:344`); `db.transaction()` (Drizzle → `pool.connect()`, used by `boundedTransaction`, so the unlock AND the 7.2 bank) holds such a client; when its backend dies (postgres container restart / OOM / `pg_terminate_backend` / failover) the client emits `error` with no listener → `uncaughtException` → Colyseus' `registerGracefulShutdown` shuts every room down and exits. The transaction itself rejects correctly (503, nothing committed). Not introduced by the fixes (7.1 `db/client.ts` only guards idle clients) but it breaks P3 ("database down → play goes on") the first time the DB restarts during a bank or purchase. | Probe `rereview1-kill-crash.probe.ts.txt`: `boundedTransaction` with `pg_sleep(1)`, backend terminated at 300 ms → `tx rejected: db probe: error; uncaught=["Connection terminated unexpectedly"]`; the route probe (backend waiting on the row lock, terminated) ends the vitest worker with `process.exit unexpectedly called with "1"`. Fix: in `openPostgres`, `pool.on("connect", (c) => c.on("error", (e) => log.error({ op: "pool_client", err: e.message }, "db_error")))` (a listener that stays while checked out); add the probe as a real-PG test. Owner: whichever branch lands first (7.1 `db/client.ts`); must be in before the first Epic 7 deploy. |
+| RR-L1 | low | **The client gives up (3 s, `ACCOUNT_TIMEOUT_MS`) before the route's worst case (~2 s account lookup + 2 s checkout + 1.8 s budget).** With the pool busy, the purchase can commit after the phone shows "Couldn't unlock"; F2's refresh then fetches the pre-commit row and shows it as *server* truth (Unlock enabled, old balance, item not owned). No double charge: a second tap gets `already_unlocked` + the true progress, and reopening the hub fixes it. | Route probe: 5 plain 1.9 s queries hold the pool, row lock released at 3.3 s → `200 ok=true in 3278 ms`, charged once (route consistent); a session call at 3.0 s (= F2's refresh) answered `{"supplies":1000,"unlocks":[]}` while the unlock committed `900, ["mine"]` 270 ms later. Fix direction (pick one): client unlock timeout > the route's bound (e.g. 7 s, separate from the session's 3 s), or the route answers 503 when its own elapsed time passes ~2.8 s *before* COMMIT (in `boundedTransaction` via a deadline option). |
+| RR-N1 | nit | **F8's test doesn't guard the ellipsis.** Removing only `overflow: hidden; text-overflow: ellipsis` (keeping `min-width`/`max-width`) leaves all 16 hub cases green, though the 42-char name then paints 63 px into the action column at 568 × 320 (ink right 425 px vs column 362 px). The test measures boxes (`getBoundingClientRect`), and the span's box stays inside. The fix itself works (with it: `scrollWidth 307 > clientWidth 244`, `overflow hidden`, `text-overflow ellipsis`). | Add `e.scrollWidth <= e.clientWidth || getComputedStyle(e).textOverflow === "ellipsis" && overflow hidden` (or ink right = left + scrollWidth ≤ column right unless clipped) for `.ph-name__text`. |
+
+#### Exploit attempts (all on real PostgreSQL 16 through the HTTP route unless noted)
+
+| Attempt | Result |
+| --- | --- |
+| Row locked 1.4 s | 200 ok in 1,359 ms, charged once — consistent |
+| Row locked 1.79 / 1.81 / 2.5 / 5.5 s | 503 in ~1,505 ms each (lock/statement timeout 1.5 s), row unchanged after the lock released + 1.5 s — consistent |
+| Same `requestId` retried after each 503 (then once more) | first retry 200 ok (failed answer forgotten, F5), second retry = memo answer; supplies 900 every time — never double-charged |
+| Pool saturated by 5 banks on locked rows (held 1.3 / 1.9 / 1.95 s) + row lock 2.3 / 1.4 / 1.45 s | 200 ok in 2,187 / 1,486 / 1,487 ms, charged once (the bank holders give up at 1.5 s themselves) — consistent |
+| Pool held by 5 plain `pg_sleep(1.9–1.95)` + row lock to 3.3 / 3.6 / 4.0 s | 200 ok in 3,278 ms charged / 503 in 3,377 ms unchanged / 503 in 3,426 ms unchanged — route consistent, **but all > the client's 3 s abort → RR-L1** |
+| Slow UPDATE (1.6 s trigger) | 503 in 1,503 ms (statement_timeout), unchanged |
+| Lock 1.2 s + 0.7 s trigger (sum > 1.8 s budget) | 503 in 1,504 ms (one statement: statement_timeout), unchanged |
+| Backend terminated while waiting on the lock / during the UPDATE | transaction rejects, nothing committed — **but the process dies → RR-M1** |
+| F2: can it loop? | No: `refresh()` never calls `markOffline()` or itself; one session call per failed unlock (each failed unlock already counted by the 20/min account limit). A failed refresh leaves `source: cache` (Unlock disabled) until the hub reopens. |
+| F2: refresh while a purchase is in flight | No clobber: there is no optimistic state (U5), only one purchase can be `sending`, and `accept()` bumps `seq` so a refresh that started earlier and returns later is dropped. Only RR-L1's stale-read-after-abort remains. |
+| F9: one bad client vs four friends on one Wi-Fi | Possible by design: 60 calls/min per IP now include bad bodies, so a looping client can 429 the others' unlocks (text "rate limited", play unaffected) for ≤ 1 min. Brief 15 asks for the limit before any work; accepted, no finding. |
+| F9: log flood | Bounded: ≤ 1 line per IP (/64 for IPv6) per reason per minute (`unlock_rate_limited`, `unlock_refused` × 2) + 1 per account; `X-Real-IP` is overwritten by Caddy from `Cf-Connecting-Ip` (no spoofed-key growth). |
+| F10: an old 7.1-only tab vs a 7.3 server | Still loses its ticket: 7.1's own schema is `.strict()` at the top (checked on origin/story-7-1), so `progress` makes it reject → unsaved play until reload. F10 only helps 7.3+ clients; the protection is the deploy-together rule (7.1 is not on master yet, so no such tab exists if followed). No finding. |
+
+#### Mutations (each applied once, test run, reverted)
+
+| Mutation | Test | Result |
+| --- | --- | --- |
+| F1: unlock back on `withDbTimeout` + plain transaction (no in-DB bounds) | realPostgres "review F1 (route level)…" | killed |
+| F1: lock + statement timeout 9 s and budget 99 s | same | killed |
+| F1: only `lock_timeout` 9 s | same | survived — expected (statement_timeout bounds the lock wait too; redundancy, not a gap) |
+| F1: route turns a DB failure into a 200 | same | killed |
+| F2: `refresh()` ignores the server after `markOffline` | progressStore.test.ts | killed (2) |
+| F2/F7: drop `void progressStore.refresh()` | progressHubWiring.test.ts | killed |
+| F3: memo key = `requestId` only | unlockRoute "review F3…" | killed |
+| F4/F9: IP limit moved after the body parse | unlockRoute "review F4 + F9…" | killed |
+| F4: rate-limit log not gated | same | killed |
+| F9: refused calls not logged | unlockRoute "review F9…" | killed |
+| F9: refused gate keyed per IP only (not per reason) | same | killed |
+| F5: a failed answer stays in the memo | unlockRoute "review F5…" | killed |
+| F6: tie broken by list order only | pool.test "review F6…" | killed |
+| F6: in-category cheapest ignored | same | killed |
+| F10: `saved:false` branch strict again | progressStore "review F10…" | killed |
+| F10: `account` strict again | same | killed |
+| F8: drop `overflow: hidden; text-overflow: ellipsis` | hubDomLayout (16) | **survived → RR-N1** |
+| F8: drop `min-width: 0` | same | survived (the parent's `min-width: 0` + `max-width: 100%` suffice; harmless) |
+| F11: gear rule targets nothing | hubDomLayout | killed (16) |
+
+**Checks run:** `npm ci`; `npm run typecheck` green; touched tests (`progressStore`, `unlockRoute`, `pool`, `hubDomLayout`, `progressHubWiring`) 5 files / 62 tests green; `realPostgres.test.ts` on PostgreSQL 16: 17 / 17 green. No full gate (narrow re-review).
+
+### Re-review 1 fixes (builder, 2026-11-25)
+
+Typecheck + lint + touched tests (no full gate, as asked); tree = fed5cc51 + these fixes.
+
+| ID | Fix | Test (file > name) | Mutation |
+| --- | --- | --- | --- |
+| RR-M1 | Not touched here: 7.1's `db/client.ts`, fixed by 7.1 before landing (main session) | — | — |
+| RR-L1 | `unlockItem` gets its own client timeout `UNLOCK_TIMEOUT_MS` = 7 s (`net/unlockTiming.ts`; the session call keeps 3 s); after a failed unlock the hub refreshes only once 7 s have passed since the send (`refreshAfterFailureMs`), so it never reads the pre-commit row | `apps/client/src/net/progressStore.test.ts` > "UNLOCK_TIMEOUT_MS ≥ 7 s, the session stays 3 s", "a slow answer at 6.5 s is still taken (it would have been dropped at 3 s); the call gives up only at 7 s"; `apps/client/src/ui/hubModel.test.ts` > "never sooner than UNLOCK_TIMEOUT_MS after the send (1 ms sweep), at once after it"; `tools/checks/progressHubWiring.test.ts` (sentAt + delayed refresh) | timeout 3000 → 3 tests fail |
+| RR-N1 | `hubDomLayout` measures the text (ink): an element whose `scrollWidth > clientWidth` must have `overflow: hidden` + `text-overflow: ellipsis`, else its ink right (left + scrollWidth) must stay inside the column | `tools/checks/hubDomLayout.test.ts` > "568×320, review F8: a 42-char name…" | dropping only `overflow`/`text-overflow` from `.ph-name__text` → fails |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built (overnight, auto-accepted B1–B14); gate green on fcaad5a0; status review.
 - 2026-11-25: Senior Developer Review (AI): changes requested (F1–F3 medium, F4–F10 low, F11–F12 nit).
 - 2026-11-25: review fixes F1–F11 (F12 left for the designer); merged story-7-2 fac177da (boundedTx); gate green on fed5cc51.
+- 2026-11-25: narrow re-review 1: F1–F11 hold; RR-M1 (7.1 db/client.ts, 7.1's to fix), RR-L1, RR-N1.
+- 2026-11-25: re-review 1 fixes RR-L1 (unlock client timeout 7 s, delayed refresh) and RR-N1 (text-width check).
 - 2026-11-25 (earlier): merged story-7-2's review fixes (8c702472); B15 real-browser hub layout test (tag wraps under long names), B16 purchase bounded like the bank (7.2 M1) + real-PostgreSQL unlock tests; re-gated.

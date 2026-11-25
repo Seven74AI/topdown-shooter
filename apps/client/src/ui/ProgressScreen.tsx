@@ -7,6 +7,7 @@ import {
   answerUnlock,
   expireConfirm,
   hubSections,
+  refreshAfterFailureMs,
   rowAction,
   suppliesText,
   tapUnlock,
@@ -91,6 +92,7 @@ export function ProgressScreen() {
     buyRef.current = state;
     setBuy(state);
     if (!send) return;
+    const sentAt = performance.now();
     void unlockItem(send.unlockId, send.requestId).then((call) => {
       const r = answerUnlock(buyRef.current, send.requestId, call);
       buyRef.current = r.state;
@@ -98,8 +100,9 @@ export function ProgressScreen() {
       if (r.progress) progressStore.accept(r.progress); // U5: the server's answer, never a local guess
       else if (r.offline) {
         // Review F2: mark offline, then ask the server again: a good answer brings its truth back and re-enables Unlock.
+        // RR-L1: not before the route's worst case has passed since the send (no pre-commit read).
         progressStore.markOffline();
-        void progressStore.refresh();
+        setTimeout(() => void progressStore.refresh(), refreshAfterFailureMs(sentAt, performance.now()));
       }
     });
   };

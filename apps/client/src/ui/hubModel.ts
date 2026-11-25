@@ -10,6 +10,7 @@ import {
   type UnlockResponse,
 } from "@topdown/shared";
 import { formatSupplies } from "../net/rewardsStore";
+import { UNLOCK_TIMEOUT_MS } from "../net/unlockTiming";
 
 /**
  * Story 7.3 (AC 6–8; U1–U5; layout PH1 in Lumen LF5): what the Progress hub and its Unlocks tab show, the Unlock →
@@ -231,6 +232,14 @@ export function answerUnlock(
   const b = call.body;
   const note = !b.ok && b.reason === "not_enough" ? { unlockId, text: notEnoughText(b.need ?? 1) } : null;
   return { state: { step: { kind: "idle" }, note }, progress: b.progress, offline: false };
+}
+
+/**
+ * Re-review RR-L1: after a failed unlock, when to ask the server again: not before UNLOCK_TIMEOUT_MS after the request
+ * was sent (past the route's worst case), so the refresh never reads the row from before a late commit.
+ */
+export function refreshAfterFailureMs(sentAtMs: number, nowMs: number): number {
+  return Math.max(0, sentAtMs + UNLOCK_TIMEOUT_MS - nowMs);
 }
 
 /** What a row's action area shows. */

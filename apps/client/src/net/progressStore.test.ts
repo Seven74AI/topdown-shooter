@@ -1,7 +1,7 @@
 import type { AccountSessionResponse, ProgressView } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
 import { accountSessionResponseSchema } from "@topdown/shared";
-import { accountSession, unlockItem } from "./account";
+import { ACCOUNT_TIMEOUT_MS, UNLOCK_TIMEOUT_MS, accountSession, unlockItem } from "./account";
 import { PROGRESS_CACHE_KEY, ProgressStore } from "./progressStore";
 
 const P: ProgressView = { supplies: 340, lifetimeSupplies: 900, unlocks: ["mine"] };
@@ -138,5 +138,40 @@ describe("review F10: the session reply is forward compatible (later stories add
     expect(s.saved && s.progress).toEqual(P);
     const off = accountSessionResponseSchema.parse({ saved: false, deviceToken: token, ticket: null, account: null, reason: "down" });
     expect(off.saved).toBe(false);
+  });
+});
+
+describe("re-review RR-L1: the unlock call outlasts the route's worst case (~5.8 s); the session call keeps 3 s", () => {
+  it("UNLOCK_TIMEOUT_MS ≥ 7 s, the session stays 3 s", () => {
+    expect(UNLOCK_TIMEOUT_MS).toBeGreaterThanOrEqual(7000);
+    expect(ACCOUNT_TIMEOUT_MS).toBe(3000);
+  });
+
+  it("a slow answer at 6.5 s is still taken (it would have been dropped at 3 s); the call gives up only at 7 s", async () => {
+    vi.useFakeTimers();
+    try {
+      const ok = { ok: true, unlockId: "mine", progress: P };
+      const slow = (ms: number) => (_u: unknown, init?: RequestInit) =>
+        new Promise<Response>((res, rej) => {
+          const t = setTimeout(() => res(new Response(JSON.stringify(ok), { status: 200 })), ms);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(t);
+            rej(new DOMException("aborted", "AbortError"));
+          });
+        });
+      const a = unlockItem("mine", "x", { url: () => "/u", fetch: slow(6500) as typeof fetch });
+      await vi.advanceTimersByTimeAsync(6500);
+      expect(await a).toEqual({ kind: "answer", body: ok });
+      const b = unlockItem("mine", "x", { url: () => "/u", fetch: slow(8000) as typeof fetch });
+      await vi.advanceTimersByTimeAsync(6999);
+      let settled = false;
+      void b.then(() => (settled = true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await b).toEqual({ kind: "failed", status: 0 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -1,0 +1,29 @@
+
+=== RUN 2026-11-25T08:29:15.887Z
+lock 1400: status 200 ok=true in 1359 ms; after={"s":900,"u":["mine"]} → CONSISTENT
+  retry same id: 200 {"ok":true,"unlockId":"mine","progress":{"supplies":900,"lifetimeSupplies":1000,"unlocks":["mine"]}}; again 200 ok=true; supplies 900, unlocks ["mine"]
+lock 1790: status 503 ok=false in 1506 ms; after={"s":1000,"u":[]} → CONSISTENT
+  retry same id: 200 {"ok":true,"unlockId":"mine","progress":{"supplies":900,"lifetimeSupplies":1000,"unlocks":["mine"]}}; again 200 ok=true; supplies 900, unlocks ["mine"]
+lock 1810: status 503 ok=false in 1505 ms; after={"s":1000,"u":[]} → CONSISTENT
+  retry same id: 200 {"ok":true,"unlockId":"mine","progress":{"supplies":900,"lifetimeSupplies":1000,"unlocks":["mine"]}}; again 200 ok=true; supplies 900, unlocks ["mine"]
+lock 2500: status 503 ok=false in 1504 ms; after={"s":1000,"u":[]} → CONSISTENT
+  retry same id: 200 {"ok":true,"unlockId":"mine","progress":{"supplies":900,"lifetimeSupplies":1000,"unlocks":["mine"]}}; again 200 ok=true; supplies 900, unlocks ["mine"]
+lock 5500: status 503 ok=false in 1504 ms; after={"s":1000,"u":[]} → CONSISTENT
+  retry same id: 200 {"ok":true,"unlockId":"mine","progress":{"supplies":900,"lifetimeSupplies":1000,"unlocks":["mine"]}}; again 200 ok=true; supplies 900, unlocks ["mine"]
+pool5 hold 1300 + lock 2300: status 200 ok=true in 2187 ms; after={"s":900,"u":["mine"]} → CONSISTENT
+pool5 hold 1900 + lock 1400: status 200 ok=true in 1486 ms; after={"s":900,"u":["mine"]} → CONSISTENT
+pool5 hold 1950 + lock 1450: status 200 ok=true in 1487 ms; after={"s":900,"u":["mine"]} → CONSISTENT
+slow update 1.6 s: status 503 ok=false in 1503 ms; after={"s":1000,"u":[]} → CONSISTENT
+lock 1.2 + update 0.7: status 503 ok=false in 1504 ms; after={"s":1000,"u":[]} → CONSISTENT
+
+=== RUN 2026-11-25T08:29:48.415Z
+hogs 5x1.9s + lock 3300: status 200 ok=true in 3278 ms; after={"s":900,"u":["mine"]} → CONSISTENT [> client 3 s abort]
+hogs 5x1.9s + lock 3600: status 503 ok=false in 3377 ms; after={"s":1000,"u":[]} → CONSISTENT [> client 3 s abort]
+hogs 5x1.95s + lock 4000: status 503 ok=false in 3426 ms; after={"s":1000,"u":[]} → CONSISTENT [> client 3 s abort]
+
+=== RUN 2026-11-25T08:30:07.931Z
+client view: refresh answered at 3008 ms with progress {"supplies":1000,"lifetimeSupplies":1000,"unlocks":[]} (source server); unlock answered 200 ok=true at 3278 ms; committed {"s":900,"u":["mine"]}
+
+=== RUN 2026-11-25T08:30:18.272Z
+
+crash probe: killed 1; tx rejected: db probe: error; uncaught=["Connection terminated unexpectedly"]
