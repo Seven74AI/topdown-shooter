@@ -9,7 +9,7 @@
 type G = CanvasRenderingContext2D;
 const TAU = Math.PI * 2;
 
-function hash2(x: number, y: number, seed: number): number {
+export function hash2(x: number, y: number, seed: number): number {
   let h = (x * 374761393 + y * 668265263 + seed * 2147483647) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;

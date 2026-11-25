@@ -3,9 +3,10 @@ import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, t
 import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
-import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, type BoxOut, type SpriteTransform } from "./barricadeLook";
+import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, framePointToWorld, type BoxOut, type SpriteTransform } from "./barricadeLook";
 import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
-import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
+import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, ensureBuildingsAtlas, type BuildingFx } from "./city/buildingsAtlas";
+import { glintAlpha, glowLevel } from "./buildingFx";
 import { buildingShadowHeightM } from "./mineLook";
 import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
 import { rangeRings } from "./rangeRings";
@@ -53,6 +54,12 @@ const DAMAGE_DARKEN = 0.45;
 const CRACK = 0x1e120a;
 const CRACK_M = 0.05;
 const CRACKS_PER_STAGE = 2;
+/** Photoreal group 3: the glints in flight at once (shared by every building), and a glint star's size (m). */
+const GLINT_POOL = 24;
+const GLINT_M = 0.16;
+/** The glow over the art (additive), and the glints over that. */
+const GLOW_DEPTH_UP = 0.01;
+const GLINT_DEPTH = 3.06;
 /** The preview is drawn over everything in the world. */
 const PREVIEW_DEPTH = 13;
 const VALID = 0x4caf50;
@@ -128,6 +135,14 @@ export class BuildingView {
   private ghostW = 0;
   private ghostH = 0;
   private shownScale = 1;
+  /** Photoreal group 3: per laid sprite, its animation data, transform and seed; a glow image each (lazy); shared glints. */
+  private readonly scene: Phaser.Scene;
+  private readonly spriteFx: (BuildingFx | undefined)[] = [];
+  private readonly spriteXf: SpriteTransform[] = [];
+  private readonly spriteSeed: Int32Array;
+  private readonly glows: (Phaser.GameObjects.Image | null)[] = [];
+  private readonly glints: Phaser.GameObjects.Image[] = [];
+  private readonly pt = { x: 0, y: 0 };
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
@@ -135,6 +150,14 @@ export class BuildingView {
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
     this.spriteId = new Int32Array(pool).fill(-1);
     this.spriteY = new Float32Array(pool);
+    this.scene = scene;
+    this.spriteSeed = new Int32Array(pool);
+    for (let i = 0; i < pool; i++) {
+      this.spriteFx.push(undefined);
+      this.spriteXf.push({ x: 0, y: 0, angle: 0, w: 0, h: 0 });
+      this.glows.push(null);
+    }
+    for (let i = 0; i < GLINT_POOL; i++) this.glints.push(scene.add.image(0, 0, TEX_GLINT).setBlendMode(Phaser.BlendModes.ADD).setDepth(GLINT_DEPTH).setVisible(false));
     for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(BUILDING_DEPTH).setVisible(false));
     this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
     this.ghost = scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
@@ -149,6 +172,7 @@ export class BuildingView {
   update(world: Readonly<World>, placement: Placement, drops: DropSource | null = null, nowMs = 0, popScale = 1): void {
     this.drawPlaced(world);
     if (drops) this.applyDrops(drops, nowMs);
+    this.animate(nowMs);
     this.drawPreview(world, placement);
     this.applyPop(placement.active ? popScale : 1);
   }
@@ -164,6 +188,53 @@ export class BuildingView {
       if (img.y !== y) img.setY(y);
     }
     this.dropsShown = any;
+  }
+
+  /**
+   * Photoreal group 3: the relit buildings come alive. Each glowing one (floodlight, med station, mine) pulses its
+   * additive glow layer; glint stars light briefly on the steel highlights, a shared pool handed out in turn.
+   */
+  private animate(nowMs: number): void {
+    const t = nowMs / 1000;
+    let g = 0;
+    for (let i = 0; i < this.spritesUsed; i++) {
+      const fx = this.spriteFx[i];
+      const glow = this.glows[i];
+      if (!fx) {
+        if (glow?.visible) glow.setVisible(false);
+        continue;
+      }
+      const xf = this.spriteXf[i] as SpriteTransform;
+      const seed = this.spriteSeed[i] as number;
+      const img = this.sprites[i] as Phaser.GameObjects.Image;
+      if (fx.glowFrame) {
+        let gi = glow;
+        if (!gi) {
+          gi = this.scene.add.image(0, 0, ATLAS_BUILDINGS_GLOW, fx.glowFrame).setBlendMode(Phaser.BlendModes.ADD);
+          this.glows[i] = gi;
+        }
+        if (gi.frame.name !== fx.glowFrame) gi.setFrame(fx.glowFrame);
+        gi.setPosition(img.x, img.y).setRotation(xf.angle).setDisplaySize(xf.w, xf.h).setDepth(img.depth + GLOW_DEPTH_UP).setAlpha(Math.min(1, glowLevel(fx.glow, t, seed))).setVisible(true);
+      } else if (glow?.visible) glow.setVisible(false);
+      const fw = img.frame.width;
+      const fh = img.frame.height;
+      for (let k = 0; k < fx.spots.length && g < this.glints.length; k++) {
+        const a = glintAlpha(t, k, seed);
+        if (a <= 0.01) continue;
+        const sp = fx.spots[k] as readonly [number, number];
+        framePointToWorld(xf, (sp[0] / fw - 0.5) * xf.w, (sp[1] / fh - 0.5) * xf.h, this.pt);
+        const size = GLINT_M * (0.6 + 0.4 * a);
+        (this.glints[g++] as Phaser.GameObjects.Image).setPosition(this.pt.x, this.pt.y + (img.y - xf.y)).setDisplaySize(size, size).setAlpha(a).setVisible(true);
+      }
+    }
+    for (let i = this.spritesUsed; i < this.glows.length; i++) {
+      const gi = this.glows[i];
+      if (gi?.visible) gi.setVisible(false);
+    }
+    for (; g < this.glints.length; g++) {
+      const gi = this.glints[g] as Phaser.GameObjects.Image;
+      if (gi.visible) gi.setVisible(false);
+    }
   }
 
   /** Story 5.23 (AC 1): scales the preview and its ghost art round the ghost's centre (no redraw). */
@@ -225,6 +296,14 @@ export class BuildingView {
           img.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setDepth(b.solid ? BUILDING_DEPTH : FLOOR_DEPTH).setVisible(true);
           this.spriteId[used - 1] = b.id; // Story 5.23: the drop finds its sprite
           this.spriteY[used - 1] = t.y;
+          const xf = this.spriteXf[used - 1] as SpriteTransform;
+          xf.x = t.x;
+          xf.y = t.y;
+          xf.angle = t.angle;
+          xf.w = t.w;
+          xf.h = t.h;
+          this.spriteFx[used - 1] = buildingFx(art.frame);
+          this.spriteSeed[used - 1] = b.id;
         }
         img.setTint(barricadeTint(frac));
         if (frac < 1 && b.solid) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
