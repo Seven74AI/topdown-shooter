@@ -83,6 +83,11 @@ export interface PlayerStateView {
   readonly trainDmg: number;
   readonly trainMoney: number;
   readonly trainReload: number;
+  /**
+   * Story 8.2 (J4): a late joiner who arrived mid-wave (or in the vote): connected, watching, NOT in the World;
+   * enters at the next build start. Only `slot`, `name`, `look` and this are meaningful while true.
+   */
+  readonly waiting: boolean;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -205,6 +210,11 @@ export interface RunStateView {
   /** Story 7.7: the run's district id (the host's lobby pick) and the open districts' bitmask (bit i = `progression.json › districts[i]`). */
   readonly district: string;
   readonly districtsOpen: number;
+  /**
+   * Story 8.3 (AC 11, J3): the run's remembered seats (left, or a hold that ran out) as JSON `[[playerId, name], …]`
+   * ("" = none), so the host's ☰ → Players list can free one with Remove. Written on change only.
+   */
+  readonly leftSeats: string;
 }
 
 /**
@@ -298,6 +308,7 @@ export const PLAYER_STATE_FIELDS = {
   trainDmg: true,
   trainMoney: true,
   trainReload: true,
+  waiting: true, // Story 8.2
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -358,6 +369,7 @@ export const RUN_STATE_FIELDS = {
   lootBagVariant: true,
   district: true, // Story 7.7
   districtsOpen: true,
+  leftSeats: true, // Story 8.3
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

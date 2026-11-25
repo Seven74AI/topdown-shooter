@@ -4,6 +4,13 @@ export const MIN_TEXT_CSS_PX = 14;
 /** Story 2.11: the in-run menu button (☰), top-right, this far inside the safe area (CSS px). */
 export const MENU_BUTTON_CSS_PX = 48;
 export const MENU_BUTTON_INSET_CSS_PX = 12;
+/** Story 8.7 (AC 2): the ping button — round, 48 CSS px, top right, left of ☰ with this gap. */
+export const PING_BUTTON_CSS_PX = 48;
+export const PING_BUTTON_GAP_CSS_PX = 12;
+/** Story 8.7 (decision 8.7 B5): the wheel's chips (≥ 44 px: icon over its word) and the gap between them. */
+export const PING_CHIP_W_CSS_PX = 64;
+export const PING_CHIP_H_CSS_PX = 44;
+export const PING_CHIP_GAP_CSS_PX = 6;
 /** Story 3.1: the build phase's Ready button, bottom centre between the thumbs (CSS px). */
 export const READY_BUTTON_W_CSS_PX = 168;
 export const READY_BUTTON_H_CSS_PX = 52;

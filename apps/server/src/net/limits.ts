@@ -19,6 +19,13 @@ export const MAX_OTHER_MESSAGES_PER_S = 10;
  */
 export const MAX_GHOST_MESSAGES_PER_S = 5;
 
+/**
+ * Story 8.7 (decision E8-P5): `ping.send` has its own bucket, 1 per second with a burst of 1 (D15: at most one ping a
+ * second per player), so pings never take tokens from the shared bucket (shop / build) and those never starve pings.
+ * The client keeps its own 1 s cooldown (`PING_COOLDOWN_MS`), so an honest player never reaches this drop.
+ */
+export const PING_PER_S = 1;
+
 /** At most one `client_message_rejected` warn per client and reason in this window. */
 export const DROP_LOG_INTERVAL_MS = 10_000;
 
@@ -70,8 +77,8 @@ export const RESUME_COUNT_S = 3;
  */
 export const TRANSPORT_PING_INTERVAL_MS = 3000;
 export const TRANSPORT_PING_MAX_RETRIES = 4;
-/** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). */
-export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
+/** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). Story 8.3: 4022 removed. */
+export { CLOSE_REMOVED, CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
 /**
  * Story 8.1 (F7, brief 21): an input whose view tick (`viewTick`, the tick the phone drew) is more
  * than this many ticks (2 s) behind the server was made while the line was down (a cut, a tunnel) and

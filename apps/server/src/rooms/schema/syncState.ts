@@ -328,6 +328,7 @@ export function resetRunFields(state: RunState): void {
   state.npcLook = 0;
   state.npcLeaderSlot = 255;
   state.lootBagState = 0; // Story 7.12: no bag before the next run's drop
+  state.leftSeats = ""; // Story 8.3: remembered seats end with the run
   state.lootBagX = 0;
   state.lootBagY = 0;
   state.lootBagUntilTick = 0;
@@ -363,6 +364,7 @@ function resetPlayer(s: PlayerState): void {
   s.vote = 0; // Story 6.11
   s.heldUntilTick = 0; // Story 8.1
   s.protectTicks = 0;
+  s.waiting = false; // Story 8.2: a late joiner still waiting at Results is a normal lobby member now
   s.unlocks = 0; // Story 7.4: the next run writes its own
   s.trainHp = 0; // Story 7.5
   s.trainDmg = 0;

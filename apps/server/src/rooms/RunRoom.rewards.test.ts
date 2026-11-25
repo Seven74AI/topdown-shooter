@@ -183,7 +183,7 @@ describe("Story 7.2: banking in the room", () => {
     expect(await rewardRows(b)).toBe(1);
   });
 
-  it("re-review N-R3 (B5): Leave mid-wave (banked quit) → come back in the build phase → run end: one row, and Results shows the earlier quit bank", async () => {
+  it("Story 8.2 (AC 13, E8-J6; replaces 7.2 B5): Leave mid-wave (banked quit) → come back in the build phase → run end: one row, raised to the whole run (top-up)", async () => {
     const [a, b] = [await newAccount(), await newAccount()];
     const toks = [hex(), hex()];
     const { clients, inbox, room, w } = await toWave([a, b], toks);
@@ -202,13 +202,15 @@ describe("Story 7.2: banking in the room", () => {
     await back.waitForInitialState();
     await vi.waitFor(() => expect(w.players.has(bId)).toBe(true));
     await vi.waitFor(() => expect(got.runIds).toEqual([room.bank?.runId])); // the run id on the rejoin
-    w.players.get(bId)!.wavesIn = 9; // plays on: not paid again
+    w.players.get(bId)!.wavesIn = 9; // plays on: the waves after the rejoin are paid by the top-up
     for (const p of w.players.values()) downPlayer(w, p);
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));
     await vi.waitFor(() => expect(got.length).toBe(1));
-    expect(got[0]).toMatchObject({ status: "saved", ending: "quit", leftWave: 1, total: 60 }); // "Banked when you left (wave 1)"
-    expect(await rewardRows(b)).toBe(1);
-    expect(await supplies(b)).toBe(60);
+    expect(got[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 9 });
+    const total = (got[0] as { total: number }).total;
+    expect(total).toBeGreaterThan(60);
+    expect(await rewardRows(b)).toBe(1); // one row, raised
+    expect(await supplies(b)).toBe(total); // 60 at the Leave + (total − 60) now: the whole run, once
   });
 
   it("review M1 (B): run.leave keeps the socket, but the banked seat can't take the bag; a teammate still can", async () => {
@@ -288,7 +290,7 @@ describe("Story 7.2: banking in the room", () => {
     const repo = progressRepo(database);
     const { setRoomAccounts } = await import("../auth/roomAccounts");
     const failing = { ...repo, addSupplies: () => Promise.reject(new Error("db down")) };
-    const restore = { sessionSecret: SECRET, accounts: accountsRepo(database), progress: progressRepo(database) };
+    const restore = { sessionSecret: SECRET, accounts: accountsRepo(database), progress: progressRepo(database), checkTicketRows: false }; // as bootTestServer set it (8.2 review: later tests' tickets need it)
     setRoomAccounts({ ...restore, progress: failing });
     try {
       const err = vi.spyOn(room.log, "error");
@@ -301,5 +303,44 @@ describe("Story 7.2: banking in the room", () => {
     } finally {
       setRoomAccounts(restore);
     }
+  });
+});
+
+describe("Story 8.2+8.3 review: banking with seats that come and go", () => {
+  it("H1: Di is removed, Eve joins into Di's player id → at the run end Eve banks on HER account and sees HER rewards", async () => {
+    const [a, d, e] = [await newAccount(), await newAccount(), await newAccount()];
+    const { clients, inbox, room, w } = await toWave([a, d]);
+    const diId = idOf(room, clients[1]!);
+    endWave(w); // a build phase: Remove is allowed
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    clients[0]!.send(C2S.HOST_REMOVE, { playerId: diId });
+    await vi.waitFor(async () => expect(await rewardRows(d)).toBe(1), { timeout: 5000 }); // Di banked "quit" at the remove (Di's socket is closed: Di sees "removed")
+    const eve = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, options("join", "Eve", e));
+    const eveGot = listen(eve);
+    await eve.waitForInitialState();
+    await vi.waitFor(() => expect(w.players.has(diId)).toBe(true)); // Eve took Di's id
+    expect(idOf(room, eve)).toBe(diId);
+    w.players.get(diId)!.wavesIn = 2;
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(eveGot.length).toBe(1));
+    expect(eveGot[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 2 }); // her own record, not Di's quit
+    expect(await rewardRows(e)).toBe(1);
+    expect(await supplies(e)).toBe((eveGot[0] as { total: number }).total);
+    expect(await rewardRows(d)).toBe(1); // Di's one row from the remove, nothing more
+    expect(inbox[1]!.length).toBe(0); // the removed Di's socket is gone
+  }, 20_000);
+
+  it("M2: a late joiner still waiting when the run ends gets a zero not_saved run.rewards (never 'Saving…' forever)", async () => {
+    const a = await newAccount();
+    const { clients, room, w } = await toWave([a]);
+    const late = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, options("join", "Bo", await newAccount()));
+    const got = listen(late);
+    await late.waitForInitialState();
+    await vi.waitFor(() => expect(room.state.players.get("p1")?.waiting).toBe(true));
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]).toMatchObject({ status: "not_saved", total: 0 });
   });
 });

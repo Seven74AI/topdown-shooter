@@ -117,6 +117,13 @@ function enterRoom(room: RunConnection, c: Connection): void {
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.alreadyJoined);
           return;
         }
+        if (reason === "removed") {
+          // Story 8.3 (AC 12): "You were removed from this run" with Back to start (the notice dialog); no reconnect.
+          uiStore.set({ kind: "start" });
+          uiStore.request("leaveRun");
+          serverNotice.show(JOIN_ERROR_TEXT.removed);
+          return;
+        }
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too
@@ -161,9 +168,16 @@ function resumeSavedSeat(): void {
   if (!seat) return;
   void import("./net/connection")
     .then(async (c) => {
-      const room = (await c.reconnectSeat(seat.token)) ?? (await c.rejoinGame(seat.roomId, seat.name).then((r) => (r.ok ? r.room : null)));
+      let removed = false;
+      const room =
+        (await c.reconnectSeat(seat.token)) ??
+        (await c.rejoinGame(seat.roomId, seat.name).then((r) => {
+          if (!r.ok && r.reason === "removed") removed = true;
+          return r.ok ? r.room : null;
+        }));
       if (!room) {
         seatStore.clear();
+        if (removed) serverNotice.show(JOIN_ERROR_TEXT.removed); // Story 8.3 review M3: a removed seat reloads into the notice
         return;
       }
       enterRoom(room, c);

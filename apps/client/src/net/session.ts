@@ -31,6 +31,7 @@ import {
 } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
 import { TeammateGhosts } from "./teammateGhosts";
+import { PingModel } from "../render/pingModel";
 import { rewardsStore } from "./rewardsStore";
 
 const SHOP_ERRORS: readonly ShopError[] = [
@@ -131,7 +132,7 @@ export function parseShopRefusedItem(m: unknown): ShopAnswer | null {
 export function parsePlayerLeft(m: unknown): PlayerLeft | null {
   const o = m as Partial<PlayerLeft> | null;
   if (!o || typeof o.playerId !== "string" || typeof o.name !== "string") return null;
-  if (o.reason !== "left" && o.reason !== "disconnected") return null;
+  if (o.reason !== "left" && o.reason !== "disconnected" && o.reason !== "removed") return null; // Story 8.3: + removed
   return { playerId: o.playerId, name: o.name, reason: o.reason };
 }
 
@@ -248,6 +249,11 @@ export class RunInbox {
   private moveSink: ((r: MoveRefusal) => void) | null = null;
   /** Story 5.24: teammates' held buildings (`building.ghosted`), kept from the join; cosmetic only (F7). */
   readonly ghosts = new TeammateGhosts();
+  /**
+   * Story 8.7: everyone's pings (`ping.shown`), kept from the join (a late Game scene start still shows a fresh one);
+   * never World state (P5). Stamped with `performance.now()` on arrival (the model's clock, decision 8.7 B4).
+   */
+  readonly pings = new PingModel();
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
@@ -269,6 +275,12 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_GHOSTED, (m: unknown) => this.receiveGhost(m))); // Story 5.24
     this.offs.push(room.onMessage(S2C.RUN_STARTED, (m: unknown) => this.receiveRunStarted(m))); // Story 7.2 (RR-L1)
     this.offs.push(room.onMessage(S2C.RUN_REWARDS, (m: unknown) => this.receiveRewards(m))); // Story 7.2
+    this.offs.push(room.onMessage(S2C.PING_SHOWN, (m: unknown) => this.receivePingShown(m))); // Story 8.7
+  }
+
+  /** Story 8.7: `ping.shown [slot, kindIdx, x, y, tick]` → the ping model (malformed payloads are ignored there). */
+  private receivePingShown(m: unknown): void {
+    if (!this.closed) this.pings.receive(m, performance.now());
   }
 
   /** Story 7.2 (RR-L1): `run.started { runId }` → the rewards store accepts only that run's rewards from now on. */
@@ -406,6 +418,7 @@ export class RunInbox {
   reset(): void {
     this.offer = null; // Story 5.13: the next run draws from build 0 again
     this.ghosts.clearAll(); // Story 5.24
+    this.pings.clearAll(); // Story 8.7: no ping crosses into the next run
     this.early.length = 0;
     this.earlyDropped = 0;
     this.earlyHordeDropped = 0;
@@ -440,6 +453,7 @@ export class RunInbox {
     const left = parsePlayerLeft(m);
     if (!left) return;
     this.ghosts.clearSlot(playerSlotOf(left.playerId)); // Story 5.24 (B7): whoever listens
+    this.pings.clearSlot(playerSlotOf(left.playerId)); // Story 8.7: a leaver's ping goes
     this.leftSink?.(left);
   }
 

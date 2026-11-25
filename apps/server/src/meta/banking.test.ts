@@ -194,3 +194,38 @@ describe("Story 7.2: RunBank", () => {
     expect((await p).lines.waves).toBe(40);
   });
 });
+
+describe("Stories 8.2+8.3 review: RunBank by seat", () => {
+  it("L1: a Leave's bank still in flight when the seat is reopened (it came back) delivers nothing; the top-up's result does", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const calls: boolean[] = [];
+    const repo = {
+      addSupplies: async (_run: string, _acct: string, pay: (l: number) => RunPayout, _meta?: unknown, topUp?: boolean) => {
+        calls.push(topUp === true);
+        if (topUp !== true) await gate; // the Leave's write is slow
+        const p = pay(10_000);
+        return { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: p.breakdown, nudge: false };
+      },
+    } as unknown as ProgressRepo;
+    const { bank, delivered } = bankWith(repo);
+    const leave = bank.bank({ playerId: "p1", seatId: "p1#2", accountId: "a", record: rec(1), ending: "quit" });
+    bank.reopen("p1#2");
+    const end = await bank.bank({ playerId: "p1", seatId: "p1#2", accountId: "a", record: rec(5), ending: "wiped" });
+    release();
+    await leave;
+    await new Promise((r) => setTimeout(r, 5));
+    expect(calls).toEqual([false, true]);
+    expect(delivered.map(([id, m]) => [id, m.waveCount])).toEqual([["p1#2", 5]]); // never the stale Leave result
+    expect(bank.resultFor("p1#2")?.waveCount).toBe(end.waveCount);
+  });
+
+  it("H1: two seats with the same player id (a removed one and its new occupant) bank and deliver separately", async () => {
+    const { repo } = fakeRepo();
+    const { bank, delivered } = bankWith(repo);
+    await bank.bank({ playerId: "p3", seatId: "p3#4", accountId: "di", record: rec(2), ending: "quit" });
+    await bank.bank({ playerId: "p3", seatId: "p3#6", accountId: "eve", record: rec(1), ending: "wiped" });
+    expect(delivered.map(([id]) => id)).toEqual(["p3#4", "p3#6"]);
+    expect(bank.resultFor("p3#6")?.waveCount).toBe(1);
+  });
+});

@@ -1,7 +1,7 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
-import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
+import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, parseLeftSeats, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
 import { FakeRoom, fakePlayer } from "./fakeRoom";
 
@@ -17,6 +17,7 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     districtsOpen: 1,
     districtReset: "",
     districtResetSeq: 0,
+    left: [], // Story 8.3
     players: [
       { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
       { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
@@ -25,13 +26,26 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
   };
 }
 
+describe("parseLeftSeats (Story 8.3 AC 11)", () => {
+  it("reads the remembered seats; empty or malformed → none", () => {
+    expect(parseLeftSeats('[["p3","Di"],["p1","Bo"]]')).toEqual([
+      { playerId: "p3", name: "Di" },
+      { playerId: "p1", name: "Bo" },
+    ]);
+    expect(parseLeftSeats("")).toEqual([]);
+    expect(parseLeftSeats(undefined)).toEqual([]);
+    expect(parseLeftSeats("{")).toEqual([]);
+    expect(parseLeftSeats('[["x9","Eve"],[1,2],"p2"]')).toEqual([]);
+  });
+});
+
 describe("snapshotLobby", () => {
   it("copies players in slot order as plain data", () => {
     const players = new Map<string, PlayerStateView>([
       ["p2", fakePlayer(2, { name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" })], // Story 7.9 review L1: a real code
       ["p0", player(0, "Ana")],
     ]);
-    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0, lootBagState: 0, lootBagX: 0, lootBagY: 0, lootBagUntilTick: 0, lootBagVariant: 0, district: "downtown", districtsOpen: 1 };
+    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0, lootBagState: 0, lootBagX: 0, lootBagY: 0, lootBagUntilTick: 0, lootBagVariant: 0, district: "downtown", districtsOpen: 1, leftSeats: "" };
     const s = snapshotLobby("ABCD", state, "p2");
     expect(s).toEqual({
       code: "ABCD",
@@ -39,15 +53,28 @@ describe("snapshotLobby", () => {
       hostSlot: 0,
       localPlayerId: "p2",
       players: [
-        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "" },
-        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" },
+        { playerId: "p0", slot: 0, name: "Ana", ready: false, look: "", waiting: false, held: false },
+        { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie", waiting: false, held: false }, // Story 8.2/8.3: waiting, held
       ],
       district: "downtown", // Story 7.7
       districtsOpen: 1,
       districtReset: "",
       districtResetSeq: 0,
+      left: [], // Story 8.3
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
+  });
+
+  it("Story 8.2/8.3: copies waiting and held (the in-run Players list)", () => {
+    const players = new Map<string, PlayerStateView>([
+      ["p1", fakePlayer(1, { name: "Bo", waiting: true })],
+      ["p3", fakePlayer(3, { name: "Dee", heldUntilTick: 4000 })],
+    ]);
+    const s = snapshotLobby("ABCD", { phase: "wave", hostSlot: 0, players } as unknown as RunStateView, "p0");
+    expect(s.players.map((p) => [p.playerId, p.waiting, p.held])).toEqual([
+      ["p1", true, false],
+      ["p3", false, true],
+    ]);
   });
 });
 
@@ -181,6 +208,26 @@ describe("lobbyStore", () => {
     expect(lobbyStore.current()).toBeNull();
     expect(lobbyStore.inbox()).toBeNull();
     off();
+  });
+
+  it("Story 8.2 (AC 7): a NEW seat joining a started run reports the build phase once run.joined is here (straight to the Game scene), and remove() sends host.remove", async () => {
+    const f = fakeRoom();
+    f.state.phase = "build"; // the run is going: this phone is a late joiner (no seat of its own before)
+    f.state.players.set("p1", player(1, "Late"));
+    let changed: () => void = () => {};
+    const onPhase = vi.fn();
+    lobbyStore.attach(f.room, { watch: (_r, on) => ((changed = on), () => {}), onLost: vi.fn(), onPhase });
+    await tick();
+    expect(onPhase).not.toHaveBeenCalled(); // no player id yet: the session can't be built
+    f.message(S2C.RUN_JOINED, { playerId: "p1", slot: 1, tickRateHz: 20 });
+    await tick();
+    expect(onPhase).toHaveBeenCalledExactlyOnceWith("build");
+    changed();
+    await tick();
+    expect(onPhase).toHaveBeenCalledOnce();
+    lobbyStore.remove("p0");
+    expect(f.raw.send).toHaveBeenCalledWith(C2S.HOST_REMOVE, { playerId: "p0" });
+    lobbyStore.leave();
   });
 
   it("waits for the first full state and reports a lost connection", async () => {

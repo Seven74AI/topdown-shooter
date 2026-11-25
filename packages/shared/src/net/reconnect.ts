@@ -102,7 +102,8 @@ export class Watchdog {
 }
 
 /** What a takeover join answered. */
-export type RecoveryJoin<R> = { ok: true; room: R } | { ok: false; reason: "seat_kept" | "gone" | "network" };
+/** Story 8.3 review M3: `removed` — the host removed this seat (gone for good, with its own message). */
+export type RecoveryJoin<R> = { ok: true; room: R } | { ok: false; reason: "seat_kept" | "gone" | "removed" | "network" };
 
 export interface RecoveryDeps<R> {
   /** A fresh join of the same room by guest token (the server matches the seat: AC 6). */
@@ -112,7 +113,8 @@ export interface RecoveryDeps<R> {
   /** The hold ran out: the seat is remembered, the phone waits for a build phase (D4). Called on every refusal. */
   onSeatKept(): void;
   /** No seat to take back (the run ended, the room is gone, or the give-up time passed). */
-  onGone(): void;
+  /** `removed` (Story 8.3 review M3): the host removed the seat (the phone shows "You were removed from this run"). */
+  onGone(removed?: boolean): void;
   now(): number;
   /** Runs `fn` after `ms`; returns a cancel. */
   schedule(fn: () => void, ms: number): () => void;
@@ -206,9 +208,9 @@ export class SeatRecovery<R> {
       this.deps.onRecovered(r.room);
       return;
     }
-    if (r.reason === "gone" || (r.reason === "network" && this.deps.now() - this.startedMs > RECONNECT.giveUpMs)) {
+    if (r.reason === "gone" || r.reason === "removed" || (r.reason === "network" && this.deps.now() - this.startedMs > RECONNECT.giveUpMs)) {
       this.running = false;
-      this.deps.onGone();
+      this.deps.onGone(r.reason === "removed");
       return;
     }
     if (r.reason === "seat_kept") this.deps.onSeatKept();
@@ -228,3 +230,8 @@ export function shouldRescueReload(hiddenForMs: number, shownForMs: number, reco
 /** Close codes (mirrors `apps/server/src/net/limits.ts`): not consented, and not ones the SDK auto-reconnects on. */
 export const CLOSE_SEAT_KEPT = 4020;
 export const CLOSE_TAKEN_OVER = 4021;
+/**
+ * Story 8.3 (H3, decision E8-H2): the host removed this seat. Terminal like 4020/4021: no reconnect (never 4000);
+ * the phone shows "You were removed from this run" with OK.
+ */
+export const CLOSE_REMOVED = 4022;

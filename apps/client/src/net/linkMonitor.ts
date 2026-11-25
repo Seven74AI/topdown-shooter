@@ -56,7 +56,8 @@ export interface LinkDeps<R> {
   /** The seat came back on a NEW room (a takeover or a remembered seat). */
   onRecovered(room: R): void;
   /** No seat to take back. */
-  onGone(): void;
+  /** `removed`: the host removed my seat (Story 8.3 review M3). */
+  onGone(removed?: boolean): void;
   /** A late takeover's room after the player pressed Leave: leave it, consented (the Leave stands). */
   leaveForGood(room: R): void;
   onStatus(status: LinkStatus, sinceMs: number): void;
@@ -99,9 +100,9 @@ export class LinkMonitor<R> {
         join: () => this.deps.rejoin(),
         onRecovered: (r) => this.adopt(r, false),
         onSeatKept: () => this.set("seat_kept"),
-        onGone: () => {
+        onGone: (removed) => {
           this.close();
-          this.deps.onGone();
+          this.deps.onGone(removed);
         },
         now: () => this.deps.now(),
         schedule: (fn, ms) => this.deps.schedule(fn, ms),

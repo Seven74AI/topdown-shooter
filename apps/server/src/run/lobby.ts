@@ -29,9 +29,22 @@ export interface Member {
    * (already_joined, takeover, remembered seats) compares this key, never the hash directly.
    */
   readonly seatKey: string;
-  /** When they joined; the longest-connected member becomes host. */
-  /** Join sequence number within the room (lower = joined earlier). */
-  readonly joinOrder: number;
+  /**
+   * Join sequence number within the room (lower = joined earlier); the longest-connected member becomes host.
+   * Story 8.3 (decision E8-H1): a seat back from a hold gets a new (the newest) number: "longest-connected" counts
+   * from a seat's last return.
+   */
+  joinOrder: number;
+  /**
+   * Story 8.2 (J4): a late joiner who arrived during a wave or the vote (or whose progress is still loading in a build
+   * phase): connected, watching, NOT in the World, never host; enters at the next build phase. A drop frees it.
+   */
+  waiting?: boolean;
+  /**
+   * Story 8.3 review H1: this seat's generation in the room (a counter): kept across a takeover, a hold and a remembered
+   * seat's return. A removed seat's player id can be reused by a new player; `seatIdOf` (playerId#seatGen) tells them apart.
+   */
+  readonly seatGen?: number;
   /** Round-trip time, EWMA of `net.pong` samples (Story 2.4); 0 until the first one. */
   rttMs: number;
 }
@@ -51,6 +64,17 @@ export function nextHost<M extends Pick<Member, "joinOrder">>(members: Iterable<
   let best: M | undefined;
   for (const m of members) if (best === undefined || m.joinOrder < best.joinOrder) best = m;
   return best;
+}
+
+/**
+ * Story 8.3 (H1, Epic 8 D8): the host after the host dropped, went quiet, left or was removed: `nextHost` over the
+ * CONNECTED members (not held) that are not waiting late joiners (J4). `undefined` when there is none (everyone is
+ * held: the room is frozen; the first one back becomes host by the same rule).
+ */
+export function nextConnectedHost<M extends Pick<Member, "joinOrder" | "playerId" | "waiting">>(members: Iterable<M>, held: (playerId: string) => boolean): M | undefined {
+  const candidates: M[] = [];
+  for (const m of members) if (m.waiting !== true && !held(m.playerId)) candidates.push(m);
+  return nextHost(candidates);
 }
 
 /** Hex SHA-256 of a guest token. The raw token is never stored or logged. */
@@ -78,4 +102,9 @@ export function sameSeat(
   auth: { readonly guestTokenHash: string; readonly accountId?: string | null },
 ): boolean {
   return seat.seatKey === seatKey(auth) || seat.guestTokenHash === auth.guestTokenHash;
+}
+
+/** Story 8.3 review H1: a seat's identity for this run (banks, rewards, the loot finder): `playerId#seatGen`. */
+export function seatIdOf(seat: { readonly playerId: string; readonly seatGen?: number }): string {
+  return `${seat.playerId}#${seat.seatGen ?? 0}`;
 }

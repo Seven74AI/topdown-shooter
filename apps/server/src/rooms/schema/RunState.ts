@@ -97,6 +97,8 @@ const playerFields = {
   trainDmg: t.uint8().default(0),
   trainMoney: t.uint8().default(0),
   trainReload: t.uint8().default(0),
+  // Story 8.2 (J4): a late joiner watching a wave (or the vote) until the next build start; not in the World. Appended last.
+  waiting: t.boolean().default(false),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
@@ -230,6 +232,8 @@ const runFields = {
   // Story 7.7: the run's district (the host's pick in the lobby) and the districts anyone in the lobby has (bit i = list index).
   district: t.string().default("downtown"),
   districtsOpen: t.uint8().default(1),
+  // Story 8.3 (AC 11): the remembered seats as JSON [[playerId, name], …] ("" none), for the host's Players list. On change only.
+  leftSeats: t.string().default(""),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

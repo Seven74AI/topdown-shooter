@@ -371,14 +371,17 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_lobby" }, "run_start_refused");
   });
 
-  it("refuses a join after the start with run_started", async () => {
+  it("Story 8.2: a new player can join a started run (a new seat); on Results the join is refused with run_started", async () => {
     const { client, room } = await createRun();
     room.allowSoloStart = true;
     await readyAndStart(room, client);
+    await joinRun(client.roomId);
+    expect(room.state.players.size).toBe(2);
+    room.state.phase = "results";
     const e = await refusal(colyseus.sdk.joinById(client.roomId, joinOptions()));
     expect(e.code).toBe(JOIN_REFUSED_CODE);
     expect(e.message).toBe("run_started");
-    expect(room.state.players.size).toBe(1);
+    expect(room.state.players.size).toBe(2);
   });
 
   it("refuses the same guest token twice with already_joined", async () => {

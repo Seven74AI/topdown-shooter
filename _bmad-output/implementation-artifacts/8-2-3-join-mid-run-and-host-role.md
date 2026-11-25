@@ -4,9 +4,9 @@ baseline_commit: 0ee0d6db
 
 # Story 8.2+8.3 (merged): Join mid-run at a build phase · Host role and removing a player
 
-Status: ready-for-dev
+Status: done
 
-<!-- Merged story (designer 2026-11-25, docs/story-merges-2026-11-25.md): ONE builder, ONE full fresh review (≤ 2 narrow re-reviews, then main-session checks). Both parts extend 8.1's seat code in RunRoom (seatKey, members, holds, rememberedSeats, finalLeave/nextHost). Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db (8.1 + 8.8/8.9/8.10 done). Epic 8 D1–D15 (docs/ideas/epic-8/decisions.md, accepted 2026-11-24) are RULES here. New decisions: docs/epic-8-story-decisions.md (codes J…, H…), recommended values written in, "recommended, to accept". -->
+<!-- Merged story (designer 2026-11-25, docs/story-merges-2026-11-25.md): ONE builder, ONE full fresh review (≤ 2 narrow re-reviews, then main-session checks). Both parts extend 8.1's seat code in RunRoom (seatKey, members, holds, rememberedSeats, finalLeave/nextHost). Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db (8.1 + 8.8/8.9/8.10 done). Epic 8 D1–D15 (docs/ideas/epic-8/decisions.md, accepted 2026-11-24) are RULES here. New decisions: docs/epic-8-story-decisions.md (codes J…, H…), recommended values written in. DESIGNER 2026-11-25: all 33 Epic 8 story decisions accepted as recommended (docs/epic-8-story-decisions.md › Designer answers); builder decisions 8.2-B1…8.3-B13 auto-accepted overnight (same file). Ride-along: Spitter deadlock fix A (designer 2026-11-25). -->
 
 ## Story
 
@@ -53,16 +53,16 @@ so that the run goes on and a leaked link can't ruin it.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Fairness tests first** (J1–J7, H1–H3): `apps/server/src/rooms/RunRoom.latejoin.test.ts`, `RunRoom.host.test.ts`, `packages/shared/src/economy/lateJoin.test.ts` — written red before T2–T8 (brief 3).
-- [ ] **T2 Late-join money and build time** (AC 2, 3): `packages/shared/src/economy/lateJoin.ts`, `config/balance/economy.json` (+ `balanceSchema.ts`, version bump), `run/runStateMachine.ts` (`addBuildTime`, `run.joinExtendedBuild`), `core/worldSnapshot.ts` (rides in `run`).
-- [ ] **T3 Controller** (AC 1): `apps/server/src/run/RunController.ts` `addLatePlayer(playerId, slot, wallet)`; test in `RunController.test.ts` (offer drawn from `shop:<slot>:<n>`, wave size next wave, counters 0).
-- [ ] **T4 Room join paths** (AC 1, 4, 5, 6): `apps/server/src/rooms/RunRoom.ts` `join()` (+ `takenSlots()`: members, holds, remembered), waiting members entering at `build.started`, `bannedSeats`; `run/lobby.ts` `Member.waiting`; `packages/shared/src/net/messages.ts` (`run_full`, `removed`, `PlayerLeftReason "removed"`, `HOST_REMOVE`, `PLAYER_REMOVED`); `rooms/schema/RunState.ts` + `syncState.ts` (`waiting`), every brief-2 copy.
-- [ ] **T5 Host** (AC 8): `moveHostIfGone()` in `RunRoom.ts`; `nextHost` filter in `lobby.ts` (+ `lobby.test.ts`); `endHold` re-order.
-- [ ] **T6 Remove, server** (AC 10): `RunRoom.onHostRemove`, `removeSeat`; `net/limits.ts` `CLOSE_REMOVED = 4022`; `packages/shared/src/buildings/buildings.ts` `disownBuildings` (+ test: cap count, turret pay goes nowhere, owner mark draws neutral).
-- [ ] **T7 Client** (AC 4, 6, 7, 9, 11, 12): `net/joinErrors.ts`, `net/connection.ts`, `net/linkMonitor.ts` (4022 terminal), `ui/LobbyScreen.tsx` (+ `lobbyStore.ts` `remove(playerId)`), `ui/menuItems.ts` + `ui/uiState.ts` (`players`, `confirmRemove`) + `ui/InRunMenu.tsx`, waiting view (`connectionModel.ts`-style pure model `waitingView` + `ConnectionOverlay.tsx` line), `scenes/toastQueue.ts` / `GameScene.ts` host toast, `ui/hostToast.ts` (pure); `scenes/hudLayout.test.ts` + menu layout test.
-- [ ] **T8 Bots and tools**: `tools/bots/botClient.ts` reads `waiting`; `npm run bots -- --late-bot 3 --late-at 3` (a bot joins at build 3 and one at mid-wave 5) in `tools/bots/` with a liveness test (joined, waited, entered, shot).
-- [ ] **T9 Banking top-up (after 7.2 is on master)** (AC 13, J7): `apps/server/src/db/progressRepo.ts` `addSupplies` top-up (PGlite + `realPostgres.test.ts` concurrent case), `apps/server/src/meta/banking.ts` (a rejoined seat may bank twice: second = top-up), removed seat banks "quit". If 7.2 is not on master when T1–T8 are done: ship without T9 and leave it as the first task of 8.4–8.6 (say so in the hand-back).
-- [ ] **T10 Gate** (R6): typecheck, lint, test, build on the branch merged with current master; "Gate" line in the Dev Agent Record; `tools/netaudit/smokeReconnect.cjs`-style two-tab smoke with a late third tab joining mid-wave on `?lag=150&jitter=20&loss=1` (brief R10).
+- [x] **T1 Fairness tests first** (J1–J7, H1–H3): `apps/server/src/rooms/RunRoom.latejoin.test.ts`, `RunRoom.host.test.ts`, `packages/shared/src/economy/lateJoin.test.ts` — written red before T2–T8 (brief 3). → `RunRoom.latejoin.test.ts` (12 tests: "Story 8.2 J1…J7", "AC 4"), `RunRoom.host.test.ts` (12 tests: "Story 8.3 H1/H2/H3"), `economy/lateJoin.test.ts` > "the AC 2 table: avg 0 → 200, 900 → 640, 2,170 → 1,402, 200 → 220". Each rule mutated once: 10 room mutations, all caught (Completion Notes).
+- [x] **T2 Late-join money and build time** (AC 2, 3): … → `packages/shared/src/economy/lateJoin.ts` (`lateJoinWallet`), `economy.json › lateJoin` (balance version = content hash, bumped by the change), `run/runStateMachine.ts › addBuildTime` + `run.joinExtendedBuild` (cleared by `startBuild`; in `snapshotWorld` only once true so older digests stay). Tests: `player/lateJoin.test.ts` > "the first late join of a build adds +15 s; a second adds nothing; …", "the joiner is not Ready, so the others' Ready no longer starts the wave early by itself", "snapshotWorld shows the flag only once set".
+- [x] **T3 Controller** (AC 1): → `RunController.addLatePlayer` (shared `player/lateJoin.ts › addLatePlayer`: team spawn point → `findFreeSpotNear` if blocked, wallet, +15 s once; rewind, input slot in order). Tests: `player/lateJoin.test.ts` > "enters at the slot's team spawn point with the given wallet, a Pistol and the counters at 0", "a blocked spawn point → the first free spot round it", "its card offer is drawn on demand from its own stream (shop:<slot>:<n>)", "J6: the next wave is sized for who is here"; replay: "a log with a build-phase join, its inputs and a later remove replays to the same digest; without the join it diverges" (new replay kinds `join`, `remove`).
+- [x] **T4 Room join paths** (AC 1, 4, 5, 6): → `RunRoom.join` (ban check, own seat first, then `joinLate`), `takenSlots()`, waiting members (`Member.waiting`, `PlayerState.waiting`, start data read off the join: decision 8.2-B1), `enterWaiting` at `build.started`, `run_full` / `removed` / `run_started` (Results only); schema `waiting` + every brief-2 copy (RunState → syncState reset → `PLAYER_STATE_FIELDS` → fakeRoom → devThrottle via the key list → NetSimHost mirror → botClient). Tests: `RunRoom.latejoin.test.ts` (all), `RunRoom.test.ts` > "Story 8.2: a new player can join a started run (a new seat); on Results the join is refused with run_started", `RunRoom.reconnect.test.ts` > "Story 8.2: a stranger (unknown guest token) gets a NEW seat in a started run, never a teammate's", `RunRoom.account.test.ts` > "review M1: a leaked ticket … (Story 8.2: a new unsaved seat at most)".
+- [x] **T5 Host** (AC 8): → `moveHostIfGone(why)` (called by `startHold`, `endHold`, `finalLeave`, `removeSeat`, `enterWaiting`), `lobby.ts › nextConnectedHost`, `endHold` sets `joinOrder = ++joinCounter` (E8-H1). Tests: `lobby.test.ts` > "nextConnectedHost (Story 8.3 H1)"; `RunRoom.host.test.ts` > "the host drops mid-run → the role moves AT ONCE …", "E8-H1: a seat back from a hold counts as newly connected …", "the old host back after the move can't Remove".
+- [x] **T6 Remove, server** (AC 10): → `RunRoom.onHostRemove`, `removeSeat`, `removeRemembered`, `bannedSeats`; `CLOSE_REMOVED = 4022` (shared `net/reconnect.ts`, re-exported by `net/limits.ts`); shared `disownBuildings` (+ `syncState` now copies an owner change; the client mirror too). Tests: `RunRoom.host.test.ts` > "refused: a non-host, yourself, an unknown id, a wave, the vote", "a malformed payload is dropped by the guard", "build phase: the target gets player.removed + close 4022; …", "E8-H4: a seat removed mid-run banks like a Leave", "lobby: the removed player can't rejoin …", "removing a HELD seat frees its slot …", "removing a REMEMBERED seat frees its slot the same way", "removing a waiting late joiner …"; `player/lateJoin.test.ts` > "disownBuildings … clears the owner: the cap counts nothing, kills pay nobody, the buildings stay".
+- [x] **T7 Client** (AC 4, 6, 7, 9, 11, 12): → `net/joinErrors.ts`, `net/connection.ts` (`recoveryFailure`, `watchLobby` + waiting/held/leftSeats), `net/lobbyStore.ts` (4022 / `player.removed` terminal, `remove()`, `left` from `state.leftSeats`, decision 8.3-B6), `ui/LobbyScreen.tsx` (Remove ✕ + confirm), `ui/menuItems.ts` + `ui/uiState.ts` (`players`, `confirmRemove`) + `ui/InRunMenu.tsx`, `ui/waitingView.ts` (+ "Joining…" in a build), `ui/hostToast.ts`, `scenes/toastQueue.ts` ("<name> was removed"), `GameScene`/`HudScene` (`watching`: only ☰), `sim/NetSimHost.ts` (waiting players: no body, no input), `main.ts` + `ui/ServerNotice.tsx` (removed + OK). Tests: `net/joinErrors.test.ts`, `net/recoveryFailure.test.ts`, `net/lobbyLost.test.ts` > "a 4022 close is `removed` …", `net/lobbyStore.reconnect.test.ts` > "Story 8.3 (AC 12): removed mid-run (4022) …", `net/lobbyStore.test.ts` > "parseLeftSeats (Story 8.3 AC 11)", "Story 8.2 (AC 7): a NEW seat joining a started run reports the build phase …", `ui/hostToast.test.ts`, `ui/waitingView.test.ts`, `ui/uiState.test.ts` > "Story 8.3: Players → Remove asks first; …", `ui/menuItems.test.ts`, `ui/lobbyLayout.test.ts` (Remove rect ≥ 44 px), wiring `tools/checks/lateJoinHostWiring.test.ts` (R2), layout `tools/checks/playersMenuDomLayout.test.ts` (568×320, 640×360, 800×360, 844×390; decision 8.3-B13).
+- [x] **T8 Bots and tools**: → `tools/bots/botClient.ts` (a waiting bot sends nothing; logs `bot_waiting` / `bot_entered`), `npm run bots -- --late-bot N --late-at W [--late-mid W]` (`tools/bots/run.ts`). Liveness: `tools/bots/lateJoin.test.ts` > "a bot joins at a build phase and plays; a bot joining mid-wave waits, enters at the next build phase, then shoots" (mutated once: the bot's waiting branch off → fails).
+- [x] **T9 Banking top-up (after 7.2 is on master)** (AC 13, J7): 7.2 is on master → `progressRepo.addSupplies(…, topUp)` (row raised, only `new − already` paid; decision 8.2-B3), `RunBank.reopen` (a remembered seat that comes back), removed seat banks "quit" (`bankLeaver`). Tests: `db/runRewards.test.ts` > "Story 8.2 (AC 13, E8-J6): a top-up raises the run's row to the new total …", "Story 8.2 (brief 18): a concurrent double-submit of one top-up pays the difference once"; `RunRoom.rewards.test.ts` > "Story 8.2 (AC 13, E8-J6; replaces 7.2 B5): Leave mid-wave … run end: one row, raised to the whole run (top-up)". `realPostgres.test.ts` concurrent case not added (needs a real PostgreSQL; PGlite case above).
+- [x] **T10 Gate** (R6): see the Gate line. Smoke: `tools/netaudit/smokeLateJoin.cjs` (3 tabs, real server, `?lag=150&jitter=20&loss=1`; report `docs/perf/smoke-8-2-3/`).
 
 ## Dev Notes
 
@@ -128,10 +128,162 @@ Server: `rooms/RunRoom.ts`, `run/lobby.ts`, `run/RunController.ts`, `net/limits.
 
 ### Agent Model Used
 
+Claude (gds-dev-story, autonomous overnight run, 2026-11-25). The client part (T7) was built by a forked agent in the same tree and reviewed/adjusted by the builder.
+
 ### Gate
+
+Gate 2026-11-25: tree `48316a9` (branch story-8-2-3 with master `06e8356` merged in `ecc022f`): `npm run typecheck` ✓, `npm run lint` ✓, `npm test` ✓ (529 files passed / 4 skipped; 4,772 tests passed / 31 skipped), `npm run build` ✓, `REQUIRE_DIST=1 npx vitest run tools/checks/noCheatsInRelease.test.ts` ✓ (3/3). Load 2.1 → 4.4 (4 cores) over the 9.5 min gate. The first gate run at `ecc022f` failed 17 tests in 3 files (run-state shape, the Players layout harness, wireCover seed 3); fixed in `48316a9` and the whole gate rerun.
+
+Review-fix gate 2026-11-25 (new process, PR #10): head `f5f45977` (master `9bbc612f`+ merged): `npm run gate:fast` ✓ (typecheck, lint, test:fast 462 files / 4,484 tests passed, release:check incl. noCheatsInRelease ✓); the slow files touched: RunRoom latejoin/host/rewards/reconnect/test/account + tools/bots + playersMenuDomLayout ✓ (11 files, 140 tests). PR #9 CI on `f5f45977`: all 8 checks green (gate, static, release, docker, test shards 1–4).
 
 ### Debug Log References
 
+- Spitter fix test first failed for a test reason (the build-start heal reset the camper's HP to 100 → a wipe); fixed by setting HP after the wave starts.
+- `RunRoom.reconnect.test.ts` › "a quiet seat that then drops keeps its 120 s clock" and "solo drop mid-wave: the World stops…" time out at 5 s on this container also on untouched `origin/master` (checked in a separate worktree) while other heavy work runs; see the Gate line for the final run.
+- Old-rule tests updated (the rule changed, not the code under them): `RunRoom.test.ts` (run_started → a new seat; run_started only on Results), `RunRoom.reconnect.test.ts` (a stranger gets a new seat), `RunRoom.account.test.ts` ×2 (a leaked ticket / another account gets a NEW unsaved / own seat, never the account's), `RunRoom.rewards.test.ts` (7.2 B5 "banked once" → E8-J6 top-up), `tools/checks/metaWiring.test.ts` (the bank call gains the top-up flag).
+- Smoke harness: the Epic 7 Lumen lobby renamed its buttons (`.lobby__btn`, `.lobby__start`); the 8.1 `smokeReconnect.cjs` still uses the old selectors (not changed here: note for whoever runs it next).
+
 ### Completion Notes List
 
+- **8.2 join mid-run.** A started run takes back own seats first (J2: takeover, remembered seat; E8-J5 unchanged), then `joinLate`: Results → `run_started`; no free slot by `takenSlots()` (members + held + remembered) → `run_full` (J3); else a waiting member with a reserved slot, its unlocks/Training read off the join (8.2-B1). It enters the World in a build phase (`enterWaiting`: at once in a build once loaded, else at `build.started`), money `lateJoinWallet` computed then (J1, E8-J2; dev `DEV_STARTING_WALLET` exact), +15 s once per build (J5, E8-J4), counters at 0 (J7), the next wave sized for it (J6). Mid-wave / vote it watches (J4): `PlayerState.waiting`, horde frames from its spectate view, not in the World, never host, a drop frees the slot; only waiting members left → Results (8.2-B2). Log lines `player_waiting`, `player_joined_mid_run {playerId, slot, wave, wallet, avgEarned}`.
+- **8.3 host and Remove.** `moveHostIfGone` moves `hostSlot` at once on a hold (drop or quiet), a leave, a remove, to the longest-connected connected non-waiting member; a return gets the newest `joinOrder` (E8-H1); never moves back. `host.remove` (strict zod, guard "other" bucket): host only, lobby/build only, never self; the target (member: connected/held/waiting, or a remembered seat) is banned for the room (seat key or guest token, 8.3-B9), told `player.removed`, closed 4022, not held or remembered, banks `quit` mid-run (E8-H4), its buildings disowned (E8-H3). Remembered seats are listed for the host through `state.leftSeats` (8.3-B6).
+- **Top-up (T9, E8-J6).** `RunBank.reopen` on a restored remembered seat; `addSupplies(…, topUp)` raises the row and pays only the difference, in the same transaction (8.2-B3).
+- **Client.** Join texts, 4022 / `player.removed` terminal with "You were removed from this run" + OK, lobby ✕ Remove + confirm, ☰ → Players (connected / reconnecting / joins at the build phase / left the run) with Remove + confirm (greyed in a wave/vote), waiting line ("Joining…" in a build), HUD shows only ☰ while waiting (8.2-B11), "You are now the host" toast (lobby + run), "<name> was removed" toast.
+- **Spitter deadlock fix A** (ride-along, designer 2026-11-25; `docs/investigations/cut-test-stall-2026-11-25.md`): `spit.ts › allRemainingHoldingSpitters` + the wave director's rush check. Acid/bullet rules unchanged. Test `packages/shared/src/zombies/spitterDeadlock.test.ts` (4 tests). Mutations: rush check off → "the rush starts at once with 6 left … and the wave ends" fails; "holding" check dropped → "only HOLDING Spitters count" fails; the first loop's type check → `continue` survives (equivalent: the second loop rejects non-Spitters too; kept as an early exit).
+- **Mutations (brief 9 / R1), room tests:** M1 money ignores the average (3 fail), M2 remembered slots not taken (1), M3 waiting joiner enters mid-wave (5), M4 +15 s every join (1), M5 host not moved on hold (3), M6 joinOrder kept on return (1), M7 no ban (3), M8 buildings not disowned (1), M9 remove allowed in a wave (1), M10 own seat via joinLate (2): 10/10 caught. Bot liveness: the bot's waiting branch off → fails.
+- **Numbers (brief 27):** netEvents kinds 140–144 reserved, none used (joins and removes are S2C messages: `player.removed`, and C2S `host.remove`). Close code 4022. No readability-sheet items. No migration. Balance: `economy.json › lateJoin` (the version is the content hash: it changed).
+- **Bandwidth:** `waiting` (1 bool per player, on change), `leftSeats` (a short string on a leave/rejoin/remove), `owner` on a disown: ≈ 0 B/s added. A waiting phone gets the normal horde stream (as an out player).
+- **Smoke (T10, brief R10):** `tools/netaudit/smokeLateJoin.cjs`, 3 headless tabs, real server, `?lag=150&jitter=20&loss=1`, god-mode net150 (report `docs/perf/smoke-8-2-3/smoke-8-2-3.log` + 6 screenshots): C joined mid-wave 4 → waiting 5.5 s after the click (page load included) with "Wave in progress, you'll join at the next build phase"; entered at the build phase (wallet 214); the host removed C from ☰ → Players → confirm, C showed "You were removed from this run" + OK 13 ms later; the host's tab closed → the other tab was host 268 ms later with "You are now the host". Note: a hidden tab in a BUILD phase is not held (8.1 D1), so it keeps the host role (seen in an earlier smoke run; by design).
+- **Not verified:** real phones / iOS Safari / real 4G (brief 23); the GameScene toast and waiting HUD at runtime beyond the smoke screenshots; `realPostgres.test.ts` concurrent top-up (needs a real PostgreSQL; PGlite concurrent case added); the Players / confirm screens are checked by a real-browser layout test, not the canvas HUD layout test (8.3-B13).
+
+### Notes for the merge
+
+- **8.7 (pings, parallel):** `packages/shared/src/net/messages.ts` — my additions are in separate blocks marked `── Story 8.3 (host remove) ──` (C2S `HOST_REMOVE`, S2C `PLAYER_REMOVED`, schema/types at the end); `JoinRefusal` and `PlayerLeftReason` gained values in place. `RunRoom.onCreate`: one line (`C2S.HOST_REMOVE`). `packages/shared/src/index.ts`: one block at the end. `scenes/hudLayout.test.ts` untouched. `GameScene.ts`: status line, `m.watching`, readyButton/buildBar `!m.watching`, host toast lines. `HudScene.ts`: four `!m.watching` conditions + HP/money visibility.
+- **Schema / state copies:** `PlayerState.waiting` and `RunState.leftSeats` appended last (RunState.ts → `PLAYER_STATE_FIELDS` / `RUN_STATE_FIELDS` → fakeRoom → devThrottle by key list → NetSimHost mirror → botClient). `syncState` now also copies a building's owner change (disown) and the client mirror follows it.
+- **World:** `RunState.joinExtendedBuild` (in `snapshotWorld` only when true: existing goldens unchanged); `Building.ownerId` is no longer `readonly` (only `disownBuildings` and the mirror write it). Replay kinds `join`, `remove`.
+- **8.4–8.6:** reuse `lateJoinWallet` for newcomers on resume (E8-R3); save `bannedSeats` (E8-S10, `RunRoom.bannedSeats`); waiting members are not saved (no seat yet); a resumed run's top-up uses `RunBank.reopen` / `addSupplies(…, topUp)`; `run.joinExtendedBuild` rides in `run`.
+- **7.2 B5 replaced** by E8-J6 (top-up): `RunRoom.rewards.test.ts` test renamed; the 7.12 loot "banked" mark stays after a rejoin (8.2-B4).
+- **Bots:** `--late-bot/--late-at/--late-mid`; a waiting bot sends nothing.
+- **Smoke harness:** `tools/netaudit/smokeLateJoin.cjs` (uses the Lumen lobby selectors).
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/8-2-3-join-mid-run-and-host-role.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/client/src/main.ts`
+- `apps/client/src/net/connection.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/joinErrors.test.ts`
+- `apps/client/src/net/joinErrors.ts`
+- `apps/client/src/net/lobbyLost.test.ts`
+- `apps/client/src/net/lobbyStore.reconnect.test.ts`
+- `apps/client/src/net/lobbyStore.test.ts`
+- `apps/client/src/net/lobbyStore.ts`
+- `apps/client/src/net/recoveryFailure.test.ts`
+- `apps/client/src/net/serverNotice.ts`
+- `apps/client/src/net/session.test.ts`
+- `apps/client/src/net/session.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/scenes/toastQueue.test.ts`
+- `apps/client/src/scenes/toastQueue.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/ui/InRunMenu.tsx`
+- `apps/client/src/ui/LobbyScreen.tsx`
+- `apps/client/src/ui/ServerNotice.tsx`
+- `apps/client/src/ui/hostToast.test.ts`
+- `apps/client/src/ui/hostToast.ts`
+- `apps/client/src/ui/lobbyLayout.test.ts`
+- `apps/client/src/ui/lobbyLayout.ts`
+- `apps/client/src/ui/menuItems.test.ts`
+- `apps/client/src/ui/menuItems.ts`
+- `apps/client/src/ui/overlay.css`
+- `apps/client/src/ui/uiState.test.ts`
+- `apps/client/src/ui/uiState.ts`
+- `apps/client/src/ui/waitingView.test.ts`
+- `apps/client/src/ui/waitingView.ts`
+- `apps/server/src/db/progressRepo.ts`
+- `apps/server/src/db/runRewards.test.ts`
+- `apps/server/src/meta/banking.ts`
+- `apps/server/src/net/limits.ts`
+- `apps/server/src/rooms/RunRoom.account.test.ts`
+- `apps/server/src/rooms/RunRoom.host.test.ts`
+- `apps/server/src/rooms/RunRoom.latejoin.test.ts`
+- `apps/server/src/rooms/RunRoom.reconnect.test.ts`
+- `apps/server/src/rooms/RunRoom.rewards.test.ts`
+- `apps/server/src/rooms/RunRoom.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/lobby.test.ts`
+- `apps/server/src/run/lobby.ts`
+- `docs/epic-8-story-decisions.md`
+- `docs/perf/smoke-8-2-3/8-2-C-entered.png`
+- `docs/perf/smoke-8-2-3/8-2-C-waiting.png`
+- `docs/perf/smoke-8-2-3/8-3-C-removed.png`
+- `docs/perf/smoke-8-2-3/8-3-host-confirm.png`
+- `docs/perf/smoke-8-2-3/8-3-host-players.png`
+- `docs/perf/smoke-8-2-3/8-3-new-host-toast.png`
+- `docs/perf/smoke-8-2-3/smoke-8-2-3.log`
+- `packages/shared/src/buildings/buildings.ts`
+- `packages/shared/src/config/balance/economy.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/economy/lateJoin.test.ts`
+- `packages/shared/src/economy/lateJoin.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/net/reconnect.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/player/lateJoin.test.ts`
+- `packages/shared/src/player/lateJoin.ts`
+- `packages/shared/src/replay/inputLog.ts`
+- `packages/shared/src/run/runStateMachine.test.ts`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/waves/waveDirector.ts`
+- `packages/shared/src/zombies/spit.ts`
+- `packages/shared/src/zombies/spitterDeadlock.test.ts`
+- `tools/bots/botClient.ts`
+- `tools/bots/lateJoin.test.ts`
+- `tools/bots/run.ts`
+- `tools/bots/wireCover.test.ts`
+- `tools/checks/lateJoinHostWiring.test.ts`
+- `tools/checks/metaWiring.test.ts`
+- `tools/checks/playersMenuDomLayout.test.ts`
+- `tools/netaudit/smokeLateJoin.cjs`
+
+### Review fixes (PR #9, review of f4d4120: 3 H / 6 M / 6 L + nits)
+
+- **H1** reused player id after a Remove: seats have a generation (`Member.seatGen`, kept across takeover/hold/remembered); `RunBank` keys banks, results, deliveries, top-ups and the loot finder by `playerId#seatGen` (`seatIdOf`); a new occupant resets its slot's card offer (`shop.build[slot] = −1`) and its loot "banked" mark (shared `addLatePlayer`). Tests: `RunRoom.rewards.test.ts` > "H1: Di is removed, Eve joins into Di's player id → … Eve banks on HER account and sees HER rewards"; `banking.test.ts` > "H1: two seats with the same player id … bank and deliver separately".
+- **H2** top-up: grants against the stored stats (no second delta) and keeps the first bank's loot (never a second item). Test: `runRewards.test.ts` > "review H2: a top-up never grants a second loot item and never adds the stats twice".
+- **H3** waiting-only Results → lobby with a host (`onLobbyReturn` → `moveHostIfGone`). Test: `RunRoom.latejoin.test.ts` > "the waiting joiner goes back to the lobby as host and can Start".
+- **M1** top-up rookie sees the lifetime before this run; with no Supplies difference new items/districts are still granted. Test: `runRewards.test.ts` > "review M1: …".
+- **M2** a still-waiting member gets a zero `not_saved` result at the run end (`RunBank.nothingFor`). Test: `RunRoom.rewards.test.ts` > "M2: …".
+- **M3** a held/remembered seat that was removed: recovery answer `removed` → `onLost("removed")`; a reload shows the removed notice. Tests: `reconnect.test.ts` > "Story 8.3 review M3: removed stops at once and says so", `lobbyStore.reconnect.test.ts` > "Story 8.3 review M3: a held seat the host removed …", `recoveryFailure.test.ts`, wiring `lateJoinHostWiring.test.ts` (resumeSavedSeat).
+- **M4** the late-join average is computed once before the enter loop. Test: `RunRoom.latejoin.test.ts` > "both get the money from the team's average before either entered (avg 900 → 640 each), and one offer each".
+- **M5** the host is a seat (`hostKeyOf`: playerId + joinOrder); `restoreRemembered` ends with `moveHostIfGone("returned")` + `updateFreeze()`; the Remove check uses the host seat. Test: `RunRoom.host.test.ts` > "review M5: the old host leaves while the only teammate is held, then comes back into the same slot: host_changed, never silently".
+- **M6** accepted risk → decision 8.3-B14 (no code).
+- **L1** bank generation per seat (a stale in-flight Leave result after `reopen` is never delivered). Test: `banking.test.ts` > "L1: …".
+- **L2** the replay `join` carries unlocks/Training. Test: `player/lateJoin.test.ts` > "a join command with unlocks + Training replays a survivor with them".
+- **L3** `run.joinPending` holds the all-Ready early start while a build-phase join loads (timer runs; out of `snapshotWorld` while false). Tests: `player/lateJoin.test.ts` > "everyone Ready + joinPending → …", `RunRoom.latejoin.test.ts` > "Ana Ready while Bo's start data loads → …" (mutated: fails).
+- **L4** kept (decision 8.2-B16).
+- **L5** fix A after an 8 s stand-off, sampled every 10 ticks (decision 8.2-B15; `waves.json › spitterStall`; `WaveState.spitterStallSinceTick`, out of `snapshotWorld` while −1). Tests: `spitterDeadlock.test.ts` > "review L5: the rush waits for the stand-off to last … not after 7 s, yes by 9 s", "… a brief all-holding moment broken by a walker starts the 8 s over" (mutated: both fail).
+- **L6** CI (PR #10) now fails shard 1 when a `*DomLayout.test.ts` browser test skips (`tools/ci/check-browser-ran.mjs`), so no env flag here; new case "Players list with a seat that left".
+- **Nits:** queued > 0 never rushes (test "nit: zombies still queued …"); the build-start offer is sent once (the M4 test checks one offer each); `enterWaiting` no longer moves the host (no `host_changed` there); stale comments fixed (`startRun` maxClients, `recoveryFailure`); `player.left` goes to everyone except the removed phone; a late joiner's look is checked against its owned parts once they load.
+- Test leak (pre-existing, found by H1's test): `RunRoom.rewards.test.ts` "database down" restored the room accounts without `checkTicketRows: false`, so later ticketed joins lost their account.
+- Mutations of the fixes: H1, H2 (×2), M1, H3, M2, M5, L1, L3, L5: each fails its test.
+
+### Re-review round 1 fixes (PR #9 at 0f2aa1a: 1 M + 2 L + 1 nit)
+
+- **M (H1 on every bank path):** the finder check moved into `RunBank.bank()` (`isFinder`): a seat whose player id is the finder's but whose seat is not gets facts naming nobody — on a Leave, a remove and the run end; `bankRunEnd`'s own loop is gone. Test: `meta/bankingSeats.test.ts` > "M: Di (p3#4) found the bag and was removed; Eve (p3#6) reuses p3 and banks on her Leave → no loot line, one item in all" (+ "the run end: …"); mutated (no filter in `bank`) → both fail.
+- **L2:** with no finder seat noted, the finder is matched by player id (never nulled). Test: `bankingSeats.test.ts` > "L2: …"; mutated → fails.
+- **L3:** the bank stores its `statsDelta` in the run's row; a top-up writes and grants only `full − earlier` (per field, ≥ 0; a row without one adds nothing). Test: `db/runRewards.test.ts` > "re-review L3: the play after the rejoin is counted once, and the part before it is never counted twice"; mutated (no subtraction) → L3 and H2 tests fail.
+- **nit:** `syncJoinPending` on `wave.started`. Test: `RunRoom.latejoin.test.ts` > "the build timer runs out while a join still loads → the wave starts and joinPending is false"; mutated → fails.
+
+### Change Log
+
+- 2026-11-25: PR #9 re-review round 1 fixes (M, L2, L3, nit).
+- 2026-11-25: PR #9 review fixes (H1–H3, M1–M5, L1–L6, nits; decisions 8.3-B14, 8.2-B15, 8.2-B16).
+- 2026-11-25: Story 8.2+8.3 built (join mid-run, waiting, late money, +15 s, host move, Remove, bans, disown, top-up, client UI, bots, smoke) + Spitter deadlock fix A; designer accepted all 33 Epic 8 decisions; builder decisions 8.2-B1…8.3-B13 auto-accepted overnight. Status → review.

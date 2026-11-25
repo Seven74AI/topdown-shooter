@@ -9,7 +9,12 @@ export const JOIN_ERROR_TEXT = {
   updateRequired: "A new version is out. Please reload.",
   notFound: "Game not found",
   full: "This game is full",
-  started: "This game has already started",
+  /** Story 8.2: a started run takes new players in build phases; `run_started` now means the run shows Results. */
+  started: "This run is ending, try again in a moment",
+  /** Story 8.2 (J3, decision E8-J3): every free slot is taken or kept for a teammate's seat. */
+  runFull: "This run is full",
+  /** Story 8.3 (H3): the host removed this player from the room. */
+  removed: "You were removed from this run",
   rateLimited: "Too many games created, try again in a minute",
   unreachable: "Can't reach the server",
   invalid: "Check your name and try again",
@@ -36,6 +41,10 @@ export function joinErrorText(err: unknown): string {
       return JOIN_ERROR_TEXT.updateRequired;
     case "run_started":
       return JOIN_ERROR_TEXT.started;
+    case "run_full":
+      return JOIN_ERROR_TEXT.runFull;
+    case "removed":
+      return JOIN_ERROR_TEXT.removed;
     case "rate_limited":
       return JOIN_ERROR_TEXT.rateLimited;
     case "invalid_options":
