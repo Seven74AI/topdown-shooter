@@ -1,0 +1,69 @@
+<title>Photoreal Buildables</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a before/after ledger, one card per buildable, "Now" and "Photoreal" side by side on the same night street. Dark by design: the art lives on the street. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 60px; margin: 0; }
+header, section, #list, #loading, #takes { max-width: 1200px; margin-inline: auto; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; }
+h1 span { color: var(--accent); }
+p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
+#list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 14px; margin-top: 18px; }
+.pair { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.pair.wide { grid-column: 1 / -1; }
+.pair.wide .sides { grid-template-columns: 1fr; }
+.pair h3 { margin: 0 0 8px; font: 600 15px var(--font-body); }
+.pair p { margin: 8px 0 0; font-size: 14px; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sides figure { margin: 0; min-width: 0; }
+figure canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
+figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.sides figure:last-child figcaption { color: var(--accent); }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin: 28px 0 8px; }
+h2.big { font-size: 24px; color: var(--fg); margin-top: 36px; }
+.takes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 12px; }
+#takes .pair.wide figure + figure { margin-top: 8px; }
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.refs figure { margin: 0; }
+.refs img { width: 100%; height: auto; display: block; border-radius: 4px; }
+.pieces { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.pieces figure { margin: 0; }
+.pieces canvas { width: auto !important; max-width: 100%; height: auto; }
+#loading { color: var(--muted); margin-top: 16px; }
+.pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 36px; }
+.pick p { margin: 0; color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+<header>
+  <h1>Things you build <span>photoreal</span></h1>
+  <p>The same recipe as the accepted characters: today's drawings are kept exactly (every plank, bolt and spike), then rendered with real volume and the cool street light, with materials read from the drawing: wood grain along the planks, brushed and pitted steel, rough rust, woven sandbags. Then details come alive: floodlights hum and flicker, the med cross beats and scans, the mine's LED blinks with a sensor ping, and glints run over steel jaws, spikes and wire. Game code; both sides drawn at twice the game's resolution.</p>
+</header>
+<p id="loading">Drawing…</p>
+<section id="rot">
+  <h2 class="big">Every barricade, built the approved way (round 4)</h2>
+  <p>The wood wall is approved ("Perfect"), so the reinforced, metal and police barricades now use the same system. Four pictures per barricade, one per rotation: <b>front inside</b> (braces, props, junk), <b>front outside</b> (the same wall turned round, clean, rubble at its foot), and two <b>side</b> views with the braces always on the inside. A <b>corner piece</b> closes the square where two walls meet. Pieces run edge to edge, and every piece is a random variant, so a long line never repeats. Each type is shown as a closed fort, with its pieces underneath.</p>
+  <div id="fort"></div>
+</section>
+<section id="new">
+  <h2 class="big">New: barricades from real references (round 3)</h2>
+  <p>Rounds 1 and 2 still looked like benches, and so does today's police sawhorse. The references below show why. Real barricades are taller than they are deep, and they read from a raised camera: you see the front face, legs and props splayed out, junk piled at the base, and above all a long shadow on the street that repeats the slats. So these are drawn standing up the way the references are, with the shadow cast from each one's real outline. Built from scavenged parts: an old door, pallets, corrugated sheets, chains, razor wire, welded plates, sandbags. One direction per type for now. If this is the right way to go, I'll make variations.</p>
+  <p><b>Note for the game:</b> standing up, they need a taller picture (2 × 1 m instead of 2 × 0.5 m). The space they block on the ground stays the same.</p>
+  <div id="takes"></div>
+</section>
+<section><h2 class="big">All 10 things you build</h2><p>Approved ("All OK"). The three barricades will change to whichever new option you pick above.</p></section>
+<div id="list"></div>
+<section><div class="pick"><p>Tell Claude which ones work and which don't (by name), which animations to keep or push, and what to change on the reinforced, metal and police forts, or "go" to put them in the game.</p></div></section>
+<script>
+/*@JS@*/
+</script>

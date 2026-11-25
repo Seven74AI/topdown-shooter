@@ -3,7 +3,7 @@ import { BUILD_GRID_M, TICK_DT_S, addBuildingAt, addPlayer, buildingStats, creat
 import { MINE_BLINK_ON_MS, MINE_BLINK_PERIOD_MS, TRAP_SHADOW_M, buildingShadowHeightM, mineBlinkOn, mineRingRadii } from "./mineLook";
 import { BAR_STEPS, barFraction, boxDrawKey, buildingDrawKey } from "./buildingLook";
 import { MINE_SHAKE_MAX, MINE_SHAKE_RADIUS_M, mineShakeIntensity } from "./mineBlast";
-import { ATLAS_BUILDINGS, buildingFrame, buildingsAtlasSpecs, BUILDINGS_PX_PER_M } from "./city/buildingsAtlas";
+import { BUILDING_SHEETS, buildingFrame, buildingsAtlasSpecs, BUILDINGS_PX_PER_M, isStanding, sheetSpecs, standingFrame, textureOfFrame } from "./city/buildingsAtlas";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./city/atlasLayout";
 
 const balance = loadBalance();
@@ -81,15 +81,25 @@ describe("Story 5.9: floor looks and the redraw key", () => {
 describe("Story 5.9: the buildings atlas", () => {
   it("frames follow category_name_variant, fit 2048², and match the balance footprints", () => {
     const specs = buildingsAtlasSpecs();
-    const layout = packAtlas(specs);
-    expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
-    expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
+    for (const sheet of BUILDING_SHEETS) {
+      const layout = packAtlas(sheetSpecs(sheet));
+      expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
+      expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
+    }
     for (const type of ["wood_barricade", "reinforced_barricade", "metal_barricade", "spike_trap", "mine"]) {
       const f = buildingFrame(type);
-      expect(f?.texture).toBe(ATLAS_BUILDINGS);
+      expect(f?.texture).toBe(textureOfFrame(f?.frame ?? ""));
+      expect(BUILDING_SHEETS).toContain(f?.texture);
       const spec = specs.find((s) => s.name === f?.frame);
       expect(spec && isFrameName(spec.name)).toBe(true);
       const stats = buildingStats(balance, type);
+      if (isStanding(type)) {
+        // photoreal group 3: a standing picture is as long as the footprint and taller than it (the face rises)
+        const st = standingFrame(type, 0, 0);
+        expect(spec?.w).toBe((stats?.widthM ?? 0) * BUILDINGS_PX_PER_M);
+        expect(st && st.hM > (stats?.depthM ?? 0)).toBe(true);
+        continue;
+      }
       expect([spec?.w, spec?.h]).toEqual([(stats?.widthM ?? 0) * BUILDINGS_PX_PER_M, (stats?.depthM ?? 0) * BUILDINGS_PX_PER_M]);
     }
     expect(buildingFrame("auto_turret")).toBeNull(); // keeps its plank box + turret plate

@@ -1,4 +1,7 @@
 import * as Phaser from "phaser";
+// The condensed HUD face (asset fixes round 5: the boss warning display; also the boss bar and painted labels).
+import "@fontsource/oswald/600.css";
+import "@fontsource/oswald/700.css";
 import { h, render } from "preact";
 import { dpr } from "./display";
 import { BootScene } from "./scenes/BootScene";

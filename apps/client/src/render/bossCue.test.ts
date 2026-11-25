@@ -4,9 +4,11 @@ import { BOSS_AMBER, BOSS_ARRIVED_BANNER, BOSS_CRASH_BANNER, BOSS_CRASH_BANNER_M
 const out: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
 
 describe("Story 6.5 boss cues", () => {
-  it("warning: banner + rumble; arrival: banner + roar + music", () => {
-    expect(bossCue({ type: "boss.warning", x: 0, y: 0, hitTick: 80 }, "p0", 0, 0, out)).toMatchObject({ banner: BOSS_WARNING_BANNER, sound: "boss_rumble" });
-    expect(bossCue({ type: "boss.arrived", x: 0, y: 0, maxHp: 1, look: 0 }, "p0", 0, 0, out)).toMatchObject({ banner: BOSS_ARRIVED_BANNER, sound: "boss_roar", music: "start" });
+  it("warning: rumble; arrival: roar + music (the banner is the HUD's P1 warning display, no text banner)", () => {
+    expect(bossCue({ type: "boss.warning", x: 0, y: 0, hitTick: 80 }, "p0", 0, 0, out)).toMatchObject({ banner: "", sound: "boss_rumble" });
+    expect(BOSS_WARNING_BANNER).toBe("");
+    expect(bossCue({ type: "boss.arrived", x: 0, y: 0, maxHp: 1, look: 0 }, "p0", 0, 0, out)).toMatchObject({ banner: "", sound: "boss_roar", music: "start" });
+    expect(BOSS_ARRIVED_BANNER).toBe("");
   });
   it("a woken tab's backlog: no late banner or sound (the music follows the state)", () => {
     expect(bossCue({ type: "boss.warning", x: 0, y: 0, hitTick: 80, ageS: 5 }, "p0", 0, 0, out)).toMatchObject({ banner: "", sound: "" });

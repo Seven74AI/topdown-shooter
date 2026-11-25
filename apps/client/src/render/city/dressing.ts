@@ -229,6 +229,14 @@ export function nameHash(s: string): number {
   return h >>> 0;
 }
 
+/**
+ * Asset fixes round 1 (designer: "mix both"): each police line's look, fixed by its name so it never changes
+ * between bakes or players (Downtown: police_barrier_north concrete, police_line_lot / _gas sawhorses).
+ */
+export function barrierStyle(name: string): "sawhorse" | "concrete" {
+  return nameHash(name) & 1 ? "concrete" : "sawhorse";
+}
+
 /** The style of a car: its dressing entry, else a colour by name hash and the front by orientation. */
 export function carStyle(d: Dressing, name: string, wM: number, hM: number): CarStyle {
   const s = d.cars[name];

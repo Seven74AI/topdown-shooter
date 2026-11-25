@@ -359,3 +359,34 @@ export function keepStressMolotovs(world: World, playerId: string, cx: number, c
   }
   return lit;
 }
+
+/**
+ * Photoreal group 3 (`?stressbuild=fort`): a closed fort of standing barricades round (cx, cy), braces inside: the
+ * north wall wood (rot 2, its braced inside toward the camera), the west and east walls reinforced (rot 1 / 3), the
+ * south wall metal (rot 0, its outside toward the camera). The corner squares stay open (the corner pieces fill
+ * them). Returns how many were laid.
+ */
+export function placeStressFort(world: World, ownerId: string, cx: number, cy: number): number {
+  const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  const pieces: readonly [string, number, number, number][] = [
+    ["wood_barricade", cx - 2, cy - 3, 2],
+    ["wood_barricade", cx, cy - 3, 2],
+    ["reinforced_barricade", cx - 2.5, cy - 2.5, 1],
+    ["reinforced_barricade", cx - 2.5, cy - 0.5, 1],
+    ["reinforced_barricade", cx + 2, cy - 2.5, 3],
+    ["reinforced_barricade", cx + 2, cy - 0.5, 3],
+    ["metal_barricade", cx - 2, cy + 1.5, 0],
+    ["metal_barricade", cx, cy + 1.5, 0],
+  ];
+  let laid = 0;
+  for (const [type, x, y, rot] of pieces) {
+    const stats = buildingStats(world.balance, type);
+    if (!stats) continue;
+    const gx = Math.round(x / BUILD_GRID_M);
+    const gy = Math.round(y / BUILD_GRID_M);
+    if (footprintBlocked(world, footprint(stats, gx, gy, rot, box))) continue;
+    const b = addBuildingAt(world, { id: world.buildings.nextId, type, ownerId, gx, gy, rot: rot as 0 | 1 | 2 | 3, hp: stats.hp });
+    if (b) laid++;
+  }
+  return laid;
+}
