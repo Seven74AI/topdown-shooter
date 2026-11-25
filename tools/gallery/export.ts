@@ -52,6 +52,7 @@ try {
   for (const [file, hook, group, ready] of [
     ["docs/art/photoreal-1/compare.html", "__photoreal", "approved_photoreal_props", "loading"],
     ["docs/art/photoreal-2/take4-grey.html", "__take4", "approved_characters_take4", "loading"],
+    ["docs/art/photoreal-3/compare.html", "__build3", "approved_buildables", "loading"],
   ] as const) {
     const path = join(ROOT, file);
     if (!existsSync(path)) {

@@ -578,6 +578,21 @@ async function takes(): Promise<void> {
 }
 
 /** A closed fort of wood barricades: inside faces on the far wall, outside faces on the near wall, braces inside, corner pieces. */
+/** The approved pictures, for the asset review page's export (`window.__build3`). */
+const EXP: { id: string; group: string; name: string; url: string }[] = [];
+function still(lit: Lit): string {
+  const c = canvas(lit.w, lit.h);
+  const g = ctx(c);
+  g.drawImage(lit.base, 0, 0);
+  if (lit.hasGlow) {
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.5;
+    g.drawImage(lit.glow, 0, 0);
+    g.drawImage(lit.bloom, 0, 0);
+  }
+  return c.toDataURL("image/png");
+}
+
 interface FortSet {
   title: string;
   caption: string;
@@ -627,6 +642,7 @@ async function fort(set: FortSet, box: HTMLElement, base: number): Promise<void>
     ["outside", 2.25, 4.25], ["outside2", 4.25, 4.25], ["SW", 1.0, 4.25], ["SE", 5.5, 4.25],
   ];
   const near = (p: [Kind, number, number]): number => (p[0].startsWith("side") ? p[2] + 1 : p[2] + (p[0].length === 2 ? 0.01 : 0));
+  for (const [key, cap] of [["inside", "front, inside"], ["outside", "front, outside"], ["sideE", "side, braces east"], ["sideW", "side, braces west"], ["NW", "corner"]] as const) EXP.push({ id: `${set.title}_${key}`, group: set.title.replace(" (approved)", ""), name: cap, url: still(L[key]) });
   for (const p of [...pieces].sort((a, b) => near(a) - near(b))) {
     const [kind, x, y] = p;
     const lit = L[kind];
@@ -669,6 +685,7 @@ async function main(): Promise<void> {
     const it = ITEMS[i] as Item;
     await new Promise((r) => setTimeout(r, 0));
     const lit = relight(it, 700 + i * 13);
+    if (!it.id.startsWith("building_barricade")) EXP.push({ id: it.id, group: "Traps, lights and med station", name: it.name, url: still(lit) });
     const scale = it.wM >= 2 && it.hM >= 2 ? 0.5 : it.wM < 1 ? 2 : 1;
     const a = animated(lit, it, scale, i);
     a.frame(0);
@@ -690,6 +707,7 @@ async function main(): Promise<void> {
     live.push({ el: a.c, frame: a.frame, on: true });
     io.observe(a.c);
   }
+  Object.assign(window, { __build3: EXP });
   (document.getElementById("loading") as HTMLElement).remove();
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const t0 = performance.now();

@@ -114,6 +114,7 @@ const GROUPS = {
   boss_tele_ring: ["Boss throw warning", "The hatched ring where a thrown chunk will land."],
   boss_tele_lane: ["Boss charge warning", "The hatched lane the Behemoth will charge down."],
   atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers (sawhorses and concrete with tape), dumpster, sandbags."],
+  approved_buildables: ["Things you build", "The accepted look (not in the game yet). Traps, floodlights and med station relit and animated; the barricades standing, with four pictures each (front inside / outside, two sides) and a corner piece, built from random scavenged parts."],
   approved_photoreal_props: ["Street props and vehicles", "The accepted look: photoreal (not in the game yet). Cars on a real sedan body, burnt cars, the bus, dumpster, pump, rubble, sandbags and both barriers."],
   atlas_heli: ["Helicopter", "The helicopter's frames."],
   atlas_buildings: ["Things you build", "Barricades by tier, spike trap, mine, bear trap, turret and more, as placed on the street."],
@@ -132,7 +133,7 @@ const GROUPS = {
 };
 const ORDER = Object.keys(GROUPS);
 /** Groups replaced by an accepted new look (designer: "keep only the accepted version on the page"). */
-const SUPERSEDED = new Set(["atlas_characters", "atlas_downtown"]);
+const SUPERSEDED = new Set(["atlas_characters", "atlas_downtown", "atlas_buildings"]);
 const $ = (id) => document.getElementById(id);
 const docId = (id) => id.replace(/[^A-Za-z0-9_-]/g, "__");
 
