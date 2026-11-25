@@ -71,3 +71,13 @@ vitest CLI filters match by substring (`filterTestFiles`), so shard.mjs groups a
 - `npm run gate` -- expected: green, test count = baseline
 - `npx vitest run tools/ci/shard.test.ts` -- expected: pass
 - CI on the PR -- expected: all jobs green; DOM checks pass (not skipped) on shard 1
+
+## Review (step 4, 2026-11-25)
+
+Three fresh reviewers (blind hunter, edge-case hunter, acceptance auditor). Auditor verdict: accept, no high. No intent_gap / bad_spec. Patched:
+- 0 s files piled onto one shard (vitest's report times exclude import/collect/beforeAll) → `COST` per file, per browser test and for shard 1's Chromium install; shards now 135/129/129/130 files.
+- update-timings: all-skipped files keep their old time; keys anchored to `apps|packages|tools/`; NaN times skipped; a folder contributes only `test-report-*.json`; clear error for a missing path.
+- Browser tests detected by `playwright` in the source too, not only the name; `tools/ci/check-browser-ran.mjs` replaces the inline check.
+- Workflow: empty-shard guard, quoted file array, `ignore-error=true` on the gha cache writes, `gate` loops over `toJSON(needs)`, Playwright cache key includes `ImageOS`.
+- shard.mjs: realpath main-module check; strict integer args. `npm test` / `test:slow` / `test:changed` plain vitest, `VITEST_MAX_WORKERS` read in vitest.config.ts. `reports/` gitignored; stale cheat-scan wording fixed.
+Rejected / not changed: tag pins vs SHA pins (tags verified with `git ls-remote`; exact release tags); untimed files round-robin (spec); Windows `test:fast`/`release:check` env syntax (spec form; Linux boxes). Documented only: a docs-only PR gets no `gate` check (docs-only changes go straight to master).

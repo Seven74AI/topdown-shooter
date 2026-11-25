@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
-import { split } from "./shard.mjs";
+import { COST, isBrowserTest, split } from "./shard.mjs";
 
 /**
  * CI speed-up item 2 (designer 2026-11-25): the 4 CI shards together run exactly the files `npm test` runs — none
@@ -54,9 +54,26 @@ describe("tools/ci/shard.mjs against vitest's own file list", () => {
 });
 
 describe("split()", () => {
+  const NO_COST = { perFile: 0, browserSetup: 0, browserInstall: 0 };
+
+  it("browser tests: *DomLayout by name, or any test file that loads playwright", () => {
+    expect(isBrowserTest("tools/checks/hubDomLayout.test.ts")).toBe(true);
+    expect(isBrowserTest("tools/checks/hubLayoutCss.test.ts")).toBe(false);
+    expect(isBrowserTest("tools/ci/shard.test.ts")).toBe(false);
+  });
+
+  it("setup costs: every file costs perFile, and shard 1 carries browser setup + install", () => {
+    // 0 s files (import/collect not in the report) still spread out instead of piling onto one shard
+    const zeros = ["a", "b", "c", "d"].map((x) => `${x}.test.ts`);
+    expect(split(zeros, Object.fromEntries(zeros.map((f) => [f, 0])), 2).map((s) => s.length)).toEqual([2, 2]);
+    // shard 1 starts at 1 + 5 + 90 s, so the 50 s file goes to shard 2
+    const t = { "x/hubDomLayout.test.ts": 1, "big.test.ts": 50 };
+    expect(split(Object.keys(t), t, 2, undefined, { ...COST, perFile: 0 })).toEqual([["x/hubDomLayout.test.ts"], ["big.test.ts"]]);
+  });
+
   it("LPT: longest first onto the least-loaded shard", () => {
     const t = { "a.test.ts": 10, "b.test.ts": 7, "c.test.ts": 5, "d.test.ts": 4, "e.test.ts": 3 };
-    expect(split(Object.keys(t), t, 2)).toEqual([
+    expect(split(Object.keys(t), t, 2, undefined, NO_COST)).toEqual([
       ["a.test.ts", "d.test.ts"], // 10 + 4
       ["b.test.ts", "c.test.ts", "e.test.ts"], // 7 + 5 + 3
     ]);
@@ -71,7 +88,7 @@ describe("split()", () => {
   it("DOM checks are pinned to shard 1 and count toward its load", () => {
     const t = { "x/hubDomLayout.test.ts": 20, "a.test.ts": 15, "b.test.ts": 10 };
     // shard 1 starts at 20 s, so both a (15) and b (10) go to shard 2
-    expect(split(Object.keys(t), t, 2)).toEqual([["x/hubDomLayout.test.ts"], ["a.test.ts", "b.test.ts"]]);
+    expect(split(Object.keys(t), t, 2, undefined, NO_COST)).toEqual([["x/hubDomLayout.test.ts"], ["a.test.ts", "b.test.ts"]]);
   });
 
   it("a file whose path contains another file's path shares that file's shard (vitest filters by substring)", () => {

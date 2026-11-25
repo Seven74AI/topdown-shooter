@@ -26,11 +26,15 @@ on a required `gate`.
 `node tools/ci/shard.mjs <i> <n>` prints shard i's files (1-based), one per line:
 
 - the file list is vitest's own (`vitest list --filesOnly --json`), so a shard only names files `npm test` runs;
-- files are balanced by LPT (longest first onto the least-loaded shard) using `tools/ci/timings.json` ({file: seconds});
+- files are balanced by LPT (longest first onto the least-loaded shard) using `tools/ci/timings.json` ({file: seconds}).
+  vitest's report times only the tests (import, collect and `beforeAll` are left out, so many files read 0 s), so
+  `shard.mjs` adds `COST`: 0.5 s per file, 5 s per browser test (Vite + Chromium), 90 s on shard 1 for the Chromium
+  install;
 - files missing from `timings.json` go round-robin; entries for deleted files are ignored;
-- every `*DomLayout.test.ts` (browser DOM checks) goes to **shard 1**, the only shard that runs
-  `npx playwright install --with-deps chromium` (browsers cached in `~/.cache/ms-playwright`, keyed on the playwright
-  version). A step after the tests fails shard 1 if any DOM check did not pass (a missing browser makes them skip);
+- every browser test (`*DomLayout.test.ts`, or any test file that loads `playwright`) goes to **shard 1**, the only
+  shard that runs `npx playwright install --with-deps chromium` (browsers cached in `~/.cache/ms-playwright`, keyed on
+  the runner image and the playwright version). After the tests, `node tools/ci/check-browser-ran.mjs` fails shard 1
+  unless every browser test passed (a missing browser makes them skip, not fail);
 - vitest matches CLI filters by substring, so a file whose path contains another file's path stays on that file's shard.
 
 `tools/ci/shard.test.ts` proves, against `vitest list`, that the 4 shards are disjoint, cover every file, and that
@@ -42,8 +46,8 @@ Refresh when shards drift apart by more than a minute or two (new slow tests, bi
 
 1. Open a green CI run of the PR / master, download the four `test-report-1` … `test-report-4` artifacts into one
    folder, e.g. `reports/` (GitHub UI, or `gh run download <run-id> -p 'test-report-*' -D reports`).
-2. `node tools/ci/update-timings.mjs reports/` (a folder contributes its `test-report-*.json` files) — rewrites `tools/ci/timings.json` (files missing from the reports keep
-   their old time; deleted files are dropped).
+2. `node tools/ci/update-timings.mjs reports/` (a folder contributes its `test-report-*.json` files) — rewrites `tools/ci/timings.json` (files missing from the reports, or whose tests all
+   skipped, keep their old time; deleted files are dropped).
 3. Commit `tools/ci/timings.json`.
 
 Locally (any box; the split only needs relative times):

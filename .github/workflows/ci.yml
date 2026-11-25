@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ env.ImageOS }}-${{ steps.pw.outputs.version }}
       - name: Install Chromium (+ system deps) for the DOM checks
         if: matrix.shard == 1
         run: npx playwright install --with-deps chromium
@@ -92,18 +92,9 @@ jobs:
         run: |
           mapfile -t files < shard-files.txt
           npx vitest run --reporter=default --reporter=json --outputFile.json=reports/test-report-${{ matrix.shard }}.json "${files[@]}"
-      - name: The DOM checks ran (not skipped)
+      - name: The browser DOM checks ran (passed, not skipped)
         if: matrix.shard == 1
-        run: |
-          node -e '
-            const r = require("./reports/test-report-1.json");
-            const dom = r.testResults.filter((t) => /DomLayout\.test\.ts$/.test(t.name));
-            const tests = dom.flatMap((t) => t.assertionResults);
-            const bad = tests.filter((a) => a.status !== "passed");
-            console.log(`${dom.length} DOM check files, ${tests.length} tests, ${tests.length - bad.length} passed`);
-            for (const a of bad) console.log(`NOT PASSED (${a.status}): ${a.fullName}`);
-            if (dom.length === 0 || tests.length === 0 || bad.length > 0) process.exit(1);
-          '
+        run: node tools/ci/check-browser-ran.mjs reports/test-report-1.json
       - name: Upload the JSON report (timings refresh, docs/ci.md)
         if: always()
         uses: actions/upload-artifact@v7.0.2
