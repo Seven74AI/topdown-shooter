@@ -138,7 +138,7 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     expect(w.players.get("p1")).toBe(p1);
     expect(p1.wallet).toBe(321);
     expect(p1.hp).toBe(44);
-    expect(p1.protectTicks).toBeGreaterThan(0); // mid-wave: protected, next to Ana
+    expect(p1.protectTicks).toBe(0); // B15: a hold shorter than 3 s (a reload) returns in place, unprotected
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0));
     expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "token", reason: "drop" })]);
     expect(seen[0]?.left).toEqual([]);
@@ -270,6 +270,41 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
   });
 });
 
+describe("Story 8.1 review H2: a Leave + rejoin in the same build heals nothing (repeatable before the fix)", () => {
+  it("HP 20 stays 20 across a consented Leave and a rejoin by the link in the same build phase, twice", async () => {
+    const { clients, room, tokens } = await runOf(2);
+    const w = world(room);
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    p1.hp = 20;
+    let bo = clients[1] as RunSdkRoom;
+    for (let k = 0; k < 2; k++) {
+      await bo.leave(true);
+      await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+      bo = await colyseus.sdk.joinById<RunStateView>(bo.roomId, options("join", "Bo", tokens[1] as string));
+      record(bo);
+      await vi.waitFor(() => expect(w.players.get("p1")).toBe(p1));
+      expect(p1.hp).toBe(20);
+    }
+    expect(room.state.phase).toBe("build");
+  });
+});
+
+describe("Story 8.1 review L5: a drop on Results is a leave (D7)", () => {
+  it("no hold on Results: the others get player.left 'disconnected' at once", async () => {
+    const { clients, room, seen } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]));
+    expect(room.holds.size).toBe(0);
+  });
+});
+
 describe("Story 8.1 after the hold (AC 9, F8)", () => {
   it("the hold runs out → 'left' for the others, the seat is remembered; refused mid-wave (seat_kept), restored at the next build phase with its stuff", async () => {
     const { clients, room, seen, tokens } = await runOf(2);
@@ -346,7 +381,7 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
       expect(QUIET_HOLD_TICKS).toBe(60);
       (clients[1] as RunSdkRoom).send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
       await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
-      expect(w.players.get("p1")?.protectTicks).toBeGreaterThan(0);
+      expect(w.players.get("p1")?.protectTicks).toBe(0); // B15: back within 3 s of the hold: in place, unprotected
       expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "input", reason: "quiet" })]);
     } finally {
       clearInterval(keepAlive);

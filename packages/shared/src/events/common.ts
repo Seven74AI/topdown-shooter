@@ -62,7 +62,7 @@ export function playerSlotIndex(world: Readonly<World>, id: string): number {
   return -1;
 }
 
-/** Players in the run, standing, downed or out (D11: counts everyone, like the wave size). */
+/** Players in the run, standing, downed or out (D11: counts everyone, like the wave size); Story 8.1 review H3: held seats too. */
 export function playersInRun(world: Readonly<World>): number {
-  return world.players.size;
+  return world.players.size + world.heldPlayers.size;
 }

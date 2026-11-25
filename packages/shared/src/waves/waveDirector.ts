@@ -373,7 +373,7 @@ const countPlayer = (): void => {
  */
 export function beginWave(world: World): void {
   const w = world.waves;
-  playerCount = 0;
+  playerCount = world.heldPlayers.size; // Story 8.1 review H3: the run's seats, held ones too (no wave-size cheese by reloading)
   world.players.forEach(countPlayer);
   w.number += 1;
   const endless = world.run.endless; // Story 6.12: endless rules only past runWaves after Stay

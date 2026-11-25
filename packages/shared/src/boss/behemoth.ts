@@ -178,7 +178,8 @@ function arrive(world: World): void {
   const bal = world.balance.boss;
   b.number++;
   b.look = behemothLookIndex(world.seed, b.number, b.number > 1 ? b.look : -1);
-  b.maxHp = bossMaxHp(world.balance, world.players.size, world.debug.bossHpScale, endlessBossHpMult(world.balance, world.waves.number, world.run.endless)); // Story 6.12 (F4)
+  // Story 8.1 review H3: held seats count (no boss-HP cheese by holding at the warning).
+  b.maxHp = bossMaxHp(world.balance, world.players.size + world.heldPlayers.size, world.debug.bossHpScale, endlessBossHpMult(world.balance, world.waves.number, world.run.endless)); // Story 6.12 (F4)
   b.hp = b.maxHp;
   b.state = BOSS_STATE.WALK;
   b.stateTicks = 0;

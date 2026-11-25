@@ -174,6 +174,8 @@ export interface RememberedSeat {
   readonly guestTokenHash: string;
   readonly player: SimPlayer;
   readonly kills: number;
+  /** Review H2: `buildStartIndex` when the seat was held (restored with it: no free build-start heal). */
+  readonly buildIdx: number;
 }
 
 /** `ms` rounded to one decimal, for log lines. */
@@ -449,7 +451,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const controller = this.controller;
     const slotTaken = Array.from(this.members.values()).some((m) => m.slot === seat.slot);
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
-    if (!controller.restoreSeat(seat.player, seat.kills)) throw refuse("seat_kept");
+    if (!controller.restoreSeat(seat.player, seat.kills, seat.buildIdx)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
     const member: Member = {
       playerId: seat.playerId,
@@ -614,7 +616,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
-      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, player: seat.player, kills: seat.kills });
+      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
     } else {
       controller?.removePlayer(playerId);
     }

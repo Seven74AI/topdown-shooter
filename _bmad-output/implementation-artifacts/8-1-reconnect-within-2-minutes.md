@@ -290,7 +290,94 @@ Gate 2026-11-25 05:34–05:41 on story-8-1 @ 801e1eb (= master d8d44d0 with Stor
 - `tools/netaudit/cutLine.ts`
 - `tools/netaudit/smokeReconnect.cjs`
 
+## Senior Developer Review (AI)
+
+Reviewer: reviewer child session (gds-code-review: Blind Hunter, Edge Case Hunter, Acceptance Auditor; autonomous overnight run), 2026-11-25.
+Tree reviewed: `review-8-1` = `origin/story-8-1` db2cff2 merged with `origin/master` d8d44d0 (**no conflicts**: master was already merged, "Already up to date"). Diff `git diff origin/master...HEAD` (72 files, +4304/−75).
+Checks run (no full gate, as asked): `npm ci`; `npm run typecheck` → green; the story's 14 new/changed test files → 14 files / 131 tests green (24 s); `tools/bots/cut.test.ts` → green (51 s). Probes were scratch tests, deleted after (not committed).
+
+**Verdict: CHANGES REQUESTED** — 3 high, 3 medium, 6 low. The hold/return/freeze/takeover core is sound and well tested (every mutation but two failed a test), but three ordinary-player exploits break F2 and the boss/wave scaling, and the reconnect is an on-demand teleport + invulnerability (F4 / brief 18).
+
+### Findings
+
+| ID | Sev | Where | Failure scenario (probed) | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **H1** | high | `packages/shared/src/player/hold.ts:73` (`missedBuildStart`) | **Free heal (F2).** `waves.number` increments at `startWave`, so a hold made in build phase N−1 (`h.wave = N−1`) that returns in wave N counts as "missed a build start" → `catchUpBuildStart` heals +`buildHealFrac` (50 % max HP) and clears acid/flame clocks. Probe (shared + live room PR3): HP 20 → **70** on a drop in the build, token return after the wave started. Any player: close/reload the tab in the last seconds of a build. | Record the build-start index at the hold (`buildIdx = waves.number + (phase === "build" ? 1 : 0)`) and treat a build start as missed only when the current index is larger. Test: build hold → wave return keeps HP. |
+| **H2** | high | `apps/server/src/run/RunController.ts:635` (`restoreSeat(…, this.world.waves.number, "wave")`) | **Free heal, repeatable (F2).** A consented Leave in a build phase (B5: remembered) + rejoin by the link in the SAME build is restored as "held in a wave" → catch-up heal +50 % every time. Probe PR2 (live room): HP 20 → **70**, again 20 → 70 on a second Leave/rejoin; full HP each build phase for two taps. | Keep the hold's own `wave`/`phase` (or H1's index) in `RememberedSeat` (`releaseHeld` returns them) and pass them to `restoreSeat`. Test: Leave + rejoin in the same build keeps HP. |
+| **H3** | high | `packages/shared/src/boss/behemoth.ts:181` (`world.players.size` at `arrive`), `packages/shared/src/waves/waveDirector.ts:377` (`beginWave` counts `world.players`) | **Team cheese of the boss and wave size.** Held seats aren't counted when the Behemoth's HP is fixed (4 s `boss.warning` is longer than the 3 s quiet rule: 3 players app-switch at the warning, or reload) → HP for 1 player: **2400 vs 6000** (−60 %, `soloHpScale` 0.4); they're back 2 s later next to the 4th player. Same at `beginWave`: 3 players reload in the last second of a build → the whole wave is sized ×0.35 instead of ×1.0 (and H1 heals them on return). The story file names the boss rule ("a held player at its entry doesn't count") but not its exploit. | Count the run's seats, not the present bodies, where a run-long number is fixed: `world.players.size + world.heldPlayers.size` in `arrive` and `beginWave` (telegraph gaps / enrage crawlers are per moment: may stay). Test: 4 seats, 3 held at arrival/begin → 4-player HP / size. |
+| **M1** | medium (designer rule) | `packages/shared/src/player/hold.ts:75-79` (teleport + protection on every mid-wave return), `apps/server/src/rooms/RunRoom.ts` `onDrop` | **Escape / teleport / invulnerability on demand (F4 "not an escape", brief 18 "'I reconnected' changes the World").** Closing or reloading the tab sends WS 1001 = non-consented → `onDrop` holds the seat *instantly* (no 3 s wait). Probe PR1 (live room, 5 cycles back to back, no cooldown): back in **152 ms**, moved **30 m → 1.5 m** from the teammate, `protectTicks` 39 each time. Honest player: pull-to-refresh / F5 dodges a Behemoth slam, a gas or Bloater blast, a lethal bite (back in 1–3 s), or regroups across the map. Modified client: close+reconnect every ~2.15 s = permanently invulnerable (held ↔ protected), and a protected body is still the nearest zombie target → an unkillable decoy that keeps the team standing. Downed players can't use it (F1 holds). App switch: same teleport after 3 s of standing still (costly in a crowd, free when safe). | Designer rule (R7: new game rule). Recommended minimal rule: **teleport + protection at most once per player per wave; any further return in that wave lands where they vanished, unprotected** — and **a hold shorter than 3 s (QUIET_HOLD_TICKS) returns in place, unprotected** (an instant drop is a reload or a cheat, never a dangerous dead line). Test: 2nd return in a wave in place with `protectTicks` 0; a 150 ms drop returns in place. |
+| **M2** | medium | `packages/shared/src/run/runStateMachine.ts:243` (`voteOutcome(t.stay, world.players.size)`), `:253` (`markEvac`), `everyoneVoted` | **A held seat leaves the vote instead of counting as silent (Dev Notes "Epic 6": 6.11 D1 silent = Extract).** Probe: 4 players, 2 vote Stay, 2 held → **Stay** (endless on); with the story's rule it is Extract (2 × 2 > 4 is false). The vote also ends early once the present players voted. A held player at the first Stay never gets `earnedAtEvac` (→ `run_ended` `earnedBeforeEndless` / `earnedAfter10Lost` wrong for them). | Denominator = present + held seats in `resolveEvacVote` / `everyoneVoted`; `markEvac` also over `heldPlayers`. Test: 2 Stay + 2 held → Extract. |
+| **M3** | medium | `apps/client/src/sim/NetSimHost.ts:236,1044` (one `ServerClock` for the Room's life; nothing re-bases it on a same-room reconnect) | **Picture runs ahead of the data for up to a minute after a freeze (brief 9 "across a reconnect", 16; 8.9 F2).** While everyone is gone the server tick stands still (F6) but the phone's estimate keeps advancing through the offline time and the 3-2-1; after the resume it may only slew back at 10 %. Probe (`ServerClock`, 6 s freeze): lead **5998 ms → 998 ms over 50 s** — the render tick sits past the newest horde frame (others/zombies held at the newest frame, 8.9's freeze counter climbing). Every solo online drop hits this; the two-tab smoke never froze. | Re-base the clock (and `AdaptiveDelay`) when `state.frozen` goes true → false or on `onReconnect` while the overlay covers the picture (one step there is allowed), e.g. `ServerClock.reset()`. Test: freeze 6 s → lead < 200 ms within 1 s of the resume, estimate monotonic after it. |
+| L1 | low | `apps/server/src/rooms/RunRoom.ts:1076` (`endRun` loops `world.players`) | A player held when the run ends (wipe/extract) has no kills/earned in `run_ended`. | Also loop `heldPlayers`. |
+| L2 | low | `apps/server/src/rooms/RunRoom.ts:402` (`attachClient` → `net.add`) | Every reconnect/takeover gets a fresh `ClientGuard`: full buckets again (a cheater refills the ~10 msg/s budget by reconnecting in ~150 ms), and the dropped socket's drop counters are never reported (`onDrop` doesn't `net.remove`). | Carry the guard by playerId across a reconnect/takeover (or report on drop). |
+| L3 | low | `apps/client/src/net/lobbyStore.ts:257` (B12) | A deliberately opened new tab within 15 s of the old tab's own recovery loses the seat back to the old tab (any 4021 in `ownTakeoverMs` is retaken): D5 "newest wins" is inverted for 15 s. | Retake only while this tab's own takeover attempt is known to have crossed (attempt count / epoch), not on time alone. |
+| L4 | low | `apps/client/src/net/linkMonitor.test.ts:96-137`, `apps/client/src/scenes/hudLayout.test.ts:64` | Two tests don't bite (brief 26/27): `takeoverAfterMs` 2000 → 20 000 passes (the test advances by the constant); moving `.held-chips` to the screen centre in `overlay.css` passes (the test's box is hard-coded, not read from the CSS). | Pin 2000 ms in the test; read top/left/max-width from `overlay.css` (like other source checks). |
+| L5 | low | `apps/server/src/rooms/RunRoom.reconnect.test.ts` | D7's Results half (a drop on Results is a leave) has no test; only the lobby is tested. | One test. |
+| L6 | low | story T4 | T4 is [x] with a sub-item not done ("the phone resets its event queue on return": Not verified 6) — brief 25. | Untick the sub-item or reset the queue. |
+
+### Beat the rule (every attempt)
+
+| # | Attempt (player / cheater) | Result |
+| --- | --- | --- |
+| 1 | Wipe dodge: last standing goes airplane/quiet while the rest are down | Blocked: held seats don't keep the team alive (test "wipe with a teammate held"). Cheater: drop + return lands in a later tick → wipe fires in between. |
+| 2 | Escape a crowd by app switch (3 s) | Works after 3 s standing still: teleport next to the lowest-slot teammate + 2 s protection; repeatable, no cooldown (M1). |
+| 3 | Escape / dodge a boss slam, gas or Bloater blast by **reload** (honest) or socket close (cheater) | **Works instantly** (WS 1001 = drop): 152 ms round trip in the probe, 5× in a row (M1). |
+| 4 | Permanent invulnerability (cheater loop close→reconnect every ~2 s) | Works: held ↔ protected; the protected body is still a zombie target (decoy) (M1). |
+| 5 | Downed → drop/quiet → free revive / escape "out for the wave" | Blocked (F1 tests; probe agrees): out until the next build start. |
+| 6 | Free heal: drop in build, return mid-wave | **Works** +50 % HP (H1). |
+| 7 | Free heal: Leave + rejoin in the same build | **Works** +50 % HP, repeatable (H2). |
+| 8 | Free reload / reroll by dropping | Blocked: reload restarts, offer + rerolls kept (tests). |
+| 9 | Boss HP cheese: 3 hold at the Behemoth's arrival | **Works**: 2400 vs 6000 HP (H3). |
+| 10 | Wave-size cheese: 3 reload at the end of a build | **Works** by code (`beginWave` counts present players; H3). |
+| 11 | Keep earning while held (B7) | Turret/kill/refund pay lands in the held wallet for ≤ 120 s, then nobody (test, mutation M2 caught); wave-clear bonus not paid while held (B7, accepted). No farming beyond the hold. |
+| 12 | Dupe money/items via takeover (two tabs, same token) | Blocked: one `Member` moves; one `PlayerState` (held object reused); old socket's onDrop/onLeave/inputs find no member. Remembered seat deleted on restore. |
+| 13 | Stranger's new connection takes a held seat | Blocked without the guest token (`run_started`, test). Copied token = that player (7.1 D5 / D5; noted, not a bug). Token never broadcast. |
+| 14 | Late takeover races (B12): token reconnect vs takeover crossing | Adopted correctly (tests); only L3 (new tab within 15 s loses). |
+| 15 | Stale inputs replayed after reconnect | Blocked: SDK queue 0 (3 tests fail when 10), NetSimHost gate (mutation M7 caught), server drops view > 2 s old (M4 caught), held queue ignored. Non-input taps sent in the first 3 s of an *undetected* silence can arrive late on the same socket = ordinary lag (after a takeover they are ignored). |
+| 16 | One player freezes the run for others | Blocked: freeze only when `activeCount() === 0`; probe PR4: 3 connected + 1 held → not frozen, ticking. Solo: pausing by app switch is allowed (D5), unlimited chaining (noted). |
+| 17 | Held player blocks Ready / vote / extract / endless / Results | Ready: no (only present players). Vote: no block, but the held seat changes the outcome (M2). Results: any member can `lobby.return`; holds are rejected there (no stuck run). |
+| 18 | Back after 120 s at the next build with all stuff (D4) | Works (test; mutation M5 caught); with H2's heal on top. |
+| 19 | Lobby / Results drop = Leave (D7) | Lobby tested; Results by code (`inRun` excludes it), untested (L5). |
+| 20 | Close codes 4000/4020/4021 through 8.8's lag line | The lag and cut lines are TCP byte proxies (`lagLine.ts:16`: close frames travel like data) — codes pass unchanged; 4020 on the phone → takeover → `seat_kept` (no special case needed). |
+| 21 | Clock/render on reconnect (8.9 F2) | Never backwards (holds), but ahead for up to a minute after a freeze (M3). |
+| 22 | Horde stream on reconnect | Reconnected client is JOINED and gets frames the next tick (test). **For 8.10**: put the keyframe request in `attachClient` (the one hook for join, reconnect, takeover, remembered-seat restore); reset the per-client baseline on `onReconnect` (SAME sessionId: the phone may have missed frames); delete the old sessionId's baseline in `takeOver` / `finalLeave`; no frames are sent while frozen (`onTick` returns before `sendHorde`). |
+| 23 | Per-client message guard after reconnect | Reset to full buckets each reconnect (L2). |
+| 24 | maxClients 8 abuse (B6) | Strangers still refused in `join()` (test); rooms are private (`setPrivate`), so the unlock lists nothing. No abuse found. |
+| 25 | Hold leaks (30 drops) | `holds`, `heldPlayers`, `heldSlots` cleared on return (10-wave sim + PR1's 5 cycles leave none). |
+
+### Mutations (each reverted; run on the touched test files)
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| C1 | **Cut test without the takeover** (`join()` takeover line commented out; not mutated by the builder) | **Failed** (`cut.test.ts`: `expected false to be true`, 4002 close; 2 m 46 s) |
+| M1 | No protection on a teammate return (`hold.ts:76`) | 3 failed (hold.test F4, reconnect ×2) |
+| M2 | `earn` ignores held owners (F5) | 1 failed (hold.test F5) |
+| M3 | Quiet counter counts build phases (B1) | 1 failed (RunController.hold "build-phase quiet doesn't count") |
+| M4 | `isStaleInput` always false (F7/B4) | 1 failed (RunController.hold F7 "> 2 s behind") |
+| M5 | Seat not remembered in `finalLeave` (F8/B5) | 2 failed (reconnect "hold runs out", "consented Leave remembered") |
+| M6 | Watchdog stall rule off (B13) | 1 failed (reconnect.test stall rule) |
+| M7 | NetSimHost send gate off (F7) | 1 failed (NetSimHost.reconnect) |
+| M8 | Protection blink constant | 1 failed (protectBlink) |
+| M9 | Seat not saved to sessionStorage | 1 failed (lobbyStore.reconnect "run.joined saves the seat") |
+| M10 | `takeoverAfterMs` 2000 → 20 000 | **Survived** (L4) |
+| M11 | Chip countdown ignores the current tick | 1 failed (connectionModel) |
+| M12 | holdRunSim: the bot never held | 1 failed (holdRunSim liveness) |
+| M13 | `inRun()` false (no holds) | 1 failed (RunRoom.leave "a dropped socket mid-run is held") |
+| M14 | 3-2-1 → 1 s | 1 failed (reconnect solo freeze) |
+| M15 | `.held-chips` moved to the screen centre | **Survived** (L4) |
+
+### Brief lines
+
+- 25 (named test per [x]): every task names tests that exist (T1 16, T2 5, T3 15 + leave + wiring, T5/T6/T8 as listed); T4's event-queue sub-item is not done (L6).
+- 30 (gate line): present (commit 801e1eb, master d8d44d0, 416 files / 3799 tests, load 0.46 → 3.54). Not re-run here.
+- 18 (server stays the truth): violated by M1 (a reconnect teleports and protects). 21 (a drop is not a leave; stale inputs dropped): holds (row 15). 27 (measurable timing): watchdog 1 ms sweep ✓; takeover 2 s not pinned (L4). 33 (Epic 6 timers): no pacing/budget change, but the vote outcome changed (M2). 5 (replay): hold/return are replay commands with a digest test ✓ (the server itself records no log, as before). 9/16: M3. 2 (copies): `heldUntilTick`/`protectTicks`/`frozen`/`resumeIn` through schema, syncState, stateView keys, fakeRoom, NetSimHost ✓.
+
+### Re-review asks (brief 28)
+
+Each fix above changes behaviour → narrow re-review whose first task is "exploit this fix": H1/H2 with a build-start index sweep (hold in build/wave/vote × return in build/wave/vote × same/next wave), H3 with held seats at arrival and at `beginWave`, M1's rule with reload-speed (≤ 150 ms) and 3 s holds, M3 with freezes of 3–120 s.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
 - 2026-11-25: built (T1–T9), merged with master after 8.8 and 8.9 landed; decisions 8.1 B1–B14 auto-accepted overnight; status review.
+- 2026-11-25: senior developer review (AI): changes requested (H1–H3, M1–M3, L1–L6); findings above.
