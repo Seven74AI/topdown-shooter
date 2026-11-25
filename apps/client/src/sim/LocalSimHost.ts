@@ -103,9 +103,12 @@ export class LocalSimHost implements SimHost {
   /** Story 7.9 (AC 13, D4): my own look in practice (this phone's saved progress), checked like a join would. */
   private readonly info: PlayerInfo;
 
-  /** `look`: the device's look code (7.1's progress cache; absent = the default look). Never sent anywhere. */
-  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null; look?: unknown; devLoot?: readonly [number, number] | null }) {
-    this.info = opts.look === undefined ? LOCAL_PLAYER_INFO : Object.freeze({ slot: 0, name: "", look: encodeLook(decodeLook(opts.look, ownedParts()).look) });
+  /**
+   * `look`: the device's look code (7.1's progress cache; absent = the default look). Never sent anywhere. `owned`: the
+   * server's `cosmetics` from the cached progress (Stories 7.11 / 7.12: milestone and loot parts; absent = starter parts).
+   */
+  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null; look?: unknown; owned?: readonly string[] | undefined; devLoot?: readonly [number, number] | null }) {
+    this.info = opts.look === undefined ? LOCAL_PLAYER_INFO : Object.freeze({ slot: 0, name: "", look: encodeLook(decodeLook(opts.look, ownedParts(opts.owned)).look) });
     // Story 7.12 (D2): offline practice banks nothing (7.2's rule), so it makes no loot plan;
     // the dev `?loot=3:0.1` forces one for browser checks.
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, loot: { off: true } });

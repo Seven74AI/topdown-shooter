@@ -7,6 +7,7 @@
 import { createEndpoint } from "@colyseus/core";
 import {
   ACCOUNT_LOGIN_PATH,
+  ACCOUNT_LOOK_PATH,
   ACCOUNT_LOGOUT_PATH,
   ACCOUNT_RECOVER_PATH,
   ACCOUNT_SESSION_PATH,
@@ -14,8 +15,10 @@ import {
   ACCOUNT_UNLOCK_PATH,
   ACCOUNT_UPGRADE_PATH,
   GUEST_COOKIE,
+  LOOK_SAVE_MAX_BODY_BYTES,
   accountSessionRequestSchema,
   loginRequestSchema,
+  lookSaveRequestSchema,
   logoutRequestSchema,
   recoverRequestSchema,
   trainRequestSchema,
@@ -29,6 +32,7 @@ import { resolveGuestSession, type GuestSessionDeps } from "./guestSession";
 import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
 import { actionIpAllowed, logIn, logOut, loginIpAllowed, recoverAccount, upgradeAccount, type AccountAuthDeps, type AuthOutcome } from "./accountAuth";
 import { buyTraining, trainIpAllowed, trainRefused, type TrainDeps } from "./train";
+import { lookIpAllowed, saveLook, type LookDeps } from "../meta/look";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
@@ -38,6 +42,15 @@ export interface AccountRouteDeps extends GuestSessionDeps {
   train: Omit<TrainDeps, "accounts" | "logGate">;
   /** Story 7.6: upgrade, login, recover, logout. */
   auth: Omit<AccountAuthDeps, "accounts" | "logGate" | "sessionSecret">;
+  /** Story 7.10: `POST /account/look`. */
+  look: Omit<LookDeps, "accounts" | "logGate">;
+}
+
+/** Story 7.10 (AC 11): the body size: the declared length, else the parsed body re-serialised. */
+function bodyBytes(headers: Headers | undefined, body: unknown): number {
+  const declared = Number(headers?.get("content-length") ?? NaN);
+  const measured = body === undefined ? 0 : Buffer.byteLength(typeof body === "string" ? body : JSON.stringify(body), "utf8");
+  return Number.isFinite(declared) ? Math.max(declared, measured) : measured;
 }
 
 /** The client IP the same way Colyseus reads it for rooms (`X-Real-IP`, which Caddy sets from Cloudflare). */
@@ -183,7 +196,30 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (!body.success) return badBody(ctx);
     return answer(ctx, await logOut({ cookieToken: ctx.getCookie(GUEST_COOKIE), ip }, authDeps));
   });
-  return { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout };
+
+  /**
+   * Story 7.10 (AC 8, 11; E2): `POST /account/look` `{ look }` (≤ 256 bytes). The cookie names the account; 200 answers
+   * `{ ok: true, look }` with the code the server STORED (canonical; unowned parts → default parts; null = default);
+   * 400 bad body, 401 no account, 403 foreign Origin, 413 body over 256 bytes, 429 over the limits, 503 save server down.
+   */
+  const accountLook = createEndpoint(ACCOUNT_LOOK_PATH, { method: "POST" }, async (ctx) => {
+    const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
+    const origin = headers?.get("origin");
+    if (!originAllowed(origin, deps.allowedOrigins)) {
+      log.warn({ origin: origin ?? null }, "account_origin_refused");
+      throw ctx.error(403, { message: "forbidden" });
+    }
+    ctx.setHeader("cache-control", "no-store");
+    const ip = clientIp(headers);
+    if (!lookIpAllowed(ip, { ipLimiter: deps.look.ipLimiter, logGate: deps.logGate })) throw ctx.error(429, { message: "rate_limited" });
+    if (bodyBytes(headers, ctx.body) > LOOK_SAVE_MAX_BODY_BYTES) throw ctx.error(413, { message: "too_large" });
+    const body = lookSaveRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) throw ctx.error(400, { message: "invalid_body" });
+    const out = await saveLook({ cookieToken: ctx.getCookie(GUEST_COOKIE), look: body.data.look, base: body.data.base }, { ...deps.look, accounts: deps.accounts, logGate: deps.logGate });
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    return out.body;
+  });
+  return { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook };
 }
 
 /** The `__Host-tdg` cookie (HttpOnly, Secure, SameSite=Lax, Path=/, no Domain, 1 year). */

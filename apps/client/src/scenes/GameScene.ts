@@ -646,7 +646,7 @@ export class GameScene extends Phaser.Scene {
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn, linkUp: () => linkStore.get().status === "ok" }) : null;
     // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
     const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
-    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get(), devLoot: opts.stress === null ? opts.loot : null });
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get(), owned: progressStore.get().progress?.cosmetics, devLoot: opts.stress === null ? opts.loot : null });
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;

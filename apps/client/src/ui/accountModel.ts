@@ -105,6 +105,8 @@ export function inRoom(back: UiScreen): boolean {
       return back.online;
     case "lobby":
       return true;
+    case "survivor": // Story 7.10: the editor opened from the lobby (or from the hub opened from the lobby)
+      return back.back.kind === "lobby" || back.back.back.kind === "lobby";
   }
 }
 

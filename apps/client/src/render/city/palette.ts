@@ -15,6 +15,8 @@ export const GROUND = {
   lane: "rgba(190,160,60,0.45)",
   zebra: "rgba(205,205,195,0.28)",
   lotLine: "rgba(205,205,195,0.3)",
+  /** Story 7.10: the editor's game-size preview: a faint lamp sheen on wet asphalt. */
+  wetSheen: "rgba(120,132,150,0.12)",
 } as const;
 
 /**

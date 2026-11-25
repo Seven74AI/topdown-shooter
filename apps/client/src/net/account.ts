@@ -20,10 +20,12 @@ import {
   type DeviceSessionResponse,
   type RecoverResponse,
   type UpgradeResponse,
+  ACCOUNT_LOOK_PATH,
   ACCOUNT_SESSION_PATH,
   ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
   accountSessionResponseSchema,
+  lookSaveResponseSchema,
   playerNameSchema,
   trainResponseSchema,
   unlockResponseSchema,
@@ -115,7 +117,8 @@ export function forgetTicket(): void {
 
 /**
  * Story 7.9 (AC 5): what a join carries from the account: the ticket (as `sessionTicket`) and my look — the
- * server's copy first (and kept on this device), then the device copy, then none (the default look).
+ * server's copy first (and kept on this device), then the device copy, then none (the default look). Story 7.10: a
+ * pending editor Done (not stored by the server yet, edited from the server's current look) wins over the server copy.
  */
 export async function joinAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
   const s = await accountSession(over);
@@ -123,7 +126,9 @@ export async function joinAccount(over: Partial<AccountDeps> = {}, looks: Device
   if (s?.saved && s.progress) looks.set(s.progress.look ?? null);
   const out: { ticket?: string; look?: string } = {};
   if (s?.saved) out.ticket = s.ticket;
-  const look = s?.saved && s.progress ? (s.progress.look ?? undefined) : looks.get();
+  // Story 7.10 (AC 9): after the server's copy is applied, the device copy is the truth for the join (a pending Done the
+  // server hasn't stored yet stays and joins; the server checks it there, 7.9).
+  const look = looks.get();
   if (look !== undefined) out.look = look;
   return out;
 }
@@ -263,7 +268,8 @@ function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
   accountStore.accept(s.account.username);
   if (s.progress) {
     progressStore.accept(s.progress);
-    deviceLook.set(s.progress.look ?? null); // Story 7.9: this phone's look copy follows the account it now is
+    // Story 7.9 + 7.10: this phone's look copy follows the account it now is; a look pending for the OLD account is dropped
+    deviceLook.markSynced(s.progress.look ?? null);
   }
 }
 
@@ -289,4 +295,34 @@ export async function logOutAccount(over: Partial<AccountDeps> = {}): Promise<Ac
   const r = await action(ACCOUNT_LOGOUT_PATH, {}, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
   if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
   return r;
+}
+
+/**
+ * Story 7.10 (AC 8, 9, 11): what `POST /api/account/look` gave back: the code the server STORED (canonical; null = the
+ * default look), or `failed` with the status (0 = no answer: offline, timeout; 429 = too many saves; 401 no account;
+ * 5xx save server down). Never throws. The cookie names the account (`credentials: "same-origin"`).
+ */
+export type LookSaveCall = { kind: "saved"; look: string | null; stale?: boolean } | { kind: "failed"; status: number };
+
+/** `base` (review L2): only the start-up retry sends it (the look it was edited from); the server then refuses to overwrite a newer look. */
+export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}, base?: string | null): Promise<LookSaveCall> {
+  const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_LOOK_PATH}`, ...over };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
+  try {
+    const res = await deps.fetch(deps.url(), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(base === undefined ? { look: code } : { look: code, base }),
+      signal: abort.signal,
+    });
+    if (!res.ok) return { kind: "failed", status: res.status };
+    const parsed = lookSaveResponseSchema.safeParse(await res.json());
+    return parsed.success ? { kind: "saved", look: parsed.data.look, ...(parsed.data.stale ? { stale: true } : {}) } : { kind: "failed", status: res.status };
+  } catch {
+    return { kind: "failed", status: 0 };
+  } finally {
+    clearTimeout(timer);
+  }
 }

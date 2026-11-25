@@ -1,4 +1,5 @@
 import { protectBlinkAlpha } from "./protectBlink";
+import { RING_ALPHA, RING_GAP_M, RING_WIDTH_M } from "./playerRing";
 import * as Phaser from "phaser";
 import type { PlayerState } from "@topdown/shared";
 import { SLOT_COLORS } from "./playerColors";
@@ -17,10 +18,7 @@ const BODY_TINT = 0xffffff;
 const DOWNED_TINT = 0x6a6e74;
 /** Story 3.9: a slowed survivor (Crawler bite) is drawn a sickly green while it lasts. */
 const SLOWED_TINT = 0xa9cf8a;
-/** Story 2.9: ground ring in the slot colour (FR55, NFR11), in metres. */
-const RING_GAP_M = 0.15;
-const RING_WIDTH_M = 0.08;
-const RING_ALPHA = 0.9;
+/** Story 2.9: ground ring in the slot colour (FR55, NFR11), in metres (Story 7.10: `playerRing.ts`, shared with the editor). */
 /** Under the body (10) and Story 2.8's revive ring (9), above the street, blood, zombies and shots. */
 const RING_DEPTH = 8.5;
 /** Story 5.4: the friendly-fire ring flash (fire orange, brighter than the orange slot colour). */

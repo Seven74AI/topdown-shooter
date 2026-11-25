@@ -17,6 +17,11 @@ describe("practice solo look (Story 7.9 AC 13)", () => {
     expect(info.look).toBe("v1|top:hoodie|head:cap|hair:short|pack:none|skin:2|c:aa0000,00bb00,0000cc");
     expect(new LocalSimHost({ balance, seed: 1, look: { x: 1 } }).playerInfo().look).toBe(encodeLook(DEFAULT_LOOK));
   });
+  it("Stories 7.11 / 7.12: a part the server says I own (cached progress cosmetics) is worn in practice too", () => {
+    const code = "v1|top:hoodie|head:riot|hair:short|pack:none|skin:2|c:aa0000,00bb00,0000cc";
+    expect(new LocalSimHost({ balance, seed: 1, look: code, owned: ["head:riot"] }).playerInfo().look).toBe(code);
+    expect(new LocalSimHost({ balance, seed: 1, look: code, owned: [] }).playerInfo().look).toContain("head:cap");
+  });
 });
 
 describe("L5: a look is cosmetic only (Story 7.9)", () => {

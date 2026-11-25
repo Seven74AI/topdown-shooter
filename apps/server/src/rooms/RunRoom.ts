@@ -41,6 +41,7 @@ import {
   parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
+  lobbySetLookSchema,
   netPongSchema,
   parseWaveMix,
   playerInputSchema,
@@ -85,7 +86,7 @@ import {
 import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { EventInterest } from "../net/eventInterest";
-import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
+import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S, TICKET_ROW_CHECK_MS } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
@@ -335,6 +336,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   readonly rememberedSeats = new Map<string, RememberedSeat>();
   /** Stories 7.7 / 7.11: each member's saved districts and owned parts, loaded at join (absent: none / not loaded). */
   private readonly memberProgress = new Map<string, { readonly districts: readonly string[]; readonly cosmetics: readonly string[] }>();
+  /** Stories 7.10 + 7.11: the look each member last asked for (join, then `lobby.set_look`), re-checked once its owned parts load. */
+  private readonly askedLook = new WeakMap<Member, unknown>();
   /** Review M3: the run end's banks (settled), so the lobby reloads progress after this run's grants are written. */
   private runBanked: Promise<unknown> = Promise.resolve();
   /** Story 8.1: the hold length in seconds (HOLD_S; tests may shorten it on a live room, like `allowSoloStart`). */
@@ -393,8 +396,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 7.6 review L2: this device is in the middle of a log in / reset / log out: its token is about to change.
     if (isSwitching(guestTokenHash)) throw refuse("rate_limited");
     const accountId = ticketAccountId(parsed.data.ticket, guestTokenHash);
-    // Story 7.9 (L1, L2): a look never refuses a join; parts the account doesn't own (until 7.11: non-starter parts)
-    // become default parts. Logged as a count only, never the player-chosen text.
+    // Story 7.9 (L1, L2): a look never refuses a join; parts the account doesn't own become default parts. The join stays
+    // database-free (7.1 AC 9): starter parts here; 7.11's owned parts re-check the asked look once the room loads the
+    // member's progress (`loadMemberProgress`, B26). Logged as a count only, never the player-chosen text.
     const look = decodeLook(parsed.data.look, ownedParts());
     if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
     return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId, look: encodeLook(look.look), rawLook: parsed.data.look };
@@ -422,6 +426,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input", (c, m) => this.onInputRateDropped(c, m)),
     );
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
+    this.onMessage(C2S.LOBBY_SET_LOOK, this.net.guard(lobbySetLookSchema, (c, m) => this.onSetLook(c, m.look))); // Story 7.10 (D3)
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
@@ -519,6 +524,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false, look: auth.look }));
     this.attachClient(client, member);
     this.log.info({ playerId, slot }, "player_joined");
+    this.askedLook.set(member, auth.rawLook);
     void this.loadMemberProgress(member, auth.rawLook); // Stories 7.7 / 7.11: districts and owned parts (async, never awaited)
   }
 
@@ -866,7 +872,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!row || this.members.get(member.sessionId) !== member) return; // left meanwhile
     this.memberProgress.set(member.playerId, { districts: row.districts, cosmetics: row.cosmetics });
     if (this.state.phase === "lobby") {
-      const look = !relook ? member.look : encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
+      // 7.10: a `lobby.set_look` sent before this load wins over the join's look; never once Start began (7.10 review L1)
+      const asked = this.askedLook.has(member) ? this.askedLook.get(member) : rawLook;
+      const look = !relook || this.starting || this.controller !== null ? member.look : encodeLook(decodeLook(asked, ownedParts(row.cosmetics)).look);
       if (look !== member.look) {
         member.look = look;
         const player = this.state.players.get(member.playerId);
@@ -919,6 +927,36 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     const player = member && this.state.players.get(member.playerId);
     if (player) player.ready = ready;
+  }
+
+  /** Story 7.10 (D3): when each member last changed its look in the lobby (ms), for the 2-per-second limit. */
+  private readonly lookTimes = new WeakMap<Member, number[]>(); // per member object: gone with the member
+
+  /**
+   * `lobby.set_look` (Story 7.10, D3): my new look, shown on my lobby card for everyone before Start. Lobby phase only
+   * (a build or a wave ignores it: the run keeps the look it started with); decoded against what my account owns, the
+   * same rule as the join (7.9 L2: starter parts until 7.11 feeds the owned items); at most
+   * `MAX_LOBBY_LOOKS_PER_S` per second per member, extra ones are dropped silently (never a kick).
+   */
+  onSetLook(client: RunClient, code: string): void {
+    // Review L1: after `run.start` the phase reads "lobby" while the members' progress loads (7.4/7.5 `starting`) and
+    // until the first tick (`controller` built): the run has started, its look is the one it started with.
+    if (this.state.phase !== "lobby" || this.starting || this.controller !== null) return;
+    const member = this.members.get(client.sessionId);
+    const player = member && this.state.players.get(member.playerId);
+    if (!member || !player) return;
+    const now = Date.now();
+    const times = (this.lookTimes.get(member) ?? []).filter((t) => now - t < 1000);
+    if (times.length >= MAX_LOBBY_LOOKS_PER_S) return;
+    times.push(now);
+    this.lookTimes.set(member, times);
+    this.askedLook.set(member, code);
+    // Story 7.11 / 7.12: the member's owned milestone and loot parts once loaded (starter parts until then; the load re-checks)
+    const look = decodeLook(code, ownedParts(this.memberProgress.get(member.playerId)?.cosmetics));
+    if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
+    const canonical = encodeLook(look.look);
+    member.look = canonical;
+    player.look = canonical;
   }
 
   /**

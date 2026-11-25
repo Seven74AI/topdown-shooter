@@ -10,6 +10,7 @@ import { type Database, openPglite } from "../db/client";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
+import { roomProgressRepo } from "../auth/roomAccounts";
 
 /**
  * Story 7.7 (AC 3–5; R2–R5) and Story 7.11 (AC 2) in a real room with a PGlite database: each member's saved progress
@@ -156,6 +157,42 @@ describe("Story 7.11 AC 2: owned milestone parts survive the join's look check",
     await vi.waitFor(() => expect(headOf("p0")).toBe("riot"));
     await new Promise((r) => setTimeout(r, 100));
     expect(headOf("p1")).toBe(DEFAULT_LOOK.head);
+  });
+});
+
+describe("Stories 7.10 + 7.11 / 7.12: lobby.set_look wears the account's owned parts", () => {
+  it("after the progress load: an owned milestone part and an owned loot part stay; an unowned one is the default part", async () => {
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Owner", await newAccount([], ["head:riot", "pack:cat"])));
+    quiet(host);
+    await host.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b01)); // progress loaded
+    const worn = encodeLook({ ...DEFAULT_LOOK, head: "riot", pack: "cat" });
+    host.send(C2S.LOBBY_SET_LOOK, { look: worn });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.look).toBe(worn));
+    host.send(C2S.LOBBY_SET_LOOK, { look: encodeLook({ ...DEFAULT_LOOK, head: "laurel" }) });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.look).toBe(encodeLook(DEFAULT_LOOK)));
+  });
+
+  it("a set_look that arrives before the progress load is re-checked with the owned parts (it wins over the join's look)", async () => {
+    const repo = roomProgressRepo()!;
+    const realGet = repo.get.bind(repo);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    vi.spyOn(repo, "get").mockImplementation(async (id: string) => {
+      await gate;
+      return realGet(id);
+    });
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Owner", await newAccount([], ["head:riot"]), encodeLook(DEFAULT_LOOK)));
+    quiet(host);
+    await host.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    const worn = encodeLook({ ...DEFAULT_LOOK, head: "riot" });
+    host.send(C2S.LOBBY_SET_LOOK, { look: worn });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(room.state.players.get("p0")?.look).toBe(encodeLook(DEFAULT_LOOK)); // not owned yet as far as the room knows
+    release();
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.look).toBe(worn));
   });
 });
 

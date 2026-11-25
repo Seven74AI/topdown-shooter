@@ -114,6 +114,29 @@ Made while building Story 7.9 (2026-11-25, branch `story-7-9`); recommended valu
 | 7.9 B9 | Lobby texts with no room on a 568 px phone | **Start's "Waiting for…" hint inside the Start button; "Copied" on the Copy button; guests see "The host starts the game" where Start is** (a hint line under the cards: no room at 320 px tall) |
 | 7.9 B10 | The lobby portrait | **Whole body with pack and the plain gun, turned like the SC3 sheet, animated layers drawn still (the propeller shows)** (no gun) |
 
+## 7.10 build-time choices (auto-accepted overnight — designer: follow the GDS recommendation)
+
+Made while building Story 7.10 (2026-11-25, branch `story-7-10`); recommended value first, alternative after. The story's own decisions D1–D7 were taken as recommended (row "D1–D7"). Every row: **auto-accepted (designer: follow the GDS recommendation)**.
+
+| Code | Choice | Taken (alternative) |
+| --- | --- | --- |
+| 7.10 D1–D7 | The story's decisions | **All recommended: phone picker + 12 quick colours (D1); night colours on the big preview with the chosen colour as a small swatch (D2); my lobby card changes for everyone before Start, never in a run (D3); Done offline keeps the look on this phone and syncs next start (D4); Random changes everything incl. skin (D5); big preview turns once per 6 s, drag turns it (D6); Back throws changes away, no question (D7)** |
+| 7.10 T0 | The editor layout | **The designer's pick ED1 + LK2 + LS1 (7-UI-5, `docs/art/epic-7/lumen/editor.jpg`) is the look; no new proposals drawn** (draw 2–3 new layouts) |
+| 7.10 B1 | The hub's Survivor tab | **Opens the editor as its own full screen; Back / Done return to the hub** (the editor inside the hub's list panel: no room for the previews at 568 × 320) |
+| 7.10 B2 | The save route's path | **`POST /api/account/look` (server `/account/look`), beside 7.1's `/account/session` and 7.3's `/account/unlock`** (the story's placeholder `PUT /api/progress/look`) |
+| 7.10 B3 | AC 9's "newer server look wins" | **A pending Done remembers the server look it was edited from (`base`); at the next start it is sent only if the server still has that base, else the server's newer look (another phone) wins and the pending one is dropped** (a new `look_saved_at` column + migration, timestamps from two phone clocks) |
+| 7.10 B4 | Done answered 429 | **The editor stays open with "Too many saves, try again in a minute"; nothing is cached** (cache it as pending like an offline save) |
+| 7.10 B5 | "Saved on this phone…" | **Shown 2.5 s in the info row, then the editor closes by itself (Back closes at once)** (close at once and show it on the next screen) |
+| 7.10 B6 | 12 quick colours at 568 px | **A sideways-scrolling strip of 44 px circles beside the picker (3–5 visible on a small phone)** (smaller circles under the 44 px minimum) |
+| 7.10 B7 | What `lobby.set_look` may wear | **The same owned set as the join (starter parts until 7.11 feeds the account's items into the room)** (a database read per lobby change) |
+| 7.10 B8 | Ring colour in the previews | **My lobby slot's colour; outside a lobby, slot 1 (blue)** (always orange as in the sheet: orange is the accent) |
+| 7.10 B9 | Tiles while dragging a colour | **Both previews follow every picker event; the tiles repaint 150 ms after the colour settles** (tiles repaint on every event: 20 data URLs per event on a phone) |
+| 7.10 B10 | Drag speed | **0.02 rad per CSS px on top of the slow turn** (drag stops the turn) |
+| 7.10 B11 | The 12 quick colours (`cosmetics.json › look.swatches`) | **Jacket blue, teal, olive, plum, rust, bone, near-black, Runner red, mustard, sky, brown, grey** (any other 12) |
+| 7.10 B12 | Done in the lobby | **Also sends `lobby.set_look` with the stored code (or the phone copy when offline): D3 at once** (only from the next join) |
+| 7.10 B13 | Text size in the editor | **≥ 14 px everywhere (AC 2), checked by the DOM layout test (R9's floor is 11)** (11 px labels) |
+| 7.10 B14 | `/account/look` per IP | **60 calls per IP per minute before the body or the database (brief 15), beside AC 11's 10 per account** (account limit only) |
+
 ## 7.12 build-time choices
 
 Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; early part T0–T4). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.
@@ -160,3 +183,4 @@ Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; the merged story, banking part
 | 7.12 B31 | Revive farm (review M2) | A revive counts toward M5 only in phase `wave` and not when the reviver caused that down (friendly fire: `downedBy` on the downed player). Also review L2: a build-phase down is no M10 down | No risk-free farm in the build phase (M-F2). Auto-accepted overnight (designer: follow the GDS recommendation); the designer may override |
 | 7.12 B32 | "Never the same bag twice in a row" scope (review M6) | Per server process: the last look is the last bag that really DROPPED (`loot.dropped`), not the last plan; a restart forgets it | A run that ends before its drop doesn't steer the next look. Auto-accepted overnight (designer: follow the GDS recommendation) |
 | 7.12 B33 | A banked seat and the bag (review M1) | A seat already banked (Leave / `run.leave`) can't take the bag (`world.loot.banked`); if the finder's item is unknown to a teammate's bank, the line reads "<name> found the bag" (`teamLoot` key null, wave 0), never a guessed item | No phantom item. Auto-accepted overnight (designer: follow the GDS recommendation) |
+| 7.12 B34 | 7.10 owned sets (7.10 landed first) | The save route's `ownedFor` reads `progress.cosmetics`; `lobby.set_look` decodes against the member's loaded cosmetics (starter parts until the load); the join stays database-free and the progress load re-checks the member's LAST asked look (join or an earlier `set_look`; never once Start began); practice solo wears the cached progress's cosmetics | Owned milestone and loot parts are wearable everywhere a look is checked. "Wear it" on Results (B21) stays a follow-up. Auto-accepted overnight (designer: follow the GDS recommendation) |

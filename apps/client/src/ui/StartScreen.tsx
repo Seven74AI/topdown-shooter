@@ -4,6 +4,7 @@ import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { filterCodeInput } from "./codeInput";
 import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
 import { accountSession, prefillName } from "../net/account";
+import { syncPendingLookOnce } from "../net/lookSave";
 import { rewardsStore } from "../net/rewardsStore";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
 import { accountLine } from "./accountModel";
@@ -65,6 +66,8 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
     void accountSession().then((session) => {
       if (live) setName((current) => prefillName(current, session));
     });
+    // Story 7.10 (AC 9, D4): a look saved only on this phone is sent once, now (if the server still has its base).
+    void syncPendingLookOnce();
     return () => {
       live = false;
     };

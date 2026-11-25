@@ -309,6 +309,11 @@ class LobbyStore {
     this.room?.send(C2S.LOBBY_SET_READY, { ready });
   }
 
+  /** Story 7.10 (D3): my new look, shown on my card for everyone before Start (the server ignores it outside the lobby). */
+  setLook(look: string): void {
+    if (this.get().phase === "lobby") this.room?.send(C2S.LOBBY_SET_LOOK, { look });
+  }
+
   /** Story 7.7: the host picks the run's district (the server checks host, lobby and the open rule). */
   pickDistrict(id: string): void {
     this.room?.send(C2S.LOBBY_DISTRICT, { id });

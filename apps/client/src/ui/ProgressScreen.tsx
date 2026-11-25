@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { uiStore, type UiScreen } from "./uiState";
+import { openSurvivor, uiStore, type UiScreen } from "./uiState";
 import {
   HUB_TABS,
   HUB_TEXT,
+  SURVIVOR_TAB_ID,
   IDLE,
   answerUnlock,
   expireConfirm,
@@ -179,6 +180,8 @@ export function ProgressScreen() {
               aria-selected={t.id === tab}
               data-tab={t.id}
               onClick={() => {
+                // Story 7.10: the Survivor tab opens the survivor editor (its own screen, decision 7.10 B1)
+                if (t.id === SURVIVOR_TAB_ID) return uiStore.set(openSurvivor({ kind: "progress", back: screen.back }));
                 setTab(t.id);
                 setBuy(IDLE); // a pending Confirm never carries over to another tab
                 buyRef.current = IDLE;

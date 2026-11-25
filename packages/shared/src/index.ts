@@ -313,6 +313,8 @@ export {
   guestTokenSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
+  lobbySetLookSchema, // Story 7.10 (D3)
+  type LobbySetLook,
   lobbyDistrictSchema, // Story 7.7
   type LobbyDistrictReset,
   netPongSchema,
@@ -382,6 +384,12 @@ export {
   ACCOUNT_SESSION_PATH,
   ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
+  ACCOUNT_LOOK_PATH, // Story 7.10
+  LOOK_SAVE_MAX_BODY_BYTES,
+  lookSaveRequestSchema,
+  lookSaveResponseSchema,
+  type LookSaveRequest,
+  type LookSaveResponse,
   GUEST_COOKIE,
   accountSessionRequestSchema,
   accountSessionResponseSchema,

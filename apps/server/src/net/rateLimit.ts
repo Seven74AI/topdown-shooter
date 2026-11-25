@@ -8,6 +8,9 @@ import {
   ROOM_CREATE_WINDOW_MS,
   MAX_UNLOCKS_PER_ACCOUNT_PER_MIN,
   MAX_UNLOCK_CALLS_PER_IP_PER_MIN,
+  MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN,
+  MAX_LOOK_CALLS_PER_IP_PER_MIN,
+  LOOK_WINDOW_MS,
   MAX_TRAIN_CALLS_PER_IP_PER_MIN,
   MAX_TRAINS_PER_ACCOUNT_PER_MIN,
   UNLOCK_WINDOW_MS,
@@ -140,6 +143,12 @@ export const trainAccountLimiter = new SlidingWindowLimiter(MAX_TRAINS_PER_ACCOU
 
 /** Story 7.3 (AC 5): `/account/unlock` calls per account (id) per minute. */
 export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACCOUNT_PER_MIN, UNLOCK_WINDOW_MS, Date.now, (key) => key);
+
+/** Story 7.10 (brief 15): `/account/look` calls per client IP per minute (before the body or the database). */
+export const lookIpLimiter = new SlidingWindowLimiter(MAX_LOOK_CALLS_PER_IP_PER_MIN, LOOK_WINDOW_MS, Date.now, ipKey);
+
+/** Story 7.10 (AC 11): `/account/look` saves per account (id) per minute. */
+export const lookAccountLimiter = new SlidingWindowLimiter(MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN, LOOK_WINDOW_MS, Date.now, (key) => key);
 
 /** Story 7.1 review L4: a rate-limit warning is logged at most once per IP and kind per minute (a flood can't push real logs out). */
 export const rateLimitLogGate = new SlidingWindowLimiter(1, ACCOUNT_SESSION_WINDOW_MS, Date.now, (key) => key);
