@@ -4,6 +4,7 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { PREDICTION_SYSTEMS } from "../core/systems";
 import { createWorld, setInput, step, type World } from "../core/world";
+import { DOWNTOWN_MAP } from "../map/downtown";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import { addPlayer } from "../player/player";
@@ -62,6 +63,32 @@ describe("circle vs box", () => {
     wall(world, 20, 10, 1); // [20, 20.5] × [10, 12]: a 0.5 m slot at x ∈ [19.5, 20]
     expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 12.5)).toBe(PUSH_STUCK);
     expect(pushed).toEqual({ x: 19.75, y: 12.5 });
+  });
+
+  it("fix bloater-car-corner: a centre placed inside the join of two touching car-sized boxes (its start spot inside too) leaves to the nearest clear spot", () => {
+    // Two 2 m thick boxes in a T (the Downtown curb cars in the road). Thinner walls (0.5 m barricades) never trap a body:
+    // the bounce needs the horizontal box's nearest face to be the join, i.e. a box thicker than the body.
+    const solids = [
+      { name: "h_car", minX: 14, minY: 14.5, maxX: 18.5, maxY: 16.5 },
+      { name: "v_car", minX: 15.5, minY: 16.5, maxX: 17.5, maxY: 21 },
+    ];
+    const world = createWorld({ balance, seed: 1, map: { ...DOWNTOWN_MAP, solids, cover: [] }, systems: { waves: () => {} } });
+    expect(world.obstacles.solids.map((s) => s.name)).toEqual(["h_car", "v_car"]);
+    // In the horizontal box near its bottom face: pushed out of it into the vertical one, and back.
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15.55, 15.55)).toBe(PUSH_MOVED);
+    expect(solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.4 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
+    expect(Math.hypot(pushed.x - 15.55, pushed.y - 15.55)).toBeLessThan(1.5); // the nearest clear spot, not far away
+    // A legal start spot keeps the old rule: stuck, it stays where it came from.
+    expect(pushOutOfBuildings(world, 15.55, 15.55, 0.4, 15, 17.3)).not.toBe(PUSH_STUCK);
+  });
+
+  it("fix bloater-car-corner: a centre deep in a box against the map edge (pushed off the map and clamped back) leaves too", () => {
+    const world = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    const kiosk = world.obstacles.solids.find((s) => s.name === "gas_kiosk");
+    expect(kiosk && kiosk.maxX === world.map.widthM && kiosk.minY === 0).toBe(true); // the 7 × 6 m box in the map's corner
+    expect(pushOutOfBuildings(world, 47.01, 2.5, 0.6, 47.01, 2.5)).toBe(PUSH_MOVED);
+    expect(pushed.y).toBeGreaterThanOrEqual(6 + 0.6 - 1e-9); // out of its bottom face, the only one on the map
+    expect(world.obstacles.solids.every((s) => !circleOverlapsBox(pushed.x, pushed.y, 0.6 - 1e-6, s.minX, s.minY, s.maxX, s.maxY))).toBe(true);
   });
 });
 

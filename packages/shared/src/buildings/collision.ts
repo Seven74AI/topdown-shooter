@@ -155,9 +155,83 @@ export function pushOutOfBuildings(
       bestD = d;
     }
   }
+  if (bestD <= 0 && overlapsObstacle(world, fromX, fromY, r - FROM_INSIDE_EPS_M, withBuildings) && escape(world, fromX, fromY, r, withBuildings)) {
+    pushEscapes.count++;
+    return PUSH_MOVED;
+  }
   pushed.x = bestX;
   pushed.y = bestY;
   return bestD > 0 ? PUSH_MOVED : PUSH_STUCK;
+}
+
+/**
+ * Fix bloater-car-corner (2026-11-25): staying at `from` is the fallback only because `from` is
+ * normally outside every box. A centre placed inside one (the dev spawn cheats place bodies with no
+ * solid check) at the join of two touching boxes is pushed by each box's nearest face into the other.
+ * The passes never settle, and staying at `from` would keep it inside for good. Above this overlap at
+ * `from` (far above Float32 rounding against a face, which must never trigger it: a body stuck at a slot
+ * mouth must not jump a wall), the body goes to the nearest clear spot instead (`escape`).
+ */
+const FROM_INSIDE_EPS_M = 1e-3;
+/**
+ * `escape`: fine rings (`ESCAPE_FINE_STEP_M` apart up to `ESCAPE_FINE_M`: the nearest exit of a car
+ * junction is 0.1–1 m away), then coarse ones (`ESCAPE_COARSE_STEP_M` apart up to `ESCAPE_REACH_M`:
+ * deep in a big box against the map edge, e.g. the 7 × 6 m gas kiosk in Downtown's corner).
+ */
+const ESCAPE_FINE_STEP_M = 0.05;
+const ESCAPE_FINE_M = 1;
+const ESCAPE_COARSE_STEP_M = 0.25;
+const ESCAPE_REACH_M = 12;
+/** 16 directions 22.5° apart, as exact literals (no trig at run time: identical in every engine), tried in this order. */
+const C1 = 0.9238795325112867; // cos 22.5°
+const S1 = 0.3826834323650898; // sin 22.5°
+const H = Math.SQRT1_2;
+const ESCAPE_COS = [1, C1, H, S1, 0, -S1, -H, -C1, -1, -C1, -H, -S1, 0, S1, H, C1] as const;
+const ESCAPE_SIN = [0, S1, H, C1, 1, C1, H, S1, 0, -S1, -H, -C1, -1, -C1, -H, -S1] as const;
+const ESCAPE_DIRS = ESCAPE_COS.length;
+
+/** Diagnostic: how many push-outs took the `escape` (tests; not simulation state, never snapshotted). */
+export const pushEscapes = { count: 0 };
+
+/** The circle overlaps a map solid or (with `withBuildings`) a wall building. */
+function overlapsObstacle(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
+  if (!withBuildings) return false;
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (b.solid && circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
+  return false;
+}
+
+/** The nearest clear spot round (x, y) inside the map (fine rings, then coarse ones), into `pushed`; false if none within `ESCAPE_REACH_M`. */
+function escape(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
+  let d = ESCAPE_FINE_STEP_M;
+  while (d <= ESCAPE_REACH_M) {
+    if (escapeRing(world, x, y, r, d, withBuildings)) return true;
+    d += d < ESCAPE_FINE_M ? ESCAPE_FINE_STEP_M : ESCAPE_COARSE_STEP_M;
+  }
+  return false;
+}
+
+/** The first clear spot (in `ESCAPE_COS/SIN` order) on the ring of radius `d` round (x, y), into `pushed`. */
+function escapeRing(world: Readonly<World>, x: number, y: number, r: number, d: number, withBuildings: boolean): boolean {
+  const { widthM, heightM } = world.map;
+  for (let i = 0; i < ESCAPE_DIRS; i++) {
+    const px = x + (ESCAPE_COS[i] as number) * d;
+    const py = y + (ESCAPE_SIN[i] as number) * d;
+    if (px < r || px > widthM - r || py < r || py > heightM - r) continue;
+    if (overlapsObstacle(world, px, py, r, withBuildings)) continue;
+    pushed.x = px;
+    pushed.y = py;
+    return true;
+  }
+  return false;
 }
 
 const NO_BUILDINGS: readonly Building[] = [];
