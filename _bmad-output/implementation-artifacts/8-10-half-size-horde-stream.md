@@ -1,6 +1,6 @@
 # Story 8.10: Half-size horde stream
 
-Status: review
+Status: in-progress
 
 <!-- Network pass story 4 of 5 (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Closes Epic 6 decision 6.8 B1 ("accept the stampede's 28.2 KB/s until Story 8.10"). -->
 
@@ -216,7 +216,87 @@ Commit `10f1488` on `story-8-10`, master `d8d44d0` merged (already up to date). 
 - tools/bots/botClient.ts, tools/bots/run.ts, tools/bots/lineArgs.ts, tools/bots/lineArgs.test.ts, tools/netaudit/hordeEncodings.ts, tools/netaudit/lagLine.ts, tools/netaudit/lagLine.test.ts, tools/netsim/hitsSim.ts, tools/netsim/smoothRun.ts, tools/netsim/hits.test.ts, tools/netsim/vote.test.ts, tools/netsim/hordeGlide.test.ts (new), tools/checks/hordeStreamWiring.test.ts (new)
 - docs/network-pass-decisions.md, docs/network-pass-brief.md (line 8), docs/perf/network-pass-2026-11.md, docs/epic-6-decisions.md, _bmad-output/planning-artifacts/game-architecture.md, HANDOFF.md, _bmad-output/implementation-artifacts/sprint-status.yaml
 
+## Senior Developer Review (AI)
+
+Reviewer: fresh reviewer session (gds-code-review, three layers: blind hunter / edge-case hunter / acceptance auditor), 2026-11-25 overnight (FULL AUTONOMOUS RUN). Reviewed the merged tree `review-8-10` = `origin/story-8-10` ab32c1f + `origin/master` d8d44d0 (merge: already up to date, **no conflicts**). `npm ci` + `npm run typecheck` green; the story's 11 new/changed test files green (97 tests) before mutation. Load 0.2–0.9 (4 cores). Full gate not run (builder's: 407 files / 3,740 tests on 10f1488).
+
+**Verdict: changes requested — 2 medium, 3 low.** The wire format, encoder and decoder are solid (differential fuzz below: 0 mismatches over 6,000 adversarial ticks; 20 k fuzz frames never throw); the two mediums are a player-text gap on the very deploy F5 is about, and a clean-line far-zombie stutter the glide test's arrival model hides.
+
+### Findings
+
+| Id | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **RM1** | medium | `apps/server/src/rooms/RunRoom.ts:184,268` (+ `RunRoom.test.ts:143`) | F5 / brief 19 / brief 24. A tab opened **before** this deploy (no `netProtocolVersion`) is refused as `update_required`, but that tab runs the OLD `joinErrors.ts`, which has no case for it: it shows **"Something went wrong, try again" with no Refresh button** (reproduced: master d8d44d0's `joinErrorText({code: 526, message: "update_required"})` → `{"text":"Something went wrong, try again","refreshButton":false}`). Worse than before: `checkNetProtocol` runs before the balance check, so a stale tab across a deploy that ALSO changed balance (which today says "Please refresh" + button) now gets the unknown text too. The new text only ever reaches tabs built after 8.10 (a future v3 bump). | Same pattern as Story 4.1 review M1 (`mapVersion` absent → `balance_mismatch`): in `checkNetProtocol`, `version === undefined` → `refuse("balance_mismatch")` (every old tab renders "Please refresh" + Refresh); a present but different version → `update_required` (new tabs: "A new version is out. Please reload."). Fix the F5 test's expectation for the pre-8.10 case. |
+| **RM2** | medium | `apps/client/src/net/hordeBuffer.ts:241–252`; test `tools/netsim/hordeGlide.test.ts:15,58–70` | AC 3 "they glide instead of stepping", brief 17 (clean line: no new freezes). Between a far zombie's refreshes the buffer needs the snapshot **two** ticks past A (`ai + 2`); a near one needs one. On the real clean line the newest frame is usually only 1.0–2.0 ticks ahead of the render tick (measured in the real harness, 20 Runners kiting, 150 ms ± 10 ms: newest − renderTick p5 1.00, p50 1.34, p95 2.00). When `ai + 2` is not there, a far zombie **stands still at A's pose and jumps when the frame lands**. Measured in `hitsSim` (real encoder → stream decoder → `HordeBuffer`, 3 seeds × 60 s): **150 Walkers kiting, clean: 15.3 % of far zombies' between-refresh samples stuck (4.8 % of all zombie samples); 20 Runners kiting, clean: 16.0 %**; lossy 1 %: 1.9 % / 3.2 % (its larger delay hides it). The all-20 Hz control never sticks. The glide test passes only because its frames arrive with zero one-way delay under a 2-tick render delay (headroom always ≥ 2 ticks); with the measured headroom (sweep `DELAY_TICKS` 0.66 / 0.34) it fails: far Walker speed error 160 % / 320 % per 10 ms, the boundary oscillation 5 / 10 cm off the all-20 Hz picture (Runner ≈ 3.3× that). Server rules are unaffected (drawing only), but the client's aim assist and turret cosmetics read these poses. | Cheapest, no code: D1's own alternative — `HORDE_NEAR_M = Infinity` (all zombies at 20 Hz). Re-measured on the same seeds: audit replay **6.7 → 8.2 KB/s** (AC ≤ 10 ✓), stampede worst 1 s **13.4 → 13.5 KB/s** (AC ≤ 15 ✓): the far rule saves 1.5 KB/s on the replay and ~0 on the stampede. Or keep D1 and log the stutter as a B-decision with these numbers (designer). Either way make the glide test's arrival model the real one (frames through `ServerClock`/`AdaptiveDelay` with 75 ms ± 10 ms one-way, or a headroom sweep 1.0–2.0 ticks) so it fails today. Do not extrapolate (Story 2.5). |
+| RL1 | low | `tools/netsim/hits.test.ts:179–180` | Brief 6 liveness: the "all-20 Hz control" is never shown to be at 20 Hz. Mutation: `hitsSim` ignores `hordeNearM` (`new HordeEncoder()`) → both clean-line tests still pass (the control equals the run trivially). | Assert the control really differs, e.g. `expect(control.horde.bytes).toBeGreaterThan(r.horde.bytes)`. |
+| RL2 | low | `docs/network-pass-decisions.md:88` (B6) | Brief 31: "a bandwidth burst over budget → bounded by a test, owed to a named story". At 64 kbit/s frames queue up to 4.7 s in the line with 0 skips (F12 confirmed); B6 calls the fix a "follow-up" with no story. | Name the owner (8.11 "one packet per tick" is the natural home: RTT-based skip + keyframe) in B6 and HANDOFF. |
+| RL3 | low | story file Tasks T1, T9 | Brief 25 "no [x] without a named test": T1 names a tool run, T9 names docs only. | Either name the tests that pin the numbers (e.g. `eventBandwidth.test.ts > Story 8.10 (closes 6.8 B1)…`, `hordeEncoder.test.ts > 150 Walkers in view…`) or mark them as measurement/docs tasks explicitly. |
+
+### B2 judgement (clean-line reversed hits 0.5 % → ≤ 1 %)
+
+**Not an 8.10 regression: a pre-existing client behaviour that the harness now sees (harness realism).** Reproduced, 20 Runners kiting, clean 150 ms ± 10 ms, Pistol, seeds 1–3 × 60 s, same machine:
+
+| Harness | Horde path | Reversed |
+| --- | --- | --- |
+| master d8d44d0, idealised (its own lerp; a dying zombie vanishes as soon as the frame after the render tick lacks it) | — | **1/446 (0.22 %)** |
+| master d8d44d0 + the REAL `HordeBuffer` fed full frames (`HordeEncoder.encode` → `readHordeFrame`, `killAt`), **no 8.10 code** | 20 Hz keyframes | **4/439 (0.91 %)** |
+| same + kill hidden at arrival (`markDead` instead of `killAt`) | 20 Hz keyframes | 0/446 (0 %) |
+| story-8-10 (real stream) | far 10 Hz | **4/439 (0.91 %)** |
+| story-8-10, `hordeNearM: Infinity` | all 20 Hz | 4/439 (0.91 %) |
+| 150 Walkers kiting: master / master + real buffer / 8.10 / 8.10 all-20 Hz | | 1/457 · 1/457 · 1/456 · 1/457 (0.22 %) |
+
+The +3 reversed hits come entirely from `HordeBuffer`'s Story 2.5/8.9 rule "a killed zombie stays drawn until the render tick reaches its kill" (shots at a zombie the server already killed), identical with or without the delta stream and the far rule. Brief 17's 0.5 % was met only by the idealised harness, which hid dying zombies up to one tick EARLY. **Recommendation: accept B2 as logged** (the ≤ 1 % bound + control equality is the honest number), but do **not** fix by hiding at arrival: that makes a zombie vanish 100–150 ms before its killing shot is drawn (breaks "kills line up with their zombie"). If the designer wants the 0.5 % back, the narrow fix is client-side: treat a net id with a pending kill (`HordeBuffer.pendingKillNetId`) as no longer hittable for the local hit prediction / hit marker (still drawn, no false hit spark). Owe it to a named story; add RL1's control assert.
+
+### Beat the rule (brief 4)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Malformed / truncated / oversized frames: 10 k random byte strings 0–2,100 B + 10 k random deltas with a valid header and the right base tick (`tools` probe, deleted) | Never threw; 19,994 refused and counted in `decodeErrors`; 6 random-but-valid deltas applied with in-range records (healed by the next key ≤ 1 s, D2). Builder's 20 k fuzz test green. ✓ |
+| 2 | Delta against the wrong base tick / replayed / out-of-order frame | `(tick − gap) ≠ lastTick` → `brokenChain`, nothing applied, waits for the key (M6 mutation caught by 2 tests). A replayed OLD keyframe would be applied as baseline (then `HordeDecoder` drops it as stale and the next delta is refused until the key): ≤ 1 s freeze, impossible on the ordered socket (malicious server out of scope). ✓ |
+| 3 | Keyframe loss under the lossy line | Cannot happen (TCP: stalls, no loss); a backpressure skip sets `needsKey` (M5 caught). ✓ |
+| 4 | 256-slot overflow; slot reuse on death + spawn the same tick; zombie dying and a new one in the same slot between two far updates (ghost glide?) | Pool = 256 = slots. Differential probe: 256 zombies, 15,318 same-tick generation bumps, 107 k big moves/teleports (incl. map edges 0 / W), viewer jumping across the map (spectate switch), 2 % skips, 0.5 % not-JOINED, near↔far at exactly 8 m ± 1e-6 every tick, 6,000 ticks: **0 mismatches** vs the full frame, max frame 2,047 B ≤ 2,055, 0 errors. New generation is a NEW record on any tick (not parity-gated) and the buffer never lerps across net ids, including the `ai + 2` look-ahead (`c.netId === netId`): no ghost glide. ✓ |
+| 5 | Near↔far flip at exactly 8 m, oscillating, 1 ms sweep | `> nearSq` (8.000 m is near). Builder's oscillation sweep green; probe exact. But see **RM2** (stall when the look-ahead frame is missing). |
+| 6 | Behemoth / stampede / events in view | Behemoth is a schema entity (`mirrorBoss.ts`), not a horde record: unaffected. Stampede re-measured: worst 1 s 13.4 KB/s (≤ 15 ✓), 14 keys, 0 errors. Events unchanged. ✓ |
+| 7 | TINY clamps (−8…7 cm) at high speed (Runners 20 cm/tick, 40 cm per far refresh; knockback; Brute shove) | Falls back TINY → SMALL (±127 cm) → FULL (u16) per axis; boundaries −8/7/8/−128 checked by reading and by the probe's ±3 m moves and teleports. ✓ |
+| 8 | Heading byte threshold | > 4 steps (B1); round trip + probe within tolerance; M4 (no derivation) caught by the round trip. ✓ |
+| 9 | Stale tab with the old protocol | Refused ✓, but the old tab shows the wrong text: **RM1**. |
+| 10 | Bots and harness use the real decoder (brief 20) | `botClient.ts` and `hitsSim.ts` use `HordeStreamDecoder` (M16 caught by the wiring test). Throttle holds raw bytes in order before `RunInbox`. ✓ |
+| 11 | Per-client state in a WeakMap: reconnect / takeover / leak | New client object → new state → keyframe; `forceKey` for 8.1; new `HordeEncoder` per run (`RunRoom.ts:758`) so a new run starts with keys; WeakMap entries die with the client objects; fixed 256-slot arrays. 8.1 is not on master yet: the room-level reconnect test is owed by whoever lands second (as the merge notes say). ✓ |
+| 12 | Backpressure at 64 kbit/s (F12) | Builder's table stands (0 skips, up to 4.7 s queued in the line); not re-run. Owner missing: **RL2**. |
+| 13 | Server tick cost p99 | `hordeEncoder.test.ts` 4 clients × 150: mean 0.119 ms, p99 0.251 ms at load 0.8 (builder 0.206–0.276; before 0.154–0.199): ≤ +0.1 ms. ✓ |
+| 14 | No per-tick allocation (encoder / decoder / buffer) | Read: preallocated typed arrays, `frames[n]` subarrays made once, decode reads bytes in place. Heap probe (`--expose-gc`): 20 k ticks × 4 clients encode + decode + sample = ~1 MB total heap growth (≈ 50 B/tick, the probe loop's own noise; a per-tick subarray alone would be > 10 MB). ✓ |
+| 15 | Bandwidth row before/after, same seeds | `hordeEncodings.ts 600`: master **18.6** KB/s → branch **6.7** KB/s, 0 mismatches over 600 ticks, keys 1.0/s (= builder's). ✓ |
+| 16 | Brief 25 (named tests) / brief 30 (gate line) | 25: RL3. 30: Gate line present (commit, master merged, files/tests, load). ✓ |
+
+### Mutations (brief 6: each new test once)
+
+| Mutation | Caught by |
+| --- | --- |
+| M1 decoder ignores the FAR toggle | hordeStream round trip, 8 m rule, both glide tests (4 failed) ✓ |
+| M2 no 1 s keyframe | round trip, fuzz-heals-within-1 s, keyframes test ✓ |
+| M3 far refreshed at 20 Hz | 8 m rule, round trip, glide 10 Hz liveness ✓ (bandwidth tests still pass: the far rule saves ~0 there, see RM2) |
+| M4 no heading derivation on the phone | round trip ✓ (F4 standing-turn test unaffected, as designed) |
+| M5 a skipped frame doesn't force a key | keyframes test ✓ |
+| M6 decoder skips the base-tick check | NetSimHost woken-tab burst, fuzz ✓ |
+| M7 `RunInbox` doesn't decode without a sink (D4) | NetSimHost D4 test ✓ |
+| M8 overlay drops `err` | hordeStreamText ✓ |
+| M9 no `checkNetProtocol` | RunRoom F5 ✓ |
+| M10 `--kbps` ignored | lagLine kbps test ✓ |
+| M11 no TINY record | 150-Walker ≤ 12 KB/s, stampede ≤ 15 KB/s ✓ |
+| M12 buffer lerps per frame, not between own refreshes | both glide tests ✓ |
+| M13 harness ignores `hordeNearM` (control = run) | **survived** (hits.test clean rows) → RL1 |
+| M14 key header 8 B | hordeFormat round trips ✓ |
+| M15 `update_required` without the Refresh button | joinErrors ✓ |
+| M16 bots decode with `readHordeFrame` | hordeStreamWiring brief 20 ✓ |
+
+15 of 16 caught.
+
+### Not verified (reviewer)
+
+Real phones / 4G / iOS Safari; the two-tab smoke (brief 34); the capped-line table (not re-run); a live Colyseus reconnect (8.1 not on master).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built overnight (delta horde stream v2, B1–B6 auto-accepted), status review.
+- 2026-11-25: senior developer review (AI): changes requested — RM1, RM2 (medium), RL1–RL3 (low); B2 judged pre-existing client behaviour (accept as logged); status in-progress.
