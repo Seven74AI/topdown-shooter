@@ -16,6 +16,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPTGmNZH64LunFYNBGt | Review 8.9 | review-8-9 |
 | session_01CgLgPUPAN4Mdh4kigceHmj | Re-review 8.8 | rereview-8-8 |
 | session_01CgLgPVqsFQcix6hLu748Sj | Review asset-session art | review-asset-art |
+| session_01CgLgPXg8R2HjRX5uJVEZTR | Re-review 8.9 | rereview-8-9 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -50,3 +51,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:51 8.9 T10/T11 (19e6ea4): with 8.8's 500 ms window 16–33 % of lossy-line shots were over the cap → applied 8.8 D1's pre-approved fallback as 8.9 B8: REWIND 12 ticks / 600 ms. Reversed hits (kiting, 1 %/2 %): Runners 0.7/1.4 %, Walkers 0.3/1.1 %, 0 % over cap; rewind p99 0.070 ms. Bots lossy 4 × wave 4: 0 suspects, 7.6 KB/s down. B7 bound 1.6→1.7× after the merge.
 - 04:59 8.8 test-only fixes (c011273) merged; main gate 399 files / 3689 tests green (load 3.49) → 8.8 DONE on master.
 - 05:02 Asset session acked (f8a16b9, includes master b0e491a; gate 400 files / 3674 tests; in-session review fixed its Mediums). Dispatched light+ fresh review in its own session (focus: 70–180 ms long tasks during the progressive bake, depth vs darkness, context loss mid-bake).
+- 05:06 8.9 review fixes (5cbcfd6; head 28c1ef1; gate 403 files / 3715 tests). M1/M2 forward catch-up ≤ 50 % + steer on max(estimate, rawTick), ring 16: estimate back within 25 ms after 0.55–1.45 s (was 1.9–5.2 s); L1–L4 fixed. After-fix table: kiting Runners reversed 1 % 7.6→1.4 %, 2 % 11.9→1.7 %; freezes/30 s ≤ 1.2. Flag: 150 Walkers standing 1 % row 1.2 freezes/30 s vs F1 ≤ 1 → re-reviewer judges. Narrow re-review dispatched; main gate on 8.9 merged started.
