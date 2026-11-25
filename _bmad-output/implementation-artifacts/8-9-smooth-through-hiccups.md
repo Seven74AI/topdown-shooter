@@ -110,18 +110,18 @@ so that I never see things freeze and jump.
 | Metric (150 ms ± 10 ms, 3 × 60 s) | Line | Before | After target | After (measured, 2026-11-25) |
 | --- | --- | --- | --- | --- |
 | Freezes per 30 s | clean | ~0 | 0 | **0** (all 3 cases) |
-| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 | **0.9–1.2** (before **6.7**) — AC ≤ 1 met for Runners, 1.2 for the Walker rows; frozen frames 321–329 → 29–38 |
-| | 2 % × 200 ms | record | record (≤ 2) | **1.0–1.4** (before 12.6–12.8) |
+| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 | **0.9–1.0** (before **6.0–6.9**), frozen frames 278–327 → 29–34 (8.8's loss; first pass on my own loss copy: 0.9–1.2) |
+| | 2 % × 200 ms | record | record (≤ 2) | **0.3–0.9** (before 11.0–11.2) |
 | Render delay p50 / p95 | clean | 100–140 | 100–150 | **100 / 100** (before 110–118 / 115–125) |
 | | 1 % × 200 ms | ≤ 150 (capped) | ≤ 250 | **250 / 251–253** (max 261: the ≤ 25 ms stall stretch) |
-| Backwards steps of the render tick | lossy + latency step | > 0 (F5) | 0 | **0** render, 0 estimate (before 3 / 3) |
-| Predicted shots never fired on the server | 1 % × 200 ms | 1.5–5.7 % | < 1 % | **0 %** (before 1.3–1.7 %; 0.2 % on the step row) |
-| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % | **NOT MET: 104–124 vs 81–82 (+27–53 %)**; 2 %: 151–166 vs 96–100 (see Completion Notes) |
-| Server input skips (drain) | 1 % × 200 ms | 73–74 | — | 0 |
-| Reversed hits, kiting Runners | 1 % / 2 % | (after 8.8) | < 5 % | **pending 8.8** (T10). With today's 300 ms window: 13.3 → 19.7 % / 15.4 → 23.1 % |
+| Backwards steps of the render tick | lossy + latency step | > 0 (F5) | 0 | **0** render, 0 estimate on every row (before 3 / 3 on the step row, 1 render step on the 2 % Walker row) |
+| Predicted shots never fired on the server | 1 % × 200 ms | 1.5–5.7 % | < 1 % | **0 %** (before 1.5 %; 2 %: 1.3–2.6 % → 0 %) |
+| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % | **NOT MET: 87–92 vs 55–64 (+41–58 %)**; 2 %: 119–133 vs 83–86 (see Completion Notes) |
+| Server input skips (drain) | 1 % × 200 ms | 50–57 | — | 0–1 |
+| Reversed hits, kiting Runners | 1 % / 2 % | (after 8.8) | < 5 % | **pending 8.8's 500 ms window** (T10). With today's 300 ms window: 7.6 → 18.1 % / 11.9 → 21.5 % |
 | Horde-frame gap p99 at the phone | 1 % × 200 ms | 239–248 ms (audit) | unchanged (the line) — the delay now covers it | not re-measured (the line, no code change) |
 
-Full table and method: `docs/perf/network-pass-2026-11.md` § 8.9 (`npx tsx tools/netsim/smoothRun.ts 60 3`; before = master c57c1cc with the harness patched to the old API, load 0.2–0.4; after load 0.3–0.8).
+Full table and method: `docs/perf/network-pass-2026-11.md` § 8.9 (`npx tsx tools/netsim/smoothRun.ts 60 3` on 8.8's harness loss, commit df00ed48 cherry-picked; before = master c57c1cc + df00ed48 with the harness patched to the old API, load 1.1–2.3; after load 1.0).
 
 ### Files (expected)
 
@@ -172,7 +172,8 @@ Claude (claude-code-remote builder session, gds-dev-story), 2026-11-25 overnight
 
 ### Gate
 
-- Commit `GATE_COMMIT`, master `b0e491a` merged; `npm run typecheck && npm run lint && npm test && npm run build`: GATE_RESULT; load GATE_LOAD.
+- Full gate on `2981875` (master `b0e491a` merged): `npm run typecheck && npm run lint && npm test && npm run build` green: 400 test files passed (1 skipped), 3681 tests passed (3 skipped), build ok; load 0.43 at start, 4.52 at the end (one builder plus the parallel 8.8 session's container is separate).
+- After cherry-picking 8.8's harness `loss` (`3d430fc`) and the docs update: `npm run typecheck` ok, `npm run lint` ok, tests in `tools/netsim`, `tools/netaudit`, `tools/checks`, `apps/client/src/net`, `apps/client/src/sim`: 70 files / 427 tests passed (3 skipped); load 0.5–2.4. No full gate re-run (harness-only change).
 
 ### Completion Notes List
 
@@ -197,15 +198,14 @@ Claude (claude-code-remote builder session, gds-dev-story), 2026-11-25 overnight
   - B5 `inputQueued` = depth at tick start (`queuedAtTick`), see T6. Alternative: `queued(id)` as written (off by one against the drain rule).
   - B6 Pacing rule exactly as AC 5 ("until back at the target"); two smarter variants measured no better (Debug Log).
 - **AC misses (for the main session / reviewer):**
-  - **Starved ticks +27–53 % on the 1 % line (AC 6 "no worse ± 10 %": NOT met).** Cause measured: with the server drain, the post-stall backlog (~5 inputs) sat 2 s as cover for the next stall; the 0.9× pacing empties it gradually, so the next stall finds 1–2 queued instead of 5 (Story 2.4's trade-off, the reason the drain waits 2 s). A starved tick delays one move by a tick; before, the drain skipped 73–91 inputs per 3 min (lost moves/shots). The test bounds it (`smooth.test.ts` › beat the rule 3: ≤ 1.6 × pacing-off) so it can't get worse unseen. Options: accept (F6's "no lost input" over cover); or slow only after ~1 s of backlog (then the server's 40-tick skip races it); or designer revisit of D5.
-  - **Freezes 1.2 per 30 s on the 1 % Walker rows** (AC ≤ 1; Runners 0.9). What remains is mostly the first stall after > 10 s of calm (the delay is back at 100 ms, F4). The harness sends one down message per tick (20/s), so its stalls are ~2× rarer and more isolated than on a phone (~46 msg/s, audit §3.3), which makes this the harder case.
+  - **Starved ticks +41–58 % on the 1 % line (8.8's loss; +27–53 % on my first loss copy) (AC 6 "no worse ± 10 %": NOT met).** Cause measured: with the server drain, the post-stall backlog (~5 inputs) sat 2 s as cover for the next stall; the 0.9× pacing empties it gradually, so the next stall finds 1–2 queued instead of 5 (Story 2.4's trade-off, the reason the drain waits 2 s). A starved tick delays one move by a tick; before, the drain skipped 73–91 inputs per 3 min (lost moves/shots). The test bounds it (`smooth.test.ts` › beat the rule 3: ≤ 1.6 × pacing-off) so it can't get worse unseen. Options: accept (F6's "no lost input" over cover); or slow only after ~1 s of backlog (then the server's 40-tick skip races it); or designer revisit of D5.
+  - Freezes: 0.9–1.0 per 30 s on every 1 % row on 8.8's loss (AC ≤ 1 met; 1.2 for the Walker rows on my first loss copy). What remains is mostly the first stall after > 10 s of calm (the delay is back at 100 ms, F4). The harness sends one down message per tick (20/s), so its stalls are ~2× rarer and more isolated than on a phone (~46 msg/s, audit §3.3), which makes this the harder case.
   - Reversed hits rose on kiting rows with today's 300 ms window (older shots at 250 ms delay) — 8.8's 500 ms window is the planned fix; T10 measures it.
 - Brief lines 25–35 (Epic 6 retro addendum, landed on master during the build) applied: R1 named tests above; R2 wiring tests; R3 1 ms sweep; R6 Gate line; R8 text checked (story text still says `advance(frameDtS, …)`, `HORDE_MISSING_TICKS` compared with the render tick — B4 records the difference); R9: vote urgent sends, crate cancel window and dawn rule don't read the render clock and the pacing only ever sends fewer inputs; their tests pass in the gate; lossy-line re-measure of them waits for 8.8's browser line (R10 two-tab smoke is the main session's).
 
 ### Notes for the merge (brief 12)
 
-- `tools/netsim/hitsSim.ts`: 8.8 also adds `loss` to `Link`. Keep ONE loss option: mine draws the stall from its own RNG (`lossRng`, seed × 7919 + 1) so a lossy run spawns the same zombies as a clean one; if 8.8's draws from the shared `rng`, keep 8.8's semantics but then re-run `smoothRun.ts` for the 8.9 table (T10 does). Keep my `latencyStep`, `pacing`, `stepRate`, `queued`, `Smooth` and the frame block.
-- `tools/netaudit/hitsLossSim.ts`: I only updated it to the new API (3 lines); 8.8 deletes it — the delete wins.
+- `tools/netsim/hitsSim.ts`: 8.8's harness `loss` commit df00ed48 is cherry-picked here (conflicts resolved: 8.8's loss semantics and `stalls`, plus my `latencyStep` on `Link`, `pacing`, `stepRate`, `queued`, `Smooth`). When 8.8 lands, the merge should be clean or keep both sides of `Link`/`Result`. `tools/netaudit/hitsLossSim.ts`: deleted by that commit.
 - `docs/perf/network-pass-2026-11.md`: new file with a header and § 8.9; if 8.8 also creates it, keep both sections.
 - `apps/client/src/net/netConfig.ts`: 8.8 keeps its constants out of it; 8.1 may add a watchdog constant: append.
 - `NetSimHost.ts`: `update` (clock/advance/countFreeze), `stepInputs` (pacing), `receiveHorde`/`sampleClock`/`countFreeze` (new private methods after `receiveState`), `takeSnapshot` (`pacing.onPatch`), netStats fields. 8.1's watchdog goes in `update`: put it before the clock lines.
