@@ -10,7 +10,7 @@ import { GUEST_COOKIE_MAX_AGE_S } from "../net/limits";
 import { originAllowed } from "../net/origin";
 import { log } from "../ops/logger";
 import { resolveGuestSession, type GuestSessionDeps } from "./guestSession";
-import { buyUnlock, type UnlockDeps } from "./unlock";
+import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
@@ -62,10 +62,16 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
       throw ctx.error(403, { message: "forbidden" });
     }
     ctx.setHeader("cache-control", "no-store");
+    const ip = clientIp(headers);
+    // Review F9: the per-IP limit first, before the body is parsed or the database is touched.
+    if (!unlockIpAllowed(ip, { ipLimiter: deps.unlock.ipLimiter, logGate: deps.logGate })) throw ctx.error(429, { message: "rate_limited" });
     const body = unlockRequestSchema.safeParse(ctx.body ?? {});
-    if (!body.success) throw ctx.error(400, { message: "invalid_body" });
+    if (!body.success) {
+      refused(ip, "invalid_body", deps.logGate);
+      throw ctx.error(400, { message: "invalid_body" });
+    }
     const out = await buyUnlock(
-      { cookieToken: ctx.getCookie(GUEST_COOKIE), unlockId: body.data.unlockId, requestId: body.data.requestId, ip: clientIp(headers) },
+      { cookieToken: ctx.getCookie(GUEST_COOKIE), unlockId: body.data.unlockId, requestId: body.data.requestId, ip },
       { ...deps.unlock, accounts: deps.accounts, logGate: deps.logGate },
     );
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });

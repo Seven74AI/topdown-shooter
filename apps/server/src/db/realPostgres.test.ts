@@ -9,6 +9,9 @@ import { openPostgres, type Database } from "./client";
 import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { countRunRewards } from "./testQueries";
+import { RequestMemo, buyUnlock } from "../auth/unlock";
+import { SlidingWindowLimiter } from "../net/rateLimit";
+import { hashGuestToken } from "../run/lobby";
 
 /**
  * Story 7.2 review L1 + M1 (brief 18, 20): banking on a REAL PostgreSQL (the PGlite tests run on one connection, so
@@ -151,5 +154,25 @@ describe.skipIf(!URL)("Story 7.3: unlocks on real PostgreSQL (TEST_DATABASE_URL)
     await c.end();
     await new Promise((res) => setTimeout(res, 500));
     expect(await repo.get(a.id)).toMatchObject({ supplies: 500, unlocks: [] });
+  }, 15_000);
+
+  it("review F1 (route level): DB slower than 2 s — row locked 2.5 s by another session → 503 AND the row unchanged afterwards", async () => {
+    const token = randomUUID().replace(/-/g, "");
+    const a = await accountsRepo(db7).createGuest(hashGuestToken(token), "Cy");
+    const repo = progressRepo(db7);
+    await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 300, breakdown: {} }));
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [a.id]);
+    const release = new Promise<void>((res) => setTimeout(() => void c.query("commit").then(() => c.end()).then(() => res()), 2500));
+    const out = await buyUnlock(
+      { cookieToken: token, unlockId: "chainsaw", requestId: randomUUID(), ip: "10.0.0.1" },
+      { accounts: accountsRepo(db7), progress: repo, ipLimiter: new SlidingWindowLimiter(99, 60_000), accountLimiter: new SlidingWindowLimiter(99, 60_000), logGate: new SlidingWindowLimiter(1, 60_000), requests: new RequestMemo() },
+    );
+    expect(out).toEqual({ status: 503, error: "save_unavailable" });
+    await release;
+    await new Promise((res) => setTimeout(res, 500)); // any late commit would have landed by now
+    expect(await repo.get(a.id)).toMatchObject({ supplies: 300, unlocks: [] });
   }, 15_000);
 });

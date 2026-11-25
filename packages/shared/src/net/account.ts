@@ -35,7 +35,8 @@ export const accountSessionResponseSchema = z.discriminatedUnion("saved", [
     saved: z.literal(true),
     deviceToken: guestTokenSchema,
     ticket: sessionTicketSchema,
-    account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable() }).strict(),
+    // Review F10: not strict either (7.6 adds account fields): an unknown field is dropped, never a rejected reply.
+    account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable() }),
     /**
      * Story 7.3 (AC 4): null when the progress read failed (the account is still found: the ticket is good).
      * Optional so this client still reads a 7.1-only server. The object is no longer strict (decision 7.3 B1): later
@@ -44,7 +45,8 @@ export const accountSessionResponseSchema = z.discriminatedUnion("saved", [
     progress: progressViewSchema.nullable().optional(),
   }),
   // The save server is down or the device is over the new-guest limit: play goes on unsaved (P3).
-  z.object({ saved: z.literal(false), deviceToken: guestTokenSchema, ticket: z.null(), account: z.null() }).strict(),
+  // Review F10: not strict (forward compatible like the saved branch).
+  z.object({ saved: z.literal(false), deviceToken: guestTokenSchema, ticket: z.null(), account: z.null() }),
 ]);
 export type AccountSessionResponse = z.infer<typeof accountSessionResponseSchema>;
 

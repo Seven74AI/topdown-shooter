@@ -17,6 +17,7 @@ import { hashGuestToken } from "../run/lobby";
 export interface UnlockDeps {
   accounts: AccountsRepo;
   progress: ProgressRepo;
+  /** Checked by the route (`unlockIpAllowed`) before the body is parsed (review F9). */
   ipLimiter: SlidingWindowLimiter;
   accountLimiter: SlidingWindowLimiter;
   logGate: SlidingWindowLimiter;
@@ -90,12 +91,27 @@ export class RequestMemo {
 /** One process-wide memo (the server is one process); tests make their own or clear this one. */
 export const unlockRequests = new RequestMemo();
 
+/**
+ * Review F9 (brief 15): the per-IP limit, first thing in the route (before the body is parsed or the database is
+ * touched); a refused call is logged once per IP per minute.
+ */
+export function unlockIpAllowed(ip: string, deps: Pick<UnlockDeps, "ipLimiter" | "logGate">): boolean {
+  if (deps.ipLimiter.allow(ip)) return true;
+  if (deps.logGate.allow(`unlock:${ipKey(ip)}`)) log.warn({ ip }, "unlock_rate_limited");
+  return false;
+}
+
+/** Review F9: a refused body or unknown id is logged (once per IP and reason per minute), never silently dropped. */
+export function refused(ip: string, reason: "invalid_body" | "unknown_unlock", logGate: SlidingWindowLimiter): void {
+  if (logGate.allow(`unlock_${reason}:${ipKey(ip)}`)) log.warn({ ip, reason }, "unlock_refused");
+}
+
 export async function buyUnlock(input: UnlockInput, deps: UnlockDeps): Promise<UnlockOutcome> {
+  // Review F9: the per-IP limit is checked by the route before the body is even read (`unlockIpAllowed`).
   const unlock = findUnlock(input.unlockId);
-  if (unlock === undefined) return { status: 400, error: "unknown_unlock" };
-  if (!deps.ipLimiter.allow(input.ip)) {
-    if (deps.logGate.allow(`unlock:${ipKey(input.ip)}`)) log.warn({ ip: input.ip }, "unlock_rate_limited");
-    return { status: 429, error: "rate_limited" };
+  if (unlock === undefined) {
+    refused(input.ip, "unknown_unlock", deps.logGate);
+    return { status: 400, error: "unknown_unlock" };
   }
   const token = guestTokenSchema.safeParse(input.cookieToken);
   if (!token.success) return { status: 401, error: "no_account" };

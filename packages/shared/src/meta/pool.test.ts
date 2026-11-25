@@ -127,6 +127,23 @@ describe("Story 7.3 AC 3 (decision 7.3 D1): Good next pick", () => {
     expect(goodNextPick(PROGRESSION, ["spike_trap", "molotovs"], cats)).toBe("bear_trap");
   });
 
+  it("review F6: a count tie goes to the CHEAPER category even when its unlock comes later in the list", () => {
+    const syn = {
+      starterPool: ["pistol", "medkit"], // weapon 1, consumable 1: a tie on the count
+      unlocks: [
+        { id: "smg_u", category: "weapon" as const, price: 300, items: ["smg"], line: "x" }, // list index 0, dearer
+        { id: "molotov_u", category: "consumable" as const, price: 100, items: ["molotovs"], line: "x" }, // index 1, cheaper
+      ],
+    };
+    expect(goodNextPick(syn, [], cats)).toBe("molotov_u");
+    // equal prices → list order
+    const even = { ...syn, unlocks: [syn.unlocks[0]!, { ...syn.unlocks[1]!, price: 300 }] };
+    expect(goodNextPick(even, [], cats)).toBe("smg_u");
+    // and inside a category the cheaper one wins over list order
+    const inCat = { starterPool: ["pistol"], unlocks: [{ id: "a", category: "weapon" as const, price: 500, items: ["smg"], line: "x" }, { id: "b", category: "weapon" as const, price: 200, items: ["chainsaw"], line: "x" }] };
+    expect(goodNextPick(inCat, [], cats)).toBe("b");
+  });
+
   it("after all buildings, the next category by the rule; everything bought → null", () => {
     const pick = goodNextPick(PROGRESSION, [...ids("building")], cats);
     // buildings now 2 + 7 = 9; consumables 2 is the fewest

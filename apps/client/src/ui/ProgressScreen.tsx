@@ -96,7 +96,11 @@ export function ProgressScreen() {
       buyRef.current = r.state;
       setBuy(r.state);
       if (r.progress) progressStore.accept(r.progress); // U5: the server's answer, never a local guess
-      else if (r.offline) progressStore.markOffline();
+      else if (r.offline) {
+        // Review F2: mark offline, then ask the server again: a good answer brings its truth back and re-enables Unlock.
+        progressStore.markOffline();
+        void progressStore.refresh();
+      }
     });
   };
 
@@ -159,7 +163,7 @@ function Row({ row, buy, offline, onUnlock }: { row: HubRow; buy: BuyState; offl
       </span>
       <span class="ph-text">
         <span class="ph-name">
-          {row.name}
+          <span class="ph-name__text">{row.name}</span>
           {row.goodPick ? <span class="ph-pick">{HUB_TEXT.goodPick}</span> : null}
         </span>
         <span class="ph-line">{row.line}</span>

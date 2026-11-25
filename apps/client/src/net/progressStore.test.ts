@@ -1,5 +1,6 @@
 import type { AccountSessionResponse, ProgressView } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
+import { accountSessionResponseSchema } from "@topdown/shared";
 import { accountSession, unlockItem } from "./account";
 import { PROGRESS_CACHE_KEY, ProgressStore } from "./progressStore";
 
@@ -75,6 +76,16 @@ describe("progressStore (Story 7.3 AC 4, 8; U5)", () => {
     expect(store.get()).toEqual({ progress: after, source: "cache", loading: false });
   });
 
+  it("review F2: after a failed unlock (markOffline), the refresh that follows brings the server back (Unlock usable again)", async () => {
+    let up = false;
+    const store = new ProgressStore({ session: async () => (up ? saved(P) : null), storage: () => mem() });
+    store.accept({ ...P, supplies: 999 });
+    store.markOffline();
+    expect(store.get().source).toBe("cache");
+    up = true;
+    expect(await store.refresh()).toEqual({ progress: P, source: "server", loading: false });
+  });
+
   it("a session server older than 7.3 (no `progress` field) → offline view, ticket flow untouched", async () => {
     const store = new ProgressStore({ session: async () => saved(undefined), storage: () => mem() });
     expect((await store.refresh()).source).toBe("cache");
@@ -115,5 +126,17 @@ describe("unlockItem (Story 7.3 AC 5)", () => {
     expect(String((fetch.mock.calls[0] as unknown as [string])[0])).toBe("https://hordes.example/api/account/unlock");
     expect(String((fetch.mock.calls[0] as unknown as [string])[0])).toMatch(/\/account\/unlock$/);
     expect(typeof accountSession).toBe("function");
+  });
+});
+
+describe("review F10: the session reply is forward compatible (later stories add fields)", () => {
+  it("an unknown field at the top, in `account`, in `progress` or in the saved:false reply is dropped, never a rejection", () => {
+    const token = "ab".repeat(16);
+    const savedR = { saved: true, deviceToken: token, ticket: "t.s", account: { displayName: "", username: null, level: 3 }, progress: { ...P, training: { dmg: 1 } }, extra: 1 };
+    const s = accountSessionResponseSchema.parse(savedR);
+    expect(s.saved && s.ticket).toBe("t.s");
+    expect(s.saved && s.progress).toEqual(P);
+    const off = accountSessionResponseSchema.parse({ saved: false, deviceToken: token, ticket: null, account: null, reason: "down" });
+    expect(off.saved).toBe(false);
   });
 });

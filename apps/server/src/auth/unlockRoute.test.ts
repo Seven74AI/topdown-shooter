@@ -183,6 +183,55 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
     expect(over.status).toBe(429);
   });
 
+  it("review F3: accounts A and B sending the SAME requestId → B gets its own answer (its progress) and is charged", async () => {
+    const a = await account(500);
+    const b = await account(250);
+    const requestId = randomUUID();
+    const ra = await unlock(port, { token: a.token, unlockId: "mine", requestId });
+    const rb = await unlock(port, { token: b.token, unlockId: "mine", requestId });
+    expect(ra.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 400, lifetimeSupplies: 500, unlocks: ["mine"] } });
+    expect(rb.body).toEqual({ ok: true, unlockId: "mine", progress: { supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"] } });
+    expect(await row(b.id)).toMatchObject({ supplies: 150, unlocks: ["mine"] });
+    // and B replaying A's id for another item never sees A's numbers
+    const rb2 = await unlock(port, { token: b.token, unlockId: "bear_trap", requestId: randomUUID() });
+    expect(rb2.body.progress.supplies).toBe(50);
+  });
+
+  it("review F4 + F9: 60 calls per IP per minute (no cookie → 401), then 429 — before the body is read — and one log line", async () => {
+    const warn = vi.spyOn(log, "warn");
+    const ip = "10.9.9.9";
+    for (let i = 0; i < 60; i++) expect((await unlock(port, { ip })).status).toBe(401);
+    expect((await unlock(port, { ip })).status).toBe(429);
+    expect((await unlock(port, { ip, raw: "{}" })).status).toBe(429); // F9: the limit comes before body validation (unparsable JSON is refused by the router itself)
+    expect((await unlock(port, { ip, unlockId: "nope" })).status).toBe(429);
+    expect(warn.mock.calls.filter((c) => c[1] === "unlock_rate_limited")).toEqual([[{ ip }, "unlock_rate_limited"]]);
+    expect((await unlock(port, { ip: "10.9.9.10" })).status).toBe(401); // another IP is not limited
+  });
+
+  it("review F9: a bad body and an unknown id are logged (once per IP and reason), never silently dropped", async () => {
+    const warn = vi.spyOn(log, "warn");
+    const ip = "10.8.8.8";
+    await unlock(port, { ip, raw: "{}" });
+    await unlock(port, { ip, raw: "{}" });
+    await unlock(port, { ip, unlockId: "nope" });
+    expect(warn.mock.calls.filter((c) => c[1] === "unlock_refused")).toEqual([
+      [{ ip, reason: "invalid_body" }, "unlock_refused"],
+      [{ ip, reason: "unknown_unlock" }, "unlock_refused"],
+    ]);
+  });
+
+  it("review F5: a failed answer is forgotten — the database fails once, the retry with the SAME requestId succeeds", async () => {
+    const a = await account(500);
+    const requestId = randomUUID();
+    const db = await database.db();
+    const spy = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("down"));
+    const first = await unlock(port, { token: a.token, unlockId: "floodlight", requestId });
+    expect(first.status).toBe(503);
+    spy.mockRestore();
+    const retry = await unlock(port, { token: a.token, unlockId: "floodlight", requestId });
+    expect(retry.body).toEqual({ ok: true, unlockId: "floodlight", progress: { supplies: 380, lifetimeSupplies: 500, unlocks: ["floodlight"] } });
+  });
+
   it("the database down → 503, never a fake ok", async () => {
     const a = await account(500);
     const db = await database.db();

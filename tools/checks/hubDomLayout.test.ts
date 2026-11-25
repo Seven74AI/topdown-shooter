@@ -36,6 +36,7 @@ interface Measure {
   frame: { x: number; y: number; right: number; bottom: number };
   pick: string;
   supplies: string;
+  gearShown: boolean;
 }
 
 let pw: Pw | null = null;
@@ -50,7 +51,9 @@ const CASES = [
   { name: "new player, 340", progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] as string[] }, pick: "Spike trap" },
   { name: "worst: 0 Supplies, pick on Grenade Launcher (need 500 more)", progress: { supplies: 0, lifetimeSupplies: 9000, unlocks: ALL_BUT_WEAPONS }, pick: "Grenade Launcher" },
   { name: "worst: 7-digit total, pick on Tactical flashlight", progress: { supplies: 1_234_567, lifetimeSupplies: 1_234_567, unlocks: ["spike_trap", "bear_trap", "mine", "floodlight", "barricade_upgrades", "med_station", "molotovs"] }, pick: "Tactical flashlight" },
-] as const;
+  // review F8: a 42-character name (longer than the column even alone, a future item) on the tagged row ends in "…" and keeps the tag in its column
+  { name: "review F8: a 42-char name on the Good next pick row", progress: { supplies: 340, lifetimeSupplies: 340, unlocks: [] as string[] }, pick: "Reinforced metal barricade kit with spikes", longName: "Reinforced metal barricade kit with spikes" },
+] as { name: string; progress: { supplies: number; lifetimeSupplies: number; unlocks: readonly string[] }; pick: string; longName?: string }[];
 
 let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: { local: string[] } | null } | null = null;
 let browser: Browser | null = null;
@@ -72,7 +75,7 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
     await page.waitForSelector("#start-name", { timeout: 60_000 });
     await page.waitForTimeout(1500);
     await page.waitForSelector("#start-name", { timeout: 60_000 });
-    await page.addStyleTag({ content: `.menu.ph{padding:8px ${INSET.right}px ${INSET.bottom}px ${INSET.left}px !important}.dev-gear,.dev-cheats{display:none!important}` });
+    await page.addStyleTag({ content: `.menu.ph{padding:8px ${INSET.right}px ${INSET.bottom}px ${INSET.left}px !important}.dev-cheats{display:none!important}` }); // the dev gear is NOT hidden here: F11 checks the hub hides it
   }, 90_000);
   afterAll(async () => {
     await page?.close();
@@ -92,6 +95,10 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
           for (let i = 0; i < 100 && (ps.progressStore.get().loading || !document.querySelector(".ph-list")); i++) await new Promise((r) => setTimeout(r, 50));
           ps.progressStore.accept(k.progress); // the server's answer (no server here: the refresh failed)
           await new Promise((r) => setTimeout(r, 200));
+          if (k.longName) document.querySelector(".ph-pick").closest(".ph-name").querySelector(".ph-name__text").textContent = k.longName;
+          await new Promise((r) => setTimeout(r, 50));
+          const gear = document.querySelector(".dev-gear");
+          const gearShown = gear ? getComputedStyle(gear).display !== "none" : false;
           const frame = document.querySelector(".ph-frame").getBoundingClientRect();
           const out = [];
           for (const el of document.querySelectorAll(".ph-frame *")) {
@@ -121,7 +128,7 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
           const minFont = Math.min(...texts.map((e) => parseFloat(getComputedStyle(e).fontSize)));
           const smallButtons = [...document.querySelectorAll(".ph button")].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).map((b) => b.textContent);
           const pickRow = document.querySelector(".ph-pick")?.closest(".ph-row");
-          return { out, minFont, smallButtons, frame: { x: frame.left, y: frame.top, right: frame.right, bottom: frame.bottom }, pick: pickRow ? pickRow.querySelector(".ph-name").firstChild.textContent : "", supplies: document.querySelector("[data-testid=hub-supplies]").textContent };
+          return { out, minFont, smallButtons, frame: { x: frame.left, y: frame.top, right: frame.right, bottom: frame.bottom }, gearShown, pick: pickRow ? pickRow.querySelector(".ph-name__text").textContent : "", supplies: document.querySelector("[data-testid=hub-supplies]").textContent };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.out, m.out.join("\n")).toEqual([]);
         expect(m.minFont).toBeGreaterThanOrEqual(11);
@@ -131,6 +138,7 @@ describe.skipIf(!pw)("Story 7.3 (R9): the Progress hub in a real browser", () =>
         expect(m.frame.bottom).toBeLessThanOrEqual(h - INSET.bottom + 0.5);
         expect(m.frame.y).toBeGreaterThanOrEqual(0);
         expect(m.pick).toBe(c.pick); // liveness: the tag is really drawn on the expected row
+        expect(m.gearShown).toBe(false); // review F11: no dev gear over the hub header
         expect(m.supplies).toContain(c.progress.supplies.toLocaleString("en-US"));
       }, 30_000);
     }

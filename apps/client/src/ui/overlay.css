@@ -1923,6 +1923,14 @@ p.in-run-menu__title {
   white-space: nowrap;
 }
 
+.ph-name__text {
+  /* review F8: a name longer than the column ends in "…" instead of pushing the tag under the button */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ph-pick {
   flex: 0 0 auto;
   padding: 2px 6px;
@@ -1944,6 +1952,11 @@ p.in-run-menu__title {
 .ph-need {
   color: var(--ph-accent-hi);
   font: 700 12px/1.3 system-ui, sans-serif;
+}
+
+/* review F11: the dev-only cheats gear (dev builds) stays off the hub header (7.9 hides it in the lobby). */
+body:has(.menu.ph) .dev-gear {
+  display: none;
 }
 
 .ph-row--owned .ph-name {
