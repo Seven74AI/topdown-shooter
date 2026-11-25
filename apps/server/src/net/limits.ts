@@ -147,5 +147,5 @@ export const LOOK_WINDOW_MS = 60_000;
 /** Story 7.10 (D3): `lobby.set_look` messages per client per second (inside the guard's ~10/s non-input bucket). */
 export const MAX_LOBBY_LOOKS_PER_S = 2;
 
-/** Story 8.6: `GET /saved-runs` calls per client IP per minute (the start screen loads it once, Retry on failure). */
+/** Story 8.6: `POST /saved-runs` calls per client IP per minute (the start screen loads it once, Retry on failure). */
 export const MAX_SAVED_RUNS_CALLS_PER_IP_PER_MIN = 30;

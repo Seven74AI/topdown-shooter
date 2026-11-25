@@ -109,3 +109,16 @@ export async function releaseSavesOnBoot(repo: SavedRunsRepo | null, log: SaveLo
     return 0;
   }
 }
+
+/** Story 8.4: waits for `p` at most `ms` (then resolves null; the work itself keeps running and logs its own end). */
+export async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  try {
+    return await Promise.race([p.catch(() => null), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}

@@ -69,7 +69,7 @@ describe("Story 8.4 (AC 8, E8-S6): the boot sweep", () => {
   });
 });
 
-describe("Story 8.6 (AC 11): GET /saved-runs", () => {
+describe("Story 8.6 (AC 11): POST /saved-runs", () => {
   it("the cookie's account's runs only; no cookie / unknown device → []; database down → 503; rate limited → 429", async () => {
     const database = fresh();
     const saves = savedRunsRepo(database);

@@ -1,8 +1,10 @@
 /**
- * Story 8.6 (AC 11, D13): `GET /saved-runs` on the Colyseus router (the browser calls `/api/saved-runs`): the caller's
+ * Story 8.6 (AC 11, D13): `POST /saved-runs` `{ deviceToken? }` on the Colyseus router (the browser calls `/api/saved-runs`;
+ * a POST like 7.1's session route so the `localStorage` copy of the device token works where the cookie can't, builder
+ * decision 8.6-B2): the caller's
  * resumable saved runs, newest first, at most 3 — `[{ id, district, wave, names: [{ name, slot }], savedAt, expiresAt }]`.
- * Authenticated exactly like 7.1's account routes: the `__Host-tdg` cookie names the device, its row names the account
- * (never an account id from the client). No cookie / no account → `[]` (nothing to show); database down → 503 (the
+ * Authenticated exactly like 7.1's account routes: the `__Host-tdg` cookie (else the body's device token) names the
+ * device, its row names the account (never an account id from the client). No cookie / no account → `[]` (nothing to show); database down → 503 (the
  * start screen shows "Couldn't load saved games" + Retry; Create, Join and Practice still work).
  */
 import { createEndpoint } from "@colyseus/core";
@@ -41,7 +43,7 @@ export async function listSavedRuns(cookieToken: string | null | undefined, ip: 
 }
 
 export function createSavedRunsRoute(deps: SavedRunsRouteDeps) {
-  return createEndpoint(SAVED_RUNS_PATH, { method: "GET" }, async (ctx) => {
+  return createEndpoint(SAVED_RUNS_PATH, { method: "POST" }, async (ctx) => {
     const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
     const origin = headers?.get("origin");
     if (origin && !originAllowed(origin, deps.allowedOrigins)) {
@@ -50,7 +52,9 @@ export function createSavedRunsRoute(deps: SavedRunsRouteDeps) {
     }
     ctx.setHeader("cache-control", "no-store");
     const ip = headers?.get("x-real-ip")?.trim() || headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const out = await listSavedRuns(ctx.getCookie(GUEST_COOKIE), ip, deps);
+    const body = (ctx.body ?? {}) as { deviceToken?: unknown };
+    const cookie = ctx.getCookie(GUEST_COOKIE);
+    const out = await listSavedRuns(cookie ?? (typeof body.deviceToken === "string" ? body.deviceToken : undefined), ip, deps);
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
   });
