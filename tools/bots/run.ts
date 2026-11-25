@@ -23,6 +23,8 @@
  *                         chunk and everything behind it waits --stall ms (TCP retransmit; 0–20 %)
  *   --stall <ms>          the extra wait of a stalled chunk (default 200, 0–1000)
  *                         e.g. --lag 150 --jitter 20 --loss 1 (the network pass's lossy line).
+ *   --kbps <kbit/s>       Story 8.10: cap the server→client direction of that line (per connection;
+ *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
@@ -61,7 +63,7 @@ interface Args {
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -242,6 +244,9 @@ function summary(bots: readonly BotClient[], reason: string, log: (line: Record<
     meanAvgUpKBps: r1(mean(rows.map((r) => r.avgUpKBps))),
     meanRttMs: Math.round(mean(rows.map((r) => r.rttMs))),
     meanZombiesInFrame: r1(mean(rows.map((r) => r.avgZombiesInFrame))),
+    meanHordeKBps: r1(mean(rows.map((r) => r.hordeKBps))), // Story 8.10
+    meanKeyframesPerS: r1(mean(rows.map((r) => r.keyframesPerS))),
+    hordeDecodeErrors: rows.reduce((a, r) => a + r.hordeDecodeErrors, 0),
     kills: rows.reduce((a, r) => a + r.kills, 0),
     downs: rows.reduce((a, r) => a + r.downs, 0),
     revives: rows.reduce((a, r) => a + r.revives, 0),

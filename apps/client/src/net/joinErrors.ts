@@ -5,6 +5,8 @@
  */
 export const JOIN_ERROR_TEXT = {
   balanceMismatch: "Please refresh",
+  /** Story 8.10 (D5): the server's wire format changed (a tab left open across a deploy). */
+  updateRequired: "A new version is out. Please reload.",
   notFound: "Game not found",
   full: "This game is full",
   started: "This game has already started",
@@ -30,6 +32,8 @@ export function joinErrorText(err: unknown): string {
   switch (message) {
     case "balance_mismatch":
       return JOIN_ERROR_TEXT.balanceMismatch;
+    case "update_required":
+      return JOIN_ERROR_TEXT.updateRequired;
     case "run_started":
       return JOIN_ERROR_TEXT.started;
     case "rate_limited":
@@ -45,7 +49,7 @@ export function joinErrorText(err: unknown): string {
   return JOIN_ERROR_TEXT.unknown;
 }
 
-/** The balance mismatch text comes with a Refresh button. */
+/** The balance mismatch and update texts come with a Refresh button. */
 export function needsRefresh(text: string | undefined): boolean {
-  return text === JOIN_ERROR_TEXT.balanceMismatch;
+  return text === JOIN_ERROR_TEXT.balanceMismatch || text === JOIN_ERROR_TEXT.updateRequired;
 }

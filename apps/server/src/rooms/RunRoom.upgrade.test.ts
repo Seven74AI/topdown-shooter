@@ -3,6 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
+  NET_PROTOCOL_VERSION,
   DOWNTOWN_MAP,
   BYTES,
   C2S,
@@ -39,6 +40,7 @@ const options = (intent: "create" | "join", name: string) => ({
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken: randomBytes(16).toString("hex"),
 });
 

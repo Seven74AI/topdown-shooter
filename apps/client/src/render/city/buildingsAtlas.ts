@@ -78,6 +78,10 @@ interface Done {
  * refresh per frame at most). Elsewhere the main thread bakes in resumable slices within a time budget per frame. The
  * atlas starts with the plain drawings either way, so the start is instant; a lost graphics context repaints what's kept.
  */
+/**
+ * Follow-up L1: the main-thread fallback (no Worker/OffscreenCanvas: iOS ≤ 16.3, or a worker that failed) still draws
+ * each source picture in one step (a few tens of ms on an old phone): it is the old-browser path, kept simple.
+ */
 export interface Bake {
   queue: ArtSpec[];
   /** Main-thread fallback: the frame being relit (resumable) and its steps. */
@@ -96,6 +100,12 @@ export interface Bake {
   readonly arrived: Done[];
   /** Bumped on a re-bake: results of an older generation are dropped. */
   gen: number;
+  /** Bake in a worker (when the browser can); the worker is made on demand and closed when idle. */
+  useWorker: boolean;
+  /** Follow-up L2: when the worker must have answered by (ms, `now()`), else the main thread takes its frames back. */
+  workerDeadline: number;
+  /** When the last pump ran (`now()`): a long gap (the tab was in the background) pushes the deadline out (R3-L2). */
+  lastPump: number;
 }
 let bake: Bake | null = null;
 interface Sheet {
@@ -104,6 +114,9 @@ interface Sheet {
   tex: Phaser.Textures.CanvasTexture | null;
   dirty: boolean;
 }
+
+/** Follow-up L2: a worker silent this long after a post (or after its last picture) is given up on. */
+export const WORKER_TIMEOUT_MS = 20_000;
 
 /** Review R2: the main-thread fallback's budget is the time guard (a work cap only bounds a frozen clock in tests). */
 export const BAKE_UNITS_PER_FRAME = 400_000;
@@ -144,8 +157,20 @@ export function pumpBake(b: Bake, budgetUnits: number, budgetMs: number, now: ()
     if ("close" in d.base) (d.base as ImageBitmap).close();
     if (d.bloom && "close" in d.bloom) (d.bloom as ImageBitmap).close();
   }
+  // R3-L2: a frozen tab (app switched away) isn't a silent worker: the gap since the last pump extends the deadline
+  const tPump = now();
+  if (b.lastPump > 0 && tPump - b.lastPump > 1000) b.workerDeadline += tPump - b.lastPump;
+  b.lastPump = tPump;
+  if (b.worker) {
+    // follow-up L2: a worker that never answers; N3: the worker is closed once it has nothing left to do
+    if (b.inFlight.length > 0 && tPump > b.workerDeadline) workerFailed(b);
+    else if (b.inFlight.length === 0 && b.queue.length === 0) {
+      b.worker.terminate();
+      b.worker = null;
+    }
+  }
   let units = 0;
-  if (!b.worker) {
+  if (!b.worker && !(b.useWorker && b.inFlight.length > 0)) {
     const t0 = now();
     while (b.job || b.queue.length > 0) {
       if (!b.job) {
@@ -186,7 +211,7 @@ function workerBakeAvailable(): boolean {
   return typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined" && typeof OffscreenCanvas.prototype.transferToImageBitmap === "function";
 }
 
-interface WorkerResult {
+export interface WorkerResult {
   readonly gen: number;
   readonly frame: string;
   readonly base: ImageBitmap;
@@ -205,27 +230,40 @@ function sendToWorker(b: Bake): void {
       b.worker = null;
       return;
     }
-    b.worker.onmessage = (e: MessageEvent<WorkerResult>) => {
-      const r = e.data;
-      if (r.gen !== b.gen) {
-        r.base.close();
-        r.bloom?.close();
-        return;
-      }
-      b.arrived.push({ frame: r.frame, base: r.base, bloom: r.bloom, glowAt: r.glowAt, spots: r.spots });
-    };
-    b.worker.onerror = () => {
-      // fall back: the main thread bakes what the worker didn't send back
-      b.worker?.terminate();
-      b.worker = null;
-      b.queue = [...b.inFlight.map((n) => ART_SPECS.find((a) => a.frame === n)).filter((a): a is ArtSpec => a !== undefined), ...b.queue];
-      b.inFlight = [];
-    };
+    b.worker.onmessage = (e: MessageEvent<WorkerResult>) => receiveWorkerResult(b, e.data);
+    b.worker.onerror = () => workerFailed(b);
   }
   const frames = b.queue.map((a) => a.frame);
   b.inFlight.push(...frames);
   b.queue = [];
+  b.workerDeadline = performance.now() + WORKER_TIMEOUT_MS;
   b.worker.postMessage({ gen: b.gen, frames });
+}
+
+/** A picture from the worker: kept for the next pump, or (an older generation's, after a re-bake) dropped and freed. */
+export function receiveWorkerResult(b: Bake, r: WorkerResult, now = performance.now()): void {
+  b.workerDeadline = now + WORKER_TIMEOUT_MS; // R3-L1: any answer (even a stale one) shows the worker is alive
+  if (r.gen !== b.gen) {
+    r.base.close();
+    r.bloom?.close();
+    return;
+  }
+  b.workerDeadline = now + WORKER_TIMEOUT_MS;
+  b.arrived.push({ frame: r.frame, base: r.base, bloom: r.bloom, glowAt: r.glowAt, spots: r.spots });
+}
+
+/** The worker failed or went silent: it's closed and the main thread bakes what it didn't send back (and the rest). */
+export function workerFailed(b: Bake): void {
+  if (b.worker) {
+    // R3-N1: no late picture may arrive after its frame went back to the main thread
+    b.worker.onmessage = null;
+    b.worker.onerror = null;
+    b.worker.terminate();
+  }
+  b.worker = null;
+  b.useWorker = false;
+  b.queue = [...b.inFlight.map((n) => ART_SPECS.find((a) => a.frame === n)).filter((a): a is ArtSpec => a !== undefined), ...b.queue];
+  b.inFlight = [];
 }
 
 /**
@@ -236,7 +274,9 @@ function sendToWorker(b: Bake): void {
  * many frames were queued again (0 = the cache was intact).
  */
 export function rebakeAfterCacheLoss(b: Bake | null = bake): number {
-  let intact = relitCache.size > 0;
+  // follow-up L3: nothing kept yet (a restore before the first picture landed): nothing to lose, the bake carries on
+  if (relitCache.size === 0) return 0;
+  let intact = true;
   for (const k of relitCache.values()) {
     if (!k.sentinel) continue;
     const px = (k.base.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D).getImageData(k.sentinel[0], k.sentinel[1], 1, 1).data;
@@ -257,13 +297,20 @@ export function rebakeAfterCacheLoss(b: Bake | null = bake): number {
   b.arrived.length = 0;
   b.queue = [...relitSpecs()];
   const n = b.queue.length;
-  if (b.worker) sendToWorker(b);
+  if (b.worker) {
+    // R3-L1: a fresh worker for the new generation (the old one may still be busy with stale frames)
+    b.worker.onmessage = null;
+    b.worker.onerror = null;
+    b.worker.terminate();
+    b.worker = null;
+  }
+  if (b.useWorker) sendToWorker(b);
   return n;
 }
 
 /** A bake over `canvas` (the atlas) and `glowCanvas` (tests make one with a node canvas); main-thread until `sendToWorker`. */
 export function newBake(canvas: HTMLCanvasElement, frames: readonly PlacedFrame[], glowCanvas: HTMLCanvasElement, glowFrames: readonly PlacedFrame[], make: (w: number, h: number) => HTMLCanvasElement, queue: ArtSpec[] = relitSpecs().filter((a) => !relitCache.has(a.frame))): Bake {
-  return { queue, job: null, make, lastUnits: 0, sheets: [{ canvas, frames, tex: null, dirty: false }], glowCanvas, glowFrames, glowTex: null, worker: null, inFlight: [], arrived: [], gen: 0 };
+  return { queue, job: null, make, lastUnits: 0, sheets: [{ canvas, frames, tex: null, dirty: false }], glowCanvas, glowFrames, glowTex: null, worker: null, inFlight: [], arrived: [], gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0 };
 }
 
 /** Empties the kept pictures (tests start from a clean cache). */
@@ -337,7 +384,10 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene, opts: { readonly worke
   );
   bake = { ...newBake(sheets[0]?.canvas as HTMLCanvasElement, [], gc, gl.frames, makeCanvas), sheets };
   bake.glowTex = glowTex;
-  if (opts.worker !== false && workerBakeAvailable()) sendToWorker(bake);
+  if (opts.worker !== false && workerBakeAvailable()) {
+    bake.useWorker = true;
+    sendToWorker(bake);
+  }
   textureRegistry.register("atlas_buildings_relit", RebuildPhase.cache, () => {
     rebakeAfterCacheLoss();
   });
