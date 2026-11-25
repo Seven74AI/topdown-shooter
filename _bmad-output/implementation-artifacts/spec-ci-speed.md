@@ -2,7 +2,7 @@
 title: 'CI: 4 timing-balanced shards, parallel jobs, Playwright, fast local loop'
 type: 'chore'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '73fb8fd'
 context: ['{project-root}/HANDOFF.md']
 ---
@@ -81,3 +81,49 @@ Three fresh reviewers (blind hunter, edge-case hunter, acceptance auditor). Audi
 - Workflow: empty-shard guard, quoted file array, `ignore-error=true` on the gha cache writes, `gate` loops over `toJSON(needs)`, Playwright cache key includes `ImageOS`.
 - shard.mjs: realpath main-module check; strict integer args. `npm test` / `test:slow` / `test:changed` plain vitest, `VITEST_MAX_WORKERS` read in vitest.config.ts. `reports/` gitignored; stale cheat-scan wording fixed.
 Rejected / not changed: tag pins vs SHA pins (tags verified with `git ls-remote`; exact release tags); untimed files round-robin (spec); Windows `test:fast`/`release:check` env syntax (spec form; Linux boxes). Documented only: a docs-only PR gets no `gate` check (docs-only changes go straight to master).
+
+## Suggested Review Order
+
+**Sharding (CI item 2)**
+
+- Entry point: LPT split with setup costs, browser pinning and substring groups.
+  [`shard.mjs:83`](../../tools/ci/shard.mjs#L83)
+- Report times exclude import/collect/beforeAll; these costs stop 0 s files piling up.
+  [`shard.mjs:28`](../../tools/ci/shard.mjs#L28)
+- vitest filters by substring: containing paths share a shard.
+  [`shard.mjs:64`](../../tools/ci/shard.mjs#L64)
+- Proof against vitest's own list and filter matching.
+  [`shard.test.ts:29`](../../tools/ci/shard.test.ts#L29)
+- Timings refresh: anchored keys, all-skipped files keep their old time.
+  [`update-timings.mjs:50`](../../tools/ci/update-timings.mjs#L50)
+
+**Workflow (items 1, 3, 4, 5)**
+
+- Matrix job: empty-shard guard, quoted file array, JSON report.
+  [`ci.yml:57`](../../.github/workflows/ci.yml#L57)
+- Shard 1 fails unless every browser test passed.
+  [`ci.yml:99`](../../.github/workflows/ci.yml#L99)
+- Docker gha layer cache, one scope per target.
+  [`ci.yml:133`](../../.github/workflows/ci.yml#L133)
+- The single required check over every needs result.
+  [`ci.yml:181`](../../.github/workflows/ci.yml#L181)
+
+**Local loop (item 6)**
+
+- unit / slow projects; slow globs sit under the include roots.
+  [`vitest.config.ts:12`](../../vitest.config.ts#L12)
+- Scripts: test:fast, gate:fast, gate.
+  [`package.json:18`](../../package.json#L18)
+
+**Peripherals**
+
+- Browser-ran check script.
+  [`check-browser-ran.mjs:1`](../../tools/ci/check-browser-ran.mjs#L1)
+- Docs: jobs, shards, timings refresh, scripts.
+  [`ci.md:1`](../../docs/ci.md#L1)
+
+## Results (2026-11-25)
+
+- Local full `npm run gate` (4-core cloud box, idle apart from CI polling): green in 708 s; 523 files, 4692 passed | 31 skipped (4723). `gate:fast` 202 s.
+- CI before (master run 45627662824, old workflow): 16 min 6 s; 4562 passed | 154 skipped (4716; the 123 DOM tests skipped).
+- CI after (PR #10, run 45633345186 on a997000): 4 min 33 s; shard sum 4692 passed | 31 skipped (4723), equal to the local run; shard 1 ran 7 browser files, 123/123 passed.
