@@ -3,7 +3,7 @@ baseline_commit: 2a889297
 ---
 # Story 9.13: Photoreal characters in the game
 
-Status: review
+Status: done
 
 ## Story
 
