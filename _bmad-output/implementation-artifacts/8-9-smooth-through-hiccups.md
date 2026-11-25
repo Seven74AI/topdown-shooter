@@ -58,6 +58,15 @@ so that I never see things freeze and jump.
 - [x] **T11 Bots and the 2.10 overlay**: bots have no renderer; confirm `npm run bots -- --lag 150 --jitter 20 --loss 1` still plays (the server change is a schema field) and `seq_gap_suspect` / `spread_cancel_suspect` don't rise (the client slowdown sends fewer inputs, never skips seqs).
 - [x] **T12 Docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.9; `game-architecture.md` note already says "adapt 100–250 ms"; HANDOFF §4 netcode line (delay, clock, pacing).
 
+### Review Follow-ups (AI)
+
+- [x] [AI-Review][Medium] M1: after a latency fall the estimate lagged real server time; the render tick left the 8-frame horde ring. Fix: `serverClock.ts` forward catch-up ≤ 50 % of elapsed time (`CLOCK_SLEW_FORWARD_FRACTION`, back stays 10 %); `AdaptiveDelay.advance(…, measuredTick)` steers against max(estimate, `ServerClock.rawTick`) (NetSimHost and the harness pass it); `HORDE_RING_SIZE` 8 → 16 with its comment. Test: `adaptiveDelay.test.ts` › "review M1/M2: a −200 ms latency fall (clean and lossy) and a −500 ms one…" (1 ms frames, state kept). Mutations killed: forward 0.5 → 0.1, ring 16 → 8, the measured reference removed. Note: right after a fall the picture is the old delay + the fall behind and catches up at the 1.1× limit (D2: no forward jump): back within the target + 25 ms after 1.9 s (−200) / 5.2 s (−500).
+- [x] [AI-Review][Medium] M2: the boss telegraph fill ended ~200 ms after the hit after a −200 ms fall. Fixed by M1's forward catch-up. Test: `bossTelegraph.test.ts` › "review M2: after a −200 ms latency fall … the fill still ends on the hit…" (within 25 ms except the ≤ 0.6 s catch-up, ≤ 200 ms there, never early). Mutation forward 0.5 → 0.1 fails it.
+- [x] [AI-Review][Low] L1: `smooth.test.ts` freezes bound ≤ 2 → ≤ 1 per 30 s (the AC). That row is 0.86 after the fixes.
+- [x] [AI-Review][Low] L2: rate flip-flop at the stretch cap and 0.9 → 1.07 jumps. Fix: while overdue at the cap the rate holds 1×; the rate changes at most 4/s (`PLAYBACK_RATE_SLEW_PER_S`); `FRAME_OVERDUE_MS` 15 → 10 so F1 holds (2/s + 15 ms: 1.03 freezes/30 s; 4/s + 10 ms: 0.86). Test: `adaptiveDelay.test.ts` › "review L2: at the stretch cap while a frame is overdue the rate holds…". Mutations killed: no slew, no hold at the cap.
+- [x] [AI-Review][Low] L3: wake after a latency rise. Test: `serverClock.test.ts` › "review L3: hidden 6 s while latency rose +300 ms…" (continues from before + elapsed, never down to the slower measurement). The `if (raw > next)` mutation now fails it.
+- [x] [AI-Review][Low] L4: F7 test samples past the hit (`progress === 1`, ≥ 40 frames). The `Math.min(1 → 2)` mutation now fails 2 tests.
+
 ## Dev Notes
 
 ### Current state (read before changing)
@@ -110,13 +119,13 @@ so that I never see things freeze and jump.
 | Metric (150 ms ± 10 ms, 3 × 60 s) | Line | Before | After target | After (measured, 2026-11-25) |
 | --- | --- | --- | --- | --- |
 | Freezes per 30 s | clean | ~0 | 0 | **0** (all 3 cases) |
-| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 | **0.9–1.0** (before **6.0–6.9**), frozen frames 278–327 → 29–34 (8.8's loss; first pass on my own loss copy: 0.9–1.2) |
-| | 2 % × 200 ms | record | record (≤ 2) | **0.3–0.9** (before 11.0–11.2) |
+| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 | **0.9–1.2** after the review fixes (before **6.0–6.9**), frozen frames 278–327 → 26–31; Runners row 0.86 (`smooth.test.ts` ≤ 1). The Walker-standing row is 1.2 (7 freezes / 174 s) |
+| | 2 % × 200 ms | record | record (≤ 2) | **0.2–1.2** (before 11.0–11.2) |
 | Render delay p50 / p95 | clean | 100–140 | 100–150 | **100 / 100** (before 110–118 / 115–125) |
 | | 1 % × 200 ms | ≤ 150 (capped) | ≤ 250 | **250 / 251–253** (max 261: the ≤ 25 ms stall stretch) |
 | Backwards steps of the render tick | lossy + latency step | > 0 (F5) | 0 | **0** render, 0 estimate on every row (before 3 / 3 on the step row, 1 render step on the 2 % Walker row) |
 | Predicted shots never fired on the server | 1 % × 200 ms | 1.5–5.7 % | < 1 % | **0 %** (before 1.5 %; 2 %: 1.3–2.6 % → 0 %) |
-| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % | **NOT MET: 87–92 vs 55–64 (+41–58 %)**; 2 %: 119–133 vs 83–86 (see Completion Notes) |
+| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % | B7 (accepted): 78–89 vs 55–64 (+22–48 %) after the review fixes; 2 %: 120–129 vs 83–86; bounded ≤ 1.7 × pacing-off |
 | Server input skips (drain) | 1 % × 200 ms | 50–57 | — | 0–1 |
 | Reversed hits, kiting Runners | 1 % / 2 % | (after 8.8) | < 5 % | **600 ms window (B8): 0.7 % / 1.4 %**, shots over the cap 0 % (`hits.test.ts` › Story 8.8 lossy rows). At 500 ms: 1.8 % / 4.2 %, 16–33 % over the cap. 300 ms window: 18.1 % / 21.5 %. Walkers kiting at 600 ms: 0.3 % / 1.1 % |
 | Horde-frame gap p99 at the phone | 1 % × 200 ms | 239–248 ms (audit) | unchanged (the line) — the delay now covers it | not re-measured (the line, no code change) |
@@ -238,5 +247,88 @@ Claude (claude-code-remote builder session, gds-dev-story), 2026-11-25 overnight
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
+- 2026-11-25: review fixes M1, M2, L1–L4 (Review Follow-ups); merged story-8-8 008df68; measurements re-run.
 - 2026-11-25: T10 (600 ms rewind fallback, B8) and T11 (lossy bots) after merging story-8-8; B7 starved ticks accepted; AC 6 text adjusted.
 - 2026-11-25: built (lateness delay, 0.9–1.1× render clock, monotonic server clock, missing by time, queue-depth pacing, harness counters); status review; T10 and the lossy bots run open until 8.8 lands.
+
+## Senior Developer Review (AI)
+
+Reviewer: fresh reviewer session (gds-code-review, three layers: blind / edge-case / acceptance), 2026-11-25. Tree: `review-8-9` = `origin/story-8-9` b8109fb + `origin/master` (already merged, "up to date"). **8.8 (`origin/story-8-8` c1c5ef1) does NOT merge cleanly**: conflicts in `tools/netsim/hitsSim.ts` (5 hunks: `Options`/`Smooth`, `Result.smooth`, `Link` ctor `latencyStep`, `send` due line), `tools/netsim/hits.test.ts` (2), `docs/perf/network-pass-2026-11.md` (1), `apps/client/src/debug/PerfOverlay.ts` (1), `sprint-status.yaml` (1). All look like "keep both sides" (8.9 already carries 8.8's harness `loss` as 3d430fc), but per the brief I reviewed 8.9 + master only, so the 500 ms rewind window is NOT in this review. No T10 commit appeared on `origin/story-8-9` while I reviewed (still b8109fb).
+
+Checked without running the full gate: `npm ci`, `npm run typecheck` ok; tests probed/mutated: `apps/client/src/net/*` (adaptiveDelay, serverClock, stepPacing, hordeBuffer), `NetSimHost.test.ts`, `bossTelegraph.test.ts`, `syncState.test.ts`, `tools/netsim/smooth.test.ts`, `tools/checks/delayLineWiring.test.ts` — all green unmutated. Load 0.0–0.5.
+
+**Verdict: findings (2 medium, 4 low).** The core rule holds: in every probe the render tick and the estimate never went backwards and the rate never left [0.9, 1.1]. The mediums are about the slewed server clock lagging *behind* the real server time after a latency FALL, which no test covers (every new test steps latency up).
+
+### Findings
+
+**M1 (medium) — after a latency fall the slewed estimate lags real server time and the delay controller cannot see it: the real delay passes the 250 ms cap, the render tick falls out of the 8-frame horde ring (zombies step at 20 Hz, no interpolation) and shots get older.**
+- Where: `apps/client/src/net/serverClock.ts:86` (forward error corrected at ≤ 10 %/s, up to `CLOCK_SNAP_AHEAD_MS` 1000 ms) + `apps/client/src/net/adaptiveDelay.ts:112-126` (steers `estimate − renderTick`, not the measured clock) + `apps/client/src/net/hordeBuffer.ts:4` (`HORDE_RING_SIZE = 8`, comment still "covers Story 2.6's 150 ms delay": brief 32).
+- Scenario (stateful probe, real `ServerClock` + `AdaptiveDelay`, ordered line, 60 fps and 1 ms frames): one-way 275 → 75 ms at 20 s (bufferbloat clears / handover to a better cell). The raw min drops at once, the estimate catches up at 1.1× for ~2 s; meanwhile `delayMs` reads ≤ 250 but the real delay (true server tick − render tick, minus the 68 ms minimum one-way) is **366 ms** clean, **526 ms** with 1 % × 200 ms stalls, **666 ms** for a −500 ms fall. The render tick was older than the oldest kept horde frame (`newest − 7`) for **34 frames** (lossy + −200), **133 frames ≈ 2.2 s** (−500), **497 of 3591 frames** on a bufferbloat saw (75→475 ms over 4 s, then drop). `hordeBuffer.sample` then takes the `ai < 0` branch: the oldest frame, no lerp — the horde moves in 50 ms jumps. `viewTickOf(renderTick)` shots are as old as that real delay (outside 8.8's 500 ms window in the −500 case). Before 8.9 the estimate followed the min at once (no lag after a fall). The harness never sees it: `Smooth.delayP95` is `estimate − renderTick` and the tests only use `addMs > 0`.
+- Minimal fix: steer the render clock against a forward-only reference that cannot lag the measurement, e.g. `advance(t0, Math.max(estimate, clock.rawTick(t0)), newest)` (the render clock then catches up at ≤ 1.1× like any delay fall; still monotonic), or let the estimate correct FORWARD faster than backward (forward is never "backwards"; bound it, e.g. ≤ 50 %/s, because the telegraph reads it, see M2). Size `HORDE_RING_SIZE` for 275 ms + slew + one tick (e.g. 12) and fix its comment. Add a test: −200 ms step on the lossy line, assert real delay ≤ 275 + one-way and render tick ≥ oldest ring frame.
+
+**M2 (medium) — F7: after a latency fall the boss telegraph fill ends after the hit (by the size of the fall, up to ~1 s).**
+- Where: `apps/client/src/net/serverClock.ts:86` (same lag), read by `bossTelegraph.ts` via `serverTickNow` (`NetSimHost.ts:435`); test `apps/client/src/render/bossTelegraph.test.ts:143` only has a +200 ms rise.
+- Scenario: same −200 ms fall: `estimate − true server tick` goes from −68 ms (one-way, as designed) to **−266 ms** and recovers over ~2 s; a slam whose `hitTick` lands in that window fills to 1 about 200 ms after the server applied the hit, while my HP/knockback arrive in the patch ~75 ms after it — the warning is still filling when I'm already hit (E6 21b / brief 16 "ends exactly on the hit"). −500 ms: ~500 ms late. Before 8.9: no lag after a fall.
+- Minimal fix: the forward-correction change of M1 (bounded forward catch-up, monotonic); extend the F7 test with a −200 ms fall and assert `|estimate − (trueTick − minOneWay)| ≤` a small bound at every hit tick.
+
+**L1 (low) — F1 test bound is 2× the AC.** `tools/netsim/smooth.test.ts:76` asserts `freezesPer30s ≤ 2`; AC 6 / F1 say **≤ 1 per 30 s** (measured 0.86). The Debug Log's 20 ms/s ease-down (2.1 freezes / 30 s) or a 10 ms/s one (1.6) would pass this test; my `DELAY_FALL_MS_PER_S 5 → 20` mutation was caught only by other tests. Fix: `≤ 1` on this row (or ≤ 1.2 with the measured margin written beside it) — the AC number, per brief 27.
+
+**L2 (low) — bang-bang playback rate at the stretch cap and at the end of an overdue period.** `adaptiveDelay.ts:125-126`: when a stall outlasts the stretch (`delayNow` crosses 275 ms while still overdue), the rate alternates **0.9 / 1.10 every frame** (trace: 20433 ms 1.10, 20450 0.90, 20467 1.10 …; 110 flips > 0.1 per 60 s on 2 % × 500 ms; 42 on 1 % × 200 ms at 60 fps, mostly 0.9 → 1.07 in one frame when the late frame lands). Mostly while already frozen (invisible), but the 1.1× frames run the picture into the freeze sooner and the 0.9→1.07 step at stall end is a 19 % speed change in one frame (D2 bounds speed, not its change). Fix: at the cap while overdue hold `rate = 1` (don't steer) and/or limit the rate change to e.g. 0.01 per frame.
+
+**L3 (low) — the wake test never covers a wake after a latency rise; the "never back" branch is untested.** `serverClock.ts:83` `if (raw > next) next = raw` mutated to `next = raw` (snap may go backwards) survives all serverClock / telegraph / smooth tests: `serverClock.test.ts:86` wakes with "same latency" only. A phone pocketed during a handover (latency +300 ms while hidden) is exactly the case. Fix: add "hidden 6 s, latency +300 ms meanwhile → estimate after wake ≥ before + 6 s − 0 and never decreases".
+
+**L4 (low) — F7 test's "never above 1" is vacuous.** `bossTelegraph.test.ts:168` skips every frame with `est > startTick + SPAN`, so the loop never samples past the hit; mutating `bossTelegraph.ts:31` `Math.min(1, …)` → `Math.min(2, …)` survives the whole file. Fix: let the loop run a few frames past `hitTick` and assert `progress === 1`.
+
+### Recorded, not findings
+
+- **+200 ms lasting rise (handover to a worse cell) freezes the picture ~0.8 s per event** (harness 20 Runners kiting, 3 × 40 s: 35 freeze episodes / 235 frozen frames; probe 60 fps: 15 episodes / 87 frames). Inherent to D2 (the delay can rise only at 0.9×, 100 ms/s); before: ~2 s hold then a step back (audit F5). Better than before; worth one line in the story's Not verified / designer notes.
+- **Starved ticks bound (B7, accepted):** real. Same seeds: pacing on 87 vs off 66 (×1.32 ≤ 1.6); mutations `INPUT_SLOW_STEP_RATE 0.9 → 0.5` and `≥ target` fail "beat the rule 3".
+- Sub-frame freezes: at 1 ms frames the lossy row counts 6 freeze episodes / 60 s (16 ms each) vs 2 at 60 fps; at 120 Hz phones the AC count would be ~2× the 60 fps harness number. Note only.
+
+### Beat the rule (brief 4, 27) — attempts and results
+
+Stateful probe (real `ServerClock` + `AdaptiveDelay`, state kept between frames, ordered line with HOL stalls, 60 s, 1 ms AND 16.67 ms frames; plus 0–40 ms frame jitter):
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Clean 75 ± 10 ms | 0 back steps, rate 1.0, 0 freezes, delay 100 (F4 ok) |
+| 2 | Lossy 1 % × 200 ms | 0 back, rate in range; 2 freezes/60 s at 60 fps (6 sub-frame at 1 ms) |
+| 3 | +200 ms lasting step (handover) | 0 back; ~1.4 s frozen in 15 episodes (recorded, D2-inherent) |
+| 4 | +500 ms lasting step | 0 back; 287 frozen frames (4.8 s) — beyond D1 by design |
+| 5 | −200 ms step (clean) | 0 back; real delay 366 ms (> cap) — **M1** |
+| 6 | Lossy + −200 ms step | 0 back; real delay 526 ms, 34 frames before the oldest horde frame — **M1**; telegraph 200 ms late — **M2** |
+| 7 | −500 ms step (bufferbloat clears) | 0 back; real delay 666 ms, 133 frames (2.2 s) before oldest — **M1/M2** |
+| 8 | Bufferbloat saw 75→475 over 4 s, drop, repeat | 0 back; 497/3591 frames before oldest — **M1** |
+| 9 | Oscillating latency 75/175 ms every 6 s (across the 5 s hold) and every 3 s | 0 back; target eases only 5 ms/s, so no pumping (amplitude ≤ 5 ms/period); 16 / 12 freeze episodes per 60 s (each rise) |
+| 10 | Long stalls 2 % × 500 ms | 0 back, rate in range; rate flips 0.9↔1.1 per frame at the cap — **L2** |
+| 11 | Hidden tab 5 s (messages keep arriving) | 0 back; one forward re-anchor (5 s) as designed; samples skipped |
+| 12 | Paused frame clock 0.9 s (just under WAKE_GAP) | 0 back; one 0.9 s forward step (a frame-clock gap, expected) |
+| 13 | Frame jitter 0–40 ms + lossy | 0 back, rate in range |
+| 14 | Wake after a latency rise (code read + mutation) | real code forward-only; untested — **L3** |
+| 15 | Modified client ignores `inputQueued` (harness `pacing:false`) | only its own backlog: server drain skipped 57 inputs, never-fired 2.2 %; others unaffected (server stays the truth) |
+| 16 | Modified client at 0.5× (harness `stepRate`) | 894 starved ticks, survivor holds still, no extra/unpredicted shots, 0 overflow/drain |
+| 17 | Client at 0.9× forever | same as 16 at 10 %: starves its own survivor every ~10th tick; no new advantage over master (a client could always under-send) |
+| 18 | Lie about queue depth | not possible: `inputQueued` is server → client only, no new client message (brief 18 ok) |
+| 19 | Burst of 3 frames without a margin zombie | held until render tick ≥ first miss + 3 (`hordeBuffer.test` F5); really gone: leaves 150 ms of render time after (tests + mutations below) |
+| 20 | Clean line pays? (F4, brief 17) | harness clean: delay 100/100 (before 107–118 / 115–123), 0 freezes, 0 slowed frames, reversed 1/446; `inputQueued` 3.4 changes/s ≈ ≤ 60 B/s per phone with 4 players |
+| 21 | Epic 6 timers (brief 33) | crate cancel prompt reads latest state, not the render clock; vote/dawn on the frame clock; unaffected by code read |
+
+Before/after re-run (brief 13), same seeds 1–3 × 60 s, 150 ms ± 10 ms, load 0.3–0.5; before = master's `AdaptiveDelay`/`ServerClock` shimmed into this harness, pacing off:
+
+| Row | Before | After |
+| --- | --- | --- |
+| clean, 20 Runners kiting | delay p50/p95 107–117 / 115–123, 0 freezes | 100/100, 0 freezes |
+| 1 % × 200, Runners kiting | 38 freezes (6.6 / 30 s), never fired 7/459, starved 64, drained 57, reversed 31/410 (7.6 %) | 5 freezes (0.86 / 30 s), never fired 0/446, starved 90, drained 0, reversed 58/321 (18 %, 300 ms window: T10) |
+| 1 % × 200, 150 Walkers standing | 35 freezes, starved 55, drained 50 | 6 freezes, starved 87 (+58 %), drained 1 |
+
+Matches the story's table.
+
+### Mutations (brief 6; one per new test, reverted after)
+
+Killed (a test failed): `PLAYBACK_RATE_MAX 1.1 → 2` (R3 sweep, F1, F2); `RENDER_DELAY_MAX_MS → 150` (F1); `CLOCK_SLEW_FRACTION 0.1 → 1` (serverClock rise/fall); estimate = raw (unslewed, master-like) (serverClock ×3, F7, F2); `DELAY_FALL_AFTER_MS → 0`; `DELAY_FALL_MS_PER_S 5 → 20`; overdue rule off (NetSimHost wiring, adaptiveDelay lossy, F1); hidden-tab sample skip off; `LATENESS_PERCENTILE → 0.5`; `DELAY_MARGIN_MS → 0`; `STALL_STRETCH_MAX_MS → 0`; `HORDE_MISSING_TICKS 3 → 1`; drop at first miss (no render wait); first-miss tick overwritten per frame; `dropMissing` not called; `INPUT_SLOW_AFTER_PATCHES 3 → 1`; `INPUT_SLOW_STEP_RATE → 1` and `→ 0.5`; pacing `>` → `>=`; NetSimHost pacing ignored / `onPatch` removed / horde not fed to the clock / `newestTick` not passed; syncState `queued()` instead of `queuedAtTick()`; `inputQueued` never set; `depthAtTick` never set; overlay `delayLine` removed (`tools/checks`).
+
+Survived: render monotonic clamp removed (`adaptiveDelay.ts` last `if`) and re-anchor `max(rt, anchor)` → `anchor` — **equivalent mutants** (rate ≥ 0.9 and a wake always has `anchor > rt`), so the clamp is belt-and-braces, not a bug; clock monotonic clamp removed — equivalent (every non-snap step is ≥ 0.9 × dt); clock snap `if (raw > next)` removed — **real gap, L3**; telegraph `Math.min(1 → 2)` — **real gap, L4**.
+
+### Brief lines checked
+
+1 (gate: builder full gate on 2981875; b8109fb partial, harness-only — the main session's gate covers it), 2 (copy list complete: RunState → syncState → `PLAYER_STATE_FIELDS` → fakeRoom → devThrottle by keys; not World/snapshotWorld/Predictor; bots ignore), 5 (no sim change), 6 (liveness asserts present in every new netsim test), 7 (preallocated rings/histogram; ms of the host clock; constants in netConfig with story comments), 8 (bandwidth ok), 9 (hidden tab/late start unit-only: listed Not verified), 12 (Notes for the merge present), 13 (re-run matches), 14 (lossy line used), 16 (**M1/M2**: monotonic yes; "ends exactly on the hit" not after a fall), 17 (clean line pays nothing), 18 (ok), 20 (harness imports the real StepPacing/AdaptiveDelay/ServerClock; HordeBuffer is not in the harness, which is why M1's ring overflow is invisible there), 25 (every [x] task's named tests exist — all 26 names grepped, found), 27 (1 ms stateful sweep exists in `adaptiveDelay.test.ts`; but no oscillation/fall case: M1/M2), 30 (Gate line present), 32 (`HORDE_RING_SIZE` comment stale: M1), 33 (ok).

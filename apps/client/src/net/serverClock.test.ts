@@ -68,7 +68,7 @@ describe("ServerClock", () => {
     expect(convergedAt).toBeLessThan(6000 + 2000);
   });
 
-  it("Story 8.9: a latency fall converges at ≤ 1.1×", () => {
+  it("Story 8.9: a latency fall converges at ≤ 1.5× (review M1/M2: forward catch-up 50 %)", () => {
     const c = new ServerClock();
     let prev = Number.NaN;
     let lastNow = Number.NaN;
@@ -78,8 +78,8 @@ describe("ServerClock", () => {
       prev = est;
       lastNow = now;
     });
-    expect(maxRate).toBeLessThanOrEqual(1.1 + 1e-9);
-    expect(maxRate).toBeGreaterThan(1.05);
+    expect(maxRate).toBeLessThanOrEqual(1.5 + 1e-9);
+    expect(maxRate).toBeGreaterThan(1.4);
     expect(Math.abs(prev - c.rawTick(lastNow))).toBeLessThan(0.05);
   });
 
@@ -97,4 +97,26 @@ describe("ServerClock", () => {
     expect(e).toBeLessThan(c.rawTick(7010));
     expect(e).toBeGreaterThanOrEqual(b);
   });
+
+  it("review L3: hidden 6 s while latency rose +300 ms (a handover in the pocket): the estimate after the wake is ahead of before and never goes back", () => {
+    const c = new ServerClock();
+    for (let t = 0; t <= 20; t++) c.sample(1000 + t * 50 + 75, t);
+    const before = c.estimateTick(1000 + 20 * 50 + 75);
+    // The tab wakes 6 s later; the queued patches arrive now, 300 ms later than before.
+    const wake = 1000 + 140 * 50 + 375;
+    for (let t = 21; t <= 140; t++) c.sample(wake, t);
+    let prev = c.estimateTick(wake);
+    // Forward-only snap: it continues from before + the 6.3 s that passed, not down to the slower measurement (−300 ms).
+    expect(prev).toBeCloseTo(before + (wake - (1000 + 20 * 50 + 75)) / 50, 9);
+    expect(c.rawTick(wake)).toBeLessThan(prev - 5);
+    for (let now = wake + 16; now < wake + 4000; now += 16) {
+      const t = Math.floor((now - 1000 - 375) / 50);
+      if (t > 140) c.sample(1000 + t * 50 + 375, t);
+      const e = c.estimateTick(now);
+      expect(e).toBeGreaterThanOrEqual(prev);
+      prev = e;
+    }
+    expect(Math.abs(prev - c.rawTick(wake + 3984))).toBeLessThan(0.5); // settled on the slower line by 0.9× slewing
+  });
 });
+

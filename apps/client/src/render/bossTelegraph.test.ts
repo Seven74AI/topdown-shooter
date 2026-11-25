@@ -149,6 +149,7 @@ describe("Story 8.9 (F7): the telegraph fill on the slewed, monotonic server clo
     let stall = 0;
     let checked = 0;
     let started = 0;
+    let pastHit = 0;
     // A telegraph every 40 ticks, 30 ticks long; the line: 75 ms ± 10, 3 % × 300 ms stalls, +200 ms from 10 s on.
     const SPAN = 30;
     let prev = -1;
@@ -165,8 +166,14 @@ describe("Story 8.9 (F7): the telegraph fill on the slewed, monotonic server clo
       if (!clock.ready) continue;
       const est = clock.estimateTick(now);
       const startTick = Math.floor(est / 40) * 40;
-      if (startTick < 40 || est > startTick + SPAN) continue;
+      if (startTick < 40 || est > startTick + SPAN + 3) continue;
       telegraphProgress(est, startTick, startTick + SPAN, look);
+      if (est >= startTick + SPAN) {
+        // Review L4: past the hit the fill stays exactly full (the fade runs), never above 1.
+        expect(look.progress).toBe(1);
+        pastHit++;
+        continue;
+      }
       if (startTick !== window) {
         window = startTick;
         prev = -1;
@@ -181,9 +188,42 @@ describe("Story 8.9 (F7): the telegraph fill on the slewed, monotonic server clo
     }
     expect(started).toBeGreaterThan(8);
     expect(checked).toBeGreaterThan(500);
+    expect(pastHit).toBeGreaterThan(8 * 5); // review L4: frames past each hit were really checked
     telegraphProgress(70, 40, 70, look);
     expect(look.progress).toBe(1); // exactly on the hit
     telegraphProgress(70 - 1e-6, 40, 70, look);
     expect(look.progress).toBeLessThan(1);
   });
+
+  it("review M2: after a −200 ms latency fall (275 → 75 ms one-way) the fill still ends on the hit: within 25 ms once the clock caught up (≤ 0.6 s), never early", () => {
+    const clock = new ServerClock();
+    const rng = createRng(9);
+    const oneWay = (t: number): number => (t * 50 < 10_000 ? 275 : 75);
+    let tick = 0;
+    let due = 50 + oneWay(1);
+    const hitLateMs: { at: number; late: number }[] = [];
+    let nextHit = 70; // hit ticks 70, 110, 150, … (one every 2 s)
+    for (let now = 0; now < 20_000; now += 1000 / 60) {
+      while (due <= now) {
+        tick++;
+        clock.sample(due, tick);
+        due = Math.max(due, (tick + 1) * 50 + oneWay(tick + 1) + rng.range(-10, 10));
+      }
+      if (!clock.ready) continue;
+      const est = clock.estimateTick(now);
+      if (est >= nextHit) {
+        // The fill reached 1 now; the server hit at nextHit × 50 and its patch can't be here before + one-way.
+        hitLateMs.push({ at: now, late: now - (nextHit * 50 + oneWay(nextHit)) });
+        nextHit += 10; // every 0.5 s, so a hit lands in the catch-up
+      }
+    }
+    expect(hitLateMs.length).toBeGreaterThan(30);
+    for (const h of hitLateMs) {
+      if (h.at < 2000) continue;
+      expect(h.late).toBeGreaterThan(-25); // never ends before the hit could be known
+      if (h.at < 10_000 || h.at > 10_600) expect(h.late).toBeLessThanOrEqual(25);
+      else expect(h.late).toBeLessThanOrEqual(200); // the catch-up (≤ 1.5×; was ~1.9 s at 1.1×)
+    }
+  });
 });
+

@@ -42,7 +42,22 @@ Liveness only (review N3: the before and after lines differ, so these runs are n
 **Method.** `npx tsx tools/netsim/smoothRun.ts 60 3`: the netsim harness (`tools/netsim/hitsSim.ts`, the real server `RunController` + the real client `ServerClock`, `AdaptiveDelay`, `StepPacing`, Predictor, fire clock), Pistol, 150 ms RTT ± 10 ms, 3 seeds × 60 s per row, counters from second 2 on. Lossy = TCP loss as head-of-line stalls both ways (`loss: { pct, stallMs }`, the audit's model; 8.8 owns the option). The harness has one down message per tick (20 msg/s), so its stalls are rarer than a real phone's (~46 msg/s, audit §3.3).
 **Before:** master `c57c1cc` with the same harness file patched to the old API (`snapshot`/`frame`/`renderTick`, no pacing). **After:** branch `story-8-9`.
 
-**Main table: Story 8.8's harness loss (commit df00ed48, cherry-picked; stalls drawn from the shared RNG, as the audit).** Before = c57c1cc + df00ed48 (load 1.1–2.3), after = story-8-9 + df00ed48 (load 1.0).
+**Final table (after the review fixes M1/M2/L2 and T10's 600 ms window, story-8-8 008df68 merged; load 1.1):**
+
+| Case | Line | Freezes /30 s | Frozen frames | Delay p50 | Delay p95 | Back steps (render/est) | Never fired | Starved ticks | Server skips | Reversed |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 150 walkers, standing | clean | 0 → 0 | 0 → 0 | 118 → 100 | 125 → 100 | 0/0 → 0/0 | 0 % → 0 % | 0 → 0 | 0 → 0 | 0 % → 0 % |
+| 150 walkers, standing | 1% x 200 ms | 6 → 1.2 | 278 → 31 | 119 → 250 | 129 → 253 | 0/0 → 0/0 | 1.5 % → 0 % | 55 → 89 | 50 → 0 | 1.6 % → 0 % |
+| 150 walkers, standing | 2% x 200 ms | 11 → 0.2 | 505 → 8 | 119 → 250 | 136 → 254 | 1/0 → 0/0 | 2.6 % → 0 % | 86 → 120 | 82 → 0 | 1.8 % → 0 % |
+| 150 walkers, kiting | clean | 0 → 0 | 0 → 0 | 118 → 100 | 123 → 100 | 0/0 → 0/0 | 0 % → 0 % | 0 → 0 | 0 → 0 | 0.2 % → 0.2 % |
+| 150 walkers, kiting | 1% x 200 ms | 6.9 → 0.9 | 327 → 26 | 119 → 250 | 134 → 253 | 0/0 → 0/0 | 1.5 % → 0 % | 60 → 84 | 54 → 0 | 2.3 % → 0.3 % |
+| 150 walkers, kiting | 2% x 200 ms | 11.2 → 0.3 | 523 → 10 | 121 → 250 | 139 → 254 | 0/0 → 0/0 | 1.3 % → 0 % | 84 → 129 | 78 → 0 | 3.5 % → 0.5 % |
+| 20 runners, kiting | clean | 0 → 0 | 0 → 0 | 117 → 100 | 123 → 100 | 0/0 → 0/0 | 0 % → 0 % | 1 → 1 | 0 → 0 | 0.2 % → 0.2 % |
+| 20 runners, kiting | 1% x 200 ms | 6.6 → 0.9 | 314 → 31 | 118 → 250 | 133 → 254 | 0/0 → 0/0 | 1.5 % → 0 % | 64 → 78 | 57 → 0 | 7.6 % → 1.4 % |
+| 20 runners, kiting | 2% x 200 ms | 11.2 → 1.2 | 517 → 34 | 121 → 250 | 140 → 253 | 0/0 → 0/0 | 1.3 % → 0 % | 83 → 128 | 76 → 0 | 11.9 % → 1.7 % |
+| 20 runners, kiting | 1% x 200 ms + 150 ms step | 6.9 → 1 | 665 → 38 | 120 → 250 | 134 → 253 | 3/3 → 0/0 | 0.7 % → 0 % | 66 → 94 | 54 → 2 | 36.5 % → 14.7 % |
+
+**First after-table (before the review fixes, 300 ms window): Story 8.8's harness loss (commit df00ed48, cherry-picked; stalls drawn from the shared RNG, as the audit).** Before = c57c1cc + df00ed48 (load 1.1–2.3), after = story-8-9 + df00ed48 (load 1.0).
 
 | Case | Line | Freezes /30 s | Frozen frames | Delay p50 | Delay p95 | Back steps (render/est) | Never fired | Starved ticks | Server skips | Reversed |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -82,3 +97,8 @@ First pass (my local copy of the loss model with its own RNG; same story code): 
 View offset p95 11.4–11.7 ticks with the 250 ms delay (one-way + queue + delay), so 8.8 D1's fallback (600 ms / 12 ticks, history 14 rows) was applied. Clean rows unchanged (0.2 %). Tick cost (`PERF_ASSERT=1 tickCostRewind.test.ts`, load 1.1): rewind adds mean 0.011 / p99 0.070 ms. `smoothRun.ts 60 3` after the merge (load 1.4): freezes/30 s 0.9–1.2 at 1 %, 0.3–1.2 at 2 %; never fired 0 %; starved 75–98 at 1 % (B7); 0 back steps.
 
 Bots on the lossy line (`npm run bots -- --count 4 --scenario net150 --until-wave 4 --lag 150 --jitter 20 --loss 1`): wave 4 played, 173 kills, 48 stalls up / 106 down, 7.6 KB/s down avg (peak 19.8), 2.2 up, RTT 147–210 ms; 0 `seq_gap_suspect` / `spread_cancel_suspect`.
+
+### 8.9 review fixes (2026-11-25)
+
+- M1/M2: the server estimate catches up forward at ≤ 1.5× (`CLOCK_SLEW_FORWARD_FRACTION` 0.5; back stays 0.9×); the render clock steers against max(estimate, measurement); horde ring 8 → 16 frames. `adaptiveDelay.test.ts` › "review M1/M2…" (1 ms frames): estimate back within 25 ms of the server after 548 ms (−200 ms fall; was ~1.9 s), 564 ms lossy, 1448 ms for −500 ms (was ~5.2 s); real delay = the old delay + the fall at most, back within the target + 25 ms after 1.9 / 2.0 / 5.2 s (the 1.1× limit, D2: the picture never jumps forward); the render tick at most 5.8 / 8.7 / 11.6 ticks behind the newest frame (ring 16).
+- L2: rate held at 1× at the stretch cap while overdue; rate slew ≤ 4/s; `FRAME_OVERDUE_MS` 15 → 10 to keep F1 (2/s with 15 ms: 1.03 freezes/30 s; 4/s with 10 ms: 0.86).

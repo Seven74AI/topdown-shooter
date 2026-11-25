@@ -1,7 +1,12 @@
 import { HORDE_MAX_RECORDS, HORDE_MISSING_TICKS, zombieSlotOfNetId, type HordeSink } from "@topdown/shared";
 
-/** Horde snapshots kept (Story 2.5): AC 3 asks for 3; 8 covers Story 2.6's 150 ms delay plus jitter. */
-export const HORDE_RING_SIZE = 8;
+/**
+ * Horde snapshots kept (Story 2.5: AC 3 asks for 3). Story 8.9 review M1: 16 (800 ms behind the
+ * newest frame): the render tick can trail the newest frame by the 250 ms delay + the 25 ms stall
+ * stretch, plus a latency fall that the render clock catches up at 1.1× (a −500 ms fall: ~700 ms).
+ * 16 × 256 records ≈ 57 KB, preallocated.
+ */
+export const HORDE_RING_SIZE = 16;
 /** `zombie.killed` net ids waiting for the render tick. */
 export const HORDE_KILL_QUEUE_SIZE = 256;
 

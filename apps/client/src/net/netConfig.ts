@@ -59,12 +59,15 @@ export const PLAYBACK_RATE_MIN = 0.9;
 export const PLAYBACK_RATE_MAX = 1.1;
 /** Story 8.9: playback rate change per ms of delay error (10 ms off → the full ±10 %; settles in ~0.1 s). */
 export const PLAYBACK_RATE_GAIN_PER_MS = 0.01;
+/** Story 8.9 review L2: the playback rate itself changes at most this much per second (0.9 → 1.1 in 0.05 s; ≤ 0.067 per 60 Hz frame). With FRAME_OVERDUE_MS 10: 0.86 freezes/30 s (2/s with 15 ms: 1.03). */
+export const PLAYBACK_RATE_SLEW_PER_S = 4;
 /**
  * Story 8.9 (F1): a horde frame this much later than its 50 ms cadence plus the p95 lateness (ms)
  * is overdue: the render clock plays at 0.9× at once, before the late frame lands, so
  * a 200 ms stall + jitter is hidden even at the 250 ms cap (which alone needs 200 + jitter + one tick).
+ * Review L2 re-tune: 15 → 10 ms with the 4/s rate slew (0.86 freezes/30 s; 15 ms: 1.03).
  */
-export const FRAME_OVERDUE_MS = 15;
+export const FRAME_OVERDUE_MS = 10;
 /** Story 8.9: while a frame is overdue the delay may stretch this far past its 250 ms cap (ms; ~10 % of a stall), then catches up at 1.1×. */
 export const STALL_STRETCH_MAX_MS = 25;
 /**
@@ -74,6 +77,13 @@ export const STALL_STRETCH_MAX_MS = 25;
 export const WAKE_GAP_MS = 1000;
 /** Story 8.9: the server-tick estimate moves toward the measured clock at most this share of elapsed time (10 %). */
 export const CLOCK_SLEW_FRACTION = 0.1;
+/**
+ * Story 8.9 review M1/M2: the estimate catches up FORWARD faster, at most this share of elapsed time
+ * (50 %: up to 1.5×). After a latency fall (bufferbloat clears, a better cell) the measurement jumps
+ * ahead; at 10 % the estimate lagged real server time by the whole fall for ~2 s (boss telegraph
+ * fills ended ~200 ms after the hit). Forward is never "backwards"; 1.5× for ≤ 0.4 s per 200 ms.
+ */
+export const CLOCK_SLEW_FORWARD_FRACTION = 0.5;
 /** Story 8.9: a measured clock this far AHEAD of the estimate (ms) is snapped to at once (start, hidden tab); never backwards. */
 export const CLOCK_SNAP_AHEAD_MS = 1000;
 /**

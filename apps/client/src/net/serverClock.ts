@@ -1,5 +1,5 @@
 import { TICK_DT_S } from "@topdown/shared";
-import { CLOCK_SLEW_FRACTION, CLOCK_SNAP_AHEAD_MS, WAKE_GAP_MS } from "./netConfig";
+import { CLOCK_SLEW_FORWARD_FRACTION, CLOCK_SLEW_FRACTION, CLOCK_SNAP_AHEAD_MS, WAKE_GAP_MS } from "./netConfig";
 
 /** Samples kept for the minimum (Story 2.4): the least-delayed packet in the last 2 s. */
 export const CLOCK_WINDOW_MS = 2000;
@@ -13,9 +13,9 @@ const CAPACITY = 128;
  * least-delayed packet, the best measurement (`rawOffsetMs`).
  *
  * Story 8.9 (audit F5): the estimate handed out never runs backwards. Each call moves it by the
- * elapsed time, plus a correction toward the measurement of at most 10 % of that time (both ways):
- * when latency rises for good (the minimum jumps up), the estimate slows to 0.9× instead of
- * stepping back. The first estimate, a measurement more than 1 s ahead, or one after a hidden-tab
+ * elapsed time, plus a correction toward the measurement of at most 10 % of that time backward and
+ * 50 % forward (review M1/M2): when latency rises for good (the minimum jumps up), the estimate
+ * slows to 0.9× instead of stepping back; when it falls, it catches up at ≤ 1.5×. The first estimate, a measurement more than 1 s ahead, or one after a hidden-tab
  * gap snaps forward (never back).
  */
 export class ServerClock {
@@ -82,8 +82,9 @@ export class ServerClock {
     if (dtMs > WAKE_GAP_MS || err * TICK_MS > CLOCK_SNAP_AHEAD_MS) {
       if (raw > next) next = raw; // forward only
     } else {
-      const max = (CLOCK_SLEW_FRACTION * dtMs) / TICK_MS;
-      next += Math.max(-max, Math.min(max, err));
+      const back = (CLOCK_SLEW_FRACTION * dtMs) / TICK_MS;
+      const ahead = (CLOCK_SLEW_FORWARD_FRACTION * dtMs) / TICK_MS; // review M1/M2: a latency fall is caught up within ~0.4 s per 200 ms
+      next += Math.max(-back, Math.min(ahead, err));
     }
     if (next > this.estTick) this.estTick = next;
     return this.estTick;

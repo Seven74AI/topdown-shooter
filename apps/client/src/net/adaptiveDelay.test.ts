@@ -10,6 +10,7 @@ import {
   RENDER_DELAY_MIN_MS,
 } from "./netConfig";
 import { ServerClock } from "./serverClock";
+import { HORDE_RING_SIZE } from "./hordeBuffer";
 
 const FRAME_MS = 1000 / 60;
 const EPS = 1e-9;
@@ -201,6 +202,106 @@ describe("AdaptiveDelay (Story 8.9: delay from lateness, a render clock that str
     }
     expect(maxStep).toBeLessThanOrEqual((1 / 50) * 1.1 + EPS); // 1 ms of frame → at most 1.1 ms of render time
     expect(d.targetMs).toBe(RENDER_DELAY_MAX_MS); // the step's late frames were measured
+  });
+
+  /**
+   * Review M1/M2: a lasting latency FALL (one-way 75 + fall → 75 ms at 20 s: bufferbloat clears, a
+   * better cell), 1 ms frames, state kept. The client clock is the server clock (offset 0), so the
+   * true server tick is now / 50. Returns the worst numbers after the fall.
+   */
+  const fallRun = (fallMs: number, lossy: boolean) => {
+    const rng = createRng(3);
+    const d = new AdaptiveDelay();
+    const c = new ServerClock();
+    const oneWay = (t: number): number => (t * 50 < 20_000 ? 75 + fallMs : 75);
+    let tick = 0;
+    let due = 50 + oneWay(1);
+    let newest = 0;
+    let prev = -Infinity;
+    let preReal = 0;
+    let maxReal = 0;
+    let maxBehind = 0;
+    let settleMs = Number.NaN;
+    let estOkMs = Number.NaN;
+    let estAhead = -Infinity;
+    for (let now = 0; now < 30_000; now += 1) {
+      while (due <= now) {
+        tick++;
+        c.sample(due, tick);
+        d.sample(due, tick, c.rawOffsetMs);
+        newest = tick;
+        const stall = lossy && rng.range(0, 100) < 1 ? 200 : 0;
+        due = Math.max(due, (tick + 1) * 50 + oneWay(tick + 1) + stall + rng.range(-10, 10));
+      }
+      if (!c.ready) continue;
+      const est = c.estimateTick(now);
+      const rt = d.advance(now, est, newest, c.rawTick(now));
+      expect(rt).toBeGreaterThanOrEqual(prev);
+      expect(d.rate).toBeGreaterThanOrEqual(0.9 - EPS);
+      expect(d.rate).toBeLessThanOrEqual(1.1 + EPS);
+      prev = rt;
+      if (now < 15_000) continue;
+      const ow = oneWay(now / 50);
+      const real = (now / 50 - rt) * 50 - ow; // true delay behind the server, minus the line's one-way
+      const estErr = (now / 50 - ow / 50 - est) * 50; // > 0: the estimate lags what the line allows
+      estAhead = Math.max(estAhead, -estErr);
+      if (now < 20_000) preReal = Math.max(preReal, real);
+      else {
+        maxReal = Math.max(maxReal, real);
+        maxBehind = Math.max(maxBehind, newest - rt);
+        if (Number.isNaN(settleMs) && now > 20_100 && real <= d.targetMs + 25) settleMs = now - 20_000;
+        if (Number.isNaN(estOkMs) && now > 20_100 && estErr <= 25) estOkMs = now - 20_000;
+      }
+    }
+    return { preReal, maxReal, maxBehind, settleMs, estOkMs, estAhead };
+  };
+
+  it("review M1/M2: a −200 ms latency fall (clean and lossy) and a −500 ms one: the estimate catches up fast, the picture at ≤ 1.1×, the horde ring covers it", () => {
+    for (const [fall, lossy, estWithinMs, settleWithinMs] of [
+      [200, false, 600, 2300],
+      [200, true, 600, 2500],
+      [500, false, 1500, 5600],
+    ] as const) {
+      const r = fallRun(fall, lossy);
+      console.info(`[adaptiveDelay] fall ${fall} ms${lossy ? " lossy" : ""}: estimate within 25 ms after ${r.estOkMs} ms, real delay ${Math.round(r.preReal)} → max ${Math.round(r.maxReal)}, settled after ${r.settleMs} ms, ${r.maxBehind.toFixed(1)} ticks behind the newest frame`);
+      // M2: the estimate (boss telegraph fills) is back on the server's time within 0.6 s per 200 ms (was ~1.9 s at 10 %/s), never ahead of it.
+      expect(r.estOkMs).toBeLessThanOrEqual(estWithinMs);
+      expect(r.estAhead).toBeLessThanOrEqual(25);
+      // M1: the picture can't jump forward (D2): the real delay is the old one + the fall at most, then falls at the 1.1× limit.
+      expect(r.maxReal).toBeLessThanOrEqual(r.preReal + fall + 10);
+      expect(r.settleMs).toBeLessThanOrEqual(settleWithinMs);
+      // M1: the render tick never leaves the kept horde frames (no un-lerped 20 Hz steps).
+      expect(r.maxBehind).toBeLessThanOrEqual(HORDE_RING_SIZE - 1);
+    }
+  });
+
+  it("review L2: at the stretch cap while a frame is overdue the rate holds (no 0.9/1.1 flip-flop), and it changes at most 4/s", () => {
+    const d = new AdaptiveDelay();
+    const clock = new ServerClock();
+    let tick = 0;
+    let due = 50;
+    let prevRate = 1;
+    let maxJump = 0;
+    let flips = 0;
+    let lastDir = 0;
+    for (let now = 0; now < 20_000; now += 1000 / 60) {
+      while (due <= now) {
+        tick++;
+        clock.sample(due, tick);
+        d.sample(due, tick, clock.rawOffsetMs);
+        due = Math.max(due, (tick + 1) * 50 + 30 + (tick % 100 === 0 ? 700 : 0)); // 700 ms stalls: past the stretch cap
+      }
+      if (!clock.ready) continue;
+      d.advance(now, clock.estimateTick(now), tick, clock.rawTick(now));
+      const dr = d.rate - prevRate;
+      maxJump = Math.max(maxJump, Math.abs(dr));
+      const dir = Math.sign(Math.round(dr * 1e6));
+      if (dir !== 0 && lastDir !== 0 && dir !== lastDir && Math.abs(dr) > 0.02) flips++;
+      if (dir !== 0) lastDir = dir;
+      prevRate = d.rate;
+    }
+    expect(maxJump).toBeLessThanOrEqual(4 / 60 + EPS); // ≤ 0.067 per frame (was 0.17: 0.9 → 1.07)
+    expect(flips).toBeLessThanOrEqual(40); // a few per stall (slow down, hold, catch up), not one per frame
   });
 
   it("after a hidden tab the render clock re-anchors once (forward), it does not play seconds at 1.1×", () => {

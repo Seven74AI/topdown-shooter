@@ -433,7 +433,7 @@ export class NetSimHost implements SimHost {
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
     // Story 8.9: both clocks are monotonic; the render clock stretches 0.9–1.1× toward its delay.
     this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
-    this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick) : Number.NaN;
+    this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick, this.clock.rawTick(t0)) : Number.NaN;
     this.countFreeze();
     // Story 2.7: the horde first, so my shots this frame assist toward and stop at what is drawn.
     this.applyHorde(this.renderTickNow);

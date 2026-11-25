@@ -71,9 +71,9 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
   it("F1, F6: on the lossy line (1 % × 200 ms both ways) the picture rarely freezes and no predicted shot is lost", () => {
     const s = sum("lossy 1 % 20 Runners kiting", { seconds: 60, zombieType: "runner", kite: true, loss: LOSSY });
     expectMonotonicAndBounded(s);
-    // Before (master c57c1cc, same seeds): 6.7 freezes per 30 s, 1.7 % never fired. AC ≤ 1 per 30 s: measured 0.9–1.4
-    // across the cases (a stall after > 5 s of calm still finds the delay eased below 230 ms, F4 keeps clean lines at 100).
-    expect(s.freezesPer30s).toBeLessThanOrEqual(2);
+    // Before (master c57c1cc, same seeds): 6.7 freezes per 30 s, 1.7 % never fired. AC ≤ 1 per 30 s (this row: 0.86 at review)
+    // and 0.9–1.2 across the cases (a stall after > 5 s of calm still finds the delay eased below 230 ms, F4 keeps clean lines at 100).
+    expect(s.freezesPer30s).toBeLessThanOrEqual(1); // review L1: the AC number (F1, AC 6)
     expect(s.neverFiredPct).toBeLessThan(1);
     for (const r of s.runs) {
       expect(r.smooth.delayP50).toBeGreaterThan(200); // liveness: the stalls really were measured as lateness

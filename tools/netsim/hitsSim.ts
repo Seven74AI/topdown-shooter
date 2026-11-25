@@ -426,7 +426,7 @@ export function simulate(o: Options): Result {
     // The frame, in NetSimHost.update order.
     if (serverClock.ready) {
       const est = serverClock.estimateTick(t);
-      const rt = delay.advance(t, est, latest ? latest.tick : -1);
+      const rt = delay.advance(t, est, latest ? latest.tick : -1, serverClock.rawTick(t));
       if (t > 2000) {
         sm.frames++;
         if (rt < prevRt) sm.renderBackSteps++;

@@ -9,6 +9,7 @@ import {
   PLAYBACK_RATE_GAIN_PER_MS,
   PLAYBACK_RATE_MAX,
   PLAYBACK_RATE_MIN,
+  PLAYBACK_RATE_SLEW_PER_S,
   RENDER_DELAY_MAX_MS,
   RENDER_DELAY_MIN_MS,
   STALL_STRETCH_MAX_MS,
@@ -100,10 +101,14 @@ export class AdaptiveDelay {
 
   /**
    * Moves the render clock to client time `nowMs` for the server tick estimate `estimateTick`
-   * and returns the new render tick (monotonic). Call once per frame.
+   * and returns the new render tick (monotonic). Call once per frame. Review M1: `measuredTick`
+   * (`ServerClock.rawTick`) — the delay is steered against max(estimate, measurement), so after a
+   * latency fall (the measurement jumps ahead of the slewed estimate) the render clock catches up
+   * at once at ≤ 1.1× instead of drifting behind the real server time.
    */
-  advance(nowMs: number, estimateTick: number, newestTick = -1): number {
+  advance(nowMs: number, estimateTick: number, newestTick = -1, measuredTick = Number.NaN): number {
     if (Number.isNaN(estimateTick)) return this.renderTickNow;
+    if (measuredTick > estimateTick) estimateTick = measuredTick;
     const dtMs = Number.isNaN(this.lastNowMs) ? 0 : nowMs - this.lastNowMs;
     if (dtMs < 0) return this.renderTickNow;
     this.lastNowMs = nowMs;
@@ -122,8 +127,12 @@ export class AdaptiveDelay {
       } else {
         const err = delayNow - dtMs - this.targetMs; // after a 1× step: > 0 too far behind → play faster
         const overdue = newestTick >= 0 && (estimateTick - newestTick - 1) * TICK_MS > this.lateP95Ms + FRAME_OVERDUE_MS;
-        if (overdue && delayNow < RENDER_DELAY_MAX_MS + STALL_STRETCH_MAX_MS) this.rate = PLAYBACK_RATE_MIN;
-        else this.rate = Math.min(PLAYBACK_RATE_MAX, Math.max(PLAYBACK_RATE_MIN, 1 + err * PLAYBACK_RATE_GAIN_PER_MS));
+        let want: number;
+        if (overdue) want = delayNow < RENDER_DELAY_MAX_MS + STALL_STRETCH_MAX_MS ? PLAYBACK_RATE_MIN : 1; // review L2: at the stretch cap hold 1× (no 0.9/1.1 flip-flop)
+        else want = Math.min(PLAYBACK_RATE_MAX, Math.max(PLAYBACK_RATE_MIN, 1 + err * PLAYBACK_RATE_GAIN_PER_MS));
+        // Review L2: the rate itself changes at most PLAYBACK_RATE_SLEW_PER_S (no 0.9 → 1.07 jump in one frame).
+        const step = (PLAYBACK_RATE_SLEW_PER_S * dtMs) / 1000;
+        this.rate = Math.min(this.rate + step, Math.max(this.rate - step, want));
         rt += (dtMs / TICK_MS) * this.rate;
       }
     }
