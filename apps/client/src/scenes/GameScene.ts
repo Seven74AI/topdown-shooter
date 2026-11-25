@@ -558,7 +558,7 @@ export class GameScene extends Phaser.Scene {
   private readonly barStep: BuildBarStep = { show: false, pick: "", toast: "" };
   /** Story 5.16: the bar's last refusal toast ("" = none), withdrawn once a pick succeeds. */
   private barToast = "";
-  /** Story 10.10 (BU-5): the type of my last Place this run (the quick tile; client-side only). */
+  /** Story 10.10 (BU-5, B9): the type of my last confirmed building this run — the server's (solo: the sim's) `building.placed` for me (the quick tile; client-side only). */
   private lastPlacedType = "";
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();

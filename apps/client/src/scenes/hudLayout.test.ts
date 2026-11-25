@@ -95,9 +95,9 @@ function modes(w: number, h: number): Record<string, Box[]> {
   const row = layoutRowAboveCluster(w, h, INSET.right, INSET.bottom, K, cl.top, cl.right, newRightButtonsLayout());
   const rw = READY_BUTTON_W_CSS_PX * K;
   const rh = READY_BUTTON_H_CSS_PX * K;
-  const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(cl, pn, K), K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
-  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, cl.quickX, cl.quickY, K, false, { x: 0, y: 0, size: 0 });
-  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, cl.quickX, cl.quickY, K, true, { x: 0, y: 0, size: 0 });
+  const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
+  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, K, { x: 0, y: 0, size: 0 });
+  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, K, { x: 0, y: 0, size: 0 });
   const hand = layoutHandCluster(w, h, INSET.right, INSET.bottom, K, newHandLayout(), INSET.top);
   const act = layoutActionBar(w, h, INSET.right, INSET.bottom, K, ACTION_IDS.map(() => true), newActionBarLayout());
   const sq = (id: string, x: number, y: number, s: number): Box => ({ id, x, y, w: s, h: s });
@@ -178,13 +178,12 @@ const TOLERANCE_PX = 0.5;
  */
 const KNOWN_LIST: [string, number][] = [
   // Story 10.10: the 4 × 2 grid's "568x320 build tile0 / tile1" and "640x360 build tile0" lines are gone (the Build
-  // cluster and panel keep the survivor's 48 px), and Ready came back toward 40 px left of centre (was 120 / 84; now 52 / 40 — review 1: it also keeps 12 px from ↶ beside the quick tile).
-  ["568x320 build ready: in the move-stick half", 52],
-  ["568x320 build_short ready: in the move-stick half", 52],
-  ["568x320 build_open ready: in the move-stick half", 52],
+  // cluster and panel keep the survivor's 48 px), and Ready came back toward 40 px left of centre (was 120 / 84; now 46 / 40). Re-review 1: ↶'s one spot (above ⟳, both modes) removed the "568x320 holding undo: in the move-stick half" line too.
+  ["568x320 build ready: in the move-stick half", 46],
+  ["568x320 build_short ready: in the move-stick half", 46],
+  ["568x320 build_open ready: in the move-stick half", 46],
   ["568x320 holding rotate: within 48 px of the centre", 35.23],
   ["568x320 holding chip: within 48 px of the centre", 41.19],
-  ["568x320 holding undo: in the move-stick half", 30],
   ["568x320 selected action_move: within 48 px of the centre", 36.06],
   ["568x320 selected action_move: in the move-stick half", 73],
   ["568x320 selected action_upgrade: within 48 px of the centre", 12],
@@ -201,7 +200,7 @@ const KNOWN_LIST: [string, number][] = [
   ["568x320 vote vote_extract: in the move-stick half", 118],
   ["640x360 vote vote_extract: in the move-stick half", 118],
   // Story 8.7: the same baseline lines in the open-wheel modes (the wheel leaves Ready and the vote buttons where they are).
-  ["568x320 ping_wheel_build ready: in the move-stick half", 52],
+  ["568x320 ping_wheel_build ready: in the move-stick half", 46],
   ["640x360 ping_wheel_build ready: in the move-stick half", 40],
   ["568x320 ping_wheel_vote vote_extract: in the move-stick half", 118],
   ["640x360 ping_wheel_vote vote_extract: in the move-stick half", 118],
@@ -948,19 +947,29 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
     { left: 44, right: 44, top: 20, bottom: 21 }, // review 7: a top inset too (the card keeps 12 px under ping / ☰)
   ] as const;
   const gapOf = (a: Box, b: Box): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+  /**
+   * Re-review 1 (option B): the one layout where 5.12's row can't keep 12 px — 568 × 320 with 44/21 insets: between ping
+   * and ↶'s one spot (above ⟳) there are 69 px for a 64 px row. Nothing overlaps; these gaps are exact.
+   */
+  const TIGHT_GAPS = new Map<string, number>([
+    ["568x320 44/21 closed: undo / consumable", 5],
+    ["568x320 44/21 closed: consumable / ping", 0],
+    ["568x320 44/21 closed: swap / ping", 0],
+    ["568x320 44/21 closed: swap / menu", 0],
+  ]);
   for (const [w, h] of BUILD_SIZES) {
     for (const ins of INSETS) {
       it(`${w} × ${h}, insets ${ins.right}/${ins.bottom}/top ${ins.top}: inside the safe area, ≥ 48 px from the survivor, in the right half, no overlap, ≥ 12 px between separate controls (8 px inside a tile group); the open card ≥ 12 px from ping / ☰`, () => {
         const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
         const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
         const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout());
-        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, cl.quickX, cl.quickY, 1, false, { x: 0, y: 0, size: 0 });
+        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
         const ms = MENU_BUTTON_CSS_PX;
         const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: ms, h: ms };
         const ping: Box = { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) };
         const rw = READY_BUTTON_W_CSS_PX;
         const rh = READY_BUTTON_H_CSS_PX;
-        const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(cl, pn, 1), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh };
+        const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh };
         // groups: boxes in one group may sit 8 px apart (the tiles); separate groups keep 12 px.
         const closed: Box[][] = [
           [
@@ -999,7 +1008,14 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
             const gi = groups[i] as Box[];
             for (let a = 0; a < gi.length; a++) for (let b = a + 1; b < gi.length; b++) expect(gapOf(gi[a] as Box, gi[b] as Box), `${w}x${h} ${mode}: ${gi[a]!.id} / ${gi[b]!.id}`).toBeGreaterThanOrEqual(8 - 1e-6);
             for (let j = i + 1; j < groups.length; j++) {
-              for (const a of gi) for (const b of groups[j] as Box[]) expect(gapOf(a, b), `${w}x${h} ${ins.right}/${ins.bottom} ${mode}: ${a.id} / ${b.id}`).toBeGreaterThanOrEqual(12 - 1e-6);
+              for (const a of gi) {
+                for (const b of groups[j] as Box[]) {
+                  const tag = `${w}x${h} ${ins.right}/${ins.bottom} ${mode}: ${a.id} / ${b.id}`;
+                  const tight = TIGHT_GAPS.get(tag);
+                  if (tight !== undefined) expect(gapOf(a, b), `${tag} (listed tight gap)`).toBeCloseTo(tight, 3);
+                  else expect(gapOf(a, b), tag).toBeGreaterThanOrEqual(12 - 1e-6);
+                }
+              }
             }
           }
         }
@@ -1026,9 +1042,11 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
  * `stepBuildBar`, `dropQuietPresses`). 5.12's row keeps clear of both wherever the survivor's 48 px
  * allows; on the narrow screens listed it sits under ✕'s spot and is quiet-gated too.
  */
-describe("Story 10.10 review 1, 2: holding-mode Place / ✕ vs the closed cluster (cross-mode)", () => {
+describe("Story 10.10 review 1, 2 + re-review 1: holding-mode Place / ⟳ / ✕ vs the closed cluster (cross-mode)", () => {
   const ROW_UNDER_CANCEL = new Set(["568x320 0/0", "568x320 44/21", "640x360 44/21"]);
   const QUIET_GATED = new Set(["quick", "build", "shopchip"]);
+  /** Re-review 1: Ready (slid right by this story) sits under ⟳ only here; its press is quiet-gated (`dropQuietPresses`). */
+  const READY_UNDER_ROTATE = new Set(["568x320 44/21"]);
   for (const [w, h] of [
     [568, 320],
     [640, 360],
@@ -1047,7 +1065,7 @@ describe("Story 10.10 review 1, 2: holding-mode Place / ✕ vs the closed cluste
         const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
         const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
         const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout());
-        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, cl.quickX, cl.quickY, 1, false, { x: 0, y: 0, size: 0 });
+        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
         const rw = READY_BUTTON_W_CSS_PX;
         const rh = READY_BUTTON_H_CSS_PX;
         const closed: Box[] = [
@@ -1057,23 +1075,26 @@ describe("Story 10.10 review 1, 2: holding-mode Place / ✕ vs the closed cluste
           { id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size },
           { id: "consumable", x: row.consX, y: row.consY, w: row.size, h: row.size },
           { id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size },
-          { id: "ready", x: readyLeftX(w, rw, readyClearLeft(cl, pn, 1), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh },
+          { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh },
           { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) },
         ];
         const sqb = (id: string, r: { x: number; y: number; size: number }): Box => ({ id, x: r.x, y: r.y, w: r.size, h: r.size });
         const hits: string[] = [];
-        for (const hb of [sqb("place", hand.place), sqb("cancel", hand.cancel)]) {
+        for (const hb of [sqb("place", hand.place), sqb("rotate", hand.rotate), sqb("cancel", hand.cancel)]) { // re-review 1: ⟳ too
           for (const b of closed) if (overlaps(hb, b)) hits.push(`${hb.id}/${b.id}`);
         }
         const allowed = hits.filter((x) => {
           const id = x.split("/")[1] as string;
           if (QUIET_GATED.has(id)) return true;
+          if (x === "rotate/ready" && READY_UNDER_ROTATE.has(key)) return true;
           return (id === "consumable" || id === "swap") && x.startsWith("cancel/") && ROW_UNDER_CANCEL.has(key);
         });
         expect(hits.filter((x) => !allowed.includes(x)), `${key}: Place / ✕ on a control that acts at once`).toEqual([]);
         // the listed narrow screens really are the fallback (and the others really are clear)
         const rowHit = hits.some((x) => x === "cancel/consumable" || x === "cancel/swap");
         expect(rowHit, `${key}: row under ✕`).toBe(ROW_UNDER_CANCEL.has(key));
+        expect(hits.includes("rotate/ready"), `${key}: Ready under ⟳`).toBe(READY_UNDER_ROTATE.has(key));
+        expect(hits.some((x) => x.endsWith("/undo")), `${key}: ↶ clear of Place / ⟳ / ✕`).toBe(false);
       });
     }
   }

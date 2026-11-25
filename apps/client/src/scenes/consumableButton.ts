@@ -1,4 +1,4 @@
-import { BUILD_COUNT_GAP_CSS_PX, BUILD_COUNT_TEXT_CSS_PX, HAND_CANCEL, HAND_PLACE } from "../ui/sizes";
+import { BUILD_COUNT_GAP_CSS_PX, BUILD_COUNT_TEXT_CSS_PX, HAND_CANCEL, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
 /**
  * Story 5.12 (AC 1, 7): the consumable button's rules, pure (unit-tested; the HUD and GameScene only
  * call these).
@@ -122,21 +122,26 @@ export function layoutRightButtons(width: number, height: number, insetRight: nu
 
 /**
  * Story 10.10 (AC 8, review 2): the row (consumable then swap) with the Build cluster up. Where the
- * survivor's 48 px allows (800 × 360 and up), left of the hand cluster's ✕ and above its Place, 12 px
- * clear of both — a stray Place / ✕ tap right after the hold ends can't land on it. Otherwise (narrow
+ * survivor's 48 px allows (800 × 360 and up), left of the hand cluster's ✕ and above its Place and ↶,
+ * 12 px clear of them — a stray Place / ✕ tap right after the hold ends can't land on it. Otherwise (narrow
  * screens) 5.12's own `layoutRightButtons` with the cluster's box: right-aligned, 12 px above the Shop
  * chip, under ✕'s spot — its presses are dropped in 5.18's quiet window then (`dropQuietPresses`).
  */
-export function layoutRowAboveCluster(width: number, height: number, insetRight: number, insetBottom: number, k: number, clusterTop: number, clusterRight: number, out: RightButtonsLayout): RightButtonsLayout {
+export function layoutRowAboveCluster(width: number, height: number, insetRight: number, insetBottom: number, k: number, clusterTop: number, clusterRight: number, out: RightButtonsLayout, insetTop = 0): RightButtonsLayout {
   const size = RIGHT_BUTTON_CSS_PX * k;
   const gap = ABOVE_BAR_GAP_CSS_PX * k;
   out.size = size;
   out.swapX = width - (insetRight + HAND_CANCEL.rightCss + HAND_CANCEL.sizeCss / 2) * k - gap - size;
   out.consX = out.swapX - gap - size;
-  out.consY = out.swapY = height - (insetBottom + HAND_PLACE.bottomCss + HAND_PLACE.sizeCss / 2) * k - gap - size;
+  out.consY = out.swapY = height - (insetBottom + UNDO_HAND.bottomCss + UNDO_CHIP_CSS_PX / 2) * k - gap - size; // 12 px above ↶ (itself above Place)
   if (rectCentreGap(out.consX, out.consY, 2 * size + gap, size, width / 2, height / 2) >= CENTRE_CLEAR_CSS_PX * k) return out;
-  const rowW = (2 * RIGHT_BUTTON_CSS_PX + ABOVE_BAR_GAP_CSS_PX) * k;
-  return layoutRightButtons(width, height, insetRight, insetBottom, k, true, clusterRight - rowW, clusterTop, out, clusterRight);
+  // Narrow screens: right-aligned to the cluster, 12 px above ↶'s line (re-review 1: ↶ sits above ⟳ now), but
+  // never higher than just under ping / ☰ (568 × 320 with 44/21 insets: touching ping's bottom, 5 px from ↶).
+  out.swapX = clusterRight - size;
+  out.consX = out.swapX - gap - size;
+  const pingBottom = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX) * k;
+  out.consY = out.swapY = Math.max(pingBottom, Math.min(clusterTop - gap - size, out.consY));
+  return out;
 }
 
 /** Review L6: the round buttons keep at least this far from the screen centre (the survivor stands there). */

@@ -18,8 +18,6 @@ import {
   READY_SHIFT_LEFT_CSS_PX,
   SHOP_CHIP_CSS_PX,
   SHOP_CHIP_GAP_CSS_PX,
-  UNDO_CHIP_CSS_PX,
-  UNDO_CLUSTER_GAP_CSS_PX,
 } from "../ui/sizes";
 import { CENTRE_CLEAR_CSS_PX } from "./consumableButton";
 
@@ -142,7 +140,8 @@ export function buildPanelSlots(count: number, quick: number, page: number, out:
 }
 
 /**
- * Story 10.10 (BU-5): the quick tile's type — the type I last placed this run (a Place sent), or the
+ * Story 10.10 (BU-5, B9): the quick tile's type — the type of my last confirmed building this run (the
+ * server's `building.placed` for me, never the Place itself), or the
  * first unlocked type in balance order before any placement or when that type is no longer in the
  * list (an unlock mask change). "" when there are no types.
  */
@@ -275,11 +274,11 @@ export function readyLeftX(width: number, readyW: number, gridLeft: number, k: n
 }
 
 /**
- * Story 10.10 (B4, review 1): the left edge Ready keeps 12 px from — the open panel's card or ↶ beside
- * the quick tile, whichever is further left (fixed per layout, so Ready never jumps when either shows).
+ * Story 10.10 (B4): the left edge Ready keeps 12 px from — the open panel's card (fixed per layout, so
+ * Ready never jumps when the panel opens). ↶'s one spot (`layoutUndoChip`) sits above Ready's row.
  */
-export function readyClearLeft(c: Readonly<BuildClusterLayout>, p: Readonly<BuildPanelLayout>, k: number): number {
-  return Math.min(p.cardX, c.quickX - (UNDO_CLUSTER_GAP_CSS_PX + UNDO_CHIP_CSS_PX) * k);
+export function readyClearLeft(p: Readonly<BuildPanelLayout>): number {
+  return p.cardX;
 }
 
 /** Why a tile can't be picked now, or null. The cap first, then money (`placementError`'s order). */
@@ -388,12 +387,13 @@ export function onPanelCard(p: Readonly<BuildPanelLayout>, x: number, y: number)
 
 /**
  * Story 10.10 (review 1, 2): right after a Place or ✕ empties my hands (5.18's `barQuietMs`), the next
- * thumb tap was meant for the hand cluster: ↶, swap, quick-use and Build sit where Place and ✕ were, so
- * their presses are dropped then — like the build tiles' (`stepBuildBar`'s `quiet`) and the Shop chip's.
+ * thumb tap was meant for the hand cluster: swap, quick-use, Build and (re-review 1: 568 × 320 with insets,
+ * under ⟳) Ready sit where Place, ⟳ and ✕ were, so their presses are dropped then — like the build tiles'
+ * (`stepBuildBar`'s `quiet`) and the Shop chip's. ↶ too (belt and braces: its one spot is clear of all three).
  */
-export function dropQuietPresses(m: { undoPressed: boolean; swapPressed: boolean; consumablePressed: boolean; buildPanelPressed: boolean }, quiet: boolean): void {
+export function dropQuietPresses(m: { undoPressed: boolean; swapPressed: boolean; consumablePressed: boolean; buildPanelPressed: boolean; readyPressed: boolean }, quiet: boolean): void {
   if (!quiet) return;
-  m.undoPressed = m.swapPressed = m.consumablePressed = m.buildPanelPressed = false;
+  m.undoPressed = m.swapPressed = m.consumablePressed = m.buildPanelPressed = m.readyPressed = false;
 }
 
 /**

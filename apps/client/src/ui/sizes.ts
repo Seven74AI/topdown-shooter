@@ -79,10 +79,13 @@ export const BUILD_PANEL_TOP_CLEAR_CSS_PX = 12;
 export const READY_BAR_GAP_CSS_PX = 12;
 /** Story 5.20 (ux-spec §4): the undo chip ↶ (48 px round); with the bar up it sits left of Story 5.12's consumable button (`undoChip.ts`). */
 export const UNDO_CHIP_CSS_PX = 48;
-/** Story 10.10 (review 1): with the Build cluster up, ↶ sits this far left of the quick tile (`undoChip.ts`). */
-export const UNDO_CLUSTER_GAP_CSS_PX = 12;
-/** Story 5.20 (ux-spec §4): while holding, ↶ centre from the bottom-right safe-area corner (Ready is hidden then). */
-export const UNDO_HAND = { rightCss: 270, bottomCss: 64 } as const;
+/**
+ * Story 5.20 (ux-spec §4) / 10.10 (re-review 1): ↶'s ONE spot, hands empty or full — its centre from the
+ * bottom-right safe-area corner: 12 px above the hand cluster's ⟳, 10 px left of its Place, clear of ✕,
+ * the quick tile and Ready's row. (5.20 had (270, 64) while holding; in both modes that spot sat on Ready's
+ * row and pushed Ready further into the move-stick half than before Story 10.10.)
+ */
+export const UNDO_HAND = { rightCss: 164, bottomCss: 146 } as const;
 /** Story 5.20: the undo glyph and the ring's stroke (CSS px). */
 export const UNDO_GLYPH_CSS_PX = 26;
 export const UNDO_RING_CSS_PX = 4;

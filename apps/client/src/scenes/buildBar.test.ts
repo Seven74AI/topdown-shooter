@@ -173,7 +173,7 @@ describe("Story 10.10: layoutBuildPanel (BU-4, AC 3, 5)", () => {
 
   it("Ready: 40 px left of centre where it fits, else ≥ 12 px left of the open card (it never jumps when the panel opens)", () => {
     const w = READY_BUTTON_W_CSS_PX;
-    const at = (W: number) => readyLeftX(W, w, readyClearLeft(layoutBuildCluster(W, 320, 0, 0, 1, newBuildClusterLayout()), layoutBuildPanel(W, 320, 0, 0, 1, newBuildPanelLayout()), 1), 1);
+    const at = (W: number) => readyLeftX(W, w, readyClearLeft(layoutBuildPanel(W, 320, 0, 0, 1, newBuildPanelLayout())), 1);
     expect(at(800)).toBe(276);
     expect(at(1024)).toBe(388);
     expect(at(568) + w / 2).toBe(244); // back to 40 px left of centre (5.16's grid pushed it to 208)
@@ -241,12 +241,12 @@ describe("Story 10.10: the quick tile, BU-3 and the panel's open / close rules",
     expect([p.x[7], p.y[7]]).toEqual([c.quickX, c.quickY]);
   });
 
-  it("review 1, 2: in 5.18's quiet window ↶, swap, quick-use and Build presses are dropped; outside it they stay", () => {
-    const m = { undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true };
+  it("review 1, 2 + re-review 1: in 5.18's quiet window ↶, swap, quick-use, Build and Ready presses are dropped; outside it they stay", () => {
+    const m = { undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true, readyPressed: true };
     dropQuietPresses(m, false);
-    expect(m).toEqual({ undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true });
+    expect(m).toEqual({ undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true, readyPressed: true });
     dropQuietPresses(m, true);
-    expect(m).toEqual({ undoPressed: false, swapPressed: false, consumablePressed: false, buildPanelPressed: false });
+    expect(m).toEqual({ undoPressed: false, swapPressed: false, consumablePressed: false, buildPanelPressed: false, readyPressed: false });
   });
 
   it("AC 9: B toggles the panel only while the cluster is up and there is a panel", () => {

@@ -1151,10 +1151,10 @@ export class HudScene extends Phaser.Scene {
     this.layoutUndo(); // Story 5.20: after the build bar and the hand cluster (it sits by both)
   }
 
-  /** Story 5.20 (D4): ↶ above the build bar's top-left (`layoutUndoChip`), the bar's or the hand's spot. */
+  /** Story 5.20 (D4) / 10.10 (re-review 1): ↶ on its one spot (`layoutUndoChip`), hands empty or full. */
   private layoutUndo(): void {
     const k = dpr();
-    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.cluster.quickX, this.cluster.quickY, k, this.model.undoHolding, this.undoRect);
+    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.undoRect);
     const rect = this.buttons.get("undo");
     if (rect) Object.assign(rect, { x: l.x, y: l.y, w: l.size, h: l.size });
     const g = this.undoBg;
@@ -1596,7 +1596,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const w = READY_BUTTON_W_CSS_PX * k;
     const h = READY_BUTTON_H_CSS_PX * k;
-    const x = readyLeftX(this.scale.width, w, readyClearLeft(this.cluster, this.panel, k), k); // Story 10.10 (B4): clear of the open card and ↶ (it never jumps)
+    const x = readyLeftX(this.scale.width, w, readyClearLeft(this.panel), k); // Story 10.10 (B4): clear of the open card (it never jumps; ↶ sits above Ready's row)
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
