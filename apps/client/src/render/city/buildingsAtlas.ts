@@ -1,11 +1,12 @@
 import type * as Phaser from "phaser";
 import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { addGeneratedTexture } from "./canvasTexture";
+import { RebuildPhase, textureRegistry } from "../gfx/textureRegistry";
 import { drawBearTrap, drawInFrame, drawMine, drawSpikeTrap, type Ctx } from "./buildingArt";
 import { CB, FRONT_BASE_Y, SIDE_C, drawCorner, drawFrontIn, drawFrontOut, drawSide, inFrameCentred, type Style } from "./barricadeArt";
 import type { CornerKind } from "../wallCorners";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
-import { crossGreen, lampWhite, ledRed, relight, type Emissive, type Relit } from "./relight";
+import { crossGreen, lampWhite, ledRed, relightSteps, type Emissive, type Relit } from "./relight";
 import type { GlowKind } from "../buildingFx";
 
 /**
@@ -53,7 +54,7 @@ export const FRAME_MED_STATION = frameName("prop", "medstation", "a");
 export const FRAME_BEAR_TRAP_OPEN = frameName("building", "beartrap", "open");
 export const FRAME_BEAR_TRAP_CLOSED = frameName("building", "beartrap", "closed");
 
-interface ArtSpec {
+export interface ArtSpec {
   readonly frame: string;
   readonly wM: number;
   readonly hM: number;
@@ -151,7 +152,11 @@ export function buildingFx(frame: string): BuildingFx | undefined {
 const RELIGHT_SRC_PX_PER_M = 384;
 const RELIGHT_SS = 2;
 const relitCache = new Map<string, Relit>();
-function relitOf(a: ArtSpec, make: (w: number, h: number) => HTMLCanvasElement): Relit {
+/**
+ * One frame's relight, resumable (review M1): draws the source, then advances `relightSteps` a row at a time; each
+ * yield is the work done (source pixels). Caches the result and its animation data when it finishes.
+ */
+function* bakeSteps(a: ArtSpec, make: (w: number, h: number) => HTMLCanvasElement): Generator<number, Relit, void> {
   const hit = relitCache.get(a.frame);
   if (hit) return hit;
   const r = a.relit as NonNullable<ArtSpec["relit"]>;
@@ -164,8 +169,9 @@ function relitOf(a: ArtSpec, make: (w: number, h: number) => HTMLCanvasElement):
   // drawn at the game's 96 px per metre (its 1 px lines keep their weight), rasterised k× finer
   sg.scale(k, k);
   (a.inFrame ?? drawInFrame)(sg, 0, 0, w, h, BUILDINGS_PX_PER_M, (c) => a.draw(c, a.wM, a.hM));
-  const out = relight(src, w, h, (RELIGHT_SS * srcPxPerM) / RELIGHT_SRC_PX_PER_M, { dir: r.dir, seed: r.seed, glints: r.glints, ...(r.emissive ? { emissive: r.emissive } : {}) }, make);
-  src.width = 0; // review M3: the source drawing is done with
+  yield (src.width * src.height) >> 3;
+  const out = yield* relightSteps(src, w, h, (RELIGHT_SS * srcPxPerM) / RELIGHT_SRC_PX_PER_M, { dir: r.dir, seed: r.seed, glints: r.glints, ...(r.emissive ? { emissive: r.emissive } : {}) }, make);
+  src.width = 0; // the source drawing is done with
   src.height = 0;
   relitCache.set(a.frame, out);
   FX.set(a.frame, { glow: r.glow ?? "none", glowFrame: out.bloom ? a.frame : null, glowAt: out.glowAt, spots: out.spots });
@@ -221,8 +227,13 @@ export function standingFrame(type: string, rot: number, variant: number): Stand
  * relit picture a few at a time, frame by frame, refreshing the texture as it goes (usually done within the first
  * second or two of the build phase). A lost graphics context repaints whatever is ready.
  */
-interface Bake {
-  readonly queue: ArtSpec[];
+export interface Bake {
+  queue: ArtSpec[];
+  /** The frame being relit (resumable) and its steps. */
+  job: { readonly a: ArtSpec; readonly steps: Generator<number, Relit, void> } | null;
+  readonly make: (w: number, h: number) => HTMLCanvasElement;
+  /** Work units the last pump call did (tests check the budget holds). */
+  lastUnits: number;
   readonly canvas: HTMLCanvasElement;
   readonly frames: readonly PlacedFrame[];
   tex: Phaser.Textures.CanvasTexture | null;
@@ -232,35 +243,79 @@ interface Bake {
 }
 let bake: Bake | null = null;
 
+/** Review M1: the per-frame budget of the bake, in work units (source pixels) — about 8 ms on a mid phone — and a time guard. */
+export const BAKE_UNITS_PER_FRAME = 20000;
+export const BAKE_MS_PER_FRAME = 6;
+
 /**
- * Relights queued frames until `budgetMs` has passed (at least one per call) and refreshes the textures. Returns true
- * while frames are still waiting. Call it every frame (BuildingView does); `Infinity` finishes the whole set now.
+ * Advances the bake (review M1: resumable, never one whole picture per call): relights row by row until `budgetUnits`
+ * of work or `budgetMs` have passed, writes each finished picture into the atlas (and its glow) and refreshes the
+ * textures. Returns true while frames are still waiting. Call it every frame (BuildingView does); `Infinity` finishes
+ * the whole set now (the gallery). `now` is the clock (tests pass a fake one).
  */
-export function pumpBuildingsAtlas(budgetMs = 6): boolean {
-  const b = bake;
-  if (!b || b.queue.length === 0) return false;
-  const t0 = performance.now();
+export function pumpBake(b: Bake, budgetUnits: number, budgetMs: number, now: () => number = () => performance.now()): boolean {
+  if (!b.job && b.queue.length === 0) return false;
+  const t0 = now();
+  let units = 0;
   let dirty = false;
   let glowDirty = false;
-  do {
-    const a = b.queue.shift() as ArtSpec;
-    const r = relitOf(a, makeCanvas);
-    const f = b.frames.find((x) => x.name === a.frame);
-    if (f) {
-      const g = b.canvas.getContext("2d") as CanvasRenderingContext2D;
-      g.clearRect(f.x, f.y, f.w, f.h);
-      g.drawImage(r.base, f.x, f.y, f.w, f.h);
-      dirty = true;
+  while (b.job || b.queue.length > 0) {
+    if (!b.job) {
+      const a = b.queue.shift() as ArtSpec;
+      b.job = { a, steps: bakeSteps(a, b.make) };
     }
-    const gf = r.bloom ? b.glowFrames.find((x) => x.name === a.frame) : undefined;
-    if (gf && r.bloom) {
-      (b.glowCanvas.getContext("2d") as CanvasRenderingContext2D).drawImage(r.bloom, gf.x, gf.y, gf.w, gf.h);
-      glowDirty = true;
-    }
-  } while (b.queue.length > 0 && performance.now() - t0 < budgetMs);
+    const st = b.job.steps.next();
+    if (st.done) {
+      const a = b.job.a;
+      const r = st.value;
+      b.job = null;
+      const f = b.frames.find((x) => x.name === a.frame);
+      if (f) {
+        const g = b.canvas.getContext("2d") as CanvasRenderingContext2D;
+        g.clearRect(f.x, f.y, f.w, f.h);
+        g.drawImage(r.base, f.x, f.y, f.w, f.h);
+        dirty = true;
+      }
+      const gf = r.bloom ? b.glowFrames.find((x) => x.name === a.frame) : undefined;
+      if (gf && r.bloom) {
+        (b.glowCanvas.getContext("2d") as CanvasRenderingContext2D).drawImage(r.bloom, gf.x, gf.y, gf.w, gf.h);
+        glowDirty = true;
+      }
+    } else units += st.value;
+    if (units >= budgetUnits || now() - t0 >= budgetMs) break;
+  }
+  b.lastUnits = units;
   if (dirty) b.tex?.refresh();
   if (glowDirty) b.glowTex?.refresh();
-  return b.queue.length > 0;
+  return b.job !== null || b.queue.length > 0;
+}
+export function pumpBuildingsAtlas(budgetUnits = BAKE_UNITS_PER_FRAME, budgetMs = BAKE_MS_PER_FRAME): boolean {
+  return bake ? pumpBake(bake, budgetUnits, budgetMs) : false;
+}
+
+/** Every frame drawn with the relit look. */
+export function relitSpecs(): readonly ArtSpec[] {
+  return ART.filter((a) => a.relit !== undefined);
+}
+
+/**
+ * Review M3: Android may empty the relit pictures' canvases in the background (they live in a module cache the atlas
+ * repaints from). On a graphics restore the registry calls this first (cache phase): the cache and the animation data
+ * are dropped and every relit frame is queued again, so the atlas repaint (atlas phase) draws the plain drawings and
+ * the pump relights them anew. Returns how many frames were queued.
+ */
+export function rebakeAfterCacheLoss(b: Bake | null = bake): number {
+  relitCache.clear();
+  FX.clear();
+  if (!b) return 0;
+  b.job = null;
+  b.queue = [...relitSpecs()];
+  return b.queue.length;
+}
+
+/** A bake over `canvas` (the atlas) and `glowCanvas` (tests make one with a node canvas). */
+export function newBake(canvas: HTMLCanvasElement, frames: readonly PlacedFrame[], glowCanvas: HTMLCanvasElement, glowFrames: readonly PlacedFrame[], make: (w: number, h: number) => HTMLCanvasElement, queue: ArtSpec[] = relitSpecs().filter((a) => !relitCache.has(a.frame))): Bake {
+  return { queue, job: null, make, lastUnits: 0, canvas, frames, tex: null, glowCanvas, glowFrames, glowTex: null };
 }
 
 /** Draws every frame into one canvas and registers it (idempotent). */
@@ -320,7 +375,12 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
       for (const f of gl.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
     },
   );
-  bake = { queue: ART.filter((a) => a.relit !== undefined && !relitCache.has(a.frame)), canvas, frames: layout.frames, tex, glowCanvas: gc, glowFrames: gl.frames, glowTex };
+  bake = newBake(canvas, layout.frames, gc, gl.frames, makeCanvas);
+  bake.tex = tex;
+  bake.glowTex = glowTex;
+  textureRegistry.register("atlas_buildings_relit", RebuildPhase.cache, () => {
+    rebakeAfterCacheLoss();
+  });
 }
 
 function drawFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {

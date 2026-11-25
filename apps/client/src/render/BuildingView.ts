@@ -229,6 +229,9 @@ export class BuildingView {
       } else if (glow?.visible) glow.setVisible(false);
       const fw = img.frame.width;
       const fh = img.frame.height;
+      // review L6: the shared glints go to buildings on screen (with a 2 m margin), not to the first in the list
+      const view = this.scene.cameras?.main?.worldView;
+      if (view && (xf.x < view.x - 2 || xf.x > view.right + 2 || xf.y < view.y - 2 || xf.y > view.bottom + 2)) continue;
       for (let k = 0; k < fx.spots.length && g < this.glints.length; k++) {
         const a = glintAlpha(t, k, seed);
         if (a <= 0.01) continue;
@@ -249,6 +252,21 @@ export class BuildingView {
     }
   }
 
+  /** Review L1: a corner piece wears like the more worn of the walls it joins (on a re-lay and on wear alone). */
+  private tintCorners(list: readonly Building[]): void {
+    const n = Math.min(this.cornerList.length, this.corners.length);
+    for (let i = 0; i < n; i++) {
+      const c = this.cornerList[i] as Corner;
+      const x0 = c.x - 0.25 - 1e-6;
+      const x1 = c.x + 0.25 + 1e-6;
+      const y0 = c.y - 0.25 - 1e-6;
+      const y1 = c.y + 0.25 + 1e-6;
+      let wear = 1;
+      for (const b of list) if (isStanding(b.type) && b.minX <= x1 && b.maxX >= x0 && b.minY <= y1 && b.maxY >= y0) wear = Math.min(wear, barFraction(b));
+      (this.corners[i] as Phaser.GameObjects.Image).setTint(barricadeTint(wear));
+    }
+  }
+
   /** Photoreal group 3 step 3: a corner piece in every free square where a front line and a side line meet. */
   private layCorners(list: readonly Building[]): void {
     const found = findCorners(list, isStanding, this.cornerList);
@@ -263,9 +281,8 @@ export class BuildingView {
       }
       n++;
       if (img.frame.name !== st.frame) img.setTexture(st.texture, st.frame);
-      // over both walls it joins, so its stubs cover their ends; worn like the more worn of them (review L4)
-      const wear = Math.min(1, ...list.filter((b) => isStanding(b.type) && Math.abs((b.minY + b.maxY) / 2 - c.sideY) < 1e-6 && b.minX <= c.x && b.maxX >= c.x).map((b) => barFraction(b)));
-      img.setOrigin(st.originX, st.originY).setPosition(c.x, c.y).setDisplaySize(st.wM, st.hM).setDepth(cornerDepth(c.y, c.sideY)).setTint(barricadeTint(wear)).setVisible(true);
+      // over both walls it joins, so its stubs cover their ends (worn like them: `tintCorners`)
+      img.setOrigin(st.originX, st.originY).setPosition(c.x, c.y).setDisplaySize(st.wM, st.hM).setDepth(cornerDepth(c.y, c.sideY)).setVisible(true);
     }
     for (let i = n; i < this.corners.length; i++) {
       const img = this.corners[i] as Phaser.GameObjects.Image;
@@ -391,8 +408,9 @@ export class BuildingView {
         }
       }
     }
+    if (relayout) this.layCorners(list);
+    this.tintCorners(list);
     if (relayout) {
-      this.layCorners(list);
       this.spritesUsed = used;
       for (let i = used; i < this.sprites.length; i++) {
         this.spriteId[i] = -1;

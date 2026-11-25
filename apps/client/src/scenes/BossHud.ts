@@ -76,8 +76,15 @@ export class BossHud {
   draw(m: HudModel, k: number, insets: { top: number; right: number; bottom: number; left: number }, nowMs: number): void {
     const w = this.scene.scale.width;
     const h = this.scene.scale.height;
+    const t = nowMs / 1000;
+    const fl = hudFlicker(t);
+    // The arrival banner's timing (drawn below); on a short screen it takes the bar's place (review M2).
+    if (m.bossState === BOSS_STATE.WARNING) this.bannerUntilMs = nowMs + BANNER_HOLD_MS;
+    const textBanner = m.bannerText !== "" && nowMs - m.bannerAtMs < TEXT_BANNER_MS;
+    const showBanner = nowMs < this.bannerUntilMs && m.bossState !== BOSS_STATE.NONE && !textBanner;
+    const br = layoutBossBanner(w, h, insets.left, insets.top, insets.right, k, hudFrameCssSize("banner"), this.layout);
     // The bar.
-    if (!m.bossVisible) {
+    if (!m.bossVisible || (showBanner && br.overBar)) {
       if (this.bar.visible) {
         this.bar.setVisible(false);
         this.name.setVisible(false);
@@ -112,13 +119,9 @@ export class BossHud {
         this.name.setVisible(true);
       }
     }
-    const t = nowMs / 1000;
-    const fl = hudFlicker(t);
     // The arrival banner, during the warning.
-    if (m.bossState === BOSS_STATE.WARNING) this.bannerUntilMs = nowMs + BANNER_HOLD_MS;
-    const textBanner = m.bannerText !== "" && nowMs - m.bannerAtMs < TEXT_BANNER_MS;
-    if (nowMs < this.bannerUntilMs && m.bossState !== BOSS_STATE.NONE && !textBanner) {
-      const r = layoutBossBanner(w, insets.left, insets.top, insets.right, k, hudFrameCssSize("banner"), this.layout);
+    if (showBanner) {
+      const r = br;
       this.banner
         .setDisplaySize(r.w, r.h)
         .setPosition(r.x + r.w / 2, r.y + r.h / 2)
@@ -142,8 +145,9 @@ export class BossHud {
     const ph = ps.h * PANEL_SCALE * k;
     // step in from the edge toward the centre so the chevrons fit on the boss's side, and keep the panel on screen
     const room = CHEVRON_ROOM_CSS_PX * k;
-    const x = Math.max(pw / 2 + 4 * k, Math.min(w - pw / 2 - 4 * k, mk.x - Math.cos(mk.angle) * (room + pw / 2 - MARKER_MARGIN_CSS_PX * k)));
-    const y = Math.max(ph / 2 + insets.top * k + 4 * k, Math.min(h - ph / 2 - 4 * k, mk.y - Math.sin(mk.angle) * (room + ph / 2 - MARKER_MARGIN_CSS_PX * k)));
+    // review L5: kept inside the safe area (a notched phone in landscape), not just the screen
+    const x = Math.max(pw / 2 + (insets.left + 4) * k, Math.min(w - pw / 2 - (insets.right + 4) * k, mk.x - Math.cos(mk.angle) * (room + pw / 2 - MARKER_MARGIN_CSS_PX * k)));
+    const y = Math.max(ph / 2 + insets.top * k + 4 * k, Math.min(h - ph / 2 - (insets.bottom + 4) * k, mk.y - Math.sin(mk.angle) * (room + ph / 2 - MARKER_MARGIN_CSS_PX * k)));
     this.panel.setDisplaySize(pw, ph).setPosition(x, y).setAlpha(fl).setVisible(true);
     // chevrons marching out of the panel toward the boss
     const ca = Math.cos(mk.angle);

@@ -57,13 +57,33 @@ export const BOSS_BAR_NOTCH = 0.5;
 export const BOSS_BANNER_SCALE = 0.7;
 export const BOSS_BANNER_GAP_CSS_PX = 8;
 
+/** The survivor's clear zone (Epic 6 brief 31): nothing on screen within this many CSS px of the screen centre. */
+export const BOSS_BANNER_CENTRE_CLEAR_CSS_PX = 48;
+
+export interface BossBannerLayout {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** True on short screens: the banner takes the boss bar's place (the bar is hidden while it shows). */
+  overBar: boolean;
+}
+
 /**
  * Where the arrival banner sits: centred, under the boss bar's block (laid out even while the bar is hidden), so
- * the wave line stays readable. `artCss` = the banner plate's art size (CSS px). Pure; in the one HUD layout test.
+ * the wave line stays readable, and always ≥ 48 px clear of the survivor at the screen centre (review M2, brief 31).
+ * On a short screen where it wouldn't fit under the bar, it takes the bar's place instead (the view hides the bar
+ * meanwhile), shrunk if it must be. `artCss` = the banner plate's art size (CSS px). Pure; in the one HUD layout test.
  */
-export function layoutBossBanner(width: number, insetLeft: number, insetTop: number, insetRight: number, k: number, artCss: { w: number; h: number }, bar: BossBarLayout): { x: number; y: number; w: number; h: number } {
+export function layoutBossBanner(width: number, height: number, insetLeft: number, insetTop: number, insetRight: number, k: number, artCss: { w: number; h: number }, bar: BossBarLayout): BossBannerLayout {
   const l = layoutBossBar(width, insetLeft, insetTop, insetRight, k, bar);
-  const bw = artCss.w * BOSS_BANNER_SCALE * k;
-  const bh = artCss.h * BOSS_BANNER_SCALE * k;
-  return { x: width / 2 - bw / 2, y: l.y + l.h + BOSS_BANNER_GAP_CSS_PX * k, w: bw, h: bh };
+  const maxBottom = height / 2 - BOSS_BANNER_CENTRE_CLEAR_CSS_PX * k;
+  let bw = artCss.w * BOSS_BANNER_SCALE * k;
+  let bh = artCss.h * BOSS_BANNER_SCALE * k;
+  const below = l.y + l.h + BOSS_BANNER_GAP_CSS_PX * k;
+  if (below + bh <= maxBottom) return { x: width / 2 - bw / 2, y: below, w: bw, h: bh, overBar: false };
+  const s = Math.max(0.05, Math.min(BOSS_BANNER_SCALE, (maxBottom - l.y) / (artCss.h * k)));
+  bw = artCss.w * s * k;
+  bh = artCss.h * s * k;
+  return { x: width / 2 - bw / 2, y: l.y, w: bw, h: bh, overBar: true };
 }

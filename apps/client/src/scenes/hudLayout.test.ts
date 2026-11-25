@@ -251,11 +251,14 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
         }
       }
       expect(banners).toBe(18);
-      // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar, clear of the whole top band.
-      const arrival: Box = { ...layoutBossBanner(w, INSET.left, INSET.top, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 }), id: "boss_arrival_banner" };
+      // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar (or, on a short screen, in its place
+      // while the bar is hidden), clear of the whole top band, and ≥ 48 px from the survivor (review M2, brief 31).
+      const ab = layoutBossBanner(w, h, INSET.left, INSET.top, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 });
+      const arrival: Box = { x: ab.x, y: ab.y, w: ab.w, h: ab.h, id: "boss_arrival_banner" };
       inSafe(arrival);
-      apart([...top, boss, arrival]);
-      expect(arrival.y + arrival.h, "the arrival banner stays in the upper half").toBeLessThan(h / 2);
+      apart([...top, ...(ab.overBar ? [] : [boss]), arrival]);
+      expect(rectCentreGap(arrival.x, arrival.y, arrival.w, arrival.h, w / 2, h / 2), `${w}x${h}: the arrival banner keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+      expect(ab.w, "still readable: at least 60 % of its art width").toBeGreaterThanOrEqual(hudFrameCssSize("banner").w * 0.6 * K - 1e-6);
     });
   }
 

@@ -37,7 +37,7 @@ export async function collectAssets(): Promise<Asset[]> {
         try {
           ensureAtlases(this);
           ensureBuildingsAtlas(this);
-          pumpBuildingsAtlas(Infinity); // the relit pictures, all of them, before the frames are cut
+          pumpBuildingsAtlas(Infinity, Infinity); // the relit pictures, all of them, before the frames are cut
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);
           ensureBossTextures(this);

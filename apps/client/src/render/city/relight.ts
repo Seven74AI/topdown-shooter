@@ -1,50 +1,4 @@
-import { fbm as fbmSlow, hash2 } from "./groundDamageArt";
-
-/**
- * Fast fractal noise: the same fbm, precomputed once into tileable tables (3 octave counts) and sampled bilinearly.
- * A per-pixel fbm call made the atlas take over a second at load; a table lookup is several times cheaper. The tile
- * (256 cells) is far larger than any feature it textures, so its repeat never shows. `seed` picks an offset.
- */
-const NT = 256;
-const tables = new Map<number, Float32Array>();
-function table(oct: number): Float32Array {
-  let t = tables.get(oct);
-  if (t) return t;
-  t = new Float32Array(NT * NT);
-  // periodic: blend the four wrapped copies so the tile's edges meet
-  for (let y = 0; y < NT; y++) {
-    for (let x = 0; x < NT; x++) {
-      const fx = x / NT;
-      const fy = y / NT;
-      const a = fbmSlow(x / 8, y / 8, 101, oct);
-      const b = fbmSlow((x - NT) / 8, y / 8, 101, oct);
-      const c = fbmSlow(x / 8, (y - NT) / 8, 101, oct);
-      const d = fbmSlow((x - NT) / 8, (y - NT) / 8, 101, oct);
-      t[y * NT + x] = (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
-    }
-  }
-  tables.set(oct, t);
-  return t;
-}
-function fbm(x: number, y: number, seed: number, oct = 5): number {
-  const t = table(oct >= 3 ? 3 : 2);
-  // fbmSlow's lattice is 1 unit; the table's is 8 cells per unit
-  const px = x * 8 + ((seed * 37) & 255);
-  const py = y * 8 + ((seed * 91) & 255);
-  const xi = Math.floor(px);
-  const yi = Math.floor(py);
-  const fx = px - xi;
-  const fy = py - yi;
-  const x0 = xi & (NT - 1);
-  const y0 = yi & (NT - 1);
-  const x1 = (x0 + 1) & (NT - 1);
-  const y1 = (y0 + 1) & (NT - 1);
-  const a = t[y0 * NT + x0] as number;
-  const b = t[y0 * NT + x1] as number;
-  const c = t[y1 * NT + x0] as number;
-  const d = t[y1 * NT + x1] as number;
-  return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
-}
+import { fbm, hash2 } from "./groundDamageArt";
 
 /**
  * Photoreal group 3 (designer 2026-11-25, `docs/art/photoreal-decisions.md`): the approved "relit" look of the things
@@ -53,6 +7,10 @@ function fbm(x: number, y: number, seed: number, oct = 5): number {
  * rough rust, woven cloth; gloss on steel. Pixels the item marks as glowing (lamps, the med cross, an LED) keep their
  * colour and also go to a separate glow layer (with a bloom), so the view can pulse them. The brightest steel
  * highlights become glint spots. Pure canvas work (no Phaser); `make` makes a canvas (a node canvas in tests).
+ *
+ * Review M1 (2026-11-25): resumable. `relightSteps` is a generator that yields after every row of every pass (its
+ * value: the work done, in source pixels), so the atlas bake can spread one picture over many frames within a
+ * per-frame budget; `relight` runs it to the end in one go.
  */
 
 export type MakeCanvas = (w: number, h: number) => HTMLCanvasElement;
@@ -110,7 +68,16 @@ export const amberLamp: Emissive = (r, g, b) => {
   return h > 25 && h < 55 && satOf(r, g, b) > 0.55 && r > 200;
 };
 
+/** `boxBlurSteps` in one go. */
 export function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Array {
+  const g = boxBlurSteps(src, w, h, r);
+  let s = g.next();
+  while (!s.done) s = g.next();
+  return s.value;
+}
+
+/** A two-pass box blur, yielding after each row (horizontal) and each column (vertical): `w` / `h` units. */
+export function* boxBlurSteps(src: Float32Array, w: number, h: number, r: number): Generator<number, Float32Array, void> {
   const a = src.slice();
   const t = new Float32Array(w * h);
   const rr = Math.max(1, Math.round(r));
@@ -122,6 +89,7 @@ export function boxBlur(src: Float32Array, w: number, h: number, r: number): Flo
         t[y * w + x] = acc / (2 * rr + 1);
         acc += (a[y * w + Math.min(w - 1, x + rr + 1)] as number) - (a[y * w + Math.max(0, x - rr)] as number);
       }
+      yield w;
     }
     for (let x = 0; x < w; x++) {
       let acc = 0;
@@ -130,6 +98,7 @@ export function boxBlur(src: Float32Array, w: number, h: number, r: number): Flo
         a[y * w + x] = acc / (2 * rr + 1);
         acc += (t[Math.min(h - 1, y + rr + 1) * w + x] as number) - (t[Math.max(0, y - rr) * w + x] as number);
       }
+      yield h;
     }
   }
   return a;
@@ -140,11 +109,20 @@ export function boxBlur(src: Float32Array, w: number, h: number, r: number): Flo
  * in source px: 2 for a source at 384 px per metre, as on the approved proposal page.
  */
 export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number, opt: RelightOpts, make: MakeCanvas): Relit {
+  const g = relightSteps(src, w, h, ss, opt, make);
+  let s = g.next();
+  while (!s.done) s = g.next();
+  return s.value;
+}
+
+/** `relight`, resumable: yields the work done (source pixels) after every row of every pass; returns the result. */
+export function* relightSteps(src: HTMLCanvasElement, w: number, h: number, ss: number, opt: RelightOpts, make: MakeCanvas): Generator<number, Relit, void> {
   const W = src.width;
   const H = src.height;
   const k = W / w; // source px per output px
   const sg = src.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
   const d = sg.getImageData(0, 0, W, H).data;
+  yield (W * H) >> 3;
   const n = W * H;
   const A = new Float32Array(n);
   const lum = new Float32Array(n);
@@ -169,6 +147,7 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
       ey += (i / W) | 0;
       ec++;
     }
+    if ((i + 1) % W === 0) yield W;
   }
   // creases: dark lines and sharp colour edges
   const E = new Float32Array(n);
@@ -188,12 +167,13 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
       edge /= 255;
       E[i] = Math.min(1, Math.max((lum[i] as number) < 0.08 ? 1 : 0, edge > 0.2 ? edge * 1.2 : 0));
     }
+    yield W;
   }
   const cut = new Float32Array(n);
   for (let i = 0; i < n; i++) cut[i] = (A[i] as number) * (1 - (E[i] as number));
-  const b1 = boxBlur(cut, W, H, 1.2 * ss);
-  const b2 = boxBlur(cut, W, H, 3 * ss);
-  const b3 = boxBlur(cut, W, H, 7 * ss);
+  const b1 = yield* boxBlurSteps(cut, W, H, 1.2 * ss);
+  const b2 = yield* boxBlurSteps(cut, W, H, 3 * ss);
+  const b3 = yield* boxBlurSteps(cut, W, H, 7 * ss);
   // material per pixel: 0 other, 1 wood, 2 steel, 3 rust, 4 cloth
   const mat = new Uint8Array(n);
   const Hf = new Float32Array(n);
@@ -221,6 +201,7 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
     else if (m === 4) tex = Math.sin((x * 1.5) / ss) * Math.sin((y * 1.5) / ss) * 0.01 + (fbm(x / (4 * ss), y / (4 * ss), seed + 5, 3) - 0.5) * 0.05;
     else tex = (fbm(x / (2 * ss), y / (2 * ss), seed + 6, 2) - 0.5) * 0.02;
     Hf[i] = ((b1[i] as number) * 0.3 + (b2[i] as number) * 0.35 + (b3[i] as number) * 0.35) * (A[i] as number) + tex * (A[i] as number) - (E[i] as number) * 0.08;
+    if ((i + 1) % W === 0) yield W;
   }
   const base = sg.createImageData(W, H);
   const glow = sg.createImageData(W, H);
@@ -276,6 +257,7 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
       }
       if (m === 2 && glossK > 0.4 && solid > 0.9 && sp > 0.35 && (x + y * 7) % 3 === 0) cand.push([x, y, sp]);
     }
+    yield W;
   }
   cand.sort((p, q) => q[2] - p[2]);
   const spots: [number, number][] = [];
@@ -307,14 +289,17 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
   let bloom: HTMLCanvasElement | null = null;
   if (ec > 0) {
     bloom = shrink(glow, opt.bloomPx ?? 4);
+    yield (W * H) >> 3;
     const bg = bloom.getContext("2d") as CanvasRenderingContext2D;
     bg.filter = "none";
     bg.drawImage(shrink(glow, 0, false), 0, 0); // the glowing pixels themselves, crisp, under their halo
+    yield (W * H) >> 3;
     bg.globalCompositeOperation = "destination-out";
     bg.globalAlpha = 0.85;
     bg.drawImage(shrink(occ, 0, false), 0, 0);
   }
   const gr = ec ? Math.sqrt(ec / Math.PI) / k : 0;
+  yield (W * H) >> 3;
   const baseOut = shrink(base);
   release();
   return { base: baseOut, bloom, glowAt: [ex / Math.max(1, ec) / k, ey / Math.max(1, ec) / k, gr], spots };
