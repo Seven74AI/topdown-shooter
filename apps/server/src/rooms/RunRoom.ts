@@ -1694,7 +1694,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (alive > this.peakZombiesAlive) this.peakZombiesAlive = alive;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
-      if (e.type === "wave.started") this.startWaveStats();
+      if (e.type === "wave.started") {
+        this.startWaveStats();
+        this.syncJoinPending(); // re-review nit: a still-loading join's hold never carries into the wave
+      }
       else if (e.type === "loot.dropped") lastLootVariant = e.variant; // Story 7.12 (review M6): only a bag players saw
       else if (e.type === "loot.found") {
         // Story 8.3 review H1: the bank credits the finding SEAT (a removed finder's id may be reused later).

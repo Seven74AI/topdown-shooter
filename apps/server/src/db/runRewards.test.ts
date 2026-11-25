@@ -116,6 +116,26 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     expect(up.breakdown).toMatchObject({ loot: { key: "hat_a" } });
   });
 
+  it("re-review L3: the play after the rejoin is counted once, and the part before it is never counted twice", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    const repo = progressRepo(database);
+    const seen: unknown[] = [];
+    const meta = (kills: number, revives: number) => ({
+      statsDelta: { revives, kills, barricades: 0, runs: 1 },
+      grant(statsAfter: unknown) {
+        seen.push(statsAfter);
+        return { cosmetics: [], districts: [], breakdown: {} };
+      },
+    });
+    await repo.addSupplies(RUN_A, acct.id, pays(60), meta(5, 1)); // the Leave: 5 kills, 1 revive so far
+    await repo.addSupplies(RUN_A, acct.id, pays(200), meta(8, 1), true); // back; 3 more kills, no more revives
+    expect((await repo.get(acct.id))?.stats).toMatchObject({ kills: 8, revives: 1, runs: 1 });
+    expect(seen[1]).toMatchObject({ kills: 8, revives: 1, runs: 1 }); // the milestones see the run's whole play, once
+    await repo.addSupplies(RUN_A, acct.id, pays(200), meta(8, 1), true); // a repeat of the same top-up adds nothing
+    expect((await repo.get(acct.id))?.stats).toMatchObject({ kills: 8, revives: 1, runs: 1 });
+  });
+
   it("review M1: the top-up's rookie rule sees the lifetime BEFORE this run; with no Supplies difference new items are still granted", async () => {
     const database = fresh();
     const acct = await account(database);

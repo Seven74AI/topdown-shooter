@@ -366,3 +366,17 @@ describe("Story 8.2 review L3: a build-phase join still loading holds the all-Re
     await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
   });
 });
+
+describe("PR #9 re-review nit: run.joinPending never carries into a wave", () => {
+  it("the build timer runs out while a join still loads → the wave starts and joinPending is false", async () => {
+    const { room } = await runOf(1);
+    const w = world(room);
+    vi.spyOn(room as unknown as { loadLateInit(m: unknown): Promise<void> }, "loadLateInit").mockImplementation(() => new Promise(() => {}));
+    await late(room, "Bo");
+    await vi.waitFor(() => expect(w.run.joinPending).toBe(true));
+    w.waves.paused = false;
+    w.run.buildTicksLeft = 3;
+    await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
+    await vi.waitFor(() => expect(w.run.joinPending).toBe(false));
+  });
+});

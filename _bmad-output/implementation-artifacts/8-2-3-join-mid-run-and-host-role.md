@@ -275,7 +275,15 @@ Review-fix gate 2026-11-25 (new process, PR #10): head `f5f45977` (master `9bbc6
 - Test leak (pre-existing, found by H1's test): `RunRoom.rewards.test.ts` "database down" restored the room accounts without `checkTicketRows: false`, so later ticketed joins lost their account.
 - Mutations of the fixes: H1, H2 (×2), M1, H3, M2, M5, L1, L3, L5: each fails its test.
 
+### Re-review round 1 fixes (PR #9 at 0f2aa1a: 1 M + 2 L + 1 nit)
+
+- **M (H1 on every bank path):** the finder check moved into `RunBank.bank()` (`isFinder`): a seat whose player id is the finder's but whose seat is not gets facts naming nobody — on a Leave, a remove and the run end; `bankRunEnd`'s own loop is gone. Test: `meta/bankingSeats.test.ts` > "M: Di (p3#4) found the bag and was removed; Eve (p3#6) reuses p3 and banks on her Leave → no loot line, one item in all" (+ "the run end: …"); mutated (no filter in `bank`) → both fail.
+- **L2:** with no finder seat noted, the finder is matched by player id (never nulled). Test: `bankingSeats.test.ts` > "L2: …"; mutated → fails.
+- **L3:** the bank stores its `statsDelta` in the run's row; a top-up writes and grants only `full − earlier` (per field, ≥ 0; a row without one adds nothing). Test: `db/runRewards.test.ts` > "re-review L3: the play after the rejoin is counted once, and the part before it is never counted twice"; mutated (no subtraction) → L3 and H2 tests fail.
+- **nit:** `syncJoinPending` on `wave.started`. Test: `RunRoom.latejoin.test.ts` > "the build timer runs out while a join still loads → the wave starts and joinPending is false"; mutated → fails.
+
 ### Change Log
 
+- 2026-11-25: PR #9 re-review round 1 fixes (M, L2, L3, nit).
 - 2026-11-25: PR #9 review fixes (H1–H3, M1–M5, L1–L6, nits; decisions 8.3-B14, 8.2-B15, 8.2-B16).
 - 2026-11-25: Story 8.2+8.3 built (join mid-run, waiting, late money, +15 s, host move, Remove, bans, disown, top-up, client UI, bots, smoke) + Spitter deadlock fix A; designer accepted all 33 Epic 8 decisions; builder decisions 8.2-B1…8.3-B13 auto-accepted overnight. Status → review.

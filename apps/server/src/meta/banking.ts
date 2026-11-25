@@ -233,8 +233,21 @@ export class RunBank {
     this.deps.deliver(seatId, m);
   }
 
+  /**
+   * Re-review M / L2 (8.3 H1): is this seat the one that found the bag? The room notes the finding SEAT
+   * (`noteLootFinder`); without a note (tests, an older room) the finder is matched by player id, as in 7.12.
+   */
+  private isFinder(seat: BankSeat): boolean {
+    const by = seat.meta?.facts.lootFoundBy ?? null;
+    if (by === null || by !== seat.playerId) return false;
+    return this.lootFinder === null || seatKeyOf(seat) === this.lootFinder;
+  }
+
   /** Banks one seat (once per run; a repeat delivers the first result again). Never rejects. */
-  bank(seat: BankSeat): Promise<RunRewards> {
+  bank(seatIn: BankSeat): Promise<RunRewards> {
+    // Re-review M (8.3 H1): EVERY bank path (a Leave, a remove, the run end) — a new occupant of a removed finder's player
+    // id is not the finder: its facts name nobody.
+    const seat = seatIn.meta && seatIn.meta.facts.lootFoundBy === seatIn.playerId && !this.isFinder(seatIn) ? { ...seatIn, meta: { ...seatIn.meta, facts: { ...seatIn.meta.facts, lootFoundBy: null } } } : seatIn;
     const key = seatKeyOf(seat);
     const earlier = this.banks.get(key);
     if (earlier) {
@@ -277,15 +290,11 @@ export class RunBank {
     }
     // 7.12 D1: the finder banks first (or banked when it left), so every teammate's Results names the item.
     const finder = facts.lootFoundBy;
-    // Review H1 (8.3): the finder is a SEAT. A new occupant of a removed finder's player id is not the finder: its facts
-    // name nobody, and the teammates' line comes from the finder's own (earlier) bank.
-    const finderKey = finder === null ? null : (this.lootFinder ?? finder);
-    for (let i = 0; i < seats.length; i++) {
-      const x = seats[i] as BankSeat;
-      if (finder !== null && x.playerId === finder && seatKeyOf(x) !== finderKey && x.meta) seats[i] = { ...x, meta: { ...x.meta, facts: { ...x.meta.facts, lootFoundBy: null } } };
-    }
-    const finderSeat = finderKey === null ? undefined : seats.find((x) => seatKeyOf(x) === finderKey);
-    const first: Promise<RunRewards | undefined> = finderSeat ? this.bank(finderSeat) : (finderKey === null ? undefined : this.banks.get(finderKey)) ?? Promise.resolve(undefined); // review M1: await a bank still in flight
+    // Review H1 (8.3): the finder is a SEAT (`isFinder`; `bank` nulls the facts of a reused id). The teammates' line comes
+    // from the finder's own bank — here, or earlier (a Leave / a remove) under its seat key (or its player id unnoted).
+    const finderSeat = finder === null ? undefined : seats.find((x) => this.isFinder(x));
+    const earlierKey = finder === null ? null : (this.lootFinder ?? finder);
+    const first: Promise<RunRewards | undefined> = finderSeat ? this.bank(finderSeat) : (earlierKey === null ? undefined : this.banks.get(earlierKey)) ?? Promise.resolve(undefined); // review M1: await a bank still in flight
     const all: Promise<RunRewards>[] = seats.map((seat) =>
       seat === finderSeat
         ? (first as Promise<RunRewards>)
@@ -359,8 +368,8 @@ export class RunBank {
       }
     }
     // B33 (designer override 2026-11-25): a find whose bank failed is lost; one greppable line per failed find (no params).
-    if (seat.meta && seat.meta.facts.lootFoundBy === seat.playerId) {
-      this.deps.log.error({ playerId: seat.playerId, accountId, runId: this.runId, wave: seat.meta.facts.lootWave, err: lastErr }, "loot_bank_failed");
+    if (this.isFinder(seat)) {
+      this.deps.log.error({ playerId: seat.playerId, accountId, runId: this.runId, wave: seat.meta?.facts.lootWave, err: lastErr }, "loot_bank_failed");
     }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
     return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
