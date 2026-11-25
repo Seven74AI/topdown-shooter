@@ -187,7 +187,8 @@ export class RunBank {
         const r = await repo.addSupplies(this.runId, accountId, pay);
         const b = storedBreakdown(r.breakdown, r.supplies);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
-        return message(this.runId, this.seed, "saved", b, r.newTotal);
+        const m = message(this.runId, this.seed, "saved", b, r.newTotal);
+        return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
         // Review M1: a failed bank never commits later (progressRepo bounds it inside PostgreSQL); still, a hand grant

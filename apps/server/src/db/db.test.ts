@@ -31,10 +31,10 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 
 describe("migrations (Story 7.1 AC 2)", () => {
-  it("the committed SQL creates exactly three tables: accounts and progress (7.1), run_rewards (7.2)", () => {
+  it("the committed SQL creates exactly four tables: accounts and progress (7.1), run_rewards (7.2), device_tokens (7.6)", () => {
     const files = readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql"));
     const creates = files.flatMap((f) => [...readFileSync(join(MIGRATIONS_FOLDER, f), "utf8").matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1]));
-    expect(creates.sort()).toEqual(["accounts", "progress", "run_rewards"]);
+    expect(creates.sort()).toEqual(["accounts", "device_tokens", "progress", "run_rewards"]);
   });
 
   it("applies once, and a second run is a no-op (same tables, one recorded migration, rows kept)", async () => {
@@ -43,7 +43,7 @@ describe("migrations (Story 7.1 AC 2)", () => {
     await accountsRepo(database).createGuest(HASH_A, "Ana");
     await migrateDb({ kind: "pglite", db });
     const tables = await rows<{ table_name: string }>(db, sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`);
-    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "progress", "run_rewards"]);
+    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "device_tokens", "progress", "run_rewards"]);
     const applied = await rows<{ n: number }>(db, sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
     expect(applied[0]?.n).toBe(readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql")).length);
     const accounts = await rows<{ n: number }>(db, sql`select count(*)::int as n from accounts`);

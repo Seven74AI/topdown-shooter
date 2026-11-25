@@ -168,5 +168,12 @@
     "auto_turret": "Shoots the nearest zombie on its own",
     "medkit": "Heals 50 HP",
     "grenades": "Throw a blast at a crowd"
+  },
+  "training": {
+    "maxLevel": 5,
+    "costPerLevel": 50
+  },
+  "account": {
+    "saveNudgeSupplies": 200
   }
 }

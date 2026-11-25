@@ -481,6 +481,8 @@ export const runRewardsSchema = z
     ending: z.enum(["wiped", "extracted", "lost", "quit"]).optional(),
     /** Review L4: the wave a `quit` bank was made in (0 / absent otherwise). */
     leftWave: z.number().int().min(0).max(0xffff).optional(),
+    /** Story 7.6 (AC 10, D9): a guest's first bank of ≥ 200 Supplies: show "Save my progress" once (true only once per account). */
+    nudge: z.boolean().optional(),
   })
   .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
 export type RunRewards = z.infer<typeof runRewardsSchema>;

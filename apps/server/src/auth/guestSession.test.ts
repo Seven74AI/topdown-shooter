@@ -31,6 +31,8 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
         throw new Error("db down");
       },
       setDisplayName: async () => {},
+    findByUsernameLower: async () => null,
+    setCredentials: async () => "not_guest" as const,
     };
     const { response } = await resolveGuestSession({ cookieToken: undefined, deviceToken: undefined, ip: "1.2.3.4" }, { accounts: repo, ...limits(), sessionSecret: SECRET });
     expect(response.saved).toBe(false);
@@ -39,7 +41,7 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
 
   it("ignores malformed cookie values (a stale or hand-edited cookie never reaches the database)", async () => {
     const find = vi.fn(async () => null);
-    const repo: AccountsRepo = { findByTokenHash: find, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {} };
+    const repo: AccountsRepo = { findByTokenHash: find, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {}, findByUsernameLower: async () => null, setCredentials: async () => "not_guest" as const };
     const { response } = await resolveGuestSession({ cookieToken: "not-a-token", deviceToken: TOKEN, ip: "1.2.3.4" }, { accounts: repo, ...limits(), sessionSecret: SECRET });
     expect(find).toHaveBeenCalledTimes(1);
     expect(response.deviceToken).toBe(TOKEN);
@@ -62,6 +64,8 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
         return slow({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null });
       },
       setDisplayName: async () => {},
+    findByUsernameLower: async () => null,
+    setCredentials: async () => "not_guest" as const,
     };
     const t0 = Date.now();
     const { response } = await resolveGuestSession(
@@ -83,6 +87,8 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
         return new Promise((r) => setTimeout(() => r({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), 150));
       },
       setDisplayName: async () => {},
+    findByUsernameLower: async () => null,
+    setCredentials: async () => "not_guest" as const,
     };
     const { response } = await resolveGuestSession({ cookieToken: null, deviceToken: undefined, ip: "1.2.3.4" }, { accounts: repo, ...limits(), sessionSecret: SECRET, deadlineMs: 50 });
     expect(response.saved).toBe(false);
@@ -99,7 +105,7 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
 
   it("review L4: over 30 calls a minute from one IP → unsaved with no database work, one warning per window", async () => {
     const find = vi.fn(async () => null);
-    const repo: AccountsRepo = { findByTokenHash: find, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {} };
+    const repo: AccountsRepo = { findByTokenHash: find, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {}, findByUsernameLower: async () => null, setCredentials: async () => "not_guest" as const };
     const deps = { accounts: repo, ...limits(), newGuestLimiter: new SlidingWindowLimiter(1000, 3_600_000), sessionSecret: SECRET };
     const warn = vi.spyOn(log, "warn");
     for (let i = 0; i < 30; i++) expect((await resolveGuestSession({ cookieToken: null, deviceToken: TOKEN, ip: "9.9.9.9" }, deps)).response.saved).toBe(true);
@@ -115,7 +121,7 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
   });
 
   it("review L4: new_guest_rate_limited is logged once per IP per window", async () => {
-    const repo: AccountsRepo = { findByTokenHash: async () => null, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {} };
+    const repo: AccountsRepo = { findByTokenHash: async () => null, createGuest: async () => ({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), setDisplayName: async () => {}, findByUsernameLower: async () => null, setCredentials: async () => "not_guest" as const };
     const deps = { accounts: repo, ...limits(), newGuestLimiter: new SlidingWindowLimiter(1, 3_600_000), sessionSecret: SECRET };
     const warn = vi.spyOn(log, "warn");
     for (let i = 0; i < 6; i++) await resolveGuestSession({ cookieToken: null, deviceToken: undefined, ip: "8.8.8.8" }, deps);

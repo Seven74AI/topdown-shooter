@@ -9,6 +9,11 @@ import {
   MAX_UNLOCKS_PER_ACCOUNT_PER_MIN,
   MAX_UNLOCK_CALLS_PER_IP_PER_MIN,
   UNLOCK_WINDOW_MS,
+  LOGIN_WINDOW_MS,
+  MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN,
+  MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN,
+  MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN,
+  MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN,
 } from "./limits";
 
 /**
@@ -129,3 +134,11 @@ export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACC
 
 /** Story 7.1 review L4: a rate-limit warning is logged at most once per IP and kind per minute (a flood can't push real logs out). */
 export const rateLimitLogGate = new SlidingWindowLimiter(1, ACCOUNT_SESSION_WINDOW_MS, Date.now, (key) => key);
+
+/** Story 7.6 (AC 8, A3): ONE limiter shared by `/account/login` and `/account/recover`, every attempt counted. */
+export const loginIpLimiter = new SlidingWindowLimiter(MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+/** Story 7.6 (brief 19, B3): the same attempts per lower-cased username (any address). */
+export const loginNameLimiter = new SlidingWindowLimiter(MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN, LOGIN_WINDOW_MS, Date.now, (key) => key);
+/** Story 7.6: upgrade / logout per IP (before any work) and per account. */
+export const accountActionIpLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+export const accountActionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN, LOGIN_WINDOW_MS, Date.now, (key) => key);

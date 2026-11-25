@@ -4,22 +4,41 @@
  * and committed under `apps/server/drizzle/`; never edit a committed migration, add a new one.
  */
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
- * One row per player. A guest account has only `guest_token_hash` (SHA-256 hex of the 128-bit device token; the raw
- * token is never stored); 7.6 fills `username`, `password_hash` (argon2id) and `recovery_code_hash`.
- * No email, no IP (privacy, brief 28).
+ * One row per player. A guest account has no `username`; Story 7.6 fills `username` (as typed), `username_lower` (the
+ * unique, case-blind key), `password_hash` and `recovery_code_hash` (both argon2id; never the clear text). The devices
+ * that are this account live in `device_tokens` (7.6 moved `guest_token_hash` there: one account, several phones).
+ * `merged_into`: a guest whose progress was merged into this account at a login (D11; the guest is retired, its
+ * `run_rewards` rows stay as history and a late bank of it pays the account). No email, no IP (privacy, brief 28).
  */
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   username: text("username").unique(),
+  usernameLower: text("username_lower").unique(),
   passwordHash: text("password_hash"),
   recoveryCodeHash: text("recovery_code_hash"),
-  guestTokenHash: text("guest_token_hash").notNull().unique(),
   displayName: text("display_name").notNull().default(""),
+  mergedInto: uuid("merged_into").references((): AnyPgColumn => accounts.id),
+  /** Story 7.6 (AC 10, D9): the one-time Results "Save my progress" line was sent. */
+  saveNudged: boolean("save_nudged").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Story 7.6 (AC 1): one row per device: the SHA-256 hex of its 128-bit guest token (never the token) → the account it
+ * plays as. A login re-points the device (with a fresh token: decision 7.6 B1); a logout deletes the row and makes a
+ * new guest. 7.1's lookups read this table.
+ */
+export const deviceTokens = pgTable("device_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("device_tokens_account_idx").on(t.accountId)]);
 
 /**
  * One row per account. `unlocks` holds only BOUGHT unlock ids (decision 7.1 D4: the starter pool is data in
@@ -61,3 +80,4 @@ export const runRewards = pgTable("run_rewards", {
 
 export type AccountRow = typeof accounts.$inferSelect;
 export type ProgressRow = typeof progress.$inferSelect;
+export type DeviceTokenRow = typeof deviceTokens.$inferSelect;

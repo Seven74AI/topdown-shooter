@@ -1,3 +1,4 @@
+import { registerRoomDevices } from "../auth/devicesInRooms";
 import { randomBytes } from "node:crypto";
 import {
   CloseCode,
@@ -238,6 +239,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   );
   /** sessionId → server-only member record, in join order (Story 2.3). */
   readonly members = new Map<string, Member>();
+  /** Story 7.6: removes this room from `auth/devicesInRooms` (set in onCreate). */
+  private unregisterDevices: (() => void) | null = null;
   /** Increments on every join; the lowest `joinOrder` is the longest-connected member. */
   private joinCounter = 0;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
@@ -338,6 +341,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.allowSoloStart = options.allowSoloStart === true;
     const code = uniqueRoomCode((c) => reservedCodes.has(c) || matchMaker.getLocalRoomById(c) !== undefined);
     reservedCodes.add(code);
+    // Story 7.6 (AC 9): account switches are refused while a device is a member here (connected or held).
+    this.unregisterDevices = registerRoomDevices(() => Array.from(this.members.values(), (m) => m.guestTokenHash));
     this.roomId = code;
     this.log = roomLog(code);
     this.takeScenario(options as { scenario?: unknown; allowTestScenarios?: unknown });
@@ -1433,6 +1438,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   override onDispose(): void {
+    this.unregisterDevices?.();
     this.clearHolds();
     reservedCodes.delete(this.roomId);
     this.controller = null;

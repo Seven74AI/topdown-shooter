@@ -60,7 +60,7 @@ export {
   type SurvivorLook,
 } from "./config/cosmetics";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
-export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Unlock, type UnlockCategory } from "./config/progression";
+export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, findUnlock, loadProgression, trainingSpent, progressionSchema, starterPool, unlockList, type Progression, type Unlock, type UnlockCategory } from "./config/progression";
 // Story 7.3: the pool, the unlock mask (7.4) and the "Good next pick".
 export { goodNextPick, itemCategories, ownedPerCategory, poolOf, unlockMask } from "./meta/pool";
 // Story 7.2: the Supplies a run pays and the run record they come from.
@@ -383,6 +383,36 @@ export {
   sessionTicketSchema,
   unlockRequestSchema,
   unlockResponseSchema,
+  // Story 7.6: upgrade, log in, forgot password, log out
+  ACCOUNT_UPGRADE_PATH,
+  ACCOUNT_LOGIN_PATH,
+  ACCOUNT_RECOVER_PATH,
+  ACCOUNT_LOGOUT_PATH,
+  ACCOUNT_ERRORS,
+  USERNAME_RE,
+  PASSWORD_MIN,
+  PASSWORD_MAX,
+  RECOVERY_ALPHABET,
+  RECOVERY_CODE_LENGTH,
+  usernameSchema,
+  passwordSchema,
+  normaliseRecoveryCode,
+  formatRecoveryCode,
+  isCompleteRecoveryCode,
+  upgradeRequestSchema,
+  loginRequestSchema,
+  recoverRequestSchema,
+  logoutRequestSchema,
+  upgradeResponseSchema,
+  deviceSessionResponseSchema,
+  recoverResponseSchema,
+  type AccountErrorCode,
+  type UpgradeRequest,
+  type LoginRequest,
+  type RecoverRequest,
+  type UpgradeResponse,
+  type DeviceSessionResponse,
+  type RecoverResponse,
   type AccountSessionRequest,
   type AccountSessionResponse,
   type ProgressView,
