@@ -399,3 +399,7 @@ Changes M1's fallback; listed separately from the round 1 fixes.
 | L2 | `restoreRemembered` reloads the seat's progress (`loadMemberProgress(member, undefined, false)`): its districts count again at `lobby.return` | `RunRoom.districts.test.ts › review round 2 L2` (leave mid-run, rejoin, lobby.return → no reset, District 2 still open) |
 | L3 | B31 amended (**designer, 2026-11-25**): a revive counts only of a down with no player source (`downedBy === null`) — closes the 3-player rotation farm | `milestoneRecord.test.ts › review M2 (B31 amended …)` (A downs B, C revives → 0) |
 | N1 | Confirmed: revives finish in `player` and the wave can clear in `waves`, both before `economy` counts the event, so a revive on the clearing tick saw "build". `player.revived` and `player.downed` now carry `inWave` (server bookkeeping, not on the wire; absent → the current phase) | `milestoneRecord.test.ts › review N1` ×2 |
+
+### Gate (7.10 merge + B33 override + re-review round 1 lows)
+
+**Full gate, commit c0b71d9 on `story-7-12` merged with master 5da82f9 (7.10 landed; 7.6 before): typecheck ✔, lint ✔, test ✔ — 518 files passed, 4 skipped; 4,685 tests passed, 31 skipped — build ✔. Load ≈ 2.5 (4 cores).** c1173e6 after it changes the decisions file only (B31: designer, 2026-11-25).
