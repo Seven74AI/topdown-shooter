@@ -162,6 +162,8 @@ Autonomous builder (gds-dev-story), 2026-11-25, branch `story-8-11` from master 
 
 **Decisions logged (auto-accepted, autonomous build; `docs/network-pass-decisions.md`):** 8.11 B1 (Colyseus `autoBatchMessages` = the cork), B2 (8.10 B6's RTT skip stays owed: not in this story), B3 (netsim clean-line rows: float-input paired control + 1 shot), B4 (no extra patch timer: the timestep patches idle phases), B5 (14-byte layout), B6 (old `input.send` removed), B7 (catch-up: one patch per step, one write per callback), B8 (± 2 % shown deterministically; write-count method).
 
+**PR #19 review (APPROVED, 1 low + 4 nits; main session checks the fixes):** L — the ping was stamped before the corked step and patch (≈ 1–5 ms RTT bias): the timer now only marks it due and `onTick` sends it after the patch (`RunRoom.patch.test.ts > PR #19 review L: the 1/s ping is sent and stamped after the step and the patch …`; mutation ping-before-step fails); nit — the patch's own try/catch logs `patch_failed` and never hides the step error (`… > PR #19 review nit: a patch error is logged on its own …`); nit — rate-dropped binary input carries its swap (`… > a binary input the 25/s bucket dropped still carries its swap …`; mutation raw bytes fails); nit — hits/smooth test titles match B3; B9 mouse aim accepted.
+
 **Not verified:** real phones, real 4G, iOS Safari, Cloudflare's own coalescing (the wire saving is an estimate); the per-segment radio overhead (~78 B) is the audit's number, not measured here.
 
 **Gate:** see the Change Log line of the hand-back (gate:fast on the branch head; the PR's CI `gate` is the full gate).
@@ -183,3 +185,4 @@ Autonomous builder (gds-dev-story), 2026-11-25, branch `story-8-11` from master 
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built (autonomous, gds-dev-story): patch from the tick, one write per tick, 14-byte binary input (`NET_PROTOCOL_VERSION` 3); before/after measured; decisions 8.11 B1–B8 auto-accepted; status → review.
+- 2026-11-25: PR #19 review fixes (L ping stamp after the patch; patch error logged alone; rate-drop swap test; test titles; B9).

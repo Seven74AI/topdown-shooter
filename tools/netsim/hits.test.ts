@@ -169,7 +169,7 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
     { name: "150 Walkers kiting", o: { walkers: 150 } },
   ] as const;
   for (const c of cases) {
-    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay; Story 8.10 B2: ≤ 1 % on the real horde path, the far rule costs none), no stalls`, () => {
+    it(`${c.name}: clean line ≤ 1.2 % reversed and ≤ the float-input control + 1 shot (control ≤ 1 %; clean lines don't pay; Story 8.10 B2, 8.11 B3), no stalls`, () => {
       const r = runSeeds(`8.8 clean ${c.name}`, { ...LINE, ...c.o }, SEEDS_88);
       expect(r.apparentHits).toBeGreaterThan(300);
       expect(r.stalls).toEqual({ up: 0, down: 0 });

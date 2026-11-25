@@ -406,6 +406,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
   private resumeTimer: Delayed | null = null;
   private frozenAtMs = 0;
+  /** PR #19 review L: the 1/s ping timer fired; `onTick` sends it after the step and the patch. */
+  private pingDue = false;
   /** Story 8.11: the decoded binary input (reused; `RunController.queueInput` copies it), and a rate-dropped one's. */
   private readonly inputIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
   private readonly rateDroppedIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
@@ -1868,7 +1870,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // null without a simulation interval would add Colyseus's own clock interval (two clock ticks per step).
     this.patchRate = null;
     this.pingTimer?.clear();
-    this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
+    this.pingTimer = this.clock.setInterval(() => (this.pingDue = true), PING_INTERVAL_MS); // sent by onTick, after the patch
     this.waveStartMs = performance.now();
     this.lastClearedWave = 0;
     this.peakZombiesAlive = 0;
@@ -1900,7 +1902,19 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     try {
       this.step();
     } finally {
-      this.broadcastPatch(); // review list 6: even after a tick error, so the state still reaches the phones
+      // Review list 6: even after a tick error, so the state still reaches the phones. PR #19 review nit: a patch error
+      // is logged on its own and never hides the step's error (that one still reaches onUncaughtException).
+      try {
+        this.broadcastPatch();
+      } catch (e) {
+        this.log.error({ err: e, tick: this.controller?.world.tick ?? null }, "patch_failed");
+      }
+      // PR #19 review L: the ping goes last, so its send time is stamped after the step and the patch (the corked
+      // callback writes it right after; a stamp before the step would add its 1–5 ms to every RTT sample).
+      if (this.pingDue) {
+        this.pingDue = false;
+        this.ping();
+      }
     }
   }
 
@@ -2012,6 +2026,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.slowTicks = null;
     this.slowPatches = null;
     this.pingTimer?.clear();
+    this.pingDue = false;
     this.pingTimer = null;
     this.clearHolds();
     for (const m of this.members.values()) m.waiting = false; // Story 8.2: a late joiner still waiting is a lobby member now
