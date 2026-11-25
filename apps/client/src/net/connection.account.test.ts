@@ -18,7 +18,7 @@ vi.mock("@colyseus/sdk", () => ({
   },
 }));
 const ticket = vi.fn<() => Promise<string | undefined>>();
-vi.mock("./account", () => ({ sessionTicket: () => ticket() }));
+vi.mock("./account", () => ({ sessionTicket: () => ticket(), recoveryTicket: () => ticket() }));
 vi.mock("./netMeter", () => ({ netMeter: { attach: () => {} } }));
 
 beforeEach(() => {

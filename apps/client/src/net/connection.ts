@@ -14,7 +14,7 @@ import {
 } from "@topdown/shared";
 import { JOIN_ERROR_TEXT, joinErrorText } from "./joinErrors";
 import { clientBalance } from "../debug/clientBalance";
-import { sessionTicket } from "./account";
+import { recoveryTicket, sessionTicket } from "./account";
 import { getGuestToken } from "./guestToken";
 import { serverUrl } from "./serverUrl";
 import { netMeter } from "./netMeter";
@@ -102,7 +102,7 @@ export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
  */
 export async function rejoinGame(roomId: string, name: string): Promise<RecoveryJoin<RunConnection>> {
   try {
-    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await sessionTicket()));
+    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await recoveryTicket()));
     return { ok: true, room: counted(room as RunConnection) };
   } catch (e) {
     return { ok: false, reason: recoveryFailure(e) };

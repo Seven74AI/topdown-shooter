@@ -65,6 +65,10 @@ so that my progress is kept from my very first run.
 - [x] [AI-Review][Low] L5 cookie `__Host-tdg`, Path=/, no Domain — `accountRoutes.test.ts` > "P1 …" (name, Path=/, no Domain); > "review L5: a cookie under the old name `tdg` … is not read".
 - [x] [AI-Review][Low] L6 `cache-control: no-store` asserted — `accountRoutes.test.ts` > "P1 …".
 - [x] [AI-Review][Nit] N1 off-VPS retention 14 dumps, N2 restore.sh trap (globals), N3 docs line — `tools/checks/backupScripts.test.ts` > "N1 …", "N2 …"; `docs/deploy.md` › Database (N3).
+- [x] [AI-Review][Low] L-R1 (re-review 1) off-VPS retention back to `--min-age "${keep}d"` (rclone 1.68.2 keeps 14 with it) — `tools/checks/backupScripts.test.ts` > "N1: local and off-VPS copies keep the same 14 dumps".
+- [x] [AI-Review][Nit] N-R1 restore-path re-key asserted — `RunRoom.account.test.ts` > "re-review N-R1: a remembered unsaved seat restored with a ticket is re-keyed to acct: …" (mutation `seatKey: key` → 1 failed).
+- [x] [AI-Review][Nit] N-R2 deadline with no presented token — `guestSession.test.ts` > "re-review N-R2: past the deadline with NO presented token …" (mutation `presented ?? mintGuestToken()` → 1 failed).
+- [x] [AI-Review][Nit] N-R3 seat recovery reuses a ticket < 9 min old (B12) — `account.test.ts` > "re-review N-R3: 10 seat-recovery attempts make at most 1 /account/session call …"; `tools/checks/accountWiring.test.ts` > "every join path in connection.ts fetches the ticket right before joining" (rejoinGame → recoveryTicket). Mutation (no reuse) → 1 failed. Waits in `RunRoom.account.test.ts` raised to 5 s (a 1 s default flaked once under parallel load).
 
 ## Dev Notes
 
@@ -313,3 +317,44 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - **15** server truth: only the ticket names an account ✅, but see M1 (ticket not tied to the identity it was issued for); rate limit only on new guests (L4). **17** remembered seats keep `accountId` ✅. **18** concurrent `createGuest` → one account (PGlite and PG) ✅. **19** 128 bits, SHA-256 only, constant-time, nothing logged ✅. **20** 2 s timeout per call, tick never waits, `saved:false` honest ✅ (L3 on the total). **21** repositories only (real grep test), committed Drizzle migration, PGlite dev / PG 18 compose ✅. **28** no email/IP in the DB, names filtered ✅. **31** refuses to start without secrets, clear lines ✅; VPS steps are Hermes's.
 - **B8 judged:** matching a seat by the same guest token is right for its purpose (a phone whose ticket comes and goes never sits twice and finds its own seat), and it adds no power D5 didn't already give a copied token **once the ticket is bound to the token (M1)**. Without that binding it lets a ticket re-label a seat. Keep B8, fix M1 and L1.
 - Not verified here: PostgreSQL 18 and the compose stack (no Docker daemon; PG 16 tools used), real phones / iOS Safari, cookie planting in a browser (L5 is by spec), the VPS.
+
+### Re-review (narrow) 1 — 2026-11-25
+
+Scope: the fix commits only (f7b290c M1+L2, e8c59f5 L1, 5ebf14e L3+L4, f618c9a L5, 7dda73e L6, b9fe33f + 8bcdef7 N1–N3), on `rereview-7-1` = origin/story-7-1 @ 7519791 + origin/master 02e7d8c. The merge had 2 trivial union conflicts (`.gitignore`, `hudLayout.test.ts` imports), resolved by keeping both sides. Typecheck: OK. Touched tests (accountRoutes, guestSession, ticket, RunRoom.account, backupScripts): 47/47 passed.
+
+**Verdict: changes requested (one Low regression in N1). Everything else is clean.**
+
+#### Findings
+
+- **L-R1 (Low, introduced by the N1 fix): the off-VPS copy now keeps 13 dumps, not 14.** `deploy/backup.sh:54` `rclone delete --min-age "$((keep - 1))d"`. rclone deletes files older than 13 days. Cron runs `rclone delete` after the upload, so on day n the dump from day n−13 is already 13 days plus the upload time old, and it goes. That leaves days n−12..n, which is 13 dumps. Checked with rclone v1.68.2 on 21 files aged k×24h + 30 s: `--min-age 13d` left 13, and the original `--min-age 14d` left **14**. `find -mtime +13` on the same ages (+2 s) left 14. So the original N1 ("remote keeps 15") was itself wrong. It came from dated midnight files, where both commands keep 14. The fix breaks a setting that was correct. Minimal fix: go back to `--min-age "${keep}d"`, update the comment, and pin that string in `tools/checks/backupScripts.test.ts:13`. That test currently locks in the off-by-one: mutating the script back to `${keep}d` fails it. One more note: `find -mtime +13` keeps 15 on a night when today's dump finishes faster than the one 14 days ago. That flap is harmless; at most say "14 (sometimes 15) locally" in the docs.
+- **N-R1 (Nit, test gap): the L1 re-key on the restore path has no test.** `apps/server/src/rooms/RunRoom.ts:496`. Mutating it back to `seatKey: key` leaves 47/47 green. It can't be observed in 7.1, because one account has exactly one `guest_token_hash` (unique) and `sameSeat` also matches by token. It becomes observable once a second device can hold the same account (a later login story). Fix: one assertion in the remembered-seat test that `seatKey === acct:…` after a restore with a ticket.
+- **N-R2 (Nit, test gap): "one token for every outcome" (L3) is only tested with a presented token.** `apps/server/src/auth/guestSession.ts:96`. Mutating `const token = fallback` to `presented ?? mintGuestToken()` stays green. The difference only shows with no valid token (a late create would mint a second token that nobody holds, leaving an orphan guest row). A real client always sends its localStorage token, so the impact is a stray DB row. Fix: a deadline test with `{cookieToken: null, deviceToken: null}` that asserts the late-created hash equals `hashGuestToken(response.deviceToken)`.
+- **N-R3 (Nit, no change needed now): rejoins spend the per-IP session budget.** `SeatRecovery` calls `sessionTicket()` on every takeover attempt: every 1 s on `network`, every 3 s on `seat_kept`, which is 20/min per phone. Two phones in `seat_kept` on one Wi-Fi reach the 30/min limit. A third phone's fresh Create/Join from that IP in the same minute then plays unsaved. Account seats lose nothing: `takeOver` and `restoreRemembered` keep `old.accountId`, and `sameSeat` matches by token. Optional later: skip the ticket fetch on `seat_kept` retries, or reuse a ticket younger than about 9 min.
+
+#### Exploit attempts (each one tried against the fix)
+
+| # | Attempt | Result |
+|---|---|---|
+| M1-a | Own valid ticket A + a copied token B on B's unsaved seat | `verifyTicket(tA→tB)` = null, so the join is a guest join with no account and can't re-label B's seat. **Holds.** |
+| M1-b | Ticket A + Bo's token against Ana's seat | Same as above: tokenPart ≠ hash(Bo's token)[0..32], so null. **Holds.** |
+| M1-c | Leaked ticket + any other token | Bound to its own token hash, so only the token it was issued for works. Ticket + token both leaked = that device (D5 "house key"). **Holds.** |
+| M1-d | Prefix/collision on tokenHash32 (128 bits) | The attacker controls the token, not the hash. Matching needs a second preimage of a 128-bit truncated SHA-256 (2^128). The comparison is constant-time over exactly 32 hex. `HEX32` rejects other lengths and uppercase. An uppercase variant of the token hashes to something different, so null. **Holds.** |
+| M1-e | Copied-token holder with **no** ticket takes over an account seat and banks | Yes: `sameSeat` matches by token, and `takeOver` keeps `old.accountId`, so the bank goes to the original account. That is decision 7.1 D5 + 8.1 D5 ("the token is the house key; copied token = that player"). By design, not a finding. |
+| L1-a | Can re-keying move a seat between accounts? | No. `accountId = old.accountId ?? client.auth.accountId`, so an account seat never changes account. An unsaved seat gains an account only from a joiner that matched it (same token), and M1 binds that ticket to the same token. **Holds.** |
+| L1-b | A later device of the same account after the re-key | Not possible in 7.1 (one token hash per account, unique column). The seat keeps the original `guestTokenHash`, so the original ticket-less device still finds it. Latent for a future multi-device story: two seats of one account in a run (one joined unsaved, the other with a ticket) would both be `acct:X`, and `join()` takes the first match in Map order. Worth a note for that story. Not a 7.1 finding. |
+| L2-a | 63 other last characters of the 43-char signature | 0 accepted. |
+| L2-b | `=` padding / length 42 / length 44 / standard base64 `+/` / padding on the payload | All null. The `+/` rewrite was tried on 137 tickets that contained `-`/`_`: 0 accepted. |
+| L2-c | Non-canonical last character of the **payload** part | 63 variants, 0 accepted (the MAC covers the payload string itself). |
+| L3-a | DB create lands after the 2 s deadline | The response and the late create use the same `fallback` token, so the next call finds that account. No second account and no cookie/token mismatch. A parallel retry during the in-flight create hits the unique `guest_token_hash` and plays unsaved. `work.catch` swallows a late rejection. **Holds.** (Gap: N-R2.) |
+| L4-a | Limiter keyed by `ipKey` of X-Real-IP | Caddy sets it from `Cf-Connecting-Ip`; the server port is `expose` only (compose:46), so it can't be spoofed from outside. Refused calls are not recorded, so a phone isn't locked out forever. **Holds.** |
+| L4-b | Shared NAT, 4 friends + reloads | Normal use is about 2 calls per phone per Create/Join or reload, far under 30/min. Only the `seat_kept` polling adds up (N-R3). |
+| L5-a | `__Host-tdg` on every request (assets, WS upgrade) | About 45 bytes. No server path reads cookies except `/account/session`. Set-Cookie only comes on a `no-store` response, so CDN caching is unaffected. |
+| L5-b | Page JS reading it | Still HttpOnly. |
+| L5-c | Caddy `handle_path /api/*` strip | The browser matches Path=/ against `/api/account/session`, so it still sends the cookie. The tests round-trip it. **Holds.** |
+| L5-d | Old `tdg` cookies in production | 7.1 isn't on master (`guestSession.ts` is absent from origin/master), so it was never deployed and no legacy cookie exists. |
+| N2 | `restore.sh` trap | `scratch` is global and the trap is single-quoted, so it expands at exit. `psql()` is a global function, and the trap is set before CREATE. `exit 1` (no dump) happens before the trap. **OK.** |
+| N1 | Retention | **L-R1** above. |
+
+#### Mutations (one per fix, touched tests)
+
+M1 binding off → 5 failed. L2 canonical check off → 1. L1 takeover re-key off → 1. **L1 restore re-key off → 0 (N-R1).** L3 race off → 1. **L3 shared fallback off → 0 (N-R2).** L4 limiter off → 1. L4 log gate off → 1. L5 name `tdg` → 8. L6 no-store off → 1. N1 back to `${keep}d` → 1 (the test pins the wrong value: L-R1). N2 trap off → 1.

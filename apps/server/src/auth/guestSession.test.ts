@@ -74,6 +74,22 @@ describe("resolveGuestSession (Story 7.1 AC 4, P3)", () => {
     await vi.waitFor(() => expect(created).toEqual([hashGuestToken("c3".repeat(16))]));
   });
 
+  it("re-review N-R2: past the deadline with NO presented token, the late create names the token the device was given", async () => {
+    const created: string[] = [];
+    const repo: AccountsRepo = {
+      findByTokenHash: async () => null,
+      createGuest: async (hash) => {
+        created.push(hash);
+        return new Promise((r) => setTimeout(() => r({ id: "0b9f1c2e-3d4a-4b5c-8d6e-7f8091a2b3c4", displayName: "", username: null }), 150));
+      },
+      setDisplayName: async () => {},
+    };
+    const { response } = await resolveGuestSession({ cookieToken: null, deviceToken: undefined, ip: "1.2.3.4" }, { accounts: repo, ...limits(), sessionSecret: SECRET, deadlineMs: 50 });
+    expect(response.saved).toBe(false);
+    expect(response.deviceToken).toMatch(/^[0-9a-f]{32}$/);
+    expect(created).toEqual([hashGuestToken(response.deviceToken)]);
+  });
+
   it("the default deadline is the 2 s repository timeout", async () => {
     const { DB_TIMEOUT_MS } = await import("../db/timeout");
     expect(DB_TIMEOUT_MS).toBe(2000);
