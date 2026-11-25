@@ -6,9 +6,9 @@ import { recoveryFailure } from "./connection";
 const mm = (message: string, code = 526) => new MatchMakeError(message, code);
 
 describe("recoveryFailure (Stories 8.1, 8.2, 8.3)", () => {
-  it("run_full and removed are gone (retrying never helps)", () => {
+  it("run_full is gone and removed is its own answer (retrying never helps; review M3: the removed text)", () => {
     expect(recoveryFailure(mm("run_full"))).toBe("gone");
-    expect(recoveryFailure(mm("removed"))).toBe("gone");
+    expect(recoveryFailure(mm("removed"))).toBe("removed");
   });
 
   it("keeps 8.1's answers", () => {

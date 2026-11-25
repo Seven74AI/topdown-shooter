@@ -168,9 +168,16 @@ function resumeSavedSeat(): void {
   if (!seat) return;
   void import("./net/connection")
     .then(async (c) => {
-      const room = (await c.reconnectSeat(seat.token)) ?? (await c.rejoinGame(seat.roomId, seat.name).then((r) => (r.ok ? r.room : null)));
+      let removed = false;
+      const room =
+        (await c.reconnectSeat(seat.token)) ??
+        (await c.rejoinGame(seat.roomId, seat.name).then((r) => {
+          if (!r.ok && r.reason === "removed") removed = true;
+          return r.ok ? r.room : null;
+        }));
       if (!room) {
         seatStore.clear();
+        if (removed) serverNotice.show(JOIN_ERROR_TEXT.removed); // Story 8.3 review M3: a removed seat reloads into the notice
         return;
       }
       enterRoom(room, c);

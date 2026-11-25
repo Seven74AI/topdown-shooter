@@ -273,12 +273,12 @@ class LobbyStore {
           inRun: () => inRunPhase(room.state?.phase),
           rejoin,
           onRecovered: (r) => onRecovered?.(r),
-          onGone: () => {
+          onGone: (removed) => {
             if (this.room !== room) return;
             this.detach();
             this.set(EMPTY);
             seatStore.clear();
-            onLost("connection_lost");
+            onLost(removed === true ? "removed" : "connection_lost"); // Story 8.3 review M3: a held seat the host removed
           },
           leaveForGood: (late) => void late.leave(true),
           onStatus: (status, sinceMs) => {

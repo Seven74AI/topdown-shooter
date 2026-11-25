@@ -288,12 +288,48 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .for("update");
           const before = locked[0];
           if (!before) throw new Error("progress row missing");
+          const owned = new Set(before.cosmetics ?? []);
+          const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
+          const rowWhere = and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId));
+          if (topUp) {
+            // Story 8.2 (E8-J6) top-up: the seat banked this run before (its Leave) and came back.
+            const earlier = (await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1))[0];
+            if (earlier) {
+              // Review M1: the rookie rule sees the lifetime BEFORE this run (the first bank's part taken back out).
+              const payout = pay(Math.max(0, before.lifetimeSupplies - earlier.supplies));
+              const supplies = Math.max(0, Math.floor(payout.supplies));
+              const diff = supplies - earlier.supplies;
+              // Review H2: stats were added with the first bank: the grant reads them as stored (no second delta), and the
+              // first bank's loot find is kept (never a second item).
+              const grant = meta ? meta.grant(readStats(before.stats), owned, districtsBefore) : null;
+              const earlierLoot = (earlier.breakdown as Record<string, unknown> | null)?.loot;
+              const grantLootKey = (grant?.breakdown.loot as { key?: string | null } | undefined)?.key ?? null;
+              const cosmeticsNow = grant ? grant.cosmetics.filter((k) => earlierLoot === undefined || k !== grantLootKey) : [];
+              const metaLines: Record<string, unknown> = grant ? { ...grant.breakdown } : {};
+              if (earlierLoot !== undefined) metaLines.loot = earlierLoot; // the first find stays the find
+              const topExtra: Partial<typeof progress.$inferInsert> = {};
+              const newKeys = cosmeticsNow.filter((k) => !owned.has(k));
+              if (newKeys.length > 0) topExtra.cosmetics = [...owned, ...new Set(newKeys)];
+              const newDistricts = (grant?.districts ?? []).filter((d) => !districtsBefore.includes(d));
+              if (newDistricts.length > 0) topExtra.districts = [...districtsBefore, ...new Set(newDistricts)];
+              const paid = Math.max(0, diff);
+              const granted = newKeys.length > 0 || newDistricts.length > 0;
+              if (paid === 0 && !granted) return { banked: false, supplies: earlier.supplies, newTotal: before.supplies, breakdown: (earlier.breakdown as Record<string, unknown>) ?? {}, nudge: false };
+              const breakdown = paid > 0 ? { ...payout.breakdown, ...metaLines } : { ...((earlier.breakdown as Record<string, unknown>) ?? {}), ...metaLines };
+              await tx.update(runRewards).set({ supplies: Math.max(supplies, earlier.supplies), breakdown }).where(rowWhere);
+              const raised = await tx
+                .update(progress)
+                .set({ supplies: sql`${progress.supplies} + ${paid}`, lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${paid}`, ...topExtra, updatedAt: sql`now()` })
+                .where(eq(progress.accountId, payee))
+                .returning({ supplies: progress.supplies });
+              // Review M1: with nothing more to pay, new items and districts are still granted (not Supplies).
+              return { banked: true, supplies: Math.max(supplies, earlier.supplies), newTotal: raised[0]?.supplies ?? before.supplies + paid, breakdown, nudge: false };
+            }
+          }
           const payout = pay(before.lifetimeSupplies);
           const supplies = Math.max(0, Math.floor(payout.supplies));
           // Stories 7.7 / 7.11 / 7.12: the meta writes, computed from the locked row (written below only if this bank is new).
           const statsAfter = meta ? addStats(readStats(before.stats), meta.statsDelta) : null;
-          const owned = new Set(before.cosmetics ?? []);
-          const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
           const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;
           const breakdown = grant ? { ...payout.breakdown, ...grant.breakdown } : payout.breakdown;
           const inserted = await tx
@@ -302,29 +338,9 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .onConflictDoNothing()
             .returning({ runId: runRewards.runId });
           if (inserted.length === 0) {
-            const earlier = await tx
-              .select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown })
-              .from(runRewards)
-              .where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)))
-              .limit(1);
+            const earlier = await tx.select({ supplies: runRewards.supplies, breakdown: runRewards.breakdown }).from(runRewards).where(rowWhere).limit(1);
             const row = earlier[0];
-            const diff = topUp && row ? supplies - row.supplies : 0;
-            if (!topUp || !row || diff <= 0) return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
-            // Story 8.2 (E8-J6): the top-up — the row is raised to the new total, only the difference is paid.
-            await tx.update(runRewards).set({ supplies, breakdown }).where(and(eq(runRewards.runId, runId), eq(runRewards.accountId, accountId)));
-            const topExtra: Partial<typeof progress.$inferInsert> = {};
-            if (grant) {
-              const newKeys = grant.cosmetics.filter((k) => !owned.has(k));
-              if (newKeys.length > 0) topExtra.cosmetics = [...owned, ...new Set(newKeys)];
-              const newDistricts = grant.districts.filter((d) => !districtsBefore.includes(d));
-              if (newDistricts.length > 0) topExtra.districts = [...districtsBefore, ...new Set(newDistricts)];
-            }
-            const raised = await tx
-              .update(progress)
-              .set({ supplies: sql`${progress.supplies} + ${diff}`, lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${diff}`, ...topExtra, updatedAt: sql`now()` })
-              .where(eq(progress.accountId, payee))
-              .returning({ supplies: progress.supplies });
-            return { banked: true, supplies, newTotal: raised[0]?.supplies ?? before.supplies + diff, breakdown, nudge: false };
+            return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
           }
           const extra: Partial<typeof progress.$inferInsert> = {};
           if (grant && statsAfter) {

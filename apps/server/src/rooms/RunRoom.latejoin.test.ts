@@ -301,3 +301,48 @@ describe("Story 8.2 AC 4: a run that ends while they wait shows them Results", (
     await vi.waitFor(() => expect(c.state.phase).toBe("results"), { timeout: 10_000 });
   });
 });
+
+describe("Story 8.2+8.3 review H3: after a waiting-only Results, the lobby has a host", () => {
+  it("the waiting joiner goes back to the lobby as host and can Start", async () => {
+    const { clients, room } = await runOf(1);
+    room.holdS = 0.5;
+    const w = world(room);
+    startWave(w);
+    await vi.waitFor(() => expect(room.state.phase).toBe("wave"));
+    const { c } = await late(room, "Bo");
+    await vi.waitFor(() => expect(room.state.players.get("p1")?.waiting).toBe(true));
+    const ana = clients[0] as RunSdkRoom;
+    ana.reconnection.enabled = false;
+    const server = room.clients.find((x) => x.sessionId === ana.sessionId);
+    (server?.ref as unknown as { terminate(): void }).terminate();
+    await vi.waitFor(() => expect(c.state.phase).toBe("results"), { timeout: 10_000 });
+    c.send(C2S.LOBBY_RETURN, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("lobby"));
+    expect(room.state.hostSlot).toBe(1); // Bo, the only member
+    expect(room.state.players.get("p1")?.waiting).toBe(false);
+    c.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(room.state.players.get("p1")?.ready).toBe(true));
+    c.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+  });
+});
+
+describe("Story 8.2 review M4: two waiters enter at one build start", () => {
+  it("both get the money from the team's average before either entered (avg 900 → 640 each), and one offer each", async () => {
+    const { room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    await vi.waitFor(() => expect(room.state.phase).toBe("wave"));
+    const cy = await late(room, "Cy");
+    const di = await late(room, "Di");
+    await vi.waitFor(() => expect([room.state.players.get("p2")?.waiting, room.state.players.get("p3")?.waiting]).toEqual([true, true]));
+    w.players.get("p0")!.earned = 885; // + the wave-1 clear bonus 15 = 900
+    w.players.get("p1")!.earned = 885;
+    endWave(w);
+    await vi.waitFor(() => expect(w.players.has("p2") && w.players.has("p3")).toBe(true));
+    expect([w.players.get("p2")?.wallet, w.players.get("p3")?.wallet]).toEqual([640, 640]);
+    await vi.waitFor(() => expect(cy.seen.offers + di.seen.offers).toBe(2));
+    await new Promise((r) => setTimeout(r, 200));
+    expect([cy.seen.offers, di.seen.offers]).toEqual([1, 1]); // nit: the build start's offer, once
+  });
+});

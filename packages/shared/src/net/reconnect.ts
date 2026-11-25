@@ -102,7 +102,8 @@ export class Watchdog {
 }
 
 /** What a takeover join answered. */
-export type RecoveryJoin<R> = { ok: true; room: R } | { ok: false; reason: "seat_kept" | "gone" | "network" };
+/** Story 8.3 review M3: `removed` — the host removed this seat (gone for good, with its own message). */
+export type RecoveryJoin<R> = { ok: true; room: R } | { ok: false; reason: "seat_kept" | "gone" | "removed" | "network" };
 
 export interface RecoveryDeps<R> {
   /** A fresh join of the same room by guest token (the server matches the seat: AC 6). */
@@ -112,7 +113,8 @@ export interface RecoveryDeps<R> {
   /** The hold ran out: the seat is remembered, the phone waits for a build phase (D4). Called on every refusal. */
   onSeatKept(): void;
   /** No seat to take back (the run ended, the room is gone, or the give-up time passed). */
-  onGone(): void;
+  /** `removed` (Story 8.3 review M3): the host removed the seat (the phone shows "You were removed from this run"). */
+  onGone(removed?: boolean): void;
   now(): number;
   /** Runs `fn` after `ms`; returns a cancel. */
   schedule(fn: () => void, ms: number): () => void;
@@ -206,9 +208,9 @@ export class SeatRecovery<R> {
       this.deps.onRecovered(r.room);
       return;
     }
-    if (r.reason === "gone" || (r.reason === "network" && this.deps.now() - this.startedMs > RECONNECT.giveUpMs)) {
+    if (r.reason === "gone" || r.reason === "removed" || (r.reason === "network" && this.deps.now() - this.startedMs > RECONNECT.giveUpMs)) {
       this.running = false;
-      this.deps.onGone();
+      this.deps.onGone(r.reason === "removed");
       return;
     }
     if (r.reason === "seat_kept") this.deps.onSeatKept();

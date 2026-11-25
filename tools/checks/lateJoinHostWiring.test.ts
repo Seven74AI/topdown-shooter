@@ -49,6 +49,8 @@ describe("Stories 8.2 + 8.3 client wiring", () => {
   it("lobbyStore sends host.remove; main.ts shows the removed notice; the overlay has an OK for it", () => {
     expect(client("net", "lobbyStore.ts")).toMatch(/this\.room\?\.send\(C2S\.HOST_REMOVE, \{ playerId \}\);/);
     expect(client("main.ts")).toMatch(/if \(reason === "removed"\) \{[\s\S]*?serverNotice\.show\(JOIN_ERROR_TEXT\.removed\);/);
+    // Review M3: a reload of a removed held/remembered seat shows the removed text (resumeSavedSeat).
+    expect(client("main.ts")).toMatch(/if \(!r\.ok && r\.reason === "removed"\) removed = true;[\s\S]*?if \(removed\) serverNotice\.show\(JOIN_ERROR_TEXT\.removed\);/);
     expect(client("ui", "ServerNotice.tsx")).toMatch(/text === JOIN_ERROR_TEXT\.removed \? "OK" : "Back to start"/);
   });
 });

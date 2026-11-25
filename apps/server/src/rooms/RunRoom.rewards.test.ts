@@ -305,3 +305,42 @@ describe("Story 7.2: banking in the room", () => {
     }
   });
 });
+
+describe("Story 8.2+8.3 review: banking with seats that come and go", () => {
+  it("H1: Di is removed, Eve joins into Di's player id → at the run end Eve banks on HER account and sees HER rewards", async () => {
+    const [a, d, e] = [await newAccount(), await newAccount(), await newAccount()];
+    const { clients, inbox, room, w } = await toWave([a, d]);
+    const diId = idOf(room, clients[1]!);
+    endWave(w); // a build phase: Remove is allowed
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    clients[0]!.send(C2S.HOST_REMOVE, { playerId: diId });
+    await vi.waitFor(async () => expect(await rewardRows(d)).toBe(1)); // Di banked "quit" at the remove (Di's socket is closed: Di sees "removed")
+    const eve = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, options("join", "Eve", e));
+    const eveGot = listen(eve);
+    await eve.waitForInitialState();
+    await vi.waitFor(() => expect(w.players.has(diId)).toBe(true)); // Eve took Di's id
+    expect(idOf(room, eve)).toBe(diId);
+    w.players.get(diId)!.wavesIn = 2;
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(eveGot.length).toBe(1));
+    expect(eveGot[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 2 }); // her own record, not Di's quit
+    expect(await rewardRows(e)).toBe(1);
+    expect(await supplies(e)).toBe((eveGot[0] as { total: number }).total);
+    expect(await rewardRows(d)).toBe(1); // Di's one row from the remove, nothing more
+    expect(inbox[1]!.length).toBe(0); // the removed Di's socket is gone
+  });
+
+  it("M2: a late joiner still waiting when the run ends gets a zero not_saved run.rewards (never 'Saving…' forever)", async () => {
+    const a = await newAccount();
+    const { clients, room, w } = await toWave([a]);
+    const late = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, options("join", "Bo", await newAccount()));
+    const got = listen(late);
+    await late.waitForInitialState();
+    await vi.waitFor(() => expect(room.state.players.get("p1")?.waiting).toBe(true));
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]).toMatchObject({ status: "not_saved", total: 0 });
+  });
+});

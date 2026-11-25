@@ -138,6 +138,21 @@ describe("Story 8.3 H1: there is always someone to press Start and Save", () => 
     expect(lines("remove_refused")).toEqual([expect.objectContaining({ reason: "not_host" })]);
   });
 
+  it("review M5: the old host leaves while the only teammate is held, then comes back into the same slot: host_changed, never silently", async () => {
+    const { clients, room, tokens } = await runOf(2);
+    const lines = logLines(room);
+    drop(room, clients[1] as RunSdkRoom); // Bo held (no reconnect)
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    await (clients[0] as RunSdkRoom).leave(true); // Ana (host) leaves: nobody connected to take the role
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    expect(lines("host_changed")).toEqual([]);
+    const back = await colyseus.sdk.joinById<RunStateView>(room.roomId, options("join", "Ana", tokens[0] as string));
+    record(back);
+    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    await vi.waitFor(() => expect(lines("host_changed")).toEqual([expect.objectContaining({ playerId: "p0", slot: 0, why: "returned" })]));
+    expect(room.state.hostSlot).toBe(0);
+  });
+
   it("in the lobby the host leaving hands the role to the next-oldest member (as before)", async () => {
     const { clients, room } = await lobbyOf(3);
     await (clients[0] as RunSdkRoom).leave(true);

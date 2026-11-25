@@ -87,14 +87,15 @@ export async function joinGame(code: string, name: string): Promise<Result<RunCo
  * of mine here; the room is gone; another version) is `gone`; anything else (no answer: the line is
  * still cut, a proxy error, the rate limit) is `network` and is tried again.
  */
-export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
+export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "removed" | "network" {
   if (typeof e !== "object" || e === null) return "network";
   const code = (e as { code?: unknown }).code;
   const message = String((e as { message?: unknown }).message ?? "");
   if (typeof code !== "number") return "network";
   if (message === "seat_kept") return "seat_kept";
-  // Story 8.2/8.3: `run_full` (no slot for me) and `removed` (the host removed me) never change by retrying.
-  if (message === "run_started" || message === "balance_mismatch" || message === "invalid_options" || message === "already_joined" || message === "run_full" || message === "removed") return "gone";
+  if (message === "removed") return "removed"; // Story 8.3 review M3: gone for good, with its own message
+  // Story 8.2: `run_full` (no slot for me) never changes by retrying.
+  if (message === "run_started" || message === "balance_mismatch" || message === "invalid_options" || message === "already_joined" || message === "run_full") return "gone";
   if (code === 522 && /not found/i.test(message)) return "gone";
   return "network";
 }

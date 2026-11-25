@@ -40,6 +40,11 @@ export interface Member {
    * phase): connected, watching, NOT in the World, never host; enters at the next build phase. A drop frees it.
    */
   waiting?: boolean;
+  /**
+   * Story 8.3 review H1: this seat's generation in the room (a counter): kept across a takeover, a hold and a remembered
+   * seat's return. A removed seat's player id can be reused by a new player; `seatIdOf` (playerId#seatGen) tells them apart.
+   */
+  readonly seatGen?: number;
   /** Round-trip time, EWMA of `net.pong` samples (Story 2.4); 0 until the first one. */
   rttMs: number;
 }
@@ -97,4 +102,9 @@ export function sameSeat(
   auth: { readonly guestTokenHash: string; readonly accountId?: string | null },
 ): boolean {
   return seat.seatKey === seatKey(auth) || seat.guestTokenHash === auth.guestTokenHash;
+}
+
+/** Story 8.3 review H1: a seat's identity for this run (banks, rewards, the loot finder): `playerId#seatGen`. */
+export function seatIdOf(seat: { readonly playerId: string; readonly seatGen?: number }): string {
+  return `${seat.playerId}#${seat.seatGen ?? 0}`;
 }

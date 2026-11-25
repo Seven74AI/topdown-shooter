@@ -21,6 +21,11 @@ const at = { x: 0, y: 0 };
  */
 export function addLatePlayer(world: World, id: string, slot: number, wallet: number, init: PlayerInit = {}, extend = true): PlayerState | null {
   if (world.run.phase !== "build" || world.players.has(id) || world.heldPlayers.has(id)) return null;
+  // Story 8.3 review H1: a removed seat's player id and slot can be reused by a new player: nothing of the old seat
+  // carries over — not its card offer (sold cards, rerolls: the slot's offer is drawn again from the same stream) and
+  // not its loot-bag "banked" mark.
+  world.shop.build[slot] = -1;
+  world.loot.banked.delete(id);
   teamSpawnPoint(world, slot, at);
   const p = addPlayer(world, id, at.x, at.y, init);
   if (spotBlocked(world, p.x, p.y, p.radiusM, p) && findFreeSpotNear(world, at.x, at.y, p, at)) {
