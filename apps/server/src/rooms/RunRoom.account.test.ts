@@ -233,6 +233,15 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     expect(e.message).toBe("run_started");
   });
 
+  it("review L1: a seat that gained an account is re-keyed, so the same account from another device then takes it over", async () => {
+    const t = token();
+    const { room, bo } = await started(t, {});
+    const same = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
+    await vi.waitFor(() => expect([...room.members.values()].find((x) => x.playerId === "p1")?.sessionId).toBe(same.sessionId), { timeout: 5000 });
+    expect([...room.members.values()].find((x) => x.playerId === "p1")?.seatKey).toBe(`acct:${ACCT}`);
+    await expectTakeover(room, same, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: bound(ACCT) })));
+  });
+
   it("started run: another account (new token) is still run_started", async () => {
     const { bo } = await started(token(), { ticket: bound(ACCT) });
     const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Cy", token(), { ticket: bound("22222222-2222-4333-8444-555555555555") })));

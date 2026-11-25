@@ -445,8 +445,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    */
   private takeOver(old: Member, client: RunClient): void {
     // Story 7.1: a seat that joined unsaved gains the account of a later valid ticket; an account seat keeps its own.
+    // Review L1: re-keyed to `acct:` then, so the same account from another device takes it over too (8.1 D5).
     const accountId = old.accountId ?? client.auth?.accountId ?? null;
-    const member: Member = { ...old, sessionId: client.sessionId, accountId };
+    const member: Member = { ...old, sessionId: client.sessionId, accountId, seatKey: seatKey({ guestTokenHash: old.guestTokenHash, accountId }) };
     this.members.delete(old.sessionId);
     this.members.set(client.sessionId, member);
     this.netMeters.delete(old.sessionId);
@@ -476,14 +477,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
     if (!controller.restoreSeat(seat.player, seat.kills)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
+    const accountId = seat.accountId ?? client.auth?.accountId ?? null;
     const member: Member = {
       playerId: seat.playerId,
       slot: seat.slot,
       sessionId: client.sessionId,
       name: seat.name,
       guestTokenHash: seat.guestTokenHash,
-      accountId: seat.accountId ?? client.auth?.accountId ?? null,
-      seatKey: key,
+      accountId,
+      seatKey: seatKey({ guestTokenHash: seat.guestTokenHash, accountId }), // review L1: `acct:` once it has an account
       joinOrder: ++this.joinCounter, // the newest member: the host role never moves back (Epic 8 D8)
       rttMs: 0,
     };
