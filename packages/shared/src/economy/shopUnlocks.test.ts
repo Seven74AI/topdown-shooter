@@ -17,6 +17,10 @@ import { buyConsumable, shopConsumables } from "./consumables";
 import { placeBuilding, placementError } from "../buildings/buildings";
 import { upgradeBuilding, upgradeError } from "../buildings/upgrade";
 import { setLoadout } from "../combat/loadout";
+import { buyGear } from "./gear";
+import { createInputLog, replayRun } from "../replay/inputLog";
+import { worldDigest } from "../core/worldSnapshot";
+import { runHeadless } from "../bots/headlessRun";
 import { BUILD_GRID_M } from "../config/constants";
 
 const balance = loadBalance();
@@ -192,12 +196,22 @@ describe("K3 nobody changes my offer mid-build", () => {
     expect(offer(world).lender).toBe(1);
   });
 
-  it("a reroll that could change only the borrowed slot is still a new draw (canReroll)", () => {
-    // Mo has only the Chainsaw extra; I own all my starter card items except one shown.
-    const { world, ps } = setup([STARTER_ONLY, mask("chainsaw", "assault_rifle")], 2);
-    const o = offer(world);
-    expect(o.canReroll).toBe(true);
-    void ps;
+  it("a reroll that could change only the borrowed slot is still a new draw (canReroll; review L1 = probe P9)", () => {
+    // My pool is spent except what is on offer (SMG owned, all starter gear owned); only Mo's borrow list has more.
+    const world = createWorld({ balance, seed: 5, systems: NO_WAVES });
+    const p0 = addPlayer(world, "p0", 10, 10, { unlocks: STARTER_ONLY });
+    addPlayer(world, "p1", 12, 10, { unlocks: mask("chainsaw", "assault_rifle") });
+    setLoadout(world.balance, p0.loadout, ["pistol", "smg"]);
+    startBuild(world);
+    p0.wallet = 1e6;
+    for (const g of ["body_armor_1", "running_shoes", "revive_kit"]) expect(buyGear(world, "p0", g).ok, g).toBe(true);
+    const o0 = readOffer(world, "p0") as ShopOfferView;
+    expect(reroll(world, "p0", o0.build, o0.rev).ok).toBe(true);
+    const o = readOffer(world, "p0") as ShopOfferView;
+    // 4 weapons of my own (hunting rifle, machete, shotgun, fire axe) + 1 borrowed: nothing new in MY pool.
+    expect(o.cards.filter((c) => c !== "").length).toBe(5);
+    expect(borrowedCards(o).length).toBe(1);
+    expect(o.canReroll).toBe(true); // the other borrowable item can still show
   });
 });
 
@@ -307,4 +321,19 @@ describe("defaults (T5): tests, bots and sims start with every unlock", () => {
     expect(p.unlocks).toBe(ALL_UNLOCKED);
     expect(p.lockedUsed).toBe(NO_UNLOCK);
   });
+});
+
+describe("decision 7.4 B10: replays carry the run-start data (review L2 = probe P6)", () => {
+  it("a Training 5 + starter recording replays to the same digest with its inits, and differs without them", () => {
+    const T5 = { maxHp: 5, damage: 5, startMoney: 5, reload: 5 };
+    const inits = [{ unlocks: STARTER_ONLY, training: T5 }, { unlocks: ALL_UNLOCKED }];
+    const log = createInputLog(20, 2);
+    let digest = 0;
+    runHeadless({ balance, seed: 20, players: 2, record: log, inits, maxTicks: 20 * 60 * 4, onEnd: (w) => void (digest = worldDigest(w)) });
+    expect(log.inits?.length).toBe(2);
+    expect(worldDigest(replayRun(balance, log))).toBe(digest);
+    const { inits: _dropped, ...noInits } = log;
+    void _dropped;
+    expect(worldDigest(replayRun(balance, noInits))).not.toBe(digest);
+  }, 120_000);
 });

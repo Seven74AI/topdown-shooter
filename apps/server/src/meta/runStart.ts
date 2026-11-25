@@ -60,6 +60,26 @@ export async function loadRunInits(members: readonly RunStartMember[], repo: Pro
 }
 
 /**
+ * Stories 7.4/7.5 (review L4): each member's controller start data from the run-start read. A member with no read
+ * (joined during it, or a direct `startRun`) gets the starter pool and Training 0 (decision 7.4 D3); `devMask`
+ * (`DEV_UNLOCKS` / `DEV_SHOP_ALL`) replaces every mask; `devWallet` (`DEV_STARTING_WALLET`) sets the exact start money,
+ * so Training's start money is zeroed (decision 7.5 B6: dev wins).
+ */
+export function runPlayers(
+  members: readonly { readonly playerId: string; readonly slot: number }[],
+  inits: readonly RunPlayerInit[],
+  devMask: number | null,
+  devWallet: number | null,
+): { playerId: string; slot: number; unlocks: number; training: TrainingLevels }[] {
+  const initOf = new Map(inits.map((i) => [i.playerId, i]));
+  return members.map((m) => {
+    const i = initOf.get(m.playerId);
+    const training = i?.training ?? NO_TRAINING;
+    return { playerId: m.playerId, slot: m.slot, unlocks: devMask ?? i?.unlocks ?? STARTER_ONLY, training: devWallet !== null ? { ...training, startMoney: 0 } : training };
+  });
+}
+
+/**
  * Story 7.4 (AC 10): `DEV_UNLOCKS=all|starter` (dev only; production ignores it) replaces every member's mask;
  * `DEV_SHOP_ALL` implies all. Returns the mask to force, or null (the real masks).
  */

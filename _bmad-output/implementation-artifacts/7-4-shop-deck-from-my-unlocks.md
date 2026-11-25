@@ -364,8 +364,27 @@ M1 borrow from my own pool — killed · M2 reroll reads the live room — kille
 
 A real browser under `?lag=150&jitter=20&loss=1`, hidden tab, real phones / iOS Safari, `?stress`, PostgreSQL 18 (16 used).
 
+### Review fixes (round 1, builder; checked by the main session under the re-review cap)
+
+| Finding | Fix | Test (file > test name) |
+| --- | --- | --- |
+| L1 vacuous canReroll borrowed-slot test | replaced by the reviewer's probe P9 (my pool spent except what is on offer; only the borrow list has more) | `packages/shared/src/economy/shopUnlocks.test.ts` > "a reroll that could change only the borrowed slot is still a new draw (canReroll; review L1 = probe P9)" |
+| L2 no replay test for `inits` | probe P6 added | `shopUnlocks.test.ts` > "a Training 5 + starter recording replays to the same digest with its inits, and differs without them" |
+| L3 two accounts, one requestId on `/account/training` | test added (the memo key is `accountId:requestId`; no code change) | `apps/server/src/auth/trainRoute.test.ts` > "review L3: accounts A and B sending the SAME requestId → each gets its own answer and is charged once" |
+| L4 `DEV_STARTING_WALLET` zeroing Training money untested | the init mapping extracted to `meta/runStart.ts › runPlayers` (RunRoom calls it) | `apps/server/src/meta/runStart.test.ts` > "DEV_STARTING_WALLET zeroes Training's start money only (decision 7.5 B6); DEV_UNLOCKS replaces every mask" (+ the mapping and `pickDevUnlocks` cases) |
+| L5 the HUD reload ring divided by the untrained reload | `GameScene.ts` uses `ticksFor(reloadSecondsFor(player, stats))` | `tools/checks/progressionWiring.test.ts` > "every reload start in firing.ts uses reloadSecondsFor …" (now also greps GameScene: no raw `ticksFor(stats.reloadS)`) |
+| L6 a second borrowed purchase via a paid reroll | no code change: recorded as **7.4 B11** (≤ 1 borrowed card per offer, the letter of D7), auto-accepted, designer may override | — (decision log) |
+| L7 orange slot-2 badge melts into the amber tape (7-UI-4) | dark 2 px ring on `.shop-card__lender`; `7-4-5-shop-borrowed.png` refreshed | `tools/checks/shopBorrowedDomLayout.test.ts` (screenshot checked by eye) |
+| L8 borrowed card not in a DOM layout test | new real-browser test, 2 cases (Mo; a 16-character lender) × the 4 R9 sizes | `tools/checks/shopBorrowedDomLayout.test.ts` > "… the tag inside its card's tape, text ≥ 11 px" |
+| N1 BT1 still shows two borrowed cards | note in `docs/art/epic-7/README.md` ("the rule is 1 borrowed card of 6") | — |
+| N2 no Supplies icon on the Training "Next" price | `.tr-next .rw-crate` gets a box (inline span) | `tools/checks/hubTrainingDomLayout.test.ts` (re-run, 12 passed); `7-4-5-training-tab.png` refreshed |
+| N3 | left as is (the 7.3 pattern) | — |
+
+Checks after the fixes: `npm run typecheck`, `eslint` clean; touched tests green (shopUnlocks 21, trainRoute, runStart, RunRoom.progress, RunRoom, progressionWiring, the three hub/shop DOM layout tests, `apps/client/src/ui`: 20 files / 221 tests). No full gate yet (main session: after 7.3 lands).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built with 7.5 (merged story) on `story-7-4-5`; status review.
 - 2026-11-25: Senior Developer Review (AI): approved, 8 lows + 3 nits (no high/medium); probes in `7-4-5-review-probes/`.
+- 2026-11-25: review round 1 (approved, lows only): L1–L5, L7, L8, N1, N2 fixed with a test each; L6 recorded as 7.4 B11.

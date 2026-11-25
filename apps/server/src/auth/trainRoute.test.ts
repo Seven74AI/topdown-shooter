@@ -138,6 +138,17 @@ describe("POST /account/training (Story 7.5 AC 3; T1, T3)", () => {
     expect((await row(a.id))?.supplies).toBe(10);
   });
 
+  it("review L3: accounts A and B sending the SAME requestId → each gets its own answer and is charged once", async () => {
+    const [a, b] = [await account(100), await account(300)];
+    const requestId = randomUUID();
+    const ra = await train(port, { token: a.token, boost: "damage", level: 1, requestId });
+    const rb = await train(port, { token: b.token, boost: "damage", level: 1, requestId });
+    expect(ra.body).toMatchObject({ ok: true, progress: { supplies: 50 } });
+    expect(rb.body).toMatchObject({ ok: true, progress: { supplies: 250 } });
+    expect((await row(a.id))?.supplies).toBe(50);
+    expect((await row(b.id))?.supplies).toBe(250);
+  });
+
   it("the session reply carries progress.training", async () => {
     const a = await account(100);
     await train(port, { token: a.token, boost: "reload", level: 1 });

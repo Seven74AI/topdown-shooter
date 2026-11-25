@@ -17,7 +17,6 @@ import {
   MAX_PLAYERS,
   NO_LENDER,
   NO_TRAINING,
-  STARTER_ONLY,
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
@@ -101,7 +100,7 @@ import { parseDevEvents } from "@topdown/shared";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
-import { loadRunInits, pickDevUnlocks, type RunPlayerInit } from "../meta/runStart";
+import { loadRunInits, pickDevUnlocks, runPlayers, type RunPlayerInit } from "../meta/runStart";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -1083,17 +1082,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (devUnlocks.mask !== null) this.log.warn({ mask: devUnlocks.mask }, "dev_unlocks");
     else if (devUnlocks.ignored !== null) this.log.warn({ value: process.env.DEV_UNLOCKS, reason: devUnlocks.ignored }, "dev_unlocks_ignored");
     const initOf = new Map(inits.map((i) => [i.playerId, i]));
-    const players = Array.from(this.members.values(), (m) => {
-      const i = initOf.get(m.playerId);
-      const training = i?.training ?? NO_TRAINING;
-      return {
-        playerId: m.playerId,
-        slot: m.slot,
-        unlocks: devUnlocks.mask ?? i?.unlocks ?? STARTER_ONLY,
-        // DEV_STARTING_WALLET sets the exact start money (dev wins over Training's start money).
-        training: devStartingWallet !== null ? { ...training, startMoney: 0 } : training,
-      };
-    });
+    // DEV_STARTING_WALLET sets the exact start money (dev wins over Training's start money): `runPlayers` (review L4).
+    const players = runPlayers(Array.from(this.members.values()), inits, devUnlocks.mask, devStartingWallet);
     this.runNames.clear();
     for (const m of this.members.values()) this.runNames.set(m.slot, m.name);
     const runSeed = this.devRunSeed ?? randomUint32();

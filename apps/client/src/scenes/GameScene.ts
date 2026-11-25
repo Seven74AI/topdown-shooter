@@ -11,6 +11,7 @@ import {
   shopConsumables,
   inPoolOnly,
   ALL_UNLOCKED,
+  reloadSecondsFor,
   throwAimLength,
   throwStatsOf,
   type ThrowStats,
@@ -2195,7 +2196,7 @@ export class GameScene extends Phaser.Scene {
       if (hasMagazine(stats) || isFlame(stats)) {
         this.hudModel.ammo = isFlame(stats) ? fuelPercent(slot.ammo, stats) : slot.ammo;
         this.hudModel.magazine = isFlame(stats) ? 100 : stats.magazine;
-        const totalTicks = ticksFor(stats.reloadS);
+        const totalTicks = ticksFor(reloadSecondsFor(player, stats)); // Story 7.5 review L5: the trained reload (the ring fills to 1)
         this.hudModel.reloadFrac = slot.reloadTicks > 0 ? 1 - slot.reloadTicks / totalTicks : -1;
       } else {
         this.hudModel.ammo = -1;

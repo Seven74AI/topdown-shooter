@@ -892,7 +892,8 @@ p.in-run-menu__title {
   color: #fff;
   font: 800 11px/13px system-ui, sans-serif;
   text-align: center;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  /* Review L7 (7-UI-4): a dark 2 px ring so the orange slot-2 badge never melts into the amber tape. */
+  box-shadow: 0 0 0 2px #17191c;
 }
 
 .shop-card__from {
@@ -2189,8 +2190,13 @@ body:has(.menu.ph) .dev-gear {
   border-color: #ffc46b;
 }
 
+/* Review N2: the Supplies crate before the "Next" price (an inline span: it needs a box to show). */
 .tr-next .rw-crate {
-  vertical-align: -2px;
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  margin-right: 3px;
+  vertical-align: -1px;
 }
 
 .tr-maxed {

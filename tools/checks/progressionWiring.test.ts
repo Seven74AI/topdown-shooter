@@ -51,6 +51,10 @@ describe("Story 7.5 source rules (T2)", () => {
     expect(src.match(/reloadTicks = ticksFor\(reloadSecondsFor\(p, stats\)\)/g)?.length).toBe(5);
     expect(src.match(/reloadS: reloadSecondsFor\(p, stats\)/g)?.length).toBe(5);
     expect(client("net", "localFire.ts")).toContain("ticksFor(reloadSecondsFor({ trainReload: me.trainReload ?? 0 }, stats))");
+    // Review L5: the HUD reload ring divides by the trained reload too; no raw reloadS left in GameScene.
+    const g = client("scenes", "GameScene.ts");
+    expect(g).toContain("const totalTicks = ticksFor(reloadSecondsFor(player, stats));");
+    expect(g.includes("ticksFor(stats.reloadS)")).toBe(false);
   });
 });
 
@@ -59,7 +63,7 @@ describe("Stories 7.4 + 7.5 wiring (R2)", () => {
     const room = server("rooms", "RunRoom.ts");
     expect(room).toContain("void this.loadAndStart();");
     expect(room).toMatch(/inits = await loadRunInits\(/);
-    expect(room).toContain("unlocks: devUnlocks.mask ?? i?.unlocks ?? STARTER_ONLY,");
+    expect(room).toContain("const players = runPlayers(Array.from(this.members.values()), inits, devUnlocks.mask, devStartingWallet);");
     expect(room).toContain("const lenderName = o.lender === NO_LENDER ? \"\" : (this.runNames.get(o.lender) ?? \"\");");
     expect(server("run", "RunController.ts")).toContain("addPlayer(this.world, playerId, at.x, at.y, init)");
     expect(server("meta", "banking.ts")).toContain("lockedUsed: p.lockedUsed");
