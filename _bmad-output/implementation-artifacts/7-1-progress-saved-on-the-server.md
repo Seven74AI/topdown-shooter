@@ -196,6 +196,7 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - Early part: typecheck ✅, lint ✅, touched tests 132/132 ✅, load 1.17 (04:16).
 - **FULL GATE ✅** `npm run typecheck && npm run lint && npm test && npm run build` on story-7-1 merged with origin/master `d8d44d0` AND origin/story-8-1 `83761d2` (8.1 not on master yet): 426 test files passed / 1 skipped, 3861 tests passed / 3 skipped, build OK; load 0.92 at start → 3.32 at end (2026-11-25 05:54–06:01).
 - **FULL GATE after the review fixes ✅** on story-7-1 `54d8d96` = fixes + origin/master `d8d44d0` + origin/story-8-1 `a4c802c` (8.1 with its review fixes; still not on master): 428 files passed / 1 skipped, 3895 tests passed / 3 skipped, build OK; load 1.33 → 2.99 (06:24–06:31).
+- **FULL GATE on master ✅** story-7-1 `0ec46a33` = all 7.1 fixes (incl. re-review 1 and the pg client-error fix) merged with origin/master `0ee0d6db` (8.1 landed + 8.10): 440 files passed / 2 skipped, 3975 tests passed / 4 skipped (incl. the opt-in real-PG test), build OK; load 1.16 → 2.97 (09:03–09:11).
 
 ### Notes for the merge
 
