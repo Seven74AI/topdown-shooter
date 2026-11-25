@@ -8,16 +8,20 @@
  * a token and plays unsaved. New guests are limited per IP (decision 7.1 D6); resolving an existing one never is.
  * Never logs a token or a hash.
  */
-import { guestTokenSchema, type AccountSessionResponse } from "@topdown/shared";
+import { guestTokenSchema, type AccountSessionResponse, type ProgressView } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
+import type { ProgressRepo } from "../db/progressRepo";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
 import { ipKey, type SlidingWindowLimiter } from "../net/rateLimit";
 import { DB_TIMEOUT_MS } from "../db/timeout";
 import { signTicket } from "./ticket";
+import { toView } from "./unlock";
 
 export interface GuestSessionDeps {
   accounts: AccountsRepo;
+  /** Story 7.3 (AC 4): the session reply carries the account's progress; omitted (older tests) → no `progress`. */
+  progress?: Pick<ProgressRepo, "get">;
   newGuestLimiter: SlidingWindowLimiter;
   /** Review L4: every call per IP, checked before any database work. */
   sessionLimiter: SlidingWindowLimiter;
@@ -90,7 +94,7 @@ export async function resolveGuestSession(
       const account = await deps.accounts.findByTokenHash(hashGuestToken(token));
       if (account !== null) {
         log.info({ accountId: account.id, source }, "account_session");
-        return { response: saved(token, account, deps.sessionSecret, now()), source };
+        return { response: { ...saved(token, account, deps.sessionSecret, now()), ...(await progressOf(account.id)) }, source };
       }
     }
     const token = fallback;
@@ -100,7 +104,18 @@ export async function resolveGuestSession(
     }
     const account = await deps.accounts.createGuest(hashGuestToken(token), "");
     log.info({ accountId: account.id, source: "new" }, "account_session");
-    return { response: saved(token, account, deps.sessionSecret, now()), source: "new" };
+    return { response: { ...saved(token, account, deps.sessionSecret, now()), ...(await progressOf(account.id)) }, source: "new" };
+  }
+
+  /** Story 7.3 (AC 4, U5): the server's progress (a missing row = the empty one); a failed read → null, still saved. */
+  async function progressOf(accountId: string): Promise<{ progress?: ProgressView | null }> {
+    if (!deps.progress) return {};
+    try {
+      const row = await deps.progress.get(accountId);
+      return { progress: row ? toView(row) : { supplies: 0, lifetimeSupplies: 0, unlocks: [] } };
+    } catch {
+      return { progress: null }; // logged as db_error by the repository
+    }
   }
 }
 

@@ -7,7 +7,15 @@
  * Never throws: no network, a timeout (3 s), a non-200 or a malformed reply all give `null`, and the game joins
  * without a ticket (P3: unsaved play, never a refused join).
  */
-import { ACCOUNT_SESSION_PATH, accountSessionResponseSchema, playerNameSchema, type AccountSessionResponse } from "@topdown/shared";
+import {
+  ACCOUNT_SESSION_PATH,
+  ACCOUNT_UNLOCK_PATH,
+  accountSessionResponseSchema,
+  playerNameSchema,
+  unlockResponseSchema,
+  type AccountSessionResponse,
+  type UnlockResponse,
+} from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
 import { serverUrl } from "./serverUrl";
 
@@ -89,4 +97,33 @@ export function prefillName(current: string, session: AccountSessionResponse | n
   if (current.trim() !== "" || !session?.saved) return current;
   const name = playerNameSchema.safeParse(session.account.displayName);
   return name.success ? name.data : current;
+}
+
+/**
+ * Story 7.3 (AC 5): what `POST /api/account/unlock` gave back: the server's answer (ok, already unlocked, not enough;
+ * each with the server's progress), or `failed` (no network, timeout, 4xx/5xx, a malformed reply) with the status
+ * (0 = no answer). Never throws. The cookie names the account (`credentials: "same-origin"`).
+ */
+export type UnlockCall = { kind: "answer"; body: UnlockResponse } | { kind: "failed"; status: number };
+
+export async function unlockItem(unlockId: string, requestId: string, over: Partial<AccountDeps> = {}): Promise<UnlockCall> {
+  const deps = { ...defaults(), url: () => `${serverUrl()}${ACCOUNT_UNLOCK_PATH}`, ...over };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deps.timeoutMs);
+  try {
+    const res = await deps.fetch(deps.url(), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ unlockId, requestId }),
+      signal: abort.signal,
+    });
+    if (!res.ok) return { kind: "failed", status: res.status };
+    const parsed = unlockResponseSchema.safeParse(await res.json());
+    return parsed.success ? { kind: "answer", body: parsed.data } : { kind: "failed", status: res.status };
+  } catch {
+    return { kind: "failed", status: 0 };
+  } finally {
+    clearTimeout(timer);
+  }
 }

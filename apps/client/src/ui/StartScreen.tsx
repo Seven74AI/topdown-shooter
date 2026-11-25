@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { GAME_TITLE, ROOM_CODE_LENGTH, isRoomCode, playerNameSchema } from "@topdown/shared";
-import { uiStore, type UiScreen } from "./uiState";
+import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { filterCodeInput } from "./codeInput";
 import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
 import { accountSession, prefillName } from "../net/account";
@@ -190,14 +190,20 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
           )}
         </p>
       )}
-      <button
-        type="button"
-        class="btn btn--secondary"
-        disabled={busy !== ""}
-        onClick={() => uiStore.request("startSolo")}
-      >
-        Practice solo
-      </button>
+      <div class="menu__row">
+        <button
+          type="button"
+          class="btn btn--secondary"
+          disabled={busy !== ""}
+          onClick={() => uiStore.request("startSolo")}
+        >
+          Practice solo
+        </button>
+        {/* Story 7.3 (AC 6): the Progress hub (Supplies, Unlocks), beside Practice solo. */}
+        <button type="button" class="btn btn--secondary" disabled={busy !== ""} onClick={() => uiStore.set(openProgress({ kind: "start" }))}>
+          Progress
+        </button>
+      </div>
     </div>
   );
 }

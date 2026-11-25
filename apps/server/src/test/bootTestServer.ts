@@ -1,7 +1,7 @@
 import { ColyseusTestServer } from "@colyseus/testing";
 import { createServer } from "node:net";
 import { createGameServer, type GameServerOptions } from "../app";
-import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter } from "../net/rateLimit";
+import { accountSessionLimiter, newGuestLimiter, rateLimitLogGate, roomCreateLimiter, unlockAccountLimiter, unlockIpLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 
 /**
@@ -29,12 +29,16 @@ export async function bootTestServer(
     newGuestLimiter.reset();
     accountSessionLimiter.reset();
     rateLimitLogGate.reset();
+    unlockIpLimiter.reset();
+    unlockAccountLimiter.reset();
     await cleanup();
   };
   roomCreateLimiter.reset();
   newGuestLimiter.reset();
   accountSessionLimiter.reset();
   rateLimitLogGate.reset();
+  unlockIpLimiter.reset();
+  unlockAccountLimiter.reset();
   return { colyseus, port };
 }
 

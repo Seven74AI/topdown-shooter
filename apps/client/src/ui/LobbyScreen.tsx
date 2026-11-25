@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { uiStore, type UiScreen } from "./uiState";
+import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { copyLink, share, shareLink } from "./share";
 import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
@@ -95,9 +95,15 @@ export function LobbyScreen() {
         </div>
         {view.startHint && <p class="lobby__hint">{view.startHint}</p>}
         {!view.isHost && view.me && <p class="lobby__hint">The host starts the game</p>}
-        <button type="button" class="btn btn--secondary" onClick={() => uiStore.request("leaveLobby")}>
-          Leave
-        </button>
+        <div class="lobby__row">
+          {/* Story 7.3 (D2): spend Supplies between runs without leaving the room. */}
+          <button type="button" class="btn btn--secondary" onClick={() => uiStore.set(openProgress({ kind: "lobby", code }))}>
+            Progress
+          </button>
+          <button type="button" class="btn btn--secondary" onClick={() => uiStore.request("leaveLobby")}>
+            Leave
+          </button>
+        </div>
       </section>
     </div>
   );

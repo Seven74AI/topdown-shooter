@@ -60,7 +60,9 @@ export {
   type SurvivorLook,
 } from "./config/cosmetics";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
-export { PROGRESSION, ProgressionError, loadProgression, progressionSchema, starterPool, type Progression } from "./config/progression";
+export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Unlock, type UnlockCategory } from "./config/progression";
+// Story 7.3: the pool, the unlock mask (7.4) and the "Good next pick".
+export { goodNextPick, itemCategories, ownedPerCategory, poolOf, unlockMask } from "./meta/pool";
 // Story 7.2: the Supplies a run pays and the run record they come from.
 export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
@@ -350,12 +352,19 @@ export {
 // Story 7.1: the account HTTP API (guest session, session ticket).
 export {
   ACCOUNT_SESSION_PATH,
+  ACCOUNT_UNLOCK_PATH,
   GUEST_COOKIE,
   accountSessionRequestSchema,
   accountSessionResponseSchema,
+  progressViewSchema,
   sessionTicketSchema,
+  unlockRequestSchema,
+  unlockResponseSchema,
   type AccountSessionRequest,
   type AccountSessionResponse,
+  type ProgressView,
+  type UnlockRequest,
+  type UnlockResponse,
 } from "./net/account";
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";

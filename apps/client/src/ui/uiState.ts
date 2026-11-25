@@ -12,6 +12,11 @@ export type UiScreen =
   /** Online lobby; players come from `net/lobbyStore`. */
   | { kind: "lobby"; code: string }
   /**
+   * Story 7.3 (AC 6, decision 7.3 D2): the Progress hub, opened from the start screen or the lobby (never in a run).
+   * `back` is the screen Back returns to (the lobby's room stays joined meanwhile; a run that starts replaces this).
+   */
+  | { kind: "progress"; back: ProgressBack }
+  /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
    */
@@ -24,6 +29,12 @@ export type UiScreen =
    * `dawnEndsAtMs` (performance.now() ms; the dawn plays until then, `dawnModel.ts`).
    */
   | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; ending: RunEnding; endless: boolean; seed: number; dawnEndsAtMs: number };
+
+/** Story 7.3: where the Progress hub can be opened from, and returns to. */
+export type ProgressBack = { kind: "start" } | { kind: "lobby"; code: string };
+
+/** Story 7.3: the hub over `from` (the start screen's error is not kept). */
+export const openProgress = (from: ProgressBack): UiScreen => ({ kind: "progress", back: from.kind === "lobby" ? { kind: "lobby", code: from.code } : { kind: "start" } });
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";
