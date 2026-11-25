@@ -4,7 +4,7 @@ baseline_commit: 1fade848628c7738a860d491f1ca3e9ccdfb744f
 
 # Story 7.1: Progress saved on the server
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 1 of 7 (7.1–7.7). Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D1–D12 (docs/epic-7-decisions.md, docs/ideas/epic-7/proposal.md § 0) are rules here, not questions. New decisions: "Decisions to confirm" below and docs/epic-7-story-decisions-progress.md. Order of work: Epic 6 (landing) → Network pass (8.8, 8.9, 8.1, 8.10, 8.11) → Epic 7. -->
 
@@ -69,6 +69,7 @@ so that my progress is kept from my very first run.
 - [x] [AI-Review][Nit] N-R1 restore-path re-key asserted — `RunRoom.account.test.ts` > "re-review N-R1: a remembered unsaved seat restored with a ticket is re-keyed to acct: …" (mutation `seatKey: key` → 1 failed).
 - [x] [AI-Review][Nit] N-R2 deadline with no presented token — `guestSession.test.ts` > "re-review N-R2: past the deadline with NO presented token …" (mutation `presented ?? mintGuestToken()` → 1 failed).
 - [x] [AI-Review][Nit] N-R3 seat recovery reuses a ticket < 9 min old (B12) — `account.test.ts` > "re-review N-R3: 10 seat-recovery attempts make at most 1 /account/session call …"; `tools/checks/accountWiring.test.ts` > "every join path in connection.ts fetches the ticket right before joining" (rejoinGame → recoveryTicket). Mutation (no reuse) → 1 failed. Waits in `RunRoom.account.test.ts` raised to 5 s (a 1 s default flaked once under parallel load).
+- [x] [AI-Review][Medium] (found by the 7.2 / 7.3 re-reviewers on real PostgreSQL) a checked-out `pg` client whose backend dies mid-transaction emitted an unhandled `error` → the game server shut down. `db/client.ts createPool`: `pool.on("connect", c => c.on("error", … db_error {op:"client"}))` + `keepAlive: true` — `db.test.ts` > "a checked-out client losing its backend mid-transaction logs db_error and never crashes the process" (mutation: listener removed → 1 failed); opt-in `db/realPg.test.ts` (`TEST_DATABASE_URL`, pg_terminate_backend mid-transaction) — NOT run here (no PostgreSQL in this container).
 
 ## Dev Notes
 
@@ -195,6 +196,7 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-1`.
 - Early part: typecheck ✅, lint ✅, touched tests 132/132 ✅, load 1.17 (04:16).
 - **FULL GATE ✅** `npm run typecheck && npm run lint && npm test && npm run build` on story-7-1 merged with origin/master `d8d44d0` AND origin/story-8-1 `83761d2` (8.1 not on master yet): 426 test files passed / 1 skipped, 3861 tests passed / 3 skipped, build OK; load 0.92 at start → 3.32 at end (2026-11-25 05:54–06:01).
 - **FULL GATE after the review fixes ✅** on story-7-1 `54d8d96` = fixes + origin/master `d8d44d0` + origin/story-8-1 `a4c802c` (8.1 with its review fixes; still not on master): 428 files passed / 1 skipped, 3895 tests passed / 3 skipped, build OK; load 1.33 → 2.99 (06:24–06:31).
+- **FULL GATE on master ✅** story-7-1 `0ec46a33` = all 7.1 fixes (incl. re-review 1 and the pg client-error fix) merged with origin/master `0ee0d6db` (8.1 landed + 8.10): 440 files passed / 2 skipped, 3975 tests passed / 4 skipped (incl. the opt-in real-PG test), build OK; load 1.16 → 2.97 (09:03–09:11).
 
 ### Notes for the merge
 

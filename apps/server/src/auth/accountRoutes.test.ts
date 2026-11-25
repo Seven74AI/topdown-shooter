@@ -215,7 +215,8 @@ describe("P3: the save server is down", () => {
         intent: "create",
         name: "Ana",
         balanceVersion: serverBalance.version,
-        mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
+        mapVersion: DOWNTOWN_MAP.version,
+        netProtocolVersion: NET_PROTOCOL_VERSION,
         guestToken: TOKEN_A,
       });
       expect(client.roomId).toBeTruthy();
