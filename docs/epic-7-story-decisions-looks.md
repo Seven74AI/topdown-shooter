@@ -97,6 +97,23 @@ Dependencies on the other writer's stories: **7.1** (storage and identity: looks
 - **Golden replay digests** change once with 7.12 (the bag is part of the World); the story says to regenerate them.
 - **`progress` columns:** 7.9 adds `look`, 7.11 adds `cosmetics` and `stats` — on top of 7.1's table. The architecture already lists them that way.
 
+## 7.9 build-time choices (auto-accepted overnight — designer: follow the GDS recommendation)
+
+Made while building Story 7.9 (2026-11-25, branch `story-7-9`); recommended value first, alternative after.
+
+| Code | Choice | Taken (alternative) |
+| --- | --- | --- |
+| 7.9 B1 | When the bodies darken (D1) | **Compare the decay stage each frame (2 compares), repaint on a change: a tab that slept through build starts repaints once** (listen for `decay.stage_changed`) |
+| 7.9 B2 | A join with no look at all (bots, old tabs) | **The default look, not logged as "replaced"** (logged like any bad look) |
+| 7.9 B3 | How a client reads `state.look` | **Against every part in its catalogue (the server already checked ownership)** (against the starter parts: would strip 7.11's items) |
+| 7.9 B4 | `?devlooks=N` | **N survivors in all, 1–4 (mine + N − 1, AC 14's "devlooks=4 → 3 extra")** (N extra) |
+| 7.9 B5 | The look in the session response | **Optional `progress: { look }`, canonicalised by the server; a failed progress read keeps the session saved with the default look** (a failed read makes the whole session unsaved) |
+| 7.9 B6 | This phone's copy of my look | **`localStorage` `topdown.look`: the server's copy wins and is kept; a server "default" clears it; save server down → the copy** (no device copy: default look when the server is down) |
+| 7.9 B7 | The DP2 district line in the lobby | **Shows the current district read-only ("Downtown"); Story 7.7 makes the same panel the host's picker** (an empty placeholder slot) |
+| 7.9 B8 | Bake cost over AC 9's target on the 4× throttle (9.1 ms) | **One bake per frame, first bakes and build-start repaints alike (review L7); online the first bake waits for the server's decay stage; a survivor shows the default picture until its body is baked** (bake the `nopack` frame only when needed: kept as the next cut if the phone hitches) |
+| 7.9 B9 | Lobby texts with no room on a 568 px phone | **Start's "Waiting for…" hint inside the Start button; "Copied" on the Copy button; guests see "The host starts the game" where Start is** (a hint line under the cards: no room at 320 px tall) |
+| 7.9 B10 | The lobby portrait | **Whole body with pack and the plain gun, turned like the SC3 sheet, animated layers drawn still (the propeller shows)** (no gun) |
+
 ## 7.12 build-time choices
 
 Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; early part T0–T4). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.

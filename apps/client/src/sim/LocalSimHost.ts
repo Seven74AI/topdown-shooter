@@ -34,6 +34,9 @@ import {
   type SimEvent,
   type ShopOfferView,
   type World,
+  decodeLook,
+  encodeLook,
+  ownedParts,
 } from "@topdown/shared";
 import type { MoveRefusal } from "../net/session";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
@@ -45,7 +48,7 @@ export const MAX_CATCHUP_STEPS = 5;
 export const LOCAL_PLAYER_ID = "local";
 
 /** Solo: the one survivor is slot 0 (blue) and has no name tag (Story 2.9). */
-const LOCAL_PLAYER_INFO: PlayerInfo = Object.freeze({ slot: 0, name: "" });
+const LOCAL_PLAYER_INFO: PlayerInfo = Object.freeze({ slot: 0, name: "", look: "" });
 
 /** Step timing of the last `update()` (Story 1.11 overlay). Client code, so `performance.now()` is allowed. */
 export interface SimStepStats {
@@ -97,8 +100,13 @@ export class LocalSimHost implements SimHost {
    * Story 4.1: `map` defaults to `DOWNTOWN_MAP` (tests may pass the open `PLACEHOLDER_MAP`). Story 6.1
    * dev (`?startwave=7`): `startWave` makes the first build lead into that wave (null = wave 1).
    */
-  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null; devLoot?: readonly [number, number] | null }) {
-    // Story 7.12 (D2): offline practice saves nothing (Story 7.2 not on master), so it makes no loot plan;
+  /** Story 7.9 (AC 13, D4): my own look in practice (this phone's saved progress), checked like a join would. */
+  private readonly info: PlayerInfo;
+
+  /** `look`: the device's look code (7.1's progress cache; absent = the default look). Never sent anywhere. */
+  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null; look?: unknown; devLoot?: readonly [number, number] | null }) {
+    this.info = opts.look === undefined ? LOCAL_PLAYER_INFO : Object.freeze({ slot: 0, name: "", look: encodeLook(decodeLook(opts.look, ownedParts()).look) });
+    // Story 7.12 (D2): offline practice banks nothing (7.2's rule), so it makes no loot plan;
     // the dev `?loot=3:0.1` forces one for browser checks.
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, loot: { off: true } });
     if (opts.devLoot) forceLootPlan(this.world, opts.devLoot[0], opts.devLoot[1]);
@@ -339,7 +347,7 @@ export class LocalSimHost implements SimHost {
   }
 
   playerInfo(): PlayerInfo {
-    return LOCAL_PLAYER_INFO;
+    return this.info;
   }
 
   dispose(): void {

@@ -140,6 +140,7 @@ function enterRoom(room: RunConnection, c: Connection): void {
           return new NetSession(fight, joined, () => leaveRoom(room), inbox);
         },
         inbox: () => lobbyStore.inbox(),
+        mySlot: () => lobbyStore.joinedInfo()?.slot, // Story 7.2 review N1: the Results "YOU" row
         dawnS: clientBalance().waves.evac.dawnS, // Story 6.11
         pageHidden: () => document.hidden, // re-review 2 (RR2-M1)
         lastShownMs: () => lastShownMs,

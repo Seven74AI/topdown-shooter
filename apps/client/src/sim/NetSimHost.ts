@@ -273,7 +273,7 @@ export class NetSimHost implements SimHost {
   private disposed = false;
   private readonly pose: SampledPose = { x: 0, y: 0, heading: 0 };
   /** Story 2.9: reused `playerInfo` answer. */
-  private readonly info: { slot: number; name: string } = { slot: 0, name: "" };
+  private readonly info: { slot: number; name: string; look: string } = { slot: 0, name: "", look: "" };
   private latest: RunStateView | null = null;
   /**
    * Story 3.4: `building.refused` answers, until the scene takes them. Story 5.18 (AC 8): a ring in
@@ -394,6 +394,8 @@ export class NetSimHost implements SimHost {
     const slot = s?.slot ?? playerSlotOf(id);
     this.info.slot = slot === NET_NONE ? 0 : slot;
     this.info.name = s?.name ?? "";
+    // Story 7.9 (L2): my own survivor too is drawn from the server's canonical code, never from my cached look.
+    this.info.look = s?.look ?? "";
     return this.info;
   }
 

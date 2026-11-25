@@ -3,7 +3,8 @@ import * as Phaser from "phaser";
 import type { PlayerState } from "@topdown/shared";
 import { SLOT_COLORS } from "./playerColors";
 import { pulseAlpha, pulseScale } from "./pulse";
-import { ATLAS_CHARACTERS, SURVIVOR_FRAME, ensureAtlases, survivorFrameFor } from "./city/spriteAtlas";
+import { ATLAS_CHARACTERS, SURVIVOR_FRAME, SURVIVOR_GUN_PLAIN, ensureAtlases, survivorFrameFor, survivorGunFrameFor, weaponHidesPack } from "./city/spriteAtlas";
+import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK } from "./SurvivorLookTextures";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
 import { ABOVE_DARK } from "./darkness/aboveDark";
 import type { AnimatedLayerId } from "@topdown/shared";
@@ -37,11 +38,21 @@ export const DARK_RING_DEPTH = ABOVE_DARK.teammate - 0.001;
 export const DARK_PLUS_DEPTH = ABOVE_DARK.teammate + 0.001;
 /** Story 7.8: an animated part layer (the propeller) sits just above the body. */
 const LAYER_DEPTH_STEP = 0.0005;
+/** Story 7.9 (D2): the held gun is its own image just under the body (above the ring and the revive ring). */
+const GUN_DEPTH_STEP = 0.0005;
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
 export class PlayerView {
   private readonly ring: Phaser.GameObjects.Arc;
   private readonly body: Phaser.GameObjects.Image;
+  /** Story 7.9 (D2): the held gun (shared atlas frame), under the per-player body; hidden until `setBodyTexture`. */
+  private readonly gun: Phaser.GameObjects.Image;
+  /** Story 7.9: the per-player body texture (`SurvivorLookTextures`), or null = the 7.8 one-piece atlas frame. */
+  private bodyKey: string | null = null;
+  private shownGunFrame = SURVIVOR_GUN_PLAIN;
+  private shownPack = true;
+  /** Story 7.9: the look code this view was last set up for (GameScene: the animated layer follows it). */
+  lookCode: string | null = null;
   x = 0;
   y = 0;
   /** Story 6.3 (DD5): the drawn facing (the flashlight cone follows it). */
@@ -75,6 +86,7 @@ export class PlayerView {
     ensureAtlases(scene);
     const side = 2 * radiusM * CHAR_EXTENT_R.survivor;
     this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(BODY_DEPTH);
+    this.gun = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_GUN_PLAIN).setDisplaySize(side, side).setDepth(BODY_DEPTH - GUN_DEPTH_STEP).setVisible(false);
     const h = HEAL_PLUS_M / 2;
     const t = HEAL_PLUS_BAR_M / 2;
     this.plus = scene.add.graphics().setDepth(HEAL_PLUS_DEPTH).setVisible(false);
@@ -95,8 +107,31 @@ export class PlayerView {
     const img = pool.acquire(id);
     if (!img) return;
     const side = 2 * SURVIVOR_LAYERS[id].extentR * this.radiusM;
-    img.setDisplaySize(side, side).setDepth(this.body.depth + LAYER_DEPTH_STEP).setVisible(this.body.visible);
+    img.setDisplaySize(side, side).setDepth(this.body.depth + LAYER_DEPTH_STEP).setVisible(this.body.visible).setAlpha(this.shownBlink);
     this.layer = { id, img, pool };
+    this.shownStatus = null; // Story 7.9 re-review RR1: the status tint reaches the new sprite at the next update
+  }
+
+  /**
+   * Story 7.9 (AC 7): draw this survivor from its own body texture (`survivorlook_<id>`, frames pack / nopack) over
+   * the shared gun frame. Called once per view (the texture is repainted in place on a look or stage change).
+   */
+  setBodyTexture(key: string): void {
+    if (key === this.bodyKey) return;
+    this.bodyKey = key;
+    this.body.setTexture(key, this.shownPack ? LOOK_FRAME_PACK : LOOK_FRAME_NOPACK);
+    this.gun.setTexture(ATLAS_CHARACTERS, this.shownGunFrame).setVisible(this.body.visible);
+    this.shownStatus = null; // the tint and visibility are applied to both images at the next update
+  }
+
+  /** Story 7.9 (tests): the gun image. */
+  get gunSprite(): Phaser.GameObjects.Image {
+    return this.gun;
+  }
+
+  /** Story 7.9 (tests): the body image. */
+  get bodySprite(): Phaser.GameObjects.Image {
+    return this.body;
   }
 
   /** Story 7.8 (tests): the layer sprite now, or null. */
@@ -122,6 +157,7 @@ export class PlayerView {
     this.aboveDark = on;
     this.ring.setDepth(on ? DARK_RING_DEPTH : RING_DEPTH);
     this.body.setDepth(on ? DARK_BODY_DEPTH : BODY_DEPTH);
+    this.gun.setDepth(this.body.depth - GUN_DEPTH_STEP);
     this.plus.setDepth(on ? DARK_PLUS_DEPTH : HEAL_PLUS_DEPTH);
     this.layer?.img.setDepth(this.body.depth + LAYER_DEPTH_STEP);
   }
@@ -156,12 +192,30 @@ export class PlayerView {
     this.ring.setPosition(this.x, this.y);
     this.facingX = p.facingX;
     this.facingY = p.facingY;
-    this.body.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
+    const rotation = Math.atan2(p.facingY, p.facingX);
+    this.body.setPosition(this.x, this.y).setRotation(rotation);
     // Story 5.2: a Chainsaw that is cutting shows its running (blurred chain) frame.
-    const frame = survivorFrameFor(p.loadout.slots[p.loadout.active]?.weapon ?? "", sawRunning && p.status === "alive");
-    if (frame !== this.shownFrame) {
-      this.shownFrame = frame;
-      this.body.setFrame(frame);
+    const weapon = p.loadout.slots[p.loadout.active]?.weapon ?? "";
+    const running = sawRunning && p.status === "alive";
+    if (this.bodyKey !== null) {
+      // Story 7.9 (D2): the gun frame under the body; the body drops its pack for a weapon with a back piece.
+      this.gun.setPosition(this.x, this.y).setRotation(rotation);
+      const gunFrame = survivorGunFrameFor(weapon, running);
+      if (gunFrame !== this.shownGunFrame) {
+        this.shownGunFrame = gunFrame;
+        this.gun.setFrame(gunFrame);
+      }
+      const pack = !weaponHidesPack(weapon);
+      if (pack !== this.shownPack) {
+        this.shownPack = pack;
+        this.body.setFrame(pack ? LOOK_FRAME_PACK : LOOK_FRAME_NOPACK);
+      }
+    } else {
+      const frame = survivorFrameFor(weapon, running);
+      if (frame !== this.shownFrame) {
+        this.shownFrame = frame;
+        this.body.setFrame(frame);
+      }
     }
     const slowed = p.slowTicksLeft > 0 && p.status === "alive";
     // Story 4.11: no burning tint any more (4.8's ember tint): BurnView draws flames, smoke and embers on the body.
@@ -171,6 +225,7 @@ export class PlayerView {
       const shown = p.status !== "out";
       const tint = p.status === "downed" ? DOWNED_TINT : slowed ? SLOWED_TINT : BODY_TINT;
       this.body.setTint(tint).setVisible(shown);
+      this.gun.setTint(tint).setVisible(shown && this.bodyKey !== null);
       this.layer?.img.setTint(tint).setVisible(shown);
       this.ring.setVisible(shown).setScale(1).setAlpha(1);
     }
@@ -188,6 +243,7 @@ export class PlayerView {
     if (blink !== this.shownBlink) {
       this.shownBlink = blink;
       this.body.setAlpha(blink);
+      this.gun.setAlpha(blink); // Story 7.9 review M1: the gun blinks with the body
       this.layer?.img.setAlpha(blink);
     }
   }
@@ -198,6 +254,7 @@ export class PlayerView {
   destroy(): void {
     this.ring.destroy();
     this.body.destroy();
+    this.gun.destroy();
     this.plus.destroy();
     if (this.layer) this.layer.pool.release(this.layer.id, this.layer.img);
     this.layer = null;

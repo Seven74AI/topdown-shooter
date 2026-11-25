@@ -16,6 +16,14 @@ import { lostReason, type LostReason } from "./serverNotice";
 import { RunInbox, type NetRoomLike } from "./session";
 import { LinkMonitor, linkStore, type LinkRoom } from "./linkMonitor";
 import { seatStore } from "./seatStore";
+import { rewardsStore } from "./rewardsStore";
+
+/**
+ * Story 7.2 (D4, re-review 2 N-RR2-2): how long a Leave mid-run keeps the socket open for its `run.rewards`. A bank
+ * is normally a few ms; 2.5 s covers a lock wait plus the budget (`db/boundedTx.ts`). A slower bank still completes on
+ * the server; only the start screen's one-time line is missed.
+ */
+export const LEAVE_REWARDS_WAIT_MS = 2500;
 
 /** Consented leave (4000) and server shutdown (4001): never a drop. */
 const CONSENTED = 4000;
@@ -29,6 +37,8 @@ export interface LobbyPlayer {
   readonly slot: number;
   readonly name: string;
   readonly ready: boolean;
+  /** Story 7.9: the look code from the room state (the lobby card's survivor picture). */
+  readonly look: string;
 }
 
 /** Plain data for the lobby screen (never schema instances in Preact state). */
@@ -46,7 +56,7 @@ const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
-  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready }));
+  state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look }));
   players.sort((a, b) => a.slot - b.slot);
   return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId };
 }
@@ -55,6 +65,11 @@ export function snapshotLobby(code: string, state: RunStateView, localPlayerId: 
 export const START_HINT = {
   notReady: "Waiting for everyone to be Ready",
   tooFew: "Need at least 1 player",
+} as const;
+/** Story 7.9 review L6: the same reasons short enough for the Start button's second line (≥ 112 px at 11 px). */
+export const START_HINT_SHORT = {
+  notReady: "Waiting for Ready",
+  tooFew: "Need 1 player",
 } as const;
 
 /** What the lobby screen shows, derived from a snapshot. */
@@ -67,6 +82,8 @@ export interface LobbyView {
   readonly canStart: boolean;
   /** Why Start is disabled, for the host; null when it is enabled or for guests. */
   readonly startHint: string | null;
+  /** Story 7.9 review L6: `startHint` short enough for the Start button (the full text stays its tooltip / label). */
+  readonly startHintShort: string | null;
 }
 
 export function lobbyView(s: LobbySnapshot, allowSolo: boolean): LobbyView {
@@ -77,7 +94,8 @@ export function lobbyView(s: LobbySnapshot, allowSolo: boolean): LobbyView {
   const blocker = startBlocker(s.players, isHost, allowSolo);
   const startHint =
     !isHost || blocker === null ? null : blocker === "too_few" ? START_HINT.tooFew : START_HINT.notReady;
-  return { rows, me, isHost, canStart: blocker === null, startHint };
+  const startHintShort = startHint === null ? null : blocker === "too_few" ? START_HINT_SHORT.tooFew : START_HINT_SHORT.notReady;
+  return { rows, me, isHost, canStart: blocker === null, startHint, startHintShort };
 }
 
 /** Subscribes to lobby field changes of a room (`watchLobby` in connection.ts); returns the unsubscribe. */
@@ -293,11 +311,13 @@ class LobbyStore {
   leave(only?: RunConnection): boolean {
     if (only !== undefined && this.room !== only) return false;
     const room = this.room;
+    const linkDown = linkStore.get().status !== "ok"; // Story 7.2: a socket being reconnected can't carry run.leave
     this.link?.close(true); // Story 8.1: a takeover landing after this Leave is left too, never adopted
     this.detach();
     this.set(EMPTY);
     seatStore.clear(); // Story 8.1: a Leave is for good (consented): a reload must not take the seat back
-    void room?.leave(true);
+    if (room && linkDown) void room.leave(true);
+    else if (room) leaveAfterRewards(room);
     return room !== null;
   }
 
@@ -328,4 +348,35 @@ export const lobbyStore = new LobbyStore();
 function isLinkRoom(room: unknown): room is LinkRoom {
   const r = room as Partial<LinkRoom> | null;
   return !!r && typeof r.onDrop === "function" && typeof r.onReconnect === "function" && typeof r.reconnection === "object" && r.reconnection !== null;
+}
+
+/**
+ * Story 7.2 (S3, D4): a Leave mid-run first sends `run.leave` (the server banks this seat now, ending `quit`) and keeps
+ * the socket open until `run.rewards` arrives (kept for the start screen's one-time line) or LEAVE_REWARDS_WAIT_MS
+ * passes; then the consented leave as before. Outside a run (lobby, Results) it leaves at once. The screen has already
+ * moved on: nothing waits for this.
+ */
+export function leaveAfterRewards(room: Pick<RunConnection, "leave" | "send" | "onMessage" | "state">, waitMs = LEAVE_REWARDS_WAIT_MS): void {
+  if (!inRunPhase(room.state?.phase)) {
+    void room.leave(true);
+    return;
+  }
+  let done = false;
+  const finish = (): void => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    off?.();
+    void room.leave(true);
+  };
+  const timer = setTimeout(finish, waitMs);
+  const off = room.onMessage(S2C.RUN_REWARDS, (m: unknown) => {
+    rewardsStore.receive(m, true);
+    finish();
+  }) as (() => void) | undefined;
+  try {
+    room.send(C2S.RUN_LEAVE, {});
+  } catch {
+    finish();
+  }
 }

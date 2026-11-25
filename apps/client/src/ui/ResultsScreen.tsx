@@ -3,6 +3,9 @@ import { resultsSub, resultsTitle, uiStore, type UiScreen } from "./uiState";
 import { dawnLookFor, dawnProgress } from "./dawnModel";
 import { clientBalance } from "../debug/clientBalance";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
+import { formatSupplies, rewardsStore } from "../net/rewardsStore";
+import type { RunRewards } from "@topdown/shared";
+import { lineAmount, rewardsView, type RewardsView } from "./rewardsModel";
 
 /**
  * Results after a team wipe (Story 2.8, FR11): the wave reached, then color dot, name and kills per
@@ -12,13 +15,18 @@ import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
  * every row shows the money earned this run. Story 4.4: the run seed under the table.
  * Story 6.11: "Extracted" after the 4 s dawn (DW1 warm sunrise after wave 10, DW2 blue hour in
  * endless; a tap skips it, D6); Story 6.12: "Lost in the city" on the DW2 backdrop at once (D7).
+ * Story 7.2 (AC 5, layout RW1 in Lumen LF5): two cards — the team card (title, table, button) and the "Run rewards"
+ * card (`rewardsModel.ts`: Supplies, then the row groups later stories fill, brief 26). The rewards come from the
+ * server's `run.rewards` (`net/rewardsStore.ts`), before or after the Results patch; until then "Saving…".
  */
 export function ResultsScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [sent, setSent] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const [now, setNow] = useState(() => performance.now());
+  const [rewards, setRewards] = useState<RunRewards | null>(rewardsStore.get());
   useEffect(() => uiStore.subscribe(setScreen), []);
+  useEffect(() => rewardsStore.subscribe(setRewards), []);
   useEffect(() => {
     setSent(false);
     setSkipped(false);
@@ -44,57 +52,145 @@ export function ResultsScreen() {
     );
   }
   const sub = resultsSub(screen);
-  const cls = screen.ending === "extracted" ? "game-over results results--held" : screen.ending === "lost" ? "game-over results results--lost" : "game-over results";
+  const cls = `game-over results rw${screen.ending === "extracted" ? " results--held" : screen.ending === "lost" ? " results--lost" : ""}`;
+  const view = rewardsView(rewards, screen.online, screen.seed);
   return (
     <div class={look !== "none" ? `results-backdrop results-backdrop--${look}` : undefined}>
-    <div class={cls} role="dialog" aria-labelledby="results-title">
-      <h1 id="results-title">{resultsTitle(screen)}</h1>
-      {sub ? <p class="results__sub">{sub}</p> : null}
-      <table class="results__table">
-        <thead>
-          <tr>
-            <th scope="col">Player</th>
-            <th scope="col">Kills</th>
-            <th scope="col">Earned</th>
-          </tr>
-        </thead>
-        <tbody>
-          {screen.rows.map((r) => (
-            <tr key={r.slot}>
-              <td class="results__name">
-                <span
-                  class="lobby__dot"
-                  style={{ background: SLOT_COLOR_CSS[r.slot] }}
-                  role="img"
-                  aria-label={SLOT_COLOR_NAMES[r.slot]}
-                />
-                {r.name}
-              </td>
-              <td class="results__kills">{r.kills}</td>
-              <td class="results__earned">${r.earned}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p class="results__seed">Run seed {screen.seed}</p>
-      {screen.online ? (
-        <button
-          type="button"
-          class="btn"
-          disabled={sent}
-          onClick={() => {
-            setSent(true);
-            uiStore.request("lobbyReturn");
-          }}
-        >
-          Back to lobby
-        </button>
-      ) : (
-        <button type="button" class="btn" onClick={() => uiStore.request("restart")}>
-          Restart
-        </button>
-      )}
+      <div class={cls} role="dialog" aria-labelledby="results-title">
+        <section class="rw-card rw-card--team">
+          <header class="rw-card__head rw-card__head--team">
+            <div class="rw-head__main">
+              <p class="rw-kicker">{screen.ending === "extracted" ? "Run complete · Downtown" : "Run over · Downtown"}</p>
+              <h1 id="results-title">{resultsTitle(screen)}</h1>
+              {screen.ending === "lost" ? <p class="results__sub">Rewards after wave 10 lost</p> : null}
+            </div>
+            {screen.ending !== "wiped" ? (
+              <p class="rw-wave" aria-label={sub}>
+                <span class="rw-wave__label">Wave</span>
+                <span class="rw-wave__n">{screen.wave}</span>
+              </p>
+            ) : null}
+          </header>
+          <div class="rw-table-wrap">
+          <table class="results__table">
+            <colgroup>
+              <col />
+              <col class="rw-col--kills" />
+              <col class="rw-col--earned" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Player</th>
+                <th scope="col">Kills</th>
+                <th scope="col">Earned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {screen.rows.map((r) => (
+                <tr key={r.slot} class={r.slot === screen.mySlot ? "rw-row--me" : undefined}>
+                  <td class="results__name">
+                    <span class="rw-slot" style={{ background: SLOT_COLOR_CSS[r.slot] }} role="img" aria-label={SLOT_COLOR_NAMES[r.slot]}>
+                      {r.slot + 1}
+                    </span>
+                    <span class="rw-name">
+                      <span class="rw-name__text">{r.name}</span>
+                      {r.slot === screen.mySlot ? <span class="rw-you">You</span> : null}
+                    </span>
+                  </td>
+                  <td class="results__kills">{r.kills}</td>
+                  <td class="results__earned">${formatSupplies(r.earned)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+          <div class="rw-card__foot">
+            <p class="results__seed">Run seed {screen.seed}</p>
+            {screen.online ? (
+              <button
+                type="button"
+                class="btn rw-btn"
+                disabled={sent}
+                onClick={() => {
+                  setSent(true);
+                  uiStore.request("lobbyReturn");
+                }}
+              >
+                Back to lobby
+              </button>
+            ) : (
+              <button type="button" class="btn rw-btn" onClick={() => uiStore.request("restart")}>
+                Restart
+              </button>
+            )}
+          </div>
+        </section>
+        <RunRewardsCard view={view} />
+      </div>
     </div>
-    </div>
+  );
+}
+
+/** Story 7.2 (AC 5, RW1): the "Run rewards" card. One scrolling column; rows in the fixed order of brief 26. */
+export function RunRewardsCard({ view }: { view: RewardsView }) {
+  return (
+    <section class={`rw-card rw-card--rewards rw--${view.state}`} aria-labelledby="rw-title" data-testid="run-rewards" data-state={view.state}>
+      <header class="rw-card__head rw-card__head--rewards">
+        <span class="rw-crate" aria-hidden="true" />
+        <div>
+          <p class="rw-kicker">Run report</p>
+          <h2 id="rw-title">Run rewards</h2>
+        </div>
+      </header>
+      <div class="rw-body">
+        <div class="rw-group rw-group--supplies" data-group="supplies">
+          {view.state === "saved" ? (
+            <>
+              <p class="rw-earned">Supplies earned</p>
+              <p class="rw-big">
+                <span class={`rw-big__n${view.headline.length > 6 ? " rw-big__n--long" : ""}`}>{view.headline}</span>
+                <span class="rw-big__unit">Supplies</span>
+              </p>
+              <ul class="rw-lines">
+                {view.lines.map((l) => (
+                  <li key={l.key} class="rw-line">
+                    <span class="rw-line__label">{l.label}</span>
+                    <span class="rw-line__bar" aria-hidden="true">
+                      <span class="rw-line__fill" style={{ width: `${Math.round(l.frac * 100)}%` }} />
+                    </span>
+                    <span class="rw-line__amount">{lineAmount(l.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div class="rw-totalrow">
+                {view.rookie ? (
+                  <span class="rw-rookie" data-testid="rookie-badge">
+                    <span class="rw-rookie__text">Rookie bonus</span>
+                    <span class="rw-rookie__x">× 2</span>
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span class="rw-total" aria-label={`Total: ${view.total} Supplies`}>
+                  <span class="rw-total__label">Total</span>
+                  <span class="rw-crate" aria-hidden="true" />
+                  <span class={`rw-total__n${view.total.length > 7 ? " rw-total__n--long" : ""}`}>{view.total}</span>
+                </span>
+              </div>
+              {view.note ? (
+                <p class="rw-note" data-testid="rewards-note">
+                  {view.note}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p class={`rw-status rw-status--${view.state}`} role="status">
+              {view.status}
+            </p>
+          )}
+        </div>
+        {/* Brief 26: groups 2–4 (items 7.11/7.12, unlocks 7.4/7.7, nudge 7.6) append here, in this order; empty groups render nothing. */}
+      </div>
+    </section>
   );
 }

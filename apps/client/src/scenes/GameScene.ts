@@ -161,6 +161,9 @@ import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
 import { parseBossWaves, urlOptions } from "../debug/urlOptions";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
+import { SurvivorLookTextures, syncViewLook } from "../render/SurvivorLookTextures";
+import { DevLooks } from "../render/devLooks";
+import { deviceLook } from "../net/deviceLook";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
@@ -252,11 +255,9 @@ export class GameScene extends Phaser.Scene {
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
       view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
-      // Story 7.8: ?devlayer=propeller (dev builds) puts the spinning propeller layer on every survivor.
-      const devLayer = urlOptions().devLayer;
-      if (devLayer) view.setAnimatedLayer((this.layerPool ??= new SurvivorLayerPool(this)), devLayer);
       this.playerViews.set(id, view);
     }
+    this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     view.setAboveDark(this.blackoutNow); // Story 6.3 (F5): one depth change when a blackout starts or ends
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
@@ -282,6 +283,22 @@ export class GameScene extends Phaser.Scene {
   private flameView: FlameView | null = null;
   /** Story 7.8: sprites of animated part layers (the propeller), made on first use; they go with the scene. */
   private layerPool: SurvivorLayerPool | null = null;
+  /** Story 7.9: each player's own body texture (from their look, dimmed by the decay stage, D1). */
+  private lookTextures: SurvivorLookTextures | null = null;
+  /** Story 7.9 (AC 14): `?devlooks=N` extra survivors next to mine (dev builds, views only). */
+  private devLooks: DevLooks | null = null;
+  /**
+   * Story 7.9: the view's body from the player's look and the decay stage. Cheap when nothing changed (two compares);
+   * a new code or a new stage (a build start, D1) repaints that body once. The animated layer follows the look
+   * (AC 10); `?devlayer` (dev builds) still forces it on everyone.
+   */
+  private readonly syncLook = (view: PlayerView, id: string, code: string): void => {
+    // Review L7: online, bake only once the mirror has the server's decay stage (no stage-1 bake, then a repaint).
+    const host = this.host;
+    if (host instanceof NetSimHost && !host.decaySynced) return;
+    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, urlOptions().devLayer);
+  };
+  private readonly layerPoolOf = (): SurvivorLayerPool => (this.layerPool ??= new SurvivorLayerPool(this));
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
   private readonly slotOfPlayer = (id: string): number => this.host?.playerInfo(id).slot ?? -1;
@@ -306,6 +323,7 @@ export class GameScene extends Phaser.Scene {
     if (this.host?.world.players.has(id)) return;
     view.destroy();
     this.playerViews.delete(id);
+    this.lookTextures?.remove(id); // Story 7.9: a player who left takes their body texture along
   };
   private zombieView: ZombieView | null = null;
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
@@ -581,7 +599,7 @@ export class GameScene extends Phaser.Scene {
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn, linkUp: () => linkStore.get().status === "ok" }) : null;
     // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
     const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
-    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, devLoot: opts.stress === null ? opts.loot : null });
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get(), devLoot: opts.stress === null ? opts.loot : null });
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;
@@ -740,6 +758,9 @@ export class GameScene extends Phaser.Scene {
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.layerPool = null; // Story 7.8: its sprites died with the old scene
+    this.lookTextures = new SurvivorLookTextures(this); // Story 7.9: drops a previous run's leftover bodies
+    // Story 7.9 (AC 14): ?devlooks=N — N − 1 survivors with random starter looks beside mine (views only, dev builds).
+    this.devLooks = urlOptions().devLooks > 1 ? new DevLooks(urlOptions().devLooks - 1, () => new PlayerView(this, this.playerRadiusM), this.syncLook) : null;
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     this.flameView = new FlameView(this, balance, urlOptions().lowFx); // Story 5.4
@@ -875,6 +896,10 @@ export class GameScene extends Phaser.Scene {
       this.trailView = null;
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
+      this.devLooks?.destroy(); // Story 7.9
+      this.devLooks = null;
+      this.lookTextures?.dispose(); // Story 7.9: the per-player bodies go with the scene
+      this.lookTextures = null;
       this.burnView?.destroy();
       this.burnView = null;
       this.flameView?.destroy(); // Story 5.4
@@ -1057,7 +1082,7 @@ export class GameScene extends Phaser.Scene {
     const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
     // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
     const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs });
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
   }
 
   /**
@@ -1754,9 +1779,12 @@ export class GameScene extends Phaser.Scene {
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
   private syncPlayerViews(world: Readonly<World>, dtS: number): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
+    this.lookTextures?.beginFrame(); // Story 7.9: one body repaint per frame (a build start's stage dim, D1)
     this.burnView?.begin(dtS, this.time.now / 1000);
     this.flameView?.begin(dtS, this.time.now / 1000, world);
     world.players.forEach(this.syncPlayerView);
+    const me = this.host ? world.players.get(this.host.localPlayerId) : undefined;
+    if (this.devLooks && me) this.devLooks.update(me, this.host?.alpha ?? 0, this.time.now);
     this.burnView?.end();
     const cam = this.cameras.main;
     this.flameView?.zombies(world, this.host?.online ? 1 : (this.host?.alpha ?? 0), cam.midPoint.x, cam.midPoint.y);

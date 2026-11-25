@@ -74,6 +74,8 @@ export interface PlayerStateView {
   readonly heldUntilTick: number;
   /** Story 8.1 (D3): spawn-protection ticks left after a mid-wave return (the body blinks; no fire). */
   readonly protectTicks: number;
+  /** Story 7.9: the survivor look code, set once at join (canonical: the server decoded it against what the account owns). */
+  readonly look: string;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -280,6 +282,7 @@ export const PLAYER_STATE_FIELDS = {
   inputQueued: true, // Story 8.9
   heldUntilTick: true, // Story 8.1
   protectTicks: true,
+  look: true, // Story 7.9
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

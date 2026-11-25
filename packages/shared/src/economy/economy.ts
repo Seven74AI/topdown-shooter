@@ -4,6 +4,7 @@ import type { MoneyReason, SimEvent } from "../core/simEvents";
 import { err, ok, type Result } from "../core/result";
 import { MAX_PLAYERS } from "../net/messages";
 import { zombieTypeOf } from "../zombies/zombiePool";
+import { countBossKilled, countWaveEnded } from "../meta/runRecord";
 
 /**
  * Story 3.2: personal wallets and rewards (GDD › Economy and Resources, FR12, FR45).
@@ -170,6 +171,10 @@ function apply(world: World, e: SimEvent): void {
       break;
     case "wave.ended":
       waveBonus(world, e.number);
+      countWaveEnded(world, e.number); // Story 7.2 (S2): the same "who is in the run" moment as the money, plus held players
+      break;
+    case "boss.killed":
+      countBossKilled(world); // Story 7.2 (S1): the Behemoth line of the run's Supplies
       break;
     default:
       break;

@@ -25,6 +25,8 @@ export interface OnlineFlowDeps {
    * `run.joined` yet, or the room was left). Built on the lobby store's fight room and inbox.
    */
   makeSession(): NetSession | null;
+  /** Story 7.2 review N1: this phone's slot (the Results "YOU" row), or undefined before `run.joined`. */
+  mySlot?(): number | undefined;
   /** The room's `RunInbox` (kept by the lobby store for the room's lifetime). */
   inbox(): RunInbox | null;
   /** Story 6.11: the dawn's length (`waves.json › evac.dawnS`) and the clock (default `performance.now`). */
@@ -121,7 +123,8 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       // so its age reads 0, but the two patches arrive together).
       const sawVoteRun = now - voteSeenAtMs >= (st.tick - voteTick) * TICK_MS - VOTE_SEEN_SLACK_MS;
       const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown && sawVoteRun;
-      deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS) });
+      const mySlot = deps.mySlot?.();
+      deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS), ...(mySlot === undefined ? {} : { mySlot }) });
     } else if (phase === "lobby") {
       session?.release();
       session = null;

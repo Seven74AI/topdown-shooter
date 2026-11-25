@@ -12,9 +12,11 @@
 # `ok` deploy (stack up, health 200, and the server container runs this sha's image) counts as known
 # good: rollback.sh goes back to the newest `ok` sha. A failed deploy does NOT roll back by itself
 # (so the failure can be looked at); it prints the logs and the exact rollback command, and exits 1.
-# On success it also writes deploy/.env (GIT_SHA=<sha>), so plain `docker compose -f
+# On success it also writes GIT_SHA=<sha> into deploy/.env, so plain `docker compose -f
 # deploy/docker-compose.yml ps|logs|down` work by hand and refer to the deployed images.
-# See docs/deploy.md.
+# Story 7.1: deploy/.env also holds POSTGRES_PASSWORD and SESSION_SECRET (generated here on the first run, never
+# overwritten, chmod 600), and the database migrations run in a one-off server container BEFORE `up -d`: a failed
+# migration leaves the running stack untouched. See docs/deploy.md › Database.
 #
 # Everything runs inside main(): bash reads a script while running it, and the checkout below may
 # replace this very file, so the whole script must be parsed before anything runs.
@@ -43,6 +45,9 @@ main() {
 	# compose file reads it from this environment, default 0. Exported explicitly so it is never lost.
 	export ALLOW_TEST_SCENARIOS="${ALLOW_TEST_SCENARIOS:-0}"
 	echo "==> ALLOW_TEST_SCENARIOS=${ALLOW_TEST_SCENARIOS}"
+	# Story 7.1: the database password and the ticket key, made once and kept in deploy/.env.
+	ensure_secret POSTGRES_PASSWORD 24
+	ensure_secret SESSION_SECRET 32
 
 	if docker image inspect "topdown-server:${sha}" "topdown-web:${sha}" >/dev/null 2>&1; then
 		echo "==> images for ${sha} already exist, skipping the build"
@@ -52,6 +57,19 @@ main() {
 			# The running stack was not touched: the old version keeps serving.
 			record "$sha" failed
 			echo "!! build of ${sha} failed. The running stack is unchanged." >&2
+			print_rollback_hint "$sha"
+			exit 1
+		fi
+	fi
+
+	# Story 7.1: migrate BEFORE replacing the server. A sha from before 7.1 (a rollback) has no migrator: skipped.
+	if [[ -f apps/server/src/db/migrateCli.ts ]]; then
+		echo "==> starting postgres and applying database migrations"
+		if ! "${COMPOSE[@]}" up -d --wait postgres ||
+			! "${COMPOSE[@]}" run --rm --no-deps server node --import tsx apps/server/src/db/migrateCli.ts; then
+			record "$sha" failed
+			echo "!! database migration for ${sha} failed. The running server is unchanged." >&2
+			"${COMPOSE[@]}" logs --no-color --tail=50 postgres >&2 || true
 			print_rollback_hint "$sha"
 			exit 1
 		fi
@@ -104,7 +122,7 @@ main() {
 	echo
 
 	record "$sha" ok
-	printf 'GIT_SHA=%s\n' "$sha" >deploy/.env
+	env_set GIT_SHA "$sha"
 	# Never prune the current sha or the previous known-good one (the default rollback target).
 	local prev_good
 	prev_good="$(last_good_except "$sha")"
@@ -113,6 +131,33 @@ main() {
 	docker image prune -f --filter label=org.topdown.app=topdown >/dev/null || true # our dangling layers only
 
 	echo "==> deployed ${sha}"
+}
+
+# Sets KEY=VALUE in deploy/.env, keeping every other line (Story 7.1: the secrets live there too).
+env_set() {
+	local key="$1" value="$2" file="deploy/.env" tmp
+	touch "$file"
+	chmod 600 "$file"
+	tmp="$(mktemp)"
+	grep -v "^${key}=" "$file" >"$tmp" || true
+	printf '%s=%s\n' "$key" "$value" >>"$tmp"
+	cat "$tmp" >"$file"
+	rm -f "$tmp"
+}
+
+# Story 7.1: exports KEY from deploy/.env, generating it first (hex, $2 random bytes) when it is missing. Never
+# printed. Hex, so a password needs no escaping inside DATABASE_URL.
+ensure_secret() {
+	local key="$1" bytes="$2" value=""
+	if [[ -f deploy/.env ]]; then
+		value="$(grep "^${key}=" deploy/.env | tail -n 1 | cut -d= -f2- || true)"
+	fi
+	if [[ -z "$value" ]]; then
+		echo "==> generating ${key} in deploy/.env (first Epic 7 deploy)"
+		value="$(openssl rand -hex "$bytes")"
+		env_set "$key" "$value"
+	fi
+	export "${key}=${value}"
 }
 
 # Appends `<utc-time> <sha> <status>` to the history log.

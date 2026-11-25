@@ -80,3 +80,19 @@ describe("guest token", () => {
     expect(get()).toBe(get());
   });
 });
+
+describe("guest token write-back (Story 7.1)", () => {
+  it("set stores a valid token, ignores a malformed one, and falls back to memory when storage throws", async () => {
+    const { guestTokenStore } = await import("./guestToken");
+    const s = memoryStorage();
+    const store = guestTokenStore(() => s);
+    store.set("cd".repeat(16));
+    expect(s.data[GUEST_TOKEN_KEY]).toBe("cd".repeat(16));
+    expect(store.get()).toBe("cd".repeat(16));
+    store.set("NOT-A-TOKEN");
+    expect(store.get()).toBe("cd".repeat(16));
+    const blocked = guestTokenStore(() => throwing);
+    blocked.set("ef".repeat(16));
+    expect(blocked.get()).toBe("ef".repeat(16));
+  });
+});

@@ -3,6 +3,8 @@ import { GAME_TITLE, ROOM_CODE_LENGTH, isRoomCode, playerNameSchema } from "@top
 import { uiStore, type UiScreen } from "./uiState";
 import { filterCodeInput } from "./codeInput";
 import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
+import { accountSession, prefillName } from "../net/account";
+import { rewardsStore } from "../net/rewardsStore";
 
 const NAME_KEY = "topdown.name";
 const NAME_MAX = 16;
@@ -53,6 +55,31 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
     [],
   );
   useEffect(() => {
+    // Story 7.1 AC 7: on start-up, find this device's account; an empty name field gets its display name.
+    let live = true;
+    void accountSession().then((session) => {
+      if (live) setName((current) => prefillName(current, session));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  // Story 7.2 (D4): "+40 Supplies banked from your last run", once, after a Leave mid-run (the answer may land a
+  // moment after this screen shows: the rewards store is watched while it is up).
+  const [banked, setBanked] = useState<string | null>(null);
+  useEffect(() => {
+    if (screen.kind !== "start") {
+      setBanked(null);
+      return;
+    }
+    const take = () => {
+      const line = rewardsStore.takeLeaveLine();
+      if (line) setBanked(line);
+    };
+    take();
+    return rewardsStore.subscribe(take);
+  }, [screen.kind]);
+  useEffect(() => {
     // Share link: focus the name once, when the start screen first shows.
     if (screen.kind !== "start" || !joinCode || focused.current) return;
     focused.current = true;
@@ -95,6 +122,11 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
   return (
     <div class="menu" role="dialog" aria-labelledby="start-title">
       <h1 id="start-title">{GAME_TITLE}</h1>
+      {banked ? (
+        <p class="menu__banked" role="status" data-testid="banked-line">
+          {banked}
+        </p>
+      ) : null}
       <form class="menu__form" onSubmit={onNameSubmit}>
         <label class="menu__label" for="start-name">
           Your name

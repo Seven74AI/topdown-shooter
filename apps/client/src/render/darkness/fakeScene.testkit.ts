@@ -72,7 +72,10 @@ export class FakeObject {
   setTintMode(): this {
     return this;
   }
-  setStrokeStyle(): this {
+  /** Story 7.9 (L3): the last stroke colour (the slot ring). */
+  strokeColor = -1;
+  setStrokeStyle(_w?: number, color?: number): this {
+    if (color !== undefined) this.strokeColor = color;
     return this;
   }
   fillStyle(): this {
@@ -238,6 +241,7 @@ export function fakeScene(atlasKeys: readonly string[] = []): FakeScene {
         return tex;
       },
       remove: (k: string) => keys.delete(k),
+      getTextureKeys: () => [...keys], // Story 7.9: a restarted scene's leftover bodies
     },
   };
   return out;
