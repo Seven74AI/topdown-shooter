@@ -227,6 +227,7 @@ export function* charBakeSteps(draw: (g: G, r: number) => void, extent: number, 
     const sheen = primary ? sheenStrip(lit.gloss, n, make) : null;
     freeCanvas(lit.gloss);
     if (sheen) yield n * n;
+    if (!primary) freeCanvas(lit.glow); // review L7: only primary frames keep a glow
     return { base: lit.base, glow: primary ? lit.glow : null, sheen, veins, bloater: bfx, plain: false };
   } finally {
     freeCanvas(src);

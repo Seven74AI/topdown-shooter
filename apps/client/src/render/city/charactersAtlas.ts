@@ -64,6 +64,11 @@ interface Kept {
   readonly veins: ImageData | null;
   readonly sentinel: readonly [number, number] | null;
   readonly plain: boolean;
+  /**
+   * Review M3 (B26): the sheen and vein pictures are written into their sheets and NOT kept (≈ 10 MB): after a lost
+   * graphics context the frames that had them are baked again (`rebakeCharsAfterCacheLoss`).
+   */
+  readonly layersDropped: boolean;
 }
 /** What a landed primary frame gives the views. */
 export interface CharFx {
@@ -167,6 +172,12 @@ interface Sheet {
   readonly frames: ReadonlyMap<string, PlacedFrame>;
   tex: Phaser.Textures.CanvasTexture | null;
   dirty: boolean;
+  /**
+   * Review M1: what the views may use once this sheet's pixels are on the GPU (a look's FX data, a walk picture counted
+   * for its loop). Published right after the sheet's upload, never at landing: a view never shows a frame that is
+   * still transparent in the texture.
+   */
+  readonly pending: (() => void)[];
 }
 type Task = { readonly kind: "frame"; readonly frame: string; readonly plain: boolean } | { readonly kind: "body"; readonly body: BodyJob };
 
@@ -185,10 +196,20 @@ export interface CharBake {
   useWorker: boolean;
   workerDeadline: number;
   lastPump: number;
+  /** GPU uploads this pump (a sheet made or refreshed): at most one a frame where it can wait (review M3). */
+  uploads: number;
+  /** The last pump made sheets (setup), not landings. */
+  setupFrame: boolean;
+  /** Sheets not made yet (−1: not counted yet; 0 once all are made or none are made by the bake). */
+  sheetsLeft: number;
+  /** Frees what making the sheets needed (the atlas copy), once all are made. */
+  releaseSheetSource?: () => void;
+  /** Makes a sheet that isn't made yet (the game's; tests pass their sheets in). */
+  makeSheet?: (key: string) => Sheet | null;
   /** Nothing in progress after the last pump (the next pump returns at once unless something new came in). */
   idle: boolean;
   /** Stats for the perf note (`window.__charBake`): main-thread max per pump, when the last picture landed. */
-  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; waveOneMs: number; maxLandMs: number; maxRefreshMs: number; maxBodyMs: number; maxKeepMs: number };
+  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; waveOneMs: number; maxLandMs: number; maxRefreshMs: number; maxBodyMs: number; maxKeepMs: number; setupMs: number; keptBytes: number; sheetBytes: number; maxSheetMs: number; sheetsDoneMs: number; setupFrames: number; maxSetupFrameMs: number };
 }
 let bake: CharBake | null = null;
 
@@ -197,6 +218,8 @@ export const WORKER_TIMEOUT_MS = 20_000;
 /** The main-thread fallback's budget per frame: the time guard (the work cap only bounds a frozen clock in tests). */
 export const BAKE_UNITS_PER_FRAME = 400_000;
 export const BAKE_MS_PER_FRAME = 4;
+/** Review M3: the sheets' setup runs in chunks of this much main-thread time (instead of one long task at the start). */
+export const SHEET_MS_PER_FRAME = 12;
 
 /** Writes step `k` of `steps` side by side in `img` into frame `name` (raw pixels: no drawing, no new canvas). */
 function put(sheet: Sheet, name: string, img: ImageData, k = 0, steps = 1): void {
@@ -219,6 +242,8 @@ function paintVeins(sheet: Sheet, frame: string, veins: ImageData): void {
 /** Keeps a finished picture (cache + animation data) and draws it into its sheet. */
 function keep(b: CharBake, d: Done): void {
   const a = charArt(d.frame);
+  if (a && !b.sheets.has(a.sheet) && b.makeSheet?.(a.sheet)) b.uploads++;
+  if (a?.bloater && !b.sheets.has(veinSheetOf(a.bloater.look)) && b.makeSheet?.(veinSheetOf(a.bloater.look))) b.uploads++;
   const sheet = a ? b.sheets.get(a.sheet) : undefined;
   if (!a || !sheet) return;
   if (d.plain && kept.get(d.frame)?.plain === false) return; // a relit picture is already in
@@ -228,19 +253,33 @@ function keep(b: CharBake, d: Done): void {
   const glow = d.glow && a.glows ? toPixels(d.glow, n, n, b.make) : null; // a glow the frame list doesn't expect is dropped (a test keeps them in step)
   const sheen = d.sheen ? toPixels(d.sheen, h * SHEEN_STEPS, h, b.make) : null;
   const veins = d.veins ? toPixels(d.veins, n * VEIN_STEPS, n, b.make) : null;
-  const k: Kept = { base, glow, sheen, veins, sentinel: sentinelOf(base), plain: d.plain };
+  const painted: Kept = { base, glow, sheen, veins, sentinel: sentinelOf(base), plain: d.plain, layersDropped: false };
+  paintKept(sheet, d.frame, painted, a.bloater ? b.sheets.get(veinSheetOf(a.bloater.look)) : undefined);
+  const k: Kept = { ...painted, sheen: null, veins: null, layersDropped: sheen !== null || veins !== null };
+  const was = kept.get(d.frame);
+  if (was) b.stats.keptBytes -= keptSize(was);
   kept.set(d.frame, k);
-  paintKept(sheet, d.frame, k, a.bloater ? b.sheets.get(veinSheetOf(a.bloater.look)) : undefined);
+  b.stats.keptBytes += keptSize(k);
   if (d.plain) return;
-  if (a.primary) FX.set(d.frame, { glow: glow !== null, sheen: sheen !== null, bloater: d.bloater });
+  const fx: CharFx | null = a.primary ? { glow: glow !== null, sheen: sheen !== null, bloater: d.bloater } : null;
   const m = /^zombie_(walker|runner|crawler)_[a-z]_w(\d)$/.exec(d.frame);
-  if (m) {
-    const set = loopLanded.get(a.sheet) ?? new Set<number>();
-    set.add(Number(m[2]));
-    loopLanded.set(a.sheet, set);
-  }
+  sheet.pending.push(() => {
+    if (fx) FX.set(d.frame, fx);
+    if (m) {
+      const set = loopLanded.get(a.sheet) ?? new Set<number>();
+      set.add(Number(m[2]));
+      loopLanded.set(a.sheet, set);
+    }
+  });
   b.stats.landed++;
   if (b.stats.waveOneMs === 0 && isWaveOneFrame(d.frame) && charArts().every((x) => !isWaveOneFrame(x.frame) || kept.get(x.frame)?.plain === false)) b.stats.waveOneMs = performance.now();
+}
+const keptSize = (k: Kept): number => k.base.data.length + (k.glow?.data.length ?? 0) + (k.sheen?.data.length ?? 0) + (k.veins?.data.length ?? 0);
+/** The sheets a landing needs that aren't made yet (review M3). */
+function sheetsMissing(b: CharBake, frame: string): boolean {
+  const a = charArt(frame);
+  if (!a || !b.makeSheet) return false;
+  return !b.sheets.has(a.sheet) || (a.bloater !== undefined && !b.sheets.has(veinSheetOf(a.bloater.look)));
 }
 function closeAll(...s: (Pic | null)[]): void {
   for (const x of s) if (x && "close" in x) (x as ImageBitmap).close();
@@ -262,8 +301,35 @@ function* bodySteps(look: ResolvedLook, make: (w: number, h: number) => HTMLCanv
  */
 export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number, now: () => number = () => performance.now()): boolean {
   // finished and nothing new asked for: nothing to do (no sheet walk per frame once the bake is over)
-  if (b.idle && b.queue.length === 0 && b.arrived.length === 0 && b.bodiesArrived.length === 0 && b.inFlight.length === 0 && b.job === null && b.worker === null) return false;
+  if (b.idle && (b.makeSheet === undefined || b.sheetsLeft === 0) && b.queue.length === 0 && b.arrived.length === 0 && b.bodiesArrived.length === 0 && b.inFlight.length === 0 && b.job === null && b.worker === null) {
+    b.lastPump = 0; // review M2: an idle gap is not a frozen tab (a later request must not push the worker deadline out by it)
+    return false;
+  }
   b.idle = false;
+  b.uploads = 0;
+  b.setupFrame = false;
+  // review M3: the sheets are paged in first, one a frame and nothing else that frame (the worker's pictures wait in
+  // `arrived`), so a frame never pays for a sheet and a landing together; views make a sheet they need on demand
+  if (b.makeSheet && b.sheetsLeft !== 0) {
+    const all = charSheets();
+    const tS = now();
+    let key: string | undefined;
+    // the setup in chunks: sheets until SHEET_MS_PER_FRAME is used (at least one), the pictures wait meanwhile
+    while ((key = all.find((k) => !b.sheets.has(k))) !== undefined) {
+      b.makeSheet(key);
+      if (now() - tS >= SHEET_MS_PER_FRAME) break;
+    }
+    b.stats.setupFrames++;
+    b.stats.maxSetupFrameMs = Math.max(b.stats.maxSetupFrameMs, now() - tS);
+    b.sheetsLeft = all.filter((k) => !b.sheets.has(k)).length;
+    if (b.sheetsLeft === 0) {
+      b.stats.sheetsDoneMs = now();
+      b.releaseSheetSource?.(); // the atlas copy is done with (a restore draws plain pictures from the code)
+    }
+    b.setupFrame = true; // this pump made sheets (setup): reported apart from the bake's per-frame landings
+    if (b.useWorker && b.queue.length > 0) sendToWorker(b);
+    return true;
+  }
   // pictures that arrived land within the frame's budget (at least one per frame): a burst from the worker is spread
   const tLand = now();
   let landedNow = 0;
@@ -280,6 +346,8 @@ export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number,
     landedNow++;
   }
   while (b.arrived.length > 0 && (landedNow === 0 || now() - tLand < landMs)) {
+    // review M3: one GPU upload a frame — a picture whose sheet isn't made yet waits if this frame's upload is spent
+    if (b.uploads > 0 && sheetsMissing(b, (b.arrived[0] as Done).frame)) break;
     const d = b.arrived.shift() as Done;
     const t0 = now();
     keep(b, d);
@@ -329,17 +397,27 @@ export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number,
   }
   b.lastUnits = units;
   const tRef = now();
-  // one sheet upload per frame (the others stay dirty for the next frames): a burst never stacks uploads
-  for (const sh of b.sheets.values()) {
+  // one sheet upload per frame (the others stay dirty for the next frames): a burst never stacks uploads. A sheet with
+  // readiness waiting goes first; its readiness is published once its pixels are uploaded (review M1)
+  let up: Sheet | null = null;
+  if (b.uploads === 0) for (const sh of b.sheets.values()) {
     if (!sh.dirty) continue;
-    sh.dirty = false;
-    sh.tex?.refresh();
-    break;
+    if (sh.pending.length > 0) {
+      up = sh;
+      break;
+    }
+    up ??= sh;
+  }
+  if (up) {
+    b.uploads++;
+    up.dirty = false;
+    up.tex?.refresh();
+    for (const f of up.pending.splice(0)) f();
   }
   b.stats.maxRefreshMs = Math.max(b.stats.maxRefreshMs, now() - tRef);
   let anyDirty = false;
   for (const sh of b.sheets.values()) if (sh.dirty) anyDirty = true;
-  const busy = anyDirty || b.job !== null || b.queue.length > 0 || b.worker !== null || b.inFlight.length > 0 || b.arrived.length > 0 || b.bodiesArrived.length > 0;
+  const busy = (b.makeSheet !== undefined && b.sheetsLeft !== 0) || anyDirty || b.job !== null || b.queue.length > 0 || b.worker !== null || b.inFlight.length > 0 || b.arrived.length > 0 || b.bodiesArrived.length > 0;
   if (!busy && b.stats.doneMs === 0 && b.stats.landed > 0) b.stats.doneMs = now();
   b.idle = !busy;
   return busy;
@@ -356,7 +434,7 @@ export function pumpCharacters(budgetUnits = BAKE_UNITS_PER_FRAME, budgetMs = BA
   const t0 = performance.now();
   const busy = pumpCharBake(bake, budgetUnits, budgetMs);
   const dt = performance.now() - t0;
-  if (dt > bake.stats.maxPumpMs) bake.stats.maxPumpMs = dt;
+  if (!bake.setupFrame && dt > bake.stats.maxPumpMs) bake.stats.maxPumpMs = dt; // the setup chunks are measured apart (maxSetupFrameMs)
   return busy;
 }
 
@@ -424,8 +502,10 @@ export function workerFailed(b: CharBake): void {
   b.worker = null;
   b.useWorker = false;
   b.stats.worker = false;
-  // bodies first, as the worker would have; plain pictures already landed are not baked again
-  const back = b.inFlight.filter((t) => !(t.kind === "frame" && t.plain && kept.has(t.frame)));
+  // bodies first, as the worker would have; plain pictures already landed, and answers already received (review L2), are
+  // not baked again
+  const answered = (t: Task): boolean => (t.kind === "body" ? b.bodiesArrived.some((r) => r.id === t.body.id) : b.arrived.some((d) => d.frame === t.frame && d.plain === t.plain));
+  const back = b.inFlight.filter((t) => !(t.kind === "frame" && t.plain && kept.has(t.frame)) && !answered(t));
   b.queue = [...back.filter((t) => t.kind === "body"), ...back.filter((t) => t.kind !== "body"), ...b.queue];
   b.inFlight = [];
 }
@@ -438,10 +518,12 @@ export function allTasks(): Task[] {
 }
 
 /**
- * Review M3 / R3 pattern (9.11): on a graphics restore (cache phase) the kept pictures are checked; CPU-backed, they
- * normally survive (nothing to do: the sheets' repaint draws them). If one was emptied (its sentinel is gone), the
- * cache is dropped and everything is baked again (the repaint shows the plain drawings meanwhile). Returns how many
- * tasks were queued again (0 = intact).
+ * On a graphics restore (cache phase), as 9.11 does. The kept base and glow pictures are pixels in the JS heap (B18):
+ * a lost context or an Android canvas wipe cannot empty them, so the sheets' repaint writes them back. The sheen and
+ * vein pictures are not kept (B26): the frames that had them are baked again (a few seconds in the worker; until then
+ * those layers are blank, the bodies are not). The sentinel check stays as a safety net (tests exercise it): if
+ * pixels were ever gone, the cache is dropped and everything is baked again, bodies first (an interrupted body job is
+ * queued again). Returns how many tasks were queued.
  */
 export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
   if (kept.size === 0) return 0;
@@ -450,15 +532,25 @@ export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
     if (!k.sentinel) continue;
     if ((k.base.data[(k.sentinel[1] * k.base.width + k.sentinel[0]) * 4 + 3] as number) === 0) intact = false;
   }
-  if (intact) return 0;
+  if (intact) {
+    if (!b) return 0;
+    const again: Task[] = [];
+    for (const [frame, k] of kept) if (k.layersDropped && !b.queue.some((t) => t.kind === "frame" && t.frame === frame && !t.plain)) again.push({ kind: "frame", frame, plain: false });
+    if (again.length === 0) return 0;
+    b.queue.push(...again);
+    b.idle = false;
+    if (b.useWorker) sendToWorker(b);
+    return again.length;
+  }
   kept.clear();
   FX.clear();
   loopLanded.clear();
   if (!b) return 0;
+  const interrupted = b.job?.task.kind === "body" ? [b.job.task] : [];
   b.job?.steps.return(undefined);
   b.job = null;
   b.gen++;
-  const bodies = [...b.inFlight, ...b.queue].filter((t) => t.kind === "body");
+  const bodies = [...interrupted, ...b.inFlight, ...b.queue].filter((t) => t.kind === "body");
   b.inFlight = [];
   b.arrived.length = 0;
   b.bodiesArrived.length = 0;
@@ -476,14 +568,14 @@ export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
 
 /** A bake over `sheets` (tests make them with a node canvas); main-thread until `useWorker`. */
 export function newCharBake(sheets: Map<string, Sheet>, make: (w: number, h: number) => HTMLCanvasElement, queue: Task[] = allTasks()): CharBake {
-  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, idle: false, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, waveOneMs: 0, maxLandMs: 0, maxRefreshMs: 0, maxBodyMs: 0, maxKeepMs: 0 } };
+  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, uploads: 0, setupFrame: false, sheetsLeft: -1, idle: false, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, waveOneMs: 0, maxLandMs: 0, maxRefreshMs: 0, maxBodyMs: 0, maxKeepMs: 0, setupMs: 0, keptBytes: 0, sheetBytes: 0, maxSheetMs: 0, sheetsDoneMs: 0, setupFrames: 0, maxSetupFrameMs: 0 } };
 }
 /** A sheet over a canvas (tests). */
 export function newSheet(key: string, canvas: HTMLCanvasElement): Sheet {
   const layout = packAtlas(charSheetSpecs(key), CHAR_SHEET_PX);
   canvas.width = layout.width;
   canvas.height = layout.height;
-  return { key, canvas, frames: new Map(layout.frames.map((f) => [f.name, f])), tex: null, dirty: false };
+  return { key, canvas, frames: new Map(layout.frames.map((f) => [f.name, f])), tex: null, dirty: false, pending: [] };
 }
 export function clearCharCacheForTests(): void {
   kept.clear();
@@ -558,67 +650,94 @@ const ATLAS_NAME_OF_LOOP = (frame: string): string | null => {
  * `atlas` is `atlas_characters` (already made by `ensureAtlases`): the sheets start as copies of its plain frames.
  */
 export function ensureCharacterSheets(scene: Phaser.Scene, opts: { readonly worker?: boolean } = {}): void {
-  if (typeof document === "undefined" || scene.textures.exists(charSheets()[0] as string)) return; // no DOM (view tests): the views keep their frame names
-
+  if (typeof document === "undefined" || scene.textures.exists(TEX_CHAR_FX)) return; // no DOM (view tests): the views keep their frame names
   const t0 = performance.now();
   const atlasTex = scene.textures.exists("atlas_characters") ? scene.textures.get("atlas_characters") : null;
-  const atlasImg = atlasTex ? (atlasTex.getSourceImage() as HTMLCanvasElement) : null;
-  const sheets = new Map<string, Sheet>();
-  for (const key of charSheets()) {
-    const layout = packAtlas(charSheetSpecs(key), CHAR_SHEET_PX);
-    const canvas = makeCanvas(layout.width, layout.height); // CPU-backed (B17)
-    const frames = new Map(layout.frames.map((f) => [f.name, f]));
-    let first = true;
-    const sheet: Sheet = { key, canvas, frames, tex: null, dirty: false };
-    sheet.tex = addGeneratedTexture(
-      scene,
-      key,
-      canvas,
-      (g) => {
-        for (const a of charArts()) {
-          if (a.bloater && veinSheetOf(a.bloater.look) === key) {
-            const kv = kept.get(a.frame);
-            if (kv?.veins) paintVeins(sheet, a.frame, kv.veins);
-          }
-          if (a.sheet !== key) continue;
-          const k = kept.get(a.frame);
-          if (k) {
-            paintKept(sheet, a.frame, k);
-            continue;
-          }
-          const f = frames.get(a.frame) as PlacedFrame;
-          const atlasName = ATLAS_NAME_OF_LOOP(a.frame) ?? (/_w\d$/.test(a.frame) ? null : a.frame);
-          if (first && atlasImg && atlasTex && atlasName && atlasTex.has(atlasName)) {
-            // the start: the plain frame copied from atlas_characters (the walk loop's first picture: today's design until B10's plain new design lands)
-            const af = atlasTex.get(atlasName);
-            g.drawImage(atlasImg, af.cutX, af.cutY, af.cutWidth, af.cutHeight, f.x, f.y, f.w, f.h);
-          } else if (!first && (a.primary || a.plainFirst)) {
-            // a graphics restore before the picture landed: drawn plain (rare)
-            const c = drawCentred(makeCanvas, f.w, CHAR_PX_PER_R, a.draw);
-            g.drawImage(c, f.x, f.y);
-            c.width = 0;
-          }
-        }
-        first = false;
-      },
-      (t) => {
-        for (const f of layout.frames) t.add(f.name, 0, f.x, f.y, f.w, f.h);
-      },
-    );
-    sheets.set(key, sheet);
+  const atlasSrc = atlasTex ? (atlasTex.getSourceImage() as HTMLCanvasElement) : null;
+  // review M3: one CPU copy of atlas_characters (one readback now) for the sheets' first pictures: a copy straight
+  // from the GPU-backed atlas canvas made each sheet wait for the busy GPU process (5–8 ms a sheet, headless)
+  let atlasImg: HTMLCanvasElement | null = null;
+  if (atlasSrc) {
+    atlasImg = makeCanvas(atlasSrc.width, atlasSrc.height);
+    (atlasImg.getContext("2d") as CanvasRenderingContext2D).drawImage(atlasSrc, 0, 0);
   }
   ensureCharFxTexture(scene);
-  bake = newCharBake(sheets, makeCanvas);
-  bake.stats.startMs = t0;
-  (globalThis as { __charBake?: unknown }).__charBake = bake.stats;
+  bake = newCharBake(new Map(), makeCanvas);
+  const b = bake;
+  b.makeSheet = (key) => makeSheet(scene, key, atlasTex, atlasImg, b);
+  b.releaseSheetSource = () => {
+    if (atlasImg) atlasImg.width = 0;
+    atlasImg = null;
+  };
+  // review M3: the sheets are made on demand (a view about to use one, a picture landing in one) and paged in one per
+  // frame by the pump, so the start pays for no sheet; the gallery (no worker) makes them all now
+  if (opts.worker === false) for (const key of charSheets()) needSheet(key);
+  b.stats.startMs = t0;
+  b.stats.setupMs = performance.now() - t0;
+  (globalThis as { __charBake?: unknown }).__charBake = b.stats;
   if (opts.worker !== false && workerBakeAvailable()) {
-    bake.useWorker = true;
-    bake.stats.worker = true;
-    sendToWorker(bake);
+    b.useWorker = true;
+    b.stats.worker = true;
+    sendToWorker(b);
   }
   textureRegistry.register("chars_relit", RebuildPhase.cache, () => {
     rebakeCharsAfterCacheLoss();
   });
+}
+
+/** Makes sheet `key` now if it isn't yet (cheap when it is: views call it before using a sheet). */
+export function needSheet(key: string): void {
+  const b = bake;
+  if (b && !b.sheets.has(key)) b.makeSheet?.(key);
+}
+
+/** One character sheet: its texture (`addGeneratedTexture`: repainted from the kept pictures after a lost context). */
+function makeSheet(scene: Phaser.Scene, key: string, atlasTex: Phaser.Textures.Texture | null, atlasImg: HTMLCanvasElement | null, b: CharBake): Sheet | null {
+  const t0 = performance.now();
+  const layout = packAtlas(charSheetSpecs(key), CHAR_SHEET_PX);
+  const canvas = makeCanvas(layout.width, layout.height); // CPU-backed (B17)
+  const frames = new Map(layout.frames.map((f) => [f.name, f]));
+  let first = true;
+  const sheet: Sheet = { key, canvas, frames, tex: null, dirty: false, pending: [] };
+  b.sheets.set(key, sheet);
+  sheet.tex = addGeneratedTexture(
+    scene,
+    key,
+    canvas,
+    (g) => {
+      for (const a of charArts()) {
+        if (a.bloater && veinSheetOf(a.bloater.look) === key) {
+          const kv = kept.get(a.frame);
+          if (kv?.veins) paintVeins(sheet, a.frame, kv.veins);
+        }
+        if (a.sheet !== key) continue;
+        const k = kept.get(a.frame);
+        if (k) {
+          paintKept(sheet, a.frame, k);
+          continue;
+        }
+        const f = frames.get(a.frame) as PlacedFrame;
+        const atlasName = ATLAS_NAME_OF_LOOP(a.frame) ?? (/_w\d$/.test(a.frame) ? null : a.frame);
+        if (first && atlasImg && atlasTex && atlasName && atlasTex.has(atlasName)) {
+          // the start: the plain frame copied from atlas_characters (the walk loop's first picture: today's design until B10's plain new design lands)
+          const af = atlasTex.get(atlasName);
+          g.drawImage(atlasImg, af.cutX, af.cutY, af.cutWidth, af.cutHeight, f.x, f.y, f.w, f.h);
+        } else if (!first && (a.primary || a.plainFirst)) {
+          // a graphics restore before the picture landed: drawn plain (rare)
+          const c = drawCentred(makeCanvas, f.w, CHAR_PX_PER_R, a.draw);
+          g.drawImage(c, f.x, f.y);
+          c.width = 0;
+        }
+      }
+      first = false;
+    },
+    (t) => {
+      for (const f of layout.frames) t.add(f.name, 0, f.x, f.y, f.w, f.h);
+    },
+  );
+  b.stats.sheetBytes += canvas.width * canvas.height * 4;
+  b.stats.maxSheetMs = Math.max(b.stats.maxSheetMs, performance.now() - t0);
+  return sheet;
 }
 
 /** The sheet (texture key) of a zombie look. */

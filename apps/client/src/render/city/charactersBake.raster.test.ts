@@ -8,6 +8,7 @@ import { createCanvas } from "@napi-rs/canvas";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   BAKE_MS_PER_FRAME,
+  SHEET_MS_PER_FRAME,
   WORKER_TIMEOUT_MS,
   allTasks,
   charArt,
@@ -15,6 +16,7 @@ import {
   charFx,
   clearCharCacheForTests,
   gunFrameOf,
+  loopReady,
   newCharBake,
   newSheet,
   pumpCharBake,
@@ -27,7 +29,7 @@ import {
   type CharBake,
   type CharWorkerResult,
 } from "./charactersAtlas";
-import { frameSide, isWaveOneFrame } from "./charactersFrames";
+import { charSheets, frameSide, isWaveOneFrame, walkFrame } from "./charactersFrames";
 import { DEFAULT_RESOLVED_LOOK } from "./survivorLook";
 
 const make = (w: number, h: number): HTMLCanvasElement => createCanvas(Math.max(1, w), Math.max(1, h)) as unknown as HTMLCanvasElement;
@@ -172,12 +174,116 @@ describe("Story 9.13: the character bake (main-thread fallback and worker housek
     expect(order.filter((f) => isWaveOneFrame(f)).length).toBe(40 + 9);
   });
 
-  it("restore: kept pictures are pixels (nothing to re-bake); if one is wiped all are queued again", () => {
+  it("review M1: a look's loop (and FX) is published only after its sheet's upload, even when a burst lands into two sheets", () => {
+    const sheets = new Map<string, ReturnType<typeof newSheet>>();
+    const uploads: string[] = [];
+    for (const v of [0, 1]) {
+      const sh = newSheet(`chars_walker_${"ab"[v]}`, make(1, 1));
+      sh.tex = { refresh: () => uploads.push(sh.key) } as unknown as NonNullable<typeof sh.tex>;
+      sheets.set(sh.key, sh);
+    }
+    const b = newCharBake(sheets, make, []);
+    b.useWorker = true;
+    b.worker = { terminate() {}, postMessage() {}, onmessage: null, onerror: null } as unknown as Worker;
+    const n = frameSide(1.55);
+    const px = (w: number, h: number): ImageData => (make(w, h).getContext("2d") as CanvasRenderingContext2D).getImageData(0, 0, w, h);
+    for (const v of [0, 1]) {
+      for (let k = 0; k < 10; k++) {
+        const frame = walkFrame("walker", v, k);
+        b.inFlight.push({ kind: "frame", frame, plain: false });
+        receiveCharWorkerResult(b, { gen: 0, kind: "frame", frame, plain: false, base: px(n, n), glow: null, sheen: k === 0 ? px(53 * 8, 53) : null, veins: null, bloater: null }, 0);
+      }
+    }
+    expect(loopReady("walker", 0) || loopReady("walker", 1)).toBe(false);
+    pumpCharBake(b, Infinity, Infinity, () => 1); // both looks land, ONE sheet is uploaded
+    expect(uploads.length).toBe(1);
+    const first = uploads[0] === "chars_walker_a" ? 0 : 1;
+    expect(loopReady("walker", first)).toBe(true);
+    expect(loopReady("walker", 1 - first), "the other look waits for its own upload").toBe(false);
+    expect(charFx(walkFrame("walker", 1 - first, 0))).toBeUndefined();
+    pumpCharBake(b, Infinity, Infinity, () => 2);
+    expect(uploads.length).toBe(2);
+    expect(loopReady("walker", 1 - first)).toBe(true);
+    expect(charFx(walkFrame("walker", 1 - first, 0))?.sheen).toBe(true);
+  });
+
+  it("review M2: minutes idle, then a body request: a silent worker is still given up on ~20 s later", () => {
+    const { b } = axeBake();
+    let t = 0;
+    while (pumpCharBake(b, Infinity, 50, () => (t += 0.05))) if (t > 1e6) break; // baked, idle
+    pumpCharBake(b, 0, 0, () => t + 1000); // an idle frame
+    t += 300_000; // five minutes later
+    pumpCharBake(b, 0, 0, () => t); // still idle
+    b.useWorker = true;
+    b.worker = { terminate() {}, postMessage() {}, onmessage: null, onerror: null } as unknown as Worker;
+    setCharBakeForTests(b);
+    requestBodyRelight("p1", DEFAULT_RESOLVED_LOOK, () => {});
+    expect(b.inFlight.length).toBe(1); // sent to the (silent) worker
+    b.workerDeadline = t + WORKER_TIMEOUT_MS; // sendToWorker's deadline on this test's clock
+    const sent = t;
+    while (b.worker && t < sent + 120_000) {
+      t += 500;
+      pumpCharBake(b, 0, 0, () => t);
+    }
+    expect(b.worker).toBeNull();
+    expect(t - sent).toBeLessThanOrEqual(WORKER_TIMEOUT_MS + 1000);
+  });
+
+  it("review M3: the sheets' setup runs in chunks (SHEET_MS_PER_FRAME), before any picture lands; the bake isn't idle until all exist", () => {
+    const b = newCharBake(new Map(), make, []);
+    const made: string[] = [];
+    let landedWhilePaging = 0;
+    b.makeSheet = (key) => {
+      made.push(key);
+      if (charBakeProgress().landed > 0) landedWhilePaging++;
+      const sh = newSheet(key, make(1, 1));
+      b.sheets.set(key, sh);
+      return sh;
+    };
+    b.inFlight.push({ kind: "frame", frame: AXE, plain: false });
+    b.worker = { terminate() {}, postMessage() {}, onmessage: null, onerror: null } as unknown as Worker;
+    b.useWorker = true;
+    receiveCharWorkerResult(b, answer(0), 0);
+    let t = 0;
+    const clock = (): number => (t += 5); // each sheet "costs" 5 ms: a chunk is a few sheets
+    pumpCharBake(b, Infinity, 50, clock);
+    expect(made.length).toBeGreaterThan(0);
+    expect(made.length).toBeLessThanOrEqual(Math.ceil(SHEET_MS_PER_FRAME / 5) + 1);
+    expect(b.setupFrame).toBe(true);
+    expect(b.arrived.length, "the picture waits for the setup").toBe(1);
+    let frames = 1;
+    while (pumpCharBake(b, Infinity, 50, clock)) if (++frames > 200) break;
+    expect(made.length).toBe(charSheets().length);
+    expect(new Set(made).size).toBe(made.length);
+    expect(landedWhilePaging).toBe(0);
+    expect(charBakeProgress().landed).toBe(1);
+    expect(b.stats.setupFrames).toBeGreaterThan(3);
+  });
+
+  it("review L2: a worker that fails after answering doesn't get its answered frames baked again", () => {
+    const { b } = axeBake();
+    b.useWorker = true;
+    b.worker = { terminate() {}, postMessage() {}, onmessage: null, onerror: null } as unknown as Worker;
+    b.inFlight = b.queue;
+    b.queue = [];
+    receiveCharWorkerResult(b, answer(0), 0);
+    workerFailed(b);
+    expect(b.queue.length).toBe(0);
+    pumpCharBake(b, Infinity, 50, () => 1);
+    expect(charBakeProgress().landed).toBe(1);
+  });
+
+  it("restore: kept pictures are pixels; the dropped sheen/vein layers are baked again; if pixels are wiped all are queued again", () => {
     const { b } = axeBake();
     let t = 0;
     while (pumpCharBake(b, Infinity, 50, () => (t += 0.05))) if (t > 1e6) break;
-    expect(rebakeCharsAfterCacheLoss(b)).toBe(0);
+    // B26: base and glow are kept as pixels (repainted); the sheen / vein pictures aren't kept, so the frames that had
+    // them are baked again — and only those, without dropping what the views use meanwhile
+    expect(rebakeCharsAfterCacheLoss(b)).toBe(1);
+    expect(b.queue).toEqual([{ kind: "frame", frame: AXE, plain: false }]);
     expect(charFx(AXE)).toBeDefined();
+    expect(rebakeCharsAfterCacheLoss(b), "not queued twice").toBe(0);
+    while (pumpCharBake(b, Infinity, 50, () => (t += 0.05))) if (t > 1e7) break;
     // simulate pixels gone (the check stays, as 9.11's sentinel): the cache drops and every frame is queued again
     wipeKeptForTests();
     const gen = b.gen;

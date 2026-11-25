@@ -41,6 +41,8 @@ interface SpitterSlot {
   readonly n: Float64Array;
   readonly wx: Float32Array;
   readonly wy: Float32Array;
+  /** The zombie the slot drips for (review L6: a new owner starts with no drops). */
+  owner: number;
   used: boolean;
 }
 
@@ -168,9 +170,13 @@ export class CharacterFxView {
   spitter(slot: number, id: number, x: number, y: number, rot: number, rM: number, mouthX: number, mouthY: number, depth: number, alpha: number, t: number): void {
     let sp = this.spitters[slot];
     if (!sp) {
-      sp = { drops: [], n: new Float64Array(DRIPS).fill(-1), wx: new Float32Array(DRIPS), wy: new Float32Array(DRIPS), used: false };
+      sp = { drops: [], n: new Float64Array(DRIPS).fill(-1), wx: new Float32Array(DRIPS), wy: new Float32Array(DRIPS), owner: id, used: false };
       for (let i = 0; i < DRIPS; i++) sp.drops.push(this.image(FX_DRIP, 0, true));
       this.spitters[slot] = sp;
+    }
+    if (sp.owner !== id) {
+      sp.owner = id;
+      sp.n.fill(-1); // puddles landed for the slot's previous Spitter are not carried over
     }
     sp.used = true;
     const u = rM / PAGE_PX_PER_R; // m per page px

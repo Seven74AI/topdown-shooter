@@ -6,7 +6,7 @@ import { SLOT_COLORS } from "./playerColors";
 import { pulseAlpha, pulseScale } from "./pulse";
 import { ATLAS_CHARACTERS, SURVIVOR_FRAME, SURVIVOR_GUN_PLAIN, ensureAtlases, survivorFrameFor, survivorGunFrameFor, weaponHidesPack } from "./city/spriteAtlas";
 import { LOOK_FRAME_NOPACK, LOOK_FRAME_PACK, LOOK_SHEEN_FRAMES } from "./SurvivorLookTextures";
-import { charFx, ensureCharacterSheets, gunSheetOf, layerNames } from "./city/charactersAtlas";
+import { charFx, ensureCharacterSheets, needSheet, gunSheetOf, layerNames } from "./city/charactersAtlas";
 import { sheenStep } from "./city/charRelight";
 import { SURV_ANIM, SURV_SAW_ANIM, breath, glowPulse, phaseOffset, sway } from "./charAnim";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
@@ -107,6 +107,7 @@ export class PlayerView {
     this.side = side;
     this.t0 = phaseOffset(Math.floor(Math.random() * 97)); // each survivor breathes on its own beat (visual only)
     this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(BODY_DEPTH);
+    needSheet(gunSheetOf(SURVIVOR_GUN_PLAIN));
     this.gun = scene.add.image(0, 0, gunSheetOf(SURVIVOR_GUN_PLAIN), SURVIVOR_GUN_PLAIN).setDisplaySize(side, side).setDepth(BODY_DEPTH - GUN_DEPTH_STEP).setVisible(false);
     this.bodySheen = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setBlendMode(Phaser.BlendModes.ADD).setDepth(BODY_DEPTH + SHEEN_DZ).setVisible(false);
     this.gunSheen = scene.add.image(0, 0, gunSheetOf(SURVIVOR_GUN_PLAIN), SURVIVOR_GUN_PLAIN).setBlendMode(Phaser.BlendModes.ADD).setDepth(BODY_DEPTH - GUN_DEPTH_STEP + SHEEN_DZ).setVisible(false);
@@ -262,6 +263,7 @@ export class PlayerView {
       const gunFrame = survivorGunFrameFor(weapon, running);
       if (gunFrame !== this.shownGunFrame) {
         this.shownGunFrame = gunFrame;
+        needSheet(gunSheetOf(gunFrame));
         this.gun.setTexture(gunSheetOf(gunFrame), gunFrame);
       }
       const pack = !weaponHidesPack(weapon);
@@ -288,7 +290,6 @@ export class PlayerView {
       this.layer?.img.setTint(tint).setVisible(shown);
       this.ring.setVisible(shown).setScale(1).setAlpha(1);
     }
-    this.relit(p, bx, by, rotation, sx, sy, t, anim);
     if (this.layer) {
       // Story 7.8: the layer rides on the head and spins (a downed survivor's propeller keeps turning).
       const at = layerPose(this.layerAt, this.layer.id, this.x, this.y, p.facingX, p.facingY, this.radiusM, timeMs);
@@ -306,6 +307,7 @@ export class PlayerView {
       this.gun.setAlpha(blink); // Story 7.9 review M1: the gun blinks with the body
       this.layer?.img.setAlpha(blink);
     }
+    this.relit(p, bx, by, rotation, sx, sy, t, anim); // review L4: after the blink, so the sheen and glow take this frame's alpha
   }
 
   /**

@@ -3,7 +3,7 @@ import { BLOATER_SWELL_FRAMES, BRUTE_WINDUP_FRAMES, SPITTER_WINDUP_FRAMES, ZOMBI
 import { fuseProgress, swellPulse, swellStage, swellTint } from "./bloaterLook";
 import { GurgleCues, windupScale } from "./spitCue";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
-import { charFx, veinSheetOf, ensureCharacterSheets, frameSide, isLoopType, layerNames, loopReady, pumpCharacters, walkFrames, zombieSheet, type LayerNames } from "./city/charactersAtlas";
+import { charFx, needSheet, veinSheetOf, ensureCharacterSheets, frameSide, isLoopType, layerNames, loopReady, pumpCharacters, walkFrames, zombieSheet, type LayerNames } from "./city/charactersAtlas";
 import { sheenStep } from "./city/charRelight";
 import { breath, glowPulse, loopSeconds, phaseOffset, sway, zombieAnim } from "./charAnim";
 import { CharacterFxView } from "./CharacterFxView";
@@ -271,7 +271,8 @@ export class ZombieView {
       const type: ZombieTypeId = ZOMBIE_TYPES[ti] ?? "walker";
       let img = this.images[id];
       if (!img) {
-        img = this.scene.add.image(0, 0, zombieSheet(type, 0), walkFrames(type, 0)?.[0] ?? variantOf(type, id, 0, 0));
+        needSheet(zombieSheet(type, 0));
+        img = this.scene.add.image(0, 0, zombieSheet(type, 0), walkFrames(type, 0)?.[0] ?? (ZOMBIE_FRAMES[type][0] as string)); // review L1: a frame of look 0, on look 0's sheet (re-set below)
         this.images[id] = img;
       }
       const gen = z.generation[id] as number;
@@ -299,10 +300,12 @@ export class ZombieView {
         this.walkShown[id] = 0;
         this.lastX[id] = drawX;
         this.lastY[id] = drawY;
-        img.setTexture(zombieSheet(type, this.variant[id] as number), this.baseFrame(type, id)).setDisplaySize(side, side).setDepth(look.depth).setVisible(true);
+        const sheet = zombieSheet(type, this.variant[id] as number);
+        needSheet(sheet); // review M3: made on demand (paged in otherwise)
+        img.setTexture(sheet, this.baseFrame(type, id)).setDisplaySize(side, side).setDepth(look.depth).setVisible(true);
         this.flashUntil[id] = 0; // a new zombie in this slot never inherits a flash
         img.clearTint().setTintMode(Phaser.TintModes.MULTIPLY);
-        this.dropLayers(id);
+        this.hideLayers(id); // review L8: the layer images go back to the pools; the cap and FX slot (this frame's cap pass) stay
       }
       const mx = cx - px;
       const my = cy - py;
@@ -561,6 +564,12 @@ export class ZombieView {
     }
     this.settleSlots(this.bloaterOwner, this.bloaterSlot, z);
     this.settleSlots(this.spitterOwner, this.spitterSlot, z);
+    // layers of zombies that left the cap go back to the pools now, before this frame's newcomers take theirs
+    for (let id = 0; id < this.top.length || id < this.sheen.length || id < this.glow.length; id++) {
+      const c = this.capped[id] ?? 0;
+      if (c === 0) this.hideLayers(id);
+      else if (c === 1) this.release(this.sheen, this.freeSheen, id);
+    }
   }
   private ownerSlot(owner: Int32Array, id: number): number {
     for (let k = 0; k < owner.length; k++) if (owner[k] === id) return k;

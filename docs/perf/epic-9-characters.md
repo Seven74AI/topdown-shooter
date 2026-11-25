@@ -1,10 +1,11 @@
 # Epic 9 photoreal characters: frame rate, bake time, main thread (Story 9.13)
 
 Story 9.13 draws the survivors and zombies with take 4's relit look (grey see-through outline kept), baked at load in
-a Web Worker into small per-look sheets, and animated with capped, pooled layers: the nearest 16 zombies crossfade
-their walk loop and pulse their glow, the nearest 8 of those also get the drifting sheen, up to 6 Bloaters show their
-veins and acid sacs, up to 8 Spitters drip; every zombie breathes and sways (`controls.fx`: `maxCharacterAnim` 16,
-`maxCharacterSheen` 8, `maxBloaterFx` 6, `maxSpitterDrips` 8; `?fx=low` halves them).
+a Web Worker into small per-look sheets, and animated with capped, pooled layers: the nearest 12 zombies crossfade
+their walk loop and pulse their glow, the nearest 6 of those also get the drifting sheen, up to 6 Bloaters show their
+veins and acid sacs, up to 8 Spitters drip; every zombie breathes and sways (`controls.fx`: `maxCharacterAnim` 12,
+`maxCharacterSheen` 6, `maxBloaterFx` 6, `maxSpitterDrips` 8; `?fx=low` halves them). Caps were 16 / 8 until the
+review's re-run (D1, below) showed the 4× p95 one bucket up at steady state.
 
 ## Method
 
@@ -22,7 +23,35 @@ master is warmed for the same session age (8 s at 1×, 16 s at 4×, plus the 8 s
 it. p95 is quantized by the 60 Hz `requestAnimationFrame` clock (50.0 / 66.7 / 83.3 / 100 / 116.7 ms): "+1 ms" means
 the same bucket.
 
-## Frame rate (AC 4)
+## Frame rate (AC 4) — after the review (head of the review fixes), shipped caps 12 / 6
+
+**Steady state** (8 s warm-up after the bake landed; master warmed for the same session age), two rounds:
+
+| configuration | FPS (r1 / r2) | mean | vs. master | p95 ms (r1 / r2) | vs. master | draw calls / frame |
+| --- | --- | --- | --- | --- | --- | --- |
+| master, 1× | 18.9 / 19.9 | 19.4 | — | 66.7 / 66.7 | — | 9 |
+| branch 12 / 6, 1× | 18.7 / 18.9 | 18.8 | **−0.6** | 66.7 / 66.7 | **0** | 14.1 |
+| master, 4× | 13.7 / 16.8 | 15.3 | — | 100 / 83.3 | — | 9 |
+| branch 12 / 6, 4× | 13.9 / 14.7 | 14.3 | **−1.0** | 83.4 / 83.4 | **≤ 0** | 14.1 |
+
+**Overlapped (the 7.9 method: 8 s warm-up from the start, so the bake runs during the warm-up and count)**, D1:
+
+| configuration | FPS (r1 / r2) | mean | vs. master | p95 ms (r1 / r2) | vs. master |
+| --- | --- | --- | --- | --- | --- |
+| master, 1× | 19.8 / 19.0 | 19.4 | — | 66.6 / 66.7 | — |
+| branch 12 / 6, 1× | 20.8 / 20.6 | 20.7 | +1.3 | 66.5 / 66.6 | 0 |
+| master, 4× | 15.8 / 14.9 | 15.4 | — | 83.4 / 83.4 | — |
+| branch 12 / 6, 4× | 15.3 / 14.3 | 14.8 | −0.6 | 83.3 / **99.9** | +16.6 in round 2 |
+| branch 16 / 8, 1× (before the cut) | 17.8 / 19.0 | 18.4 vs 19.0 | −0.6 | 66.8 / 66.7 | 0 |
+| branch 16 / 8, 4× (before the cut) | 14.3 / 12.1 | 13.2 vs 13.4 | −0.2 | 99.9 / 100.1 vs 83.4 / 100.1 | +8.2 mean |
+
+Steady state is within AC 4 at both throttles with 12 / 6. The only over-budget figure is the 4× p95 of one
+overlapped round, i.e. while the bake is still landing (it ends ~14 s after the start at 4×); the orchestrator's D1
+accepts that window as B24 (in a real run the bake falls in the first build phase). The 16 / 8 steady-state re-run
+that triggered the cut: 1× 16.9 vs 17.9 (−1.0, p95 equal), 4× 12.7 vs 14.4 (−1.7, p95 100 vs 83.4 in both rounds).
+
+## Frame rate (AC 4) — before the review, caps 16 / 8
+
 
 2026-11-25, branch `story-9-13`, caps 16 / 8:
 
@@ -74,6 +103,21 @@ Steady-state profile (CDP Profiler, 6 s, 1×): ~95 % of the main thread's sample
 the branch; the JavaScript the story adds (`ZombieView.update`, the cap pass, the layers) is < 0.2 %. The cost of the
 animated layers is draw / fill on the (software) GPU, which is why the caps, not code, set the budget.
 
+## Memory and the setup (review M3)
+
+Measured in the page after the bake (`window.__charBake`; heap with `--enable-precise-memory-info`, after a GC), 3 runs:
+
+| | before the review fix | after (B26) |
+| --- | --- | --- |
+| kept pictures (JS heap, ImageData) | 19.9 MB (base + glow + sheen + veins) | **7.8 MB** (base + glow; sheen and veins re-baked after a lost context) |
+| character sheets (CPU-backed canvases; the GPU holds the same again as textures) | 24.9 MB | 24.9 MB |
+| JS heap, whole game, `?stress=150` | 105–108 MB (master 72.5) | 83–111 MB (GC timing varies) |
+| `ensureCharacterSheets` synchronous part, 1× | 51–59 ms (one task) | **0.8–3.7 ms**, then the sheets in 5–6 chunks of ≤ 13–15 ms (≤ 12 ms budget + the last sheet) |
+| same, 4× CPU | 224–297 ms (one task) | 4–17 ms, then 13–16 chunks of ≤ 22–28 ms |
+
+The sheets are made before any picture lands (the worker's pictures wait meanwhile), so a frame never pays for a
+sheet and a landing together; a view that needs a sheet earlier makes it on demand (one sheet, ~2–7 ms).
+
 ## Bake time (AC 3)
 
 From the sheets' creation to the last relit picture landed (`window.__charBake`: 123 frames — 8 walk loops × 10, 9 gun
@@ -84,8 +128,9 @@ Walker walk picture and every gun frame relit.
 
 | CPU | wave-1 set done | all done | load |
 | --- | --- | --- | --- |
-| headless, no throttle, `?stress=150` | 4.0 s (3.7–4.1) | 7.0 s (6.6–7.3) | 1.43 |
-| headless, 4× CPU, `?stress=150` | 9.8 s (9.4–10.5) | **13.9 s (13.6–14.6)** | 1.82 |
+| headless, no throttle, `?stress=150` (final build) | 3.8 s (3.7–4.1) | 7.0 s (6.7–7.3) | 1.20 |
+| headless, 4× CPU, `?stress=150` (final build) | 9.6 s (9.1–10.2) | **13.7 s (12.9–14.3)** | 1.65 |
+| headless, 4× CPU, `?stress=150` (before the review fixes) | 9.8 s (9.4–10.5) | 13.9 s (13.6–14.6) | 1.82 |
 | headless, 4× CPU, `?stress=1` (empty street; before B25) | — | 13.7 s (13.0–14.7) | 1.99 |
 
 AC 3's "within 15 s at 4× CPU": met, with 150 Walkers drawing at the same time (before B25 and the last landing fixes
@@ -96,15 +141,16 @@ until the worker reused its canvases and posted pixels instead (B17).
 ## Main thread (AC 3)
 
 The longest pump of the bake per frame (taking in the worker's pictures, writing them into their sheet, at most one
-sheet upload per frame), `window.__charBake.maxPumpMs`, 7 repetitions, median (min–max):
+GPU upload per frame), `window.__charBake.maxPumpMs`, 7 repetitions, median (min–max), final build; the sheets'
+setup chunks are listed apart (above):
 
-| CPU | `?stress=150` | `?stress=1` |
-| --- | --- | --- |
-| headless, no throttle | **3.1 ms (2.6–5.9)**; before the bake reorder 4.0 ms (2.8–6.4) | — |
-| headless, 4× CPU throttle | 13.3 ms (12.2–17.4); before 14.7 ms (10.5–26.1) | 13.2 ms (10.2–15.2) |
+| CPU | `?stress=150` |
+| --- | --- |
+| headless, no throttle | **3.6 ms (2.3–5.7)** |
+| headless, 4× CPU throttle | 10.5 ms (8.1–15.1) |
 
-AC 3's ≤ 6 ms at 1×: met in all 7 runs of the final build (worst 5.9 ms: a sheet upload). At 4× the main thread's share is the sheet uploads (≤ 254 k px each) and the pixel writes; 9.11's
-building bake measured 3.6 ms (1×) / 16.5 ms (4×) the same way.
+AC 3's ≤ 6 ms at 1×: met in all 7 runs. Before the review fixes: 3.1 ms (2.6–5.9) at 1×, 13.3 ms at 4×, with the
+51–59 ms setup task. 9.11's building bake measured 3.6 ms (1×) / 16.5 ms (4×) the same way.
 
 ## Not verified here
 
