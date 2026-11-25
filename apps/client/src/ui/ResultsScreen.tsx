@@ -3,7 +3,7 @@ import { resultsSub, resultsTitle, uiStore, type UiScreen } from "./uiState";
 import { dawnLookFor, dawnProgress } from "./dawnModel";
 import { clientBalance } from "../debug/clientBalance";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
-import { rewardsStore } from "../net/rewardsStore";
+import { formatSupplies, rewardsStore } from "../net/rewardsStore";
 import type { RunRewards } from "@topdown/shared";
 import { lineAmount, rewardsView, type RewardsView } from "./rewardsModel";
 
@@ -58,12 +58,26 @@ export function ResultsScreen() {
     <div class={look !== "none" ? `results-backdrop results-backdrop--${look}` : undefined}>
       <div class={cls} role="dialog" aria-labelledby="results-title">
         <section class="rw-card rw-card--team">
-          <header class="rw-card__head">
-            <p class="rw-kicker">{screen.ending === "extracted" ? "Run complete · Downtown" : "Run over · Downtown"}</p>
-            <h1 id="results-title">{resultsTitle(screen)}</h1>
-            {sub ? <p class="results__sub">{sub}</p> : null}
+          <header class="rw-card__head rw-card__head--team">
+            <div class="rw-head__main">
+              <p class="rw-kicker">{screen.ending === "extracted" ? "Run complete · Downtown" : "Run over · Downtown"}</p>
+              <h1 id="results-title">{resultsTitle(screen)}</h1>
+              {screen.ending === "lost" ? <p class="results__sub">Rewards after wave 10 lost</p> : null}
+            </div>
+            {screen.ending !== "wiped" ? (
+              <p class="rw-wave" aria-label={sub}>
+                <span class="rw-wave__label">Wave</span>
+                <span class="rw-wave__n">{screen.wave}</span>
+              </p>
+            ) : null}
           </header>
+          <div class="rw-table-wrap">
           <table class="results__table">
+            <colgroup>
+              <col />
+              <col class="rw-col--kills" />
+              <col class="rw-col--earned" />
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Player</th>
@@ -73,19 +87,23 @@ export function ResultsScreen() {
             </thead>
             <tbody>
               {screen.rows.map((r) => (
-                <tr key={r.slot}>
+                <tr key={r.slot} class={r.slot === screen.mySlot ? "rw-row--me" : undefined}>
                   <td class="results__name">
                     <span class="rw-slot" style={{ background: SLOT_COLOR_CSS[r.slot] }} role="img" aria-label={SLOT_COLOR_NAMES[r.slot]}>
                       {r.slot + 1}
                     </span>
-                    {r.name}
+                    <span class="rw-name">
+                      <span class="rw-name__text">{r.name}</span>
+                      {r.slot === screen.mySlot ? <span class="rw-you">You</span> : null}
+                    </span>
                   </td>
                   <td class="results__kills">{r.kills}</td>
-                  <td class="results__earned">${r.earned}</td>
+                  <td class="results__earned">${formatSupplies(r.earned)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           <div class="rw-card__foot">
             <p class="results__seed">Run seed {screen.seed}</p>
             {screen.online ? (
@@ -130,7 +148,7 @@ export function RunRewardsCard({ view }: { view: RewardsView }) {
             <>
               <p class="rw-earned">Supplies earned</p>
               <p class="rw-big">
-                <span class="rw-big__n">{view.headline}</span>
+                <span class={`rw-big__n${view.headline.length > 6 ? " rw-big__n--long" : ""}`}>{view.headline}</span>
                 <span class="rw-big__unit">Supplies</span>
               </p>
               <ul class="rw-lines">
@@ -156,9 +174,14 @@ export function RunRewardsCard({ view }: { view: RewardsView }) {
                 <span class="rw-total" aria-label={`Total: ${view.total} Supplies`}>
                   <span class="rw-total__label">Total</span>
                   <span class="rw-crate" aria-hidden="true" />
-                  <span class="rw-total__n">{view.total}</span>
+                  <span class={`rw-total__n${view.total.length > 7 ? " rw-total__n--long" : ""}`}>{view.total}</span>
                 </span>
               </div>
+              {view.note ? (
+                <p class="rw-note" data-testid="rewards-note">
+                  {view.note}
+                </p>
+              ) : null}
             </>
           ) : (
             <p class={`rw-status rw-status--${view.state}`} role="status">

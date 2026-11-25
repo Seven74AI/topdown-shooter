@@ -33,6 +33,28 @@ describe("Story 7.2: rewardsStore", () => {
     expect(seen.length).toBe(1);
   });
 
+  it("review L3 (B11): a message with fields from a later story is accepted and they are kept (forward compatible)", () => {
+    const s = new RewardsStore(() => null);
+    const r = s.receive({ ...msg(), items: [{ id: "riot", milestone: "M2" }], unlock: { weapon: "grenade_launcher", price: 500 } });
+    expect(r).not.toBeNull();
+    expect((r as unknown as { items: unknown[] }).items.length).toBe(1);
+  });
+
+  it("review L5: a new run forgets the previous run's rewards (Saving… again) and ignores its late message, even with the same seed", () => {
+    const s = new RewardsStore(() => null);
+    const seen: (RunRewards | null)[] = [];
+    s.subscribe((m) => seen.push(m));
+    s.receive(msg());
+    s.startRun();
+    expect(s.forSeed(7)).toBeNull();
+    expect(seen.at(-1)).toBeNull();
+    expect(s.receive(msg())).toBeNull(); // the old run's message arriving late (dev fixed seed: same seed)
+    expect(s.forSeed(7)).toBeNull();
+    const next = msg({ runId: "1f1e2d3c-4b5a-4968-8776-655443322111" });
+    expect(s.receive(next)?.runId).toBe(next.runId);
+    expect(s.forSeed(7)?.runId).toBe(next.runId);
+  });
+
   it("ignores garbage (a hand-made message with a bad shape or a negative amount)", () => {
     const s = new RewardsStore(() => null);
     expect(s.receive({ total: 999999 })).toBeNull();

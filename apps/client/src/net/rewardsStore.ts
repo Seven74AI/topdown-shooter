@@ -30,6 +30,8 @@ const browserStorage = (): KeyValueStore | null => {
 
 export class RewardsStore {
   private latest: RunRewards | null = null;
+  /** Review L5: run ids of earlier runs in this room: a late message of one is never shown on a newer Results. */
+  private readonly stale = new Set<string>();
   private readonly listeners = new Set<Listener>();
 
   constructor(private readonly storage: () => KeyValueStore | null = browserStorage) {}
@@ -49,11 +51,22 @@ export class RewardsStore {
    */
   receive(raw: unknown, leave = false): RunRewards | null {
     const parsed = runRewardsSchema.safeParse(raw);
-    if (!parsed.success) return null;
+    if (!parsed.success || this.stale.has(parsed.data.runId)) return null;
     if (leave) this.rememberLeave(parsed.data);
     this.latest = parsed.data;
     for (const l of this.listeners) l(this.latest);
     return this.latest;
+  }
+
+  /**
+   * Review L5: a new run started in this room: the previous run's rewards are forgotten (its run id marked stale), so
+   * the next Results says "Saving…" until ITS message lands, even when two runs share a seed (dev `?seed=`).
+   */
+  startRun(): void {
+    if (this.latest) this.stale.add(this.latest.runId);
+    if (this.stale.size > 32) this.stale.clear(); // a long session: only recent runs matter
+    this.latest = null;
+    for (const l of this.listeners) l(null);
   }
 
   subscribe(l: Listener): () => void {

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
+import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView, NET_PROTOCOL_VERSION } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -39,13 +39,12 @@ const hex = (): string => randomBytes(16).toString("hex");
 async function newAccount(): Promise<string> {
   return (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
 }
-const options = (intent: "create" | "join", name: string, accountId: string | null) => {
-  const guestToken = hex();
+const options = (intent: "create" | "join", name: string, accountId: string | null, guestToken = hex()) => {
   return {
     intent,
     name,
     balanceVersion: serverBalance.version,
-    mapVersion: DOWNTOWN_MAP.version,
+    mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
     guestToken,
     ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
   };
@@ -58,15 +57,15 @@ function listen(c: RunSdkRoom): RunRewards[] {
 }
 
 /** Players (with or without an account) in a run, in wave 1. */
-async function toWave(accounts: (string | null)[]) {
-  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana", accounts[0] ?? null));
+async function toWave(accounts: (string | null)[], tokens: string[] = accounts.map(() => hex())) {
+  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana", accounts[0] ?? null, tokens[0]));
   const clients = [host];
   const inbox = [listen(host)];
   await host.waitForInitialState();
   const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
   room.bankRetryMs = 20;
   for (let i = 1; i < accounts.length; i++) {
-    const c = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", `P${i}`, accounts[i] ?? null));
+    const c = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", `P${i}`, accounts[i] ?? null, tokens[i]));
     inbox.push(listen(c));
     await c.waitForInitialState();
     clients.push(c);
@@ -129,7 +128,7 @@ describe("Story 7.2: banking in the room", () => {
     w.players.get(guestId)!.wavesIn = 3; // as if three waves had ended with the guest in the run
     guest.send(C2S.RUN_LEAVE, {});
     await vi.waitFor(() => expect(inbox[1]!.length).toBe(1));
-    expect(inbox[1]![0]).toMatchObject({ status: "saved", lines: { waves: 30, extract: 0 }, total: 60 }); // rookie × 2
+    expect(inbox[1]![0]).toMatchObject({ status: "saved", lines: { waves: 30, extract: 0 }, total: 60, ending: "quit", leftWave: 1 }); // rookie × 2; review L4
     guest.send(C2S.RUN_LEAVE, {}); // a second one: the same result, no new bank
     await vi.waitFor(() => expect(inbox[1]!.length).toBe(2));
     expect(inbox[1]![1]).toEqual(inbox[1]![0]);
@@ -141,6 +140,28 @@ describe("Story 7.2: banking in the room", () => {
     await vi.waitFor(() => expect(inbox[0]!.length).toBe(1));
     await new Promise((r) => setTimeout(r, 100));
     expect(await supplies(b)).toBe(60);
+    expect(await rewardRows(b)).toBe(1);
+  });
+
+  it("review L3: a seat dropped mid-wave (held) is banked at the run end, and when it comes back on Results it gets run.rewards again", async () => {
+    const [a, b] = [await newAccount(), await newAccount()];
+    const toks = [hex(), hex()];
+    const { clients, inbox, room, w } = await toWave([a, b], toks);
+    const guest = clients[1]!;
+    const bId = idOf(room, guest);
+    w.players.get(bId)!.wavesIn = 2;
+    guest.reconnection.enabled = false;
+    (room.clients.find((c) => c.sessionId === guest.sessionId)?.ref as unknown as { terminate(): void }).terminate(); // a drop
+    await vi.waitFor(() => expect(room.holds.has(bId)).toBe(true));
+    expect(await rewardRows(b)).toBe(0); // brief 17: a drop is not a Leave, nothing banked
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(async () => expect(await rewardRows(b)).toBe(1)); // the held seat banked with the run's ending
+    expect(inbox[1]!.length).toBe(0); // its socket was gone
+    const back = await colyseus.sdk.joinById<RunStateView>(guest.roomId, options("join", "P1", b, toks[1]));
+    const got = listen(back);
+    await vi.waitFor(() => expect(got.length).toBe(1));
+    expect(got[0]).toMatchObject({ status: "saved", ending: "wiped", waveCount: 3, total: 60 }); // 2 waves + the wipe wave (D8), rookie × 2
     expect(await rewardRows(b)).toBe(1);
   });
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
+import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView, NET_PROTOCOL_VERSION } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setRoomAccounts } from "../auth/roomAccounts";
 import { signTicket } from "../auth/ticket";
@@ -43,7 +43,7 @@ const bound = (accountId: string) => ({ [BOUND]: accountId });
 const opts = (intent: "create" | "join", name: string, guestToken: string, extra: Record<string, unknown> = {}) => {
   const t = extra.ticket as { [BOUND]?: string } | undefined;
   const ticket = t && typeof t === "object" && t[BOUND] ? signTicket(t[BOUND], hashGuestToken(guestToken), SECRET) : extra.ticket;
-  return { intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, guestToken, ...extra, ...(ticket === undefined ? {} : { ticket }) };
+  return { intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken, ...extra, ...(ticket === undefined ? {} : { ticket }) };
 };
 const quiet = (c: RunSdkRoom): RunSdkRoom => {
   for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});

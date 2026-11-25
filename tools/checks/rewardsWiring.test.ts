@@ -32,6 +32,12 @@ describe("Story 7.2 wiring", () => {
     expect(read("ui/EvacVote.tsx")).toMatch(/\{voteStakesLine\(\)\}/);
   });
 
+  it("review L5 / N1: a new run clears the rewards store; the Results get this phone's slot", () => {
+    expect(read("net/onlineFlow.ts")).toMatch(/rewardsStore\.startRun\(\);[^\n]*\n\s*session = deps\.makeSession\(\);/);
+    expect(read("net/onlineFlow.ts")).toMatch(/const mySlot = deps\.mySlot\?\.\(\);/);
+    expect(read("main.ts")).toMatch(/mySlot: \(\) => lobbyStore\.joinedInfo\(\)\?\.slot/);
+  });
+
   it("practice solo Results stay offline (online: false → \"Practice runs don't earn rewards\")", () => {
     expect(read("scenes/GameScene.ts")).toMatch(/kind: "results"[^\n]*online: false/);
   });

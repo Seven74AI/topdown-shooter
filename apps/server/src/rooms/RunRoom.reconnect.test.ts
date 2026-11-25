@@ -15,8 +15,7 @@ import {
   worldDigest,
   type PlayerLeft,
   type RunJoined,
-  type RunStateView,
-} from "@topdown/shared";
+  type RunStateView, NET_PROTOCOL_VERSION } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { CLOSE_TAKEN_OVER, QUIET_HOLD_TICKS } from "../net/limits";
 import { RunRoom, serverBalance } from "./RunRoom";
@@ -44,7 +43,7 @@ const options = (intent: "create" | "join", name: string, guestToken: string) =>
   intent,
   name,
   balanceVersion: serverBalance.version,
-  mapVersion: DOWNTOWN_MAP.version,
+  mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken,
 });
 
