@@ -10,7 +10,7 @@ const noop: SystemFn = () => {};
 /** Story 5.23 (AC 10–12): the building keys → the HUD presses; Z / Ctrl+Z reach 5.20's real undo. */
 describe("Story 5.23: routeBuildKeys", () => {
   const hud = (): BuildKeysHud => ({ rotatePressed: false, confirmPressed: false, undoPressed: false });
-  const out = (): BuildKeysOut => ({ slot: -1, pickUp: false });
+  const out = (): BuildKeysOut => ({ slot: -1, pickUp: false, panel: false });
 
   it("R / Space press ⟳ / Place only while holding; a digit and M are handed back; everything is taken every frame", () => {
     const kb = new KeyboardMouse();
@@ -26,6 +26,25 @@ describe("Story 5.23: routeBuildKeys", () => {
     kb.keyDown("Space", false, " ");
     routeBuildKeys(kb, m, true, false, o);
     expect([m.rotatePressed, m.confirmPressed, o.slot, o.pickUp]).toEqual([true, true, -1, false]);
+  });
+
+  it("Story 10.10 (AC 9): B (by position) is handed back once per press, hands empty and not blocked; 1–7 keep picking directly", () => {
+    const kb = new KeyboardMouse();
+    const m = hud();
+    kb.keyDown("KeyB", false, "b");
+    kb.keyDown("Digit2", false, "2");
+    const o = routeBuildKeys(kb, m, false, false, out());
+    expect([o.panel, o.slot]).toEqual([true, 1]);
+    routeBuildKeys(kb, m, false, false, o);
+    expect(o.panel).toBe(false); // held: no repeat
+    kb.releaseAll();
+    kb.keyDown("KeyB", false, "b");
+    expect(routeBuildKeys(kb, m, true, false, o).panel).toBe(false); // holding a building: the panel is not up
+    kb.keyDown("KeyB", true, "b");
+    kb.keyUp("KeyB");
+    kb.keyDown("KeyB", false, "b");
+    expect(routeBuildKeys(kb, m, false, true, o).panel).toBe(false); // blocked: dropped
+    expect(routeBuildKeys(kb, m, false, false, o).panel).toBe(false); // …not kept for later
   });
 
   it("blocked (a wave, the menu, the shop): presses are dropped, never kept for later", () => {

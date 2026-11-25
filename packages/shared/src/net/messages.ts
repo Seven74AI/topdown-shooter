@@ -17,8 +17,7 @@ export const RUN_ROOM_NAME = "run";
 
 /** Client → server: imperative `domain.verb` (architecture › Naming). */
 export const C2S = {
-  /** PlayerInput (net/input.ts), 20/s (Story 2.4). */
-  INPUT_SEND: "input.send",
+  // Story 8.11: the input (20/s, Story 2.4) is the binary `BYTES.INPUT` now (net/input.ts › encodeInput), no longer "input.send".
   /** `{ ready: boolean }` (Story 2.3). */
   LOBBY_SET_READY: "lobby.set_ready",
   /** `{}`, host only (Story 2.3). */
@@ -170,10 +169,13 @@ export type S2CType = (typeof S2C)[keyof typeof S2C];
  * stream). Sent in the join options; a client with another (or none: a tab from before 8.10) is
  * refused at join as `update_required` ("A new version is out. Please reload.").
  */
-export const NET_PROTOCOL_VERSION = 2;
+export const NET_PROTOCOL_VERSION = 3; // Story 8.11: 3 = the binary input (`BYTES.INPUT`, net/input.ts)
 
-/** Binary messages use numeric types (1 byte on the wire instead of a string). */
-export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
+/**
+ * Binary messages use numeric types (1 byte on the wire instead of a string). Story 2.5: `HORDE_FRAME` (server →
+ * phone). Story 8.11: `INPUT` (phone → server, `encodeInput`/`decodeInput`; replaces the msgpack `input.send`).
+ */
+export const BYTES = { HORDE_FRAME: 1, INPUT: 2 } as const;
 
 /** `RunState.phase` (Story 3.1: the run state machine's phases, `run/runStateMachine.ts`). */
 export type { RunPhase } from "../run/runStateMachine";

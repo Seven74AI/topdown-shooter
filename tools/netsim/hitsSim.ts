@@ -44,6 +44,8 @@ import {
   type Balance,
   type DistrictMap,
   type NetEvent,
+  INPUT_BYTES,
+  quantizeInput,
   type PlayerInput,
   type WeaponId,
   type ZombieTypeId,
@@ -85,6 +87,11 @@ export interface Options {
   walkers?: number;
   /** Story 3.8: the type of the zombies kept coming (default Walker; "runner": 4 m/s, flanking). */
   zombieType?: ZombieTypeId;
+  /**
+   * Story 8.11 (brief 20): the input goes through the real binary input (1/127 stick steps), as the phone sends it
+   * (default on); false = the pre-8.11 float input, the paired control of the clean-line rows (decision 8.11 B3).
+   */
+  quantizeInput?: boolean;
   /** Story 2.12: the server's lag compensation (default on); false = Story 2.7's shot advance only (control). */
   rewind?: boolean;
   /** Story 2.12: another balance (e.g. a weapon without spread, to separate spread from timing). */
@@ -316,6 +323,7 @@ export function simulate(o: Options): Result {
   const phaseMs = Math.floor(rng.range(0, TICK_MS));
   const endMs = o.seconds * 1000;
   const arrivedInputs: PlayerInput[] = [];
+  const inputScratch = new Uint8Array(INPUT_BYTES); // Story 8.11
   const arrivedDown: Down[] = [];
   let nextServerMs = phaseMs;
   let nextFrameMs = 0;
@@ -469,17 +477,23 @@ export function simulate(o: Options): Result {
         moveX /= m;
         moveY /= m;
       }
+      const ax = best >= 0 ? (mz.x[best] as number) - px : 1;
+      const ay = best >= 0 ? (mz.y[best] as number) - py : 0;
+      const al = Math.hypot(ax, ay) || 1; // a stick vector (length ≤ 1), like the phone's InputRouter
       const input: PlayerInput = {
         ...NEUTRAL_INPUT,
         seq: ++seq,
         moveX,
         moveY,
-        aimX: best >= 0 ? (mz.x[best] as number) - px : 1,
-        aimY: best >= 0 ? (mz.y[best] as number) - py : 0,
+        aimX: ax / al,
+        aimY: ay / al,
         fire: best >= 0 && bestD < range + 0.5,
         isMouse: false,
         viewTick,
       };
+      // Story 8.11 (brief 20): through the real binary input (encode → decode), so the server and the predictor
+      // below see the phone's quantised values (1/127 stick steps).
+      if (o.quantizeInput !== false) quantizeInput(input, inputScratch);
       viewTickBySeq.set(input.seq, viewTick);
       const stalled = o.stall !== undefined && t >= o.stall.fromMs && t < o.stall.toMs;
       up.send(t, input, stalled && o.stall ? o.stall.toMs + o.oneWayMs : -Infinity);

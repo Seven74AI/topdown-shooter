@@ -11,7 +11,7 @@ import { createServer } from "vite";
  * URL in `docs/art/asset-review.md`).
  *
  * It also adds the approved photoreal looks that are not in the game yet (`docs/art/photoreal-1/compare.html`,
- * street props and vehicles; `docs/art/photoreal-2/take4-grey.html`, characters), from those pages' export hooks,
+ * street props and vehicles; the characters' take 4 is in the game since Story 9.13), from those pages' export hooks,
  * as groups of their own, so the designer can review them on the same page. Build those pages first.
  *
  * Each asset gets a `hash` of its pixels and an `added` date. `tools/gallery/manifest.json` (committed)
@@ -48,10 +48,11 @@ try {
   await page.goto(`${url}gallery.html`);
   await page.waitForFunction(() => "__assets" in globalThis, null, { timeout: 120_000 });
   assets = await page.evaluate(() => (globalThis as unknown as { __assets: Asset[] }).__assets);
+  // Story 9.13: the relit characters' sheets (one texture per look) show as one group on the page
+  assets = assets.map((a) => (a.group.startsWith("chars_") ? { ...a, group: "characters_relit" } : a));
   // the approved photoreal looks (not in the game yet), from their pages' hooks
   for (const [file, hook, group, ready] of [
     ["docs/art/photoreal-1/compare.html", "__photoreal", "approved_photoreal_props", "loading"],
-    ["docs/art/photoreal-2/take4-grey.html", "__take4", "approved_characters_take4", "loading"],
     ["docs/art/photoreal-3/compare.html", "__build3", "approved_buildables", "loading"],
   ] as const) {
     const path = join(ROOT, file);

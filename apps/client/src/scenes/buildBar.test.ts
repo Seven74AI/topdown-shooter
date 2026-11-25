@@ -10,18 +10,34 @@ import {
   buildBarItems,
   buildBarPages,
   buildBarSlots,
-  layoutBuildBar,
-  newBuildBarLayout,
+  layoutBuildCluster,
+  layoutBuildPanel,
+  newBuildClusterLayout,
+  newBuildPanelLayout,
+  PANEL_CELLS,
+  PANEL_TAP_CLOSE,
+  PANEL_TAP_CONSUME,
+  PANEL_TAP_KEEP,
+  PANEL_TAP_NONE,
+  buildPanelSlots,
+  dropQuietPresses,
+  onPanelCard,
+  readyClearLeft,
+  panelAllowed,
+  panelStaysOpen,
+  panelTapOutside,
   pickError,
   pickRefusalText,
   readyLeftX,
+  quickType,
   stepBuildBar,
   tileState,
+  togglePanelKey,
   type BuildBarFrame,
   type BuildBarStep,
   type BuildTile,
 } from "./buildBar";
-import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, MIN_BUTTON_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
+import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 const balance = loadBalance();
 
@@ -95,66 +111,156 @@ describe("buildBarSlots (AC 2, 3; D1 Shop last)", () => {
   });
 });
 
-describe("layoutBuildBar (AC 1, 13)", () => {
-  it("800 × 360, no insets: 56 px tiles, 8 px gaps, 16 px inside the bottom-right corner; the count above the top-right", () => {
-    const l = layoutBuildBar(800, 360, 0, 0, 1, newBuildBarLayout());
-    expect(l.tile).toBe(56);
-    expect(Array.from(l.x)).toEqual([536, 600, 664, 728, 536, 600, 664, 728]);
-    expect(Array.from(l.y)).toEqual([224, 224, 224, 224, 288, 288, 288, 288]);
-    expect([l.left, l.top, l.countX, l.countY]).toEqual([536, 224, 784, 220]);
+describe("Story 10.10: layoutBuildCluster (BU-1 = B, AC 1)", () => {
+  it("568 × 320, no insets: B's still — Build 496,248; quick 432,248; Shop chip 500,188 (48 px); the box for the neighbours", () => {
+    const c = layoutBuildCluster(568, 320, 0, 0, 1, newBuildClusterLayout());
+    expect([c.tile, c.chip]).toEqual([56, 48]);
+    expect([c.buildX, c.buildY, c.quickX, c.quickY, c.chipX, c.chipY]).toEqual([496, 248, 432, 248, 500, 188]);
+    expect([c.left, c.top, c.right]).toEqual([432, 188, 552]);
+    expect(c.badgeX).toBeGreaterThan(c.buildX + c.tile); // the badge sticks out of Build's top-right corner
+    expect(c.badgeY).toBeLessThan(c.buildY);
   });
 
-  it("respects the safe-area insets × dpr (right 24, bottom 16 at dpr 2)", () => {
-    const l = layoutBuildBar(1600, 720, 24, 16, 2, newBuildBarLayout());
-    expect(l.tile).toBe(112);
-    expect(l.x[7]! + l.tile).toBe(1600 - (16 + 24) * 2);
-    expect(l.y[7]! + l.tile).toBe(720 - (16 + 16) * 2);
-    expect(l.left).toBe(1024);
-    expect(l.top).toBe(416);
+  it("844 × 390: Build 772,318 (mock.html); insets × dpr (right 24, bottom 16 at dpr 2)", () => {
+    const c = layoutBuildCluster(844, 390, 0, 0, 1, newBuildClusterLayout());
+    expect([c.buildX, c.buildY]).toEqual([772, 318]);
+    const d = layoutBuildCluster(1600, 720, 24, 16, 2, newBuildClusterLayout());
+    expect(d.buildX + d.tile).toBe(1600 - (16 + 24) * 2);
+    expect(d.buildY + d.tile).toBe(720 - (16 + 16) * 2);
+    expect(d.buildX - (d.quickX + d.tile)).toBe(16); // 8 px × dpr 2
+    expect(d.buildY - (d.chipY + d.chip)).toBe(24); // 12 px × dpr 2
+  });
+});
+
+describe("Story 10.10: layoutBuildPanel (BU-4, AC 3, 5)", () => {
+  it("568 × 320, no insets: cells 368…552 × 120…304, Close on Build's spot, the card 360…560 below ping", () => {
+    const p = layoutBuildPanel(568, 320, 0, 0, 1, newBuildPanelLayout());
+    expect(p.tile).toBe(56);
+    expect([p.x[0], p.y[0]]).toEqual([368, 120]);
+    expect([p.x[PANEL_CELLS - 1]! + p.tile, p.y[PANEL_CELLS - 1]! + p.tile]).toEqual([552, 304]);
+    const c = layoutBuildCluster(568, 320, 0, 0, 1, newBuildClusterLayout());
+    expect([p.x[PANEL_CELLS - 1], p.y[PANEL_CELLS - 1]]).toEqual([c.buildX, c.buildY]);
+    expect([p.cardX, p.cardX + p.cardW, p.cardY + p.cardH]).toEqual([360, 560, 312]);
+    expect(p.cardY).toBeGreaterThanOrEqual(MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 12);
+    expect(p.headerY).toBeGreaterThan(p.cardY);
+    expect(p.headerY).toBeLessThan(p.y[0]!);
   });
 
-  it("Ready: 40 px left of centre where it fits, else ≥ 12 px left of the grid (568 × 320 → centre 208)", () => {
+  it("844 × 390: cells 644…828 × 190…374 (mock.html)", () => {
+    const p = layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout());
+    expect([p.x[0], p.y[0], p.x[8]! + p.tile, p.y[8]! + p.tile]).toEqual([644, 190, 828, 374]);
+  });
+
+  it("review 7: with a top inset on a short screen the cells shrink so the card keeps 12 px under ping / ☰ (never below 48 px)", () => {
+    for (const [w, h, b] of [
+      [568, 320, 21],
+      [568, 320, 0],
+      [640, 360, 21],
+    ] as const) {
+      const p = layoutBuildPanel(w, h, 44, b, 1, newBuildPanelLayout(), 20);
+      expect(p.cardY, `${w}x${h} bottom ${b}`).toBeGreaterThanOrEqual(20 + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 12 - 1e-6);
+      expect(p.tile).toBeGreaterThanOrEqual(48);
+    }
+    expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout(), 20).tile).toBe(49);
+    expect(layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout(), 20).tile).toBe(56); // room to spare
+  });
+
+  it("10.10-B3: only 568 × 320 with 44 px side insets shrinks the cells (≥ 48 px) to keep the survivor's 48 px; dpr scales alike", () => {
+    expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout()).tile).toBe(50);
+    expect(layoutBuildPanel(640, 360, 44, 21, 1, newBuildPanelLayout()).tile).toBe(56);
+    expect(layoutBuildPanel(568 * 3, 320 * 3, 44, 21, 3, newBuildPanelLayout()).tile).toBe(152); // whole canvas px (50.67 CSS px × 3)
+  });
+
+  it("Ready: 40 px left of centre where it fits, else ≥ 12 px left of the open card (it never jumps when the panel opens)", () => {
     const w = READY_BUTTON_W_CSS_PX;
-    const at = (W: number) => readyLeftX(W, w, layoutBuildBar(W, 320, 0, 0, 1, newBuildBarLayout()).left, 1);
+    const at = (W: number) => readyLeftX(W, w, readyClearLeft(layoutBuildPanel(W, 320, 0, 0, 1, newBuildPanelLayout())), 1);
     expect(at(800)).toBe(276);
     expect(at(1024)).toBe(388);
-    expect(at(568) + w / 2).toBe(208);
+    expect(at(568) + w / 2).toBe(244); // back to 40 px left of centre (5.16's grid pushed it to 208)
+  });
+});
+
+describe("Story 10.10: the quick tile, BU-3 and the panel's open / close rules", () => {
+  const items = buildBarItems(balance);
+  it("quickType (BU-5): the first unlocked before any placement; the last placed after; a type no longer in the list falls back", () => {
+    expect(quickType(items, "")).toBe(items[0]!.id);
+    expect(quickType(items, "mine")).toBe("mine");
+    expect(quickType(items, "no_such_type")).toBe(items[0]!.id);
+    const starter = buildBarItems(balance, 0); // a new account's mask: only the starter types
+    expect(starter.some((t) => t.id === "mine")).toBe(false);
+    expect(quickType(starter, "mine")).toBe(starter[0]!.id); // the type left the unlock list
+    expect(quickType([], "mine")).toBe("");
   });
 
-  for (const [W, H] of [
-    [568, 320],
-    [640, 360],
-    [800, 360],
-    [915, 412],
-    [1024, 768],
-    [1366, 1024],
-  ] as const) {
-    for (const k of [1, 2, 3]) {
-      it(`${W} × ${H} at dpr ${k}: tiles ≥ 48 px and ≥ 8 px apart, inside the screen, clear of Ready (≥ 12 px) and of ☰`, () => {
-        const insetR = 12;
-        const insetB = 8;
-        const l = layoutBuildBar(W * k, H * k, insetR, insetB, k, newBuildBarLayout());
-        expect(l.tile / k).toBeGreaterThanOrEqual(Math.max(48, MIN_BUTTON_CSS_PX));
-        for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-          expect(l.x[s]!).toBeGreaterThanOrEqual(0);
-          expect(l.y[s]!).toBeGreaterThanOrEqual(0);
-          expect(l.x[s]! + l.tile).toBeLessThanOrEqual((W - 16 - insetR) * k + 1e-6);
-          expect(l.y[s]! + l.tile).toBeLessThanOrEqual((H - 16 - insetB) * k + 1e-6);
-          if (s % 4 !== 3) expect(l.x[s + 1]! - (l.x[s]! + l.tile)).toBeCloseTo(8 * k);
-        }
-        const rw = READY_BUTTON_W_CSS_PX * k;
-        const rx = readyLeftX(W * k, rw, l.left, k);
-        expect(l.left - (rx + rw)).toBeGreaterThanOrEqual(12 * k - 1e-6);
-        expect(rx).toBeGreaterThanOrEqual(0);
-        // Ready's row overlaps the grid's rows; the horizontal gap above is what keeps them apart.
-        const readyTop = H * k - (READY_BUTTON_BOTTOM_CSS_PX + insetB) * k - READY_BUTTON_H_CSS_PX * k;
-        expect(readyTop).toBeLessThan(H * k);
-        // ☰ (top-right) ends above the count line (≈ 20 px of text above the grid).
-        const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX) * k;
-        expect(l.countY - 20 * k).toBeGreaterThan(menuBottom);
-      });
-    }
-  }
+  it("BU-3: no panel with ≤ 2 types; a new account has the short list", () => {
+    expect(panelAllowed(0)).toBe(false);
+    expect(panelAllowed(2)).toBe(false);
+    expect(panelAllowed(3)).toBe(true);
+    expect(panelAllowed(buildBarItems(balance, 0).length)).toBe(false);
+    expect(panelAllowed(items.length)).toBe(true);
+  });
+
+  it("AC 6: a pick, the cluster going away (phase end, downed, menu, shop, holding, a selection, waiting), the ping wheel, BU-3 close it", () => {
+    const n = items.length;
+    expect(panelStaysOpen(true, true, false, false, n)).toBe(true);
+    expect(panelStaysOpen(false, true, false, false, n)).toBe(false); // never opens by itself
+    expect(panelStaysOpen(true, false, false, false, n)).toBe(false);
+    expect(panelStaysOpen(true, true, true, false, n)).toBe(false);
+    expect(panelStaysOpen(true, true, false, true, n)).toBe(false);
+    expect(panelStaysOpen(true, true, false, false, 2)).toBe(false);
+  });
+
+  it("AC 6 (review 4, 5): a touch while open — right half / world consumed; move-stick half closes and still walks; another button closes and passes it on; the card itself keeps it open; a cell / Close nothing", () => {
+    expect(panelTapOutside(false, null)).toBe(PANEL_TAP_NONE);
+    expect(panelTapOutside(false, null, false, true)).toBe(PANEL_TAP_NONE);
+    expect(panelTapOutside(true, null)).toBe(PANEL_TAP_CONSUME);
+    expect(panelTapOutside(true, null, false, true)).toBe(PANEL_TAP_CLOSE); // review 4: the move stick still starts
+    for (const id of ["ready", "menu", "ping", "consumable"]) expect(panelTapOutside(true, id)).toBe(PANEL_TAP_CLOSE);
+    for (const id of ["ptile0", "ptile7", "build"]) expect(panelTapOutside(true, id, true)).toBe(PANEL_TAP_NONE);
+    expect(panelTapOutside(true, null, true)).toBe(PANEL_TAP_KEEP); // review 5: the header, the padding, an empty cell
+    const p = layoutBuildPanel(568, 320, 0, 0, 1, newBuildPanelLayout());
+    expect(onPanelCard(p, p.cardX + 20, p.cardY + 6)).toBe(true); // the header
+    expect(onPanelCard(p, p.cardX + p.cardW - 2, p.cardY + p.cardH - 2)).toBe(true); // the padding by Close
+    expect(onPanelCard(p, p.cardX - 1, p.cardY + 40)).toBe(false);
+    expect(onPanelCard(p, 284, 160)).toBe(false); // the survivor
+  });
+
+  it("review 9 (B13): the open panel's cell 7 — the quick tile's own spot — holds the quick type; Shop in cell 6; the rest in balance order; paging past 6 others", () => {
+    const out = new Int16Array(BUILD_BAR_SLOTS);
+    expect(Array.from(buildPanelSlots(7, 0, 0, out))).toEqual([1, 2, 3, 4, 5, 6, SLOT_SHOP, 0]);
+    expect(Array.from(buildPanelSlots(7, 3, 0, out))).toEqual([0, 1, 2, 4, 5, 6, SLOT_SHOP, 3]);
+    expect(Array.from(buildPanelSlots(7, 6, 0, out))).toEqual([0, 1, 2, 3, 4, 5, SLOT_SHOP, 6]);
+    expect(Array.from(buildPanelSlots(4, 1, 0, out))).toEqual([0, 2, 3, SLOT_EMPTY, SLOT_EMPTY, SLOT_EMPTY, SLOT_SHOP, 1]);
+    expect(Array.from(buildPanelSlots(9, 0, 0, out))).toEqual([1, 2, 3, 4, 5, SLOT_MORE, SLOT_SHOP, 0]); // 8 others: five a page
+    expect(Array.from(buildPanelSlots(9, 0, 1, out))).toEqual([6, 7, 8, SLOT_EMPTY, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, 0]);
+    expect(Array.from(buildPanelSlots(9, 0, 2, out))).toEqual(Array.from(buildPanelSlots(9, 0, 0, new Int16Array(BUILD_BAR_SLOTS)))); // wraps
+    expect(Array.from(buildPanelSlots(7, -1, 0, out))).toEqual([0, 1, 2, 3, 4, 5, 6, SLOT_SHOP]); // no quick type: 5.16's order
+    // cell 7 sits exactly on the quick tile's spot (56 px cells)
+    const p = layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout());
+    const c = layoutBuildCluster(844, 390, 0, 0, 1, newBuildClusterLayout());
+    expect([p.x[7], p.y[7]]).toEqual([c.quickX, c.quickY]);
+  });
+
+  it("review 1, 2 + re-review 1: in 5.18's quiet window ↶, swap, quick-use, Build and Ready presses are dropped; outside it they stay", () => {
+    const m = { undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true, readyPressed: true };
+    dropQuietPresses(m, false);
+    expect(m).toEqual({ undoPressed: true, swapPressed: true, consumablePressed: true, buildPanelPressed: true, readyPressed: true });
+    dropQuietPresses(m, true);
+    expect(m).toEqual({ undoPressed: false, swapPressed: false, consumablePressed: false, buildPanelPressed: false, readyPressed: false });
+  });
+
+  it("AC 9: B toggles the panel only while the cluster is up and there is a panel", () => {
+    const m = { buildPanelOpen: false, buildBar: true, buildItems: items };
+    togglePanelKey(m);
+    expect(m.buildPanelOpen).toBe(true);
+    togglePanelKey(m);
+    expect(m.buildPanelOpen).toBe(false);
+    togglePanelKey({ ...m, buildBar: false });
+    expect(m.buildPanelOpen).toBe(false);
+    const short = { buildPanelOpen: false, buildBar: true, buildItems: items.slice(0, 2) };
+    togglePanelKey(short);
+    expect(short.buildPanelOpen).toBe(false);
+  });
 });
 
 describe("pick rule (AC 5, 7)", () => {

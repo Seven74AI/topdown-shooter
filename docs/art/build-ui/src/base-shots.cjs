@@ -1,4 +1,7 @@
 /* global require, process, console, window, setTimeout */
+// HISTORICAL (Story 10.10 review): this script drives the 5.16 4 × 2 grid (`tile0…7`, `hud.barTiles` as a grid),
+// which Story 10.10 replaced. It only runs against the commit the BU-1 options were made from:
+//   git worktree add /tmp/bu1 a06c9cf   (then run it from there). Today's build stills: docs/art/10-10/stills.cjs.
 // Build-button (hybrid) proposals: real build-phase stills to draw the HTML/CSS overlays on.
 // Run (your own ports; stop both by PID afterwards):
 //   server: (cd apps/server && PORT=2687 ALLOW_SOLO_START=1 DEV_NO_WAVES=1 node --import tsx src/index.ts)

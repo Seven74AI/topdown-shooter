@@ -1,3 +1,5 @@
+import { sendInput } from "../test/sendInput";
+import { BYTES, INPUT_BYTES, encodeInput } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
@@ -185,17 +187,29 @@ describe("RunRoom", () => {
     expect(e.message).toMatch(/no rooms found/);
   });
 
-  it("drops an invalid input.send and keeps the client connected", async () => {
+  it("drops an invalid binary input and keeps the client connected (Story 8.11 F2)", async () => {
     const { client, room } = await createRun();
     const onInput = vi.spyOn(room, "onInput");
     const warn = vi.spyOn(room.log, "warn");
-    client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, moveX: 5 });
-    client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, hack: true });
-    client.send(C2S.INPUT_SEND, "not an object");
-    client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
+    const good = new Uint8Array(INPUT_BYTES);
+    encodeInput({ ...NEUTRAL_INPUT, seq: 1 }, good);
+    const stick = good.slice();
+    stick[5] = 0x80; // moveX −128/127 < −1
+    const extra = good.slice();
+    extra[9] = 0x10; // an unknown flag bit
+    client.sendBytes(BYTES.INPUT, good.subarray(0, 13)); // short
+    client.sendBytes(BYTES.INPUT, new Uint8Array([...good, 0])); // long
+    client.sendBytes(BYTES.INPUT, stick);
+    client.sendBytes(BYTES.INPUT, extra);
+    client.send("input.send", { ...NEUTRAL_INPUT, seq: 1 }); // the old msgpack input: an unknown type now
+    sendInput(client, { ...NEUTRAL_INPUT, seq: 1 });
     await settle(room);
     expect(onInput).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith({ playerId: "p0", reason: "invalid", dropped: 1 }, "client_message_rejected");
+    expect(warn).toHaveBeenCalledWith({ playerId: "p0", reason: "unknown_type", dropped: 1 }, "client_message_rejected");
+    // The first drop of a reason is logged at once; the other 3 invalid ones are still counted (logged later).
+    const guard = (room as unknown as { net: { pending(c: unknown): Record<string, number> } }).net;
+    expect(guard.pending(room.clients[0])?.invalid).toBe(3);
     expect(isOpen(client)).toBe(true);
     expect(room.clients.length).toBe(1);
   });
@@ -218,7 +232,7 @@ describe("RunRoom", () => {
     const { client, room } = await createRun();
     const onInput = vi.spyOn(room, "onInput");
     const warn = vi.spyOn(room.log, "warn");
-    for (let seq = 1; seq <= 40; seq++) client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq });
+    for (let seq = 1; seq <= 40; seq++) sendInput(client, { ...NEUTRAL_INPUT, seq });
     await settle(room);
     expect(onInput).toHaveBeenCalledTimes(MAX_INPUTS_PER_S);
     expect(warn).toHaveBeenCalledWith({ playerId: "p0", reason: "rate", dropped: 1 }, "client_message_rejected");
@@ -233,13 +247,13 @@ describe("RunRoom", () => {
       big.client.onDrop((code) => resolve(code));
       big.client.onLeave((code) => resolve(code));
     });
-    big.client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, pad: "x".repeat(2048) });
+    big.client.sendBytes(BYTES.INPUT, new Uint8Array(2048)); // Story 8.11: an over-long binary input
     expect(await dropped).toBe(1009);
     await vi.waitFor(() => expect(big.room.state.players.size).toBe(0));
     expect(warn).toHaveBeenCalledWith({ playerId: "p0", reason: "too_large", dropped: 1 }, "client_message_rejected");
     // The other run is untouched and still processes messages.
     const onInput = vi.spyOn(other.room, "onInput");
-    other.client.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
+    sendInput(other.client, { ...NEUTRAL_INPUT, seq: 1 });
     await settle(other.room);
     expect(onInput).toHaveBeenCalledTimes(1);
     expect(isOpen(other.client)).toBe(true);

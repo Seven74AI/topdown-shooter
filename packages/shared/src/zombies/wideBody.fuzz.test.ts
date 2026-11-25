@@ -302,7 +302,7 @@ describe("Fix bloater-car-corner: concave corners of two solids × crowds of wid
       seen.heldTicks += r.heldTicks;
       seen.longestHeld = Math.max(seen.longestHeld, r.longestHeld);
       seen.notReached += r.notReached;
-      if (r.inside.length > 0 || r.longestStill > STILL_TICKS || r.farFrom.length > 0) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId}) | got nowhere ${r.farFrom.join(", ")}`);
+      if (r.inside.length > 0 || r.longestStill > STILL_TICKS || r.farFrom.length > 0 || r.neverMoved.length > 0) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId}) | got nowhere ${r.farFrom.join(", ")} | never moved ${r.neverMoved.join(", ")}`);
     }
     (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[corner fuzz] ${JSON.stringify(seen)}; escapes ${pushEscapes.count - esc0}`);
     expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);

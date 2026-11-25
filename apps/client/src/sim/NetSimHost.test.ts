@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  INPUT_BYTES,
+  INPUT_STICK_STEPS,
   BYTES,
   C2S,
   HORDE_MAX_FRAME_BYTES,
@@ -49,7 +51,7 @@ function setup(players = [fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20
   };
 }
 
-const inputs = (room: FakeRoom) => room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+const inputs = (room: FakeRoom) => room.inputsSent() as PlayerInput[];
 
 describe("NetSimHost", () => {
   it("Story 4.4: runSeed is the server's (room state), the mirror World never draws a seed of its own", () => {
@@ -654,5 +656,34 @@ describe("NetSimHost", () => {
       host.update(0);
       expect(host.netStats.confirmed).toBe(0);
     });
+  });
+});
+
+describe("NetSimHost: Story 8.11 binary input (AC 3, brief 26 wiring)", () => {
+  it("sends 14-byte BYTES.INPUT frames and predicts with exactly the quantised values the server decodes", () => {
+    const { room, host, setNow, arrive } = setup();
+    arrive(10);
+    host.update(0);
+    const applied: PlayerInput[] = [];
+    const predictor = (host as unknown as { predictor: { applyLocal(i: PlayerInput, ...rest: unknown[]): void } }).predictor;
+    const apply = predictor.applyLocal.bind(predictor);
+    predictor.applyLocal = (i: PlayerInput, ...rest: unknown[]) => {
+      applied.push({ ...i });
+      apply(i, ...rest);
+    };
+    room.sent.length = 0;
+    let t = 0;
+    for (let f = 0; f < 12; f++) {
+      host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 0.3, moveY: -0.61, aimX: 0.123, aimY: 0.9, fire: true });
+      setNow((t += 1000 / 60));
+      host.update(FRAME_60HZ);
+    }
+    const sentRaw = room.sentOf(`bytes:${BYTES.INPUT}`) as Uint8Array[];
+    expect(sentRaw.length).toBeGreaterThanOrEqual(3); // liveness
+    for (const b of sentRaw) expect(b.length).toBe(INPUT_BYTES);
+    const sent = inputs(room);
+    expect(applied).toEqual(sent); // deleting the decode-back line in stepInputs fails here (0.3 ≠ 38/127)
+    expect(sent[0]?.moveX).toBe(Math.round(0.3 * INPUT_STICK_STEPS) / INPUT_STICK_STEPS);
+    expect(room.sentOf("input.send")).toEqual([]); // the old msgpack input is gone
   });
 });
