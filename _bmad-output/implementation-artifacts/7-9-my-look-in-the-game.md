@@ -271,3 +271,61 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 - The VPS: migration `0001_look` on the production PostgreSQL 18 (Hermes's deploy runs `db:migrate`); tested forward on PGlite with 7.1's schema and rows.
 - The lobby on a phone with a real notch (insets read from `env(safe-area-inset-*)`): tested by the layout function and desktop screenshots only.
 
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer session, 2026-11-25 (gds-code-review, three layers: blind hunter, edge-case hunter, acceptance auditor + beat-the-rule probes). **Tree:** `review-7-9` = `story-7-9` b907077 merged with `origin/master` (8.10 f67154d). Merge conflicts (resolved as the union in the merge commit, both sides kept): `packages/shared/src/net/messages.ts` (`JoinRefusal`: `seat_kept` + `update_required`), `tools/bots/run.ts` (FLAGS: cut-* + kbps), `apps/client/src/net/connection.ts` (`options()`: ticket/look + `netProtocolVersion`), `apps/client/src/sim/NetSimHost.ts` (8.10 moved `receiveHorde` into the constructor callback; 8.1's `rebaseAfterGap` kept), `sprint-status.yaml`, `docs/perf/network-pass-2026-11.md`. 7.9's own code = commits 46d60e3, eccab8a, 5b50780, 7858c23, fc10619. Checks run: typecheck (green), the 16 touched test files, 25 mutations, live join probes against a real server, Playwright lobby at 568×320 / 800×360 with 4 players, FPS row re-run. Full gate not run (rules).
+
+**Verdict: CHANGES REQUESTED** — 4 Medium (1 real bug, 1 merge break, 1 merge hazard, 1 test gap on L2/L6), 8 Low. The rule core holds: no unowned part, junk or oversized code got through; the look is set once and kept by takeover / remembered seat / lobby return; ring colour untouched; 0 B per tick.
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| M1 | Medium | `apps/client/src/render/PlayerView.ts:241-246` | 8.1's spawn-protection blink (on this branch via story-7-1) sets `body.setAlpha(blink)` and the layer's alpha, **not the new gun image**. After every mid-wave return the body fades to 0.37 while the gun stays solid and shows through the translucent body. Probe: `protectTicks: 30`, t = 100 ms → body alpha 0.367, gun alpha 1. Breaks AC 7 "tints … and visibility apply to body and gun together". | `this.gun.setAlpha(blink);` next to the body; add the alpha case to "downed / slowed tints, out and the blackout depth apply to body and gun together". |
+| M2 | Medium (merge) | `apps/server/src/rooms/RunRoom.look.test.ts:31-38` | On master (8.10: join options need `netProtocolVersion`) the test's `opts()` has none → **9/9 tests fail** with `balance_mismatch`. Adding `netProtocolVersion: NET_PROTOCOL_VERSION` makes all 9 pass (checked). The gate line (fc10619, master 02e7d8c) predates 8.10. Same break, not 7.9's code, for whoever merges them: 7.1's `RunRoom.account.test.ts`, 8.1's `RunRoom.reconnect.test.ts`, `auth/accountRoutes.test.ts` (35 failures together on this merge). | Add the field to `opts()`; re-gate on current master. |
+| M3 | Medium (merge hazard) | `apps/server/drizzle/0001_look.sql`, `meta/0001_snapshot.json`, `meta/_journal.json` | `story-7-2` also has `0001_run_rewards` (idx 1, same `0001_snapshot.json` name, both `prevId` 067eb126…). Drizzle 0.45.4 applies a migration only if its journal `when` is **newer than the last applied** (`node_modules/drizzle-orm/pg-core/dialect.js:62`). 7.9's `when` 1795586686338 < 7.2's 1795586996317: if 7.2 lands/deploys first and 7.9 is just renamed `0002_look` keeping its `when`, production **silently skips it** → no `progress.look` column → `progressRepo.get` (selects `look`) fails on every read. | Whichever merges second: drop its own 0001 SQL + snapshot + journal entry, merge the other, re-run `npm run db:generate` (→ `0002_*`, fresh `when`, `prevId` = the other's 0001 snapshot id, snapshot with both tables); point `look.db.test.ts` at 0002 and add a forward run on a DB that already applied the other 0001. |
+| M4 | Medium (test gap) | `apps/client/src/sim/NetSimHost.ts:387`, `apps/client/src/sim/playerInfo.test.ts` | L2's "the wearer's own view uses `state.look`" and L6's "two `NetSimHost`s on one fake room" are untested: mutant `this.info.look = ""` (every player drawn default online) **survives** all tests. L6 is only "same code + stage → same pixels". | `fakePlayer(slot, { look: X })` → `playerInfo(id).look === X` for the local player and a teammate; two hosts on one fake room → equal `resolveLook` per player. |
+| L1 | Low | `apps/client/src/net/lobbyStore.test.ts` | Story claims "rows carry `look`" but every row uses `look: ""`; mutant `look: ''` in `lobbyStore.ts:` row builder survives. | One row with a real code. |
+| L2 | Low | `apps/client/src/render/city/spriteAtlas.ts:245-252`, `survivorGunSplit.raster.test.ts` | The raster test draws its own gun frames, not the atlas's: mutant dropping `WEAPON_BACK_ART[weapon]` from the atlas gun frame (flamethrower tanks gone in game) survives. | Draw the gun frames through `characterSpecs()` + the atlas frame painter (or assert tank pixels in the atlas's flamethrower gun frame). |
+| L3 | Low | `RunRoom.look.test.ts:50-74` | "1,000 random looks (10 kB …) are all accepted": the > 1 KB cases are skipped (`continue`). Live: a 900-char look → `invalid_options`, 10 kB → `Payload Too Large`. Harmless (real clients cap at 96 via `deviceLook` and the session schema) but AC 5 / L1 "never refused" isn't literal. | Rename the test / say in AC 5 that the 1 KB options cap applies; count skipped cases. |
+| L4 | Low | `RunRoom.look.test.ts:178-198` | L4 measures 2 players, ~20 ticks, 15 % tolerance (spec: 4 looks, 200 ticks). A look rewritten every few ticks could hide in 15 %. (Full-string per-tick rewrite was killed.) | 4 players, 200 ticks, or assert no `look` change in the per-tick patches. |
+| L5 | Low (dev only) | `apps/client/src/debug/DevCheats.css:2-7` vs `lobbyLayout.ts:74` | The dev ⚙ (fixed, right 68 px, top 14 px) sits on LEAVE: 800×360 gear 688–732 × 14–58 over leave 700–792 × 8–56; same at 568×320 (screenshots). Taps on LEAVE's left part open cheats. | Hide the gear while the lobby shows, or keep `leave` clear of it. |
+| L6 | Low | `LobbyScreen.tsx` (B9 hint) | The host's hint inside Start is cut: "Waiting for everyon…" at 568×320, "Waiting for everyone to be Rea…" at 800×360. | Shorter text ("Waiting for Ready") or allow 2 lines. |
+| L7 | Low | `SurvivorLookTextures.ts:61-100`, `docs/perf/epic-7-looks.md` (B8) | The doc says the first bake is "in the Game scene's start … before the first frame of play"; the code bakes in the first `update()` (via `syncPlayerView`). A reload / new scene mid-wave (8.1 return) bakes 4 bodies in one frame mid-wave, and online may bake at stage 1 then repaint at the real stage when the first decay patch lands (4 more, 1/frame). | Skip `setLook` until `decaySynced` (or pre-bake in `create` from the host's players); correct the doc sentence. |
+| L8 | Low (deploy) | `packages/shared/src/net/messages.ts` (`look`) | New client + old server: the strict schema refuses `look` → `invalid_options`, not "Please reload" (brief 16). The change is additive (old tabs on the new server are fine). | Deploy the VPS server before (or with) the client; note it in the merge notes. No protocol bump needed. |
+
+**B8 (bake 9.1 ms at 4× vs AC 9's ~2 ms):** the mitigation is acceptable. Steady state costs nothing (no texture call per frame, mutation-checked), a build start costs ≤ ~2.3 ms per frame for 4 frames (4× throttle), and the phone itself is unmeasured. Keep the lazy `nopack` bake as the next cut. AC 9 stays partly met (designer-accepted B8), plus L7's mid-wave case.
+
+**R1 / R6:** R1 ok (tests per task, file > test name). R6: the gate line is real but stale after 8.10 (M2).
+
+### Beat the rule (attempts and results)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Live join, `head:riot` (milestone) + `pack:golf` (loot) | Joined; `state.look` = `head:cap`, `pack:backpack`, rest kept ✔ |
+| 2 | Unicode (`cаp` Cyrillic a, 😀 hair, `ÉÉÉÉÉÉ` colour) | Joined; those fields default ✔ |
+| 3 | `__proto__:x`, `constructor:y`, `head:constructor`, `top:__proto__` | Joined, full default look; no prototype access (keys checked against the slot list, ids against the owned set) ✔ |
+| 4 | Duplicate `head:cap|head:riot` | First wins (`cap`) ✔ |
+| 5 | Object `{head:"riot"}`, array, `null`, number | Joined, default look ✔ |
+| 6 | 900-char / 10 kB look | Refused by the 1 KB options cap (`invalid_options` / 413) — L3 |
+| 7 | Hide who I am: colours = a teammate's / slot colours | Allowed (O3); ring, name, edge arrows stay the slot colour (L3 test, screenshot card 3) ✔. No alpha in colours; `none` parts are starter parts. Very dark colours in the blackout: the ring and name sit above the dark ✔ |
+| 8 | Change look mid-run by takeover (8.1) / remembered seat | Seat's look kept, new connection's ignored (tests; mutants M3/M4 killed) ✔ |
+| 9 | Change look by a lobby rejoin | New look taken (lobby only; intended) ✔ |
+| 10 | Guest / unsaved seat | Device copy sent, checked against starter parts ✔ |
+| 11 | DB down (B5) | `checkAuth` needs no DB (starter set); session read failure keeps the session saved, default look (test, M5 killed) ✔. For 7.11: fail closed to starter parts |
+| 12 | Tampered session response (Playwright route sets `progress.look` with unowned parts) | Lobby and game show the server-stripped look, own card too ✔ |
+| 13 | Texture spam: 50 rejoins, scene restart, 4 players | ≤ players on screen; leftovers dropped at create; disposed at shutdown ✔ (headless: 4 `survivorlook_` with devlooks=4, 1 without) |
+| 14 | Android context loss | Registry repaints the CURRENT look/stage (M8 killed); lobby portrait is a data URL (unaffected) ✔ |
+| 15 | Gun under body vs aim / reload / melee / flamer / downed / blackout | Same position + rotation every frame; frames by weapon + chainsaw running; nopack for back pieces; tint / visibility / depth shared ✔ — **but not the 8.1 blink alpha (M1)** |
+| 16 | Propeller layer | Set only when the code changes; pooled; no per-frame allocation in `syncViewLook` / `DevLooks.update` ✔ |
+| 17 | Stage dim (B1) | Decay stage changes only in `decayMutate` (build start); 2 compares per frame; 1 repaint per frame budget ✔ (L7 for the first-patch case) |
+| 18 | FPS `?stress=150&devlooks=4` re-run (844×390 DPR 2, 12 s, load 0.7–1.2) | stress=150: 18.6 / 18.3; devlooks=4: 18.3 / 19.0 → mean 18.45 vs 18.65 (−0.2), within 2 FPS ✔ |
+| 19 | SC3 lobby 568×320, 4 players, 16-char W/M names, unicode name, ⚙ | Matches SC3/DP2 (cards, rings, white "You" tag ✔, Host tag); names ellipsised; ⚙ over LEAVE (L5); Start hint cut (L6). Screenshots: `review-7-9/lobby-568-host.png`, `lobby-568-guest.png`, `lobby-800-host.png` |
+| 20 | Migration on 7.1's schema with rows | Forward test green (PGlite); collision with 7.2 → M3 |
+| 21 | New client vs old server | `invalid_options` (L8) |
+
+### Mutations (25; one source change each, matching test run, reverted)
+
+Killed (22): lookCode owned check dropped; checkAuth accepts riot/golf; takeover uses the new connection's look; remembered seat drops look; session read failure throws; session look not canonicalised; repaint budget not spent; lost context repaints the first look; `remove` keeps the texture; gun above body; gun tint not shared; layer ignores look; solo look ignores ownership; server copy not kept on device; device look length cap off; lobby return wipes look; look rewritten every tick; lobby card overlaps buttons; portrait cache keyed wrong; "You" tag accent; migration `NOT NULL DEFAULT ''`; joins send only the ticket (accountWiring + connection.account).
+**Survived (3):** NetSimHost `info.look = ""` (M4); lobby rows `look: ''` (L1); atlas gun frame without the back piece (L2).
