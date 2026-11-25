@@ -134,7 +134,7 @@ describe("disownBuildings (Story 8.3 H3, decision E8-H3)", () => {
     expect(world.buildings.list.map((b) => b.ownerId)).toEqual(["", "p0"]);
     expect(ownedCount(world, "p1")).toBe(0);
     const before = [...world.players.values()].map((p) => p.wallet);
-    earn(world, "", 50, "building_kill");
+    earn(world, "", 50, "kill"); // a disowned building's kill pays its owner "": nobody
     expect([...world.players.values()].map((p) => p.wallet)).toEqual(before);
     expect(disownBuildings(world, "")).toBe(0);
   });
