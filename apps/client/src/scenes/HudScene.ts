@@ -1,4 +1,4 @@
-import { HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX } from "./hudTopLayout";
+import { HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, hpRowText, reportHudTextWidths } from "./hudTopLayout";
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -710,6 +710,18 @@ export class HudScene extends Phaser.Scene {
     });
     // Story 3.2: wallet and "+N" pops (Phaser reuses this scene: the old objects died at shutdown).
     this.moneyText = this.add.text(0, 0, "", this.moneyStyle(MONEY_TEXT_PX)).setVisible(false);
+    // Story 6.8 re-review 3 RR3-3: measure the widest wave line / HP text / money line with these very
+    // styles (once per create, before the first frame), so the event arrow's keep-off rects match.
+    {
+      const k = dpr();
+      const wave = this.waveText.setText(WIDEST_WAVE_LINE).width / k;
+      const hp = this.hpText.setText(WIDEST_HP_TEXT).width / k;
+      const money = this.moneyText.setText(WIDEST_MONEY_TEXT).width / k;
+      this.waveText.setText("");
+      this.hpText.setText("");
+      this.moneyText.setText("");
+      reportHudTextWidths(wave, hp, money);
+    }
     this.moneyPops.length = 0;
     for (let i = 0; i < MONEY_POPS; i++) {
       const text = this.add.text(0, 0, "", this.moneyStyle(MONEY_POP_TEXT_PX)).setOrigin(0, 1).setVisible(false);
@@ -1748,7 +1760,7 @@ export class HudScene extends Phaser.Scene {
     this.hpBar.fillStyle(mixColor(HP_LOW, HP_HIGH, frac), 1).fillRect(x, y, w * frac, h);
     // Story 4.8: "Burning" while the server's fire damage keeps arriving (HP stays the server's, ceil).
     this.hpText
-      .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : inAcid ? `HP ${Math.ceil(hp)} / ${maxHp}   Acid` : `HP ${Math.ceil(hp)} / ${maxHp}`)
+      .setText(hpRowText(hp, maxHp, burning, inAcid))
       .setColor(burning ? BURNING_TEXT : inAcid ? ACID_TEXT : "#ffffff")
       .setPosition(x, y + h + 4 * k);
     this.drawGear(this.hpText.x + this.hpText.width + 8 * k, this.hpText.y + this.hpText.height / 2);

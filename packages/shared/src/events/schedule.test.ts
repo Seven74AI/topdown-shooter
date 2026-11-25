@@ -160,28 +160,64 @@ describe("Story 6.8 × 6.12: an even endless wave starts its event through 6.12'
   }
 });
 
-describe("Story 6.8 re-review 2 RR4: a forced event pending for the coming endless wave wins over the endless pick", () => {
-  it("forced in wave 11 for wave 12: startBuild keeps the forced kind, endlessEvent '' and the no-repeat memory unchanged; forced after startBuild replaces the pick", () => {
+describe("Story 6.8 re-review 2 RR4 / re-review 3 RR3-4: forced events and the endless pick", () => {
+  function endless(wave: number): World {
     const w = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
     addPlayer(w, "p0", 24, 16);
-    applyStartWave(w, 11);
+    applyStartWave(w, wave);
+    return w;
+  }
+
+  it("forced in wave 11 for wave 12: startBuild keeps the forced kind; endlessEvent / lastEndlessEvent = the forced kind", () => {
+    const w = endless(11);
     startBuild(w);
     startWave(w); // wave 11
     w.run.lastEndlessEvent = "car_alarm";
     expect(forceEvent(w, "stampede")).toBe(true); // → wave 12
+    expect(w.run.lastEndlessEvent).toBe("stampede");
     skipWave(w); // → the build before wave 12
     expect(w.run.phase).toBe("build");
     expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf("stampede"), wave: 12 });
     expect(w.special.extraDone).toBe(false);
-    expect(w.run.endlessEvent).toBe("");
-    expect(w.run.lastEndlessEvent).toBe("car_alarm"); // only what really armed is remembered
-    // the other order: the pick armed, then a force in the build replaces it
-    const v = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
-    addPlayer(v, "p0", 24, 16);
-    applyStartWave(v, 12);
+    expect(w.run.endlessEvent).toBe(""); // the endless pick was dropped
+    expect(w.run.lastEndlessEvent).toBe("stampede"); // what really runs
+  });
+
+  it("the wave check: a pending forced entry for ANOTHER wave does not stop the pick arming", () => {
+    const w = endless(12);
+    w.special.extra.kind = EVENT_KINDS.indexOf("car_alarm");
+    w.special.extra.wave = 11; // stale (a wave that never ran it)
+    w.special.extraDone = false;
+    startBuild(w); // the build before wave 12
+    const id = w.run.endlessEvent;
+    expect(["car_alarm", "stampede"]).toContain(id);
+    expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf(id as (typeof EVENT_KINDS)[number]), wave: 12 });
+    expect(w.run.lastEndlessEvent).toBe(id);
+    // a DONE forced entry for the same wave doesn't stop it either
+    const v = endless(12);
+    v.special.extra.kind = EVENT_KINDS.indexOf("car_alarm");
+    v.special.extra.wave = 12;
+    v.special.extraDone = true;
     startBuild(v);
-    expect(["car_alarm", "stampede"]).toContain(v.run.endlessEvent);
-    forceEvent(v, "car_alarm");
-    expect(v.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf("car_alarm"), wave: 12 });
+    expect(v.special.extra.wave).toBe(12);
+    expect(v.special.extraDone).toBe(false);
+    expect(v.special.extra.kind).toBe(EVENT_KINDS.indexOf(v.run.endlessEvent as (typeof EVENT_KINDS)[number]));
+  });
+
+  it("a force during the build replaces the armed pick and becomes lastEndlessEvent (dev); the next even wave never repeats it", () => {
+    const w = endless(12);
+    startBuild(w);
+    const picked = w.run.endlessEvent;
+    const other = picked === "car_alarm" ? "stampede" : "car_alarm";
+    forceEvent(w, other);
+    expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf(other), wave: 12 });
+    expect(w.run.endlessEvent).toBe(other);
+    expect(w.run.lastEndlessEvent).toBe(other);
+    startWave(w); // 12
+    skipWave(w);
+    startWave(w); // 13
+    skipWave(w); // the build before 14
+    expect(w.run.endlessEvent).not.toBe(other);
+    expect(["car_alarm", "stampede"]).toContain(w.run.endlessEvent);
   });
 });
