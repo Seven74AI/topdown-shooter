@@ -47,6 +47,7 @@ Player:
 37 what:            bullets:
 38 what:            what happens inside the green ring?
 49 do these four survivors carry anything that does something in the game? what?
+63 what:            bullets:            can a zombie get in? where?
 ```
 
 ## 1
@@ -188,6 +189,9 @@ Player:
 
 ## 54: the dark puddles in the flooded street: do they slow you? (Story 6.4 CO4: visual only; answer: no)
 ![54](../../art/epic-6/ingame/build/co4-wave9-1240.png)
+
+## 63: what is this, does it stop bullets, and can a zombie get in? (photoreal group 3: standing barricades, braces inside, automatic corner posts)
+![63](objects/63_fort.png)
 
 ## 60: where will it run, and where will it stop? Is the yellow bar good or bad for you? (Story 6.6: the charge lane and its CRASH mark)
 ![60](../../art/6-6/6-6-800x360-charge-telegraph.png)
