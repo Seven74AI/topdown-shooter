@@ -20,10 +20,10 @@ describe("photoreal group 3 step 3: automatic corner pieces (findCorners)", () =
     const out = findCorners(fort(), standing, []);
     const byKind = Object.fromEntries(out.map((c) => [c.kind, c])) as Record<string, Corner>;
     expect(out).toHaveLength(4);
-    expect(byKind.nw).toEqual({ x: 0.25, y: 0.25, kind: "nw", type: "wood_barricade" });
-    expect(byKind.ne).toEqual({ x: 4.75, y: 0.25, kind: "ne", type: "wood_barricade" });
-    expect(byKind.sw).toEqual({ x: 0.25, y: 4.75, kind: "sw", type: "metal_barricade" });
-    expect(byKind.se).toEqual({ x: 4.75, y: 4.75, kind: "se", type: "metal_barricade" });
+    expect(byKind.nw).toEqual({ x: 0.25, y: 0.25, kind: "nw", type: "wood_barricade", sideY: 1.5 });
+    expect(byKind.ne).toEqual({ x: 4.75, y: 0.25, kind: "ne", type: "wood_barricade", sideY: 1.5 });
+    expect(byKind.sw).toEqual({ x: 0.25, y: 4.75, kind: "sw", type: "metal_barricade", sideY: 3.5 });
+    expect(byKind.se).toEqual({ x: 4.75, y: 4.75, kind: "se", type: "metal_barricade", sideY: 3.5 });
   });
 
   it("no corner without both lines, for lines that don't meet, for an occupied square, or for non-standing types", () => {
@@ -42,7 +42,7 @@ describe("photoreal group 3 step 3: automatic corner pieces (findCorners)", () =
   });
 
   it("reuses its output array and never lists a square twice", () => {
-    const out: Corner[] = [{ x: 9, y: 9, kind: "nw", type: "x" }];
+    const out: Corner[] = [{ x: 9, y: 9, kind: "nw", type: "x", sideY: 9 }];
     // two front pieces share the square's row from both sides: still one corner per square
     const list = [wall(0.5, 0, 2), wall(0, 0.5, 1), wall(-2, 0.5, 3)];
     findCorners(list, standing, out);

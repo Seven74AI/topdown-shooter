@@ -165,6 +165,8 @@ function relitOf(a: ArtSpec, make: (w: number, h: number) => HTMLCanvasElement):
   sg.scale(k, k);
   (a.inFrame ?? drawInFrame)(sg, 0, 0, w, h, BUILDINGS_PX_PER_M, (c) => a.draw(c, a.wM, a.hM));
   const out = relight(src, w, h, (RELIGHT_SS * srcPxPerM) / RELIGHT_SRC_PX_PER_M, { dir: r.dir, seed: r.seed, glints: r.glints, ...(r.emissive ? { emissive: r.emissive } : {}) }, make);
+  src.width = 0; // review M3: the source drawing is done with
+  src.height = 0;
   relitCache.set(a.frame, out);
   FX.set(a.frame, { glow: r.glow ?? "none", glowFrame: out.bloom ? a.frame : null, glowAt: out.glowAt, spots: out.spots });
   return out;

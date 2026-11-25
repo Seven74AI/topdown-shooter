@@ -24,6 +24,8 @@ export interface Corner {
   kind: CornerKind;
   /** The front line's type (the corner wears its look). */
   type: string;
+  /** The side piece's centre y (m): the corner must draw over it too (review M1: a side line running south). */
+  sideY: number;
 }
 
 const EPS = 1e-6;
@@ -60,7 +62,7 @@ export function findCorners(walls: readonly WallLike[], standing: (type: string)
       const x = (x0 + x1) / 2;
       const y = (y0 + y1) / 2;
       if (out.some((c) => eq(c.x, x) && eq(c.y, y))) continue;
-      out.push({ x, y, kind, type: f.type });
+      out.push({ x, y, kind, type: f.type, sideY: (s.minY + s.maxY) / 2 });
     }
   }
   return out;

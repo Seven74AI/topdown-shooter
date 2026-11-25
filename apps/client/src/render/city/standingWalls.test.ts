@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance } from "@topdown/shared";
 import { ATLAS_BUILDINGS, BUILDINGS_PX_PER_M, CORNER_H_M, CORNER_W_M, cornerFrame, FRONT_H_M, FRONT_W_M, SIDE_H_M, SIDE_W_M, STANDING_VARIANTS, buildingsAtlasSpecs, isStanding, standingFrame, wallFrame, wallVariant } from "./buildingsAtlas";
 import { CB, FRONT_BASE_Y, SIDE_C } from "./barricadeArt";
-import { STAND_DEPTH, STAND_DEPTH_SPAN, standDepth } from "../barricadeLook";
+import { ABOVE_STANDING_DEPTH, STAND_DEPTH, STAND_DEPTH_SPAN, cornerDepth, standDepth } from "../barricadeLook";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./atlasLayout";
 
 const balance = loadBalance();
@@ -94,5 +94,15 @@ describe("photoreal group 3: standing barricades (one picture per rotation, vari
     expect(standDepth(-5)).toBe(STAND_DEPTH);
     expect(STAND_DEPTH).toBeGreaterThan(10.3);
     expect(STAND_DEPTH + STAND_DEPTH_SPAN).toBeLessThan(11);
+  });
+
+  it("review M1/M2: a corner draws over both walls it joins (a north corner's side wall sorts further south); the selection outline over all", () => {
+    // the north-west corner of a fort at y 0.25; its side wall runs south, centre y 1.5; its front line's centre y 0.25
+    expect(cornerDepth(0.25, 1.5)).toBeGreaterThan(standDepth(1.5));
+    expect(cornerDepth(0.25, 1.5)).toBeGreaterThan(standDepth(0.25));
+    // a south-west corner (side wall ending at it, centre y 3.5; its row 4.75)
+    expect(cornerDepth(4.75, 3.5)).toBeGreaterThan(standDepth(4.75));
+    expect(ABOVE_STANDING_DEPTH).toBeGreaterThan(cornerDepth(1000, 1000));
+    expect(ABOVE_STANDING_DEPTH).toBeLessThan(11);
   });
 });

@@ -284,7 +284,8 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
     if (spots.length >= opt.glints) break;
     if (spots.every((s) => Math.hypot(s[0] * k - p[0], s[1] * k - p[1]) > minD)) spots.push([p[0] / k, p[1] / k]);
   }
-  const shrink = (img: ImageData, blur = 0): HTMLCanvasElement => {
+  const scratch: HTMLCanvasElement[] = [];
+  const shrink = (img: ImageData, blur = 0, keep = true): HTMLCanvasElement => {
     const c = make(W, H);
     (c.getContext("2d") as CanvasRenderingContext2D).putImageData(img, 0, 0);
     const out = make(w, h);
@@ -292,18 +293,29 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
     og.imageSmoothingEnabled = true;
     if (blur) og.filter = `blur(${blur}px)`;
     og.drawImage(c, 0, 0, w, h);
+    scratch.push(c);
+    if (!keep) scratch.push(out);
     return out;
+  };
+  // review M3: scratch canvases are emptied (Safari keeps their memory otherwise, see canvasTexture.ts › releaseCanvas)
+  const release = (): void => {
+    for (const c of scratch) {
+      c.width = 0;
+      c.height = 0;
+    }
   };
   let bloom: HTMLCanvasElement | null = null;
   if (ec > 0) {
     bloom = shrink(glow, opt.bloomPx ?? 4);
     const bg = bloom.getContext("2d") as CanvasRenderingContext2D;
     bg.filter = "none";
-    bg.drawImage(shrink(glow), 0, 0); // the glowing pixels themselves, crisp, under their halo
+    bg.drawImage(shrink(glow, 0, false), 0, 0); // the glowing pixels themselves, crisp, under their halo
     bg.globalCompositeOperation = "destination-out";
     bg.globalAlpha = 0.85;
-    bg.drawImage(shrink(occ), 0, 0);
+    bg.drawImage(shrink(occ, 0, false), 0, 0);
   }
   const gr = ec ? Math.sqrt(ec / Math.PI) / k : 0;
-  return { base: shrink(base), bloom, glowAt: [ex / Math.max(1, ec) / k, ey / Math.max(1, ec) / k, gr], spots };
+  const baseOut = shrink(base);
+  release();
+  return { base: baseOut, bloom, glowAt: [ex / Math.max(1, ec) / k, ey / Math.max(1, ec) / k, gr], spots };
 }

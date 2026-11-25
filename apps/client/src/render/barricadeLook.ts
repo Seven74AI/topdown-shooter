@@ -125,3 +125,9 @@ export const STAND_DEPTH_SPAN = 0.15;
 export function standDepth(y: number): number {
   return STAND_DEPTH + (Math.min(1000, Math.max(0, y)) / 1000) * STAND_DEPTH_SPAN;
 }
+/** A corner piece draws over both walls it joins (its stubs cover their ends): the front line at its own row, the side line at `sideY`. */
+export function cornerDepth(y: number, sideY: number): number {
+  return Math.max(standDepth(y), standDepth(sideY)) + 1e-4;
+}
+/** Review M2: UI drawn on a standing barricade (the selection outline) sits above every standing picture. */
+export const ABOVE_STANDING_DEPTH = STAND_DEPTH + STAND_DEPTH_SPAN + 0.02;

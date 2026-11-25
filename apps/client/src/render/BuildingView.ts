@@ -3,7 +3,7 @@ import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, t
 import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
-import { barricadePoolSize, barricadeTint, barricadeTransform, framePointToWorld, standDepth, type BoxOut, type SpriteTransform } from "./barricadeLook";
+import { barricadePoolSize, barricadeTint, barricadeTransform, cornerDepth, framePointToWorld, standDepth, type BoxOut, type SpriteTransform } from "./barricadeLook";
 import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, cornerFrame, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
 import { findCorners, type Corner } from "./wallCorners";
 import { glintAlpha, glowLevel } from "./buildingFx";
@@ -263,8 +263,9 @@ export class BuildingView {
       }
       n++;
       if (img.frame.name !== st.frame) img.setTexture(st.texture, st.frame);
-      // a hair nearer the camera than the walls it joins, so its stubs cover their ends
-      img.setOrigin(st.originX, st.originY).setPosition(c.x, c.y).setDisplaySize(st.wM, st.hM).setDepth(standDepth(c.y + 0.3)).setVisible(true);
+      // over both walls it joins, so its stubs cover their ends; worn like the more worn of them (review L4)
+      const wear = Math.min(1, ...list.filter((b) => isStanding(b.type) && Math.abs((b.minY + b.maxY) / 2 - c.sideY) < 1e-6 && b.minX <= c.x && b.maxX >= c.x).map((b) => barFraction(b)));
+      img.setOrigin(st.originX, st.originY).setPosition(c.x, c.y).setDisplaySize(st.wM, st.hM).setDepth(cornerDepth(c.y, c.sideY)).setTint(barricadeTint(wear)).setVisible(true);
     }
     for (let i = n; i < this.corners.length; i++) {
       const img = this.corners[i] as Phaser.GameObjects.Image;
@@ -491,6 +492,12 @@ export class BuildingView {
     this.ghost.destroy();
     this.bars.destroy();
     this.preview.destroy();
+    for (const img of this.glows) img?.destroy();
+    this.glows.length = 0;
+    for (const img of this.glints) img.destroy();
+    this.glints.length = 0;
+    for (const img of this.corners) img.destroy();
+    this.corners.length = 0;
   }
 }
 
