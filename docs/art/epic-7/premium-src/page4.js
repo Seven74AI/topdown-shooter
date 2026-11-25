@@ -1,5 +1,5 @@
 /* Premium round 2 (interface) page: PI1–PI3, component sheets at 2×, Results at 568 × 320 and 800 × 360, reveal, states. */
-const THEMES = [LG0, LC1, LP2, LT3, LR4];
+const THEMES = [LG0, LC1, LP2, LT3, LR4, LF5];
 const INFO = {
   LG0: { name: 'Gold (reference)', mood: 'Warm, triumphant, "loot"-coded; glows like the sunrise on DW1, still rich on DW2.', tension: 'Gold sits close to amber (= an event you can use) and to the orange player slot; the slot colour only appears as a dot / bar, so it still reads.' },
   LC1: { name: 'Ice cyan', rec: true, mood: 'Cool, clean, high-tech; the strongest contrast against the warm DW1 dawn, calm and crisp on DW2 blue hour. New items glow ice-white-cyan.', tension: 'Cyan is near the blue player slot (#3d8bff): teammate cards keep the slot blue frame + dot + name, new items use a lighter, greener cyan, and the two never share a card. Supplies are no longer amber (rewards = cyan here).' },
@@ -7,6 +7,7 @@ const INFO = {
   LT3: { name: 'Teal + brass', mood: 'Crafted and characterful: brass frames, teal light, like a restored instrument; earthy on DW1, rich on DW2.', tension: 'Teal is between the green player slot and gas yellow-green; it stays blue-leaning (#3fd6c0) and never fills large areas, and new items are brass (not teal) so the reward reads warm.' },
 };
 INFO.LR4 = { name: 'Crimson + steel', mood: 'Bold and aggressive: crimson light on bright steel frames, a war-room debrief; very strong on the blue-hour backdrop, punchy on the dawn.', tension: 'Red is allowed on menu screens now (red = boss danger applies to play only), but players may still associate it with danger; new items are crimson, so the orange slot stays distinct only through its dot or bar, and the primary button uses white text on crimson.' };
+INFO.LF5 = { name: 'Field Ops palette', mood: 'Lumen shapes with PI2 colours: matte charcoal faces, dark gunmetal frames, amber-orange signal light and white numerals — grounded, tactical, closest to the Dead City tone.', tension: 'Amber-orange is close to the orange player slot (#ff8a1f) and to amber = an event you can use; the slot only appears as a bar / dot, and new-item cards say "New item" in words, but a teammate in the orange slot reads less distinctly than in other themes.' };
 const MAIN = document.getElementById('main');
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const frames = [];
@@ -50,7 +51,7 @@ function keyframes(parent, T) {
 }
 const PICK = { v: null };
 try { PICK.v = localStorage.getItem('epic7-lumen-pick'); } catch (e) { /* */ }
-function setPick(v) { PICK.v = v; try { localStorage.setItem('epic7-lumen-pick', v || ''); } catch (e) { /* */ } for (const b of document.querySelectorAll('.pick button')) b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'); document.getElementById('picked').textContent = v ? `Your pick: ${v}` : 'No pick yet: tap LG0, LC1, LP2, LT3 or LR4.'; }
+function setPick(v) { PICK.v = v; try { localStorage.setItem('epic7-lumen-pick', v || ''); } catch (e) { /* */ } for (const b of document.querySelectorAll('.pick button')) b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'); document.getElementById('picked').textContent = v ? `Your pick: ${v}` : 'No pick yet: tap LG0, LC1, LP2, LT3, LR4 or LF5.'; }
 function buildPage() {
   const toc = document.getElementById('toc');
   document.getElementById('rec').innerHTML = '<b>My favourite: LC1 Ice cyan.</b> It gives Lumen the cleanest, most premium read: cool light against the warm dawn makes every panel and item pop, it frees amber for "an event you can use" in gameplay, and new items glow like rare loot. LG0 stays the safe warm choice; LP2 is the most luxurious but the least loud; LT3 has the most character.';

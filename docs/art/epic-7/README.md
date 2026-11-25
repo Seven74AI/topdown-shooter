@@ -170,6 +170,7 @@ construction, components, layout and motion are identical; only the palette chan
 | LP2 | Platinum | Quiet luxury: white-silver chrome, champagne only on new items | White = pick-ups and people: silver chrome lowers the pop of names, so new items get a warm champagne frame |
 | LT3 | Teal + brass | Crafted, instrument-like | Teal sits between the green slot and gas yellow-green; it stays blue-leaning and never fills large areas; new items are brass |
 | LR4 | Crimson + steel (added after the designer allowed red on menu screens) | Bold war-room debrief, strongest on blue hour | Red = boss danger now applies to play only; players may still read red as danger. New items are crimson; white text on the crimson button. Still images only (no video, per the designer) |
+| LF5 | Field Ops palette (PI2 colours on Lumen shapes) | Grounded, tactical: matte charcoal, gunmetal frames, amber-orange light, white numerals | Amber-orange is close to the orange player slot and to amber = an event you can use; the slot shows only as a bar or dot, so an orange-slot teammate reads less distinctly. Still images only |
 
 Files per theme: `premium-3/<code>-components.jpg` (sheet at 2×), `-results-568.jpg`, `-results-800.jpg`,
 `-reveal-at-2.9s.jpg`, `-section.jpg` (half size), `-reveal.webm` (about 1.5 MB). The PI3 label overflow (the
