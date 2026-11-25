@@ -31,6 +31,8 @@ export interface WaveState extends SpawnPickState {
   spawnTimerTicks: number;
   /** The last-5 rush has started for this wave. */
   rushing: boolean;
+  /** Fix A (review L5): the tick since which every remaining zombie has been a holding Spitter (−1: not now). */
+  spitterStallSinceTick: number;
   /** Dev cheat (Story 1.11, `DEV_NO_WAVES`, `?stress`): the run state machine stands still (no build countdown, no waves). */
   paused: boolean;
   /**
@@ -78,6 +80,7 @@ export function createWaveState(): WaveState {
     remaining: 0,
     spawnTimerTicks: 0,
     rushing: false,
+    spitterStallSinceTick: -1,
     paused: false,
     typeTarget: new Uint16Array(ZOMBIE_TYPES.length),
     typeSpawned: new Uint16Array(ZOMBIE_TYPES.length),
@@ -405,6 +408,7 @@ export function beginWave(world: World): void {
   w.queued = w.size;
   w.remaining = w.size;
   w.rushing = false;
+  w.spitterStallSinceTick = -1;
   w.spawnTimerTicks = 0; // first batch this tick
   w.spawnHeldSinceTick = -1; // Story 4.3: every wave gets the full wait before the farthest-spawn fallback
   world.events.emit({ type: "wave.started", number: w.number, size: w.size });
@@ -416,6 +420,7 @@ export function clearWave(world: World): void {
   w.queued = 0;
   w.remaining = 0;
   w.rushing = false;
+  w.spitterStallSinceTick = -1;
 }
 
 /**
@@ -448,8 +453,14 @@ export function updateWaves(world: World): boolean {
   }
 
   w.remaining = waveZombiesAlive(world) + w.queued;
-  // Spitter deadlock fix A (designer 2026-11-25): also at once when every one left is a Spitter holding its spot.
-  if (!w.rushing && w.queued === 0 && w.remaining > 0 && (w.remaining <= b.lastRushCount || allRemainingHoldingSpitters(world))) {
+  // Spitter deadlock fix A (designer 2026-11-25; review L5): also when every one left has been a Spitter holding its
+  // spot for `spitterStall.holdS` (a real stand-off, never a brief moment of an open fight); sampled every few ticks.
+  if (!w.rushing && w.queued === 0 && w.remaining > b.lastRushCount && world.tick % b.spitterStall.checkEveryTicks === 0) {
+    if (!allRemainingHoldingSpitters(world)) w.spitterStallSinceTick = -1;
+    else if (w.spitterStallSinceTick < 0) w.spitterStallSinceTick = world.tick;
+  }
+  const stalled = w.spitterStallSinceTick >= 0 && world.tick - w.spitterStallSinceTick >= ticksFor(b.spitterStall.holdS);
+  if (!w.rushing && w.queued === 0 && w.remaining > 0 && (w.remaining <= b.lastRushCount || stalled)) {
     w.rushing = true;
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {

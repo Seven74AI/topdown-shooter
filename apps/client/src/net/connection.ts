@@ -83,9 +83,10 @@ export async function joinGame(code: string, name: string): Promise<Result<RunCo
 
 /**
  * Story 8.1 (AC 6, 9): what a takeover join's failure means for the seat. `seat_kept`: the hold ran
- * out, the seat waits for a build phase (D4); a refusal that can never change (`run_started`: no seat
- * of mine here; the room is gone; another version) is `gone`; anything else (no answer: the line is
- * still cut, a proxy error, the rate limit) is `network` and is tried again.
+ * out, the seat waits for a build phase (D4); a refusal that can never change (`run_started`: the run
+ * is on Results; `run_full` (8.2); the room is gone; another version) is `gone`; `removed` (8.3: the
+ * host removed the seat) is its own answer; anything else (no answer: the line is still cut, a proxy
+ * error, the rate limit) is `network` and is tried again.
  */
 export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "removed" | "network" {
   if (typeof e !== "object" || e === null) return "network";

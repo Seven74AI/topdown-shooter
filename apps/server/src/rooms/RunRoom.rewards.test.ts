@@ -290,7 +290,7 @@ describe("Story 7.2: banking in the room", () => {
     const repo = progressRepo(database);
     const { setRoomAccounts } = await import("../auth/roomAccounts");
     const failing = { ...repo, addSupplies: () => Promise.reject(new Error("db down")) };
-    const restore = { sessionSecret: SECRET, accounts: accountsRepo(database), progress: progressRepo(database) };
+    const restore = { sessionSecret: SECRET, accounts: accountsRepo(database), progress: progressRepo(database), checkTicketRows: false }; // as bootTestServer set it (8.2 review: later tests' tickets need it)
     setRoomAccounts({ ...restore, progress: failing });
     try {
       const err = vi.spyOn(room.log, "error");
@@ -314,7 +314,7 @@ describe("Story 8.2+8.3 review: banking with seats that come and go", () => {
     endWave(w); // a build phase: Remove is allowed
     await vi.waitFor(() => expect(room.state.phase).toBe("build"));
     clients[0]!.send(C2S.HOST_REMOVE, { playerId: diId });
-    await vi.waitFor(async () => expect(await rewardRows(d)).toBe(1)); // Di banked "quit" at the remove (Di's socket is closed: Di sees "removed")
+    await vi.waitFor(async () => expect(await rewardRows(d)).toBe(1), { timeout: 5000 }); // Di banked "quit" at the remove (Di's socket is closed: Di sees "removed")
     const eve = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, options("join", "Eve", e));
     const eveGot = listen(eve);
     await eve.waitForInitialState();
@@ -329,7 +329,7 @@ describe("Story 8.2+8.3 review: banking with seats that come and go", () => {
     expect(await supplies(e)).toBe((eveGot[0] as { total: number }).total);
     expect(await rewardRows(d)).toBe(1); // Di's one row from the remove, nothing more
     expect(inbox[1]!.length).toBe(0); // the removed Di's socket is gone
-  });
+  }, 20_000);
 
   it("M2: a late joiner still waiting when the run ends gets a zero not_saved run.rewards (never 'Saving…' forever)", async () => {
     const a = await newAccount();

@@ -180,3 +180,31 @@ describe("Stories 8.2/8.3 brief 5: a mid-run join and a remove replay to the sam
     expect(worldDigest(replayRun(balance, without))).not.toBe(worldDigest(world));
   });
 });
+
+describe("review L2: the replay's join carries the joiner's unlocks and Training", () => {
+  it("a join command with unlocks + Training replays a survivor with them (trained max HP)", () => {
+    const { world } = createHeadlessWorld(balance, 5, 1);
+    const training = { maxHp: 3, damage: 1, startMoney: 0, reload: 2 };
+    applyCommand(world, { tick: world.tick, kind: "join", playerId: "p1", slot: 1, wallet: 300, unlocks: 0b101, training });
+    const p = world.players.get("p1");
+    expect(p?.unlocks).toBe(0b101);
+    expect([p?.trainHp, p?.trainDmg, p?.trainReload]).toEqual([3, 1, 2]);
+    expect(p?.maxHp).toBeGreaterThan(balance.player.maxHp);
+    expect(p?.wallet).toBe(300);
+  });
+});
+
+describe("review L3: a build-phase join still loading holds the all-Ready early start (not the timer)", () => {
+  it("everyone Ready + joinPending → the build goes on; cleared → the wave starts", () => {
+    const world = buildWorld(null);
+    setBuildReady(world, "p0", true);
+    world.run.joinPending = true;
+    const t = world.run.buildTicksLeft;
+    step(world, TICK_DT_S);
+    expect(world.run.phase).toBe("build");
+    expect(world.run.buildTicksLeft).toBe(t - 1); // the timer still runs
+    world.run.joinPending = false;
+    step(world, TICK_DT_S);
+    expect(world.run.phase).toBe("wave");
+  });
+});

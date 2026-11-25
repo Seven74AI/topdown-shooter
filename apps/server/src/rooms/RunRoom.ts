@@ -625,7 +625,21 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.runNames.set(slot, auth.name);
     this.attachClient(client, member);
     this.log.info({ playerId, slot, phase: this.state.phase, wave: controller.world.waves.number }, "player_waiting");
+    this.syncJoinPending();
     void this.loadLateInit(member);
+    void this.loadMemberProgress(member, auth.rawLook); // review nit: its owned look parts (no districts mid-run)
+  }
+
+  /**
+   * Story 8.2 review L3: while a waiting joiner is loading in a build phase, everyone else being Ready does not start the
+   * wave early (`run.joinPending`; the build timer still runs). Recomputed whenever waiting members or the phase change.
+   */
+  private syncJoinPending(): void {
+    const w = this.controller?.world;
+    if (!w) return;
+    let pending = false;
+    if (this.state.phase === "build") for (const m of this.members.values()) if (m.waiting === true) pending = true;
+    if (w.run.joinPending !== pending) w.run.joinPending = pending;
   }
 
   /** Story 8.2: the waiting member's unlocks and Training (like a run start's read), then it enters if it can. */
@@ -678,10 +692,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       const client = this.clients.getById(sessionId) as RunClient | undefined;
       if (client && !atBuildStart) this.sendOffer(client, member.playerId); // at a build start `sendOffers` sends it (once)
     }
+    this.syncJoinPending();
     if (!entered) return;
     syncState(this.state, controller); // the new survivors, wallets and the extended timer in the next patch
-    this.moveHostIfGone("entered"); // a room whose host was held (nobody else connected) gets one now
-    this.updateFreeze();
+    this.updateFreeze(); // review nit: no host move here (a held host keeps the role until a return or its hold ends, H1)
   }
 
   /**
@@ -689,7 +703,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * longest-connected connected, non-waiting member (`nextConnectedHost`); none → it stays (everyone is held: the room
    * is frozen; the first one back takes it by this rule). It never moves back to a returning old host.
    */
-  private moveHostIfGone(why: "left" | "held" | "removed" | "returned" | "entered" | "lobby"): void {
+  private moveHostIfGone(why: "left" | "held" | "removed" | "returned" | "lobby"): void {
     const held = (id: string): boolean => this.holds.has(id);
     // Review M5: the host is a SEAT (player id + join order), not a slot: a remembered old host coming back into the
     // same slot is a new connection and never takes the role back silently.
@@ -990,6 +1004,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.memberProgress.delete(playerId);
     this.lateInits.delete(playerId);
     this.waitingIds.delete(playerId);
+    this.syncJoinPending();
     if (controller) {
       controller.removePlayer(playerId); // present or held: out of the World for good
       controller.disownBuildings(playerId);
@@ -1001,7 +1016,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.netMeters.delete(member.sessionId);
     if (this.state.phase === "lobby") this.recomputeDistricts();
     this.log.info({ playerId, slot, by: by.playerId, phase: this.state.phase, held: hold !== undefined, waiting: member.waiting === true, wave: controller?.world.waves.number ?? 0 }, "player_removed");
-    this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason: "removed" } satisfies PlayerLeft);
+    this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason: "removed" } satisfies PlayerLeft, gone ? { except: gone } : undefined); // review nit: the removed phone gets player.removed only
     if (gone) {
       gone.send(S2C.PLAYER_REMOVED, {} satisfies PlayerRemoved);
       gone.leave(CLOSE_REMOVED);
@@ -1076,6 +1091,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason } satisfies PlayerLeft);
     this.lateInits.delete(playerId);
     this.waitingIds.delete(playerId);
+    this.syncJoinPending();
     // The longest-connected connected member takes over as host (lobby and mid-run alike; Story 8.3 H1).
     this.moveHostIfGone("left");
     const players = Array.from(this.members.values()).filter((m) => m.waiting !== true).length;
@@ -1145,6 +1161,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         if (player) player.look = look;
       }
       this.recomputeDistricts();
+    } else if (relook && member.waiting === true) {
+      // Story 8.2 review nit: a late joiner hasn't entered yet: its look is checked against what its account owns
+      // (7.11/7.12 parts), like a lobby join's, before its survivor appears.
+      const look = encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
+      if (look !== member.look) {
+        member.look = look;
+        const player = this.state.players.get(member.playerId);
+        if (player) player.look = look;
+      }
     }
   }
 
@@ -1613,8 +1638,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs, district: this.state.district }); // Story 7.2 (+ 7.7: the run's district)
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
-    // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that
-    // are not one of the run's seats are refused in `join()` (run_started) whatever the count.
+    // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Story 8.2: the
+    // 4-seat limit is `join()`'s (`takenSlots`: members + held + remembered → `run_full`), not this count.
     this.maxClients = MAX_PLAYERS * 2;
     void this.unlock();
     const zombies = controller.world.zombies;

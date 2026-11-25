@@ -57,6 +57,8 @@ const PLAYERS = [
 const CASES = [
   { name: "Players list, build phase", phase: "build", screen: { kind: "playing", menu: "players", online: true }, sel: "[data-testid=players-menu]", rows: 3, disabled: false },
   { name: "Players list, wave (greyed + note)", phase: "wave", screen: { kind: "playing", menu: "players", online: true }, sel: "[data-testid=players-menu]", rows: 3, disabled: true },
+  // Review L6 (8.3-B6): a remembered seat ("left the run", from state.leftSeats) in the list with a Remove of its own.
+  { name: "Players list with a seat that left", phase: "build", screen: { kind: "playing", menu: "players", online: true }, sel: "[data-testid=players-menu]", rows: 3, disabled: false, players: PLAYERS.slice(0, 3), left: [{ playerId: "p3", name: "Dee" }] },
   { name: "in-run Remove confirm", phase: "build", screen: { kind: "playing", menu: "confirmRemove", online: true }, sel: "[data-testid=remove-confirm]", rows: 0, disabled: false },
   { name: "lobby Remove confirm", phase: "lobby", screen: { kind: "lobby", code: "ABCD" }, sel: "[data-testid=lobby-remove-confirm]", rows: 0, disabled: false, lobbyTap: true },
 ];
@@ -65,15 +67,20 @@ let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: 
 let browser: Browser | null = null;
 let page: Page | null = null;
 
-describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms in a real browser", () => {
+/** Review L6: CI sets REQUIRE_BROWSER=1: a missing browser then FAILS this test instead of skipping it. */
+const REQUIRE = process.env.REQUIRE_BROWSER === "1";
+
+describe.skipIf(!pw && !REQUIRE)("Story 8.3 (R9): the Players menu and the Remove confirms in a real browser", () => {
   beforeAll(async () => {
     const { createServer } = await import("vite");
     server = (await createServer({ root: CLIENT, configFile: join(CLIENT, "vite.config.ts"), logLevel: "silent", server: { host: "127.0.0.1", port: 0, strictPort: false, hmr: false } })) as unknown as typeof server;
     await server!.listen();
+    if (!pw) throw new Error("REQUIRE_BROWSER=1 but playwright is not installed");
     try {
-      browser = await pw!.chromium.launch();
-    } catch {
+      browser = await pw.chromium.launch();
+    } catch (e) {
       browser = null;
+      if (REQUIRE) throw e;
       return;
     }
     page = await browser.newPage({ viewport: { width: 568, height: 320 } });
@@ -94,7 +101,10 @@ describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms i
   for (const c of CASES) {
     for (const [w, h] of SIZES) {
       it(`${w}×${h}, ${c.name}: inside the safe area, no overlaps, buttons ≥ 44 px, text ≥ 11 px`, async (ctx) => {
-        if (!page) return ctx.skip();
+        if (!page) {
+          if (REQUIRE) throw new Error("REQUIRE_BROWSER=1 but no browser page"); // review L6
+          return ctx.skip();
+        }
         await page.setViewportSize({ width: w, height: h });
         const m = (await page.evaluate(
           `(async (k) => {
@@ -135,7 +145,7 @@ describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms i
           const text = root.textContent;
           ui.uiStore.set({ kind: "start" });
           return { found: true, out, overlaps, minFont, smallButtons, rows: root.querySelectorAll(".in-run-menu__player").length, removeDisabled: removes.map((b) => b.disabled), text };
-        })(${JSON.stringify({ ...c, players: PLAYERS, inset: INSET })})`,
+        })(${JSON.stringify({ ...c, players: c.players ?? PLAYERS, inset: INSET })})`,
           undefined,
         )) as Measure;
         expect(m.found, "the screen is drawn").toBe(true);
@@ -148,7 +158,8 @@ describe.skipIf(!pw)("Story 8.3 (R9): the Players menu and the Remove confirms i
           expect(m.removeDisabled).toEqual([c.disabled, c.disabled, c.disabled]);
           expect(m.text.includes("You can remove players in the build phase")).toBe(c.disabled);
           expect(m.text).toContain("reconnecting");
-          expect(m.text).toContain("joins at the build phase");
+          if (c.left) expect(m.text).toContain("Dee · left the run"); // review L6
+          else expect(m.text).toContain("joins at the build phase");
           expect(m.text).not.toContain("Host Ana");
         } else {
           expect(m.text).toContain("Remove Bartholomew The Long from this run? They can't come back.");

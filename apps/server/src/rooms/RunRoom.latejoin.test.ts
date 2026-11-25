@@ -346,3 +346,23 @@ describe("Story 8.2 review M4: two waiters enter at one build start", () => {
     expect([cy.seen.offers, di.seen.offers]).toEqual([1, 1]); // nit: the build start's offer, once
   });
 });
+
+describe("Story 8.2 review L3: a build-phase join still loading holds the all-Ready start", () => {
+  it("Ana Ready while Bo's start data loads → the build goes on (timer running); Bo gone → the Ready starts the wave", async () => {
+    const { clients, room } = await runOf(1);
+    const w = world(room);
+    vi.spyOn(room as unknown as { loadLateInit(m: unknown): Promise<void> }, "loadLateInit").mockImplementation(() => new Promise(() => {}));
+    const { c } = await late(room, "Bo");
+    await vi.waitFor(() => expect(room.state.players.get("p1")?.waiting).toBe(true));
+    expect(w.run.joinPending).toBe(true);
+    w.waves.paused = false; // DEV_NO_WAVES freezes the build timer and ignores Ready: this test needs both live
+    (clients[0] as RunSdkRoom).send(C2S.BUILD_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(w.players.get("p0")?.buildReady).toBe(true));
+    const t = w.run.buildTicksLeft;
+    await vi.waitFor(() => expect(w.run.buildTicksLeft).toBeLessThan(t - 3));
+    expect(w.run.phase).toBe("build");
+    await c.leave(true);
+    await vi.waitFor(() => expect(w.run.joinPending).toBe(false));
+    await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
+  });
+});

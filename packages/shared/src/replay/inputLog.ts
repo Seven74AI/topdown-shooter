@@ -3,6 +3,7 @@ import { TICK_DT_S } from "../config/constants";
 import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
 import { addPlayer, removePlayer, type PlayerInit } from "../player/player";
+import type { TrainingLevels } from "../meta/training";
 import { teamSpawnPoint } from "../player/spawn";
 import { buyItem, upgradeWeapon } from "../economy/shop";
 import { buyCard, reroll } from "../economy/shopCards";
@@ -38,7 +39,7 @@ export type BuildCommand =
   /** Story 8.1: a held player came back (`returnPlayer`: placement and protection are the World's). */
   | { kind: "return"; playerId: string }
   /** Story 8.2 (brief 5): a late joiner entered the World in a build phase (`addLatePlayer`: spot, wallet, +15 s once). */
-  | { kind: "join"; playerId: string; slot: number; wallet: number }
+  | { kind: "join"; playerId: string; slot: number; wallet: number; unlocks?: number; training?: TrainingLevels }
   /** Story 8.3: the host removed a player (out of the World, their buildings disowned: `removePlayer` + `disownBuildings`). */
   | { kind: "remove"; playerId: string };
 
@@ -114,7 +115,7 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       returnPlayer(world, cmd.playerId);
       break;
     case "join":
-      addLatePlayer(world, cmd.playerId, cmd.slot, cmd.wallet);
+      addLatePlayer(world, cmd.playerId, cmd.slot, cmd.wallet, { ...(cmd.unlocks !== undefined ? { unlocks: cmd.unlocks } : {}), ...(cmd.training ? { training: cmd.training } : {}) }); // review L2
       break;
     case "remove":
       removePlayer(world, cmd.playerId);

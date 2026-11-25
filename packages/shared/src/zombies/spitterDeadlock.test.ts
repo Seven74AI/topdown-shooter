@@ -87,6 +87,38 @@ describe("Spitter deadlock fix A (6 Spitters holding behind a camper's barricade
     expect(world.waves.rushing).toBe(false);
   });
 
+  it("review L5: the rush waits for the stand-off to last spitterStall.holdS (8 s): not after 7 s, yes by 9 s", () => {
+    const { world, events } = campWorld();
+    const hold = balance.waves.spitterStall.holdS;
+    expect(hold).toBe(8);
+    for (let t = 0; t < 20 * (hold - 1); t++) campTick(world, t + 1);
+    expect(world.waves.rushing).toBe(false); // 7 s of all-holding: still an open fight
+    for (let t = 0; t < 20 * 2; t++) campTick(world, t + 1000);
+    expect(events.find((e) => e.type === "wave.rush_started")).toEqual({ type: "wave.rush_started", count: 6 });
+  });
+
+  it("review L5: a brief all-holding moment broken by a walker starts the 8 s over", () => {
+    const { world } = campWorld();
+    for (let t = 0; t < 20 * 5; t++) campTick(world, t + 1); // 5 s all-holding
+    const walker = spawnZombie(world, "walker", 45, 30, true); // the stand-off is broken
+    for (let t = 0; t < 20 * 5; t++) campTick(world, t + 200); // 10 s since the first moment
+    expect(world.waves.rushing).toBe(false);
+    killZombie(world, walker, null, "cheat"); // all-holding again: a fresh 8 s
+    for (let t = 0; t < 20 * 7; t++) campTick(world, t + 400);
+    expect(world.waves.rushing).toBe(false);
+    for (let t = 0; t < 20 * 2; t++) campTick(world, t + 600);
+    expect(world.waves.rushing).toBe(true);
+  });
+
+  it("nit: zombies still queued → never the early rush, however long the Spitters hold", () => {
+    const { world } = campWorld();
+    world.waves.queued = 3;
+    world.waves.spawnTimerTicks = 1e9; // nothing leaves the queue in this test
+    for (let t = 0; t < 20 * 12; t++) campTick(world, t + 1);
+    expect(allRemainingHoldingSpitters(world)).toBe(true);
+    expect(world.waves.rushing).toBe(false);
+  });
+
   it("a mixed remainder (a Walker among the Spitters) waits for the normal ≤ 5 rule", () => {
     const { world } = campWorld();
     spawnZombie(world, "walker", 30, 30, true);

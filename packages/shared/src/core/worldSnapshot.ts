@@ -224,7 +224,7 @@ export function snapshotWorld(world: World) {
     lastShotId: world.projectiles.lastShotId, // Story 5.3: the shot counter
     zombies: snapshotZombies(world),
     waves: {
-      ...world.waves,
+      ...snapshotWavesBase(world),
       typeTarget: Array.from(world.waves.typeTarget),
       typeSpawned: Array.from(world.waves.typeSpawned),
       fixedTarget: Array.from(world.waves.fixedTarget), // Story 6.1: the fixed zombies and their spawn points
@@ -278,8 +278,14 @@ export function worldDigest(world: World): number {
   return fnv1a32(canonicalJson(snapshotWorld(world)));
 }
 
-/** Story 8.2: the run state, `joinExtendedBuild` left out while false (older digests unchanged). */
+/** Story 8.2: the run state, `joinExtendedBuild` and `joinPending` left out while false (older digests unchanged). */
 function snapshotRun(world: World): Record<string, unknown> {
-  const { joinExtendedBuild, ...rest } = world.run;
-  return joinExtendedBuild ? { ...rest, joinExtendedBuild } : rest;
+  const { joinExtendedBuild, joinPending, ...rest } = world.run;
+  return { ...rest, ...(joinExtendedBuild ? { joinExtendedBuild } : {}), ...(joinPending ? { joinPending } : {}) };
+}
+
+/** Fix A (review L5): the wave state, `spitterStallSinceTick` left out while idle (−1: older digests unchanged). */
+function snapshotWavesBase(world: World): Omit<World["waves"], "spitterStallSinceTick"> & { spitterStallSinceTick?: number } {
+  const { spitterStallSinceTick, ...rest } = world.waves;
+  return spitterStallSinceTick >= 0 ? { ...rest, spitterStallSinceTick } : rest;
 }

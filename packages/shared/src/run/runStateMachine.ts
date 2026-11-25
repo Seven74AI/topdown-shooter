@@ -68,10 +68,15 @@ export interface RunState {
   lastEndlessEvent: string;
   /** Story 8.2 (J5, decision E8-J4): this build phase was already extended by a late join (cleared by `startBuild`). */
   joinExtendedBuild: boolean;
+  /**
+   * Story 8.2 review L3: a build-phase late join is still loading its start data (≤ 2 s, the room sets it): everyone
+   * else being Ready does not start the wave early meanwhile (the build timer still runs). Not cleared by `startBuild`.
+   */
+  joinPending: boolean;
 }
 
 export function createRunState(): RunState {
-  return { phase: "lobby", buildTicksLeft: 0, voteTicksLeft: 0, ending: "none", endless: false, endlessEvent: "", lastEndlessEvent: "", joinExtendedBuild: false };
+  return { phase: "lobby", buildTicksLeft: 0, voteTicksLeft: 0, ending: "none", endless: false, endlessEvent: "", lastEndlessEvent: "", joinExtendedBuild: false, joinPending: false };
 }
 
 function expectPhase(world: World, transition: string, ...from: RunPhase[]): void {
@@ -306,7 +311,7 @@ const checkReady = (p: PlayerState): void => {
 };
 
 function everyoneReady(world: World): boolean {
-  if (world.players.size === 0) return false;
+  if (world.players.size === 0 || world.run.joinPending) return false; // review L3: a joiner is on its way
   allReady = true;
   world.players.forEach(checkReady);
   return allReady;
