@@ -1,4 +1,4 @@
-/* global require, process, console, window, document, WebSocket */
+/* global require, process, console, window, document, setInterval */
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled, not a dependency) */
 // Story 8.1 two-tab reconnect smoke (network pass brief line 34). NOT game code, not a test.
 //
@@ -77,7 +77,12 @@ const CUT_INIT = () => {
         }
         if (handler) handler.call(this, ev);
       };
-      Object.defineProperty(this, "onmessage", { get: () => handler, set: (h) => (handler = h) });
+      Object.defineProperty(this, "onmessage", {
+        get: () => handler,
+        set: (h) => {
+          handler = h;
+        },
+      });
     }
   };
 };

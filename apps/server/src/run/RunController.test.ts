@@ -531,9 +531,9 @@ describe("RunController", () => {
     expect(shoot(true)).toHaveLength(0);
   });
 
-  it("lag compensation is on by default: history recorded, rewind capped at 300 ms; off: neither (Story 2.12)", () => {
+  it("lag compensation is on by default: history recorded, rewind capped at 500 ms; off: neither (Story 2.12)", () => {
     const on = newController();
-    expect(REWIND_CAP_TICKS).toBe(6);
+    expect(REWIND_CAP_TICKS).toBe(10); // Story 8.8: 300 → 500 ms (network audit §3.5)
     expect(on.world.zombieHistory.enabled).toBe(true);
     for (const p of on.world.players.values()) expect(p.rewindMaxTicks).toBe(REWIND_CAP_TICKS);
     const off = new RunController({ balance, seed: SEED, players: TWO, pauseWaves: true, lagCompensation: false });

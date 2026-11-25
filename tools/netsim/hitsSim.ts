@@ -91,6 +91,13 @@ export interface Options {
   clientMap?: DistrictMap;
   /** Story 4.2: where the survivor stands (standing runs; default the team start). */
   start?: { x: number; y: number };
+  /**
+   * Story 8.8 (network audit §3.5): TCP loss as ordered head-of-line stalls, both directions. With
+   * probability `pct` / 100 per message, that message (and, the link being ordered, everything
+   * behind it) waits an extra `stallMs` (a lost segment waiting for its retransmit). Never a
+   * reorder, never a lost message. Absent = no extra rng draw (the clean line is bit for bit today's).
+   */
+  loss?: { pct: number; stallMs: number };
 }
 
 export interface Result {
@@ -119,6 +126,8 @@ export interface Result {
   fanMismatches: number;
   /** The largest pellet direction difference seen (radians). */
   fanMaxDiffRad: number;
+  /** Story 8.8: stalls injected by `Options.loss`, per direction (liveness). */
+  stalls: { up: number; down: number };
 }
 
 /** Story 5.3: two pellet directions this close (radians) are the same (Float32 noise). */
@@ -128,13 +137,18 @@ export const FAN_EPS_RAD = 1e-4;
 class Link<T> {
   private readonly items: { due: number; v: T }[] = [];
   private lastDue = -Infinity;
+  /** Story 8.8: stalls injected on this link. */
+  stalls = 0;
   constructor(
     private readonly oneWayMs: number,
     private readonly jitterHalfMs: number,
     private readonly rng: { range(a: number, b: number): number },
+    private readonly loss?: { pct: number; stallMs: number },
   ) {}
   send(now: number, v: T, notBefore = -Infinity): void {
-    const due = Math.max(this.lastDue, notBefore, now + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
+    const stall = this.loss && this.rng.range(0, 100) < this.loss.pct ? this.loss.stallMs : 0;
+    if (stall > 0) this.stalls++;
+    const due = Math.max(this.lastDue, notBefore, now + stall + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
     this.lastDue = due;
     this.items.push({ due, v });
   }
@@ -191,8 +205,8 @@ export function simulate(o: Options): Result {
   const typeState = o.zombieType ? packTypeState(zombieTypeIndex(o.zombieType), ZOMBIE_STATE.CHASE) : WALKER_TYPE_STATE;
   for (let i = 0; i < walkers; i++) spawnRingWalker();
 
-  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng);
-  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng);
+  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss);
+  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng, o.loss);
 
   // Client.
   const mirror = createWorld({ balance, seed: 0, map: clientMap, systems: NO_SYSTEMS });
@@ -462,6 +476,7 @@ export function simulate(o: Options): Result {
     fanShots,
     fanMismatches,
     fanMaxDiffRad,
+    stalls: { up: up.stalls, down: down.stalls },
   };
 }
 

@@ -36,9 +36,13 @@ export const SHOT_ADVANCE_CAP_MS = 150;
 /**
  * Story 2.12 (architecture › lag compensation): a player's shot is tested against zombie positions
  * at most this old (ms): what the shooter drew (`PlayerInput.viewTick`), clamped. A client that
- * claims an older view gets no more than this (the rewind an honest 300 ms-ping player gets).
+ * claims an older view gets no more than this (clamped, never more).
+ * Story 8.8, network audit §3.5: 300 → 500 ms, together with `REWIND_MAX_TICKS` 6 → 10 (the cap is
+ * the `min` of both, audit H1). An honest player whose inputs waited behind a 200 ms TCP stall asks
+ * for ~415 ms; the targets are zombies, so a cheater claiming an old view only helps their team
+ * (decision 8.8 D1).
  */
-export const REWIND_CAP_MS = 300;
+export const REWIND_CAP_MS = 500;
 
 /**
  * Story 2.12 re-review M-A: the server accepts only the next seq (an honest client sends every seq

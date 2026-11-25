@@ -3,6 +3,7 @@
  *
  *   npm run bots -- --room ABCD --count 3                   # fill a browser host's room
  *   npm run bots -- --count 4 --scenario net150 --until-wave 4   # 4 bots: create, start, measure
+ *   npm run bots -- --count 4 --scenario net150 --lag 150 --jitter 20 --loss 1   # on the lossy line
  *
  * Options:
  *   --url <http(s)://…>   game server (default http://localhost:2567; production: https://hordes.sevend.io/api)
@@ -15,6 +16,15 @@
  *   --max-seconds <S>     leave after S seconds whatever happens (default 900)
  *   --hold-fire <S>       don't fire for the first S seconds of each wave, so the horde reaches the
  *                         150-alive cap (the worst case for bandwidth; default 0)
+ *   --lag <ms>            Story 8.8: put a lagged TCP line between the bots and a LOCAL --url
+ *                         (round trip, ms; in-process, built on tools/netaudit/lagLine.ts)
+ *   --jitter <ms>         spread of each one-way delay on that line (± half; default 0)
+ *   --loss <pct>          head-of-line stalls on that line: per chunk, in BOTH directions, that
+ *                         chunk and everything behind it waits --stall ms (TCP retransmit; 0–20 %)
+ *   --stall <ms>          the extra wait of a stalled chunk (default 200, 0–1000)
+ *                         e.g. --lag 150 --jitter 20 --loss 1 (the network pass's lossy line).
+ *                         Refused for a remote --url. The summary adds a `bots_line` line with the
+ *                         stalls injected per direction.
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
  *   --cut-at <S>          … cut S seconds after the run started (default 30) …
  *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
@@ -30,6 +40,8 @@ import { readFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
 import { startCutLine, type CutLine } from "../netaudit/cutLine";
+import { startLagLine, type LagLine } from "../netaudit/lagLine";
+import { lineUrl, parseLine, type LineArgs } from "./lineArgs";
 
 interface Args {
   url: string;
@@ -40,6 +52,8 @@ interface Args {
   untilWave: number;
   maxSeconds: number;
   holdFireS: number;
+  /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
+  line: LineArgs | null;
   /** Story 8.1: the cut switch (bot index 1-based, start and length in seconds); 0 = off. */
   cutBot: number;
   cutAtS: number;
@@ -47,7 +61,7 @@ interface Args {
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "cut-bot", "cut-at", "cut-for"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -78,8 +92,9 @@ function parseArgs(argv: readonly string[]): Args {
   const scenario = get("scenario");
   if (scenario !== undefined && !isTestScenario(scenario)) throw new Error(`--scenario ${scenario} is unknown`);
   const origin = get("origin");
+  const url = get("url") ?? "http://localhost:2567";
   return {
-    url: get("url") ?? "http://localhost:2567",
+    url,
     ...(origin ? { origin } : {}),
     ...(room ? { room } : {}),
     count,
@@ -87,10 +102,21 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
+    line: parseLine(get, url),
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
     cutForS: Number(get("cut-for") ?? 8),
   };
+}
+
+/** Story 8.8: starts the line in front of the local --url; returns the URL the bots use instead. */
+async function startLine(args: Args, log: (line: Record<string, unknown>) => void): Promise<{ url: string; line: LagLine | null }> {
+  if (!args.line) return { url: args.url, line: null };
+  const u = new URL(args.url);
+  const target = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+  const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
+  log({ msg: "bots_line_on", via: line.port, target, ...args.line });
+  return { url: lineUrl(args.url, line.port), line };
 }
 
 /** Story 8.1: `--cut-bot` must name one of the bots. */
@@ -114,13 +140,14 @@ async function main(): Promise<void> {
   const args = parseArgs(argv);
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
-  const base = { url: args.url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
-  // Story 8.1: the cut bot's line (a local TCP pass-through in front of the server; chained before 8.8's lag line when both are on).
+  const { url, line } = await startLine(args, log);
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
+  // Story 8.1: the cut bot's line: a local TCP pass-through in front of the bots' URL (chained BEFORE 8.8's lag line when it is on).
   let cutLine: CutLine | null = null;
   const urlFor = async (bot: number): Promise<string> => {
-    if (bot !== args.cutBot) return args.url;
-    const u = new URL(args.url);
-    cutLine = await startCutLine({ targetHost: u.hostname, target: Number(u.port || (u.protocol === "https:" ? 443 : 80)) });
+    if (bot !== args.cutBot) return url;
+    const u = new URL(url);
+    cutLine = await startCutLine({ targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname, target: Number(u.port || (u.protocol === "https:" ? 443 : 80)) });
     u.hostname = "127.0.0.1";
     u.port = String(cutLine.port);
     return u.toString().replace(/\/$/, "");
@@ -155,16 +182,16 @@ async function main(): Promise<void> {
     log({ msg: "run_start_sent", roomId });
   }
 
-  const line = cutLine as CutLine | null;
-  if (line && args.cutBot > 0) {
+  const cutOn = cutLine as CutLine | null;
+  if (cutOn && args.cutBot > 0) {
     const bot = bots[args.cutBot - 1] as BotClient;
     setTimeout(() => {
       const me = bot.room.state?.players?.get(bot.playerId);
       const at = { hp: me?.hp, wallet: me?.wallet, weapon0: me?.weapon0, weapon1: me?.weapon1, wave: bot.room.state?.wave, phase: bot.room.state?.phase };
       log({ msg: "bot_cut_started", bot: bot.name, forS: args.cutForS, at });
       const endsAt = performance.now() + args.cutForS * 1000;
-      void line.cut(args.cutForS * 1000).then(async () => {
-        log({ msg: "bot_cut_ended", bot: bot.name, stats: line.stats() });
+      void cutOn.cut(args.cutForS * 1000).then(async () => {
+        log({ msg: "bot_cut_ended", bot: bot.name, stats: cutOn.stats() });
         while (bot.link !== "ok" && performance.now() - endsAt < 60_000) await sleep(50);
         await sleep(300); // the next patch
         const now = bot.room.state?.players?.get(bot.playerId);
@@ -185,7 +212,9 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     summary(bots, reason, log);
+    if (line && args.line) log({ msg: "bots_line", ...args.line, ...line.stats() }); // Story 8.8: stalls per direction
     await Promise.all(bots.map((b) => b.stop()));
+    await line?.close();
     process.exit(0);
   };
   process.on("SIGINT", () => void stop("interrupted"));
