@@ -732,21 +732,71 @@ export function drawPB3(g: Ctx): void {
   });
 }
 
-/** WD3: a scavenged survivor wall: stakes of uneven height, a door, a stood-up pallet, cross planks, front props, junk. */
-export function drawWD3(g: Ctx): void {
-  withShadow(g, 2, 1, YB, (c) => {
-    const r = rng(4100);
-    for (let i = 0; i < 6; i++) stake(c, -0.94 + i * 0.075, 0.07, 0.86 + r() * 0.22, WOODS[i % 6] as string, 4110 + i, YB, (r() - 0.5) * 0.02);
-    door(c, -0.5, -0.12, 1.02, 4130);
-    pallet(c, -0.1, 0.32, 0.95, 4140);
-    for (let i = 0; i < 5; i++) stake(c, 0.37 + i * 0.075, 0.07, 0.8 + r() * 0.25, i % 2 ? "#8a8577" : (WOODS[(i + 2) % 6] as string), 4150 + i, YB, (r() - 0.5) * 0.02);
-    pallet(c, 0.74, 0.97, 0.85, 4160);
-    // the long cross planks nailed across everything
+/** A stake's sharpened top: two cut faces, the lit one fresh and pale. */
+function point(g: Ctx, x: number, w: number, yTop: number): void {
+  const t = w * 0.75;
+  g.fillStyle = "#b8976a";
+  g.beginPath();
+  g.moveTo(x - w / 2, yTop);
+  g.lineTo(x, yTop - t);
+  g.lineTo(x, yTop);
+  g.closePath();
+  g.fill();
+  g.fillStyle = "#7d6040";
+  g.beginPath();
+  g.moveTo(x, yTop - t);
+  g.lineTo(x + w / 2, yTop);
+  g.lineTo(x, yTop);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = "#0a0806";
+  g.lineWidth = 1.2 * P;
+  g.beginPath();
+  g.moveTo(x - w / 2, yTop);
+  g.lineTo(x, yTop - t);
+  g.lineTo(x + w / 2, yTop);
+  g.stroke();
+}
+
+/** The WD3 wall itself (front view, x from −0.97 to 0.97), shared by both faces. */
+function wd3Wall(c: Ctx, inside: boolean): void {
+  const r = rng(4100);
+  const stakes = (x0: number, n: number, hMin: number, hVar: number, seed: number, grey: boolean): void => {
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * 0.075;
+      const h = hMin + r() * hVar;
+      const lean = (r() - 0.5) * 0.02;
+      stake(c, x, 0.07, h, grey && i % 2 ? "#8a8577" : (WOODS[(i + seed) % 6] as string), seed * 10 + i, YB, lean);
+      point(c, x + lean, 0.07, sy(h));
+    }
+  };
+  stakes(-0.94, 6, 0.9, 0.22, 411, false);
+  door(c, -0.5, -0.12, 1.02, 4130);
+  pallet(c, -0.1, 0.32, 0.95, 4140);
+  stakes(0.37, 5, 0.86, 0.25, 415, true);
+  pallet(c, 0.74, 0.97, 0.88, 4160);
+  if (inside) {
+    // the cross planks are nailed on the inside
     plank(c, -0.97, sy(0.66) - 0.025, 0.2, sy(0.66) + 0.022, "#7a5c3c", 4170);
     plank(c, 0.25, sy(0.36) - 0.025, 0.97, sy(0.36) + 0.022, "#6f5235", 4171);
     for (let x = -0.92; x < 0.2; x += 0.075) nail(c, x, sy(0.66));
     for (let x = 0.3; x < 0.97; x += 0.075) nail(c, x, sy(0.36));
-    // props leaning on the front, down to the ground towards the camera
+  } else {
+    // from outside only the nail tips poking through, and grime splashed up from the street
+    for (let x = -0.92; x < 0.2; x += 0.075) nail(c, x, sy(0.66));
+    for (let x = 0.3; x < 0.97; x += 0.075) nail(c, x, sy(0.36));
+    const gr = c.createLinearGradient(0, sy(0.3), 0, YB);
+    gr.addColorStop(0, "rgba(25,20,14,0)");
+    gr.addColorStop(1, "rgba(25,20,14,0.55)");
+    c.fillStyle = gr;
+    c.fillRect(-0.97, sy(0.3), 1.94, YB - sy(0.3));
+  }
+}
+
+/** WD3 inside face: the braced side, props leaning on it, junk at the foot. */
+export function drawWD3(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    wd3Wall(c, true);
     for (const x of [-0.75, 0.1, 0.62]) bar(c, x, sy(0.72), x + 0.08, YB + 0.17, 0.05, "wood", "#6a4e33", 4180 + Math.round(x * 10));
     for (const x of [-0.75, 0.1, 0.62]) {
       nail(c, x + 0.005, sy(0.72) + 0.012);
@@ -756,6 +806,32 @@ export function drawWD3(g: Ctx): void {
     cinder(c, -0.3, YB + 0.13);
     cinder(c, -0.18, YB + 0.15);
     tyre(c, 0.42, YB + 0.13, 0.08);
+  });
+}
+
+/** WD3 outside face: the same wall turned round (mirrored), no braces, a row of sharpened stakes angled at the street. */
+export function drawWD3out(g: Ctx): void {
+  withShadow(g, 2, 1, YB, (c) => {
+    c.save();
+    c.scale(-1, 1);
+    wd3Wall(c, false);
+    c.restore();
+    const r = rng(4700);
+    for (let x = -0.86; x < 0.9; x += 0.24 + r() * 0.06) {
+      // crossed pairs of sharpened stakes driven in at the wall's foot, pointing out at the street
+      for (const dir of [-1, 1]) {
+      const tipX = x + dir * (0.09 + r() * 0.03);
+      const tipY = YB + 0.13 + r() * 0.03;
+      bar(c, x - dir * 0.03, YB - 0.01, tipX, tipY, 0.036, "wood", "#6a4e33", 4710 + Math.round(x * 100) + dir);
+      c.fillStyle = "#c2a175";
+      c.beginPath();
+      c.arc(tipX, tipY, 0.016, 0, TAU);
+      c.fill();
+      c.strokeStyle = "#0a0806";
+      c.lineWidth = 1.1 * P;
+      c.stroke();
+      }
+    }
   });
 }
 
@@ -820,68 +896,115 @@ export const SIDE_C = 0.4;
 const SN = SIDE_C - 1; // north end of the base line
 const SS_ = SIDE_C + 1; // south end (nearest the camera)
 
-/** WD3 side view: the near end of the wall, its uneven top edge running up the screen, props both sides, junk. */
-export function drawWD3side(g: Ctx): void {
+/** WD3 side view: the near end, the top edge running up the screen, props on the INSIDE only (east = +x). */
+function wd3Side(g: Ctx, braceSide: 1 | -1): void {
   const H = 1.0;
   const up = H * TILT;
   const r = rng(4400);
-  // shadow: the wall's height thrown down-right, with gaps where the slats are
-  g.save();
-  g.filter = "blur(1.5px)";
-  g.fillStyle = "rgba(0,0,0,0.62)";
-  const dx = up * 0.55;
-  const dy = up * 0.32;
-  for (let y = SN; y < SS_; y += 0.075) {
-    if (r() < 0.12) continue;
-    const h = 0.85 + r() * 0.25;
-    g.beginPath();
-    g.moveTo(0, y);
-    g.lineTo(dx * h, y + dy * h);
-    g.lineTo(dx * h, y + 0.068 + dy * h);
-    g.lineTo(0, y + 0.068);
-    g.closePath();
-    g.fill();
-  }
-  g.restore();
-  // props on the west side (behind the wall's line on screen: drawn first) and junk
-  for (const y of [SN + 0.35, SIDE_C, SS_ - 0.4]) bar(g, 0, y - up * 0.72, -0.2, y + 0.04, 0.045, "wood", "#6a4e33", 4410 + Math.round(y * 10));
-  cinder(g, -0.22, SIDE_C + 0.55);
-  // the top edge, north to south: plank tops of uneven height, the door's edge, pallet slat ends
+  // the parts, north to south (the same for both orientations)
   const parts: { y0: number; y1: number; h: number; col: string; w: number }[] = [];
   let y = SN;
   while (y < SS_ - 0.01) {
     const k = r();
     const len = k < 0.15 ? 0.38 : k < 0.3 ? 0.42 : 0.075;
     const col = k < 0.15 ? "#86877b" : k < 0.3 ? "#a08a62" : (WOODS[Math.floor(r() * 6)] as string);
-    parts.push({ y0: y, y1: Math.min(SS_, y + len), h: k < 0.15 ? 1.02 : k < 0.3 ? 0.95 : 0.86 + r() * 0.22, col, w: k < 0.3 ? 0.09 : 0.1 });
+    parts.push({ y0: y, y1: Math.min(SS_, y + len), h: k < 0.15 ? 1.02 : k < 0.3 ? 0.95 : 0.9 + r() * 0.22, col, w: k < 0.3 ? 0.11 : 0.12 });
     y += len;
   }
+  // shadow: each part's height thrown down-right
+  g.save();
+  g.filter = "blur(1.5px)";
+  g.fillStyle = "rgba(0,0,0,0.62)";
   for (const p of parts) {
-    // each part's top, raised by its own height; a sliver of its east side shows where it stands taller than the next
-    // drawn north to south from its top down to its base: the next (nearer) part covers it from its own top, so
-    // what stays visible is this part's top and, where it stands taller, a sliver of its near face
+    const dx = p.h * TILT * 0.55;
+    const dy = p.h * TILT * 0.32;
+    g.beginPath();
+    g.moveTo(0.05, p.y0);
+    g.lineTo(0.05 + dx, p.y0 + dy);
+    g.lineTo(0.05 + dx, p.y1 + dy - 0.006);
+    g.lineTo(0.05, p.y1 - 0.006);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
+  const props = [SN + 0.35, SIDE_C - 0.15, SIDE_C + 0.45];
+  // props on the inside: when the inside is west (−x) they are behind on screen only partly; draw them first if west
+  const drawProps = (): void => {
+    for (const py of props) bar(g, 0, py - up * 0.72, braceSide * 0.22, py + 0.04, 0.05, "wood", "#6a4e33", 4410 + Math.round(py * 10));
+    cinder(g, braceSide * 0.24, SIDE_C + 0.7);
+    tyre(g, braceSide * 0.24, SIDE_C - 0.45, 0.075);
+  };
+  if (braceSide < 0) drawProps();
+  for (const p of parts) {
     const t0 = p.y0 - p.h * TILT;
     plank(g, -p.w / 2, t0, p.w / 2, p.y1, p.col, 4420 + Math.round(p.y0 * 100));
     g.fillStyle = "rgba(0,0,0,0.38)";
-    g.fillRect(-p.w / 2, p.y1 - p.h * TILT, p.w, p.h * TILT); // the near face, in shade
+    g.fillRect(-p.w / 2, p.y1 - p.h * TILT, p.w, p.h * TILT);
     g.fillStyle = "rgba(255,240,210,0.18)";
-    g.fillRect(-p.w / 2, t0, p.w, p.y1 - p.y0); // the lit top
+    g.fillRect(-p.w / 2, t0, p.w, p.y1 - p.y0);
+    if (p.w > 0.115) nail(g, 0, (p.y0 + p.y1) / 2 - p.h * TILT);
   }
-  // the long cross plank seen end-on along the top, nails
-  for (const p of parts) if (p.w > 0.065) nail(g, 0, (p.y0 + p.y1) / 2 - p.h * TILT);
-  // the near end: its face, the full height
-
   for (const t of [0.36, 0.66]) {
-    // the cross planks' cut ends
     g.fillStyle = "#5a422a";
-    g.fillRect(-0.065, SS_ - t * TILT - 0.02, 0.13, 0.04);
+    g.fillRect(braceSide > 0 ? 0.04 : -0.1, SS_ - t * TILT - 0.02, 0.06, 0.04); // the inside cross planks' cut ends
     g.strokeStyle = "#0a0806";
     g.lineWidth = 1.2 * P;
-    g.strokeRect(-0.065, SS_ - t * TILT - 0.02, 0.13, 0.04);
+    g.strokeRect(braceSide > 0 ? 0.04 : -0.1, SS_ - t * TILT - 0.02, 0.06, 0.04);
   }
-  // props on the east side (in front on screen) and junk
-  for (const y2 of [SN + 0.6, SIDE_C + 0.25]) bar(g, 0, y2 - up * 0.72, 0.2, y2 + 0.05, 0.045, "wood", "#6a4e33", 4450 + Math.round(y2 * 10));
-  tyre(g, 0.22, SIDE_C - 0.3, 0.075);
+  if (braceSide > 0) drawProps();
+}
+export function drawWD3sideE(g: Ctx): void {
+  wd3Side(g, 1);
+}
+export function drawWD3sideW(g: Ctx): void {
+  wd3Side(g, -1);
+}
+/** Kept for the round 3b demo. */
+export const drawWD3side = drawWD3sideE;
+
+/**
+ * The corner piece: fills the empty square where a front line and a side line meet (0.5 × 0.5 m, centred on (0, CB)).
+ * A tall squared post, a short stretch of front wall reaching over the front line's end, and a short stretch of side
+ * wall reaching over the side line's end, so the corner is closed. `h` = which way the front line goes (+1 east),
+ * `v` = which way the side line goes (+1 south), `inside` = the front stretch shows its braced face.
+ */
+export const CB = 0.55;
+export function drawWD3corner(g: Ctx, h: 1 | -1, v: 1 | -1, inside: boolean): void {
+  const H = 1.25;
+  withShadow(g, 1.4, 2, CB, (c) => {
+    // side stretch going north (drawn first: it's behind)
+    if (v < 0) for (let i = 0; i < 4; i++) {
+      const y0 = CB - 0.06 - (i + 1) * 0.075;
+      const hh = 0.95 + (i % 2) * 0.08;
+      plank(c, -0.055, y0 - hh * TILT, 0.055, y0 + 0.075, WOODS[(i + 2) % 6] as string, 4800 + i);
+    }
+    // the front stretch: stakes from the post to past the front line's end
+    for (let i = 0; i < 5; i++) {
+      const x = h * (0.1 + i * 0.075);
+      const hh = 0.88 + ((i * 37) % 7) * 0.03;
+      stake(c, x, 0.07, hh, WOODS[(i + 1) % 6] as string, 4810 + i, CB);
+      point(c, x, 0.07, sy(hh, CB));
+    }
+    if (inside) {
+      plank(c, Math.min(0, h * 0.45), sy(0.66, CB) - 0.025, Math.max(0, h * 0.45), sy(0.66, CB) + 0.022, "#7a5c3c", 4820);
+      nail(c, h * 0.1, sy(0.66, CB));
+      nail(c, h * 0.25, sy(0.66, CB));
+    }
+    // the post, taller than the walls, with two steel bands
+    bar(c, 0, CB, 0, sy(H, CB), 0.16, "wood", "#5f452c", 4830);
+    plank(c, -0.08, sy(H, CB) - 0.08, 0.08, sy(H, CB), "#9a7a55", 4831);
+    for (const t of [0.3, 0.72]) {
+      c.fillStyle = "#3a3d42";
+      c.fillRect(-0.085, sy(H * t, CB) - 0.013, 0.17, 0.026);
+      bolt(c, 0, sy(H * t, CB), 0.01);
+    }
+    // side stretch going south (in front of the post's foot)
+    if (v > 0) for (let i = 0; i < 4; i++) {
+      const y0 = CB + 0.06 + i * 0.075;
+      const hh = 0.95 + (i % 2) * 0.08;
+      plank(c, -0.055, y0 - hh * TILT, 0.055, y0 + 0.075, WOODS[(i + 2) % 6] as string, 4840 + i);
+    }
+  });
 }
 
 /** The corner post that joins two lines: a thick squared timber, a bit taller, its face and its shadow. Frame 0.6 × 1.2 m, base at y 0.35. */

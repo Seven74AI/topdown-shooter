@@ -10,7 +10,7 @@
 import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "../../../../apps/client/src/render/city/buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "../../../../apps/client/src/render/city/objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "../../../../apps/client/src/render/city/propArt";
-import { SIDE_C, drawCornerPost, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3side, inFrameM } from "./barricadeTakes";
+import { CB, SIDE_C, drawMT3, drawPB3, drawRF3, drawWD3, drawWD3corner, drawWD3out, drawWD3sideE, drawWD3sideW, inFrameM } from "./barricadeTakes";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
 
 declare const REFS: Record<string, string>; // the Meshy references (round 3)
@@ -577,53 +577,64 @@ async function takes(): Promise<void> {
   }
 }
 
-/** A small fort of wood barricades: front pieces, side pieces, corner posts, drawn nearest-last. */
+/** A closed fort of wood barricades: inside faces on the far wall, outside faces on the near wall, braces inside, corner pieces. */
 async function fort(): Promise<void> {
   const box = document.getElementById("fort") as HTMLElement;
-  const front = relight(take("f", "", drawWD3, "x", 0, ""), 1801);
-  const side = relight({ ...take("s", "", drawWD3side, "y", 0, ""), wM: 1, hM: 2.8 }, 1802);
-  const post = relight({ ...take("p", "", drawCornerPost, "y", 0, ""), wM: 0.6, hM: 1.2 }, 1803);
+  const mk = (id: string, draw: (g: Ctx) => void, wM: number, hM: number, seed: number): Lit => relight({ ...take(id, "", draw, "x", 0, ""), wM, hM }, seed);
+  const L = {
+    inside: mk("fi", drawWD3, 2, 1, 1801),
+    outside: mk("fo", drawWD3out, 2, 1, 1802),
+    sideE: mk("se", drawWD3sideE, 1, 2.8, 1803),
+    sideW: mk("sw", drawWD3sideW, 1, 2.8, 1804),
+    NW: mk("nw", (g) => drawWD3corner(g, 1, 1, true), 1.4, 2, 1805),
+    NE: mk("ne", (g) => drawWD3corner(g, -1, 1, true), 1.4, 2, 1806),
+    SW: mk("sw2", (g) => drawWD3corner(g, 1, -1, false), 1.4, 2, 1807),
+    SE: mk("se2", (g) => drawWD3corner(g, -1, -1, false), 1.4, 2, 1808),
+  };
   await new Promise((r) => setTimeout(r, 0));
-  const PX = 150; // scene px per metre
-  const W = 7.4;
-  const Hm = 5.4;
+  const PX = 130;
+  const W = 7.2;
+  const Hm = 5.6;
   const c = canvas(Math.round(W * PX), Math.round(Hm * PX));
   const g = ctx(c);
   asphalt(g, c.width, c.height, 21);
-  night(g, c.width, c.height, 0.3, [[c.width * 0.2, c.height * 0.1, c.width]]);
+  night(g, c.width, c.height, 0.3, [[c.width * 0.5, c.height * 0.5, c.width * 0.6]]);
   const k = PX / PXM;
-  // [kind, footprint centre x, y] in metres; the fort: north run of two, west and east runs, a south piece, a gap at the south east
-  const pieces: ["front" | "side" | "post", number, number][] = [
-    ["front", 2.25, 1.5], ["front", 4.25, 1.5], ["side", 1.0, 2.75], ["side", 5.5, 2.75], ["front", 2.25, 4.0],
-    ["post", 1.0, 1.5], ["post", 5.5, 1.5], ["post", 1.0, 4.0],
+  type Kind = keyof typeof L;
+  // footprint centres (m): north wall y 1.25 (two pieces), south wall y 4.25, west/east walls x 1.0 / 6.0, corner squares
+  const pieces: [Kind, number, number][] = [
+    ["inside", 2.25, 1.25], ["inside", 4.25, 1.25], ["NW", 1.0, 1.25], ["NE", 5.5, 1.25],
+    ["sideE", 1.0, 2.75], ["sideW", 5.5, 2.75],
+    ["outside", 2.25, 4.25], ["outside", 4.25, 4.25], ["SW", 1.0, 4.25], ["SE", 5.5, 4.25],
   ];
-  const drawOrder = pieces.map((p) => ({ p, near: p[0] === "side" ? p[2] + 1 : p[2] + (p[0] === "post" ? 0.26 : 0.25) })).sort((a, b) => a.near - b.near);
-  for (const { p } of drawOrder) {
+  const near = (p: [Kind, number, number]): number => (p[0].startsWith("side") ? p[2] + 1 : p[2] + (p[0].length === 2 ? 0.01 : 0));
+  for (const p of [...pieces].sort((a, b) => near(a) - near(b))) {
     const [kind, x, y] = p;
-    const lit = kind === "front" ? front : kind === "side" ? side : post;
-    // where the footprint centre sits in each frame
-    const ox = lit.w / 2;
-    const oy = kind === "front" ? lit.h / 2 + 0.24 * PXM : kind === "side" ? lit.h / 2 + SIDE_C * PXM : lit.h / 2 + 0.35 * PXM;
-    g.drawImage(lit.base, (x + 0.2) * PX - ox * k, (y + 0.4) * PX - oy * k, lit.w * k, lit.h * k);
+    const lit = L[kind];
+    const anchorY = kind === "inside" || kind === "outside" ? 0.24 : kind.startsWith("side") ? SIDE_C : CB;
+    g.drawImage(lit.base, (x + 0.35) * PX - (lit.w / 2) * k, (y + 0.35) * PX - (lit.h / 2 + anchorY * PXM) * k, lit.w * k, lit.h * k);
   }
   const card = document.createElement("article");
   card.className = "pair wide";
   const h3 = document.createElement("h3");
-  h3.textContent = "WD3 laid out as a small fort";
+  h3.textContent = "WD3 as a closed fort";
   card.appendChild(h3);
-  card.appendChild(fig(c, "Front pieces (rotations 0 / 2) · side pieces (1 / 3) · corner posts where lines meet · an open end at the bottom right"));
+  card.appendChild(fig(c, "Far wall: inside face (braces, junk) · near wall: outside face (clean, spikes at the street) · side walls: braces inside · corner pieces close every corner"));
   const pieceRow = document.createElement("div");
   pieceRow.className = "pieces";
   const show = (lit: Lit, cap: string, s: number): HTMLElement => {
-    const cc = canvas(Math.round(lit.w * s) + 40, Math.round(lit.h * s) + 40);
+    const cc = canvas(Math.round(lit.w * s) + 30, Math.round(lit.h * s) + 30);
     const gg = ctx(cc);
     asphalt(gg, cc.width, cc.height, 22);
     night(gg, cc.width, cc.height, 0.3, []);
-    gg.drawImage(lit.base, 20, 20, lit.w * s, lit.h * s);
+    gg.drawImage(lit.base, 15, 15, lit.w * s, lit.h * s);
     return fig(cc, cap);
   };
-  pieceRow.appendChild(show(side, "The side picture", 0.6));
-  pieceRow.appendChild(show(post, "The corner post", 0.6));
+  pieceRow.appendChild(show(L.inside, "Front · inside", 0.5));
+  pieceRow.appendChild(show(L.outside, "Front · outside", 0.5));
+  pieceRow.appendChild(show(L.sideE, "Side · braces east", 0.5));
+  pieceRow.appendChild(show(L.sideW, "Side · braces west", 0.5));
+  pieceRow.appendChild(show(L.NW, "Corner", 0.5));
   card.appendChild(pieceRow);
   box.appendChild(card);
 }
