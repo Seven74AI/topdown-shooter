@@ -4,6 +4,7 @@ import { EVENT_ATLAS, EVENT_FRAMES, EVENT_GAS_HEX, EVENT_SMOKE_RGB, EVENT_WHITE,
 import { aboveDarkness } from "./darkness/aboveDark";
 import { dashedCircle } from "./dashes";
 import { NPC_PIN_LIFT_M, type EventMarkerLook } from "./eventMarkers";
+import { EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET } from "./eventArrow";
 
 /**
  * Stories 6.9 + 6.10 (GL1, SD2 + SD3, SV1–SV3, white flag): the parts of the gas leak, the supply
@@ -119,7 +120,8 @@ export class EventPickupsView {
     return { gas, smoke };
   }
 
-  update(dtS: number, look: Readonly<EventMarkerLook>, clockS: number): void {
+  /** `arrowDiscM`: the edge-arrow disc size in metres this frame (6.8's screen-px rule). */
+  update(dtS: number, look: Readonly<EventMarkerLook>, clockS: number, arrowDiscM = ARROW_M): void {
     const a = this.world.special.active;
     const gasOn = a.kind === GAS_LEAK && a.phase === EVENT_PHASE.HISS;
     const crateOn = a.kind === SUPPLY_DROP && (a.phase === EVENT_PHASE.FLARE || a.phase === EVENT_PHASE.LANDED);
@@ -205,10 +207,10 @@ export class EventPickupsView {
     }
 
     // ---- survivor (SV1–SV3) and the white flag
-    this.updateSurvivor(dtS, look, npcOn);
+    this.updateSurvivor(dtS, look, npcOn, arrowDiscM);
   }
 
-  private updateSurvivor(dtS: number, look: Readonly<EventMarkerLook>, on: boolean): void {
+  private updateSurvivor(dtS: number, look: Readonly<EventMarkerLook>, on: boolean, discM: number): void {
     const n = this.world.special.survivor;
     const showNpc = on && (n.state === NPC_STATE.WAITING || n.state === NPC_STATE.FOLLOWING || n.state === NPC_STATE.SAVED);
     this.npc.setVisible(showNpc);
@@ -262,8 +264,11 @@ export class EventPickupsView {
     this.flagArrow.setVisible(on && f.edge.visible);
     this.flagTip.setVisible(on && f.edge.visible);
     if (on && f.edge.visible) {
-      this.flagArrow.setPosition(f.edge.x, f.edge.y);
-      this.flagTip.setPosition(f.edge.x + Math.cos(f.edge.angle) * ARROW_M * 0.65, f.edge.y + Math.sin(f.edge.angle) * ARROW_M * 0.65).setRotation(f.edge.angle);
+      this.flagArrow.setDisplaySize(discM, discM).setPosition(f.edge.x, f.edge.y);
+      this.flagTip
+        .setDisplaySize(discM * EVENT_ARROW_TIP_FRAC, discM * EVENT_ARROW_TIP_FRAC)
+        .setPosition(f.edge.x + Math.cos(f.edge.angle) * discM * EVENT_ARROW_TIP_OFFSET, f.edge.y + Math.sin(f.edge.angle) * discM * EVENT_ARROW_TIP_OFFSET)
+        .setRotation(f.edge.angle);
     }
   }
 }

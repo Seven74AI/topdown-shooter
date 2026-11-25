@@ -4,7 +4,7 @@ import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, en
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
 import { EventPickupsView } from "./EventPickupsView";
-import { newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
+import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -58,6 +58,7 @@ export class EventView {
   private readonly pickups: EventPickupsView;
   private readonly controls = newWaveControlRects();
   private readonly arrowAt = { x: 0, y: 0, angle: 0 };
+  private readonly flagAt = { x: 0, y: 0, angle: 0 };
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 
@@ -124,16 +125,29 @@ export class EventView {
     this.tip.setVisible(onEdge);
     if (onEdge) {
       const e = this.arrowAt;
-      const discM = (arrowPx * 0.7) / pxPerM;
+      const discM = (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM;
       const ex = vx + e.x / pxPerM;
       const ey = vy + e.y / pxPerM;
       this.arrow.setFrame(arrowFrameOf(look)).setDisplaySize(discM, discM).setPosition(ex, ey);
-      this.tip.setFrame(look.icon === "flame" ? EVENT_FRAMES.arrowTipGas : look.icon === "gun" || look.icon === "person" ? EVENT_FRAMES.arrowTipWhite : EVENT_FRAMES.arrowTip);
-      this.tip.setDisplaySize(discM * 0.5, discM * 0.5).setPosition(ex + Math.cos(e.angle) * discM * 0.62, ey + Math.sin(e.angle) * discM * 0.62).setRotation(e.angle);
+      this.tip
+        .setFrame(look.icon === "flame" ? EVENT_FRAMES.arrowTipGas : look.icon === "gun" || look.icon === "person" ? EVENT_FRAMES.arrowTipWhite : EVENT_FRAMES.arrowTip)
+        .setDisplaySize(discM * EVENT_ARROW_TIP_FRAC, discM * EVENT_ARROW_TIP_FRAC)
+        .setPosition(ex + Math.cos(e.angle) * discM * EVENT_ARROW_TIP_OFFSET, ey + Math.sin(e.angle) * discM * EVENT_ARROW_TIP_OFFSET)
+        .setRotation(e.angle);
     }
     this.updateCar(look.visible && kind === "car_alarm" && look.blinkOn, vx, vw);
     this.updateStampede(dtS, look.chevrons ? look.lane : -1);
-    this.pickups.update(dtS, look, this.clockS);
+    // Story 6.10 (S1): the survivor's flag gets its own edge arrow, placed by the same rule (screen
+    // px, off the wave controls / HP block, inside the safe area).
+    const f = look.flag;
+    const flagEdge = f.visible && placeEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), this.flagAt);
+    f.edge.visible = flagEdge;
+    if (flagEdge) {
+      f.edge.x = vx + this.flagAt.x / pxPerM;
+      f.edge.y = vy + this.flagAt.y / pxPerM;
+      f.edge.angle = this.flagAt.angle;
+    }
+    this.pickups.update(dtS, look, this.clockS, (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM);
   }
 
   /** Stories 6.9 / 6.10 (tests): the live vapour / smoke particle counts. */

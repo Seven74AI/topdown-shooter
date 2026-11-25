@@ -1,3 +1,4 @@
+import { HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX } from "./hudTopLayout";
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -66,10 +67,6 @@ export interface HudSceneData {
 }
 
 /** Health bar size and placement in CSS px (× dpr). */
-const HP_BAR_W = 200;
-const HP_BAR_H = 16;
-const HP_MARGIN = 16;
-const HP_TEXT_PX = 14;
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
@@ -106,7 +103,6 @@ const RELOAD_BAR_H = 6;
 /** Story 5.4: the fuel bar of a flame weapon (orange, under the fuel percent). */
 const FUEL_BAR_COLOR = 0xff8a2a;
 /** Wave panel (top-center) and banner. */
-const WAVE_TEXT_PX = 16;
 const BANNER_TEXT_PX = 34;
 const BANNER_SHOW_MS = 1500;
 const BANNER_FADE_MS = 400;
@@ -240,14 +236,10 @@ const TILE_LABEL = "#ffffff";
 const COUNT_OK = "#ffffff";
 const COUNT_FULL = "#ff8a80";
 /** Wave text → status line → toast line, CSS px from the top inset. */
-const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
 
 /** Story 3.2: the wallet line under the HP text, and the "+N" pops above my survivor. */
-const MONEY_TEXT_PX = 16;
-const MONEY_GAP_PX = 4;
 /** A text line's height as a multiple of its font size. */
-const LINE_HEIGHT = 1.3;
 const MONEY_COLOR = "#ffd54a";
 const MONEY_POPS = 6;
 const MONEY_POP_TEXT_PX = 16;

@@ -6,6 +6,8 @@ import { addPlayer } from "../player/player";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import type { World } from "../core/world";
 import { EVENT_PHASE } from "./eventState";
+import { eventHoldsWave } from "./specialEvents";
+import { ticksFor } from "../core/time";
 import { laneAlong } from "./stampede";
 import { balance, eventWorld, ofType, startNext, tickN } from "./testEvents";
 
@@ -227,4 +229,27 @@ describe("Story 6.8 review L3/L6: spawns pause; a held Runner never hits a barri
     }
     expect(b.hp).toBe(200);
   });
+});
+
+describe("Story 6.8 re-review R4: the stampede holds the wave for exactly warning + runS (≤ 15 s)", () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    it(`seed ${seed}: held from the trigger tick for exactly ticksFor(warningS) + ticksFor(runS) ticks, then released`, () => {
+      const t = eventWorld({ seed, players: [[24, 16]] });
+      const world = t.world;
+      startNext(world, "stampede");
+      let held = 0;
+      let start = -1;
+      for (let i = 0; i < T(60); i++) {
+        tickN(world, 1);
+        if (world.special.active.kind !== -1 && start < 0) start = world.special.active.startTick;
+        if (eventHoldsWave(world)) held++;
+        else if (start >= 0) break;
+      }
+      const cfg = world.balance.events.stampede;
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(held).toBe(ticksFor(cfg.warningS) + ticksFor(cfg.runS));
+      expect(held).toBeLessThanOrEqual(T(15));
+      expect(cfg.runS).toBe(12); // 6.8 B2
+    });
+  }
 });
