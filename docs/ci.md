@@ -17,7 +17,9 @@ Push runs on `master` only; every pull request runs; changes only under `docs/**
 | `docker` | buildx images with the GitHub Actions layer cache (`type=gha`, one scope per target, `load: true`), Caddyfile check, compose smoke test with throwaway secrets | ~3–6 min |
 | `gate` | `needs` all four, `if: always()`; fails unless every one of them is `success` | seconds |
 
-**`gate` is the single check to require** in branch protection.
+**`gate` is the single check to require** in branch protection. A PR that only touches the paths-ignore paths gets no CI run and so no `gate`
+check; that is fine while docs / BMAD-only changes go straight to master (HANDOFF §3), but such a PR would wait forever
+on a required `gate`.
 
 ### Shards (`tools/ci/shard.mjs`)
 
@@ -40,7 +42,7 @@ Refresh when shards drift apart by more than a minute or two (new slow tests, bi
 
 1. Open a green CI run of the PR / master, download the four `test-report-1` … `test-report-4` artifacts into one
    folder, e.g. `reports/` (GitHub UI, or `gh run download <run-id> -p 'test-report-*' -D reports`).
-2. `node tools/ci/update-timings.mjs reports/` — rewrites `tools/ci/timings.json` (files missing from the reports keep
+2. `node tools/ci/update-timings.mjs reports/` (a folder contributes its `test-report-*.json` files) — rewrites `tools/ci/timings.json` (files missing from the reports keep
    their old time; deleted files are dropped).
 3. Commit `tools/ci/timings.json`.
 
@@ -63,8 +65,8 @@ vitest has two projects (`vitest.config.ts`): **`slow`** = fuzzes (`*.fuzz`), wh
 | `npm run gate` | typecheck, lint, release:check, then the full `npm test` |
 
 Builders use `test:fast` / `gate:fast` while working and run the full `npm run gate` once, at hand-back. When several
-sessions share one box, set `VITEST_MAX_WORKERS=2` (or 3): `test:fast` reads it (default 4), and `test`, `test:slow`
-and `test:changed` pass it to vitest when it is set (vitest's own default otherwise).
+sessions share one box, set `VITEST_MAX_WORKERS=2` (or 3): `test:fast` reads it (default 4), and `vitest.config.ts`
+applies it to every other run when it is set (vitest's own default otherwise).
 
 Measured 2026-11-25 on an idle 4-core cloud box: `npm run gate:fast` 202 s; full `npm test` 654 s.
 

@@ -13,7 +13,7 @@
  *   shard (otherwise the other shard would run it again).
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 
@@ -85,7 +85,7 @@ export function split(files, timings, n) {
   return shards.map((s) => s.files.sort());
 }
 
-if (resolve(process.argv[1] ?? "") === import.meta.filename) {
+if (process.argv[1] && realpathSync(process.argv[1]) === import.meta.filename) {
   const [i, n] = process.argv.slice(2).map(Number);
   if (!Number.isInteger(n) || n < 1) usage("n must be an integer >= 1");
   if (!Number.isInteger(i) || i < 1 || i > n) usage("i must be an integer in 1..n");

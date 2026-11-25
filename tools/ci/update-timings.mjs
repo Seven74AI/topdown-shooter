@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `node tools/ci/update-timings.mjs <report.json | dir> ...` rebuilds `tools/ci/timings.json` ({file: seconds}) from
+ * `node tools/ci/update-timings.mjs <report.json | dir> ...` (a dir contributes its `test-report-*.json` files) rebuilds `tools/ci/timings.json` ({file: seconds}) from
  * vitest JSON reports: the CI shards' `test-report-*` artifacts, or one local `npx vitest run --reporter=json
  * --outputFile=...` (docs/ci.md, "Refreshing the shard timings").
  *
@@ -26,7 +26,7 @@ const reports = args.flatMap((a) => {
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       if (e.isDirectory()) walk(join(d, e.name));
-      else if (e.name.endsWith(".json")) found.push(join(d, e.name));
+      else if (/^test-report-.*\.json$/.test(e.name)) found.push(join(d, e.name));
     }
   };
   walk(p);
@@ -42,7 +42,8 @@ for (const r of reports) {
     const abs = t.name.split("\\").join("/");
     let file = relative(ROOT, abs).split("\\").join("/");
     if (file.startsWith("..")) file = /\/((?:apps|packages|tools)\/.*)$/.exec(abs)?.[1] ?? file;
-    fresh[file] = Math.round(((t.endTime - t.startTime) / 1000) * 10) / 10;
+    const s = (t.endTime - t.startTime) / 1000;
+    if (Number.isFinite(s) && s >= 0) fresh[file] = Math.round(s * 10) / 10;
   }
 }
 

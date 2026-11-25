@@ -85,9 +85,13 @@ jobs:
       - name: Files of this shard
         run: |
           node tools/ci/shard.mjs ${{ matrix.shard }} 4 > shard-files.txt
+          # an empty list would make `vitest run` run every file
+          [ -s shard-files.txt ] || { echo "::error::shard ${{ matrix.shard }} has no files"; exit 1; }
           echo "$(wc -l < shard-files.txt) files"; cat shard-files.txt
       - name: Tests
-        run: npx vitest run --reporter=default --reporter=json --outputFile.json=reports/test-report-${{ matrix.shard }}.json $(cat shard-files.txt)
+        run: |
+          mapfile -t files < shard-files.txt
+          npx vitest run --reporter=default --reporter=json --outputFile.json=reports/test-report-${{ matrix.shard }}.json "${files[@]}"
       - name: The DOM checks ran (not skipped)
         if: matrix.shard == 1
         run: |
@@ -133,7 +137,7 @@ jobs:
           load: true
           push: false
           cache-from: type=gha,scope=server
-          cache-to: type=gha,mode=max,scope=server
+          cache-to: type=gha,mode=max,scope=server,ignore-error=true
       - name: Build the web image
         uses: docker/build-push-action@v7.4.0
         with:
@@ -144,7 +148,7 @@ jobs:
           load: true
           push: false
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=max,scope=web,ignore-error=true
       - name: Caddyfile is valid
         run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.9-alpine caddy validate --config /etc/caddy/Caddyfile
       - name: Smoke-test the stack (hardened compose, as on the VPS)
@@ -189,7 +193,7 @@ jobs:
     steps:
       - name: All jobs succeeded
         env:
-          RESULTS: static=${{ needs.static.result }} release=${{ needs.release.result }} test=${{ needs.test.result }} docker=${{ needs.docker.result }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "$RESULTS"
-          for r in $RESULTS; do [ "${r#*=}" = success ] || { echo "::error::$r"; exit 1; }; done
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+          echo "$NEEDS" | jq -e 'length > 0 and all(.[]; .result == "success")' > /dev/null || { echo "::error::a required job did not succeed"; exit 1; }

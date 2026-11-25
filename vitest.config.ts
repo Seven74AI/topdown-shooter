@@ -29,6 +29,8 @@ export default defineConfig({
     // Whole-run sims, replays and tick-cost tests take 1–3 s alone but time out at the 5 s default
     // when parallel builders load the shared box (load 8–16). Timing asserts stay behind PERF_ASSERT=1.
     testTimeout: 30_000,
+    // VITEST_MAX_WORKERS=2–3 when several sessions share one box (HANDOFF §3); a --maxWorkers flag still wins.
+    ...(process.env.VITEST_MAX_WORKERS ? { maxWorkers: Number(process.env.VITEST_MAX_WORKERS) } : {}),
     projects: [
       { extends: true, test: { name: "unit", include: INCLUDE, exclude: [...configDefaults.exclude, ...SLOW] } },
       { extends: true, test: { name: "slow", include: SLOW } },
