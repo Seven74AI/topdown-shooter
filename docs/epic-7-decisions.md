@@ -117,3 +117,24 @@ Practice solo (the offline run on the phone) **earns nothing** — no Supplies, 
 | 7.2 B13 | An account with no progress row at bank time | **Created empty inside the bank transaction** (fail the bank) |
 | 7.2 B14 | A Leave (or a run) that earned 0 | **Still one `run_rewards` row of 0 (banked once for that run); no start-screen line** (no row) |
 | 7.2 B15 | Panel labels | **Kicker "Run report" (not "Evac report": a wipe has no evac), endless rows "Endless 5×20" / "Endless boss"** (short enough for the 236 px card at 568 × 320) |
+
+## Story 7.3 build-time choices (auto-accepted overnight (designer: follow the GDS recommendation), 2026-11-25)
+
+Story decisions 7.3 D1–D4 were accepted with the progress file ("Okay, for all", 2026-11-25). The choices below were made while building; each is "auto-accepted overnight (designer: follow the GDS recommendation)".
+
+| Code | Decision | Picked (alternative) |
+| --- | --- | --- |
+| 7.3 B1 | How `/account/session` carries `progress` (AC 4) | **An optional `progress` field (null when the read failed); the saved reply is no longer `.strict()`** so 7.5/7.7 can add fields without breaking open tabs. A 7.1-only tab open across a deploy that adds `progress` rejects the reply and plays unsaved until reloaded: deploy 7.1 and 7.3 together (a separate `GET /account/progress` route: one more call per hub open) |
+| 7.3 B2 | The one-line text of the 13 starter rows (the sheet shows "Pistol · Your sidearm: never runs dry") | **`progression.json › starterLines` (one line per starter item, a test ties the quoted numbers to the balance)** (no line under starter items) |
+| 7.3 B3 | A locked item I can't afford | **Price + "Not enough Supplies · need N more" on the row, no Unlock button** (as drawn in the PH1 sheet) (an Unlock button that answers "not enough") |
+| 7.3 B4 | Taps while one purchase is in flight | **Every Unlock button is off until the answer** (only that row's button) |
+| 7.3 B5 | Extra limit on `/account/unlock` (brief 15) | **60 calls / min per IP before any database work, plus the story's 20 / min per account; both → 429** (the account limit only: a flood would reach the database first) |
+| 7.3 B6 | What identifies the buyer | **The `__Host-tdg` cookie only** (the hub calls `/account/session` on open, which rewrites the cookie from the localStorage copy) (also accept `deviceToken` in the body) |
+| 7.3 B7 | "Good next pick" counting (D1) | **Items in the pool per category (Barricade upgrades counts its 2 tiers); the chosen category's cheapest locked unlock, list order on ties** (count unlock entries) |
+| 7.3 B8 | Row order in a section | **Locked (cheapest first), then bought, then starter** (the Lumen README proposal) (file order) |
+| 7.3 B9 | Where the Progress buttons sit | **Start screen: one row with Practice solo; lobby: one row with Leave** (a button of its own below them: the start screen already scrolls at 568 × 320) |
+| 7.3 B10 | Icons | **The shop's weapon / gear / consumable drawings and the build-bar building icons (new `buildingIconUrl`), as DOM images; the grey silhouette only for Barricade upgrades** (silhouettes for the 8 items the story listed: they all have drawings since 5.26–5.28) |
+| 7.3 B11 | Offline banner | **Appended to the rule line: "Unlocks add cards… · Offline · can't unlock now"** (a banner row of its own: one list row less at 568 × 320) |
+| 7.3 B12 | Tabs drawn | **Only Unlocks; the bar is sized for three (128 px slots) and the tab list is data (`HUB_TABS`)** (draw Training / Survivor greyed out until 7.5 / 7.10) |
+| 7.3 B13 | Keyboard | **Esc = Back** (Back button only) |
+| 7.3 B14 | No migration, no balance version bump | **`progress.unlocks` exists since 7.1's 0000_init; `progression.json` is not part of `balanceVersion`** (a new migration: nothing to add) |

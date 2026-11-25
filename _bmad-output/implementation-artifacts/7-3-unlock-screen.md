@@ -1,6 +1,6 @@
 # Story 7.3: Unlock screen
 
-Status: ready-for-dev
+Status: review
 
 <!-- Epic 7 progression story 3 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D4 (starter pool + Fire Axe + Revive kit), D5 (free order, "Good next pick", no tree), D8 (unlocks can't be turned off) are rules here. -->
 
@@ -42,11 +42,11 @@ so that my options grow over time.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Data** (AC 1–3): `progression.json › unlocks` (with the proposed `line` texts below), zod schema, `meta/pool.ts`, completeness test, good-next-pick tests.
-- [ ] **T2 Server** (AC 4, 5; U3, U5): `progressRepo.unlock` (conditional update), route in `app.ts`, request-id map, limiter, logs; session response gains `progress`.
-- [ ] **T3 Client** (AC 6–8): `ui/ProgressScreen.tsx` (+ CSS in `overlay.css`), `uiState` kind, `net/account.ts` `unlock()`, StartScreen + LobbyScreen buttons, offline cache.
-- [ ] **T4 Look** (after the designer's pick, see "Needs a look?"): hub layout at 568 × 320 / 800 × 360, row layout, tags.
-- [ ] **T5 Tests + gate + hand-back.**
+- [x] **T1 Data** (AC 1–3): `progression.json › unlocks` (with the proposed `line` texts below), zod schema, `meta/pool.ts`, completeness test, good-next-pick tests.
+- [x] **T2 Server** (AC 4, 5; U3, U5): `progressRepo.unlock` (conditional update), route in `app.ts`, request-id map, limiter, logs; session response gains `progress`.
+- [x] **T3 Client** (AC 6–8): `ui/ProgressScreen.tsx` (+ CSS in `overlay.css`), `uiState` kind, `net/account.ts` `unlock()`, StartScreen + LobbyScreen buttons, offline cache.
+- [x] **T4 Look** (after the designer's pick, see "Needs a look?"): hub layout at 568 × 320 / 800 × 360, row layout, tags.
+- [x] **T5 Tests + gate + hand-back.**
 
 ### Proposed one-line texts (designer may edit; builder checks each against the item's real effect in balance JSON)
 
@@ -131,14 +131,58 @@ The start screen's Create / Join / Practice flow and share-link focus (`StartScr
 
 ### Agent Model Used
 
-### Debug Log References
+Claude (builder cloud session, gds-dev-story), 2026-11-25 overnight autonomous run.
+
+### Gate
+
+**Gate:** commit `fcaad5a0` on `story-7-3` = story-7-1 `e1f97a39` (with 8.1) + story-7-2 `7401f6dc` + master `f67154d7` (8.10) merged; `npm run typecheck && npm run lint && npm test && npm run build` green — **455 test files passed (1 skipped), 4,098 tests passed (3 skipped)**, build OK; 7 min 26 s; load 1.6 at start, 4.8 at the end (4 cores).
+
+### Tasks → tests (R1)
+
+- **T1 Data** — `packages/shared/src/meta/pool.test.ts` > "has the 14 story entries at the story prices, 3,120 Supplies in all", "completeness: every balance item is in exactly one of starterPool or one unlock's items", "each unlock's category is the balance file its items are in", "the plain lines that quote a number match the balance (D4 texts vs real effects)", "the schema refuses an item in two places, a duplicate unlock, a non-positive price, > 32 unlocks", "U4: a new account's pool is the 13 starter items", "adds every item of each bought unlock, ignores unknown ids", "the mask: bit i = unlock i in file order, fits 32 bits, unsigned", "counts the starter pool: weapons 6, buildings 2, gear 3, consumables 2", "a new player's pick is the Spike trap (100)", "ties on the count go to the cheapest locked item, then list order", "after all buildings, the next category by the rule; everything bought → null"; `packages/shared/src/config/progression.test.ts` > "refuses duplicates, bad ids, extra keys and an empty pool".
+- **T2 Server** — `apps/server/src/auth/unlockRoute.test.ts` > "enough Supplies → Supplies down by the FILE price, the id added, one `unlocked` log line, the server's progress answered", "the session reply carries the same progress (AC 4, U5)", "U3: not enough → not_enough with `need`, the row unchanged", "U3: already unlocked → already_unlocked, nothing charged (a second tap with a new requestId)", "U3: the same requestId twice (a retry, and a double-submit at once) → one charge, the first answer both times", "brief 18 liveness: two concurrent buys of DIFFERENT items with Supplies for one → exactly one ok AND one not_enough", "two devices on one account (same cookie) buying the same item at once → one ok, one already_unlocked, one charge", "beat the rule: a price in the body, an extra accountId, an unknown id, a bad requestId → 400; nothing charged", "no cookie, a malformed cookie or a cookie of no account → 401", "20 calls per account per minute, then 429 (and nothing more is bought)", "the database down → 503, never a fake ok", "a foreign or missing Origin → 403 before anything else", RequestMemo > "returns the first answer within the TTL, forgets after it, holds at most `cap`", "an unknown id is refused before any database call". Mutations run: dropping `supplies >= price` fails "U3: not enough…" and "brief 18 liveness…"; dropping `NOT unlocks ? id` fails "U3: already unlocked…" and "20 calls per account…".
+- **T3 Client** — `apps/client/src/ui/hubModel.test.ts` > "U1: the header line; one tab (Unlocks) in a bar built for three", "four sections in order; 13 starter rows (Unlocked · Starter) + 14 unlock rows", "U2: every locked item I can afford is 'buy' (any order); too dear is 'short' with how many more", "locked first (cheapest first, list order on ties), then bought, then starter", "AC 3: the Good next pick tag is on the Spike trap for a new player, on one row only", "U5: Supplies come from the given (server) progress; '–' before any is known", "the first tap doesn't send; it shows 'Confirm 100 · Tap again · 3 s'", "the second tap within 3 s sends once with a fresh request id; then a spinner and every tap is ignored", "a fine time sweep (1 ms): the confirm step sends before 3,000 ms and times out at 3,000 ms exactly", "a tap on another row moves the confirm there (nothing sent)", "AC 8: offline, taps do nothing and the button is disabled", "answers: ok/not_enough/already show the SERVER's progress; a stale answer is ignored; failures say so"; `apps/client/src/net/progressStore.test.ts` > "refresh shows the server's progress and caches it", "AC 8: no network → the cached copy, marked offline (source 'cache'); nothing cached → none", "beat the rule: an edited or broken cache is only shown if it parses, and the next server answer overwrites it", "storage that throws (private mode) never breaks the hub", "an unlock answer (accept) wins over a refresh still in flight; markOffline keeps the numbers", "a session server older than 7.3 (no `progress` field) → offline view, ticket flow untouched", unlockItem > "posts { unlockId, requestId } same-origin…", "4xx/5xx, a malformed reply, no network → failed…", "the default path is <origin>/api/account/unlock…"; R2 wiring: `tools/checks/progressHubWiring.test.ts` > "App renders the hub; the start screen and the lobby open it (D2)…", "the hub refreshes from the server on open…Back returns to `back`", "a tap goes through tapUnlock; the answer through answerUnlock; the SERVER's progress is shown (U5)", "the server registers /account/unlock with the account limiter, the IP limiter, the request memo and the progress repo".
+- **T4 Look** (PH1, Lumen LF5) — `apps/client/src/ui/hubModel.test.ts` > "568×320 / 640×360 / 800×360 / 844×390: inside the safe area, no overlaps, every tap target ≥ 44 px", "a fine width sweep (1 px, 568 → 1400) keeps every rule; the frame is centred and capped at 760", "text ≥ 11 px everywhere; the button is 44 px"; `tools/checks/hubLayoutCss.test.ts` > "frame, header, tabs, list, rows and button use the model's numbers", "R9: no font size below 11 px in the .ph* rules…". Browser check (Chromium, Playwright, insets 44/21 emulated by padding): no overlap, nothing outside the safe area, no button < 44 px, no text < 11 px at all four sizes; 2 whole rows at 568 × 320, 3 at the others. Screenshots: `docs/art/epic-7/built/7-3-hub.png` (568 × 320, dpr 2, Confirm 300 on the Chainsaw) and `docs/art/epic-7/built/7-3-hub-states.png` (Good next pick, Unlocking… spinner, offline with Not enough, 800 × 360).
+- **T5** — the gate above; hand-back sent to @parent.
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.3 D1–D4 pending.
+- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.3 D1–D4 accepted 2026-11-25 ("Okay, for all").
+- Built on story-7-1 + story-7-2 (7.2 merged cleanly: Supplies to spend come from 7.2's banking). Build-time choices 7.3 B1–B14 in `docs/epic-7-decisions.md` (auto-accepted overnight).
+- Browser run (dev server 2731, Vite 5731): new account + 340 Supplies → Chainsaw Confirm → Spike trap bought → header 240 (server's answer) → Back to the start screen → API blocked → hub opens offline with 240 and Unlock off; lobby Progress → Back → lobby with the same code; Esc = Back.
+- No migration (7.1's `progress.unlocks`), no balance version bump, no netEvents kind, no readability item, no new state field (nothing in the World changes: brief 2 copies untouched).
+- Text check (R8): numbers in this file and the brief are unchanged by the build.
+
+### Notes for the merge
+
+- **Merge order:** 7.1 (+8.1) and 7.2 are inside this branch. Master 8.10 conflicted with 7.1/8.1 in `connection.ts` (options keep `ticket` AND `netProtocolVersion`), `messages.ts` (`JoinRefusal` = … `seat_kept` | `update_required`), `NetSimHost.ts` (8.1's `rebaseAfterGap` block kept), `tools/bots/run.ts` (flags `cut-*` + `kbps`), `sprint-status.yaml`, `docs/perf/network-pass-2026-11.md` (both sections); and four 7.1/8.1/7.2 test files needed `netProtocolVersion` in their join options (commit `fcaad5a0`). If the main session merges 7.1 onto master itself, the same fixes apply there.
+- `packages/shared/src/config/progression.json`: new top-level keys `unlocks` and `starterLines` (7.2 owns `supplies`; 7.5 adds `training`, 7.7 `districts`).
+- `packages/shared/src/net/account.ts`: the saved session reply is no longer strict and gains optional `progress` (B1). **Deploy 7.1 and 7.3 together**, or a 7.1-only tab open across the deploy plays unsaved until reloaded. 7.5/7.7 extend `progressViewSchema` (not strict).
+- `apps/server/src/auth/accountRoutes.ts` returns `{ accountSession, accountUnlock }`; `app.ts` registers both. 7.5 (`/account/training`), 7.6, 7.10 add routes beside them; `GuestSessionDeps.progress` gives the session reply its progress.
+- `apps/server/src/db/progressRepo.ts`: new `unlock()` beside 7.2's `addSupplies`. **No migration** here (7.9's `look` migration takes the next free number freely).
+- `net/limits.ts`, `net/rateLimit.ts`, `test/bootTestServer.ts`: new unlock limiters (reset per test).
+- `apps/client/src/ui/StartScreen.tsx`: Practice solo + Progress now in one `.menu__row` (7.6 adds its account row elsewhere). `LobbyScreen.tsx`: Progress + Leave in one `.lobby__row` (SC3 lobby restyle later keeps a Progress button).
+- `ui/uiState.ts`: screen kind `progress { back }` + `openProgress`. `ui/hubModel.ts › HUB_TABS`: 7.5 appends Training, 7.10 Survivor; the hub header has room right of Supplies for 7.6's account buttons.
+- `render/city/buildIcons.ts`: one function appended (`buildingIconUrl`); the asset session also edits this file.
+- `overlay.css`: new `.ph*` block at the end and `.menu__row`.
+
+### Not verified
+
+- Real phones (Mi 11i, iOS Safari), the keyboard/gamepad path beyond Tab + Esc, and the VPS (PostgreSQL 18: the conditional `UPDATE … WHERE supplies >= price AND NOT unlocks ? id` was run on PGlite only; PGlite serialises connections, so true parallel transactions on PostgreSQL rely on its row lock + READ COMMITTED re-check, which is standard but not run here).
+- `?lag` / lossy line and a hidden-tab sleep while the hub is open (the hub is an HTTP menu, not the run; an unlock answer after a sleep is still the server's).
+- The 8 s cut / reconnect while in the hub from the lobby (the room stays joined; not exercised).
+- The designer has not seen the built hub; the Training / Survivor tabs are not drawn (B12).
 
 ### File List
+
+- packages/shared/src/config/progression.json, progression.ts, progression.test.ts; packages/shared/src/meta/pool.ts, pool.test.ts; packages/shared/src/net/account.ts; packages/shared/src/index.ts
+- apps/server/src/auth/unlock.ts, unlockRoute.test.ts, accountRoutes.ts, guestSession.ts; apps/server/src/db/progressRepo.ts; apps/server/src/net/limits.ts, rateLimit.ts; apps/server/src/test/bootTestServer.ts; apps/server/src/app.ts
+- apps/client/src/ui/ProgressScreen.tsx, hubModel.ts, hubModel.test.ts, uiState.ts, App.tsx, StartScreen.tsx, LobbyScreen.tsx, overlay.css; apps/client/src/net/progressStore.ts, progressStore.test.ts, account.ts; apps/client/src/render/city/buildIcons.ts
+- tools/checks/hubLayoutCss.test.ts, progressHubWiring.test.ts
+- docs/art/epic-7/built/7-3-hub.png, 7-3-hub-states.png; docs/epic-7-decisions.md; _bmad-output/implementation-artifacts/sprint-status.yaml
+- merge fixes: apps/client/src/net/connection.ts, apps/client/src/sim/NetSimHost.ts, packages/shared/src/net/messages.ts, tools/bots/run.ts, docs/perf/network-pass-2026-11.md, apps/server/src/auth/accountRoutes.test.ts, apps/server/src/rooms/RunRoom.account.test.ts, RunRoom.reconnect.test.ts, RunRoom.rewards.test.ts
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+- 2026-11-25: built (overnight, auto-accepted B1–B14); gate green on fcaad5a0; status review.
