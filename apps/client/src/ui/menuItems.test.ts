@@ -3,23 +3,23 @@ import { MENU_ITEMS, SAVE_TEXT, canRemoveIn, canSaveIn, menuRemoveTarget, remove
 import { menuStep } from "./uiState";
 
 describe("MENU_ITEMS (Story 2.11)", () => {
-  it("Epic 2: Resume and Leave game, always both, in that order (Story 8.3: Players between them for an online host)", () => {
+  it("Epic 2: Resume, Settings and Leave game, always, in that order (Story 8.3: Players after Resume for an online host)", () => {
     for (const online of [false, true]) {
       for (const isHost of [false, true]) {
-        const ids = online && isHost ? ["resume", "players", "save", "leave"] : ["resume", "leave"]; // Story 8.5: + Save and quit
+        const ids = online && isHost ? ["resume", "players", "settings", "save", "leave"] : ["resume", "settings", "leave"]; // Story 8.5: + Save and quit
         expect(visibleMenuItems({ online, isHost }).map((i) => i.id)).toEqual(ids);
       }
     }
   });
 
   it("sends the state machine's actions", () => {
-    expect(MENU_ITEMS.map((i) => i.action)).toEqual(["resume", "players", "save", "leave"]);
+    expect(MENU_ITEMS.map((i) => i.action)).toEqual(["resume", "players", "settings", "save", "leave"]);
   });
 
   it("filters by visible(ctx), so host-only items slot in later", () => {
-    const items = [...MENU_ITEMS, { id: "settings", label: "Settings", action: "resume" as const, visible: (c: { online: boolean; isHost: boolean }) => c.online && c.isHost }];
-    expect(visibleMenuItems({ online: true, isHost: true }, items).map((i) => i.id)).toEqual(["resume", "players", "save", "leave", "settings"]);
-    expect(visibleMenuItems({ online: true, isHost: false }, items).map((i) => i.id)).toEqual(["resume", "leave"]);
+    const items = [...MENU_ITEMS, { id: "extra", label: "Extra", action: "resume" as const, visible: (c: { online: boolean; isHost: boolean }) => c.online && c.isHost }];
+    expect(visibleMenuItems({ online: true, isHost: true }, items).map((i) => i.id)).toEqual(["resume", "players", "settings", "save", "leave", "extra"]);
+    expect(visibleMenuItems({ online: true, isHost: false }, items).map((i) => i.id)).toEqual(["resume", "settings", "leave"]);
   });
 
   it("Story 8.3: the confirm text, Remove only in the lobby and build phases", () => {
