@@ -25,6 +25,8 @@ main() {
 	local COMPOSE=(env GIT_SHA="${GIT_SHA:-none}" docker compose -f deploy/docker-compose.yml)
 	psql() { "${COMPOSE[@]}" exec -T postgres psql -U topdown -v ON_ERROR_STOP=1 "$@"; }
 
+	# Review N2: drop the scratch database whatever happens (a failed pg_restore exits early under set -e).
+	trap 'psql -d postgres -c "DROP DATABASE IF EXISTS ${scratch}" >/dev/null 2>&1 || true' EXIT
 	echo "==> restoring ${dump} into the scratch database ${scratch}"
 	psql -d postgres -c "DROP DATABASE IF EXISTS ${scratch}" -c "CREATE DATABASE ${scratch}"
 	"${COMPOSE[@]}" exec -T postgres pg_restore -U topdown -d "$scratch" --no-owner --exit-on-error <"$dump"
@@ -32,8 +34,7 @@ main() {
 	psql -d "$scratch" -c "SELECT 'accounts' AS t, count(*) FROM accounts UNION ALL SELECT 'progress', count(*) FROM progress UNION ALL SELECT 'migrations', count(*) FROM drizzle.__drizzle_migrations"
 	echo "==> row counts in the live database (for comparison)"
 	psql -d topdown -c "SELECT 'accounts' AS t, count(*) FROM accounts UNION ALL SELECT 'progress', count(*) FROM progress"
-	psql -d postgres -c "DROP DATABASE ${scratch}"
-	echo "==> restore test OK"
+	echo "==> restore test OK (the scratch database is dropped on exit)"
 }
 
 main "$@"
