@@ -52,6 +52,16 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 **Consolidation batches (designer 2026-11-25, "You can do it from now on. And no need for a PR"):** when two or more APPROVED stories are waiting on each other, the main session makes one integration branch from master, merges each story in landing order (one merge commit per story, so one can be reverted alone), runs ONE full gate on the combined tree and pushes it straight to master (no PR). Only trivial conflicts are resolved in the batch (imports, sprint-status, keep-both lists); a real code conflict goes back to the story's builder. A story that adds a Drizzle migration regenerates it on top of master first (never rename: Drizzle skips an older journal `when`). If the gate fails, drop the last story and re-gate to find the culprit.
 
+**PRs and the CI gate (designer 2026-11-25, "switch to PRs and apply that CI change"; replaces "no need for a PR" above and the main session's local landing gate):**
+- Code reaches master only through a PR. The PR's GitHub Actions run is the gate: it tests the PR merged with current master, including CI-only steps the local gate never ran (the release no-cheats scan and the docker stack smoke test).
+- The builder runs its own full local gate as before, pushes its branch, opens a PR against master (title `Story X.Y: …`) and sends the PR link in its hand-back. Reviewers review that branch.
+- The main session merges with a merge commit once CI is green and the review is clean (re-review cap unchanged). It then sets sprint-status and the story's `Status: done` in a docs-only commit pushed straight to master.
+- A consolidation batch becomes one integration PR.
+- If master moved after a PR's last run and the stories overlap, rerun CI first. Non-overlapping stories merge on a green run.
+- **Docs / BMAD-only changes** (`docs/**`, `_bmad/**`, `_bmad-output/**`, `.claude/**`, `*.md`) skip CI and go straight to master with no PR. Nothing there is linted, typechecked or tested. A change that also touches code is not docs-only.
+- CI push runs happen on master only. A new PR push cancels the older PR run, and master runs are never cancelled (`.github/workflows/ci.yml`).
+- Lesson (2026-11-25): master was red from 09:28 to 13:10 because the local gate skipped two CI-only steps and nobody looked at Actions. Check the master run after every merge.
+
 **Session 9 speed-up (designer 2026-11-24, "ok for all, now"):**
 1. Start a story as soon as its real file overlap allows, not by round: check the Notes for the merge of the stories it waits for (6.8 started before 6.6+6.7 landed because 6.6 left zombieAi.ts/flowField.ts untouched; 6.11+6.12 branched from story-6-6). Give each parallel builder its own netEvents kind range and readability-sheet number range up front.
 2. Up to 3–4 builders at once (each in its own cloud session).

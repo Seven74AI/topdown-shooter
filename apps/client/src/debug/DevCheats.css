@@ -98,3 +98,9 @@
   width: 22px;
   height: 22px;
 }
+
+/* Story 7.3 review F11: the gear stays off the hub header (7.9 hides it in the lobby). Here, not in overlay.css,
+   so release CSS never names it (tools/checks/noCheatsInRelease.test.ts). */
+body:has(.menu.ph) .dev-gear {
+  display: none;
+}
