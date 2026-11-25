@@ -1,5 +1,6 @@
 /** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
+import { HORDE_FAR_RULE_RADIUS_M } from "@topdown/shared";
 import { REWIND_CAP_TICKS } from "../../apps/server/src/run/RunController";
 import { emptySmooth, simulate, type Options, type Result } from "./hitsSim";
 
@@ -87,7 +88,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 }, smooth: emptySmooth() };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 }, smooth: emptySmooth(), horde: { bytes: 0, frames: 0, keyframes: 0, decodeErrors: 0, decoded: 0 } };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
@@ -102,6 +103,11 @@ const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number
     sum.localShotSeqs.push(...r.localShotSeqs);
     sum.stalls.up += r.stalls.up;
     sum.stalls.down += r.stalls.down;
+    sum.horde.bytes += r.horde.bytes;
+    sum.horde.frames += r.horde.frames;
+    sum.horde.keyframes += r.horde.keyframes;
+    sum.horde.decodeErrors += r.horde.decodeErrors;
+    sum.horde.decoded += r.horde.decoded;
   }
   const offs = [...sum.viewOffsets].sort((a, b) => a - b);
   const q = (p: number) => (offs[Math.floor(offs.length * p)] ?? 0).toFixed(2);
@@ -163,11 +169,20 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
     { name: "150 Walkers kiting", o: { walkers: 150 } },
   ] as const;
   for (const c of cases) {
-    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay), no stalls`, () => {
+    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay; Story 8.10 B2: ≤ 1 % on the real horde path, the far rule costs none), no stalls`, () => {
       const r = runSeeds(`8.8 clean ${c.name}`, { ...LINE, ...c.o }, SEEDS_88);
       expect(r.apparentHits).toBeGreaterThan(300);
       expect(r.stalls).toEqual({ up: 0, down: 0 });
-      expect(pct(r)).toBeLessThanOrEqual(0.5);
+      // Story 8.10 (brief 20, decision 8.10 B2): the harness now draws the horde through the real stream and
+      // HordeBuffer, which keeps a killed zombie drawn until the render tick reaches its kill (Story 2.5):
+      // 20 Runners kiting 1/446 → 4/439 (0.9 %) with or without 8.10's 10 Hz far rule (comparison below).
+      // B7: the game runs every zombie at 20 Hz; the far rule (8 m, D1) is run explicitly here.
+      expect(pct(r)).toBeLessThanOrEqual(1);
+      const farRule = runSeeds(`8.10 far rule on (8 m) clean ${c.name}`, { ...LINE, ...c.o, hordeNearM: HORDE_FAR_RULE_RADIUS_M }, SEEDS_88);
+      expect(farRule.reversed).toBeLessThanOrEqual(r.reversed + 1); // the far rule costs no reversed hits
+      expect(r.horde.bytes).toBeGreaterThan(farRule.horde.bytes); // review RL1: the two runs really differ (liveness)
+      expect(r.horde.decodeErrors).toBe(0);
+      expect(r.horde.keyframes).toBeGreaterThanOrEqual(170); // ≈ 1/s over 3 × 60 s (liveness of the real stream)
       expect(overCapPct(r)).toBe(0);
       expect(r.viewOffsets.filter((v) => v > 6)).toEqual([]); // review R1: the control for the lossy rows' "> 6 ticks" share
     });

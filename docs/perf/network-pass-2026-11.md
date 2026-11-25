@@ -126,3 +126,37 @@ Notes:
 - A bot cut longer than the 2.12/8.8 checks is quiet-held after 3 s; the takeover joins wait on the cut line and land within ~0.3 s of it ending (one attempt in flight, 10 s attempt timeout).
 - Inputs a bot sent in the first 3 s of a cut (before its watchdog fired) arrive late; at most the input ring (6 = 0.3 s of moves) is applied. Phones send a `viewTick`: an input more than 2 s behind the server is dropped (F7); bots send none, so this rule does not cover them.
 - Two-tab browser smoke (brief 34): `docs/perf/network-pass-smoke-8-1-2026-11-25.md`.
+
+## 8.10 Half-size horde stream
+
+Branched from master `d8d44d0` (8.8 + 8.9 on it). Change: the horde stream becomes per-client keyframes + deltas (wire format `NET_PROTOCOL_VERSION` 2, refused at join as `update_required` otherwise), heading worked out on the phone (sent only when it would be > 4 steps off, B1), zombies > 8 m from the view centre refreshed every 2nd tick by slot parity and glided between their own refreshes on the phone, a keyframe on the first frame / after a skip / every 20 ticks (staggered) / whenever a delta is not smaller; decoded per connection from the join (`RunInbox`). Full table: the story file (`_bmad-output/implementation-artifacts/8-10-half-size-horde-stream.md` › Measurements).
+
+**Method.** Before = a clean worktree of `d8d44d0`, after = `story-8-10`, same seeds and lines, same machine. Replay: `npx tsx tools/netaudit/hordeEncodings.ts 600` (now runs the real encoder → decoder and checks every tick against the full frame). Stampede: `apps/server/src/run/eventBandwidth.test.ts` (real stream, worst 1 s window). Bots: `npm run bots -- --count 4 --scenario net150 --until-wave 5 --hold-fire 45` (+ `--lag 150 --jitter 20 --loss 1`), horde KB/s from the server's `net_stats.hordeKBps`. Freezes: `npx tsx tools/netsim/smoothRun.ts 60 3` (the harness now draws through the real stream + `HordeBuffer`; `HORDE_NEAR_M=Infinity` = the all-20 Hz control).
+
+| Case | Before | After |
+| --- | --- | --- |
+| Audit replay, ~118 in view | 18.6 KB/s | **6.7 KB/s** (0 mismatches / 600 ticks, keyframes 1.0/s) |
+| 150 near + moving (packed round the player) | 24.2 KB/s | 11.6 KB/s |
+| Stampede, 180 in one view (decision 6.8 B1) | 28.2 KB/s | **13.4 KB/s** worst 1 s (avg 12.1) |
+| Bots clean, horde per phone (waves 4–5) | 9.2–11.0 KB/s | 3.4–4.3 KB/s |
+| Bots lossy, horde per phone | 8.6–12.6 KB/s | 3.6–5.2 KB/s |
+| Bots, total down per phone (clean / lossy) | 11.7–11.8 / 11.1–13.4 KB/s | 5.6–5.9 / 5.8–6.9 KB/s |
+| Keyframes / decode errors (bots) | 20/s / 0 | 1.0–1.3/s / 0 |
+| Encoder, 4 clients × 150 (mean / p99) | 0.055–0.062 / 0.154–0.199 ms | 0.120–0.126 / 0.206–0.276 ms |
+| Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 (control 1.0 / 0.9 / 0.7) |
+
+New horde budget (brief line 8): the measured worst case 13.4 KB/s + 20 % → **≤ 16 KB/s**. The 10 Hz rule adds no freeze (every row within ±0.2 of its all-20 Hz control) and no blink (`tools/netsim/hordeGlide.test.ts`). Clean 20 Runners kiting reads 0.9 % reversed on the real-buffer harness with or without the far rule (B2). Backpressure on a capped line: see the story file (B6: F12 confirmed for 64 kbit/s, threshold unchanged).
+
+### 8.10 review fix B7: every zombie at 20 Hz (as shipped)
+
+The review (RM2) measured the far rule's stutter on the clean line: between a far zombie's refreshes the buffer needs the frame two ticks past the render tick, and the newest frame leads by only 1.0–2.0 ticks there (p50 1.34), so far zombies stood still then jumped in 15–16 % of their between-refresh samples. Decision 8.10 B7 (supersedes D1): `HORDE_NEAR_M = Infinity`; the far rule's code stays behind `HORDE_FAR_RULE_RADIUS_M` (8 m) for a later story. Re-measured, same seeds and lines (master `02e7d8c` merged, load 0.1–0.5):
+
+| Case | Before | First build (D1 on) | As shipped (B7) |
+| --- | --- | --- | --- |
+| Audit replay, ~118 in view | 18.6 KB/s | 6.7 | **8.2 KB/s** |
+| 150 near + moving | 24.2 | 11.6 | 11.0 |
+| Stampede, 180 in one view (worst 1 s) | 28.2 | 13.4 | **13.5 KB/s** |
+| Bots clean / lossy, horde per phone | 9.2–11.0 / 8.6–12.6 | 3.4–4.3 / 3.6–5.2 | 4.4–5.5 / 2.6–5.3 KB/s |
+| Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 | 1.0 / 0.9 / 0.7 |
+
+Horde budget unchanged at ≤ 16 KB/s (13.5 + 20 %). The 64 kbit/s backpressure finding (B6) is owed to Story 8.11.

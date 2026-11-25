@@ -13,8 +13,10 @@ describe("bots --lag/--jitter/--loss/--stall (Story 8.8)", () => {
   });
 
   it("reads the lossy line (default stall 200 ms)", () => {
-    expect(parseLine(flags({ lag: "150", jitter: "20", loss: "1" }), LOCAL)).toEqual({ rttMs: 150, jitterMs: 20, lossPct: 1, stallMs: 200 });
-    expect(parseLine(flags({ loss: "0.5", stall: "400" }), "http://127.0.0.1:2681")).toEqual({ rttMs: 0, jitterMs: 0, lossPct: 0.5, stallMs: 400 });
+    expect(parseLine(flags({ lag: "150", jitter: "20", loss: "1" }), LOCAL)).toEqual({ rttMs: 150, jitterMs: 20, lossPct: 1, stallMs: 200, kbps: 0 });
+    expect(parseLine(flags({ loss: "0.5", stall: "400" }), "http://127.0.0.1:2681")).toEqual({ rttMs: 0, jitterMs: 0, lossPct: 0.5, stallMs: 400, kbps: 0 });
+    expect(parseLine(flags({ kbps: "128" }), LOCAL)).toEqual({ rttMs: 0, jitterMs: 0, lossPct: 0, stallMs: 200, kbps: 128 }); // Story 8.10 (T8): the cap alone turns the line on
+    expect(() => parseLine(flags({ kbps: "-1" }), LOCAL)).toThrow(/--kbps must be/);
   });
 
   it("refuses a remote --url with a clear message, and out-of-range values", () => {

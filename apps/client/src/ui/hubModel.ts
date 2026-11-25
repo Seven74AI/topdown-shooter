@@ -3,13 +3,13 @@ import {
   UNLOCK_CATEGORIES,
   goodNextPick,
   itemCategories,
+  loadBalance,
   type Progression,
   type ProgressView,
   type UnlockCategory,
   type UnlockResponse,
 } from "@topdown/shared";
 import { formatSupplies } from "../net/rewardsStore";
-import { clientBalance } from "../debug/clientBalance";
 
 /**
  * Story 7.3 (AC 6–8; U1–U5; layout PH1 in Lumen LF5): what the Progress hub and its Unlocks tab show, the Unlock →
@@ -89,10 +89,10 @@ export interface HubSection {
 type Names = Readonly<Record<string, string>>;
 
 let cached: { names: Names; categories: ReadonlyMap<string, UnlockCategory> } | null = null;
-/** Item names and categories from the client's balance (read once). */
+/** Item names and categories from the bundled balance (read once; names and categories never change in dev overrides). */
 export function balanceInfo(): { names: Names; categories: ReadonlyMap<string, UnlockCategory> } {
   if (cached) return cached;
-  const b = clientBalance();
+  const b = loadBalance();
   const names: Record<string, string> = {};
   for (const [id, w] of Object.entries(b.weapons)) names[id] = w.name ?? id;
   for (const [id, g] of Object.entries(b.gear.items)) names[id] = g.name;

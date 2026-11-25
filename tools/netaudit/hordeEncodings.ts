@@ -12,6 +12,10 @@
  *  C  delta, no heading: like B, but the client derives heading from movement (no heading bytes).
  *  D  delta + far at 10 Hz: like C, but zombies > NEAR_M from the viewer update every 2nd tick.
  *  E  today at 10 Hz: A sent every 2nd tick.
+ *  story810: Story 8.10's REAL stream (HordeEncoder.send → HordeStreamDecoder), checked every tick
+ *            against A: refreshed zombies within 1 cm, far ones equal to their last refresh (≤ 1 tick old).
+ *
+ *   ZOMBIES=180 RING=3,9 npx tsx tools/netaudit/hordeEncodings.ts 600   # every zombie in one view
  *
  *   npx tsx tools/netaudit/hordeEncodings.ts [ticks=600]
  */
@@ -28,6 +32,9 @@ import {
   wireState,
   zombieNetId,
   createRng,
+  HordeStreamDecoder,
+  readHordeFrame,
+  type HordeSink,
   type Rect,
   type ZombieTypeId,
 } from "@topdown/shared";
@@ -37,7 +44,8 @@ import { HordeEncoder, newHordeStats } from "../../apps/server/src/net/hordeEnco
 const TICKS = Number(process.argv[2] ?? 600);
 const WARMUP = 100;
 const NEAR_M = 8;
-const ZOMBIES = 150;
+const ZOMBIES = Number(process.env.ZOMBIES ?? 150);
+const [RING_MIN, RING_MAX] = (process.env.RING ?? "8,20").split(",").map(Number) as [number, number];
 /** Late-wave mix (waves.json wave 6 without the walker-heavy start): walker, runner, crawler, spitter, bloater. */
 const MIX: ZombieTypeId[] = ["walker", "walker", "walker", "walker", "runner", "runner", "crawler", "crawler", "spitter", "bloater"];
 
@@ -54,7 +62,7 @@ let spawned = 0;
 function topUp(): void {
   while (world.zombies.aliveCount < ZOMBIES) {
     const a = rng.range(0, 2 * Math.PI);
-    const d = rng.range(8, 20);
+    const d = rng.range(RING_MIN, RING_MAX);
     const x = Math.min(world.map.widthM - 1, Math.max(1, cx + Math.cos(a) * d));
     const y = Math.min(world.map.heightM - 1, Math.max(1, cy + Math.sin(a) * d));
     if (spawnZombie(world, MIX[spawned++ % MIX.length] as ZombieTypeId, x, y) < 0) return;
@@ -63,15 +71,36 @@ function topUp(): void {
 topUp();
 
 const encoder = new HordeEncoder();
+/** Story 8.10: the "before" frame (today's full frame every tick = a keyframe), from its own encoder. */
+const fullEncoder = new HordeEncoder();
 let lastLen = 0;
 const fakeClient = {
   state: 1, // ClientState.JOINED
   ref: { bufferedAmount: 0 },
   sendBytes: (_t: number, b: Uint8Array) => {
     lastLen = b.length;
+    sentFrame = b.slice();
   },
 };
-
+let sentFrame = new Uint8Array(0);
+const streamStats = newHordeStats();
+/** Story 8.10: the phone's decoder, fed the real stream, checked against the full frame every tick. */
+const phone = new HordeStreamDecoder();
+const got = new Map<number, { x: number; y: number; ts: number; refresh: number }>();
+const truth = new Map<number, { x: number; y: number; ts: number }>();
+const phoneSink: HordeSink = {
+  begin: () => got.clear(),
+  record: (_i, netId, x, y, _h, ts, refresh) => void got.set(netId, { x, y, ts, refresh: refresh ?? -1 }),
+  end: () => {},
+};
+const truthSink: HordeSink = {
+  begin: () => truth.clear(),
+  record: (_i, netId, x, y, _h, ts) => void truth.set(netId, { x, y, ts }),
+  end: () => {},
+};
+const check = { frames: 0, nearExact: 0, farHeld: 0, mismatches: 0, setMismatches: 0 };
+/** Per net id: the true pose at its last refresh tick on the phone (far zombies between refreshes). */
+const atRefresh = new Map<number, { x: number; y: number; tick: number }>();
 interface Rec {
   x: number;
   y: number;
@@ -84,7 +113,7 @@ const prevD = new Map<number, Rec>();
 const prevC = new Map<number, Rec>();
 const ids = new Int32Array(256);
 const rect: Rect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-const totals = { A: 0, B: 0, C: 0, D: 0, E: 0, inView: 0, frames: 0, moving: 0 };
+const totals = { A: 0, B: 0, C: 0, D: 0, E: 0, S: 0, inView: 0, frames: 0, moving: 0 };
 
 function deltaCost(prev: Map<number, Rec>, cur: Map<number, Rec>, withHeading: boolean, skip: (netId: number) => boolean): number {
   let bytes = 8; // header (tick u32 + counts)
@@ -134,9 +163,32 @@ for (let t = 0; t < WARMUP + TICKS; t++) {
   if (t < WARMUP) continue;
   const me = world.players.get("p0");
   if (!me) throw new Error("no p0");
-  encoder.send(world, fakeClient, newHordeStats(), me.x, me.y);
-  totals.A += lastLen;
-  if (t % 2 === 0) totals.E += lastLen;
+  fullEncoder.prepare(world);
+  const full = fullEncoder.encode(world, me.x, me.y);
+  totals.A += full.length;
+  if (t % 2 === 0) totals.E += full.length;
+  readHordeFrame(full, truthSink);
+  encoder.send(world, fakeClient, streamStats, me.x, me.y);
+  totals.S += lastLen;
+  if (!phone.decode(sentFrame, phoneSink)) check.mismatches++;
+  check.frames++;
+  if (got.size !== truth.size) check.setMismatches++;
+  for (const [id, want] of truth) {
+    const g = got.get(id);
+    if (!g || g.ts !== want.ts && g.refresh === world.tick) {
+      check.mismatches++;
+      continue;
+    }
+    if (g.refresh === world.tick) {
+      if (Math.abs(g.x - want.x) > 0.01 || Math.abs(g.y - want.y) > 0.01) check.mismatches++;
+      else check.nearExact++;
+      atRefresh.set(id, { x: want.x, y: want.y, tick: world.tick });
+    } else {
+      const r = atRefresh.get(id);
+      if (!r || r.tick !== g.refresh || Math.abs(g.x - r.x) > 0.01 || Math.abs(g.y - r.y) > 0.01 || world.tick - g.refresh > 1) check.mismatches++;
+      else check.farHeld++;
+    }
+  }
   // The same view set as the encoder (rushers aside: the wave director is off here).
   const r = viewRect(world.map, me.x, me.y, 4, rect);
   const n = queryRect(world.zombieGrid, z.x, z.y, r.minX, r.minY, r.maxX, r.maxY, ids);
@@ -173,14 +225,15 @@ process.stdout.write(
       avgInView: Math.round((10 * totals.inView) / frames) / 10,
       movingPct: Math.round((1000 * totals.moving) / Math.max(1, totals.inView)) / 10,
       types: ZOMBIE_TYPES,
+      story810: { KBps: kbps(totals.S), keyframesPerS: Math.round((streamStats.keyframes / (frames / 20)) * 100) / 100, decodeErrors: phone.decodeErrors + phone.brokenChain, check },
       KBps: { A_today: kbps(totals.A), B_delta: kbps(totals.B), C_delta_noHeading: kbps(totals.C), D_delta_far10Hz: kbps(totals.D), E_today10Hz: kbps(totals.E) },
       perZombieInViewBytesPerTick: {
-        A: Math.round((100 * (totals.A - 6 * frames)) / totals.inView) / 100,
+        A: Math.round((100 * (totals.A - 7 * frames)) / totals.inView) / 100,
         B: Math.round((100 * (totals.B - 8 * frames)) / totals.inView) / 100,
         C: Math.round((100 * (totals.C - 8 * frames)) / totals.inView) / 100,
         D: Math.round((100 * (totals.D - 8 * frames)) / totals.inView) / 100,
       },
-      worstCase150InView: { A_KBps: Math.round(((6 + 8 * 150) * 20 * 10) / 1024) / 10 },
+      worstCase150InView: { A_KBps: Math.round(((7 + 8 * 150) * 20 * 10) / 1024) / 10 },
     },
     null,
     1,

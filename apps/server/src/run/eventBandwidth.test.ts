@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
 import { pack } from "msgpackr";
-import { DOWNTOWN_MAP, EVENT_KINDS, HORDE_HEADER_BYTES, HORDE_RECORD_BYTES, NET_EVENT_KIND, TICK_DT_S, ZOMBIE_STATE, loadBalance, spawnZombie, startWave, type NetEvent, type NetEventContext, type SimEvent } from "@topdown/shared";
+import { DOWNTOWN_MAP, EVENT_KINDS, HORDE_HEADER_BYTES, HORDE_MAX_FRAME_BYTES, HORDE_RECORD_BYTES, HordeStreamDecoder, type HordeSink, NET_EVENT_KIND, TICK_DT_S, ZOMBIE_STATE, loadBalance, spawnZombie, startWave, type NetEvent, type NetEventContext, type SimEvent } from "@topdown/shared";
 import { RunController } from "./RunController";
 import { EventInterest } from "../net/eventInterest";
-import { HordeEncoder } from "../net/hordeEncoder";
+import { COLYSEUS_BYTES_HEADER, HordeEncoder, newHordeStats } from "../net/hordeEncoder";
 import { PlayerState, RunState } from "../rooms/schema/RunState";
 import { syncState } from "../rooms/schema/syncState";
 
@@ -13,10 +13,11 @@ import { syncState } from "../rooms/schema/syncState";
  * messages (`event.*`, ≤ 4 per event) and the room state's event record (on change only) — and the
  * worst horde frame of a stampede: 150 alive + its 30 over-cap Runners all in one view.
  *
- * Decision 6.8 B1 (designer: A): the 180-in-view worst case is 6 + 8 × 180 = 1,446 B × 20 Hz =
- * 28.2 KB/s, over the 24 KB/s horde budget (it breaks from 153 in view); accepted until Story 8.10's
- * half-size horde stream ("Story 8.10 owes this"), never hiding a zombie that can bite. The test
- * bounds the worst case at 28.5 KB/s and keeps 150 in view ≤ 24 KB/s.
+ * Decision 6.8 B1 (designer: A) was: the 180-in-view worst case is 6 + 8 × 180 = 1,446 B × 20 Hz =
+ * 28.2 KB/s, over the 24 KB/s horde budget. Closed by Story 8.10 (keyframes + deltas, far zombies at
+ * 10 Hz): the REAL stream to one client during the stampede, worst 1 s window ≤ 15 KB/s, every
+ * frame decoded by the phone's stream decoder to the full set; the largest frame (a keyframe) still
+ * fits the throttle's pooled buffer.
  */
 const balance = loadBalance();
 const EVENT_NET = new Set<number>([NET_EVENT_KIND.EVENT_TRIGGERED, NET_EVENT_KIND.EVENT_PHASE_CHANGED, NET_EVENT_KIND.EVENT_ENDED, NET_EVENT_KIND.EVENT_SKIPPED]);
@@ -80,7 +81,7 @@ describe("Special events bandwidth (Story 6.8, brief 11)", () => {
     expect(bps).toBeLessThan(200);
   }, 60_000);
 
-  it("the stampede's worst horde frame: 150 + 30 Runners in one view = 6 + 8 × n bytes; ≤ 24 KB/s at 150 in view, 28.2 KB/s at 180 (Story 8.10 owes the rest: decision 6.8 B1)", () => {
+  it("Story 8.10 (closes 6.8 B1): the stampede, 150 + 30 Runners in one view: the real stream's worst 1 s ≤ 15 KB/s (was 28.2), decoded in full every tick", () => {
     const c = controller();
     const w = c.world;
     const z = w.zombies;
@@ -88,23 +89,46 @@ describe("Special events bandwidth (Story 6.8, brief 11)", () => {
     for (let i = 0; i < 150; i++) spawnZombie(w, "walker", 18 + (i % 15) * 0.8, 12.6 + Math.floor(i / 15) * 0.7, true);
     start(c, "stampede");
     const horde = new HordeEncoder();
-    let worst = 0;
+    const stats = newHordeStats();
+    let last = new Uint8Array(0);
+    const client = { state: 1 /* JOINED */, ref: { bufferedAmount: 0 }, sendBytes: (_t: number, b: Uint8Array) => void (last = b.slice()) };
+    const phone = new HordeStreamDecoder();
+    let decodedCount = 0;
+    const sink: HordeSink = { begin: (_t, n) => void (decodedCount = n), record: () => {}, end: () => {} };
+    const windowBytes: number[] = [];
+    let worstFrame = 0;
+    let worstKey = 0;
+    let worstWindow = 0;
     let worstStampede = 0;
+    let worstInView = 0;
     for (let t = 0; t < 14 * 20; t++) {
       c.tick();
       for (let i = 0; i < z.aliveCount; i++) z.x[z.aliveIds[i]!] = Math.min(Math.max(z.x[z.aliveIds[i]!]!, 14), 34); // keep them all in view
       horde.prepare(w);
-      const bytes = horde.encode(w, 24, 16).length;
-      worst = Math.max(worst, bytes);
-      let n = 0;
-      for (let i = 0; i < z.aliveCount; i++) if (z.state[z.aliveIds[i]!] === ZOMBIE_STATE.STAMPEDE) n++;
-      worstStampede = Math.max(worstStampede, n);
+      const inView = horde.encode(w, 24, 16).length; // the keyframe (today's full frame)
+      worstKey = Math.max(worstKey, inView);
+      const n = (inView - HORDE_HEADER_BYTES) / HORDE_RECORD_BYTES;
+      worstInView = Math.max(worstInView, n);
+      horde.send(w, client, stats, 24, 16);
+      expect(phone.decode(last, sink)).toBe(true);
+      expect(decodedCount).toBe(n); // the phone holds every zombie in view, every tick
+      worstFrame = Math.max(worstFrame, last.length);
+      windowBytes.push(last.length + COLYSEUS_BYTES_HEADER);
+      if (windowBytes.length > 20) windowBytes.shift();
+      if (windowBytes.length === 20) worstWindow = Math.max(worstWindow, windowBytes.reduce((a, v) => a + v, 0));
+      let r = 0;
+      for (let i = 0; i < z.aliveCount; i++) if (z.state[z.aliveIds[i]!] === ZOMBIE_STATE.STAMPEDE) r++;
+      worstStampede = Math.max(worstStampede, r);
     }
-    const at150 = (HORDE_HEADER_BYTES + HORDE_RECORD_BYTES * 150) * 20;
-    console.log(`[stampede horde] worst frame ${worst} B (${((worst * 20) / 1024).toFixed(1)} KB/s; ${worstStampede} Runners), 150 in view = ${(at150 / 1024).toFixed(1)} KB/s`);
+    console.log(
+      `[stampede horde] Story 8.10 stream: worst 1 s ${(worstWindow / 1024).toFixed(1)} KB/s, avg ${(stats.bytesSent / 1024 / 14).toFixed(1)} KB/s, keyframes ${stats.keyframes}; worst frame ${worstFrame} B; ${worstInView} in view, ${worstStampede} Runners (today's full frame: ${worstKey} B = ${((worstKey * 20) / 1024).toFixed(1)} KB/s)`,
+    );
     expect(worstStampede).toBeGreaterThan(0); // liveness: the Runners really ran
-    expect(at150).toBeLessThanOrEqual(24 * 1024);
-    expect(worst).toBeLessThanOrEqual(HORDE_HEADER_BYTES + HORDE_RECORD_BYTES * (balance.waves.maxAlive + balance.events.stampede.overCap));
-    expect(worst * 20).toBeLessThanOrEqual(28.5 * 1024);
+    expect(worstInView).toBeGreaterThanOrEqual(175); // the 180-in-view case really happened
+    expect(stats.keyframes).toBeGreaterThanOrEqual(13); // ≈ 1/s (liveness of the repair)
+    expect(phone.decodeErrors + phone.brokenChain).toBe(0);
+    expect(worstKey).toBeLessThanOrEqual(HORDE_HEADER_BYTES + HORDE_RECORD_BYTES * (balance.waves.maxAlive + balance.events.stampede.overCap));
+    expect(worstFrame).toBeLessThanOrEqual(HORDE_MAX_FRAME_BYTES); // the dev throttle's pooled buffer
+    expect(worstWindow).toBeLessThanOrEqual(15 * 1024);
   }, 60_000);
 });

@@ -240,9 +240,12 @@ export class NetSimHost implements SimHost {
   private readonly ctx: { balance: Balance; tick: number };
   private readonly offs: (() => void)[] = [];
   private readonly onState = (state: RunStateView): void => this.receiveState(state);
-  /** Horde stream (Story 2.5); `hordeStats` counts frames and decode errors for the 2.10 overlay. */
+  /**
+   * Horde stream (Story 2.5); `hordeStats` counts frames, decode errors and (Story 8.10) keyframes for
+   * the 2.10 overlay. The session decodes the stream from the join (8.10 D4) and hands it full frames.
+   */
   private readonly horde = new HordeBuffer();
-  readonly hordeStats = new HordeDecoder(this.horde);
+  readonly hordeStats: HordeDecoder;
   private readonly hordeSample = new HordeSample();
 
   private accumulatorS = 0;
@@ -316,6 +319,10 @@ export class NetSimHost implements SimHost {
   private readonly linkUp: () => boolean;
 
   constructor(opts: NetSimHostOptions) {
+    // Story 8.9 (D7): an accepted horde frame is a clock and lateness sample too.
+    this.hordeStats = new HordeDecoder(this.horde, opts.session.hordeStream, () => {
+      if (!this.disposed) this.sampleClock(this.now(), this.horde.latestTick);
+    });
     this.session = opts.session;
     this.linkUp = opts.linkUp ?? (() => true);
     this.localPlayerId = opts.session.playerId;
@@ -340,7 +347,7 @@ export class NetSimHost implements SimHost {
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
-    this.offs.push(opts.session.onHorde((b) => this.receiveHorde(b)));
+    this.offs.push(opts.session.onHorde(this.hordeStats)); // Story 8.10: decoded frames
     this.offs.push(
       opts.session.onBuildingRefused((reason) => this.queueRefusal(reason)),
     );
