@@ -1,4 +1,8 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type SQL, sql } from "drizzle-orm";
+import { MIGRATIONS_FOLDER } from "./migrate";
 import { afterEach, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo } from "./accountsRepo";
@@ -46,6 +50,40 @@ describe("Story 8.4 AC 1: the saved_runs migration", () => {
     const idx = await rows<{ indexname: string }>(db, sql`select indexname from pg_indexes where tablename = 'saved_run_players'`);
     expect(idx.map((r) => r.indexname)).toContain("saved_run_players_account_idx");
     await expect(db.execute(sql`insert into saved_runs (id, district, seed, snapshot, schema_version, wave, names, status) values (${RUN}, 'd', 1, '{}', 1, 1, '[]', 'lost')`)).rejects.toThrow();
+  });
+});
+
+describe("Story 8.4 AC 1 (brief 21): the migration runs forward", () => {
+  it("on a copy of the 0004 schema with rows in it: the rows stay, the two tables exist, a save links to an old account", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mig5-"));
+    try {
+      cpSync(MIGRATIONS_FOLDER, dir, { recursive: true });
+      const journalPath = join(dir, "meta", "_journal.json");
+      const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
+      const tags = journal.entries.map((e) => e.tag);
+      expect(tags).toContain("0005_saved_runs");
+      writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.slice(0, tags.indexOf("0005_saved_runs")) }));
+      const [{ PGlite }, { drizzle }, { migrate }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite"), import("drizzle-orm/pglite/migrator")]);
+      const client = new PGlite();
+      try {
+        const db = drizzle({ client });
+        await migrate(db, { migrationsFolder: dir });
+        await db.execute(sql`insert into accounts (display_name) values ('Old')`);
+        await db.execute(sql`insert into progress (account_id, supplies) select id, 55 from accounts`);
+        await db.execute(sql`insert into run_rewards (run_id, account_id, supplies, breakdown) select ${RUN}, id, 55, '{}' from accounts`);
+        await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+        const applied = await rows<{ n: number }>(db as unknown as Db, sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
+        expect(applied[0]?.n).toBe(journal.entries.length);
+        expect((await rows<{ supplies: number }>(db as unknown as Db, sql`select supplies from progress`)).map((r) => r.supplies)).toEqual([55]);
+        await db.execute(sql`insert into saved_runs (id, district, seed, snapshot, schema_version, wave, names, status) values (${RUN2}, 'downtown', 1, '{}', 1, 2, '[]', 'saved')`);
+        await db.execute(sql`insert into saved_run_players (saved_run_id, account_id, seat_key) select ${RUN2}, id, 'acct:x' from accounts`);
+        expect((await rows<{ n: number }>(db as unknown as Db, sql`select count(*)::int as n from saved_run_players`))[0]?.n).toBe(1);
+      } finally {
+        await client.close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

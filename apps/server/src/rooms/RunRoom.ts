@@ -2127,6 +2127,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     this.syncLeftSeats();
     const world = controller.world;
+    // Builder decision 8.6-B5: every bank of a resumed run is a top-up (a find is granted then), so a seat banked on an
+    // earlier night's Leave may take the bag again tonight (7.12 M1's "closed run" no longer holds).
+    world.loot.banked.clear();
     const returning = restored.present.map((r) => r.player);
     const newcomers: string[] = [];
     for (const m of this.members.values()) {

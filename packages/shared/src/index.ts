@@ -805,3 +805,4 @@ export {
 } from "./save/runSave";
 export { SaveRestoreError, restoreRunSave, resumeSavedRun, type RestoreOptions, type Restored, type RestoredSeat } from "./save/restore";
 export { SAVE_MIGRATIONS, migrateRunSave, type MigrateResult, type SaveMigration } from "./save/migrations";
+export { playToBuild, type PlayedRun } from "./save/saveFixtures"; // tests and tools only (measurements, real-PG tests)
