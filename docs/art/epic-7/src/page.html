@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epic 7 Looks</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0c0d0f; --card:#15171a; --card-line:#262a2f; --ink:#e8e6e0; --mute:#9a9fa7; --faint:#6b7078;
+  --acid:#b8f04a; --strip:#121316;
+  --display:'Oswald','Arial Narrow',Impact,sans-serif;
+  --text:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="light"]{color-scheme:dark}
+@media (prefers-color-scheme: light){:root:not([data-theme="light"]){color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg)}
+body{color:var(--ink);font:15px/1.5 var(--text);padding:28px 16px 64px;overflow-x:hidden}
+header,main,footer{max-width:1260px;margin:0 auto}
+h1{font:700 clamp(30px,5vw,46px)/1.05 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0 0 10px}
+h1 span{color:var(--acid)}
+.intro{margin:0 0 6px;max-width:80ch}
+.note{margin:0 0 8px;color:var(--mute);font-size:13px;max-width:90ch}
+section{margin-top:44px}
+h2{font:700 25px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px}
+h2 small{font:500 12px var(--mono);color:var(--mute);letter-spacing:.04em;margin-left:8px;text-transform:none}
+.sub{margin:0 0 8px;color:var(--mute);font-size:13.5px;max-width:96ch}
+.rec{margin:0 0 14px;font-size:14px;max-width:96ch;border-left:3px solid var(--acid);padding:2px 0 2px 10px}
+.rec b{color:var(--acid)}
+.grid{display:grid;grid-template-columns:1fr;gap:18px}
+.grid.two{grid-template-columns:repeat(auto-fill,minmax(min(100%,600px),1fr))}
+.card{background:var(--card);border:1px solid var(--card-line);border-radius:10px;padding:14px;min-width:0}
+.card.is-rec{border-color:#55702a}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px;flex-wrap:wrap}
+.code{font:600 13px var(--mono);color:var(--bg);background:var(--acid);border-radius:4px;padding:1px 7px}
+.tag{font:500 10.5px var(--mono);color:var(--acid);border:1px solid var(--acid);border-radius:999px;padding:0 7px;margin-left:auto;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+h3{font:600 19px/1.2 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0}
+.desc{margin:2px 0 12px;color:var(--mute);font-size:13.5px}
+.frames{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.ph{min-width:0;max-width:100%}
+.ph-box{position:relative;overflow:hidden;border-radius:10px;box-shadow:0 0 0 2px #2a2e34,0 0 0 6px #0a0b0c;background:#000}
+.ph-in{position:absolute;left:0;top:0;transform-origin:0 0}
+.ph-in iframe{display:block;border:0;background:#000}
+.ph-ins{position:absolute;inset:0;pointer-events:none}
+.ph-ins i{position:absolute;background:repeating-linear-gradient(-45deg,rgba(184,240,74,.10) 0 6px,transparent 6px 12px);outline:1px dashed rgba(184,240,74,.45);outline-offset:-1px}
+body.no-ins .ph-ins{display:none}
+.ph-lbl{font:400 11px var(--mono);color:var(--faint);padding:6px 2px 0;display:flex;justify-content:space-between;gap:8px}
+.ph-lbl b{color:var(--mute);font-weight:500}
+.specimen{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.spec{background:#101114;border:1px solid var(--card-line);border-radius:8px;padding:10px;min-width:0}
+.spec h4{margin:0 0 6px;font:600 12px var(--mono);color:var(--mute);letter-spacing:.03em}
+.spec canvas{display:block;border-radius:6px;max-width:100%;height:auto}
+.toc{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0;font:500 12px var(--mono)}
+.toc a{color:var(--mute);text-decoration:none;border:1px solid var(--card-line);border-radius:999px;padding:3px 10px}
+.toc a:hover{color:var(--ink);border-color:var(--acid)}
+code{font:500 12px var(--mono);color:#cfd3d8}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:rgba(12,13,15,.94);border-bottom:1px solid var(--card-line);padding:8px 0;margin:16px auto 0;max-width:1260px}
+.bar button,.pick button,.seg button{font:600 12px var(--mono);color:var(--ink);background:#1d2024;border:1px solid var(--card-line);border-radius:999px;padding:6px 12px;cursor:pointer;min-height:32px}
+.bar button[aria-pressed="true"],.pick button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--acid);color:var(--bg);border-color:var(--acid)}
+.bar .picked{font:500 12px var(--mono);color:var(--mute);flex:1;min-width:200px}
+.pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:10px 0 0;font:500 12px var(--mono);color:var(--mute)}
+.seg{display:inline-flex;gap:4px;flex-wrap:wrap;margin:0 0 10px}
+.seg button{padding:4px 10px;min-height:28px;font-weight:500}
+table.pt{border-collapse:collapse;font-size:13.5px;margin-top:10px}
+table.pt td,table.pt th{border-bottom:1px solid var(--card-line);padding:6px 10px;text-align:left;vertical-align:top}
+table.pt th{color:var(--mute);font-weight:500}
+footer{margin-top:48px;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Epic <span>7</span> looks</h1>
+  <p class="intro">Code-drawn proposals for every Epic 7 screen and the loot bag. Pick <b>one code per item</b> (e.g. "RW1, PH1, BT2 …"), or just say <b>"ok"</b> for all the recommended ones (green border).</p>
+  <p class="note">Every screen is drawn at the real phone size in CSS px (568 × 320 iPhone with its 44 / 21 px safe edges hatched in green, and 800 × 360 Android), styled by the game's own <code>overlay.css</code>. Survivors, weapon / gear / building icons and the street are the <b>game's own drawing code</b> (<code>drawSurvivor</code> with the Story 7.8 parts, the shop icons, the Downtown bake), bundled into this page. Buttons are ≥ 44 px, text ≥ 14 px. Colour rule kept: red = boss danger only, amber = an event you can use, yellow-green = gas, <b>white = pick-ups and people</b>. Many frames can be tapped (tabs, Unlock, editor tiles).</p>
+  <nav class="toc" id="toc"></nav>
+</header>
+<div class="bar"><button id="copy">Copy my picks</button><button id="ins" aria-pressed="true">Safe edges</button><span class="picked" id="picked">No picks yet: tap a code under each item.</span></div>
+<main id="main"></main>
+<footer id="foot"></footer>
+<script>/*@GAME@*/</script>
+<script>window.OVERLAY=/*@OVERLAY@*/;</script>
+<script>/*@MAIN@*/</script>
+</body>
+</html>
