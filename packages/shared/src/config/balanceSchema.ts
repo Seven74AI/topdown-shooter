@@ -571,6 +571,8 @@ export const fxSchema = z
     floodLightViewMarginM: z.number().min(0).max(16).default(2),
     /** Story 5.10 (D4 fallback): a floodlight within this distance (m) of a drawn one shares its pool. */
     floodLightMergeM: z.number().min(0).max(16).default(4),
+    /** Designer pick C (2026-11-25): silhouettes of bodies behind standing walls drawn at once (pooled, capped). */
+    maxWallSilhouettes: z.number().int().min(1).max(64).default(24),
     /** Story 5.23: placement dust particles alive at once (8 per puff; the oldest puff reused). */
     maxPlaceDust: z.number().int().min(8).max(512).default(64),
     /** Story 5.23: owner corner tabs (3 s after a placement) drawn at once (the oldest reused). */
