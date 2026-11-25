@@ -3,5 +3,10 @@
   "assistShare": 0.5,
   "reviveReward": 25,
   "waveClearBonusPerWave": 15,
-  "buildingKillShare": 0.5
+  "buildingKillShare": 0.5,
+  "lateJoin": {
+    "base": 100,
+    "avgShare": 0.6,
+    "extraBuildS": 15
+  }
 }

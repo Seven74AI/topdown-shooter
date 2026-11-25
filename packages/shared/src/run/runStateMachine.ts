@@ -66,10 +66,12 @@ export interface RunState {
   endlessEvent: string;
   /** Story 6.12 (D4): the previous endless event (never repeated next). */
   lastEndlessEvent: string;
+  /** Story 8.2 (J5, decision E8-J4): this build phase was already extended by a late join (cleared by `startBuild`). */
+  joinExtendedBuild: boolean;
 }
 
 export function createRunState(): RunState {
-  return { phase: "lobby", buildTicksLeft: 0, voteTicksLeft: 0, ending: "none", endless: false, endlessEvent: "", lastEndlessEvent: "" };
+  return { phase: "lobby", buildTicksLeft: 0, voteTicksLeft: 0, ending: "none", endless: false, endlessEvent: "", lastEndlessEvent: "", joinExtendedBuild: false };
 }
 
 function expectPhase(world: World, transition: string, ...from: RunPhase[]): void {
@@ -95,6 +97,7 @@ export function startBuild(world: World): void {
   world.run.phase = "build";
   world.run.voteTicksLeft = 0;
   world.run.buildTicksLeft = ticksFor(world.balance.waves.buildPhaseS);
+  world.run.joinExtendedBuild = false; // Story 8.2 (E8-J4): a new build phase can be extended once again
   world.players.forEach(clearReady);
   resetBuildSpend(world); // Story 5.20 (F2): a new build phase: nothing paid this phase yet (take-back = 100 % only for this phase's spend)
   const from = world.decay.stage;
@@ -112,6 +115,20 @@ export function startBuild(world: World): void {
   armEndlessEvent(world, lastEndless); // Story 6.8: the framework starts it in that wave like a scheduled entry (a pending forced one wins)
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
   refreshBlackout(world); // Story 6.3: the build phase's light (half dark at stage 5 once 6.4 turns it on)
+}
+
+/**
+ * Story 8.2 (J5, Epic 8 D6, decision E8-J4): a late join buys shopping time, once per build phase:
+ * in phase `build` only, the first call adds `ticks` to the build timer and marks the phase
+ * (`run.joinExtendedBuild`, cleared by `startBuild`); later calls in the same build phase add
+ * nothing. Called between ticks by the room (and the replay's "join" command). True if it extended.
+ */
+export function addBuildTime(world: World, ticks: number): boolean {
+  const run = world.run;
+  if (run.phase !== "build" || run.joinExtendedBuild || !(ticks > 0)) return false;
+  run.joinExtendedBuild = true;
+  run.buildTicksLeft += Math.round(ticks);
+  return true;
 }
 
 /** Build → Wave: Ready cleared, the next wave begins (`wave.started`). Its first spawn batch runs this tick. */

@@ -2,14 +2,15 @@ import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
-import { addPlayer, type PlayerInit } from "../player/player";
+import { addPlayer, removePlayer, type PlayerInit } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { buyItem, upgradeWeapon } from "../economy/shop";
 import { buyCard, reroll } from "../economy/shopCards";
-import { placeBuilding } from "../buildings/buildings";
+import { disownBuildings, placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { holdPlayer, returnPlayer } from "../player/hold";
+import { addLatePlayer } from "../player/lateJoin";
 import { castVote, setBuildReady, startBuild, type EvacChoice } from "../run/runStateMachine";
 
 /**
@@ -35,7 +36,11 @@ export type BuildCommand =
   /** Story 8.1 (brief 5): a player went on hold (dropped or quiet) between two steps (`holdPlayer`). */
   | { kind: "hold"; playerId: string }
   /** Story 8.1: a held player came back (`returnPlayer`: placement and protection are the World's). */
-  | { kind: "return"; playerId: string };
+  | { kind: "return"; playerId: string }
+  /** Story 8.2 (brief 5): a late joiner entered the World in a build phase (`addLatePlayer`: spot, wallet, +15 s once). */
+  | { kind: "join"; playerId: string; slot: number; wallet: number }
+  /** Story 8.3: the host removed a player (out of the World, their buildings disowned: `removePlayer` + `disownBuildings`). */
+  | { kind: "remove"; playerId: string };
 
 export type ReplayCommand = ({ kind: "input"; playerId: string; input: PlayerInput } | BuildCommand) & { tick: number };
 
@@ -107,6 +112,13 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       break;
     case "return":
       returnPlayer(world, cmd.playerId);
+      break;
+    case "join":
+      addLatePlayer(world, cmd.playerId, cmd.slot, cmd.wallet);
+      break;
+    case "remove":
+      removePlayer(world, cmd.playerId);
+      disownBuildings(world, cmd.playerId);
       break;
   }
 }

@@ -638,6 +638,18 @@ export const economySchema = z
     waveClearBonusPerWave: z.number().int().min(0),
     /** Story 3.6: a building's kill pays its owner this share of the kill reward, rounded down. */
     buildingKillShare: z.number().min(0).max(1),
+    /**
+     * Story 8.2 (FR72, Epic 8 D6/D7, decisions E8-J1/E8-J4): a late joiner's money and the build time a join adds.
+     * Money = max(own start money, `base` + ⌊`avgShare` × team average earned⌋); the first late join in a build
+     * phase adds `extraBuildS` seconds (whole ticks).
+     */
+    lateJoin: z
+      .object({
+        base: z.number().int().min(0),
+        avgShare: z.number().min(0).max(1),
+        extraBuildS: z.number().min(0).max(120),
+      })
+      .strict(),
   })
   .strict();
 
