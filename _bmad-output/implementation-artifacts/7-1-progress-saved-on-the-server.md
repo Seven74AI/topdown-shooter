@@ -22,6 +22,7 @@ so that my progress is kept from my very first run.
 - **P2 "Safari's 7-day wipe doesn't lose me."** With `localStorage` cleared but the cookie kept, the device finds the same account; with the cookie gone but `localStorage` kept, the same account too (designer D9). Both are written back after either one finds it.
 - **P3 "If the save server is down, we still play."** When the database can't be reached, Create / Join / Practice still work; the run is marked "not saved" (7.2 shows it on Results). A database outage never refuses a join and never stops a tick.
 - **P4 "Nobody can be me by guessing."** The guest token is 128 random bits (`crypto.getRandomValues`), only its SHA-256 is stored, the cookie is HttpOnly (page scripts can't read it), and the room trusts only a server-signed ticket, never an account id sent by the client.
+- **P6 "One identity for everything I keep."** The account found from the guest token (cookie or `localStorage`) owns all saved progress: Supplies, unlocks, Training, districts, and the other writer's look (7.9/7.10), milestone items and stats (7.11) and loot items (7.12). No story keeps its own device-side identity; a device without an account (database down) keeps nothing.
 - **P5 "A restart or a deploy never loses progress."** Progress lives in PostgreSQL on a named volume; a server restart (test: two test servers on one database, one after the other) finds the same account; a nightly backup keeps 14 days, with copies off the VPS (NFR13).
 
 ### Behaviour

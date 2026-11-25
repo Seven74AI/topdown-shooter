@@ -9,7 +9,7 @@ Each line shows the **recommended value** first, in bold, with the alternative a
 | Code | What it changes in play | Recommended (alternative) |
 | --- | --- | --- |
 | 7.2 D8 | The wave your team dies in | **It counts: a wipe in wave 5 pays 50 Supplies.** This matches the pacing you accepted (first weapon you want by about run 3). (It doesn't count, because "survived" read strictly excludes it: a wipe in wave 5 pays 40 and that first weapon moves to run 4.) |
-| 7.2 D1 | Practice solo (the offline run on your phone) | **Earns no Supplies, and Results says "Practice runs don't earn Supplies".** A one-player online game pays in full. (Practice pays too, but anyone could edit their phone to give themselves rewards.) |
+| 7.2 D1 | Practice solo (the offline run on your phone) | **Banks nothing (no Supplies, no milestone items, no loot bag), and Results says "Practice runs don't earn rewards".** A one-player online game pays in full. (Practice pays too, but anyone could edit their phone to give themselves rewards.) |
 | 7.2 D5 | Behemoths in endless (waves 15, 20, …) | **+50 each, kept only if the team extracts**, the same rule as endless waves. (Only the wave-10 Behemoth pays.) |
 | 7.6 D1 + D2 | You log in on a phone whose guest already bought things you also own | **Nothing you paid for is wasted.** A doubled unlock refunds its price as Supplies. For Training you keep the higher level and get back what the other side spent on that boost. (Keep one copy and the higher level, and the doubled Supplies are lost.) |
 | 7.5 D2 | What Training's "damage +5 %" covers | **Your own weapons only:** guns, melee, flames and the launcher. (Also your turrets, traps, mines, grenades and molotovs: a veteran's turret wall gets a little stronger too.) |
@@ -38,7 +38,7 @@ Also worth a glance:
 
 | Code | Decision | Recommended (alternative) |
 | --- | --- | --- |
-| 7.2 D1 | Practice solo | **No Supplies, says so** (pays too) |
+| 7.2 D1 | Practice solo | **Banks nothing (Supplies, milestone items, loot), says so** (pays too) |
 | 7.2 D2 | A player who quits before the extract | **Keeps the waves and the boss they were there for, not the +100** (also gets the +100 if the team extracts later) |
 | 7.2 D3 | A safety record so a retry can't pay twice | **Yes, one line per player per run** (none) |
 | 7.2 D4 | A quitter doesn't see Results | **The start screen shows "+40 Supplies banked from your last run" once** (nothing) |
@@ -117,7 +117,7 @@ Estimated effort: 7.1 L, 7.2 M, 7.3 M, 7.4 M–L, 7.5 M, 7.6 M–L, 7.7 S–M (a
 
 The designer picks each of these from code-drawn proposals before its story is built. One proposal page can carry all six.
 
-1. **7.2: Results "Run rewards" panel.** The big "+N Supplies", the breakdown line, the rookie badge, the Saving / Not saved / Couldn't save states, and room for the milestone, loot, district and "Save my progress" lines, at 568 × 320 and 800 × 360.
+1. **7.2: Results "Run rewards" panel**, at 568 × 320 and 800 × 360. Fixed row order (later stories append, never reorder): (1) Supplies: "+N Supplies", the breakdown, the rookie badge, or a status (Saving / Not saved / Couldn't save / practice). (2) Item rows with a close-up drawing: 7.11 "New item: …" per milestone, then 7.12 "Found in wave N: …" or "Collector". (3) Unlock lines: 7.4 "unlock it for 500", 7.7 "Unlocked: District 2". (4) 7.6's "Save my progress". One scrolling column; empty groups take no space.
 2. **7.3: Progress hub and Unlocks tab.** The hub frame (Supplies total, header line, a tab bar for 3 tabs, Back), the item row (icon, name, line, price, Unlock → Confirm → spinner, Unlocked/Starter), the "Good next pick" tag, the not-enough and offline states, and placeholder icons for items without a drawing.
 3. **7.4: "Borrowed from <name>" tag** on the 5.13 shop card.
 4. **7.5: Training tab** (4 rows with 5-pip level bars, Now/Next, Train, Maxed) and the small Training line per player on Results.
