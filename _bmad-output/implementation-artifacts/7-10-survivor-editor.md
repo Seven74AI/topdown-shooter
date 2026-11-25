@@ -191,6 +191,8 @@ Gate (2026-11-25): branch story-7-10 at merge commit b79f6083 (origin/master db0
 
 - Gate after the review fixes (2026-11-25): story-7-10 at f3e3bb45 (fix round, on the landing merge b2ff3330 with origin/master 7fdf9b86): typecheck ✓, lint ✓, test ✓ (490 files passed / 3 skipped; 4450 tests passed / 23 skipped), build ✓; load ≈ 2.9–3.6 during the tests.
 
+- Gate after landing merge 2 (2026-11-25): story-7-10 at 59befe1e (origin/master c00713d3 merged, 7.6 accounts): typecheck ✓, lint ✓, test ✓ (497 files passed / 4 skipped; 4561 tests passed / 31 skipped), build ✓; load ≈ 2.3–3.2.
+
 ### Task → test (R1: "file > test name")
 
 - **T0** — no test (a look pick): the designer's ED1 + LK2 + LS1 (7-UI-5) is the layout; recorded in `docs/epic-7-decisions.md` › Survivor editor (7.10). Built screens: `docs/art/epic-7/built/7-10-head-tab.png`, `7-10-locked-milestone.png`, `7-10-loot-silhouette.png`, `7-10-random-done.png` (568 × 320, dpr 2).
