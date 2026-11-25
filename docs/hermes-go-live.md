@@ -91,3 +91,14 @@ Go-live report (Story 2.2)
 ## Every later release (after go-live)
 
 After a merge to `master` with CI green: `cd /root/topdown-shooter && deploy/deploy.sh`. A deploy ends any game in progress, so ask the designer for a quiet moment first. Report the sha.
+
+### First Epic 7 deploy (Story 7.1: the database arrives)
+
+Once, the first time you deploy a master that contains Story 7.1 (`deploy/backup.sh` exists). Details: `docs/deploy.md` › Database.
+
+1. Check free disk (`df -h /`; the postgres image is ~110 MB, the database starts tiny) and that `docker compose version` is 2.17 or newer (`up --wait`).
+2. `deploy/deploy.sh` as usual. Expect the new lines `==> generating POSTGRES_PASSWORD in deploy/.env`, `==> generating SESSION_SECRET in deploy/.env`, `==> starting postgres and applying database migrations` and a `db_migrated` log line. Never print or paste the two secrets anywhere.
+3. Checks: `docker compose -f deploy/docker-compose.yml ps` shows `postgres` healthy; `docker volume ls | grep topdown_pgdata`; `curl -s -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' -d '{}' https://hordes.sevend.io/api/account/session` answers `{"saved":true,...}` with a `set-cookie: tdg=...; HttpOnly; Secure; SameSite=Lax` header; the same call with `-H 'origin: https://example.com'` answers 403.
+4. Backups: set up rclone + the R2 bucket, `deploy/backup.env`, run `deploy/backup.sh` once, add the cron line, run `deploy/restore.sh` once and fill in the restore-test table in `docs/deploy.md` (commit it on a branch or report it to the designer).
+5. Copy `deploy/.env` somewhere safe off the VPS (the designer's password manager): it holds the database password.
+6. Report: sha, each check's result, the backup file size, the restore row counts.

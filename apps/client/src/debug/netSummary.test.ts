@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { NetWaveSummary, formatNetReport, percentile95, type NetMeterLike, type NetSummaryEnv } from "./netSummary";
+import { NetWaveSummary, formatNetReport, percentile95, throttleLabel, type NetMeterLike, type NetSummaryEnv } from "./netSummary";
+import { parseUrlOptions } from "./urlOptions";
 import { perf, type NetOverlaySource } from "./perfStats";
 
 const env: NetSummaryEnv = { userAgent: "UA-test", viewport: "915×412", dpr: 2, throttle: "?lag=150&jitter=20", connection: "4g" };
 
 function source() {
   return {
-    netStats: { rttMs: 0, delayMs: 100, jitterMs: 10, corrections: 0, snaps: 0, apparentHits: 0, confirmed: 0, reversed: 0 },
+    netStats: { rttMs: 0, delayMs: 100, targetMs: 100, lateP95Ms: 10, rate: 1, freezes: 0, queued: 2, corrections: 0, snaps: 0, apparentHits: 0, confirmed: 0, reversed: 0 },
     hordeStats: { framesReceived: 0 },
     scenario: "net150",
     isHost: true,
@@ -115,5 +116,18 @@ describe("NetWaveSummary (Story 2.10)", () => {
     expect(text.split("\n")).toContain("renderer WebGL · context lost 2 · restored 2"); // Story 4.13
     expect(text).toContain("| (device) | UA-test | (4G / Wi-Fi + ?lag=150&jitter=20) | 20.8 / 26.1 | 2.3 | 142 / 180 | 4 / 212 (1.9%) | 59.8 / 41.2 | 0 |");
     expect(text).not.toContain("TEST SCENARIO");
+  });
+});
+
+describe("throttleLabel (Story 8.8 review R5): the line in use, not the raw query", () => {
+  const label = (q: string) => throttleLabel(parseUrlOptions(q).throttle);
+  it("reports the parsed, clamped values", () => {
+    expect(label("")).toBe("none");
+    expect(label("?lag=150&jitter=20")).toBe("?lag=150&jitter=20");
+    expect(label("?lag=150&jitter=20&loss=1")).toBe("?lag=150&jitter=20&loss=1&stall=200");
+    expect(label("?loss=99&stall=5000")).toBe("?lag=0&jitter=0&loss=20&stall=1000"); // clamped as applied
+    expect(label("?lag=150&loss=abc")).toBe("?lag=150&jitter=0"); // a bad &loss is off, so not reported
+    expect(label("?lag=150&loss=1&stall=x")).toBe("?lag=150&jitter=0&loss=1&stall=200"); // the default in use
+    expect(label("?stall=400")).toBe("none");
   });
 });

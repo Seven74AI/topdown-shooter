@@ -3,6 +3,7 @@ import { GAME_TITLE, ROOM_CODE_LENGTH, isRoomCode, playerNameSchema } from "@top
 import { uiStore, type UiScreen } from "./uiState";
 import { filterCodeInput } from "./codeInput";
 import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
+import { accountSession, prefillName } from "../net/account";
 
 const NAME_KEY = "topdown.name";
 const NAME_MAX = 16;
@@ -52,6 +53,16 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
       }),
     [],
   );
+  useEffect(() => {
+    // Story 7.1 AC 7: on start-up, find this device's account; an empty name field gets its display name.
+    let live = true;
+    void accountSession().then((session) => {
+      if (live) setName((current) => prefillName(current, session));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   useEffect(() => {
     // Share link: focus the name once, when the start screen first shows.
     if (screen.kind !== "start" || !joinCode || focused.current) return;

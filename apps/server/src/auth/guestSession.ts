@@ -1,0 +1,86 @@
+/**
+ * Story 7.1 AC 4 (designer D9, decision 7.1 D3): which account a device is. The `tdg` cookie is read first, then the
+ * `localStorage` copy (`deviceToken`); the first that matches an account wins, and the response writes that token
+ * back to both. If neither matches, the device keeps the valid token it presented (a phone keeps the identity it
+ * has had since Story 2.3) or gets a new one, and a guest account + empty progress row are made (P1).
+ *
+ * The save server may be down (P3): any repository failure gives `saved: false` with no ticket; the device still has
+ * a token and plays unsaved. New guests are limited per IP (decision 7.1 D6); resolving an existing one never is.
+ * Never logs a token or a hash.
+ */
+import { guestTokenSchema, type AccountSessionResponse } from "@topdown/shared";
+import type { AccountsRepo } from "../db/accountsRepo";
+import { log } from "../ops/logger";
+import { hashGuestToken } from "../run/lobby";
+import type { SlidingWindowLimiter } from "../net/rateLimit";
+import { signTicket } from "./ticket";
+
+export interface GuestSessionDeps {
+  accounts: AccountsRepo;
+  newGuestLimiter: SlidingWindowLimiter;
+  sessionSecret: string;
+  now?: () => number;
+}
+
+export interface GuestSessionInput {
+  cookieToken: string | null | undefined;
+  deviceToken: string | null | undefined;
+  ip: string;
+}
+
+/** A new 128-bit guest token (16 random bytes, lowercase hex: the Story 2.3 format, decision 7.1 D4b). */
+export function mintGuestToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("hex");
+}
+
+const valid = (t: string | null | undefined): t is string => typeof t === "string" && guestTokenSchema.safeParse(t).success;
+
+export type GuestSessionSource = "cookie" | "device" | "new" | "unsaved";
+
+export async function resolveGuestSession(
+  input: GuestSessionInput,
+  deps: GuestSessionDeps,
+): Promise<{ response: AccountSessionResponse; source: GuestSessionSource }> {
+  const cookie = valid(input.cookieToken) ? input.cookieToken : null;
+  const device = valid(input.deviceToken) ? input.deviceToken : null;
+  // Kept if nothing matches (cookie first, D3), so an unsaved device still keeps one identity.
+  const presented = cookie ?? device;
+  const now = deps.now ?? Date.now;
+  const unsaved = (token: string): { response: AccountSessionResponse; source: GuestSessionSource } => ({
+    response: { saved: false, deviceToken: token, ticket: null, account: null },
+    source: "unsaved",
+  });
+  try {
+    const candidates: [string, GuestSessionSource][] = [];
+    if (cookie !== null) candidates.push([cookie, "cookie"]);
+    if (device !== null && device !== cookie) candidates.push([device, "device"]);
+    for (const [token, source] of candidates) {
+      const account = await deps.accounts.findByTokenHash(hashGuestToken(token));
+      if (account !== null) {
+        log.info({ accountId: account.id, source }, "account_session");
+        return { response: saved(token, account, deps.sessionSecret, now()), source };
+      }
+    }
+    const token = presented ?? mintGuestToken();
+    if (!deps.newGuestLimiter.allow(input.ip)) {
+      log.warn({ ip: input.ip }, "new_guest_rate_limited");
+      return unsaved(token);
+    }
+    const account = await deps.accounts.createGuest(hashGuestToken(token), "");
+    log.info({ accountId: account.id, source: "new" }, "account_session");
+    return { response: saved(token, account, deps.sessionSecret, now()), source: "new" };
+  } catch {
+    // Already logged as db_error {op} by the repository; play goes on unsaved (P3).
+    log.warn("account_session_unsaved");
+    return unsaved(presented ?? mintGuestToken());
+  }
+}
+
+function saved(token: string, account: { id: string; displayName: string; username: string | null }, secret: string, nowMs: number): AccountSessionResponse {
+  return {
+    saved: true,
+    deviceToken: token,
+    ticket: signTicket(account.id, secret, nowMs),
+    account: { displayName: account.displayName, username: account.username },
+  };
+}

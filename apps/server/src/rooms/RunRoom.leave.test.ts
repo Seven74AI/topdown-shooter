@@ -34,6 +34,7 @@ afterAll(async () => {
 });
 
 type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const options = (intent: "create" | "join", name: string) => ({
   intent,
@@ -113,12 +114,16 @@ describe("RunRoom leave (Story 2.11)", () => {
     expect(room.state.phase).toBe("build");
   });
 
-  it("a dropped socket mid-run gives reason 'disconnected'", async () => {
+  it("Story 8.1: a dropped socket mid-run is held, not a leave (no player.left; out of the World, seat kept)", async () => {
     const { clients, seen, room } = await lobbyOf(2);
     await start(clients, room);
     dropSocket(room, clients[1] as RunSdkRoom);
-    await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]));
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
     expect(world(room).players.has("p1")).toBe(false);
+    expect(world(room).heldPlayers.has("p1")).toBe(true);
+    expect(room.state.players.get("p1")?.heldUntilTick).toBeGreaterThan(0);
+    await sleep(100);
+    expect(seen[0]?.left ?? []).toEqual([]);
   });
 
   it("is broadcast in the lobby too", async () => {

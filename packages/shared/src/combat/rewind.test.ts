@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import { BUILD_GRID_M, REWIND_MAX_TICKS, TICK_DT_S } from "../config/constants";
+import { BUILD_GRID_M, REWIND_MAX_TICKS, TICK_DT_S, ZOMBIE_HISTORY_TICKS } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import type { SystemFn } from "../core/systems";
 import { createWorld, setInput, step } from "../core/world";
@@ -11,6 +11,7 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt } from "../buildings/buildings";
 import { setLoadout } from "./loadout";
+import { placeBoss } from "../boss/testBoss";
 import { rewindTicksFor, rewoundView, setZombieHistoryEnabled } from "./rewind";
 import type { WeaponId } from "./weapons";
 
@@ -87,24 +88,24 @@ describe("rewound hit testing (Story 2.12)", () => {
 
   it("the rewind is clamped to the cap; a future view tick, none, or a history that doesn't reach back give 0", () => {
     const { world, p, idle } = setup("pistol");
-    idle(10); // world.tick 10, rows 3–10
-    expect(rewindTicksFor(world, p, input(7.5))).toBeCloseTo(2.5, 6);
+    idle(15); // world.tick 15, rows 4–15 (Story 8.8: 12 rows; was idle(10) for the 6-tick window)
+    expect(rewindTicksFor(world, p, input(12.5))).toBeCloseTo(2.5, 6);
     expect(rewindTicksFor(world, p, input(1))).toBe(REWIND_MAX_TICKS);
-    expect(rewindTicksFor(world, p, input(12))).toBe(0);
+    expect(rewindTicksFor(world, p, input(17))).toBe(0);
     expect(rewindTicksFor(world, p, input(-1))).toBe(0);
     p.rewindMaxTicks = 2;
     expect(rewindTicksFor(world, p, input(1))).toBe(2);
     setZombieHistoryEnabled(world, false);
     setZombieHistoryEnabled(world, true); // a fresh history: nothing to rewind into yet
     p.rewindMaxTicks = REWIND_MAX_TICKS;
-    expect(rewindTicksFor(world, p, input(7.5))).toBe(0);
+    expect(rewindTicksFor(world, p, input(12.5))).toBe(0);
   });
 
   it("past the cap, the rest of the view offset is the 2.7 shot advance (never more than the shooter's)", () => {
     const { world, p, idle, fire } = setup("hunting_rifle");
     p.shotAdvanceS = 0.15;
-    idle(10);
-    fire(10 - REWIND_MAX_TICKS - 2); // 2 ticks past the cap → 0.1 s of advance
+    idle(15); // Story 8.8: enough ticks for the 10-tick window + 2 (was idle(10))
+    fire(15 - REWIND_MAX_TICKS - 2); // 2 ticks past the cap → 0.1 s of advance
     const pool = world.projectiles;
     const pid = pool.aliveIds[0] as number;
     expect(pool.rewindTicks[pid]).toBe(REWIND_MAX_TICKS);
@@ -285,7 +286,113 @@ describe("rewound hit testing (Story 2.12)", () => {
     };
     const a = runOnce();
     expect(a.zombieHistory.enabled).toBe(true);
-    expect(a.zombieHistory.tickOf.filter((t) => t >= 0).length).toBe(8);
+    expect(a.zombieHistory.tickOf.filter((t) => t >= 0).length).toBe(ZOMBIE_HISTORY_TICKS); // Story 8.8: every row filled (14 rows since the 600 ms window, Story 8.9 T10; 12 at 500 ms, 8 before)
     expect(runOnce()).toEqual(a);
+  });
+});
+
+/**
+ * Story 8.8 (F2–F4, T5; network audit §3.5): the 500 ms window (600 ms since Story 8.9 T10, 8.9 B8). Only zombies (and the Behemoth) are
+ * rewound; cover and barricades are tested where they are now; a dead zombie or a reused slot is
+ * never hit; an older claimed view is clamped to the cap.
+ */
+describe("Story 8.8: the 500 ms (8.9: 600 ms) rewind window is fair", () => {
+  it("the window is 12 ticks (600 ms, Story 8.9 T10); a view 14 ticks old (or tick 0) is clamped to 12, never more", () => {
+    expect(REWIND_MAX_TICKS).toBe(12);
+    expect(ZOMBIE_HISTORY_TICKS).toBe(14);
+    const { world, p, idle } = setup("pistol");
+    idle(20);
+    expect(rewindTicksFor(world, p, input(world.tick - 8))).toBe(8); // inside the window: as asked
+    expect(rewindTicksFor(world, p, input(world.tick - 14))).toBe(12);
+    expect(rewindTicksFor(world, p, input(0))).toBe(12); // a modified client's "tick 0" buys nothing extra
+    expect(rewindTicksFor(world, p, input(world.tick + 50))).toBe(0); // a future view: no rewind
+  });
+
+  /** A zombie on the shooter's line for rows 1..`onRows`, then 2 m to the side; returns its id. */
+  const onLineThenAside = (s: ReturnType<typeof setup>, distM: number, onRows: number, asideRows: number): number => {
+    const id = spawnZombie(s.world, "walker", s.muzzleX + distM, Y);
+    s.world.zombies.hp[id] = 1e6;
+    s.idle(onRows);
+    s.move(id, s.muzzleX + distM, Y + 2);
+    s.idle(asideRows);
+    return id;
+  };
+
+  it("an 8-tick-old view hits the zombie where it was; a teammate standing on that spot now is not hurt", () => {
+    const s = setup("hunting_rifle");
+    const mate = addPlayer(s.world, "p1", s.muzzleX + 2, Y); // stands where the zombie was
+    mate.hp = 100;
+    const id = onLineThenAside(s, 2, 5, 7); // tick 12; on the line through row 5 (the sweep is tested at 4.5)
+    s.fire(s.world.tick - 8); // the shooter drew tick 4
+    expect(s.hits().map((h) => h.zombieId)).toEqual([id]); // the rewound zombie, damage to the present one
+    // Review N1: documentation, not a guard — bullets have no player-hit path at all, so this cannot
+    // fail; it records that the rewound shot hurts no teammate standing on the old spot.
+    expect(mate.hp).toBe(100);
+    expect(s.events.some((e) => e.type === "player.damaged" || e.type === "player.downed")).toBe(false);
+    // Control: the same shot with no view tick hits nothing (the zombie is beside the line now).
+    const c = setup("hunting_rifle");
+    onLineThenAside(c, 2, 5, 7);
+    c.fire(-1);
+    expect(c.hits()).toEqual([]);
+  });
+
+  it("a zombie killed 3 ticks ago is not hit at its 8-ticks-ago spot; a slot reused since is not hit either", () => {
+    const s = setup("hunting_rifle");
+    const id = spawnZombie(s.world, "walker", s.muzzleX + 2, Y);
+    s.idle(9);
+    killZombie(s.world, id, "p1", "pistol");
+    s.idle(3); // tick 12: dead for 3 ticks, on the line in every row
+    s.fire(s.world.tick - 8);
+    s.idle(2);
+    expect(s.hits()).toEqual([]);
+    // Reused slot (generation bumped, as a respawn would): an old-view shot does not hit the new zombie.
+    const r = setup("hunting_rifle");
+    const rid = spawnZombie(r.world, "walker", r.muzzleX + 2, Y);
+    r.idle(4);
+    r.move(rid, r.muzzleX + 2, Y + 2);
+    r.world.zombies.generation[rid] = ((r.world.zombies.generation[rid] as number) + 1) & 0xff;
+    r.idle(8);
+    r.fire(r.world.tick - 8);
+    r.idle(2);
+    expect(r.hits()).toEqual([]);
+  });
+
+  it("a shot rewound 9 ticks still stops at a barricade standing there now (buildings are never rewound)", () => {
+    for (const withBarricade of [false, true]) {
+      const s = setup("hunting_rifle");
+      const id = onLineThenAside(s, 2.5, 5, 8); // tick 13: on the line through row 5 (sweep at 4.5)
+      if (withBarricade) {
+        // A metal barricade across the line, between the muzzle and where the zombie was. Cover is
+        // tested as it is NOW (review R4): a barricade standing now blocks; one that broke mid-wave in
+        // the last 500 ms no longer blocks a rewound shot (decision 8.8 B1, accepted: team-only gain).
+        addBuildingAt(s.world, { id: 1, type: "metal_barricade", ownerId: "p0", gx: Math.round((s.muzzleX + 1) / BUILD_GRID_M), gy: Math.round((Y - 1) / BUILD_GRID_M), rot: 1, hp: 600 });
+        expect(s.world.buildings.list.length).toBe(1);
+      }
+      s.fire(s.world.tick - 9);
+      s.idle(2);
+      expect(s.hits().map((h) => h.zombieId), `barricade ${withBarricade}`).toEqual(withBarricade ? [] : [id]);
+    }
+  });
+
+  it("the Behemoth is hit where it was 8 ticks ago (its own 12-row history); without a view tick it is missed", () => {
+    for (const viewed of [true, false]) {
+      const s = setup("hunting_rifle");
+      placeBoss(s.world, s.muzzleX + 5, Y);
+      s.world.boss.gapTicks = 1e9; // no attacks during this test
+      s.world.boss.cooldown.slam = 1e9;
+      s.world.boss.cooldown.charge = 1e9;
+      s.world.boss.cooldown.throw = 1e9;
+      expect(s.world.boss.histTick.length).toBe(ZOMBIE_HISTORY_TICKS);
+      s.idle(14); // on the line through row 14
+      for (let t = 0; t < 6; t++) {
+        s.world.boss.y = Y + 8; // then far to the side (rows 15–20)
+        s.idle(1);
+      }
+      const hp = s.world.boss.hp;
+      s.fire(viewed ? s.world.tick - 8 : -1); // the shooter drew tick 12
+      s.idle(3);
+      if (viewed) expect(s.world.boss.hp, "rewound").toBeLessThan(hp);
+      else expect(s.world.boss.hp, "live").toBe(hp);
+    }
   });
 });

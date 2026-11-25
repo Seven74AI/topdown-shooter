@@ -1,5 +1,5 @@
 import { isIPv4, isIPv6 } from "node:net";
-import { MAX_ROOM_CREATES_PER_MIN, ROOM_CREATE_WINDOW_MS } from "./limits";
+import { MAX_NEW_GUESTS_PER_HOUR, MAX_ROOM_CREATES_PER_MIN, NEW_GUEST_WINDOW_MS, ROOM_CREATE_WINDOW_MS } from "./limits";
 
 /**
  * The key a client IP is rate-limited under (Story 2.2 review). One home or phone connection on
@@ -101,3 +101,9 @@ export const roomCreateLimiter = new SlidingWindowLimiter(
   Date.now,
   ipKey,
 );
+
+/**
+ * Story 7.1 (decision 7.1 D6): NEW guest accounts per client IP per hour (`/account/session`), keyed by `ipKey`.
+ * Resolving an existing account is never limited. One per process; the test helper resets it between tests.
+ */
+export const newGuestLimiter = new SlidingWindowLimiter(MAX_NEW_GUESTS_PER_HOUR, NEW_GUEST_WINDOW_MS, Date.now, ipKey);

@@ -25,9 +25,10 @@ Also worth a glance: **8.8 D1** the server may look back 500 ms for your shots (
 | --- | --- | --- |
 | 8.8 D1 | How far back the server may look for a shot | **500 ms** (measured: Runners 7.6 → 2.0 %, 11.9 → 1.3 %); 8.9 may raise it to 600 ms if its longer render delay needs it (600 ms now, before 8.9 measures) |
 | 8.8 D2 | What one "lost packet" costs in the test switch | **A 200 ms stall** (about one 4G resend); `&stall=400` for the worse case (400 ms as the default) |
-| 8.8 D3 | The Behemoth with the longer window | **Same 500 ms as zombies** (it's a target; players are never the victim) (keep the boss at 300 ms) |
+| 8.8 D3 | The Behemoth with the longer window | **Same 500 ms as zombies** (600 ms since 8.9 B8, same count) (it's a target; players are never the victim) (keep the boss at 300 ms) |
 | 8.8 D4 | Who can turn on `&loss` | **Anyone, release builds too, like `?lag`** (it only hurts the phone that turns it on; your Wi-Fi testers need it on hordes.sevend.io) (dev builds only) |
 | 8.8 D5 | The bots' bad line | **Built into `npm run bots` (`--lag --jitter --loss`), stalls both ways** (keep the separate proxy command, one direction) |
+| 8.8 B1 | A barricade that broke (0 HP, mid-wave) less than 500 ms before a rewound shot | **The shot passes where it stood** (cover is tested as it is now; only zombies benefit, for the team; it already existed at 300 ms) — **auto-accepted overnight (designer: follow the GDS recommendation)**, 2026-11-25, Story 8.8 review R4 | Strict: remember each barricade's break tick and block rewound shots older than it |
 
 ## 8.9 Smooth through hiccups
 
@@ -40,6 +41,20 @@ Also worth a glance: **8.8 D1** the server may look back 500 ms for your shots (
 | 8.9 D5 | After a hiccup, how your own survivor helps the server catch up | **90 % speed for about 2 s** (server only: skips every second input after 2 s) |
 | 8.9 D6 | How the phone knows the backlog size | **The server sends it** (one small number per player, ≈ 0.1 KB/s) (the phone guesses: no bytes, a wrong guess slows you for nothing) |
 | 8.9 D7 | What the phone's clock listens to | **State updates and zombie frames** (twice the samples) (state updates only, as today) |
+
+**Built 2026-11-25 (builder decisions, auto-accepted overnight: designer, follow the GDS recommendation; details and numbers in the story file and `docs/perf/network-pass-2026-11.md` § 8.9):**
+
+| Code | Decision | As built (alternative) |
+| --- | --- | --- |
+| 8.9 B1 | Delay target | **max(p95 lateness + 50 ms, the last late sample's need held 5 s), 100–250 ms** (the story's "100 + p95 + 50": a clean line would sit at 150–170 ms) |
+| 8.9 B2 | How fast the extra delay eases down after the 5 s calm | **5 ms/s** (250 → 100 ms in 30 s; 1.0 freezes/30 s) (20 ms/s: back in 7.5 s, 2.1 freezes/30 s) |
+| 8.9 B3 | When a zombie frame is overdue | **Slow the picture to 0.9× at once, up to 25 ms past the 250 ms cap** (3.0 → 1.0 freezes/30 s; max 261 ms) (hard 250 ms cap: almost every stall freezes one frame) |
+| 8.9 B4 | Which clock the render clock counts | **The page's ms clock (`now`)** (Phaser's frame delta: misses hidden-tab gaps if Phaser caps it) |
+| 8.9 B5 | The backlog number the server sends | **Queue depth when the tick started (what the server's drain reads)** (after the tick took one: one lower, races the 2 s skip) |
+| 8.9 B6 | When my survivor slows | **Exactly D5: 3 reports over 2 → 90 % until a report says 2** (two "smarter" variants measured no better) |
+| 8.9 B7 | Starved ticks (AC 6 said "no worse ± 10 %") | **Accepted: +41–61 % on the lossy line (D5 as built: 0 server skips, 0 lost shots), bounded by `smooth.test.ts` ≤ 1.7 × a never-slowing client** (main session 2026-11-25, retro default A7; designer may revisit D5: e.g. slow only after ~1 s of backlog) |
+| 8.9 B8 | Rewind window with 8.9's 250 ms lossy-line delay | **600 ms / 12 ticks (8.8 D1's fallback)**: at 500 ms 16–33 % of kiting shots were over the cap; at 600 ms 0 %, reversed Runners 0.7 % / 1.4 % (1 % / 2 % loss) (500 ms: reversed 1.8 % / 4.2 %, shots over the cap clamped) |
+| 8.9 B9 | How often the picture may still freeze on a 1 % lossy line | **At most 1.2 freezes per 30 s on every 1 % row** (measured 1.2 / 0.9 / 0.9; before 6–6.9) (main session 2026-11-25, retro default A7) (tune until every row ≤ 1) |
 
 ## 8.1 Reconnect within 2 minutes
 
@@ -95,3 +110,24 @@ Estimated effort: 8.8 S, 8.9 M, 8.1 L, 8.10 M, 8.11 S–M (≈ 4–5 builder ses
 - Epic 6 rounds 2–3 (6.8–6.12) are still landing: each story names its "check at build time" list (new player state for 8.1's hold, new phases, the 6.8 bandwidth test for 8.10).
 - A before/after preview link for 8.9's feel change needs a deploy the designer can open (Hermes); without it, 8.9's hand-back says "not verified on a phone".
 - 8.1's guest-token takeover (D5) makes the guest token the identity until Story 7.1's accounts: anyone with a copied token could take the seat. Acceptable for a friends' game; flagged for 7.1.
+
+## 8.1 build-time decisions (auto-accepted overnight; designer: follow the GDS recommendation)
+
+Logged by the 8.1 builder 2026-11-25 (brief 31 B-codes). Each: the value built, the alternative.
+
+| Code | Decision | Built (alternative) |
+| --- | --- | --- |
+| 8.1 B1 | When the quiet counter runs (D1) | **Wave ticks only**: build and vote phases don't count (nothing hurts a standing player there); a tab hidden across a build start is held 3 s into the wave (count every phase: an idle shopper would vanish from the build phase) |
+| 8.1 B2 | Close codes for a seat that moved | **4020 seat kept, 4021 taken over** (Colyseus 4010 is MAY_TRY_RECONNECT: the SDK would auto-reconnect a tab that was taken over) |
+| 8.1 B3 | Where the grey "reconnecting" chips sit | **Top left, under the money line** (the top right is full of buttons at 568 × 320; the story said "team list", which has no panel today) (top centre under the boss bar: crowds the survivor) |
+| 8.1 B4 | Inputs made while the line was down that arrive late | **Dropped when their view tick is > 2 s behind the server** (seq counts, nothing applies, never ends a quiet hold); bots send no view tick, so for them at most the 6-input ring (0.3 s) applies (no server rule) |
+| 8.1 B5 | A deliberate Leave mid-run | **Also remembered** (Epic 8 D4 "stops quit-and-rejoin for fresh cash"): back only at a build phase with its own stuff (forget the seat on Leave: a new join later would get late-joiner money, 8.2) |
+| 8.1 B6 | A held seat in a full 4-player run blocks a takeover (Colyseus keeps its reserved seat) | **maxClients 8 during a run** (joins that are not one of the run's seats are refused in `join()` anyway); back to 4 in the lobby |
+| 8.1 B7 | Pay that loops over present players (wave-clear bonus, boss and survivor-event pay) while held | **Not paid to a held player** (they weren't there); kill, assist, turret and refund pay go to the held wallet (F5) (pay everyone in the seat list) |
+| 8.1 B8 | The chip's countdown while the World is frozen | **Counts World ticks** (stops while frozen: only the first one back sees it, during the 3-2-1) (a wall-clock field: a second synced number) |
+| 8.1 B9 | A quiet hold that then drops | **Keeps its clock**: 120 s from the first hold, the chip never jumps back (restart the 120 s on the drop: up to 135 s) |
+| 8.1 B10 | Spawn protection (D3) and the quick-use slot | **Blocks consumables too** ("can't shoot" read as "can't attack") (medkits allowed) |
+| 8.1 B11 | The automated 8 s cut test's run | **The god-mode `net150` scenario on 8.8's 1 % line**: bots on the lossy line lost wave 3 outright in 1 of 3 runs (a wipe, not a reconnect failure; bots are not difficulty evidence) (real damage, flaky) |
+| 8.1 B12 | A takeover that lands after the SDK's own token reconnect (both from this phone) | **Adopted** (the server's "newest wins" rule means it holds the seat); a 4021 within 15 s of my own recovery = my own crossed takeovers → take the seat again (close it non-consented: the seat would sit on hold) |
+| 8.1 B13 | A watchdog check that comes > 1 s late (scene restart, throttled hidden-tab timer) | **Re-arm, don't fire** (found by the two-tab smoke: a false reconnect after every Game scene restart) |
+| 8.1 B14 | Seat identity | **One function `seatKey()` = `guest:<hash>`** (`apps/server/src/run/lobby.ts`); Story 7.1 switches it to `acct:<id>` |

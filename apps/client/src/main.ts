@@ -15,13 +15,16 @@ import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
 import { NetSession, type NetRoomLike } from "./net/session";
-import { DevThrottle } from "./net/devThrottle";
+import { DevThrottle, activeThrottle } from "./net/devThrottle";
 import { createOnlinePhaseHandler } from "./net/onlineFlow";
 import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
+import { seatStore } from "./net/seatStore";
+import { linkStore } from "./net/linkMonitor";
+import { RECONNECT, shouldRescueReload } from "@topdown/shared";
 import "./ui/overlay.css";
 
 // Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
@@ -76,18 +79,41 @@ async function connectLazily(go: (c: Connection) => Promise<Result<RunConnection
   } catch {
     return; // chunk failed to load (offline)
   }
-  return { result: await go(c), watch: c.watchLobby };
+  return { result: await go(c), connection: c };
 }
 
 function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>>): void {
   void connectLazily(go).then((r) => {
     if (!r) return uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
     if (!r.result.ok) return uiStore.set({ kind: "start", error: r.result.error });
-    const room = r.result.value;
+    enterRoom(r.result.value, r.connection);
+  });
+}
+
+/**
+ * Follows a joined room (a create, a join, or Story 8.1's recovered seat: a takeover, a remembered
+ * seat or a reload's reconnect). A recovered room in a run phase starts the Game scene with a new
+ * session (the late-scene-start path; a running Game scene restarts onto it).
+ */
+function enterRoom(room: RunConnection, c: Connection): void {
+  {
     lobbyStore.attach(room, {
-      watch: r.watch,
+      watch: c.watchLobby,
       fight: throttled(room),
+      // Story 8.1 (AC 6): the takeover by guest token, with the name this seat joined with.
+      rejoin: () => c.rejoinGame(room.roomId, seatStore.load()?.name ?? lobbyStore.myName() ?? ""),
+      onRecovered: (next) => {
+        room.reconnection.enabled = false; // the old room stops retrying; the new one has the seat
+        enterRoom(next, c);
+        void room.leave(false); // after the attach (the store follows `next`); never consented: the old session no longer owns the seat, and a consented leave must never free it
+      },
       onLost: (reason, serverText) => {
+        if (reason === "taken_over") {
+          // Story 8.1 (D5): this seat is open in another tab now.
+          uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.alreadyJoined });
+          uiStore.request("leaveRun", JOIN_ERROR_TEXT.alreadyJoined);
+          return;
+        }
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too
@@ -118,11 +144,50 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
       }),
     });
     uiStore.set({ kind: "lobby", code: room.roomId });
-  });
+  }
 }
 
 /**
- * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release builds too): the fight reads this room through
+ * Story 8.1 (AC 6, 7): a reload (or the hung-reconnect rescue below) with a seat in sessionStorage
+ * goes straight back into it: the SDK token first, then the takeover by guest token. Nothing saved,
+ * or the seat is gone: the start screen as usual.
+ */
+function resumeSavedSeat(): void {
+  const seat = seatStore.load();
+  if (!seat) return;
+  void import("./net/connection")
+    .then(async (c) => {
+      const room = (await c.reconnectSeat(seat.token)) ?? (await c.rejoinGame(seat.roomId, seat.name).then((r) => (r.ok ? r.room : null)));
+      if (!room) {
+        seatStore.clear();
+        return;
+      }
+      enterRoom(room, c);
+    })
+    .catch(() => {});
+}
+
+// Story 8.1 (AC 7, D6: any browser): a page hidden > 10 s whose reconnect still hasn't opened 5 s
+// after it was shown again reloads; `resumeSavedSeat` then takes the seat straight back.
+let hiddenAtMs = Number.NEGATIVE_INFINITY;
+let hiddenForMs = 0;
+document.addEventListener("visibilitychange", () => {
+  const now = performance.now();
+  if (document.hidden) {
+    hiddenAtMs = now;
+    return;
+  }
+  hiddenForMs = Number.isFinite(hiddenAtMs) ? now - hiddenAtMs : 0;
+  const shownAt = now;
+  if (hiddenForMs <= RECONNECT.hiddenRescueMs) return;
+  setTimeout(() => {
+    if (document.hidden) return;
+    if (shouldRescueReload(hiddenForMs, performance.now() - shownAt, linkStore.get().status === "reconnecting")) location.reload();
+  }, RECONNECT.rescueOpenMs);
+});
+
+/**
+ * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release builds too; Story 8.8 `&loss=<pct>&stall=<ms>`): the fight reads this room through
  * the dev throttle. It wraps the room at the join, before the RunInbox exists, so pings, event
  * batches, patches and inputs are all delayed alike. Pumped from the game loop (no timers), in the
  * lobby too, until the room is left.
@@ -130,12 +195,14 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
 function throttled(room: RunConnection): NetRoomLike {
   const o = urlOptions().throttle;
   if (!o) return room;
-  const throttle = new DevThrottle(room, { lagMs: o.rttMs, jitterMs: o.jitterMs });
+  const throttle = new DevThrottle(room, { lagMs: o.rttMs, jitterMs: o.jitterMs, lossPct: o.lossPct, stallMs: o.stallMs });
+  activeThrottle.current = throttle; // Story 8.8: the overlay's loss line
   const pump = (): void => throttle.pump(performance.now());
   game.events.on(Phaser.Core.Events.PRE_STEP, pump);
   room.onLeave(() => {
     game.events.off(Phaser.Core.Events.PRE_STEP, pump);
     throttle.close();
+    if (activeThrottle.current === throttle) activeThrottle.current = null;
   });
   return throttle;
 }
@@ -168,6 +235,7 @@ const joinCode = parseJoinPath(location.pathname, import.meta.env.BASE_URL);
 // A share link whose code can't exist (e.g. a typo, /j/ABCDE) says so instead of guessing a code.
 if (joinCode !== null && !isRoomCode(joinCode)) uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.notFound });
 if (ui) render(h(App, { joinCode: joinCode !== null && isRoomCode(joinCode) ? joinCode : null }), ui);
+resumeSavedSeat(); // Story 8.1: a reload mid-run takes its seat back
 
 if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this

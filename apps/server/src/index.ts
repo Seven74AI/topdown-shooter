@@ -1,4 +1,7 @@
 import { createGameServer } from "./app";
+import { randomSessionSecret } from "./auth/ticket";
+import { databaseFromEnv } from "./db/client";
+import { DEFAULT_PGLITE_DIR } from "./db/paths";
 import { parseAllowedOrigins } from "./net/origin";
 import { log } from "./ops/logger";
 import { serverBalance } from "./rooms/RunRoom";
@@ -14,11 +17,31 @@ const allowTestScenarios = process.env.ALLOW_TEST_SCENARIOS === "1";
 /** `PUBLIC_ORIGIN`: comma-separated origins allowed to open a WebSocket; unset in dev (allow all). */
 const allowedOrigins = parseAllowedOrigins(process.env.PUBLIC_ORIGIN);
 
+// Story 7.1: progress is saved in PostgreSQL (`DATABASE_URL`); outside production without it, in an embedded
+// PGlite directory (decision 7.1 D1). Production refuses to start without the database address or the ticket key.
+const production = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET?.trim();
+if (production && !process.env.DATABASE_URL?.trim()) {
+  log.fatal("database_url_missing: set DATABASE_URL (deploy/.env, docs/deploy.md › Database)");
+  process.exit(1);
+}
+if (production && (!sessionSecret || sessionSecret.length < 32)) {
+  log.fatal("session_secret_missing: set SESSION_SECRET (≥ 32 chars; deploy/deploy.sh generates it in deploy/.env)");
+  process.exit(1);
+}
+const database = databaseFromEnv(process.env, DEFAULT_PGLITE_DIR);
+
 // Colyseus registers SIGINT/SIGTERM itself and shuts down gracefully: every room's
 // onBeforeShutdown tells its players "Server restarting" and closes with 4001, then the process exits.
-const server = createGameServer({ allowedOrigins, allowSoloStart, allowTestScenarios });
+const server = createGameServer({
+  allowedOrigins,
+  allowSoloStart,
+  allowTestScenarios,
+  database,
+  sessionSecret: sessionSecret || randomSessionSecret(),
+});
 await server.listen(port, host);
 log.info(
-  { port, allowedOrigins, allowSoloStart, allowTestScenarios, balanceVersion: serverBalance.version, gitSha: process.env.GIT_SHA ?? "dev" },
+  { port, allowedOrigins, allowSoloStart, allowTestScenarios, balanceVersion: serverBalance.version, database: database.kind, gitSha: process.env.GIT_SHA ?? "dev" },
   "server_started",
 );

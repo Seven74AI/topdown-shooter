@@ -1,5 +1,6 @@
 import { PerfSummary, perf, type NetOverlaySource } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
+import { urlOptions, type UrlOptions } from "./urlOptions";
 
 /**
  * The online wave summary (Story 2.10, Task 4): from `wave.started` to `wave.ended`, FPS (the
@@ -48,7 +49,7 @@ export interface NetSummaryEnv {
   userAgent: string;
   viewport: string;
   dpr: number;
-  /** `?lag=&jitter=` when the dev throttle is on, else "none". */
+  /** `?lag=&jitter=` (Story 8.8: `&loss=&stall=`) when the dev throttle is on, else "none". */
   throttle: string;
   /**
    * `navigator.connection.effectiveType` where the browser has it (Chrome on Android), else "?". An
@@ -176,17 +177,24 @@ export class NetWaveSummary {
   }
 }
 
+/**
+ * Story 8.8 (review R5): the dev throttle as it runs (parsed and clamped by `urlOptions`), e.g.
+ * `?lag=150&jitter=20&loss=1&stall=200`; "none" when off. A bad `&loss=abc` is reported as off.
+ */
+export function throttleLabel(t: UrlOptions["throttle"]): string {
+  if (!t) return "none";
+  const base = `?lag=${t.rttMs}&jitter=${t.jitterMs}`;
+  return t.lossPct > 0 ? `${base}&loss=${t.lossPct}&stall=${t.stallMs}` : base;
+}
+
 function browserEnv(): NetSummaryEnv {
   if (typeof window === "undefined") return { userAgent: "unknown", viewport: "?", dpr: 1, throttle: "none", connection: "?" };
-  const q = new URLSearchParams(location.search);
-  const lag = q.get("lag");
-  const jitter = q.get("jitter");
   const conn = (navigator as { connection?: { effectiveType?: unknown } }).connection?.effectiveType;
   return {
     userAgent: navigator.userAgent,
     viewport: `${window.innerWidth}×${window.innerHeight}`,
     dpr: Math.min(window.devicePixelRatio || 1, 2),
-    throttle: lag || jitter ? `?lag=${lag ?? 0}&jitter=${jitter ?? 0}` : "none",
+    throttle: throttleLabel(urlOptions().throttle), // Story 8.8 review R5: the values in use, not the raw query
     connection: typeof conn === "string" ? conn : "?",
     renderer: gfxStatus.line(),
   };

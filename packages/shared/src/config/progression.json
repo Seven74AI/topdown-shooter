@@ -1,0 +1,17 @@
+{
+  "starterPool": [
+    "pistol",
+    "machete",
+    "fire_axe",
+    "shotgun",
+    "smg",
+    "hunting_rifle",
+    "body_armor_1",
+    "running_shoes",
+    "revive_kit",
+    "wood_barricade",
+    "auto_turret",
+    "medkit",
+    "grenades"
+  ]
+}

@@ -34,6 +34,9 @@ export class BootScene extends Phaser.Scene {
       uiStore.handle("startOnline", (session) => this.startOnline(session));
       return;
     }
+    // Story 8.1: a reload mid-run takes its seat straight back (main.ts › resumeSavedSeat) and may ask
+    // for the Game scene during the title: listen from the start, not only after TITLE_SHOW_MS.
+    uiStore.handle("startOnline", (session) => this.startOnline(session));
     const title = this.add
       .text(0, 0, GAME_TITLE, {
         fontFamily: "system-ui, sans-serif",

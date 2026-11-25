@@ -42,8 +42,18 @@ EPIC 7 SPECIFICS
 30. ASSET SESSION IS LANDING TOO: a separate asset session pushes building art to master (render/city/buildingsAtlas.ts, render/BuildingView.ts, placement ghost + build-bar icons in HudScene, gallery/collect.ts). Merge master before touching HudScene / BuildingView / the shop card, and again before the final gate.
 31. DEPLOY IS HERMES'S: compose, migrations, secrets (SESSION_SECRET, POSTGRES_PASSWORD) and backups are written here and documented in docs/deploy.md + docs/hermes-go-live.md; nothing here can reach the VPS. A missing secret in production refuses to start the server with a clear log line; dev and tests never need one.
 
-FROM THE EPIC 6 RETRO (filled in when the retro is accepted; see §10 of the retro)
-R. (see below the block until filled in)
+FROM THE EPIC 6 RETRO (_bmad-output/implementation-artifacts/epic-6-retro-2026-11-25.md §9–10; added 2026-11-25 overnight)
+R1. [retro 1] NO [x] WITHOUT A NAMED TEST: tick a task only with "file > test name" beside it in the Dev Agent Record; reviewers open each one (Epic 6: 6.2 T3/T6, 6.13 AC 3, 6.14 fan rule).
+R2. [retro 2] WIRING TEST PER HOOKUP: every new GameScene/HudScene/NetSimHost/onlineFlow line that connects a tested model gets a test that fails when the line is deleted (unit, or a tools/checks source check like fogWiring/votePollWiring).
+R3. [retro 3] MEASURABLE RULE FIRST: placement code (arrows, panels, menus) and timing code (render delay, playback rate, reconnect, send pacing, claim/vote windows) state the rule as numbers in the ACs before building (max error, max jumps, under which jitter/loss), and test it with a stateful fine sweep (0.01° / 1 ms, state kept between frames), oscillation across every jump, and a resize or lag change. Whole-number samples only are not a test (Epic 6: the event arrow took 6 review rounds).
+R4. [retro 4] MINIMAL FIXES: fix only the finding. Every behaviour-changing fix, even for a low, goes to a narrow re-review whose first task is "exploit this fix" (Epic 6: all 7 re-review mediums were created by fixes). Re-reviewers: start from the previous probe, at its precision or finer.
+R5. [retro 5] BOT CHANGES DON'T HIDE BUGS: if you change bot behaviour to make a sim pass, re-run the sim with the old behaviour and report what it exposed (Epic 6: the strafe flip hid the wide-body stall, story 6.13).
+R6. [retro 6] GATE IN THE STORY FILE: the Dev Agent Record has a "Gate" line (commit, master merged, files/tests passed, load); the hand-back message repeats it.
+R7. [retro 7] DEFAULTS, NOT QUESTIONS: log these as B-codes "auto-accepted" and go on — the as-built HUD is the baseline; headless FPS over budget → accept pending the phone, record the numbers; a spot moved inside the designer's picked area → log it; a bandwidth burst over budget → bounded by a test, owed to a named story; bots are not difficulty evidence → judge in a playtest. Ask only for a new look or a new game rule.
+R8. [retro 8] TEXT MATCHES CODE: before review, grep your story file(s) and the brief for every number you changed and fix the text in the same commit (Epic 6: ×0.4 vs ×0.35, runS 10 vs 12).
+R9. [retro 12] ONE LAYOUT TEST FOR SCREENS TOO: every Lumen LF5 screen and panel (Results rewards, hub, slot card, district picker, editor) joins the one layout test at 568×320, 640×360, 800×360 and 844×390 with insets 44/21: no overlaps, inside the safe area, text ≥ 11 px. Red is allowed in menu screens, never in play (red = boss danger).
+R10. [retro 13] REVIEW SHAPE: full fresh review (three layers, beat the rule) for progression, rewards, accounts and any rule a player can exploit; one light checker for visual-only stories; narrow re-reviews of fixes.
+R11. [retro 14] TOP HUD BAND MOVED IN 6.14: the boss bar is at y 60 and the wave line is placed by placeWaveText/layoutWaveLine (off centre on small screens); anything new in the top band goes through hudTopLayout.ts and its test, never fixed pixel positions. Rebase work from before 6.14 (claude/dazzling-meitner-zhu5p0) and re-run the top-band test.
 ```
 
 ## Why each new line is there
@@ -60,4 +70,5 @@ R. (see below the block until filled in)
 | 24–26 | Designer UI picks 7-UI-1…7-UI-6 (2026-11-25). |
 | 27 | Session 9 lesson: parallel builders collide on numbers unless each gets its range up front. |
 | 29–30 | HANDOFF §3 session 9 speed-up and §5 item 5 (the asset session). |
+| R1–R11 | Epic 6 retro action items A1–A4, A7, A8, A10 and §10 lines 12–14 (accepted 2026-11-25). |
 | 31 | HANDOFF §4: Hermes deploys; the cloud session cannot reach the VPS. |

@@ -1,6 +1,7 @@
 /** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
-import { simulate, type Options, type Result } from "./hitsSim";
+import { REWIND_CAP_TICKS } from "../../apps/server/src/run/RunController";
+import { emptySmooth, simulate, type Options, type Result } from "./hitsSim";
 
 const pct = (r: Result) => (r.apparentHits > 0 ? (100 * r.reversed) / r.apparentHits : 0);
 const report = (name: string, r: Result): void => {
@@ -86,7 +87,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0 };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0, resyncs: 0, rate: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0, serverCoverStops: 0, clientCoverStops: 0, fanShots: 0, fanMismatches: 0, fanMaxDiffRad: 0, stalls: { up: 0, down: 0 }, smooth: emptySmooth() };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
@@ -97,6 +98,10 @@ const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number
     sum.kills += r.kills;
     sum.shots += r.shots;
     sum.viewOffsets.push(...r.viewOffsets);
+    sum.serverShotSeqs.push(...r.serverShotSeqs);
+    sum.localShotSeqs.push(...r.localShotSeqs);
+    sum.stalls.up += r.stalls.up;
+    sum.stalls.down += r.stalls.down;
   }
   const offs = [...sum.viewOffsets].sort((a, b) => a - b);
   const q = (p: number) => (offs[Math.floor(offs.length * p)] ?? 0).toFixed(2);
@@ -117,9 +122,9 @@ describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", ()
       expect(pct(on)).toBeLessThan(5);
       // The harness does see the problem the rewind fixes (review M3: a margin, not an absolute control level).
       expect(pct(off) - pct(on)).toBeGreaterThan(5);
-      // The view offset at 150 ms RTT fits the 300 ms cap (one-way + queue wait + render delay).
+      // The view offset at 150 ms RTT fits the 600 ms cap (one-way + queue wait + render delay; Story 8.8: was < 6 for 300 ms).
       const offs = [...on.viewOffsets].sort((a, b) => a - b);
-      expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(6);
+      expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(10);
     }
   }, 120_000);
 
@@ -141,4 +146,50 @@ describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", ()
       expect(pct(on)).toBeLessThan(25);
     }
   }, 120_000);
+});
+
+/**
+ * Story 8.8 (AC 5, F1, F5; network pass brief 13, 14, 6): the lossy line. 150 ms ± 10 ms, Pistol,
+ * seeds 1–3 × 60 s (the audit's rows, docs/perf/network-audit-2026-11.md §3.5). Before (300 ms
+ * window, master da82847 / c57c1cc): Runners 7.6 % (1 %) and 11.9 % (2 %), Walkers 2.3 % / 3.5 %;
+ * clean 0.2 %. Liveness: stalls really injected in both directions, enough apparent hits.
+ */
+describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () => {
+  const LINE = { seconds: 60, oneWayMs: 75, jitterHalfMs: 10, weapon: "pistol", kite: true } as const;
+  const SEEDS_88 = [1, 2, 3] as const;
+  const overCapPct = (r: Result) => (r.viewOffsets.length ? (100 * r.viewOffsets.filter((v) => v > REWIND_CAP_TICKS).length) / r.viewOffsets.length : 0);
+  const cases = [
+    { name: "20 Runners kiting", o: { zombieType: "runner" } },
+    { name: "150 Walkers kiting", o: { walkers: 150 } },
+  ] as const;
+  for (const c of cases) {
+    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay), no stalls`, () => {
+      const r = runSeeds(`8.8 clean ${c.name}`, { ...LINE, ...c.o }, SEEDS_88);
+      expect(r.apparentHits).toBeGreaterThan(300);
+      expect(r.stalls).toEqual({ up: 0, down: 0 });
+      expect(pct(r)).toBeLessThanOrEqual(0.5);
+      expect(overCapPct(r)).toBe(0);
+      expect(r.viewOffsets.filter((v) => v > 6)).toEqual([]); // review R1: the control for the lossy rows' "> 6 ticks" share
+    });
+    for (const lossPct of [1, 2]) {
+      it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 600 ms window, Story 8.9 T10)`, () => {
+        const r = runSeeds(`8.8 loss ${lossPct}% ${c.name}`, { ...LINE, ...c.o, loss: { pct: lossPct, stallMs: 200 } }, SEEDS_88);
+        console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: stalls up ${r.stalls.up} down ${r.stalls.down}, shots over the ${REWIND_CAP_TICKS}-tick cap ${overCapPct(r).toFixed(1)} %`);
+        expect(r.stalls.up).toBeGreaterThan(10 * lossPct); // liveness: the line really stalled, both ways
+        expect(r.stalls.down).toBeGreaterThan(10 * lossPct);
+        // Story 8.9: with the 250 ms lossy-line delay fewer cosmetic bullets cross a drawn Runner (~290 vs ~410): liveness only.
+        expect(r.apparentHits).toBeGreaterThan(250);
+        expect(pct(r)).toBeLessThan(5);
+        // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none did, until Story 8.9's
+        // 250 ms delay (view offset p95 11.4–11.7 ticks: 18–29 % over 10); with 600 ms (Story 8.9 T10, 8.8 D1's fallback):
+        expect(overCapPct(r)).toBeLessThan(5);
+        // Review R1: the stalls really hurt the shots (not only counted): many ask for a view older than
+        // 6 ticks (300 ms), which never happens on the clean line (0 %).
+        const oldPct = (100 * r.viewOffsets.filter((v) => v > 6).length) / r.viewOffsets.length;
+        console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: shots asking > 6 ticks back ${oldPct.toFixed(1)} %`);
+        expect(oldPct).toBeGreaterThan(20);
+        expect(REWIND_CAP_TICKS).toBe(12); // Story 8.9 T10 (B8): 600 ms
+      });
+    }
+  }
 });

@@ -1,6 +1,10 @@
+---
+baseline_commit: b0e491a9e10eb5acb73fbbecb7f30aba93ab8172
+---
+
 # Story 8.1: Reconnect within 2 minutes
 
-Status: ready-for-dev
+Status: review
 
 <!-- Network pass story 3 of 5 (pulled forward from Epic 8 by the designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Accepted Epic 8 decisions D1–D5 (docs/ideas/epic-8/decisions.md) are already rules here. -->
 
@@ -45,15 +49,15 @@ so that a bad signal doesn't end my night.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Shared sim: hold and return** (AC 1–3, F1–F5): in `packages/shared/src/player/player.ts` next to `removePlayer` (line 174): `holdPlayer(world, id)` moves the `PlayerState` from `world.players` to `world.heldPlayers` (new `Map` on `World`, `core/world.ts`), does what `removePlayer` does to the boss threat slot and the flame slot, turns `downed` into `out`, cancels a reload, returns a carried building to the hand (build phase); `returnPlayer(world, id, at)` puts it back (reclaims the flame slot; status `out` stays out until the build start; spawn protection ticks from `balance` → `config/balance/player.json › returnProtectTicks` 40). Every system that iterates `world.players` now ignores held players for free; grep for `players.get(` lookups by owner id (turret/trap/mine pay, kill credit, `buildings.ts`, economy) and make the pay path also find a held owner (F5) and nobody after the hold. `snapshotWorld` includes `heldPlayers`.
-- [ ] **T2 Controller + quiet rule** (AC 2, 3, 10): `RunController.holdPlayer/returnPlayer/isHeld`, the 60-tick quiet counter per player (no input queued and none applied), input-queue reset on return; `RunController.removePlayer` (line 494) stays the final leave.
-- [ ] **T3 Room lifecycle** (AC 1, 6, 8, 9, 10): `RunRoom.onDrop` / `onReconnect` / `onLeave` (keep the 2.11 comment's promise: consented leave → `onLeave` directly); hold fields on `PlayerState` schema (`heldUntilTick` u32, 0 = connected) and `RunState` (`frozen` bool, `resumeIn` u8) through every copy (brief 2: RunState.ts → syncState → stateView key lists → fakeRoom → devThrottle StateCopy → mirror → bots); the guest-token takeover in `join()` (today: `already_joined` refusal at `RunRoom.ts:332` — becomes "take over" in a started run for a held or connected seat with the same hash; lobby keeps the refusal); `rememberedSeats`; `pingMaxRetries: 4` in `app.ts`; logs `player_held {reason: drop|quiet}`, `player_returned {afterMs, via: token|guest}`, `player_hold_expired`, `room_frozen`, `room_resumed`.
-- [ ] **T4 Horde and events on return**: `HordeEncoder.send` already sends only to `ClientState.JOINED` clients (`hordeEncoder.ts:33-38`, a comment there anticipates this story): check that a reconnected client is JOINED again and gets frames the next tick; events (`sim.events_flushed`) are not replayed for the offline time (the phone resets its event queue on return); `RunInbox` (`session.ts:213`) handlers survive an SDK reconnect of the same `Room` (verify in `node_modules/@colyseus/sdk/build/Room.mjs`).
-- [ ] **T5 Client reconnect** (AC 4–7): `apps/client/src/net/connection.ts` sets `room.reconnection` (enabled, `maxEnqueuedMessages 0`, `minDelay 500`, `maxDelay 3000`, `maxRetries` enough for 120 s; `minUptime` 5000 default means a drop in the first 5 s after joining doesn't auto-reconnect: handle it with the guest-token path) and stores `{ roomId, reconnectionToken }` in `sessionStorage` (`activeRun.ts` is the natural home); `lobbyStore.ts:170` `room.onLeave` must no longer treat a drop as "lost" while reconnection is pending (use `room.onDrop` / `onReconnect`); the watchdog in `NetSimHost.update` (or the session) with the last-message time from `RunInbox` (any message, any type); the reload fallback (`visibilitychange` timestamps); `main.ts` start-up: a `sessionStorage` entry → try reconnect before the start screen.
-- [ ] **T6 UI** (AC 1, 4, 9, 10; decision 8.1 D2, D4): the reconnecting screen (Preact overlay, `apps/client/src/ui/`), the grey team-list chip with countdown (team list from Story 2.9), toasts, "seat kept" waiting screen, "Paused: nobody connected" and 3-2-1; spawn-protection blink on the returning survivor (alpha pulse on the existing body, no new texture; if a texture is needed it goes through `addGeneratedTexture`). Add every new on-screen element to the one HUD layout test (EPIC 6 brief 31) at 568×320 and 640×360.
-- [ ] **T7 Bots: cut switch and reconnect** (AC 11): `tools/netaudit/lagLine.ts` (from 8.8) gains `cut(ms)` (holds both directions, no bytes, no close); `tools/bots/run.ts` `--cut-bot N --cut-at S --cut-for S`; `tools/bots/botClient.ts` sets the same reconnection options, its own 3 s watchdog, and re-sends from a fresh seq after return. Bots log `reconnected after X ms`.
-- [ ] **T8 Tests** (AC 11, F1–F8), including the field-by-field hold round-trip and the 8 s cut; run the 10-wave sim with one bot dropping twice and assert all waves ended (brief 6).
-- [ ] **T9 Docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.1 (cut test timings); HANDOFF §2/§4 (reconnect exists; dev cut switch); `docs/playtests/` 2.10 plan: add "lock the phone 30 s mid-wave, come back" and "airplane mode 10 s" checks for iPhone and Android.
+- [x] **T1 Shared sim: hold and return** (AC 1–3, F1–F5): in `packages/shared/src/player/player.ts` next to `removePlayer` (line 174): `holdPlayer(world, id)` moves the `PlayerState` from `world.players` to `world.heldPlayers` (new `Map` on `World`, `core/world.ts`), does what `removePlayer` does to the boss threat slot and the flame slot, turns `downed` into `out`, cancels a reload, returns a carried building to the hand (build phase); `returnPlayer(world, id, at)` puts it back (reclaims the flame slot; status `out` stays out until the build start; spawn protection ticks from `balance` → `config/balance/player.json › returnProtectTicks` 40). Every system that iterates `world.players` now ignores held players for free; grep for `players.get(` lookups by owner id (turret/trap/mine pay, kill credit, `buildings.ts`, economy) and make the pay path also find a held owner (F5) and nobody after the hold. `snapshotWorld` includes `heldPlayers`. (tests: `packages/shared/src/player/hold.test.ts` › "covers every field", "a build-phase hold + return keeps every 'kept' field exactly", "a reload in progress starts over", F1 ×2, F3 ×4 incl. Bloater blast + Behemoth slam, F4 ×2, F5, F8, "snapshotWorld lists held players")
+- [x] **T2 Controller + quiet rule** (AC 2, 3, 10): `RunController.holdPlayer/returnPlayer/isHeld`, the 60-tick quiet counter per player (no input queued and none applied), input-queue reset on return; `RunController.removePlayer` (line 494) stays the final leave. (tests: `apps/server/src/run/RunController.hold.test.ts` › "D1: … 60 wave ticks is held", "D1: build-phase quiet doesn't count", "F7: inputs sent while held are ignored; the return accepts the client's next seq", "F7: an input whose view is > 2 s behind …", "releaseHeld … restoreSeat keep the kills")
+- [x] **T3 Room lifecycle** (AC 1, 6, 8, 9, 10): `RunRoom.onDrop` / `onReconnect` / `onLeave` (keep the 2.11 comment's promise: consented leave → `onLeave` directly); hold fields on `PlayerState` schema (`heldUntilTick` u32, 0 = connected) and `RunState` (`frozen` bool, `resumeIn` u8) through every copy (brief 2: RunState.ts → syncState → stateView key lists → fakeRoom → devThrottle StateCopy → mirror → bots); the guest-token takeover in `join()` (today: `already_joined` refusal at `RunRoom.ts:332` — becomes "take over" in a started run for a held or connected seat with the same hash; lobby keeps the refusal); `rememberedSeats`; `pingMaxRetries: 4` in `app.ts`; logs `player_held {reason: drop|quiet}`, `player_returned {afterMs, via: token|guest}`, `player_hold_expired`, `room_frozen`, `room_resumed`. (tests: `apps/server/src/rooms/RunRoom.reconnect.test.ts` (15) › drop → hold → token return, SDK auto-reconnect same Room, downed → out, lobby drop = leave (D7), consented Leave remembered, takeover of a connected seat (4021), takeover of a held seat, full 4-player takeover, stranger refused, lobby already_joined, hold runs out → seat_kept mid-wave → restored at build, quiet hold + input return, quiet→drop keeps its clock, solo freeze digest + 3-2-1, wipe with a teammate held; `RunRoom.leave.test.ts` › "Story 8.1: a dropped socket mid-run is held"; `tools/checks/reconnectWiring.test.ts` › "the server holds drops, freezes the tick, and uses the patient transport")
+- [x] **T4 Horde and events on return**: `HordeEncoder.send` already sends only to `ClientState.JOINED` clients (`hordeEncoder.ts:33-38`, a comment there anticipates this story): check that a reconnected client is JOINED again and gets frames the next tick; events (`sim.events_flushed`) are not replayed for the offline time (the phone resets its event queue on return); `RunInbox` (`session.ts:213`) handlers survive an SDK reconnect of the same `Room` (verify in `node_modules/@colyseus/sdk/build/Room.mjs`). (tests: `RunRoom.reconnect.test.ts` › "the SDK's automatic reconnect (same Room object) …" asserts patches AND horde frames to handlers registered at the join; SDK checked: `Room.mjs` keeps `onMessageHandlers` across `handleReconnection`. Event queue: not reset on return (Not verified 6))
+- [x] **T5 Client reconnect** (AC 4–7): `apps/client/src/net/connection.ts` sets `room.reconnection` (enabled, `maxEnqueuedMessages 0`, `minDelay 500`, `maxDelay 3000`, `maxRetries` enough for 120 s; `minUptime` 5000 default means a drop in the first 5 s after joining doesn't auto-reconnect: handle it with the guest-token path) and stores `{ roomId, reconnectionToken }` in `sessionStorage` (`activeRun.ts` is the natural home); `lobbyStore.ts:170` `room.onLeave` must no longer treat a drop as "lost" while reconnection is pending (use `room.onDrop` / `onReconnect`); the watchdog in `NetSimHost.update` (or the session) with the last-message time from `RunInbox` (any message, any type); the reload fallback (`visibilitychange` timestamps); `main.ts` start-up: a `sessionStorage` entry → try reconnect before the start screen. (tests: `packages/shared/src/net/reconnect.test.ts` (11: configureReconnection, Watchdog 1 ms sweep + stall rule, SeatRecovery ×6, shouldRescueReload); `apps/client/src/net/linkMonitor.test.ts` (9); `lobbyStore.reconnect.test.ts` (6: seat in sessionStorage, takeover on SDK give-up, crossed takeovers, 4021 taken_over, Leave while reconnecting = consented, lobby = lost); `seatStore.test.ts` (2); `sim/NetSimHost.reconnect.test.ts` (send gate); wiring: `reconnectWiring.test.ts` › main.ts + BootScene + GameScene lines)
+- [x] **T6 UI** (AC 1, 4, 9, 10; decision 8.1 D2, D4): the reconnecting screen (Preact overlay, `apps/client/src/ui/`), the grey team-list chip with countdown (team list from Story 2.9), toasts, "seat kept" waiting screen, "Paused: nobody connected" and 3-2-1; spawn-protection blink on the returning survivor (alpha pulse on the existing body, no new texture; if a texture is needed it goes through `addGeneratedTexture`). Add every new on-screen element to the one HUD layout test (EPIC 6 brief 31) at 568×320 and 640×360. (tests: `apps/client/src/ui/connectionModel.test.ts` (4), `render/protectBlink.test.ts`, `scenes/hudLayout.test.ts` › mode "reconnecting" (Leave) + "Story 8.1: the held-teammate chips …"; wiring › "the overlay is mounted, and the player view blinks protection"; screens in `docs/perf/img/8-1-*.png`)
+- [x] **T7 Bots: cut switch and reconnect** (AC 11): `tools/netaudit/lagLine.ts` (from 8.8) gains `cut(ms)` (holds both directions, no bytes, no close); `tools/bots/run.ts` `--cut-bot N --cut-at S --cut-for S`; `tools/bots/botClient.ts` sets the same reconnection options, its own 3 s watchdog, and re-sends from a fresh seq after return. Bots log `reconnected after X ms`. (tests: `tools/bots/cut.test.ts` (4 bots on 8.8's 1 % line, net150); cut is its own additive `tools/netaudit/cutLine.ts` chained in front of 8.8's lag line (8.8 was not on master when T7 was built); CLI runs in `docs/perf/network-pass-2026-11.md` § 8.1)
+- [x] **T8 Tests** (AC 11, F1–F8), including the field-by-field hold round-trip and the 8 s cut; run the 10-wave sim with one bot dropping twice and assert all waves ended (brief 6). (tests: as above + `packages/shared/src/player/holdRunSim.test.ts` › "all waves end; the bot was held twice …"; replay: `hold.test.ts` › "a log with a mid-wave hold and return replays to the same snapshotWorld digest; without them it diverges")
+- [x] **T9 Docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.1 (cut test timings); HANDOFF §2/§4 (reconnect exists; dev cut switch); `docs/playtests/` 2.10 plan: add "lock the phone 30 s mid-wave, come back" and "airplane mode 10 s" checks for iPhone and Android. (`docs/perf/network-pass-2026-11.md` § 8.1, `docs/perf/network-pass-smoke-8-1-2026-11-25.md` (two-tab smoke, brief 34), HANDOFF §2/§4, `docs/playtests/milestone-1.md` › Reconnect checks; gate below)
 
 ## Dev Notes
 
@@ -109,15 +113,17 @@ Already decided (Epic 8 D1–D5, 2026-11-24): 120 s hold; vanishes safely, downe
 
 ### Measurements (brief 13) — fill in
 
-| Case | Before (master) | After target |
-| --- | --- | --- |
-| Bot line cut 8 s mid-wave (lossy line) | bot is out of the run | back in its seat, same loadout/wallet/HP, ≤ 10 s after the cut ends |
-| Bot line cut 30 s | out | back, ≤ 10 s after the cut ends |
-| Bot line cut 130 s | out | seat freed at 120 s, rejoined at the next build phase with its stuff |
-| Server: silent socket terminated after | 6–9 s | 12–15 s |
-| Phone shows "reconnecting" after | never (≈ 56 s of silent SDK retries, then start screen) | 3 s |
-| Server tick p99 with one held player + hold bookkeeping | record | ≤ +0.2 ms |
-| Bytes: hold fields | — | report (expected ≈ 0 when nobody is held) |
+| Case | Before (master) | After target | After (story-8-1, measured 2026-11-25) |
+| --- | --- | --- | --- |
+| Bot line cut 8 s mid-wave (lossy line) | bot is out of the run | back in its seat, same loadout/wallet/HP, ≤ 10 s after the cut ends | **303 ms** (1 %), **302 ms** (2 %), 51 ms clean; HP/weapons same, wallet same or + pay while held (F5); automated test 6/6 |
+| Bot line cut 30 s | out | back, ≤ 10 s after the cut ends | **51 ms** (clean) |
+| Bot line cut 130 s | out | seat freed at 120 s, rejoined at the next build phase with its stuff | hold expired at 120 s, `seat_kept` ×7, **restored at the next build phase** 13 s after the cut, wallet/weapons same (net150) |
+| Server: silent socket terminated after | 6–9 s | 12–15 s | 12–15 s by config (`pingInterval` 3000 × `pingMaxRetries` 4; not timed) |
+| Phone shows "reconnecting" after | never (≈ 56 s of silent SDK retries, then start screen) | 3 s | **3.1 s** (two-tab smoke 3075–3133 ms; unit sweep fires at 3001 ms); 30 ms on an `offline` event |
+| Server tick p99 with one held player + hold bookkeeping | record | ≤ +0.2 ms | tick avg 0.92 / max 6.5 ms (wave 3 with a hold) vs 0.88 / 2.2 ms (same wave, other run); bookkeeping = a ≤ 4-slot loop: below noise (p99 not separately recorded) |
+| Bytes: hold fields | — | report (expected ≈ 0 when nobody is held) | 0 B/s when nobody is held; ~120 B once per mid-wave return (protectTicks 40 → 0) |
+
+Method, lines and load: `docs/perf/network-pass-2026-11.md` § 8.1. "Before" is master b0e491a by construction (no `onDrop`; the 2.11 test asserted a mid-run drop removed the player); the bots had no cut switch before this story.
 
 ### Files (expected)
 
@@ -158,14 +164,133 @@ Round 2, in parallel with 8.10 (see `docs/network-pass-decisions.md` › Build r
 
 ### Agent Model Used
 
+Claude (builder child session, gds-dev-story; autonomous overnight run).
+
+### Gate
+
+Gate 2026-11-25 05:34–05:41 on story-8-1 @ 801e1eb (= master d8d44d0 with Stories 8.8 + 8.9 merged in): `npm run typecheck && npm run lint && npm test && npm run build` → **green**: 416 test files passed (1 skipped), **3799 tests passed** (3 skipped), build ✓. Load 0.46 at the start, 3.54 at the end (4 cores; no other job of mine running). After the gate: the T4 horde-frame assertion in `RunRoom.reconnect.test.ts` (edited during the gate) re-run alone → 15/15; the commit after it changes only that test and docs.
+
+### Implementation Plan (as built)
+
+- **Shared (`player/hold.ts`)**: "detach, don't add a fourth status". `holdPlayer` moves the `PlayerState` to `world.heldPlayers` (`{ player, wave, phase }`), clears the boss threat slot and the flame slot (Epic 6's NPC lead and crate claim are keyed by that slot, so they drop too), downed → out (F1), cancels reloads, clears knockback / flame edge / Ready / vote (F7, 6.11 D1 silent), drops inputs. `returnPlayer` puts the same object back: mid-wave next to the lowest-slot standing teammate (`placeNextToTeammate` = the build-start `returnSpot`) with `returnProtectTicks` 40 (D3), build phase where they were; a build start missed while held is replayed for that player (`catchUpBuildStart`). `releaseHeldPlayer` / `restoreSeat` for F8. `economy.earn` also finds a held owner (F5). Protection: `damagePlayerBy` + the direct zombie/spit/fire checks, `updatePlayerWeapon` and consumables skip while `protectTicks > 0`; `movePlayers` counts it down. Replay kinds `hold` / `return`; `snapshotWorld` lists held players only when there are any (old digests unchanged).
+- **Server**: `RunController.holdPlayer/returnPlayer/isHeld/activeCount/releaseHeld/restoreSeat/resetInputs/isStaleInput`, the quiet counter (wave ticks only, B1), queue reset on hold/return. `RunRoom.onDrop` → `allowReconnection(client, leftS)` (run phases only, D7), `onReconnect` → return (via token), `join()` in a started run: takeover of a held or connected seat with the same `seatKey` (D5; old socket closed 4021, member moved first so its onDrop/onLeave do nothing), remembered seat restored only in a build phase into its own free slot (else `seat_kept`), stranger `run_started`; `onLeave`/`finalLeave` remembers the seat mid-run (F8, B5); quiet holds get a room timer and close the socket with 4020 at expiry; freeze (`state.frozen`, one `if` in `onTick`) when nobody is present, 3-2-1 on the room clock. Transport `pingMaxRetries: 4`. Logs `player_held`, `player_returned {afterMs, via}`, `player_hold_expired`, `seat_taken_over`, `seat_restored`, `room_frozen`, `room_resumed`, `run_abandoned`.
+- **Phone**: shared pure `net/reconnect.ts` (Watchdog, SeatRecovery, configureReconnection: offline queue 0, F7) used by the client's `LinkMonitor` and by the bots (brief 20). The SDK's token reconnect first; after 2 s (or when the SDK gives up) a takeover join by guest token; a takeover that lands late is adopted (B12). Watchdog 3 s on raw messages, ignores page stalls (B13). `seatStore` (sessionStorage: code, token, name) → `main.ts › resumeSavedSeat` on load; hidden > 10 s + not back 5 s after showing → reload (D6). NetSimHost sends nothing while the link is down. `ConnectionOverlay`: reconnecting / seat kept panels (Leave = consented), Paused + 3-2-1, grey chips, "is back" toast. Held teammates are not drawn; protection blinks (`protectBlink.ts`).
+- **Bots**: same reconnect rules, `--cut-bot/--cut-at/--cut-for` with `tools/netaudit/cutLine.ts` (in front of 8.8's lag line).
+
 ### Debug Log References
+
+- Two-tab smoke runs 1–2 found three bugs (hung takeover join, false watchdog after a scene restart, reload stuck on the start screen); fixed, run 3 clean (`docs/perf/network-pass-smoke-8-1-2026-11-25.md`).
+- The first automated cut runs were flaky (2/5): a takeover landing after the SDK's own token reconnect was closed as "late" and put the seat back on hold → B12 (adopt). 9 green runs since.
+- Brief 29 (bot changes don't hide bugs): the bots only gained the reconnect path; their policy is unchanged. The lossy-line cut test switched to the god-mode scenario after 1 of 3 runs wiped in wave 3 (B11) — the wipe was the bots' play, not a reconnect failure (the bot was back 0.3 s after the cut in that run).
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.1 D1–D8 pending.
+- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.1 D1–D8 accepted 2026-11-24 (all recommended).
+- Built 2026-11-25 overnight; every build-time choice is logged as 8.1 B1–B14 in `docs/network-pass-decisions.md` ("auto-accepted overnight (designer: follow the GDS recommendation)").
+- Beat the rule (builder's own pass, reviewers continue): 1 wipe dodge → held players don't keep the team alive (test); 2 escape by app switch: costs 3 s + 2 s protection without shooting; repeatable (no cooldown built: recorded for the reviewer); 3 free revive → out (tests, drop and quiet); 4 free reload → reload restarts, HP/offer/rerolls kept (test); 5 late inputs → SDK queue 0, NetSimHost gate, server drops > 2 s old view ticks (tests); 6 seat theft with a copied guest token → takes the seat (D5, noted for 7.1); 7 turret farming → no pay after the hold (test); 8 freeze abuse → allowed 120 s (D5), 3-2-1; 9 hold leaks → 10-wave sim with two holds leaves `heldPlayers` empty; bots dropped/returned repeatedly in the smoke; 10 boss/events → Behemoth slam on a held spot hurts nobody (test), NPC lead/crate claim drop with the slot; 11 mutations: see Not verified 9.
+
+### Notes for the merge (brief 12)
+
+- **`RunRoom.ts`**: hold logic is in `onDrop` / `onReconnect` / `onLeave`→`finalLeave` / `join()` (takeover, remembered seats) and new private helpers; `onTick` gained ONE line (`if (this.state.frozen) return;`). 8.10's keyframe for (re)joined clients: a reconnected client re-enters `this.clients` as JOINED (same sessionId; `attachClient` runs again) and a takeover is a fresh join: both must get 8.10's first keyframe (test in both files). `maxClients` is 8 during a run (B6).
+- **Seat identity (Story 7.1)**: every seat match goes through `seatKey(auth)` in `apps/server/src/run/lobby.ts` (`guest:<hash>`); `Member.seatKey` and `rememberedSeats` are keyed by it. 7.1 changes only that function (account ticket → `acct:<id>`) and whatever it adds to `RunAuth`.
+- **`RunController.ts`**: shares the input path with 8.9 (merged): `queueInput` got the held check + the stale-view drop (after the seq checks); `tick()` got `holdQuietPlayers()` + one `quietTicks++` line beside 8.9's `depthAtTick`; `resetQueue` also zeroes 8.9's `depthAtTick`. 8.11 (one packet per tick): keep `isStaleInput` before queueing.
+- **`PlayerState` schema / stateView / fakeRoom**: `heldUntilTick`, `protectTicks` right after 8.9's `inputQueued`; `RunState`: `frozen`, `resumeIn` appended. devThrottle copies follow the key lists.
+- **8.9 clock (its note "the watchdog goes before the clock lines")**: 8.1's watchdog lives in `LinkMonitor` (lobbyStore), not in `NetSimHost.update`; a same-room reconnect keeps the 8.9 clock and delay, tested monotonic: `NetSimHost.reconnect.test.ts` › "a same-room reconnect keeps the render clock monotonic". A takeover / reload builds a new NetSimHost (fresh clock).
+- **8.10 per-client horde state**: reset it in `RunRoom.attachClient` (called on every first join, `onReconnect` and takeover) or send a keyframe there.
+- **`NetSimHost.ts`**: the send gate is the first lines of `stepInputs` (before 8.9's pacing line); `dropMissing`/`addMissing` skip held teammates; `applyPlayer` copies `protectTicks`.
+- **`tools/bots/run.ts` / `botClient.ts`**: the cut line is chained in front of 8.8's lag line (`urlFor`); `BotClient.room` is now mutable (a takeover swaps it) and `wire(room)` holds every handler.
+- **`docs/perf/network-pass-2026-11.md`**: § 8.1 appended after 8.9's section.
+- **`lobbyStore.ts` / `main.ts`**: `enterLobby` → `enterRoom(room, connection)` (a recovered room goes through the same attach); `AttachOptions.rejoin` / `onRecovered`.
+
+### Not verified
+
+1. iPhone Safari (WebKit 308073 hung reconnect → the reload rescue; 247943 no `onclose` → the watchdog), real 4G, app switch and phone lock on real phones: built from the bug reports and unit-tested with fakes; checks added to the 2.10 playtest plan (brief 23).
+2. The 12–15 s transport limit is by configuration, not timed.
+3. Server tick p99 with a held player was not separately recorded (avg/max per wave only).
+4. The two-tab smoke ran without `&loss=1` (written before 8.8 reached master); the lossy line was covered by the bots and the automated cut test.
+5. The hidden-tab rescue reload (D6) is unit-tested (`shouldRescueReload`) and wired (source check), never triggered in a browser.
+6. The phone's event queue is not reset on a same-room reconnect (events of the offline time are simply never sent by the server; a few queued ones may play late on return).
+7. "A building being carried goes back to the hand" (F2): the World has no carried-building state (5.22 moves are one message), so there is nothing to return; the client's held ghost is not cleared on a drop.
+8. The chip's countdown stops while the World is frozen (B8); the reconnecting panel counts from the phone's own drop time, so it can be up to 3 s more generous than the server's hold.
+9. Mutation checks run (after the gate, each reverted): `holdPlayer`'s downed→out off → 1 test fails (`hold.test.ts` › F1 "downed at the hold → out"); `maxEnqueuedMessages` back to 10 → 3 fail (`reconnect.test.ts` › configureReconnection, `linkMonitor.test.ts` › configures the SDK, `lobbyStore.reconnect.test.ts` › run.joined saves the seat); the takeover line in `join()` removed → 3 fail (`RunRoom.reconnect.test.ts` › takeover of a connected seat, of a held seat, full 4-player run); the freeze `if` in `onTick` removed → the solo freeze test fails. NOT mutated: the cut test without the takeover (heavy; not run).
+10. A second real tab of the same phone takes the seat (D5); the old tab shows "You're already in this game" — the wording reused from 2.3, not a new text.
 
 ### File List
+
+- `HANDOFF.md`
+- `_bmad-output/implementation-artifacts/8-1-reconnect-within-2-minutes.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/client/src/main.ts`
+- `apps/client/src/net/connection.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/linkMonitor.test.ts`
+- `apps/client/src/net/linkMonitor.ts`
+- `apps/client/src/net/lobbyStore.reconnect.test.ts`
+- `apps/client/src/net/lobbyStore.test.ts`
+- `apps/client/src/net/lobbyStore.ts`
+- `apps/client/src/net/seatStore.test.ts`
+- `apps/client/src/net/seatStore.ts`
+- `apps/client/src/net/serverNotice.ts`
+- `apps/client/src/render/PlayerView.ts`
+- `apps/client/src/render/protectBlink.test.ts`
+- `apps/client/src/render/protectBlink.ts`
+- `apps/client/src/scenes/BootScene.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/hudLayout.test.ts`
+- `apps/client/src/sim/NetSimHost.reconnect.test.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/ui/App.tsx`
+- `apps/client/src/ui/ConnectionOverlay.tsx`
+- `apps/client/src/ui/connectionModel.test.ts`
+- `apps/client/src/ui/connectionModel.ts`
+- `apps/client/src/ui/overlay.css`
+- `apps/server/src/app.ts`
+- `apps/server/src/net/limits.ts`
+- `apps/server/src/rooms/RunRoom.leave.test.ts`
+- `apps/server/src/rooms/RunRoom.reconnect.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.hold.test.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/lobby.ts`
+- `docs/network-pass-decisions.md`
+- `docs/perf/img/8-1-held-chip.png`
+- `docs/perf/img/8-1-reconnecting-panel.png`
+- `docs/perf/network-pass-2026-11.md`
+- `docs/perf/network-pass-smoke-8-1-2026-11-25.md`
+- `docs/playtests/milestone-1.md`
+- `packages/shared/src/combat/consumables.ts`
+- `packages/shared/src/combat/damage.ts`
+- `packages/shared/src/combat/firing.ts`
+- `packages/shared/src/config/balance/player.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/world.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/decay/fire.ts`
+- `packages/shared/src/economy/economy.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/net/reconnect.test.ts`
+- `packages/shared/src/net/reconnect.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/player/downed.ts`
+- `packages/shared/src/player/hold.test.ts`
+- `packages/shared/src/player/hold.ts`
+- `packages/shared/src/player/holdRunSim.test.ts`
+- `packages/shared/src/player/movement.ts`
+- `packages/shared/src/player/player.ts`
+- `packages/shared/src/replay/inputLog.ts`
+- `packages/shared/src/zombies/spit.ts`
+- `packages/shared/src/zombies/zombieAi.ts`
+- `tools/bots/botClient.ts`
+- `tools/bots/cut.test.ts`
+- `tools/bots/run.ts`
+- `tools/checks/reconnectWiring.test.ts`
+- `tools/netaudit/cutLine.ts`
+- `tools/netaudit/smokeReconnect.cjs`
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
+- 2026-11-25: built (T1–T9), merged with master after 8.8 and 8.9 landed; decisions 8.1 B1–B14 auto-accepted overnight; status review.

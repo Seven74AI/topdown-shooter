@@ -1,6 +1,7 @@
 import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 import { ANIMATED_LAYERS, type AnimatedLayerId } from "@topdown/shared";
+import { DEFAULT_STALL_MS, MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS, MAX_THROTTLE_LOSS_PCT, MAX_THROTTLE_STALL_MS } from "../net/devThrottle";
 
 /**
  * Every URL switch the client reads, parsed in one place (Story 1.11; Story 1.12 adds `?loadout`
@@ -30,8 +31,10 @@ export interface UrlOptions {
   /**
    * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release-safe): the dev network throttle on this device,
    * or null when off. `rttMs` is the simulated round trip, `jitterMs` the spread of each one-way delay.
+   * Story 8.8: `&loss=<pct>` (0–20, one decimal) per message and direction stalls that message and
+   * everything behind it by `&stall=<ms>` (0–1000, default 200); `&loss` alone turns it on too.
    */
-  throttle: { readonly rttMs: number; readonly jitterMs: number } | null;
+  throttle: { readonly rttMs: number; readonly jitterMs: number; readonly lossPct: number; readonly stallMs: number } | null;
   /**
    * `?zdmg=0.1` (Epic 2 retro A5, dev builds only, see `debug/clientBalance.ts`): zombie damage × this
    * for browser checks; the server must run with the same `DEV_ZOMBIE_DAMAGE_SCALE`. null when absent.
@@ -125,9 +128,8 @@ export interface UrlOptions {
   devLooks: number;
 }
 
-/** Largest `?lag` / `?jitter` accepted (ms). */
-export const MAX_THROTTLE_LAG_MS = 2000;
-export const MAX_THROTTLE_JITTER_MS = 1000;
+/** Largest `?lag` / `?jitter` accepted (ms); defined next to the throttle (Story 8.8 review N2: the bots share them). */
+export { MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS };
 
 /** Walkers when `?stress` has no number. */
 export const DEFAULT_STRESS_WALKERS = 150;
@@ -165,7 +167,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     loadout: parseLoadout(q.get("loadout")),
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
-    throttle: parseThrottle(q.get("lag"), q.get("jitter")),
+    throttle: parseThrottle(q.get("lag"), q.get("jitter"), q.get("loss"), q.get("stall")),
     zombieDamageScale: parseDevScale(q.get("zdmg")),
     startingWallet: parseDevWallet(q.get("wallet")),
     scenario: parseScenario(q.get("scenario")),
@@ -212,10 +214,24 @@ function parseMs(raw: string | null, max: number): number | null {
   return Math.min(max, Number(raw.trim()));
 }
 
-function parseThrottle(lagRaw: string | null, jitterRaw: string | null): UrlOptions["throttle"] {
+/** Story 8.8: `&loss=<pct>`, 0–20 with at most one decimal (`0.5`); anything else is off (0). */
+export function parseLossPct(raw: string | null): number {
+  const v = raw?.trim() ?? "";
+  if (!/^\d{1,3}(\.\d)?$/.test(v)) return 0;
+  return Math.min(MAX_THROTTLE_LOSS_PCT, Number(v));
+}
+
+/**
+ * `?lag=&jitter=` (Story 2.6) and Story 8.8's `&loss=<pct>&stall=<ms>` (the lossy line; release
+ * builds too, decision 8.8 D4: it only hurts the device that turns it on). `&loss` without `&lag`
+ * works (lag 0 + stalls); `&stall` alone turns nothing on.
+ */
+export function parseThrottle(lagRaw: string | null, jitterRaw: string | null, lossRaw: string | null = null, stallRaw: string | null = null): UrlOptions["throttle"] {
   const rttMs = parseMs(lagRaw, MAX_THROTTLE_LAG_MS) ?? 0;
   const jitterMs = parseMs(jitterRaw, MAX_THROTTLE_JITTER_MS) ?? 0;
-  return rttMs > 0 || jitterMs > 0 ? { rttMs, jitterMs } : null;
+  const lossPct = parseLossPct(lossRaw);
+  const stallMs = parseMs(stallRaw, MAX_THROTTLE_STALL_MS) ?? DEFAULT_STALL_MS;
+  return rttMs > 0 || jitterMs > 0 || lossPct > 0 ? { rttMs, jitterMs, lossPct, stallMs } : null;
 }
 
 /** Options that start a solo run directly, skipping the start screen (Epic 1 playtest links keep working). */

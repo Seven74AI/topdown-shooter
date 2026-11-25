@@ -113,7 +113,11 @@ export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 export type { RunPhase } from "../run/runStateMachine";
 
 /** Why the server refused a join (sent as the `ServerError` message). */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined";
+/**
+ * Story 8.1: `seat_kept` — this player's seat in a started run is remembered (their hold ran out),
+ * but it can come back only in a build phase with its slot free: the phone waits and retries (D4).
+ */
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -171,6 +175,11 @@ export const joinOptionsSchema = z
      * server applies it only with `DEV_ALLOW_RUN_SEED=1`, never in production.
      */
     devRunSeed: z.number().int().min(0).max(0xffffffff).optional(),
+    /**
+     * Story 7.1: the server-signed session ticket from `POST /api/account/session` (10 min). The room trusts only
+     * this, never an account id sent by the client; a bad or expired one means "no account", never a refusal (P3).
+     */
+    ticket: z.string().min(1).max(200).optional(),
   })
   .strict();
 

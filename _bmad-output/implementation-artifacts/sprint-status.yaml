@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-24-2026 20:00
+# last_updated: 11-25-2026 04:00
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -42,7 +42,7 @@
 # - Epic 9 is a polish pass of the code-drawn art and audio; nobody is hired (GDD, designer 2026-11-23).
 
 generated: 11-21-2026 18:20
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -145,7 +145,7 @@ development_status:
   epic-5-retrospective: done  # 2026-11-24, headless; action items A1–A10, EPIC 6 BRIEF lines 29–32 added
 
   # Epic 6: The full run: decay, boss, events, endless
-  epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)
+  epic-6: done  # all 14 keys done 2026-11-25 (6.4 in 6.2, 6.7 in 6.6, 6.10 in 6.9, 6.12 in 6.11; 6.13, 6.14 added); retro epic-6-retro-2026-11-25.md; decisions docs/epic-6-decisions.md; brief docs/epic-6-brief.md
   6-1-the-full-10-wave-curve: done  # 2026-11-24: fresh review clean (4 lows fixed)
   6-2-ruins: done  # 2026-11-24: review 3M+6L fixed, narrow re-review clean (R1 GameScene fog wiring test + R2 nit = follow-ups); decisions 6.2 B1-B3; merged with 6.4: 'Ruins and Collapse'
   6-3-blackout-lighting: done  # 2026-11-24: review H1+2M fixed, re-review clean, lows fixed; B1–B3 decisions
@@ -160,11 +160,11 @@ development_status:
   6-12-endless-mode: done  # merged into 6.11 (designer 2026-11-24); endless events wired when 6.8 lands
   6-13-wide-body-stall-fix: done  # 2026-11-25: 6.8 review M1 (wide-body stall at narrow barricade gaps); review H1 (target nearest the player) fixed; re-review clean (L-a overlapping-buildings cycle unreachable, L-b dead open-way exit, L-c test gaps, L-d fidgeting camper 51–87 s pre-existing = follow-ups)
   6-14-epic-6-tidy-up: done  # 2026-11-25: review follow-ups of 6.2/6.6/6.8/6.9/6.11 + top HUD band (boss bar y 60, wave line shift); light review + re-review clean (RL1/RL2 low accepted)
-  epic-6-retrospective: optional
+  epic-6-retrospective: done  # 2026-11-25, headless (auto-accepted overnight); action items A1–A12, §10 brief lines for the Network pass and Epic 7
 
   # Epic 7: Accounts and meta-progression
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
-  7-1-progress-saved-on-the-server: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-1-progress-saved-on-the-server: review  # built on story-7-1 (gated with story-8-1 + master d8d44d0); story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-2-earn-and-bank-supplies: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-3-unlock-screen: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
   7-4-shop-deck-from-my-unlocks: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
@@ -182,9 +182,10 @@ development_status:
   epic-8: in-progress  # Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
   # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
   # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
-  8-8-my-shots-count-on-a-bad-4g-line: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 1: 500 ms rewind + lossy-line test switch
-  8-9-smooth-through-hiccups: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 2: adaptive 100-250 ms delay, time-stretch, clock never backwards
-  8-1-reconnect-within-2-minutes: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
+  8-8-my-shots-count-on-a-bad-4g-line: done  # 2026-11-25 overnight: 500 ms rewind (8.9 raises to 600) + lossy line; review 2M+4L fixed, narrow re-review 3L test gaps fixed
+
+  8-9-smooth-through-hiccups: done  # 2026-11-25 overnight: adaptive 100-250 ms delay, render clock 0.9-1.1x, 600 ms rewind (B8), B7 starved ticks, B9 F1 <= 1.2/30 s; review 2M+4L fixed, re-review 1M (B9) + 2L text
+  8-1-reconnect-within-2-minutes: review  # 2026-11-25 overnight: hold 120 s (drop + quiet 3 s), takeover by guest token, remembered seats, freeze + 3-2-1, phone watchdog 3 s; 8 s cut back in 0.3 s on the lossy line; B1-B14 auto-accepted
   8-10-half-size-horde-stream: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 4: delta horde stream
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: backlog

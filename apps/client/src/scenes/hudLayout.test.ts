@@ -10,7 +10,8 @@ import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutB
 import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
-import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
+import { layoutEvacVote } from "../ui/voteModel";
+import { leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -55,6 +56,15 @@ function bossBar(w: number): Box {
   return { id: "boss_bar", x: l.x, y: l.y, w: l.w, h: l.h };
 }
 
+/**
+ * Story 8.1: the held chips' box, mirrored from overlay.css (.held-chips: top left under the money
+ * line — top 86 px, left inset + 16 px, ≤ 3 rows × 20 px, ≤ 170 px wide). The top right is full of
+ * buttons on these small screens; the chips aren't pressable (pointer-events: none).
+ */
+function heldChipsBox(): Box {
+  return { id: "held_chips", x: INSET.left + 16, y: 86, w: 170, h: 3 * 20 };
+}
+
 /** Every mode's pressable controls. */
 function modes(w: number, h: number): Record<string, Box[]> {
   const bar = layoutBuildBar(w, h, INSET.right, INSET.bottom, K, newBuildBarLayout());
@@ -81,6 +91,8 @@ function modes(w: number, h: number): Record<string, Box[]> {
       { id: "chip", x: hand.chip.x, y: hand.chip.y, w: hand.chip.w, h: hand.chip.h },
       sq("undo", undoHand.x, undoHand.y, undoHand.size),
     ],
+    // Story 8.1 (D2, D4): the reconnecting / seat-kept panel is modal (it covers the HUD): its one control, Leave.
+    reconnecting: [{ id: "link_leave", ...leaveRect(w, h, INSET.right, INSET.bottom) }],
     // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
     vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
@@ -154,7 +166,7 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   for (const [w, h] of SIZES) {
     it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => {
       const m = modes(w, h);
-      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(3); // liveness
+      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" ? 1 : 3); // liveness (8.1's modal panel has one control)
       const v = violations(w, h);
       expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
       for (const [k, now] of v) {
@@ -168,6 +180,20 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
 
   it("the baseline holds no overlap and nothing outside the safe area (only the centre gap and the move-stick half)", () => {
     for (const x of KNOWN_AS_BUILT.keys()) expect(x).toMatch(/: (within 48 px of the centre|in the move-stick half)$/);
+  });
+
+  it("Story 8.1: the held-teammate chips (CSS .held-chips: top left under the money line, ≤ 3 rows of 20 px, ≤ 170 px wide) overlap no control or HUD text block of any mode and keep 48 px clear of the survivor", () => {
+    for (const [w, h] of SIZES) {
+      const chips = heldChipsBox();
+      for (const [mode, boxes] of Object.entries(modes(w, h))) {
+        if (mode === "reconnecting") continue; // modal: covers everything
+        for (const b of boxes) expect(overlaps(chips, b), `${w}x${h} ${mode} ${b.id}`).toBe(false);
+      }
+      const money = layoutMoneyLine(INSET, K, { x: 0, y: 0, w: 0, h: 0 });
+      expect(chips.y).toBeGreaterThanOrEqual(money.y + money.h); // under the HP block and the money line
+      expect(chips.x + chips.w).toBeLessThanOrEqual(w - INSET.right);
+      expect(rectCentreGap(chips.x, chips.y, chips.w, chips.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX); // clear of the survivor
+    }
   });
 
   it("the baseline measures are recorded (no NaN)", () => {
