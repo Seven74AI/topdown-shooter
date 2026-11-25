@@ -38,13 +38,19 @@
  *   --late-at <W>         … bot N in the build phase before wave W (default 2) …
  *   --late-mid <W>        … and bot N+1 (if any) mid-wave W (it waits, then enters at the next build phase).
  *                         Logs `bot_waiting` / `bot_entered` and a `bots_late` line.
+ *   --account             Stories 8.4–8.6: every bot plays as an account (`/account/session`, like a phone); saves need one.
+ *   --tokens <file>       … their device tokens are read from / written to this JSON file (default .bots-tokens.json
+ *                         with --save-quit-at / --resume), so a later run resumes as the same accounts.
+ *   --save-quit-at <W>    Story 8.5: after wave W ended, the host bot taps Save and quit in that build phase; the run
+ *                         id is logged (`bots_saved {runId}`) and the bots stop (closed with 4023).
+ *   --resume <runId>      Story 8.6: the host bot resumes this saved run (a new room), the others join it; play goes on.
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
  * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
  * money earned (to compare with the GDD target), wallet, weapons bought and buildings placed. The bots
  * shop from `bots.json › shoppingList` in every build phase.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
 import { startCutLine, type CutLine } from "../netaudit/cutLine";
@@ -72,10 +78,17 @@ interface Args {
   lateBot: number;
   lateAt: number;
   lateMid: number;
+  /** Stories 8.4–8.6: account bots, their tokens file, the Save and quit wave (0 = off), the run to resume. */
+  account: boolean;
+  tokens: string | null;
+  saveQuitAt: number;
+  resume: string | null;
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every", "late-bot", "late-at", "late-mid"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every", "late-bot", "late-at", "late-mid", "tokens", "save-quit-at", "resume"] as const;
+/** Flags without a value (Stories 8.4–8.6). */
+const SWITCHES = ["account"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -91,6 +104,10 @@ function usage(): string {
 function parseArgs(argv: readonly string[]): Args {
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i] as string;
+    if ((SWITCHES as readonly string[]).includes(flag.slice(2)) && flag.startsWith("--")) {
+      i--; // a switch takes no value
+      continue;
+    }
     if (!flag.startsWith("--") || !(FLAGS as readonly string[]).includes(flag.slice(2))) throw new Error(`unknown option ${flag} (see --help)`);
     if (argv[i + 1] === undefined || (argv[i + 1] as string).startsWith("--")) throw new Error(`${flag} needs a value`);
   }
@@ -122,7 +139,18 @@ function parseArgs(argv: readonly string[]): Args {
     cutAtS: Number(get("cut-at") ?? 30),
     cutForS: Number(get("cut-for") ?? 8),
     ...lateOf(get("late-bot"), get("late-at"), get("late-mid"), count, room !== undefined),
+    ...savesOf(get("save-quit-at"), get("resume"), get("tokens"), argv.includes("--account"), room !== undefined),
   };
+}
+
+/** Stories 8.4–8.6: `--save-quit-at` / `--resume` imply `--account` and a tokens file (the same accounts next time). */
+function savesOf(at: string | undefined, resume: string | undefined, tokens: string | undefined, account: boolean, joining: boolean): { account: boolean; tokens: string | null; saveQuitAt: number; resume: string | null } {
+  const saveQuitAt = at === undefined ? 0 : Number(at);
+  if (!Number.isInteger(saveQuitAt) || saveQuitAt < 0) throw new Error("--save-quit-at must be a wave number");
+  if (resume !== undefined && !/^[0-9a-f-]{36}$/i.test(resume)) throw new Error("--resume needs a run id (the bots_saved line's runId)");
+  if ((saveQuitAt > 0 || resume !== undefined) && joining) throw new Error("--save-quit-at / --resume need a room the bots create (no --room)");
+  const saves = saveQuitAt > 0 || resume !== undefined;
+  return { account: account || saves, tokens: tokens ?? (saves ? ".bots-tokens.json" : null), saveQuitAt, resume: resume ?? null };
 }
 
 /** Story 8.8: starts the line in front of the local --url; returns the URL the bots use instead. */
@@ -177,7 +205,10 @@ async function main(): Promise<void> {
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
   const { url, line } = await startLine(args, log);
-  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, pingEveryS: args.pingEveryS };
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, pingEveryS: args.pingEveryS, account: args.account };
+  // Stories 8.4–8.6: the bots' device tokens (the same accounts across a Save and quit and its resume).
+  const tokens: string[] = args.tokens ? readTokens(args.tokens) : [];
+  const tokenOf = (i: number): { deviceToken?: string } => (tokens[i] ? { deviceToken: tokens[i] as string } : {});
   // Story 8.1: the cut bot's line: a local TCP pass-through in front of the bots' URL (chained BEFORE 8.8's lag line when it is on).
   let cutLine: CutLine | null = null;
   const urlFor = async (bot: number): Promise<string> => {
@@ -190,16 +221,18 @@ async function main(): Promise<void> {
   };
   let roomId = args.room;
   if (!roomId) {
-    const host = await BotClient.connect({ ...base, url: await urlFor(1), name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}) });
+    const host = await BotClient.connect({ ...base, url: await urlFor(1), name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}), ...tokenOf(0), ...(args.resume ? { resume: args.resume } : {}) });
     bots.push(host);
     roomId = host.roomId;
     log({ msg: "room_created", roomId, scenario: args.scenario ?? null });
   }
   const lobbyCount = args.lateBot > 0 ? args.lateBot - 1 : args.count; // Story 8.2: the late bots join after the start
   for (let i = bots.length; i < lobbyCount; i++) {
-    bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId }));
+    bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId, ...tokenOf(i) }));
   }
-  log({ msg: "bots_joined", roomId, count: bots.length });
+  log({ msg: "bots_joined", roomId, count: bots.length, ...(args.resume ? { resumed: args.resume } : {}) });
+  if (args.tokens) writeFileSync(args.tokens, JSON.stringify(bots.map((b) => b.deviceToken)) + "\n");
+  for (const b of bots) b.holdReadyAfterWave = args.saveQuitAt; // Story 8.5: the save build runs its timer
 
   const startedAt = performance.now();
   const timeUp = (): boolean => performance.now() - startedAt > args.maxSeconds * 1000;
@@ -256,9 +289,20 @@ async function main(): Promise<void> {
     process.exit(0);
   };
   process.on("SIGINT", () => void stop("interrupted"));
+  let saveSent = false;
   for (;;) {
     await sleep(250);
     const phase = bots[0]?.room.state?.phase;
+    // Story 8.5: Save and quit in the build phase after wave --save-quit-at; the bots stop once the server closed them (4023).
+    if (args.saveQuitAt > 0 && !saveSent && phase === "build" && bots.every((b) => b.lastEndedWave >= args.saveQuitAt)) {
+      saveSent = true;
+      bots[0]?.saveQuit();
+      log({ msg: "save_quit_sent", wave: args.saveQuitAt });
+    }
+    if (saveSent && bots.every((b) => b.saved)) {
+      log({ msg: "bots_saved", runId: bots[0]?.runId, wave: args.saveQuitAt, tokens: args.tokens });
+      return stop("saved");
+    }
     if (bots.every((b) => b.lastEndedWave >= args.untilWave)) return stop(`wave ${args.untilWave} ended`);
     if (phase === "results") return stop(`run ended (${bots[0]?.room.state?.resultEnding || "wiped"})`); // Story 6.11
     const closed = bots.find((b) => b.closed)?.closed;
@@ -356,3 +400,13 @@ main().catch((e: unknown) => {
   console.error(`bots: ${errorText(e)}`);
   process.exit(1);
 });
+
+/** Stories 8.4–8.6: the tokens file (a JSON array of device tokens, bot 1 first); missing or unreadable → none. */
+function readTokens(file: string): string[] {
+  try {
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}

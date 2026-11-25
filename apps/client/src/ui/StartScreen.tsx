@@ -9,6 +9,8 @@ import { rewardsStore } from "../net/rewardsStore";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
 import { accountLine } from "./accountModel";
 import { AccountLineView } from "./AccountScreen";
+import { loadSavedRuns, savedAgo, savedRunTitle } from "../net/savedRuns";
+import type { SavedRunSummary } from "@topdown/shared";
 
 const NAME_KEY = "topdown.name";
 const NAME_MAX = 16;
@@ -47,7 +49,10 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
   // A share link's code is kept as given (sliced), so a bad one still reads "Game not found".
   // A link with a malformed code (main.ts already shows "Game not found") prefills nothing.
   const [code, setCode] = useState(() => (joinCode && joinCode.length === ROOM_CODE_LENGTH ? joinCode : ""));
-  const [busy, setBusy] = useState<"" | "create" | "join">("");
+  const [busy, setBusy] = useState<"" | "create" | "join" | "resume">("");
+  // Story 8.6 (AC 11): Saved games — undefined while loading, null when the save server couldn't answer.
+  const [saved, setSaved] = useState<SavedRunSummary[] | null | undefined>(undefined);
+  const [savedTry, setSavedTry] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const [account, setAccount] = useState<AccountSnapshot>(accountStore.get());
   useEffect(() => accountStore.subscribe(setAccount), []);
@@ -72,6 +77,17 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
       live = false;
     };
   }, []);
+  useEffect(() => {
+    if (screen.kind !== "start") return;
+    let live = true;
+    setSaved(undefined);
+    void loadSavedRuns().then((list) => {
+      if (live) setSaved(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [screen.kind, savedTry]);
   // Story 7.2 (D4): "+40 Supplies banked from your last run", once, after a Leave mid-run (the answer may land a
   // moment after this screen shows: the rewards store is watched while it is up).
   const [banked, setBanked] = useState<string | null>(null);
@@ -109,6 +125,12 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
     saveName(parsed.data);
     setBusy("join");
     uiStore.request("joinGame", code, parsed.data);
+  };
+  const resume = (id: string) => {
+    if (!parsed.success || busy) return;
+    saveName(parsed.data);
+    setBusy("resume");
+    uiStore.request("resumeGame", id, parsed.data);
   };
   // Enter in the name field joins when a code is there (share link), else creates.
   const onNameSubmit = (e: Event) => {
@@ -200,6 +222,36 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
           )}
         </p>
       )}
+      {/* Story 8.6 (AC 11, E8-R5): Saved games between Join and Practice solo (Lumen LF5 rows); nothing without saves. */}
+      {saved === null ? (
+        <section class="saved-games" aria-label="Saved games">
+          <p class="saved-games__error" role="status">
+            Couldn't load saved games
+            <button type="button" class="btn btn--small btn--secondary" onClick={() => setSavedTry(savedTry + 1)}>
+              Retry
+            </button>
+          </p>
+        </section>
+      ) : saved && saved.length > 0 ? (
+        <section class="saved-games" aria-labelledby="saved-games-title" data-testid="saved-games">
+          <h2 id="saved-games-title" class="saved-games__title">
+            Saved games
+          </h2>
+          <ul class="saved-games__list">
+            {saved.map((r) => (
+              <li key={r.id} class="saved-games__row">
+                <span class="saved-games__text">
+                  <span class="saved-games__name">{savedRunTitle(r)}</span>
+                  <span class="saved-games__ago">{savedAgo(r.savedAt)}</span>
+                </span>
+                <button type="button" class="btn saved-games__resume" disabled={!parsed.success || busy !== ""} onClick={() => resume(r.id)}>
+                  {busy === "resume" ? "Resuming…" : "Resume"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div class="menu__row">
         <button
           type="button"

@@ -78,7 +78,9 @@ export const RESUME_COUNT_S = 3;
 export const TRANSPORT_PING_INTERVAL_MS = 3000;
 export const TRANSPORT_PING_MAX_RETRIES = 4;
 /** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). Story 8.3: 4022 removed. */
-export { CLOSE_REMOVED, CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
+export { CLOSE_REMOVED, CLOSE_RUN_SAVED, CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
+/** Story 8.4 (AC 7): onBeforeShutdown waits at most this long for the save write before it disconnects. */
+export const SHUTDOWN_SAVE_WAIT_MS = 5000;
 /**
  * Story 8.1 (F7, brief 21): an input whose view tick (`viewTick`, the tick the phone drew) is more
  * than this many ticks (2 s) behind the server was made while the line was down (a cut, a tunnel) and
@@ -151,3 +153,6 @@ export const MAX_LOOK_CALLS_PER_IP_PER_MIN = 60;
 export const LOOK_WINDOW_MS = 60_000;
 /** Story 7.10 (D3): `lobby.set_look` messages per client per second (inside the guard's ~10/s non-input bucket). */
 export const MAX_LOBBY_LOOKS_PER_S = 2;
+
+/** Story 8.6: `POST /saved-runs` calls per client IP per minute (the start screen loads it once, Retry on failure). */
+export const MAX_SAVED_RUNS_CALLS_PER_IP_PER_MIN = 30;

@@ -115,13 +115,24 @@ export function LobbyScreen() {
         {showLink && <p class="lobby__link">{shareLink(code)}</p>}
       </section>
       {/* Story 7.7 (DP2): the district line opens the sheet; the host picks there, everyone sees the pick. */}
-      <button type="button" class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${pickedName}. ${view.isHost ? "Change" : "See"} districts`} aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
-        <span class="lobby__district-thumb" aria-hidden="true" />
-        <span class="lobby__district-text">
-          <span class="lobby__label lobby__label--accent">District</span>
-          <span class="lobby__district-name">{pickedName}</span>
-        </span>
-      </button>
+      {lobby.resumeWave > 0 ? (
+        // Story 8.6 (E8-R1): a resumed run keeps its district: "Resuming · Downtown · wave 6" (no sheet).
+        <div class="lobby__panel lobby__district" style={place(L.district)} data-testid="resume-line">
+          <span class="lobby__district-thumb" aria-hidden="true" />
+          <span class="lobby__district-text">
+            <span class="lobby__label lobby__label--accent">Resuming</span>
+            <span class="lobby__district-name">{resumeLine(pickedName, lobby.resumeWave)}</span>
+          </span>
+        </div>
+      ) : (
+        <button type="button" class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${pickedName}. ${view.isHost ? "Change" : "See"} districts`} aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
+          <span class="lobby__district-thumb" aria-hidden="true" />
+          <span class="lobby__district-text">
+            <span class="lobby__label lobby__label--accent">District</span>
+            <span class="lobby__district-name">{pickedName}</span>
+          </span>
+        </button>
+      )}
       {/* Story 7.3 (D2): spend Supplies between runs without leaving the room; beside Leave in the header. */}
       <button type="button" class="lobby__leave lobby__progress" style={place(L.progress)} onClick={() => uiStore.set(openProgress({ kind: "lobby", code }))}>
         Progress
@@ -297,3 +308,6 @@ export function LobbyScreen() {
     </div>
   );
 }
+
+/** Story 8.6 (E8-R1): the resumed lobby's line under "Resuming". */
+export const resumeLine = (district: string, wave: number): string => `${district} · wave ${wave}`;

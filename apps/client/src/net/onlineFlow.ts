@@ -57,7 +57,7 @@ export function resultsFromState(state: RunStateView): { wave: number; ending: R
   const rows: ResultRow[] = [];
   // Story 7.5 (T4): each row's Training levels from the schema (set once at run start).
   state.players.forEach((p) =>
-    rows.push({ slot: p.slot, name: p.name, kills: p.kills, earned: p.earned, training: { maxHp: p.trainHp ?? 0, damage: p.trainDmg ?? 0, startMoney: p.trainMoney ?? 0, reload: p.trainReload ?? 0 } }),
+    rows.push({ slot: p.slot, name: p.name, ...(p.seat ? { seat: p.seat } : {}), kills: p.kills, earned: p.earned, training: { maxHp: p.trainHp ?? 0, damage: p.trainDmg ?? 0, startMoney: p.trainMoney ?? 0, reload: p.trainReload ?? 0 } }),
   );
   rows.sort((a, b) => a.slot - b.slot);
   return { wave: Math.max(1, state.resultWave), ending: endingOf(state.resultEnding), endless: state.endless === true, rows, seed: state.runSeed ?? 0 };
