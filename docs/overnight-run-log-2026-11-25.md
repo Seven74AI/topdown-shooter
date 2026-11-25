@@ -24,3 +24,8 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
 - 03:59 master 1fade84: Epic 7 brief v1 (full gate green: 396 files / 3655 tests, 6m25s, load 3.25).
 - 04:00 dispatched 7.1 early, 7.9 early.
+- 03:57 Epic 6 retro done (ce7323a): 12 actions accepted (A1–A12), §10 brief lines → network-pass-brief 25–35, epic-7-brief R1–R11; Epic 6 brief 22 text fix (A9).
+- 04:00 Lumen redraw done (1a06fff): BT1, AC1, SC3+DP2, TL3 stills in docs/art/epic-7/lumen/picks/.
+- Follow-up (7.4): the BT1 shop still shows TWO borrowed cards (Mo, Kit) while the rule is 1 of 6 (designer D-rule) — the rule wins; the still kept the old sheet's state.
+- Follow-up (retro A12): one small "Epic 6 leftovers" tidy story (6.13 L-b/L-c/L-d/nit; 6.14 L6 top-band test) — schedule by file overlap in Epic 7.
+- 04:08 gate green on c87a707 (396 files / 3655 tests, load 3.67) → master.
