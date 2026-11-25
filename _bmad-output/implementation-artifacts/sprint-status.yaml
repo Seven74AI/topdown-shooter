@@ -190,9 +190,9 @@ development_status:
   8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: done  # PR #9 merged 2026-11-25 (e56a0855) after review 3H/6M/6L + 2 narrow re-reviews; merged 8.2+8.3: story file 8-2-3-join-mid-run-and-host-role.md; built 2026-11-25 on story-8-2-3 (+ Spitter deadlock fix A); decisions E8-* accepted 2026-11-25, builder B1-B13 auto-accepted
   8-3-host-migration: done  # merged into 8.2+8.3, PR #9; merged into 8.2+8.3: see 8-2-3-join-mid-run-and-host-role.md (branch story-8-2-3)
-  8-4-autosave-at-every-build-phase: review  # merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
-  8-5-save-and-quit: review  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
-  8-6-resume-a-saved-run: review  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
+  8-4-autosave-at-every-build-phase: done  # PR #14 merged 2026-11-25 (3335e0d8) after review 1H/6M + 2 narrow re-reviews; merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
+  8-5-save-and-quit: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
+  8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
   epic-8-retrospective: optional
 

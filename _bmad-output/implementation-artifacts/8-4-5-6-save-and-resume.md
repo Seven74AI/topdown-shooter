@@ -4,7 +4,7 @@ baseline_commit: 0ee0d6db
 
 # Story 8.4+8.5+8.6 (merged): Autosave at every build phase · Save and quit · Resume a saved run
 
-Status: review
+Status: done
 
 <!-- Merged story (designer 2026-11-25, docs/story-merges-2026-11-25.md): one save format, one storage table, one restore path; ONE builder, ONE full fresh review (≤ 2 narrow re-reviews, then main-session checks). Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db and the Epic 7 branches story-7-1 / story-7-2 (NOT on master yet: this story starts only after 7.1 and 7.2 are on master). Epic 8 D10–D14 are RULES. New decisions: docs/epic-8-story-decisions.md (codes S…, R…), "recommended, to accept". -->
 
