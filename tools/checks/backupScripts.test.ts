@@ -18,6 +18,8 @@ describe("backup scripts (Story 7.1)", () => {
     const trap = src.indexOf("trap '");
     expect(trap).toBeGreaterThan(0);
     expect(src.slice(trap, src.indexOf("\n", trap))).toMatch(/DROP DATABASE IF EXISTS \$\{scratch\}.*EXIT$/);
-    expect(trap).toBeLessThan(src.indexOf("pg_restore"));
+    expect(trap).toBeLessThan(src.indexOf("exec -T postgres pg_restore"));
+    // The trap runs after main() returns: what it uses must not be `local`.
+    expect(src).not.toMatch(/local (scratch|COMPOSE)=/);
   });
 });

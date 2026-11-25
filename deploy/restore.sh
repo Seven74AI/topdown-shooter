@@ -21,8 +21,9 @@ main() {
 		echo "!! no dump to restore (looked in ${dir})" >&2
 		exit 1
 	fi
-	local scratch="topdown_restore_test"
-	local COMPOSE=(env GIT_SHA="${GIT_SHA:-none}" docker compose -f deploy/docker-compose.yml)
+	# Globals, not locals: the EXIT trap below runs after main has returned.
+	scratch="topdown_restore_test"
+	COMPOSE=(env GIT_SHA="${GIT_SHA:-none}" docker compose -f deploy/docker-compose.yml)
 	psql() { "${COMPOSE[@]}" exec -T postgres psql -U topdown -v ON_ERROR_STOP=1 "$@"; }
 
 	# Review N2: drop the scratch database whatever happens (a failed pg_restore exits early under set -e).
