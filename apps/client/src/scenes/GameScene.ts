@@ -131,7 +131,7 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
-import { CLOSED_VOTE, VoteRequest, VoteSender, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { CLOSED_VOTE, VoteRequest, VoteSender, addHeldVoters, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
@@ -1072,6 +1072,8 @@ export class GameScene extends Phaser.Scene {
     this.voteCollectHost = host;
     host.world.players.forEach(this.collectVoter);
     this.voteCollectHost = null;
+    // Story 8.1 RR1-M1: held seats are silent chips, as the server counts them (no false result line, no false urgency).
+    if (host.heldSeatSlots) this.voteCount = addHeldVoters(this.votePlayers, this.voteCount, host.heldSeatSlots());
     // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
     // a change of mind goes out at once even with the bucket empty.
     // Review M1 / re-review 2 (N3): paced, newest choice last, urgent near the end (one shared step with the netsim test).
