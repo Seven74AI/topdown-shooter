@@ -81,3 +81,10 @@ export const LEAVE_MARGIN = 16;
 export function leaveRect(w: number, h: number, insetRight: number, insetBottom: number): { x: number; y: number; w: number; h: number } {
   return { x: w - insetRight - LEAVE_MARGIN - LEAVE_W, y: h - insetBottom - LEAVE_MARGIN - LEAVE_H, w: LEAVE_W, h: LEAVE_H };
 }
+
+/**
+ * Story 8.1: the held chips' box (CSS px): top left under the money line. overlay.css `.held-chips`
+ * (top, left offset after the safe-area inset, max-width) and `.held-chip` (height) must say the same
+ * (tools/checks/heldChipsCss.test.ts); the HUD layout test places this box.
+ */
+export const HELD_CHIPS = { topPx: 86, leftPx: 16, maxWidthPx: 170, rowPx: 20 } as const;

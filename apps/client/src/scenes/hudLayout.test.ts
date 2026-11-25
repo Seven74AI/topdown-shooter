@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTION_IDS, layoutActionBar, newActionBarLayout } from "./actionBar";
 import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
@@ -13,7 +11,7 @@ import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel";
-import { leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
+import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -59,26 +57,13 @@ function bossBar(w: number): Box {
 }
 
 /**
- * Story 8.1: the held chips' box, READ from overlay.css (review L4: `.held-chips` top / left offset /
- * max-width and `.held-chip` height; ≤ 3 rows: 3 teammates). Top left under the money line: the top
- * right is full of buttons on these small screens; the chips aren't pressable (pointer-events: none).
+ * Story 8.1: the held chips' box from `connectionModel.ts › HELD_CHIPS` (review L4: its CSS twin
+ * `.held-chips` / `.held-chip` in overlay.css is cross-checked in tools/checks/heldChipsCss.test.ts;
+ * ≤ 3 rows: 3 teammates). Top left under the money line: the top right is full of buttons on these
+ * small screens; the chips aren't pressable (pointer-events: none).
  */
 function heldChipsBox(): Box {
-  const css = readFileSync(join(__dirname, "..", "ui", "overlay.css"), "utf8");
-  const rule = (sel: string): string => {
-    const m = new RegExp(`\\n${sel.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css);
-    if (!m) throw new Error(`overlay.css: no ${sel} rule`);
-    return m[1] as string;
-  };
-  const px = (block: string, prop: string, re = new RegExp(`\\n\\s*${prop}:\\s*(?:calc\\(env\\([^)]*\\) \\+ )?(\\d+)px`)): number => {
-    const m = re.exec(block);
-    if (!m) throw new Error(`overlay.css: no ${prop} in px`);
-    return Number(m[1]);
-  };
-  const chips = rule(".held-chips");
-  const chip = rule(".held-chip");
-  if (!/\n\s*left:/.test(chips) || /\n\s*(right|transform):/.test(chips)) throw new Error("overlay.css: .held-chips must be placed by top/left (this box assumes it)");
-  return { id: "held_chips", x: INSET.left + px(chips, "left"), y: px(chips, "top"), w: px(chips, "max-width"), h: 3 * px(chip, "height") };
+  return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
 }
 
 /** Every mode's pressable controls. */

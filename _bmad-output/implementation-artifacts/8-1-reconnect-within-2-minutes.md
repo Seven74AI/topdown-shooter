@@ -389,7 +389,7 @@ Each fix above changes behaviour → narrow re-review whose first task is "explo
 | L1 | `run_ended` loops held seats too | `RunRoom.reconnect.test.ts` › "a team wipes … even with a teammate held" (`earned.p1`) |
 | L2 | `MessageGuard.add(…, keep)` on a reconnect, `rename(old, new)` on a takeover | `messageGuard.test.ts` › "review L2" |
 | L3 | The 15 s retake only after adopting a LATE takeover of this tab (`lateAdoptedAtMs`), never after a normal recovery | `lobbyStore.reconnect.test.ts` › "review L3 …" + the late case |
-| L4 | `linkMonitor.test.ts` pins 2000 ms; `hudLayout.test.ts` reads `.held-chips` / `.held-chip` from `overlay.css` | mutations 2000 → 20000 and chips moved to the centre now fail (2 and 1 tests) |
+| L4 | `linkMonitor.test.ts` pins 2000 ms; the chip box is `connectionModel.ts › HELD_CHIPS` (used by `hudLayout.test.ts`) and its CSS twin is cross-checked by `tools/checks/heldChipsCss.test.ts` (the evacVoteCss pattern: the client tsconfig has no Node types and Vitest serves no raw CSS) | mutations 2000 → 20000 (2 tests fail) and `.held-chips` moved (`heldChipsCss` fails) |
 | L5 | Drop on Results = leave (D7) | `RunRoom.reconnect.test.ts` › "review L5" |
 | L6 | T4's event-queue sub-item unticked (struck through, Not verified 6) | — |
 | 8.10 | Comment hooks in `attachClient` (keyframe request), `onReconnect` (reset baseline), `takeOver` and `finalLeave` (delete the old sessionId's baseline) | — |
