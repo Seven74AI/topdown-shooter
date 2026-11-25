@@ -28,6 +28,7 @@ Also worth a glance: **8.8 D1** the server may look back 500 ms for your shots (
 | 8.8 D3 | The Behemoth with the longer window | **Same 500 ms as zombies** (it's a target; players are never the victim) (keep the boss at 300 ms) |
 | 8.8 D4 | Who can turn on `&loss` | **Anyone, release builds too, like `?lag`** (it only hurts the phone that turns it on; your Wi-Fi testers need it on hordes.sevend.io) (dev builds only) |
 | 8.8 D5 | The bots' bad line | **Built into `npm run bots` (`--lag --jitter --loss`), stalls both ways** (keep the separate proxy command, one direction) |
+| 8.8 B1 | A barricade that broke (0 HP, mid-wave) less than 500 ms before a rewound shot | **The shot passes where it stood** (cover is tested as it is now; only zombies benefit, for the team; it already existed at 300 ms) — **auto-accepted overnight (designer: follow the GDS recommendation)**, 2026-11-25, Story 8.8 review R4 | Strict: remember each barricade's break tick and block rewound shots older than it |
 
 ## 8.9 Smooth through hiccups
 
