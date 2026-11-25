@@ -1,6 +1,6 @@
 # Story 7.7: District unlock rule
 
-Status: review (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
+Status: done (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
 
 <!-- Epic 7 progression story 7 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D12 (the host can pick a district if anyone in the lobby has it) is a rule here. District 2 content is out of v1 (FR81: "rule only"); Epic 11 later adds a Random city card to the same picker (open from the start, not an unlock; sprint-change-proposal-2026-11-24-random-city.md). -->
 

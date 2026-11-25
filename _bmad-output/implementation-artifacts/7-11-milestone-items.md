@@ -1,6 +1,6 @@
 # Story 7.11: Milestone items
 
-Status: review (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
+Status: done (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47. Customization story 4 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.11. -->
 

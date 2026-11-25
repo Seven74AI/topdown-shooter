@@ -3,7 +3,7 @@ baseline_commit: f67154d
 ---
 # Story 7.12: Surprise loot bag
 
-Status: review (merged story 7.7 + 7.11 + 7.12, all parts built; one Dev Agent Record here)
+Status: done (merged story 7.7 + 7.11 + 7.12, all parts built; one Dev Agent Record here)
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47. Customization story 5 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.12. -->
 
