@@ -20,6 +20,8 @@ export interface Progress {
   unlocks: string[];
   training: Record<string, number>;
   districts: string[];
+  /** Story 7.9: the survivor look code, or null (the default look). 7.10's editor writes it; nothing here does. */
+  look: string | null;
 }
 
 /** Story 7.2: what one run pays one account, computed INSIDE the bank transaction from the locked lifetime total. */
@@ -66,6 +68,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               unlocks: progress.unlocks,
               training: progress.training,
               districts: progress.districts,
+              look: progress.look,
             })
             .from(progress)
             .where(eq(progress.accountId, accountId))

@@ -70,7 +70,7 @@ describe("repositories (Story 7.1 AC 8)", () => {
     expect(await accounts.findByTokenHash(HASH_B)).toBeNull();
     await accounts.setDisplayName(made.id, "Bea");
     expect((await accounts.findByTokenHash(HASH_A))?.displayName).toBe("Bea");
-    expect(await progressRepo(database).get(made.id)).toEqual({ accountId: made.id, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [] });
+    expect(await progressRepo(database).get(made.id)).toEqual({ accountId: made.id, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null });
   });
 
   it("two createGuest calls for one token at once give one account (no duplicate, no error)", async () => {

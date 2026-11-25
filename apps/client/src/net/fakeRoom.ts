@@ -46,6 +46,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     inputQueued: 0, // Story 8.9
     heldUntilTick: 0, // Story 8.1
     protectTicks: 0,
+    look: "", // Story 7.9
     ...over,
   };
 }
