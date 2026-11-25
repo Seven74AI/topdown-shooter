@@ -15,6 +15,7 @@
     "floodLightViewMarginM": 2,
     "floodLightMergeM": 4,
     "maxPlaceDust": 64,
+    "maxWallSilhouettes": 24,
     "maxOwnerTabs": 12
   },
   "build": {

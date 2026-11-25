@@ -15,7 +15,7 @@ import {
   type UpgradeError,
   type World,
 } from "@topdown/shared";
-import { NOT_ALIVE_TEXT } from "./placement";
+import { LOCKED_TEXT, NOT_ALIVE_TEXT } from "./placement";
 
 /** A tap this close to a building (m, each side of its footprint) selects it: a 0.5 m barricade is thin under a finger. */
 export const BUILDING_TAP_TOLERANCE_M = 0.4;
@@ -47,6 +47,8 @@ export function upgradeRefusalText(e: UpgradeError): string {
       return "Only its builder can upgrade it";
     case "not_upgradable":
       return "Already the strongest";
+    case "not_unlocked":
+      return LOCKED_TEXT; // Story 7.4 (decision 7.4 D2)
     case "not_build_phase":
       return "Only during the build phase";
     case "gone":
@@ -258,7 +260,8 @@ export class RepairPanel {
     const pending = this.pendingFrom !== null;
     const step = b.ownerId === playerId ? upgradeStep(world, b.type) : null;
     this.upgradeErrorNow = step ? upgradeError(world, playerId, b.id) : null;
-    this.upgradeShown = pending || step !== null;
+    // Story 7.4 (K5, decision 7.4 D2): the 5.21 action bar hides Upgrade for a player without Barricade upgrades.
+    this.upgradeShown = pending || (step !== null && this.upgradeErrorNow !== "not_unlocked");
     this.error = repairError(world, playerId, b.id);
     // Story 5.20: Sell on my own buildings; the refund the server will give (F2: the tier price is
     // everything paid, 5.9's ladder rule; what I paid this phase comes back whole).

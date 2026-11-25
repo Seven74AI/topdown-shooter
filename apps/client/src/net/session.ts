@@ -44,6 +44,7 @@ const SHOP_ERRORS: readonly ShopError[] = [
   "stale_offer", // Story 5.13
   "not_in_offer",
   "no_new_cards",
+  "not_unlocked", // Story 7.4
   "invalid_amount",
   "insufficient_funds",
 ];
@@ -74,7 +75,12 @@ export function parseShopOffered(m: unknown): ShopOfferView | null {
   const int = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
   if (!o || !int(o.build) || !int(o.rev) || !int(o.sold) || !int(o.rerollPrice) || typeof o.canReroll !== "boolean") return null;
   if (!Array.isArray(o.cards) || o.cards.length > MAX_CARDS || !o.cards.every((c) => typeof c === "string" && c.length <= 32)) return null;
-  return { build: o.build, rev: o.rev, cards: [...(o.cards as string[])], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll };
+  // Story 7.4: the borrowed card (absent from an older server: none).
+  const ext = m as { borrowed?: unknown; lender?: unknown; lenderName?: unknown };
+  const borrowed = int(ext.borrowed) && ext.borrowed < 1 << MAX_CARDS ? ext.borrowed : 0;
+  const lender = int(ext.lender) && ext.lender <= 255 ? ext.lender : 255;
+  const lenderName = typeof ext.lenderName === "string" ? ext.lenderName.slice(0, 32) : "";
+  return { build: o.build, rev: o.rev, cards: [...(o.cards as string[])], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll, borrowed, lender, lenderName };
 }
 
 /**
@@ -129,7 +135,7 @@ export function parsePlayerLeft(m: unknown): PlayerLeft | null {
   return { playerId: o.playerId, name: o.name, reason: o.reason };
 }
 
-const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_alive", "not_build_phase", "unknown_type", "not_for_sale", "limit", "money", "blocked"];
+const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_alive", "not_build_phase", "unknown_type", "not_for_sale", "not_unlocked", "limit", "money", "blocked"];
 
 /** The reason of a well-formed `building.refused` (Story 3.4), or null. */
 export function parseBuildingRefused(m: unknown): PlaceError | null {

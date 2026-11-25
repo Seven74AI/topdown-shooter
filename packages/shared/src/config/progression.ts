@@ -4,7 +4,8 @@
  * only what they BOUGHT; the starter pool is data here, so a new save is "starter pool only" by definition).
  * Story 7.2 adds `supplies` (what a run pays); 7.3 `unlocks` (what Supplies buy) and `starterLines` (the hub's line
  * per starter item); later stories add `training` (7.5), `districts` (7.7).
- * Not part of `balanceVersion` until a story puts a gameplay number in it (7.5 does).
+ * Story 7.5: `training` holds gameplay numbers, so it is folded into `balanceVersion` (`config/balance.ts`, decision 7.5 D3):
+ * a client and a server with different Training numbers refuse each other like any balance mismatch.
  */
 import { z } from "zod";
 import raw from "./progression.json" with { type: "json" };
@@ -63,6 +64,34 @@ const unlockSchema = z
   .strict();
 export type Unlock = z.output<typeof unlockSchema>;
 
+/** Story 7.5 (AC 1): the four Training boosts, in tab order (the wire and `progress.training` keys). */
+export const TRAINING_BOOSTS = ["max_hp", "damage", "start_money", "reload"] as const;
+export type TrainingBoostId = (typeof TRAINING_BOOSTS)[number];
+
+/** Story 7.5 (AC 1, FR80): one boost: a percent per level (HP, damage, reload) or an amount per level (start money). */
+const trainingBoostSchema = z
+  .object({
+    id: z.enum(TRAINING_BOOSTS),
+    name: z.string().min(1).max(20),
+    pctPerLevel: z.number().int().positive().max(10).optional(),
+    perLevel: z.number().int().positive().optional(),
+    line,
+  })
+  .strict()
+  .refine((b) => (b.pctPerLevel === undefined) !== (b.perLevel === undefined), "a boost has exactly one of pctPerLevel / perLevel");
+
+/** Story 7.5 (AC 1; designer D6): small, capped, level n costs `costPerLevel × n` Supplies. */
+const trainingSchema = z
+  .object({
+    maxLevel: z.number().int().min(1).max(10),
+    costPerLevel: z.number().int().positive(),
+    boosts: z.array(trainingBoostSchema).length(TRAINING_BOOSTS.length),
+  })
+  .strict()
+  .refine((t) => t.boosts.every((b, i) => b.id === TRAINING_BOOSTS[i]), "training.boosts must be max_hp, damage, start_money, reload in that order");
+export type Training = z.output<typeof trainingSchema>;
+export type TrainingBoost = z.output<typeof trainingBoostSchema>;
+
 export const progressionSchema = z
   .object({
     starterPool: z
@@ -77,6 +106,8 @@ export const progressionSchema = z
       .refine((u) => new Set(u.map((x) => x.id)).size === u.length, "unlocks has a duplicate id"),
     /** Story 7.3: the hub's one plain line for each starter item (same order as `starterPool` not required). */
     starterLines: z.record(itemId, line),
+    /** Story 7.5: the Training boosts (gameplay numbers: part of `balanceVersion`). */
+    training: trainingSchema,
     districts: z
       .array(districtSchema)
       .min(1)
@@ -129,6 +160,9 @@ export function loadProgression(data: unknown = raw): Readonly<Progression> {
   }
   Object.freeze(p.unlocks);
   Object.freeze(p.starterLines);
+  for (const b of p.training.boosts) Object.freeze(b);
+  Object.freeze(p.training.boosts);
+  Object.freeze(p.training);
   for (const d of p.districts) {
     if (d.unlock) Object.freeze(d.unlock);
     Object.freeze(d);
@@ -148,4 +182,9 @@ export const unlockList: readonly Unlock[] = PROGRESSION.unlocks;
 /** Story 7.3: the unlock with this id, or undefined (an unknown id from a client). */
 export function findUnlock(id: string, p: Readonly<Progression> = PROGRESSION): Unlock | undefined {
   return p.unlocks.find((u) => u.id === id);
+}
+
+/** Story 7.5: the boost with this id, or undefined (an unknown id from a client). */
+export function findTrainingBoost(id: string, p: Readonly<Progression> = PROGRESSION): TrainingBoost | undefined {
+  return p.training.boosts.find((b) => b.id === id);
 }

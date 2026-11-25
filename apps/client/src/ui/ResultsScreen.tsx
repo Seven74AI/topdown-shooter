@@ -5,7 +5,7 @@ import { clientBalance } from "../debug/clientBalance";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 import { formatSupplies, rewardsStore } from "../net/rewardsStore";
 import type { RunRewards } from "@topdown/shared";
-import { lineAmount, rewardsView, type RewardsView } from "./rewardsModel";
+import { lineAmount, rewardsView, trainingCell, type RewardsView } from "./rewardsModel";
 import { itemPortraitUrl } from "../render/city/survivorPortrait";
 
 /**
@@ -78,12 +78,16 @@ export function ResultsScreen() {
               <col />
               <col class="rw-col--kills" />
               <col class="rw-col--earned" />
+              <col class="rw-col--train" />
             </colgroup>
             <thead>
               <tr>
                 <th scope="col">Player</th>
                 <th scope="col">Kills</th>
                 <th scope="col">Earned</th>
+                <th scope="col" class="rw-th--train">
+                  Train
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -100,6 +104,7 @@ export function ResultsScreen() {
                   </td>
                   <td class="results__kills">{r.kills}</td>
                   <td class="results__earned">${formatSupplies(r.earned)}</td>
+                  <TrainCell r={r} />
                 </tr>
               ))}
             </tbody>
@@ -129,6 +134,25 @@ export function ResultsScreen() {
         <RunRewardsCard view={view} />
       </div>
     </div>
+  );
+}
+
+/** Story 7.5 (T4, TL3): "10/20" (or a MAX chip) over four small bars, one per boost; the label spells the levels out. */
+function TrainCell({ r }: { r: { training?: Parameters<typeof trainingCell>[0] } }) {
+  const c = trainingCell(r.training);
+  return (
+    <td class="results__train" aria-label={c.label} title={c.label} data-testid="train-cell">
+      <span class={`rw-train__n${c.maxed ? " rw-train__n--max" : ""}`} aria-hidden="true">
+        {c.text}
+      </span>
+      <span class="rw-train__bars" aria-hidden="true">
+        {c.bars.map((f, i) => (
+          <span key={i} class="rw-train__bar">
+            <span class="rw-train__fill" style={{ width: `${Math.round(f * 100)}%` }} />
+          </span>
+        ))}
+      </span>
+    </td>
   );
 }
 
@@ -214,17 +238,23 @@ export function RunRewardsCard({ view }: { view: RewardsView }) {
             ))}
           </ul>
         ) : null}
-        {view.unlocks.length > 0 ? (
-          <ul class="rw-group rw-group--unlocks" data-group="unlocks" data-testid="rewards-unlocks">
+        {view.unlockLine || view.unlocks.length > 0 ? (
+          <div class="rw-group rw-group--unlocks" data-group="unlocks" data-testid="rewards-unlocks">
+            {/* Story 7.4's line first, then 7.7's districts (brief 26 group 3). */}
+            {view.unlockLine ? (
+              <p class="rw-unlock" data-testid="unlock-line">
+                {view.unlockLine}
+              </p>
+            ) : null}
             {view.unlocks.map((u) => (
-              <li key={u.id} class="rw-unlock">
+              <p key={u.id} class="rw-unlock rw-unlock--district">
                 <span class="rw-unlock__line">{u.text}</span>
                 {u.sub ? <span class="rw-unlock__sub">{u.sub}</span> : null}
-              </li>
+              </p>
             ))}
-          </ul>
+          </div>
         ) : null}
-        {/* Brief 26: group 4 (nudge 7.6) appends here; group 3 also takes 7.4's lines. Empty groups render nothing. */}
+        {/* Brief 26: group 4 (nudge 7.6) appends here. Empty groups render nothing. */}
       </div>
     </section>
   );

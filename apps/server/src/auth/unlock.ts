@@ -6,7 +6,7 @@
  * is shared, so a double-submit with one id runs the database once). Logs `unlocked {accountId, unlockId, price,
  * suppliesAfter}`; never a token or a cookie.
  */
-import { findUnlock, guestTokenSchema, type ProgressView, type UnlockResponse } from "@topdown/shared";
+import { TRAINING_BOOSTS, findUnlock, guestTokenSchema, levelOf, type ProgressView, type UnlockResponse } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
 import type { Progress, ProgressRepo } from "../db/progressRepo";
 import { UNLOCK_REQUEST_CAP, UNLOCK_REQUEST_TTL_MS } from "../net/limits";
@@ -36,15 +36,29 @@ export type UnlockOutcome =
   | { status: 200; body: UnlockResponse }
   | { status: 400 | 401 | 429 | 503; error: "unknown_unlock" | "no_account" | "rate_limited" | "save_unavailable" };
 
-export const toView = (p: Progress): ProgressView => ({ supplies: p.supplies, lifetimeSupplies: p.lifetimeSupplies, unlocks: [...p.unlocks], districts: [...p.districts], cosmetics: [...p.cosmetics] }); // + 7.7 / 7.11
+export const toView = (p: Progress): ProgressView => ({
+  supplies: p.supplies,
+  lifetimeSupplies: p.lifetimeSupplies,
+  unlocks: [...p.unlocks],
+  training: trainingView(p.training), // Story 7.5 (AC 3)
+  districts: [...p.districts], // Story 7.7
+  cosmetics: [...p.cosmetics], // Story 7.11
+});
+
+/** Story 7.5: the saved levels of the four boosts (clamped; absent = 0), never anything else from the jsonb. */
+export function trainingView(t: Readonly<Record<string, unknown>> | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const id of TRAINING_BOOSTS) out[id] = levelOf(t, id);
+  return out;
+}
 
 /**
  * The request-id memo (U3): `accountId:requestId` → the answer (a promise, so a second call while the first is still
  * in the database waits for it). Entries live `ttlMs`; at most `cap` (the oldest go first). A failed call is forgotten,
  * so its retry runs again (the conditional update still can't charge twice).
  */
-export class RequestMemo {
-  private readonly entries = new Map<string, { atMs: number; answer: Promise<UnlockOutcome> }>();
+export class RequestMemo<T = UnlockOutcome> {
+  private readonly entries = new Map<string, { atMs: number; answer: Promise<T> }>();
 
   constructor(
     private readonly ttlMs = UNLOCK_REQUEST_TTL_MS,
@@ -52,12 +66,12 @@ export class RequestMemo {
     private readonly now: () => number = Date.now,
   ) {}
 
-  get(key: string): Promise<UnlockOutcome> | undefined {
+  get(key: string): Promise<T> | undefined {
     this.prune();
     return this.entries.get(key)?.answer;
   }
 
-  set(key: string, answer: Promise<UnlockOutcome>): void {
+  set(key: string, answer: Promise<T>): void {
     this.prune();
     this.entries.delete(key);
     this.entries.set(key, { atMs: this.now(), answer });

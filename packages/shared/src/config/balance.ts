@@ -7,6 +7,7 @@ import { TICK_RATE_HZ } from "./constants";
 import { ticksFor } from "../core/time";
 import { MAX_PLAYERS } from "../net/messages";
 import { MAX_FIXED_PER_WAVE, ZOMBIE_POOL_CAPACITY } from "./constants";
+import { PROGRESSION } from "./progression";
 
 /** Story 6.8 (F2): never an event in this wave. */
 export const EVENT_FORBIDDEN_WAVE = 5;
@@ -251,7 +252,8 @@ export function loadBalance(raw: RawBalanceFiles = BUNDLED): Balance {
   if (issues.length === 0) crossCheck(parsed, issues);
   if (issues.length > 0) throw new BalanceError(issues);
 
-  const version = fnv1a32(canonicalJson(parsed)).toString(16).padStart(8, "0");
+  // Story 7.5 (decision 7.5 D3): Training's numbers are gameplay numbers, so they join the version (one bump).
+  const version = fnv1a32(canonicalJson({ ...parsed, training: PROGRESSION.training })).toString(16).padStart(8, "0");
   return deepFreeze({ version, ...parsed }) as Balance;
 }
 

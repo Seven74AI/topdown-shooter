@@ -1,9 +1,10 @@
 import { useEffect, useState } from "preact/hooks";
 import { romanLevel, titleCase } from "@topdown/shared";
 import { uiStore } from "./uiState";
-import { SHOP_TEXT, canReroll, cardViews, consumableRows, offerCurrent, replaceWarning, shopStore, upgradeRows, type CardView, type ShopAction, type ShopState } from "./shopStore";
+import { SHOP_TEXT, borrowedLabel, borrowedTag, canReroll, cardViews, consumableRows, offerCurrent, replaceWarning, shopStore, upgradeRows, type CardView, type ShopAction, type ShopState } from "./shopStore";
 import { CARD_GAP_CSS_PX, CARD_MIN_H_CSS_PX, CARD_MIN_W_CSS_PX } from "./sizes";
 import { consumableIconUrl } from "../render/city/consumableIcons";
+import { SLOT_COLOR_CSS } from "../render/playerColors";
 import { gearIconUrl } from "../render/city/gearIcons";
 import { TIER_PLATE_H, tierMarkUrl, tierPlateWidth, weaponIconUrl } from "../render/city/weaponArt";
 
@@ -183,23 +184,34 @@ function Card({ c, busy }: { c: CardView; busy: boolean }) {
   const icon = c.kind === "weapon" ? weaponIconUrl(c.item) : gearIconUrl(c.item);
   const state = c.sold ? "sold" : c.owned ? "owned" : c.short ? "short" : "ok";
   const priceText = c.sold ? SHOP_TEXT.sold : c.owned ? SHOP_TEXT.owned : c.selected ? SHOP_TEXT.buyFor(c.price) : price(c.price);
-  const cls = `shop-card shop-card--${c.rarity} shop-card--${state}${c.selected ? " shop-card--selected" : ""}`;
+  const borrowed = c.borrowedFrom !== "";
+  const cls = `shop-card shop-card--${c.rarity} shop-card--${state}${c.selected ? " shop-card--selected" : ""}${borrowed ? " shop-card--borrowed" : ""}`;
   return (
     <button
       type="button"
       class={cls}
       disabled={busy || c.sold || c.owned}
       aria-pressed={c.selected}
-      aria-label={`${c.name}, ${c.kind === "weapon" ? SHOP_TEXT.weapon : SHOP_TEXT.gearKind}, ${c.rarity}, ${priceText}${c.short ? `, ${SHOP_TEXT.tooDear}` : ""}`}
+      aria-label={`${c.name}, ${c.kind === "weapon" ? SHOP_TEXT.weapon : SHOP_TEXT.gearKind}, ${c.rarity}, ${priceText}${c.short ? `, ${SHOP_TEXT.tooDear}` : ""}${borrowed ? `, ${borrowedLabel(c.borrowedFrom)}` : ""}`}
       onClick={(e) => {
         e.stopPropagation();
         send({ type: "card", card: c.index });
       }}
     >
-      <span class="shop-card__tape" aria-hidden="true">
-        <span class="shop-card__no">#{String(c.index + 1).padStart(2, "0")}</span>
-        <span class="shop-card__kind">{c.kind === "weapon" ? "WPN" : "GEAR"}</span>
-      </span>
+      {borrowed ? (
+        // Story 7.4 (K2, designer pick BT1): the tape row becomes the lender's tag — slot badge + "From Mo".
+        <span class="shop-card__tape shop-card__tape--borrowed" aria-hidden="true" data-testid="borrowed-tag">
+          <span class="shop-card__lender" style={{ background: SLOT_COLOR_CSS[c.lenderSlot] ?? "#888" }}>
+            {c.lenderSlot < 4 ? c.lenderSlot + 1 : "?"}
+          </span>
+          <span class="shop-card__from">{borrowedTag(c.borrowedFrom)}</span>
+        </span>
+      ) : (
+        <span class="shop-card__tape" aria-hidden="true">
+          <span class="shop-card__no">#{String(c.index + 1).padStart(2, "0")}</span>
+          <span class="shop-card__kind">{c.kind === "weapon" ? "WPN" : "GEAR"}</span>
+        </span>
+      )}
       <span class="shop-card__art" aria-hidden="true">
         {icon && <img class={c.kind === "weapon" ? "shop-card__icon" : "shop-card__icon shop-card__icon--gear"} src={icon} alt="" />}
       </span>

@@ -219,3 +219,17 @@ export function relitSpecs(): readonly ArtSpec[] {
   return ART_SPECS.filter((a) => a.relit !== undefined);
 }
 
+
+/**
+ * Wall silhouettes (review L3): the part of a standing picture that actually hides what's behind it, as a share of the
+ * picture's width [from, to]: a front picture's whole width; a side picture's wall strip (its props stand clear); a
+ * corner's post. Null for anything that isn't a standing picture.
+ */
+export function wallOccluderX(frame: string): readonly [number, number] | null {
+  const m = /^building_wall_(?:wood|reinforced|metal)(out|in|sidee|sidew|cnw|cne|csw|cse)\d$/.exec(frame);
+  if (!m) return null;
+  const view = m[1] as string;
+  if (view === "out" || view === "in") return [0, 1];
+  if (view === "sidee" || view === "sidew") return [0.5 - 0.07 / SIDE_W_M, 0.5 + 0.07 / SIDE_W_M];
+  return [0.5 - 0.09 / CORNER_W_M, 0.5 + 0.09 / CORNER_W_M];
+}

@@ -148,6 +148,8 @@ export class BuildingView {
   /** Photoreal group 3 step 3: corner pieces where two lines of standing barricades meet (pooled, laid on a re-lay). */
   private readonly corners: Phaser.GameObjects.Image[] = [];
   private readonly cornerList: Corner[] = [];
+  /** Designer pick C: the standing wall and corner sprites (the silhouettes' mask), rebuilt on a re-lay. */
+  private readonly standingImgs: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
@@ -290,6 +292,11 @@ export class BuildingView {
     }
   }
 
+  /** Designer pick C: the standing wall and corner sprites now on the map (for the silhouettes behind them). */
+  standingSprites(): readonly Phaser.GameObjects.Image[] {
+    return this.standingImgs;
+  }
+
   /** Story 5.23 (AC 1): scales the preview and its ghost art round the ghost's centre (no redraw). */
   private applyPop(s: number): void {
     if (s === this.shownScale) return;
@@ -408,7 +415,12 @@ export class BuildingView {
         }
       }
     }
-    if (relayout) this.layCorners(list);
+    if (relayout) {
+      this.layCorners(list);
+      this.standingImgs.length = 0;
+      for (let i = 0; i < used; i++) if (isStanding((list.find((b) => b.id === this.spriteId[i]) ?? { type: "" }).type)) this.standingImgs.push(this.sprites[i] as Phaser.GameObjects.Image);
+      for (const c of this.corners) if (c.visible) this.standingImgs.push(c);
+    }
     this.tintCorners(list);
     if (relayout) {
       this.spritesUsed = used;

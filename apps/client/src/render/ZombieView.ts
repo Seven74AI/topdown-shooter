@@ -155,6 +155,13 @@ export class ZombieView {
   /** Zombies the fog hid this frame (tests, the perf overlay). */
   fogHidden = 0;
 
+  /** Designer pick C: copies every zombie image drawn this frame into `out` (reused); returns how many. */
+  shownImages(out: Phaser.GameObjects.Image[]): number {
+    let n = 0;
+    for (const img of this.images) if (img?.visible) out[n++] = img;
+    return n;
+  }
+
   update(world: Readonly<World>, alpha: number): void {
     const z = world.zombies;
     const f = ++this.frame;

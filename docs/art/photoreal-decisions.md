@@ -32,3 +32,9 @@ and the asset review in `docs/art/asset-review.md`.
 - The relit pictures are baked progressively (`pumpBuildingsAtlas`): the plain drawings show for the first second or two, then the relit ones replace them, so the game's start isn't blocked.
 - Dev check: `?stress=5&stressbuild=fort` lays a closed fort round the player.
 - The police barricade is a street prop baked into the city's ground: it gets the standing look with the street props' rollout (Epic 9), not here.
+
+### Bodies behind walls (2026-11-25)
+
+- Designer pick **C, silhouette** (of six options on `docs/art/occlusion/compare.html`): the hidden part of a body behind a standing wall shows through it as a soft shape, red for zombies, blue for survivors, alpha 0.5 ± 0.08 pulsing. In the game: `render/wallSilhouette.ts` (pure: who is behind which wall) and `render/WallSilhouetteView.ts` (pooled fill-tinted copies of the body sprites on a layer just above the walls, masked by copies of the wall pictures, so it only shows where a wall covers; hidden and unmasked when nobody is behind a wall).
+- Readability sheet updated: pictures 9, 18–21, 37–40 retaken; new 63 (a closed fort).
+- Zombie silhouette colour: **red** stays (designer 2026-11-25, after `docs/art/occlusion/colours.html`): "red shouldn't be only for bosses: it's the colour usually used to show danger, so it works for zombie silhouettes". Rule update: red = danger in play (boss danger and zombies), not boss-only. Survivors keep their slot colours.

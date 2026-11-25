@@ -422,6 +422,11 @@ export interface ShopOffered {
   sold: number;
   rerollPrice: number;
   canReroll: boolean;
+  /** Story 7.4 (K2): bit c = card c is borrowed (at most one). */
+  borrowed: number;
+  /** Story 7.4: the lender's slot (255 none) and name at build start ("" none: survives the lender leaving). */
+  lender: number;
+  lenderName: string;
 }
 
 /**
@@ -500,6 +505,14 @@ export const runRewardsSchema = z
     ending: z.enum(["wiped", "extracted", "lost", "quit"]).optional(),
     /** Review L4: the wave a `quit` bank was made in (0 / absent otherwise). */
     leftWave: z.number().int().min(0).max(0xffff).optional(),
+    /**
+     * Story 7.4 (K7, AC 9; decision 7.4 D4): the last unlock this player used without owning it (a supply-drop weapon
+     * or a bought borrowed card): Results shows "You used the Grenade Launcher: unlock it for 500". null / absent none.
+     */
+    lockedUsed: z
+      .object({ unlockId: z.string().max(32), name: z.string().max(40), price: z.number().int().positive().max(1_000_000) })
+      .nullable()
+      .optional(),
     /** Story 7.11: the parts this run granted ("New item: Riot helmet (first extraction)"; `reason` = `resultLine`). */
     newItems: z.array(z.object({ key: z.string().max(32), name: z.string().max(32), reason: z.string().max(40) }).strict()).max(16).optional(),
     /** Story 7.12: my find — "Found in wave N: <name>", or Collector (`key` null). */

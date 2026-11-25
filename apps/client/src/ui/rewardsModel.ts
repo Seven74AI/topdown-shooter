@@ -1,4 +1,4 @@
-import { PROGRESSION, playerSlotOf, type RunRewards } from "@topdown/shared";
+import { PROGRESSION, TRAINING_BOOSTS, playerSlotOf, type RunRewards, type TrainingLevels } from "@topdown/shared";
 import { formatSupplies } from "../net/rewardsStore";
 
 /**
@@ -43,6 +43,8 @@ export interface RewardsView {
   readonly note: string;
   /** Brief 26: the four row groups in their fixed order; groups 2–4 are filled by later stories. */
   readonly groups: readonly ["supplies", "items", "unlocks", "nudge"];
+  /** Story 7.4 (K7, group 3 "unlocks"): "You used the Grenade Launcher: unlock it for 500" ("" none). */
+  readonly unlockLine: string;
   /** Group 2 (7.11 then 7.12): new items, my find / Collector, a teammate's find (D1). Empty = no space. */
   readonly items: readonly ItemRow[];
   /** Group 3 (7.7): "Unlocked: District 2". */
@@ -88,6 +90,9 @@ export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string):
   return { items, unlocks };
 }
 
+/** Story 7.4 (K7): the supply-drop / borrowed-card unlock hint. */
+export const unlockHint = (name: string, price: number): string => `You used the ${name}: unlock it for ${formatSupplies(price)}`;
+
 export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
 
 /**
@@ -95,11 +100,14 @@ export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
  * `rewards` null = not arrived yet ("Saving…"); a message whose seed is not this run's is treated as not arrived.
  */
 export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies, nameOf: (slot: number) => string = () => ""): RewardsView {
-  const base = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS, items: [] as ItemRow[], unlocks: [] as UnlockRow[] };
-  if (!online) return { ...base, state: "practice", status: REWARDS_TEXT.practice };
-  if (rewards === null || rewards.seed !== seed) return { ...base, state: "saving", status: REWARDS_TEXT.saving };
+  const none = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS, unlockLine: "", items: [] as ItemRow[], unlocks: [] as UnlockRow[] };
+  if (!online) return { ...none, state: "practice", status: REWARDS_TEXT.practice };
+  if (rewards === null || rewards.seed !== seed) return { ...none, state: "saving", status: REWARDS_TEXT.saving };
+  // Story 7.4 (K7): the hint shows whatever the bank did (an unsaved player can still unlock it later).
   // Stories 7.7 / 7.11 / 7.12: an unsaved or failed bank still shows the find (the server sends only that then).
-  if (rewards.status !== "saved") return { ...base, ...metaRows(rewards, nameOf), state: rewards.status, status: REWARDS_TEXT[rewards.status] };
+  const used = rewards.lockedUsed;
+  const base = { ...none, unlockLine: used ? unlockHint(used.name, used.price) : "", ...metaRows(rewards, nameOf) };
+  if (rewards.status !== "saved") return { ...base, state: rewards.status, status: REWARDS_TEXT[rewards.status] };
   const l = rewards.lines;
   const all: RewardLine[] = [
     { key: "waves", label: `Waves ${rewards.waveCount} × ${cfg.perWave}`, amount: l.waves, frac: 0 },
@@ -173,4 +181,31 @@ export function layoutResults(w: number, h: number, inset: { left: number; right
   const rewards = { x: x0 + cardW + RW_GAP, y: top, w: cardW, h: cardH };
   const button = { x: team.x + RW_PAD, y: team.y + cardH - RW_PAD - RW_BTN_H, w: Math.min(RW_BTN_MIN_W, cardW - 2 * RW_PAD), h: RW_BTN_H };
   return { team, rewards, button };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Story 7.5 (T4; designer pick TL3): one "Train" column on the Results table
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface TrainingCell {
+  /** "10/20", or "MAX" at every boost maxed. */
+  readonly text: string;
+  readonly maxed: boolean;
+  /** Each boost's fill 0–1 (max HP, damage, start money, reload): the four small bars under the number. */
+  readonly bars: readonly number[];
+  /** "Training · HP 3 · Damage 2 · Money 5 · Reload 0" (the cell's label and tooltip). */
+  readonly label: string;
+}
+
+/** Story 7.5 (T4): the Training cell of one Results row (absent levels = 0). */
+export function trainingCell(t: TrainingLevels | undefined, maxLevel = PROGRESSION.training.maxLevel): TrainingCell {
+  const lv = [t?.maxHp ?? 0, t?.damage ?? 0, t?.startMoney ?? 0, t?.reload ?? 0].map((x) => Math.max(0, Math.min(maxLevel, Math.floor(x))));
+  const sum = lv.reduce((a, b) => a + b, 0);
+  const max = maxLevel * TRAINING_BOOSTS.length;
+  return {
+    text: sum >= max ? "MAX" : `${sum}/${max}`,
+    maxed: sum >= max,
+    bars: lv.map((x) => x / maxLevel),
+    label: `Training · HP ${lv[0]} · Damage ${lv[1]} · Money ${lv[2]} · Reload ${lv[3]}`,
+  };
 }

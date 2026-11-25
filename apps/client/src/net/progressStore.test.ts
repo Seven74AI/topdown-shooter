@@ -132,7 +132,7 @@ describe("unlockItem (Story 7.3 AC 5)", () => {
 describe("review F10: the session reply is forward compatible (later stories add fields)", () => {
   it("an unknown field at the top, in `account`, in `progress` or in the saved:false reply is dropped, never a rejection", () => {
     const token = "ab".repeat(16);
-    const savedR = { saved: true, deviceToken: token, ticket: "t.s", account: { displayName: "", username: null, level: 3 }, progress: { ...P, training: { dmg: 1 } }, extra: 1 };
+    const savedR = { saved: true, deviceToken: token, ticket: "t.s", account: { displayName: "", username: null, level: 3 }, progress: { ...P, futureField: { dmg: 1 } }, extra: 1 }; // Story 7.5: `training` is a known field now
     const s = accountSessionResponseSchema.parse(savedR);
     expect(s.saved && s.ticket).toBe("t.s");
     expect(s.saved && s.progress).toEqual(P);

@@ -67,6 +67,7 @@ import {
   type World,
   type ZombieTypeId,
   setForcedBlackout,
+  type TrainingLevels,
 } from "@topdown/shared";
 import { INPUT_SEQ_RESYNC_AFTER, QUIET_HOLD_TICKS, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS, STALE_INPUT_TICKS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
@@ -246,8 +247,11 @@ export function parseDevHpFraction(raw: string | null | undefined): number | nul
 export interface RunControllerOptions {
   balance: Balance;
   seed: number;
-  /** In join order; each gets `teamSpawnPoint(slot)`. */
-  players: readonly { playerId: string; slot: number }[];
+  /**
+   * In join order; each gets `teamSpawnPoint(slot)`. Stories 7.4/7.5: `unlocks` and `training` are what the survivor
+   * starts with (`addPlayer` init; absent = `ALL_UNLOCKED` / Training 0: tests and bots; the room always passes them).
+   */
+  players: readonly { playerId: string; slot: number; unlocks?: number; training?: TrainingLevels }[];
   /** Dev (`DEV_NO_WAVES=1`): waves don't advance (the Story 1.7 cheat flag). */
   pauseWaves?: boolean;
   /** Dev (`DEV_WAVE_MIX=walker,crawler`, Story 3.9; 3.10 keeps it as an override of `waves.json › mix`): wave zombies cycle through these types. */
@@ -364,9 +368,10 @@ export class RunController {
     const lagComp = opts.lagCompensation !== false;
     setZombieHistoryEnabled(this.world, lagComp);
     const at = { x: 0, y: 0 };
-    for (const { playerId, slot } of opts.players) {
+    for (const { playerId, slot, unlocks, training } of opts.players) {
       teamSpawnPoint(this.world, slot, at);
-      addPlayer(this.world, playerId, at.x, at.y).rewindMaxTicks = lagComp ? REWIND_CAP_TICKS : 0;
+      const init = { ...(unlocks !== undefined ? { unlocks } : {}), ...(training !== undefined ? { training } : {}) };
+      addPlayer(this.world, playerId, at.x, at.y, init).rewindMaxTicks = lagComp ? REWIND_CAP_TICKS : 0;
       const s = new PlayerSlot(playerId);
       this.slots.set(playerId, s);
       this.order.push(s);

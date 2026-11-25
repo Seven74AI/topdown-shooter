@@ -11,11 +11,16 @@ import {
   rowAction,
   districtsLine, suppliesText,
   tapUnlock,
+  TRAIN_TEXT,
+  answerTrain,
+  trainAction,
+  trainingRows,
   type BuyState,
   type HubRow,
+  type TrainRow,
 } from "./hubModel";
 import { progressStore, type ProgressSnapshot } from "../net/progressStore";
-import { unlockItem } from "../net/account";
+import { trainBoost, unlockItem } from "../net/account";
 import { formatSupplies } from "../net/rewardsStore";
 import { weaponIconUrl } from "../render/city/weaponArt";
 import { gearIconUrl } from "../render/city/gearIcons";
@@ -53,7 +58,7 @@ export function ProgressScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [snap, setSnap] = useState<ProgressSnapshot>(progressStore.get());
   const [buy, setBuy] = useState<BuyState>(IDLE);
-  const [tab] = useState(HUB_TABS[0]?.id ?? "unlocks");
+  const [tab, setTab] = useState(HUB_TABS[0]?.id ?? "unlocks");
   const buyRef = useRef(buy);
   buyRef.current = buy;
   useEffect(() => uiStore.subscribe(setScreen), []);
@@ -107,6 +112,25 @@ export function ProgressScreen() {
     });
   };
 
+  // Story 7.5 (AC 8): Train → Confirm (3 s) → spinner, the same guard and request-id rules as an unlock.
+  const onTrain = (row: TrainRow) => {
+    const { state, send } = tapUnlock(buyRef.current, row.key, performance.now(), newRequestId, offline);
+    buyRef.current = state;
+    setBuy(state);
+    if (!send) return;
+    const sentAt = performance.now();
+    void trainBoost(row.boost, row.level + 1, send.requestId).then((call) => {
+      const r = answerTrain(buyRef.current, send.requestId, call);
+      buyRef.current = r.state;
+      setBuy(r.state);
+      if (r.progress) progressStore.accept(r.progress);
+      else if (r.offline) {
+        progressStore.markOffline();
+        setTimeout(() => void progressStore.refresh(), refreshAfterFailureMs(sentAt, performance.now()));
+      }
+    });
+  };
+
   return (
     <div class="menu ph" role="dialog" aria-labelledby="ph-title" data-testid="progress-hub">
       <div class="ph-frame">
@@ -135,7 +159,19 @@ export function ProgressScreen() {
         {/* Story 7.7 (AC 7, D2): the Districts line, right of the tabs (one line, cut with … if it can't fit). */}
         <div class="ph-tabs" role="tablist">
           {HUB_TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" class={`ph-tab${t.id === tab ? " ph-tab--on" : ""}`} aria-selected={t.id === tab}>
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              class={`ph-tab${t.id === tab ? " ph-tab--on" : ""}`}
+              aria-selected={t.id === tab}
+              data-tab={t.id}
+              onClick={() => {
+                setTab(t.id);
+                setBuy(IDLE); // a pending Confirm never carries over to another tab
+                buyRef.current = IDLE;
+              }}
+            >
               {t.label}
             </button>
           ))}
@@ -145,6 +181,17 @@ export function ProgressScreen() {
             </span>
           ) : null}
         </div>
+        {tab === "training" ? (
+          <div class="ph-list ph-list--training" role="tabpanel" data-testid="training-tab">
+            <p class="tr-head">
+              {TRAIN_TEXT.header}
+              {offline && !snap.loading ? <span class="ph-offline"> · {TRAIN_TEXT.offline}</span> : null}
+            </p>
+            {trainingRows(progress).map((row) => (
+              <TrainRowView key={row.key} row={row} buy={buy} offline={offline} onTrain={onTrain} />
+            ))}
+          </div>
+        ) : (
         <div class="ph-list" role="tabpanel">
           {progress === null && snap.loading ? <p class="ph-note">{HUB_TEXT.loading}</p> : null}
           {sections.map((sec) => (
@@ -156,7 +203,74 @@ export function ProgressScreen() {
             </section>
           ))}
         </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Story 7.5 (AC 8, TR1): one Training row: name (and its line), five pips, "Now: …" / "Next: … · ▣ 200", and the
+ * action (Train → Confirm 200 → spinner; the price + "Not enough Supplies · need N more"; MAXED).
+ */
+function TrainRowView({ row, buy, offline, onTrain }: { row: TrainRow; buy: BuyState; offline: boolean; onTrain: (r: TrainRow) => void }) {
+  const a = trainAction(row, buy, offline);
+  const note = buy.note && buy.note.unlockId === row.key ? buy.note.text : a.kind === "short" ? a.text : null;
+  return (
+    <div class={`ph-row tr-row tr-row--${row.state}`} data-boost={row.boost}>
+      <span class="tr-pips" role="img" aria-label={`Level ${row.level} of ${row.maxLevel}`}>
+        {Array.from({ length: row.maxLevel }, (_, i) => (
+          <span key={i} class={`tr-pip${i < row.level ? " tr-pip--on" : ""}`} />
+        ))}
+      </span>
+      <span class="ph-text">
+        <span class="ph-name">
+          <span class="ph-name__text" title={row.line}>
+            {row.name}
+          </span>
+        </span>
+        <span class="ph-line tr-now">{row.now}</span>
+        <span class="ph-line tr-next">
+          {row.next}
+          {row.state !== "maxed" ? (
+            <>
+              {" · "}
+              <span class="rw-crate" aria-hidden="true" />
+              <span aria-label={`${formatSupplies(row.price)} Supplies`}>{formatSupplies(row.price)}</span>
+            </>
+          ) : null}
+        </span>
+        {note ? (
+          <span class="ph-need" role={buy.note ? "status" : undefined}>
+            {note}
+          </span>
+        ) : null}
+      </span>
+      <span class="ph-action">
+        {a.kind === "maxed" ? (
+          <span class="ph-owned">
+            <span class="ph-owned__chip tr-maxed">{TRAIN_TEXT.maxed}</span>
+          </span>
+        ) : a.kind === "short" ? (
+          <span class="ph-price" aria-label={`${formatSupplies(row.price)} Supplies`}>
+            <span class="rw-crate" aria-hidden="true" />
+            {formatSupplies(row.price)}
+          </span>
+        ) : a.kind === "sending" ? (
+          <button type="button" class="ph-btn ph-btn--busy" aria-busy="true" aria-label={TRAIN_TEXT.training} disabled>
+            <span class="ph-spin" aria-hidden="true" />
+          </button>
+        ) : a.kind === "confirm" ? (
+          <button type="button" class="ph-btn ph-btn--confirm" onClick={() => onTrain(row)}>
+            <span class="ph-btn__main">{a.label}</span>
+            <span class="ph-btn__sub">{a.sub}</span>
+          </button>
+        ) : (
+          <button type="button" class="ph-btn" disabled={a.disabled} onClick={() => onTrain(row)}>
+            {a.label}
+          </button>
+        )}
+      </span>
     </div>
   );
 }

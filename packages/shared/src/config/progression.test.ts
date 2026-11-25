@@ -39,7 +39,7 @@ describe("progression.json (Story 7.1)", () => {
 
   it("refuses duplicates, bad ids, extra keys and an empty pool", () => {
     const supplies = PROGRESSION.supplies;
-    const rest = { supplies, unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" }, districts: PROGRESSION.districts }; // + Story 7.7
+    const rest = { supplies, unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" }, training: PROGRESSION.training, districts: PROGRESSION.districts }; // + Story 7.7
     expect(() => loadProgression({ ...rest, starterPool: ["pistol", "pistol"] })).toThrow(ProgressionError);
     expect(() => loadProgression({ ...rest, starterPool: ["Pistol"] })).toThrow(ProgressionError);
     expect(() => loadProgression({ ...rest, starterPool: [] })).toThrow(ProgressionError);

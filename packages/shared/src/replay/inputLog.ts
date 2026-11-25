@@ -2,7 +2,7 @@ import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
-import { addPlayer } from "../player/player";
+import { addPlayer, type PlayerInit } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { buyItem, upgradeWeapon } from "../economy/shop";
 import { buyCard, reroll } from "../economy/shopCards";
@@ -46,6 +46,11 @@ export interface InputLog {
   /** The World tick the recording stopped at (the replay steps until it). */
   endTick: number;
   commands: ReplayCommand[];
+  /**
+   * Stories 7.4/7.5 (brief 5, 8): the run-start data per slot (unlock mask, Training levels): part of what a replay
+   * needs to reach the same digest. Absent = every unlock and Training 0 (the default of tests, bots and sims).
+   */
+  inits?: PlayerInit[];
 }
 
 export function createInputLog(seed: number, players: number): InputLog {
@@ -56,7 +61,7 @@ export function createInputLog(seed: number, players: number): InputLog {
  * The run start shared by the recorder (`runHeadless`) and `replayRun`: players `p0`… at their team
  * spawn points (slot order), then lobby → the first build phase.
  */
-export function createHeadlessWorld(balance: Balance, seed: number, players: number, map: DistrictMap = DOWNTOWN_MAP): { world: World; ids: string[] } {
+export function createHeadlessWorld(balance: Balance, seed: number, players: number, map: DistrictMap = DOWNTOWN_MAP, inits?: readonly PlayerInit[]): { world: World; ids: string[] } {
   const world = createWorld({ balance, seed, map }); // Story 4.1: the game's map (recorder and replay alike)
   const at = { x: 0, y: 0 };
   const ids: string[] = [];
@@ -64,7 +69,7 @@ export function createHeadlessWorld(balance: Balance, seed: number, players: num
     const id = `p${slot}`;
     ids.push(id);
     teamSpawnPoint(world, slot, at);
-    addPlayer(world, id, at.x, at.y);
+    addPlayer(world, id, at.x, at.y, inits?.[slot] ?? {}); // Stories 7.4/7.5: the slot's start data
   }
   startBuild(world);
   return { world, ids };
@@ -115,7 +120,7 @@ export interface ReplayOptions {
 
 /** Replays `log` from its seed until `log.endTick`; returns the World. */
 export function replayRun(balance: Balance, log: InputLog, opts: ReplayOptions = {}): World {
-  const { world } = createHeadlessWorld(balance, log.seed, log.players);
+  const { world } = createHeadlessWorld(balance, log.seed, log.players, DOWNTOWN_MAP, log.inits);
   opts.afterStart?.(world);
   let next = 0;
   const cmds = log.commands;

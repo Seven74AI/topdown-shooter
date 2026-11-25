@@ -18,7 +18,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
-import { runSupplies, suppliesEnding, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
+import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
 import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
 import { pickLootItem } from "./loot";
@@ -37,6 +37,8 @@ export interface BankSeat {
   readonly ending: SuppliesEnding;
   /** Review L4: the wave a Leave banked in (shown as "Banked when you left (wave N)" if the seat comes back). */
   readonly wave?: number;
+  /** Story 7.4 (AC 9): `PlayerState.lockedUsed` (an unlock index, 255 none). */
+  readonly lockedUsed?: number;
   /**
    * Stories 7.7 / 7.11 / 7.12: the seat's milestone counters (copied at the bank call: a leaver banks with what it had
    * then, 7.11 AC 6) and the run's facts. Absent = Supplies only (7.2's tests).
@@ -56,6 +58,27 @@ export interface TeamLoot {
   wave: number;
   key: string | null;
   name: string;
+}
+
+/** Story 7.4 (K7): the item names of the bundled balance (names never change in dev overrides). */
+let itemNames: Map<string, string> | null = null;
+function itemName(id: string): string {
+  if (!itemNames) {
+    const b = loadBalance();
+    itemNames = new Map();
+    for (const [k, w] of Object.entries(b.weapons)) itemNames.set(k, w.name ?? k);
+    for (const [k, g] of Object.entries(b.gear.items)) itemNames.set(k, g.name);
+    for (const [k, t] of Object.entries(b.buildings.types)) itemNames.set(k, t.name);
+    for (const [k, c] of Object.entries(b.consumables.items)) itemNames.set(k, c.name);
+  }
+  return itemNames.get(id) ?? id;
+}
+
+/** Story 7.4 (K7, AC 9): the Results line's unlock (`{ unlockId, name, price }`), or null. */
+export function lockedUsedLine(index: number | undefined): RunRewards["lockedUsed"] {
+  const u = index === undefined ? undefined : unlockList[index];
+  if (!u) return null;
+  return { unlockId: u.id, name: itemName(u.items[0] as string).slice(0, 40), price: u.price };
 }
 
 export interface RunBankDeps {
@@ -89,9 +112,10 @@ interface MetaLines {
   teamLoot?: TeamLoot;
 }
 
-function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number, meta: MetaLines = {}): RunRewards {
+function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number, meta: MetaLines = {}, lockedUsed?: number): RunRewards {
   return {
     ...metaFields(meta),
+    lockedUsed: lockedUsedLine(lockedUsed), // Story 7.4
     ending: b.ending,
     leftWave: b.leftWave,
     runId,
@@ -190,7 +214,7 @@ export class RunBank {
   bankRunEnd(
     world: Readonly<World>,
     members: Iterable<{ readonly playerId: string; readonly accountId: string | null }>,
-    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly player: RunRecord }>,
+    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly player: RunRecord & { readonly lockedUsed?: number } }>,
   ): Promise<RunRewards[]> {
     const ending: RunEnding = world.run.ending;
     const facts = runFacts(world, this.deps.district ?? DEFAULT_DISTRICT); // Stories 7.7 / 7.11 / 7.12
@@ -198,13 +222,13 @@ export class RunBank {
     for (const m of members) {
       const p = world.players.get(m.playerId) ?? world.heldPlayers.get(m.playerId)?.player;
       if (!p) continue;
-      seats.push({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), meta: { player: metaPlayer(p), facts } });
+      seats.push({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed, meta: { player: metaPlayer(p), facts } });
     }
     for (const s of remembered) {
       // 8.1 F8 + 7.12: a remembered seat's state stays in the room; its PlayerState is the seat's own.
       const p = (s as { readonly player: RunRecord & Partial<PlayerState> }).player;
       const meta = typeof p.waveMask === "number" ? { player: metaPlayer(p as PlayerState), facts } : undefined;
-      seats.push({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(p), ending: "quit", ...(meta ? { meta } : {}) });
+      seats.push({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(p), ending: "quit", ...(p.lockedUsed !== undefined ? { lockedUsed: p.lockedUsed } : {}), ...(meta ? { meta } : {}) });
     }
     // 7.12 D1: the finder banks first (or banked when it left), so every teammate's Results names the item.
     const finder = facts.lootFoundBy;
@@ -249,7 +273,7 @@ export class RunBank {
     const preview = (): MetaLines => ({ ...team, ...(writes ? storedMeta(writes.grant(statsDelta(seat.meta?.player as PlayerState), new Set(), []).breakdown) : {}) });
     if (seat.accountId === null || repo === null) {
       const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY); // no rookie guess: the lifetime is unknown
-      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()));
+      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
     }
     const accountId = seat.accountId;
     const now = this.deps.nowMs ?? (() => performance.now());
@@ -269,7 +293,7 @@ export class RunBank {
           // 7.11 / 7.12 / 7.7 log lines (keys and ids only; no names a player typed)
           this.deps.log.info({ runId: this.runId, accountId, items: meta.newItems?.map((x) => x.key) ?? [], loot: meta.loot ? { wave: meta.loot.wave, collector: meta.loot.key === null } : null, districts: meta.newDistricts?.map((x) => x.id) ?? [] }, "meta_granted");
         }
-        return message(this.runId, this.seed, "saved", b, r.newTotal, { ...meta, ...team });
+        return message(this.runId, this.seed, "saved", b, r.newTotal, { ...meta, ...team }, seat.lockedUsed);
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
@@ -280,7 +304,7 @@ export class RunBank {
       }
     }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
-    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()));
+    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
   }
 }
 

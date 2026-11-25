@@ -5,6 +5,7 @@ import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
 import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
 import { buyConsumable, isConsumable } from "./consumables";
+import { inPool, unlockIndexOf } from "../meta/pool";
 
 /**
  * The shop's shared helpers. Story 5.13 replaced Story 3.3's fixed weapon list with the card shop
@@ -37,6 +38,7 @@ export type ShopError =
   | "stale_offer"
   | "not_in_offer"
   | "no_new_cards"
+  | "not_unlocked" // Story 7.4 (K5): a consumable not in my pool
   | SpendError;
 
 const buildingCache = new WeakMap<Balance, readonly ShopBuilding[]>();
@@ -264,5 +266,7 @@ export function giveCrateWeapon(world: World, playerId: string, weapon: WeaponId
     if (o.how === "replace") lo.swapTicks = 0;
   }
   world.events.emit({ type: "weapon.crate_taken", playerId, weapon, slot, level });
+  // Story 7.4 (K7, AC 9): given whatever the mask; a weapon outside the taker's pool is remembered for Results.
+  if (!inPool(p.unlocks, weapon)) p.lockedUsed = unlockIndexOf(weapon);
   return slot;
 }
