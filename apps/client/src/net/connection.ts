@@ -135,6 +135,7 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
     $.listen("hostSlot", onChange),
     $.listen("district", onChange), // Story 7.7
     $.listen("districtsOpen", onChange),
+    $.listen("leftSeats", onChange), // Story 8.3: the host's Players list shows remembered seats
     $.onAdd("players", (player: PlayerStateView) => {
       // Story 7.9: + look (set with the name at join; 7.10 D3 changes it in the lobby).
       // Story 8.2/8.3: + waiting and heldUntilTick (the in-run Players list; both change rarely, on change only).
@@ -156,7 +157,7 @@ export function watchLobby(room: RunConnection, onChange: () => void): () => voi
 
 /** The slice of the schema `StateCallbackStrategy` API `watchLobby` uses. */
 interface LobbyCallbacks {
-  listen(property: "phase" | "hostSlot" | "district" | "districtsOpen", handler: () => void): () => void;
+  listen(property: "phase" | "hostSlot" | "district" | "districtsOpen" | "leftSeats", handler: () => void): () => void;
   listen(instance: PlayerStateView, property: "ready" | "name" | "look" | "waiting" | "heldUntilTick", handler: () => void): () => void;
   onAdd(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;
   onRemove(property: "players", handler: (player: PlayerStateView, key: string) => void): () => void;

@@ -62,7 +62,11 @@ export function InRunMenu() {
     );
   }
   if (screen.menu === "players") {
-    const others = lobby.players.filter((p) => p.playerId !== lobby.localPlayerId);
+    // Story 8.3 (AC 11): the other seats in the room state, then the remembered ones (left the run).
+    const others = [
+      ...lobby.players.filter((p) => p.playerId !== lobby.localPlayerId),
+      ...lobby.left.filter((l) => !lobby.players.some((p) => p.playerId === l.playerId)).map((l) => ({ ...l, held: false, waiting: false, left: true })),
+    ] as readonly { playerId: string; name: string; held?: boolean; waiting?: boolean; left?: boolean }[];
     const allowed = canRemoveIn(lobby.phase);
     return (
       <div class="in-run-menu in-run-menu--list" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="players-menu">
@@ -76,7 +80,7 @@ export function InRunMenu() {
             <li key={p.playerId} class="in-run-menu__player">
               <span class="in-run-menu__player-name">
                 {p.name}
-                {p.held ? ` · ${MENU_TEXT.reconnecting}` : p.waiting ? ` · ${MENU_TEXT.waiting}` : ""}
+                {p.held ? ` · ${MENU_TEXT.reconnecting}` : p.waiting ? ` · ${MENU_TEXT.waiting}` : p.left ? ` · ${MENU_TEXT.left}` : ""}
               </span>
               <button
                 type="button"

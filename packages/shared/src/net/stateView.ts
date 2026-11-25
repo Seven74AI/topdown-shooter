@@ -210,6 +210,11 @@ export interface RunStateView {
   /** Story 7.7: the run's district id (the host's lobby pick) and the open districts' bitmask (bit i = `progression.json › districts[i]`). */
   readonly district: string;
   readonly districtsOpen: number;
+  /**
+   * Story 8.3 (AC 11, J3): the run's remembered seats (left, or a hold that ran out) as JSON `[[playerId, name], …]`
+   * ("" = none), so the host's ☰ → Players list can free one with Remove. Written on change only.
+   */
+  readonly leftSeats: string;
 }
 
 /**
@@ -364,6 +369,7 @@ export const RUN_STATE_FIELDS = {
   lootBagVariant: true,
   district: true, // Story 7.7
   districtsOpen: true,
+  leftSeats: true, // Story 8.3
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

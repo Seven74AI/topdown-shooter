@@ -61,16 +61,38 @@ export interface LobbySnapshot {
   /** Story 7.7 R3: the last "back to Downtown" notice (its district's name; "" none) and a counter that changes with each. */
   readonly districtReset: string;
   readonly districtResetSeq: number;
+  /** Story 8.3 (AC 11): the run's remembered seats (left, or a hold ran out): the host's Players list can remove them. */
+  readonly left: readonly LeftSeat[];
 }
 
-const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0 };
+/** Story 8.3: a remembered seat from `state.leftSeats`. */
+export interface LeftSeat {
+  readonly playerId: string;
+  readonly name: string;
+}
+
+/** Story 8.3: `state.leftSeats` (JSON `[[playerId, name], …]`, "" none) → the list; anything malformed → none. */
+export function parseLeftSeats(json: string | undefined): readonly LeftSeat[] {
+  if (!json) return [];
+  try {
+    const raw: unknown = JSON.parse(json);
+    if (!Array.isArray(raw)) return [];
+    const out: LeftSeat[] = [];
+    for (const e of raw) if (Array.isArray(e) && typeof e[0] === "string" && typeof e[1] === "string" && /^p[0-3]$/.test(e[0])) out.push({ playerId: e[0], name: e[1] });
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: [] };
 
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
   state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look, waiting: p.waiting === true, held: (p.heldUntilTick ?? 0) > 0 }));
   players.sort((a, b) => a.slot - b.slot);
-  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0 };
+  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0, left: parseLeftSeats(state.leftSeats) };
 }
 
 /** Text under the host's Start button (AC 4). */

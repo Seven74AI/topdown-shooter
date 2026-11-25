@@ -688,6 +688,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.log.info({ playerId: host.playerId, slot: host.slot, why }, "host_changed");
   }
 
+  /** Story 8.3 (AC 11): `state.leftSeats` follows `rememberedSeats` (the host's Players list can remove them). On change only. */
+  private syncLeftSeats(): void {
+    const list = Array.from(this.rememberedSeats.values(), (s) => [s.playerId, s.name]);
+    const json = list.length === 0 ? "" : JSON.stringify(list);
+    if (this.state.leftSeats !== json) this.state.leftSeats = json;
+  }
+
   /** Story 8.1: build, wave and vote (and endless, which is build/wave): a drop is held. Lobby and results: a drop is a leave (D7). */
   inRun(): boolean {
     const phase = this.state.phase;
@@ -737,6 +744,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
     if (!controller.restoreSeat(seat.player, seat.kills, seat.buildIdx)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
+    this.syncLeftSeats();
     this.bank?.reopen(seat.playerId); // Story 8.2 (AC 13, E8-J6): a seat that banked on its Leave banks the difference at the end
     const accountId = seat.accountId ?? client.auth?.accountId ?? null;
     const member: Member = {
@@ -986,6 +994,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.3 (H3): a remembered seat (its hold ran out, or it left) is removed: its slot frees, it banks `quit` now. */
   private removeRemembered(key: string, seat: RememberedSeat, by: Member): void {
     this.rememberedSeats.delete(key);
+    this.syncLeftSeats();
     this.bannedSeats.push({ seatKey: key, guestTokenHash: seat.guestTokenHash });
     const controller = this.controller;
     if (controller && this.bank) {
@@ -1024,6 +1033,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
       if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
+      this.syncLeftSeats();
     } else {
       controller?.removePlayer(playerId);
     }
@@ -1915,6 +1925,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     this.holds.clear();
     this.rememberedSeats.clear();
+    this.state.leftSeats = "";
     this.resumeTimer?.clear();
     this.resumeTimer = null;
   }

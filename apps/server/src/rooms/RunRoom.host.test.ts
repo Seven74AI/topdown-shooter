@@ -235,8 +235,11 @@ describe("Story 8.3 H3: removed means gone for this room", () => {
     const { clients, room, tokens } = await runOf(2);
     await (clients[1] as RunSdkRoom).leave(true);
     await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    // AC 11: the host's Players list sees the remembered seat (state.leftSeats), and it goes when removed.
+    await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.leftSeats).toBe(JSON.stringify([["p1", "Bo"]])));
     (clients[0] as RunSdkRoom).send(C2S.HOST_REMOVE, { playerId: "p1" });
     await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(0));
+    await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.leftSeats).toBe(""));
     await expect(colyseus.sdk.joinById(room.roomId, options("join", "Bo", tokens[1] as string))).rejects.toThrow("removed");
   });
 

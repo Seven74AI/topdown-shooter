@@ -328,6 +328,7 @@ export function resetRunFields(state: RunState): void {
   state.npcLook = 0;
   state.npcLeaderSlot = 255;
   state.lootBagState = 0; // Story 7.12: no bag before the next run's drop
+  state.leftSeats = ""; // Story 8.3: remembered seats end with the run
   state.lootBagX = 0;
   state.lootBagY = 0;
   state.lootBagUntilTick = 0;

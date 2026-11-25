@@ -1,7 +1,7 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
-import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
+import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, parseLeftSeats, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
 import { FakeRoom, fakePlayer } from "./fakeRoom";
 
@@ -17,6 +17,7 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     districtsOpen: 1,
     districtReset: "",
     districtResetSeq: 0,
+    left: [], // Story 8.3
     players: [
       { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
       { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },
@@ -25,13 +26,26 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
   };
 }
 
+describe("parseLeftSeats (Story 8.3 AC 11)", () => {
+  it("reads the remembered seats; empty or malformed → none", () => {
+    expect(parseLeftSeats('[["p3","Di"],["p1","Bo"]]')).toEqual([
+      { playerId: "p3", name: "Di" },
+      { playerId: "p1", name: "Bo" },
+    ]);
+    expect(parseLeftSeats("")).toEqual([]);
+    expect(parseLeftSeats(undefined)).toEqual([]);
+    expect(parseLeftSeats("{")).toEqual([]);
+    expect(parseLeftSeats('[["x9","Eve"],[1,2],"p2"]')).toEqual([]);
+  });
+});
+
 describe("snapshotLobby", () => {
   it("copies players in slot order as plain data", () => {
     const players = new Map<string, PlayerStateView>([
       ["p2", fakePlayer(2, { name: "Cid", ready: true, look: "v1|top:hoodie|head:beanie" })], // Story 7.9 review L1: a real code
       ["p0", player(0, "Ana")],
     ]);
-    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0, lootBagState: 0, lootBagX: 0, lootBagY: 0, lootBagUntilTick: 0, lootBagVariant: 0, district: "downtown", districtsOpen: 1 };
+    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0, lootBagState: 0, lootBagX: 0, lootBagY: 0, lootBagUntilTick: 0, lootBagVariant: 0, district: "downtown", districtsOpen: 1, leftSeats: "" };
     const s = snapshotLobby("ABCD", state, "p2");
     expect(s).toEqual({
       code: "ABCD",
@@ -46,6 +60,7 @@ describe("snapshotLobby", () => {
       districtsOpen: 1,
       districtReset: "",
       districtResetSeq: 0,
+      left: [], // Story 8.3
     });
     expect(s.players[0]).not.toBe(players.get("p0"));
   });

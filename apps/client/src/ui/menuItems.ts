@@ -56,6 +56,7 @@ export const MENU_TEXT = {
   noOthers: "Nobody else is here",
   reconnecting: "reconnecting",
   waiting: "joins at the build phase",
+  left: "left the run", // Story 8.3: a remembered seat (its slot stays kept until removed)
 } as const;
 
 /** Story 8.3 (H2, AC 11): the confirm line, in the lobby and the in-run menu alike. */
