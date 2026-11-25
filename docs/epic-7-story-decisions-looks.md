@@ -136,3 +136,51 @@ Made while building Story 7.10 (2026-11-25, branch `story-7-10`); recommended va
 | 7.10 B12 | Done in the lobby | **Also sends `lobby.set_look` with the stored code (or the phone copy when offline): D3 at once** (only from the next join) |
 | 7.10 B13 | Text size in the editor | **≥ 14 px everywhere (AC 2), checked by the DOM layout test (R9's floor is 11)** (11 px labels) |
 | 7.10 B14 | `/account/look` per IP | **60 calls per IP per minute before the body or the database (brief 15), beside AC 11's 10 per account** (account limit only) |
+
+## 7.12 build-time choices
+
+Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; early part T0–T4). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.
+
+| Code | Choice | Taken | Why |
+| --- | --- | --- | --- |
+| 7.12 B1 | T0 "look pick" | No new proposal round: built straight from the designer's picks 7-UI-6 (LB4–LB8), OA2 and BF2 | The looks were already picked (7-UI-5/7-UI-6); stills of the built bags in `docs/art/epic-7/built/7-12-bags.png` + `7-12-hud.png` for the morning report |
+| 7.12 B2 | Which stream picks the look, and "never twice in a row" | The `loot` stream, as the plan's 5th draw (after `itemRoll`); the server remembers its last bag's look in memory (a restart forgets) and the next plan avoids it | One named stream (brief 5); a run has one bag, so "in a row" is across runs |
+| 7.12 B3 | The room record's shape | Flat `lootBag*` fields appended last to `RunState` (state, x, y, untilTick, **variant**), like the 6.9 crate / 6.10 NPC, not a nested schema | Smallest overlap with 7.9 / 8.1; the key lists stay automatic (devThrottle, fakeRoom); 19 B per run |
+| 7.12 B4 | `loot.dropped` | Also carries the look (`variant`) | The client draws the right object at once |
+| 7.12 B5 | The "not in a solid" spot search | The death point itself when clear, else rings every 0.25 m out to 20 m (8 directions), then `findBoxFreeSpot`, then the first standing player | `findBoxFreeSpot`'s 1.5 m rings move a bag needlessly far; fuzz-tested on every stage |
+| 7.12 B6 | A shorter run (tests' `runWaves`) | The planned wave is clamped to `waves.runWaves` | B1 "endless adds none" by construction, not by a cross-check |
+| 7.12 B7 | Practice solo (D2) | No plan (Story 7.2 is not on master yet; T5 revisits); the dev `?loot=3:0.1` forces one | D2 recommended value |
+| 7.12 B8 | BF2 "finder's name in slot colour" | The whole toast line in the finder's slot colour, the bag icon left of it; "Bag found!" in white for the finder | A Phaser text has one colour; one coloured line reads the same at a glance |
+| 7.12 B9 | The line in wave 10 | Under the boss bar while it shows; on 568 × 320 it shrinks (text ≥ 11 px) to keep the survivor's 48 px (HUD layout test) | R11 top-band rule |
+| 7.12 B10 | OA2 badge placement | The 6.10 second-arrow rule (`placeSecondEventArrow`): off the HUD blocks, inside the safe area, off the event's arrow; a 20 s white ring round it | Reuses the swept, re-reviewed arrow code. Not handled: the rare frame with the event arrow, the survivor's flag arrow AND the bag badge all off screen (the badge may touch the flag arrow) — noted |
+| 7.12 B11 | Sounds | Placeholders `loot_drop` (soft) and `loot_found` (zip + three-note rise); not panned | Placeholder sounds, like 6.9's |
+| 7.12 B12 | Bake cost | The five objects are baked once at Game scene start (≈ 0.3 s in node for all five at 128 px/m; the relief renderer copied as is) | R7: accept pending the phone; not measured on the Mi 11i |
+| 7.12 B13 | Liveness bot | A test-only `seekLoot` switch in `runHeadless` (default off): bot 0 walks to the bag | No other sim changes (R5 n/a) |
+| 7.12 B14 | Golden replay digests | No stored digest exists in the repo (the replay tests compute both sides per run); the digest now covers `world.loot`, so nothing to regenerate | Story note "regenerate once" is moot |
+| 7.12 B15 | Glint timing | One flash of 8 ticks every 40 ticks (2 s), from the drop tick; the ring breathes on the same period | `loot.json › glint` |
+
+## 7.7 + 7.11 + 7.12 (merged) build-time choices
+
+Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; the merged story, banking part). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.
+
+| Code | Choice | Taken | Why |
+| --- | --- | --- | --- |
+| 7.12 B16 | Milestone counters' home | On the player's state in the shared World next to 7.2's record (`waveMask`, `kills`, `revives`, `downs10`, `barricades`), counted in the economy pass from World events | A held (8.1) or remembered seat carries them for free; one place with 7.2's waves |
+| 7.12 B17 | The wave a team wipe falls in | Paid by 7.2 (D8) but **not** "survived" for milestones (M1 "Survive wave 5" needs wave 5 to end) | Text of M1; tested |
+| 7.12 B18 | Lifetime stats write | Added in code under the bank's row lock (`SELECT … FOR UPDATE`), the AC 5 "row lock" variant | Same safety as an SQL increment (two runs at once both add: tested) |
+| 7.12 B19 | "A run counts" (M9, D4) | Wave 1 ended with me in it (a wipe in wave 1 doesn't count) | D4 + B17 |
+| 7.12 B20 | The item's picture on Results | The default survivor wearing it (7.9's portrait drawing) | 7.10's `partTileUrl` close-up isn't on master; swap when it lands |
+| 7.12 B21 | "Wear it" (7.11 D8) | **Not built**: needs 7.10's save path | Follow-up for 7.10 |
+| 7.12 B22 | Teammates' line (7.12 D1) | The finder banks first; the others' `run.rewards` carry `teamLoot` (they wait one bank; teammates bank in parallel with each other). Review L3: worst case ≈ 6 s for a teammate's Results line (the finder's two attempts with the 2 s retry pause, each bounded by the DB timeout, then its own bank); Results shows "Saving…" meanwhile | Everyone's Results names the item. Auto-accepted overnight (designer: follow the GDS recommendation) |
+| 7.12 B23 | An unsaved / failed finder | Unsaved (`not_saved`, no account): still sees "Found in wave N: …" (what it would have been); nothing is granted. Failed: see B33. Review round 2 L1: teammates are named a find only when the finder's bank was SAVED | Honest: the status line says not saved |
+| 7.12 B24 | DP2 district sheet | The district line is a button; the sheet covers the cards with three card slots (Downtown, District 2, room for Epic 11) | DP2 "line + sheet" |
+| 7.12 B25 | R3 notice | A `lobby.district_reset { from }` message, shown in the lobby's 2 s notice line | Late joiners don't see a stale notice |
+| 7.12 B26 | Owned parts in the join's look check | The join stays database-free (7.1 AC 9); the room loads the account's parts right after the join and re-checks the asked look in the lobby only | A look never changes mid-run |
+| 7.12 B27 | Practice solo | Banks nothing (7.2 D1) → no milestones, no bag (7.12 D2) | 7.2's rule |
+| 7.12 B28 | 7.6 merge rules | 7.6 landed first, so this story added them: `cosmetics` union, `stats` added per key (`districts` union was 7.6's); the bank's meta writes go to 7.6's `payee` (a merged guest's account), `run_rewards` stays keyed by the seat's account | Whoever lands second adds them |
+| 7.12 B29 | Hub "Districts" line (7.7 D2) | Its own line under the hub's rule line (review M4: out of the tablist, wraps, 12 px, never cut): "District 2: unlocked · coming soon" / "extract from Downtown to unlock" | D2 recommended value |
+| 7.12 B30 | Progress view | The session / unlock answers also carry `districts` and `cosmetics` (optional fields) | 7.7 hub line, 7.11 T5 (editor tiles) |
+| 7.12 B31 | Revive farm (review M2; **amended, round 2 L3**) | A revive counts toward M5 only in phase `wave` (the phase at the revive, carried on the event: review N1) and only of a down NO player caused (`downedBy === null`: friendly fire never counts, so neither a pair nor a 3-player rotation can farm it). Also review L2: a build-phase down is no M10 down (same phase rule) | No risk-free farm (M-F2). **Designer, 2026-11-25** (confirmed the amended rule: only a down with no player source counts) |
+| 7.12 B32 | "Never the same bag twice in a row" scope (review M6) | Per server process: the last look is the last bag that really DROPPED (`loot.dropped`), not the last plan; a restart forgets it | A run that ends before its drop doesn't steer the next look. Auto-accepted overnight (designer: follow the GDS recommendation) |
+| 7.12 B33 | A banked seat and the bag (review M1); **designer override 2026-11-25** | A seat already banked (Leave / `run.leave`) can't take the bag (`world.loot.banked`). **New rule (designer override 2026-11-25):** when the finder's item isn't known (its bank failed or timed out, or it never banked in this room) there is NO team line at all (no guessed item, no nameless "found the bag"); the FINDER's Results says "Couldn't save the bag's item (found in wave N)" in 7.2's "Couldn't save this run" wording and red; the server logs one `loot_bank_failed {playerId, accountId, runId, wave, err}` per failed find (`err` cut at `\nparams:` like every db_error line). Review round 2 L1: only a SAVED finder's find is named to teammates (an unsaved guest finder sees its own find, B23, but teammates get no line) | Designer's call; the failure should be rare and every one is visible in the logs |
+| 7.12 B34 | 7.10 owned sets (7.10 landed first) | The save route's `ownedFor` reads `progress.cosmetics`; `lobby.set_look` decodes against the member's loaded cosmetics (starter parts until the load); the join stays database-free and the progress load re-checks the member's LAST asked look (join or an earlier `set_look`; never once Start began); practice solo wears the cached progress's cosmetics | Owned milestone and loot parts are wearable everywhere a look is checked. "Wear it" on Results (B21) stays a follow-up. Auto-accepted overnight (designer: follow the GDS recommendation) |

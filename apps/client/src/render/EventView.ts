@@ -6,7 +6,7 @@ import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./
 import { EventPickupsView } from "./EventPickupsView";
 import { createPairHold, placeSecondEventArrow } from "./eventArrowPair";
 import { layoutBossBar } from "../scenes/bossBar";
-import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
+import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -161,6 +161,16 @@ export class EventView {
       f.edge.angle = this.flagAt.angle;
     }
     this.pickups.update(dtS, look, this.clockS, (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM);
+  }
+
+  /** Story 7.12: the event's edge arrow as placed this frame (null: not shown) — the bag's badge keeps off it. */
+  edgeArrowAt(): Readonly<EventArrowPlace> | null {
+    return this.arrow.visible ? this.arrowAt : null;
+  }
+
+  /** Story 7.12: this frame's HUD keep-off rects (the wave controls, the boss bar), for the bag's badge. */
+  controlRects(): readonly ScreenRect[] {
+    return this.controls;
   }
 
   /** Stories 6.9 / 6.10 (tests): the live vapour / smoke particle counts. */

@@ -77,6 +77,8 @@ import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
 import { EventView } from "../render/EventView";
+import { LootBagView } from "../render/LootBagView";
+import { createLootCue, lootCue } from "../render/lootBagCue";
 import { cratePrompt, createEventCue, eventCue } from "../render/eventMarkers";
 import { BOSS_TARGET_BUZZ, bossCue, type BossCue } from "../render/bossCue";
 import { BloaterFx } from "../render/bloaterFx";
@@ -313,6 +315,8 @@ export class GameScene extends Phaser.Scene {
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
   private readonly slotOfPlayer = (id: string): number => this.host?.playerInfo(id).slot ?? -1;
+  /** Story 7.12: a finder's display name ("" solo / unknown: the line says "Bag found!"). */
+  private readonly lootNameOf = (id: string): string => this.host?.playerInfo(id).name ?? "";
   /** Story 2.9: every other player for the HUD's names and edge arrows (drawn position, slot, flags). */
   private readonly collectTeammate = (p: PlayerState, id: string): void => {
     const host = this.host;
@@ -392,6 +396,10 @@ export class GameScene extends Phaser.Scene {
   private bossMusic = false;
   /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
   private eventView: EventView | null = null;
+  /** Story 7.12: the loot bag (bag, ring, glint, off-screen badge) and its HUD line (BF2). */
+  private lootView: LootBagView | null = null;
+  private readonly lootCueOut = createLootCue();
+  private readonly lootLine = { text: "", slot: -1, untilMs: 0 };
   /** Story 6.8 review M2: the safe-area insets the event edge arrow keeps inside (read on create and resize, never per frame). */
   private eventInsets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
   private readonly eventCueOut = createEventCue();
@@ -638,7 +646,7 @@ export class GameScene extends Phaser.Scene {
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn, linkUp: () => linkStore.get().status === "ok" }) : null;
     // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
     const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
-    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get() });
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get(), owned: progressStore.get().progress?.cosmetics, devLoot: opts.stress === null ? opts.loot : null });
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;
@@ -736,6 +744,9 @@ export class GameScene extends Phaser.Scene {
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.eventView = new EventView(this, host.world); // Story 6.8
+    this.lootView = new LootBagView(this, host.world); // Story 7.12
+    this.lootLine.text = ""; // Phaser reuses this scene object: no line from the last run
+    this.lootLine.untilMs = 0;
     this.eventInsets = { ...safeArea() };
     this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
     this.voteReq.reset();
@@ -926,6 +937,8 @@ export class GameScene extends Phaser.Scene {
       this.bossView = null; // Story 6.5: its objects go with the scene
       this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
       this.eventView = null;
+      this.lootView?.destroy(); // Story 7.12
+      this.lootView = null;
       this.heliView = null; // Story 6.11: its images go with the scene
       voteStore.handle(null);
       voteStore.set(CLOSED_VOTE);
@@ -1402,7 +1415,11 @@ export class GameScene extends Phaser.Scene {
     host.setLocalInput(this.input_);
     // Story 6.9 (G7): standing on the crate shows what you lose ("Replaces your SMG III") the whole second.
     const crate = cratePrompt(host.world, host.localPlayerId);
-    this.hudModel.toastText = crate !== "" ? crate : this.toasts.current(this.time.now);
+    // Story 7.12 (BF2): a loot find shows in the toast line for `loot.cue.toastS` (the queue waits meanwhile).
+    const loot = crate === "" && this.lootLine.text !== "" && this.time.now < this.lootLine.untilMs;
+    this.hudModel.toastText = crate !== "" ? crate : loot ? this.lootLine.text : this.toasts.current(this.time.now);
+    this.hudModel.toastLoot = loot;
+    this.hudModel.toastSlot = loot ? this.lootLine.slot : -1;
   }
 
   /** The host's step (online: applies the latest state). */
@@ -2135,6 +2152,15 @@ export class GameScene extends Phaser.Scene {
         const cue = eventCue(e, host.world.balance, this.eventCueOut);
         if (cue.banner) this.showBanner(cue.banner, cue.bannerColor); // the colour rule: amber = an event you can use, yellow-green = gas, white = pick-ups and people
         if (cue.sound) playSfx(cue.sound);
+      } else if (e.type === "loot.found" || e.type === "loot.dropped") {
+        // Story 7.12 (AC 7, BF2): "Bag found!" / "Ana found a bag!" in the toast line and the sounds (none for a woken tab's backlog).
+        const cue = lootCue(e, localId, this.lootNameOf, this.slotOfPlayer, host.world.balance.loot.cue.toastS, this.lootCueOut);
+        if (cue.text !== "") {
+          this.lootLine.text = cue.text;
+          this.lootLine.slot = cue.slot;
+          this.lootLine.untilMs = this.time.now + host.world.balance.loot.cue.toastS * 1000;
+        }
+        if (cue.sound !== "") playSfx(cue.sound);
       } else if (e.type === "boss.telegraph") {
         this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM, e.endX, e.endY, e.crash, e.src);
         this.bossEvent(host, e, localId); // Story 6.6: the scrape / lift sound
@@ -2174,6 +2200,8 @@ export class GameScene extends Phaser.Scene {
     const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
     if (this.eventView) this.eventView.bossBarShown = this.hudModel.bossVisible; // Story 6.14 review L3
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
+    // Story 7.12: the bag from the World's loot record (server ticks); its badge keeps off the HUD and the event's arrow.
+    if (this.eventView) this.lootView?.update(host.serverTick, ev.x, ev.y, ev.width, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets, this.eventView.controlRects(), this.eventView.edgeArrowAt());
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;

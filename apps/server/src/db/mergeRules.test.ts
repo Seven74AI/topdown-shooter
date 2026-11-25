@@ -13,6 +13,8 @@ const row = (o: Partial<MergeRow> & { accountId: string }): MergeRow => ({
   districts: [],
   updatedAt: new Date(0),
   look: null,
+  cosmetics: [],
+  stats: { revives: 0, kills: 0, barricades: 0, runs: 0 },
   ...o,
 });
 
@@ -24,7 +26,7 @@ describe("merge-writers list (Story 7.6 AC 6)", () => {
   });
 
   it("a column with no rule makes the merge throw (never silently dropped)", () => {
-    expect(() => mergeProgress(row({ accountId: "a", cosmetics: ["x"] }), row({ accountId: "g" }))).toThrow(/progress\.cosmetics has no merge rule/);
+    expect(() => mergeProgress(row({ accountId: "a", savedRun: ["x"] }), row({ accountId: "g" }))).toThrow(/progress\.savedRun has no merge rule/); // a future column (7.11 gave cosmetics its rule)
   });
 });
 
@@ -72,6 +74,17 @@ describe("mergeProgress (Story 7.6 A2)", () => {
     expect(mergeProgress(row({ accountId: "a", look: "t1h2" }), row({ accountId: "g", look: "t3h4" })).row.look).toBe("t1h2");
     expect(mergeProgress(row({ accountId: "a", look: null }), row({ accountId: "g", look: "t3h4" })).row.look).toBe("t3h4");
     expect(mergeProgress(row({ accountId: "a", look: null }), row({ accountId: "g", look: null })).row.look).toBeNull();
+  });
+
+  it("7.11 / 7.12 / 7.7: owned parts and districts joined, lifetime stats added per key (garbage counts 0)", () => {
+    const out = mergeProgress(
+      row({ accountId: "a", cosmetics: ["head:fire", "pack:cat"], stats: { revives: 20, kills: 900, barricades: 50, runs: 12 }, districts: ["district_2"] }),
+      row({ accountId: "g", cosmetics: ["pack:cat", "head:riot"], stats: { revives: 6, kills: 150, barricades: -3, runs: "x" }, districts: ["district_2"] }),
+    ).row;
+    expect(new Set(out.cosmetics as string[])).toEqual(new Set(["head:fire", "pack:cat", "head:riot"]));
+    expect(out.cosmetics).toHaveLength(3);
+    expect(out.stats).toEqual({ revives: 26, kills: 1050, barricades: 50, runs: 12 });
+    expect(out.districts).toEqual(["district_2"]);
   });
 
   it("garbage in a stored row (non-strings, negative or fractional levels) is dropped, never refunded", () => {

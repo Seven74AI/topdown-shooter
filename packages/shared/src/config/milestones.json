@@ -9,6 +9,6 @@
     { "id": "m7", "howTo": "Build 100 barricades", "resultLine": "100 barricades", "rule": { "kind": "lifetime_barricades", "n": 100 } },
     { "id": "m8", "howTo": "Extract with all 4 players standing", "resultLine": "all four extracted", "rule": { "kind": "extracted_all_four" } },
     { "id": "m9", "howTo": "Play 20 runs", "resultLine": "20 runs", "rule": { "kind": "lifetime_runs", "n": 20 } },
-    { "id": "m10", "howTo": "Reach wave 10 without going down", "resultLine": "wave 10 without going down", "rule": { "kind": "wave10_never_downed" } }
+    { "id": "m10", "howTo": "Reach wave 10 without going down", "resultLine": "wave 10 without going down", "rule": { "kind": "wave10_never_downed", "n": 10 } }
   ]
 }

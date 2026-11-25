@@ -214,7 +214,7 @@ export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
       if (npc && (npc.x - x) ** 2 + (npc.y - y) ** 2 < (radiusM + npc.radiusM) ** 2 && shotLineClear(world, x, y, npc.x, npc.y)) damageSurvivor(world, f.playerDamage);
     }
     // Story 6.5 (D4): the Behemoth within radius + its body, by the normal blast line of sight to its nearest point; full damage.
-    if (bossInCircle(world, x, y, radiusM) && shotLineClear(world, x, y, bossNear.x, bossNear.y)) applyBossDamage(world, bossDamage, source, weapon);
+    if (bossInCircle(world, x, y, radiusM) && shotLineClear(world, x, y, bossNear.x, bossNear.y)) applyBossDamage(world, bossDamage, buildingId > 0 ? null : source, weapon); // review L1: a mine (like a turret, firing.ts) credits no owner
     if (buildingDamage > 0) buildingsHit = blastBuildings(world, x, y, radiusM, buildingDamage);
   } finally {
     targetTop = base;

@@ -164,6 +164,20 @@ export interface PlayerState {
   trainDmg: number;
   trainMoney: number;
   trainReload: number;
+  /**
+   * Story 7.11 (`meta/milestoneRecord.ts`): the milestone counters, server bookkeeping like 7.2's record (not in the
+   * schema, not mirrored). `waveMask` bit n − 1 = wave n ended while in the run; own kills (+ the Behemoth's finisher);
+   * revives given; downs during waves 1 … runWaves; barricades placed that stood at the next wave start (+ the ids
+   * placed this build, waiting for it).
+   */
+  waveMask: number;
+  kills: number;
+  revives: number;
+  downs10: number;
+  barricades: number;
+  barricadesPending: number[];
+  /** Review M2 (B31): who downed this player (a teammate's blast or fire), null: a zombie, a world hazard or standing. */
+  downedBy: string | null;
 }
 
 /** Story 7.4 + 7.5 (one type, Notes for the merge): what a survivor starts a run with, beyond the balance. */
@@ -240,6 +254,13 @@ export function addPlayer(world: World, id: string, x: number, y: number, init: 
     trainDmg: clampLevel(t.damage),
     trainMoney: clampLevel(t.startMoney),
     trainReload: clampLevel(t.reload),
+    waveMask: 0, // Story 7.11
+    kills: 0,
+    revives: 0,
+    downs10: 0,
+    barricades: 0,
+    barricadesPending: [],
+    downedBy: null,
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

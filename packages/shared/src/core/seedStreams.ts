@@ -13,8 +13,11 @@ import { createRng, type Rng, type RngState } from "./rng";
  * - `combat`: offline (solo) weapon spread. Online spread is `seqSpreadRoll(playerId, seq)` (Story
  *   2.12, a pure function the shooter's client computes) and uses no stream.
  * - `shop:<playerSlot>:<buildPhaseIndex>`: one player's shop draws in one build phase (`shopStream`).
+ * - `loot` (Story 7.12): the run's loot plan (`loot/lootPlan.ts`). Its seed mixes the run seed with a
+ *   server-only salt (D3: `streamSeed(runSeed ^ lootSalt, "loot")`), so the room's public `runSeed`
+ *   alone can't tell a client whether or when a bag drops (B2). Tests and replays pass 0.
  */
-export const STREAM_NAMES = ["decay", "events", "spawns", "combat"] as const;
+export const STREAM_NAMES = ["decay", "events", "spawns", "combat", "loot"] as const;
 export type StreamName = (typeof STREAM_NAMES)[number];
 
 /** murmur3's 32-bit finaliser (a bijection on uint32). */
@@ -53,17 +56,21 @@ export interface SeedStreams {
   readonly events: Rng;
   readonly spawns: Rng;
   readonly combat: Rng;
+  /** Story 7.12: salted with the server's `lootSalt` (D3). */
+  readonly loot: Rng;
   /** Indexed by player slot (0 … MAX_PLAYERS − 1; solo is slot 0). Preallocated. */
   readonly shop: readonly ShopStream[];
 }
 
-export function createSeedStreams(runSeed: number): SeedStreams {
+/** Story 7.12: `lootSalt` (u32, default 0) salts only the `loot` stream; every other stream is the run seed's. */
+export function createSeedStreams(runSeed: number, lootSalt = 0): SeedStreams {
   const seed = runSeed >>> 0;
   return {
     decay: createRng(streamSeed(seed, "decay")),
     events: createRng(streamSeed(seed, "events")),
     spawns: createRng(streamSeed(seed, "spawns")),
     combat: createRng(streamSeed(seed, "combat")),
+    loot: createRng(streamSeed((seed ^ lootSalt) >>> 0, "loot")),
     shop: Array.from({ length: MAX_PLAYERS }, (_, slot) => ({ buildPhaseIndex: -1, rng: createRng(streamSeed(seed, shopStreamKey(slot, 0))) })),
   };
 }
@@ -109,6 +116,7 @@ export function snapshotSeedStreams(s: SeedStreams): {
   events: RngState;
   spawns: RngState;
   combat: RngState;
+  loot: RngState;
   shop: { buildPhaseIndex: number; state: RngState }[];
 } {
   return {
@@ -116,6 +124,7 @@ export function snapshotSeedStreams(s: SeedStreams): {
     events: s.events.getState(),
     spawns: s.spawns.getState(),
     combat: s.combat.getState(),
+    loot: s.loot.getState(), // Story 7.12
     shop: s.shop.map((x) => ({ buildPhaseIndex: x.buildPhaseIndex, state: x.rng.getState() })),
   };
 }

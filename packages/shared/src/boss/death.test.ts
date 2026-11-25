@@ -8,6 +8,7 @@ import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { maxAliveNow } from "../waves/waveDirector";
 import { killZombie } from "../zombies/zombiePool";
+import { createExplosionSpec, explode } from "../combat/explosion";
 import { applyBossDamage } from "./bossDamage";
 import { BOSS_ATTACK, BOSS_STATE, bossBodyOn, pushPlayerOutOfBoss } from "./bossState";
 import { killBoss } from "./death";
@@ -26,6 +27,20 @@ function setup(systems: Parameters<typeof createWorld>[0]["systems"] = NO_WAVES)
 }
 
 const bossHits = (ev: ReturnType<typeof collect>): number => ev.filter((e) => e.type === "player.damaged" && e.tag === "boss").length;
+
+describe("review L1: who finished the Behemoth", () => {
+  it("a mine's blast (buildingId set) names no killer, like a turret; the owner's own grenade does", () => {
+    for (const [buildingId, killer] of [[7, null], [0, "a"]] as const) {
+      const { w, ev } = setup();
+      addPlayer(w, "a", 4, 4);
+      placeBoss(w, 24, 16, 1);
+      explode(w, { ...createExplosionSpec(), x: 24, y: 16, radiusM: 3, zombieDamage: 50, playerDamage: 0, bossDamage: 50, kind: buildingId ? "mine" : "grenade", sourcePlayerId: "a", weapon: buildingId ? "mine" : "grenade", buildingId });
+      expect(w.boss.state).toBe(BOSS_STATE.DEAD);
+      tickN(w);
+      expect(ev.filter((e) => e.type === "boss.killed").map((e) => (e as { killerId: string | null }).killerId)).toEqual([killer]);
+    }
+  });
+});
 
 describe("Story 6.7 F5: a dead boss never hurts you", () => {
   it("killed during a slam telegraph: the slam never lands", () => {

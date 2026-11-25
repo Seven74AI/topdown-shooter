@@ -41,6 +41,8 @@ export const toView = (p: Progress): ProgressView => ({
   lifetimeSupplies: p.lifetimeSupplies,
   unlocks: [...p.unlocks],
   training: trainingView(p.training), // Story 7.5 (AC 3)
+  districts: [...p.districts], // Story 7.7
+  cosmetics: [...p.cosmetics], // Story 7.11
 });
 
 /** Story 7.5: the saved levels of the four boosts (clamped; absent = 0), never anything else from the jsonb. */

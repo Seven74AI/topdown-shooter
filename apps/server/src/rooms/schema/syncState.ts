@@ -1,4 +1,4 @@
-import { CONSUMABLE_NONE, EVENT_KIND_NONE_WIRE, EVENT_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { LOOT_BAG, CONSUMABLE_NONE, EVENT_KIND_NONE_WIRE, EVENT_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BossState, BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -39,6 +39,20 @@ export function syncState(state: RunState, controller: RunController): void {
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
   syncSpecialEvent(state, world); // Story 6.8
+  syncLootBag(state, world); // Story 7.12
+}
+
+/** Story 7.12: the loot bag's record, on change only (drop, pick-up, expiry: a few patches per run). */
+function syncLootBag(state: RunState, world: World): void {
+  const l = world.loot;
+  if (state.lootBagState === l.state) return; // the record changes only with the state
+  if (l.state === LOOT_BAG.OUT) {
+    state.lootBagX = l.x;
+    state.lootBagY = l.y;
+    state.lootBagUntilTick = l.untilTick;
+    state.lootBagVariant = l.variant;
+  }
+  state.lootBagState = l.state;
 }
 
 /** Story 6.8: the active event, field by field on change only (an idle record costs no bytes). */
@@ -313,6 +327,11 @@ export function resetRunFields(state: RunState): void {
   state.npcState = 0;
   state.npcLook = 0;
   state.npcLeaderSlot = 255;
+  state.lootBagState = 0; // Story 7.12: no bag before the next run's drop
+  state.lootBagX = 0;
+  state.lootBagY = 0;
+  state.lootBagUntilTick = 0;
+  state.lootBagVariant = 0;
   state.safeX = 0;
   state.safeY = 0;
 }

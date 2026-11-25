@@ -186,3 +186,55 @@ export function layoutBanner(width: number, height: number, insets: HudInsets, k
   out.y = top;
   return out;
 }
+
+/**
+ * Story 7.12 (BF2, brief 31 / R11): the toast line (HudScene: under the wave line and the status line,
+ * centred) and, for a loot find, the bag icon left of it. Its top in CSS px from the top inset — the
+ * same sum HudScene places the toast at (wave text, 12 px, status text, 12 px).
+ */
+export const TOAST_TOP_CSS_PX = WAVE_TOP_PX + WAVE_TEXT_PX + 12 + 18 + 12;
+export const TOAST_TEXT_CSS_PX = 18;
+/** The loot line's bag icon (CSS px) and its gap to the text. */
+export const LOOT_ICON_CSS_PX = 22;
+export const LOOT_ICON_GAP_CSS_PX = 6;
+/** The widest loot line: a 16-character lobby name + " found a bag!". */
+export const WIDEST_LOOT_LINE = "WWWWWWWWWWWWWWWW found a bag!";
+
+const moneyScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
+
+/**
+ * The loot line for a text `textW` px wide (unscaled, scaled px): icon + gap + text, centred on the
+ * screen (the toast's centre), `TOAST_TOP_CSS_PX` below the top inset; where that would touch the
+ * money line (568 × 320 with a long name) it starts `HUD_BAND_GAP_CSS_PX` right of it, and a line
+ * wider than the room left before the right inset is scaled down (`scale` ≤ 1, ≥ 11/18). While the
+ * boss bar shows (`boss`, its rect: wave 10), the line goes `HUD_BAND_GAP_CSS_PX` under it. Writes the
+ * whole rect (icon included) and `scale`; the text's centre is `x + icon + gap + w_text / 2`.
+ */
+export function layoutLootLine(width: number, insets: HudInsets, k: number, textW: number, out: HudRect & { scale: number }, boss: Readonly<HudRect> | null = null, height = Infinity): HudRect & { scale: number } {
+  const gap = HUD_BAND_GAP_CSS_PX * k;
+  const fullH = Math.max(LOOT_ICON_CSS_PX, TOAST_TEXT_CSS_PX * LINE_HEIGHT) * k;
+  out.y = (TOAST_TOP_CSS_PX + insets.top) * k;
+  out.scale = 1;
+  if (boss && out.y < boss.y + boss.h + gap && boss.y < out.y + fullH + gap) {
+    // under the boss bar; on a short screen (568 × 320) the line shrinks (≥ 11 px text) and the gap
+    // narrows (≥ 2 px) so it keeps the survivor's `LOOT_LINE_CENTRE_CLEAR_CSS_PX`
+    const room = height / 2 - LOOT_LINE_CENTRE_CLEAR_CSS_PX * k - (boss.y + boss.h);
+    const g = Math.max(2 * k, Math.min(gap, room - fullH * LOOT_LINE_MIN_SCALE));
+    out.y = boss.y + boss.h + g;
+    out.scale = Math.max(LOOT_LINE_MIN_SCALE, Math.min(1, (room - g) / fullH));
+  }
+  const money = layoutMoneyLine(insets, k, moneyScratch);
+  out.h = fullH * out.scale;
+  const icon = (LOOT_ICON_CSS_PX + LOOT_ICON_GAP_CSS_PX) * k * out.scale;
+  const touchesMoney = out.y < money.y + money.h + gap && money.y < out.y + out.h + gap;
+  const minLeft = touchesMoney ? money.x + money.w + gap : insets.left * k;
+  const maxRight = width - insets.right * k;
+  out.scale = Math.min(out.scale, Math.max(0, (maxRight - minLeft - icon) / Math.max(1e-6, textW)));
+  out.w = icon + textW * out.scale;
+  out.x = Math.min(Math.max(width / 2 - (out.w - icon) / 2 - icon, minLeft), maxRight - out.w); // the text centred when it fits
+  return out;
+}
+
+/** The smallest loot line (11 px text of 18) and the survivor's clearance it keeps (the HUD's 48 px rule). */
+export const LOOT_LINE_MIN_SCALE = 11 / 18;
+export const LOOT_LINE_CENTRE_CLEAR_CSS_PX = 48;

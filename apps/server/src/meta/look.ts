@@ -30,13 +30,9 @@ export type LookOutcome =
 
 const DEFAULT_CODE = encodeLook(DEFAULT_LOOK);
 
-/**
- * The parts this progress row may wear: the starter parts plus the row's owned items. Story 7.11 adds `cosmetics`
- * (`slot:id` keys) to the row; until then the field is absent and only starter parts are owned.
- */
+/** The parts this progress row may wear: the starter parts plus the row's owned milestone / loot items (7.11 / 7.12 `cosmetics`). */
 export function ownedFor(row: Progress): ReadonlySet<string> {
-  const cosmetics = (row as Progress & { cosmetics?: readonly string[] | null }).cosmetics;
-  return ownedParts(Array.isArray(cosmetics) ? cosmetics : undefined);
+  return ownedParts(Array.isArray(row.cosmetics) ? row.cosmetics : undefined);
 }
 
 /** What is stored for a requested code and an owned set: the canonical code, or null for the default look. */

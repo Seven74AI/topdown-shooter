@@ -21,6 +21,7 @@ export interface Member {
   /**
    * Story 7.9: the seat's canonical look code (set at join; a takeover keeps it, the new connection's look is ignored).
    * Story 7.10 (D3): `lobby.set_look` replaces it in the lobby phase only (never during a run).
+   * Story 7.11: re-checked once in the lobby when the account's owned parts arrive (an owned milestone part stays).
    */
   look: string;
   /**

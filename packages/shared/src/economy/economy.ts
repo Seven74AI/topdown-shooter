@@ -5,6 +5,7 @@ import { err, ok, type Result } from "../core/result";
 import { MAX_PLAYERS } from "../net/messages";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { countBossKilled, countWaveEnded } from "../meta/runRecord";
+import { countMilestoneEvent } from "../meta/milestoneRecord";
 
 /**
  * Story 3.2: personal wallets and rewards (GDD › Economy and Resources, FR12, FR45).
@@ -187,6 +188,8 @@ export const updateEconomy: SystemFn = (world) => {
   const n = bus.pendingCount;
   for (let i = 0; i < n; i++) {
     const e = bus.pendingAt(i);
-    if (e) apply(world, e);
+    if (!e) continue;
+    apply(world, e);
+    countMilestoneEvent(world, e); // Story 7.11: after `apply` (a turret kill the owner earned is theirs by then)
   }
 };

@@ -12,6 +12,8 @@ import {
   loadBalance,
   type Progression,
   type ProgressView,
+  districtList,
+  districtName,
   type UnlockCategory,
   type UnlockResponse,
 } from "@topdown/shared";
@@ -186,6 +188,19 @@ const stripIndex = (r: HubRow & { index: number }): HubRow => {
   void index;
   return row;
 };
+
+/**
+ * Story 7.7 (AC 7, D2): the hub's "Districts" line — "District 2: unlocked · coming soon" once unlocked, else how to
+ * unlock it ("" before progress is known). One phrase per district past the first (data-driven).
+ */
+export function districtsLine(progress: ProgressView | null): string {
+  if (!progress) return "";
+  const have = progress.districts ?? [];
+  return districtList()
+    .filter((d) => d.unlock !== null)
+    .map((d) => (have.includes(d.id) ? `${d.name}: unlocked${d.playable ? "" : " · coming soon"}` : `${d.name}: extract from ${districtName(d.unlock?.extractFrom ?? "")} to unlock`))
+    .join(" · ");
+}
 
 /** Header: "1,240" (or "–" before any progress is known). */
 export const suppliesText = (progress: ProgressView | null): string => (progress ? formatSupplies(progress.supplies) : "–");

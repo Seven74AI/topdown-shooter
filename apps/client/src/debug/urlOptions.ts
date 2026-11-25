@@ -1,4 +1,4 @@
-import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed, type TrainingLevels } from "@topdown/shared";
+import { parseDevLoot, parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed, type TrainingLevels } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 import { ANIMATED_LAYERS, type AnimatedLayerId } from "@topdown/shared";
 import { DEFAULT_STALL_MS, MAX_THROTTLE_JITTER_MS, MAX_THROTTLE_LAG_MS, MAX_THROTTLE_LOSS_PCT, MAX_THROTTLE_STALL_MS } from "../net/devThrottle";
@@ -74,6 +74,12 @@ export interface UrlOptions {
    * replaces the run's event schedule (world.debug, never the JSON). Raw; parsed by `parseDevEvents`.
    */
   events: string | null;
+  /**
+   * Story 7.12 (dev builds only, solo practice; online the server's `DEV_LOOT`): `?loot=3:0.1` gives
+   * this practice run a loot bag in wave 3 at kill share 0.1 (practice has none otherwise, D2).
+   * [wave, frac] or null (absent, invalid, release build).
+   */
+  loot: readonly [number, number] | null;
   /**
    * `?seed=<uint32>` (Story 4.4, dev builds only, like `?zdmg`): the host's Create asks the server
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
@@ -199,6 +205,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     bossWaves: dev ? q.get("bosswave") : null, // Story 6.5: dev builds only
     bossHpScale: dev ? parseBossHpScale(q.get("bosshp")) : null,
     events: dev ? q.get("events") : null, // Story 6.8: dev builds only
+    loot: dev ? parseDevLoot(q.get("loot")) : null, // Story 7.12: dev builds only
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),

@@ -34,6 +34,10 @@ export const progressViewSchema = z.object({
   look: z.string().max(LOOK_CODE_MAX).nullable().optional(),
   /** Story 7.5 (AC 3): Training levels by boost id (`max_hp`, `damage`, `start_money`, `reload`; absent = 0). */
   training: z.record(z.string().max(32), z.number().int().min(0).max(10)).optional(),
+  /** Story 7.7: the districts this account unlocked (the hub's "Districts" line). Optional: unlock answers carry it too. */
+  districts: z.array(z.string().max(32)).max(8).optional(),
+  /** Story 7.11 (T5): the owned milestone / loot part keys (7.10's editor tiles). */
+  cosmetics: z.array(z.string().max(32)).max(64).optional(),
 });
 export type ProgressView = z.infer<typeof progressViewSchema>;
 

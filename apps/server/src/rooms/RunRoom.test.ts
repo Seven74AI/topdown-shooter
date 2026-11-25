@@ -337,7 +337,7 @@ describe("RunRoom lobby (Story 2.3)", () => {
     await readyAndStart(host.room, host.client, guest.client);
     expect(host.room.state.phase).toBe("build");
     // Story 7.4 (T3): run_started lists each player (accountId, unlocks, training, how they were read).
-    expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), players: [expect.objectContaining({ accountId: null, unlocks: 0, source: "no_account" }), expect.objectContaining({ accountId: null, unlocks: 0 })] }, "run_started");
+    expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), lootSalt: expect.any(Number), players: [expect.objectContaining({ accountId: null, unlocks: 0, source: "no_account" }), expect.objectContaining({ accountId: null, unlocks: 0 })] }, "run_started");
     await vi.waitFor(() => expect(guest.client.state.phase).toBe("build"));
   });
 

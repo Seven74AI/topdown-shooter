@@ -4,7 +4,7 @@
  */
 import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "./client";
-import { accounts, progress, runRewards } from "./schema";
+import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema";
 import { PROGRESSION } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
@@ -26,7 +26,38 @@ export interface Progress {
   districts: string[];
   /** Story 7.9: the survivor look code, or null (the default look). Written only by 7.10's `saveLook` (canonical). */
   look: string | null;
+  /** Story 7.11: owned milestone / loot part keys (`slot:id`). */
+  cosmetics: string[];
+  /** Story 7.11: lifetime counters. */
+  stats: LifetimeStatsRow;
 }
+
+export type { LifetimeStatsRow } from "./schema";
+
+/**
+ * Stories 7.7 / 7.11 / 7.12: the run's meta writes, made INSIDE 7.2's bank transaction (brief 18) after the run_rewards
+ * row was inserted (so a retry or a second endRun writes none of them again): `statsDelta` is added to the locked
+ * `stats`; `grant` then sees the stats AFTER the increment (AC 5: lifetime milestones are checked on them), the owned
+ * part keys and districts (all read under the row lock), and returns what to add (unions) plus its own breakdown keys
+ * (stored in run_rewards.breakdown, so an "already banked" answer replays them).
+ */
+export interface RunMetaWrites {
+  readonly statsDelta: LifetimeStatsRow;
+  grant(statsAfter: LifetimeStatsRow, owned: ReadonlySet<string>, districts: readonly string[]): { cosmetics: readonly string[]; districts: readonly string[]; breakdown: Record<string, unknown> };
+}
+
+const statN = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+/** A stored `stats` value read back (anything missing or broken is 0). */
+export function readStats(raw: unknown): LifetimeStatsRow {
+  const o = (raw ?? {}) as Partial<Record<keyof LifetimeStatsRow, unknown>>;
+  return { revives: statN(o.revives), kills: statN(o.kills), barricades: statN(o.barricades), runs: statN(o.runs) };
+}
+const addStats = (a: LifetimeStatsRow, d: LifetimeStatsRow): LifetimeStatsRow => ({
+  revives: a.revives + statN(d.revives),
+  kills: a.kills + statN(d.kills),
+  barricades: a.barricades + statN(d.barricades),
+  runs: a.runs + statN(d.runs),
+});
 
 /** Story 7.2: what one run pays one account, computed INSIDE the bank transaction from the locked lifetime total. */
 export interface RunPayout {
@@ -75,7 +106,7 @@ export interface ProgressRepo {
    * means "already banked" and nothing else is written), then Supplies and lifetime Supplies grow by the amount.
    * Later writers (7.7 district, 7.11 milestones, 7.12 loot) join this transaction.
    */
-  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout): Promise<BankResult>;
+  addSupplies(runId: string, accountId: string, pay: (lifetimeBefore: number) => RunPayout, meta?: RunMetaWrites): Promise<BankResult>;
   /**
    * Story 7.3 (AC 5, brief 18): buys `unlockId` for `price` (from the SERVER's progression.json, never the request) in
    * ONE conditional update: `supplies >= price AND NOT unlocks ? id`. Two concurrent buys for one account serialize on
@@ -109,7 +140,11 @@ const progressColumns = {
   training: progress.training,
   districts: progress.districts,
   look: progress.look,
+  cosmetics: progress.cosmetics, // Story 7.11
+  stats: progress.stats,
 };
+/** A row from `progressColumns` with its stats read back (Story 7.11). */
+const asProgress = (r: Omit<Progress, "stats"> & { stats: unknown }): Progress => ({ ...r, stats: readStats(r.stats) });
 
 export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bankOptions: BoundedOptions = {}): ProgressRepo {
   return {
@@ -137,10 +172,10 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               )
               .returning(progressColumns);
             const row = updated[0];
-            if (row) return { outcome: "trained", progress: row };
+            if (row) return { outcome: "trained", progress: asProgress(row) };
           }
           const now = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).limit(1);
-          const current: Progress = now[0] ?? { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null };
+          const current: Progress = now[0] ? asProgress(now[0]) : { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null, cosmetics: [], stats: readStats(null) };
           const have = typeof current.training[boost] === "number" ? current.training[boost] : 0;
           if (have >= maxLevel || level > maxLevel) return { outcome: "maxed", progress: current };
           if (have !== level - 1) return { outcome: "already_trained", progress: current };
@@ -165,9 +200,9 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .where(and(eq(progress.accountId, accountId), sql`${progress.supplies} >= ${price}`, sql`NOT (${progress.unlocks} ? ${unlockId})`))
             .returning(progressColumns);
           const row = updated[0];
-          if (row) return { outcome: "unlocked", progress: row };
+          if (row) return { outcome: "unlocked", progress: asProgress(row) };
           const now = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).limit(1);
-          const current: Progress = now[0] ?? { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null };
+          const current: Progress = now[0] ? asProgress(now[0]) : { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null, cosmetics: [], stats: readStats(null) };
           if (current.unlocks.includes(unlockId)) return { outcome: "already_unlocked", progress: current };
           return { outcome: "not_enough", need: Math.max(1, price - current.supplies), progress: current };
         },
@@ -184,7 +219,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           const locked = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).for("update");
           const row = locked[0];
           if (!row) throw new Error("progress row missing");
-          const look = canonical(row);
+          const look = canonical(asProgress(row)); // 7.11: the owned parts (cosmetics) of the locked row
           if (look === KEEP_LOOK) return { look: row.look, written: false }; // review L2: a newer look is stored: keep it
           const updated = await tx.update(progress).set({ look, updatedAt: sql`now()` }).where(eq(progress.accountId, accountId)).returning({ look: progress.look });
           return { look: updated[0]?.look ?? null, written: true };
@@ -205,11 +240,14 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               training: progress.training,
               districts: progress.districts,
               look: progress.look,
+              cosmetics: progress.cosmetics,
+              stats: progress.stats,
             })
             .from(progress)
             .where(eq(progress.accountId, accountId))
             .limit(1);
-          return rows[0] ?? null;
+          const r = rows[0];
+          return r ? { ...r, stats: readStats(r.stats) } : null;
         },
         timeoutMs,
       ),
@@ -224,7 +262,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
       ),
     // Review RR-M1: NOT under withDbTimeout (which stops waiting while the work goes on): the result is the
     // transaction's own final outcome, bounded inside the database (`boundedTransaction`).
-    addSupplies: (runId, accountId, pay) =>
+    addSupplies: (runId, accountId, pay, meta) =>
       boundedTransaction(
         database,
         "progress.addSupplies",
@@ -240,7 +278,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           const payee = acc[0]?.mergedInto ?? accountId;
           await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx
-            .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies })
+            .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies, cosmetics: progress.cosmetics, stats: progress.stats, districts: progress.districts })
             .from(progress)
             .where(eq(progress.accountId, payee))
             .for("update");
@@ -248,9 +286,15 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           if (!before) throw new Error("progress row missing");
           const payout = pay(before.lifetimeSupplies);
           const supplies = Math.max(0, Math.floor(payout.supplies));
+          // Stories 7.7 / 7.11 / 7.12: the meta writes, computed from the locked row (written below only if this bank is new).
+          const statsAfter = meta ? addStats(readStats(before.stats), meta.statsDelta) : null;
+          const owned = new Set(before.cosmetics ?? []);
+          const districtsBefore = Array.isArray(before.districts) ? before.districts : [];
+          const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;
+          const breakdown = grant ? { ...payout.breakdown, ...grant.breakdown } : payout.breakdown;
           const inserted = await tx
             .insert(runRewards)
-            .values({ runId, accountId, supplies, breakdown: payout.breakdown })
+            .values({ runId, accountId, supplies, breakdown })
             .onConflictDoNothing()
             .returning({ runId: runRewards.runId });
           if (inserted.length === 0) {
@@ -262,11 +306,20 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             const row = earlier[0];
             return { banked: false, supplies: row?.supplies ?? 0, newTotal: before.supplies, breakdown: row?.breakdown ?? {}, nudge: false };
           }
+          const extra: Partial<typeof progress.$inferInsert> = {};
+          if (grant && statsAfter) {
+            extra.stats = statsAfter; // under the row lock: two runs of one account ending at once both add (AC 5)
+            const newKeys = grant.cosmetics.filter((k) => !owned.has(k));
+            if (newKeys.length > 0) extra.cosmetics = [...owned, ...new Set(newKeys)];
+            const newDistricts = grant.districts.filter((d) => !districtsBefore.includes(d));
+            if (newDistricts.length > 0) extra.districts = [...districtsBefore, ...new Set(newDistricts)];
+          }
           const updated = await tx
             .update(progress)
             .set({
               supplies: sql`${progress.supplies} + ${supplies}`,
               lifetimeSupplies: sql`${progress.lifetimeSupplies} + ${supplies}`,
+              ...extra,
               updatedAt: sql`now()`,
             })
             .where(eq(progress.accountId, payee))
@@ -278,7 +331,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             await tx.update(accounts).set({ saveNudged: true }).where(eq(accounts.id, accountId));
             nudge = true;
           }
-          return { banked: true, supplies, newTotal: updated[0]?.supplies ?? before.supplies + supplies, breakdown: payout.breakdown, nudge };
+          return { banked: true, supplies, newTotal: updated[0]?.supplies ?? before.supplies + supplies, breakdown, nudge }; // Stories 7.7 / 7.11 / 7.12: with the meta lines
         },
         bankOptions,
       ),

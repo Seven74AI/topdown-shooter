@@ -20,7 +20,7 @@ const ruleSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("lifetime_barricades"), n: z.number().int().min(1) }).strict(),
   z.object({ kind: z.literal("lifetime_runs"), n: z.number().int().min(1) }).strict(),
   z.object({ kind: z.literal("extracted_all_four") }).strict(),
-  z.object({ kind: z.literal("wave10_never_downed") }).strict(),
+  z.object({ kind: z.literal("wave10_never_downed"), n: z.number().int().min(1).max(32) }).strict(), // review L8: the waves (= balance runWaves, checked in tests)
 ]);
 
 const milestoneSchema = z

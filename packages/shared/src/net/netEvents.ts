@@ -90,6 +90,10 @@ export const NET_EVENT_KIND = {
   RUN_EXTRACTED: 67,
   // Stories 6.9 + 6.10 (75–84 are theirs; never reuse)
   WEAPON_CRATE_TAKEN: 75,
+  // Story 7.12 (130–139 are 7.12's, Epic 7 brief 27; never reuse)
+  LOOT_DROPPED: 130,
+  LOOT_FOUND: 131,
+  LOOT_EXPIRED: 132,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -332,6 +336,13 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.EVENT_ENDED, EVENT_KINDS.indexOf(e.kind), EVENT_OUTCOMES.indexOf(e.outcome)];
     case "event.skipped":
       return [K.EVENT_SKIPPED, EVENT_KINDS.indexOf(e.kind), e.wave];
+    // Story 7.12: global (everyone sees the same bag, B4); the until tick absolute (the client hides it there).
+    case "loot.dropped":
+      return [K.LOOT_DROPPED, cm(e.x), cm(e.y), e.untilTick, e.variant & 0xff];
+    case "loot.found":
+      return [K.LOOT_FOUND, playerSlotOf(e.playerId), e.wave & 0xff];
+    case "loot.expired":
+      return [K.LOOT_EXPIRED];
     case "test.ping":
       return null;
   }
@@ -604,6 +615,14 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       if (kind === undefined) return null;
       return { type: "event.skipped", kind, wave: n(t, 2) };
     }
+    case K.LOOT_DROPPED: // Story 7.12
+      return { type: "loot.dropped", x: n(t, 1) / 100, y: n(t, 2) / 100, untilTick: n(t, 3), variant: n(t, 4) };
+    case K.LOOT_FOUND: {
+      const playerId = playerIdOfSlot(n(t, 1));
+      return playerId === null ? null : { type: "loot.found", playerId, wave: n(t, 2) };
+    }
+    case K.LOOT_EXPIRED:
+      return { type: "loot.expired" };
     default:
       return null;
   }

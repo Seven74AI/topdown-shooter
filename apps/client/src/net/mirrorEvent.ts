@@ -1,4 +1,4 @@
-import { EVENT_KIND_NONE_WIRE, EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, type RunStateView, type World } from "@topdown/shared";
+import { LOOT_BAG, EVENT_KIND_NONE_WIRE, EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, type RunStateView, type World } from "@topdown/shared";
 
 /**
  * Story 6.8 (AC 6, brief 14): copies the room state's active-event fields into the mirror World's
@@ -90,4 +90,21 @@ function mirrorCrateAndSurvivor(world: World, state: Readonly<RunStateView>, kin
   n.leaderSlot = ls === 255 ? -1 : ls;
   n.safeX = (state.safeX ?? 0) / 100;
   n.safeY = (state.safeY ?? 0) / 100;
+}
+
+/**
+ * Story 7.12 (AC 5, B4): the room's loot bag record into the mirror World's `loot` (the client never
+ * simulates the bag: `LootBagView` draws this, in solo the real World). Out only while the record
+ * says so and the server tick is before its `untilTick`. `??` for an older server.
+ */
+export function mirrorLootBag(world: World, state: Readonly<RunStateView>): void {
+  const l = world.loot;
+  const s = state.lootBagState ?? LOOT_BAG.NONE;
+  l.state = s;
+  if (s !== LOOT_BAG.OUT) return;
+  l.x = state.lootBagX ?? 0;
+  l.y = state.lootBagY ?? 0;
+  l.untilTick = state.lootBagUntilTick ?? 0;
+  l.dropTick = l.untilTick - world.balance.loot.bagTicks;
+  l.variant = state.lootBagVariant ?? 0;
 }

@@ -81,16 +81,17 @@ export function findReviver(world: Readonly<World>, downed: PlayerState): Player
   return best;
 }
 
-/** Alive → downed at 0 HP: starts the countdown, emits `player.downed`, and checks for a wipe. */
-export function downPlayer(world: World, p: PlayerState): void {
+/** Alive → downed at 0 HP: starts the countdown, emits `player.downed`, and checks for a wipe. `by`: the teammate whose hit did it (review M2). */
+export function downPlayer(world: World, p: PlayerState, by: string | null = null): void {
   if (p.status !== "alive") return;
   p.status = "downed";
+  p.downedBy = by;
   p.hp = 0;
   p.downedTicksLeft = ticksFor(world.balance.player.downedS);
   p.reviveTicks = 0;
   p.reviverId = null;
   p.reviveNeedTicks = 0;
-  world.events.emit({ type: "player.downed", playerId: p.id });
+  world.events.emit({ type: "player.downed", playerId: p.id, inWave: world.run.phase === "wave" });
   checkTeamWipe(world); // solo: going down ends the run on the same tick
 }
 
@@ -206,7 +207,7 @@ export function updateDowned(world: World): void {
         p.reviveTicks = 0;
         p.reviverId = null;
         p.reviveNeedTicks = 0;
-        world.events.emit({ type: "player.revived", playerId: p.id, reviverId: reviver.id });
+        world.events.emit({ type: "player.revived", playerId: p.id, reviverId: reviver.id, inWave: world.run.phase === "wave" });
       }
       continue; // the countdown pauses while a revive is in progress
     }

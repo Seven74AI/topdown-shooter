@@ -84,3 +84,11 @@ Photoreal group 3 addition (pictures: Playwright, solo dev build, 844×390 at 2�
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
 | 63 | `63_fort.png` | a closed fort of standing barricades: the far wall wood (its braced inside toward you), the side walls reinforced (seen end-on: the top edge running up, razor wire on top, braces inside), the near wall metal (its outside), a post at each corner | **stop** (every wall) | right if "a fort / a base / walls". A zombie can't get in: the walls meet at the corners (the corner posts are drawn there, they add nothing to the walls' blocking). Wrong (a readability bug) if anyone reads the corners as gaps, or the thin side walls as weaker than the front ones. Open look question for the designer: bodies just behind a wall are hidden by it (see `docs/art/occlusion/compare.html`) |
+
+Story 7.12 addition (pictures: the game in headless Chromium, 568 × 320 at deviceScaleFactor 2, `docs/art/epic-7/built/7-12-shots.cjs`, 2026-11-25):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 110 | `../../art/epic-7/built/7-12-bags.png` (top row) | a loot bag: a real object (backpack, go-bag, field case, trauma bag or evidence bag) with a white rim, a white ground ring and a glint | **pass** (a pick-up: bullets and bodies cross it) | right if "a bag / loot / something to pick up" and "walk over it"; wrong if anyone reads cover, a healing kit (LB7's cross: it heals nothing) or a weapon crate. The first standing player within 0.6 m takes it, no button; it lies 20 s |
+| 111 | `../../art/epic-7/built/7-12-bags.png` (bottom row) | the same bags in a 5 % blackout: still visible above the darkness | **pass** | right if the bag is seen without the flashlight on it |
+| 112 | `../../art/epic-7/built/7-12-hud.png` | the white badge at the screen edge = where the bag is (its ring = time left of its 20 s); the orange line = Ana (orange slot) found the bag | n/a | right if "the bag is that way" and "Ana got it" |

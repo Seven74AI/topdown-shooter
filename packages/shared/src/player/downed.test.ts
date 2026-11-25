@@ -58,7 +58,7 @@ describe("going down", () => {
     run(world, 30);
     expect(a.status).toBe("downed");
     expect(a.hp).toBe(0);
-    expect(ofType(events, "player.downed")).toEqual([{ type: "player.downed", playerId: "p0" }]);
+    expect(ofType(events, "player.downed")).toMatchObject([{ type: "player.downed", playerId: "p0" }]);
     expect(a.downedTicksLeft).toBeGreaterThan(DOWNED_TICKS - 30);
     expect(a.reviveTicks).toBe(0);
     expect(a.reviverId).toBeNull();
@@ -122,7 +122,7 @@ describe("revive", () => {
     expect(a.hp).toBe(30);
     expect(a.reviveTicks).toBe(0);
     expect(a.reviverId).toBeNull();
-    expect(ofType(events, "player.revived")).toEqual([{ type: "player.revived", playerId: "p0", reviverId: "p1" }]);
+    expect(ofType(events, "player.revived")).toMatchObject([{ type: "player.revived", playerId: "p0", reviverId: "p1" }]);
   });
 
   it("the reviver going down mid-revive resets the progress (review gap)", () => {
@@ -203,7 +203,7 @@ describe("revive", () => {
     expect(a.status).toBe("downed");
     expect(a.reviverId).toBe("p2");
     run(world, 1);
-    expect(ofType(events, "player.revived")).toEqual([{ type: "player.revived", playerId: "p0", reviverId: "p2" }]);
+    expect(ofType(events, "player.revived")).toMatchObject([{ type: "player.revived", playerId: "p0", reviverId: "p2" }]);
   });
 
   describe("Story 5.11: revive kit (D1: the kit belongs to the reviver)", () => {

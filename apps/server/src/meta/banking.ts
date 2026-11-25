@@ -19,8 +19,10 @@
 import { randomUUID } from "node:crypto";
 import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
-import type { ProgressRepo } from "../db/progressRepo";
+import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
 import { dbErrText } from "../db/timeout";
+import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
+import { runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
 export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
@@ -37,6 +39,25 @@ export interface BankSeat {
   readonly wave?: number;
   /** Story 7.4 (AC 9): `PlayerState.lockedUsed` (an unlock index, 255 none). */
   readonly lockedUsed?: number;
+  /**
+   * Stories 7.7 / 7.11 / 7.12: the seat's milestone counters (copied at the bank call: a leaver banks with what it had
+   * then, 7.11 AC 6) and the run's facts. Absent = Supplies only (7.2's tests).
+   */
+  readonly meta?: { readonly player: MetaPlayer; readonly facts: RunFacts };
+  /** 7.12 (D1): the bag's find, shown on every teammate's Results ("Ana found: Traffic cone"). */
+  readonly teamLoot?: TeamLoot;
+}
+
+/** The PlayerState fields the meta writes read (a copy). */
+export type MetaPlayer = Pick<PlayerState, "waveMask" | "kills" | "revives" | "downs10" | "barricades" | "bossesIn">;
+const metaPlayer = (p: Readonly<PlayerState>): MetaPlayer => ({ waveMask: p.waveMask, kills: p.kills, revives: p.revives, downs10: p.downs10, barricades: p.barricades, bossesIn: p.bossesIn });
+
+/** 7.12 D1: who found the bag and what came out of it (key null: Collector, or not known yet). */
+export interface TeamLoot {
+  playerId: string;
+  wave: number;
+  key: string | null;
+  name: string;
 }
 
 /** Story 7.4 (K7): the item names of the bundled balance (names never change in dev overrides). */
@@ -68,6 +89,8 @@ export interface RunBankDeps {
   deliver(playerId: string, msg: RunRewards): void;
   retryMs?: number;
   nowMs?(): number;
+  /** Story 7.7: the district this run is played in (`state.district` at Start; default Downtown). */
+  district?: string;
 }
 
 /** What `run_rewards.breakdown` keeps: the payout, the ending and the record it came from (hand grants, later stories). */
@@ -81,8 +104,17 @@ interface Breakdown extends RunSupplies {
 
 const copyRecord = (r: RunRecord): RunRecord => ({ wavesIn: r.wavesIn, endlessWavesIn: r.endlessWavesIn, bossesIn: r.bossesIn, endlessBossesIn: r.endlessBossesIn });
 
-function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number, lockedUsed?: number): RunRewards {
+/** Stories 7.7 / 7.11 / 7.12: the meta lines of a bank (from the breakdown it stored, or a preview when unsaved). */
+interface MetaLines {
+  newItems?: NewItem[];
+  loot?: LootFind;
+  newDistricts?: { id: string; name: string }[];
+  teamLoot?: TeamLoot;
+}
+
+function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number, meta: MetaLines = {}, lockedUsed?: number): RunRewards {
   return {
+    ...metaFields(meta),
     lockedUsed: lockedUsedLine(lockedUsed), // Story 7.4
     ending: b.ending,
     leftWave: b.leftWave,
@@ -96,6 +128,27 @@ function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<
     total: status === "saved" ? b.total : 0,
     newTotal: status === "saved" ? newTotal : 0,
   };
+}
+
+/** Only the meta fields that are set (an older client ignores them: `run.rewards` is passthrough). */
+function metaFields(m: MetaLines): MetaLines {
+  const out: MetaLines = {};
+  if (m.newItems && m.newItems.length > 0) out.newItems = m.newItems;
+  if (m.loot) out.loot = m.loot;
+  if (m.newDistricts && m.newDistricts.length > 0) out.newDistricts = m.newDistricts;
+  if (m.teamLoot) out.teamLoot = m.teamLoot;
+  return out;
+}
+
+const str = (v: unknown, max: number): string => (typeof v === "string" ? v.slice(0, max) : "");
+/** The meta lines of a stored breakdown (shapes checked: a hand-edited row can't send garbage). */
+export function storedMeta(raw: Record<string, unknown>): MetaLines {
+  const out: MetaLines = {};
+  if (Array.isArray(raw.newItems)) out.newItems = raw.newItems.filter((x): x is NewItem => typeof x === "object" && x !== null && typeof (x as NewItem).key === "string").map((x) => ({ key: str(x.key, 32), name: str(x.name, 32), reason: str(x.reason, 40) }));
+  const l = raw.loot as Partial<LootFind> | undefined;
+  if (l && typeof l === "object" && typeof l.wave === "number") out.loot = { wave: Math.max(0, Math.floor(l.wave)), key: typeof l.key === "string" ? str(l.key, 32) : null, name: str(l.name, 32) };
+  if (Array.isArray(raw.newDistricts)) out.newDistricts = raw.newDistricts.filter((x): x is { id: string; name: string } => typeof x === "object" && x !== null && typeof (x as { id: unknown }).id === "string").map((x) => ({ id: str(x.id, 32), name: str(x.name, 24) }));
+  return out;
 }
 
 /** A stored breakdown read back (an earlier bank of the same run): numbers only, anything missing is 0. */
@@ -164,18 +217,32 @@ export class RunBank {
     remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly player: RunRecord & { readonly lockedUsed?: number } }>,
   ): Promise<RunRewards[]> {
     const ending: RunEnding = world.run.ending;
-    const all: Promise<RunRewards>[] = [];
-    const ids: string[] = [];
+    const facts = runFacts(world, this.deps.district ?? DEFAULT_DISTRICT); // Stories 7.7 / 7.11 / 7.12
+    const seats: BankSeat[] = [];
     for (const m of members) {
       const p = world.players.get(m.playerId) ?? world.heldPlayers.get(m.playerId)?.player;
       if (!p) continue;
-      ids.push(m.playerId);
-      all.push(this.bank({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed }));
+      seats.push({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed, meta: { player: metaPlayer(p), facts } });
     }
     for (const s of remembered) {
-      ids.push(s.playerId);
-      all.push(this.bank({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(s.player), ending: "quit", ...(s.player.lockedUsed !== undefined ? { lockedUsed: s.player.lockedUsed } : {}) }));
+      // 8.1 F8 + 7.12: a remembered seat's state stays in the room; its PlayerState is the seat's own.
+      const p = (s as { readonly player: RunRecord & Partial<PlayerState> }).player;
+      const meta = typeof p.waveMask === "number" ? { player: metaPlayer(p as PlayerState), facts } : undefined;
+      seats.push({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(p), ending: "quit", ...(p.lockedUsed !== undefined ? { lockedUsed: p.lockedUsed } : {}), ...(meta ? { meta } : {}) });
     }
+    // 7.12 D1: the finder banks first (or banked when it left), so every teammate's Results names the item.
+    const finder = facts.lootFoundBy;
+    const finderSeat = finder === null ? undefined : seats.find((x) => x.playerId === finder);
+    const first: Promise<RunRewards | undefined> = finderSeat ? this.bank(finderSeat) : (finder === null ? undefined : this.banks.get(finder)) ?? Promise.resolve(undefined); // review M1: await a bank still in flight
+    const all: Promise<RunRewards>[] = seats.map((seat) =>
+      seat === finderSeat
+        ? (first as Promise<RunRewards>)
+        : first.then((f) => {
+            const teamLoot = finder === null ? undefined : teamLootOf(finder, f);
+            return this.bank(teamLoot ? { ...seat, teamLoot } : seat);
+          }),
+    );
+    const ids = seats.map((x) => x.playerId);
     return Promise.all(all).then((results) => {
       const supplies: Record<string, number> = {};
       const rookie: Record<string, boolean> = {};
@@ -191,13 +258,22 @@ export class RunBank {
     });
   }
 
+  /** Stories 7.7 / 7.11 / 7.12: a leaver's meta writes (the room's `bankLeaver`), with the run's facts now. */
+  seatMetaNow(world: Readonly<World>, p: Readonly<PlayerState>): { player: MetaPlayer; facts: RunFacts } {
+    return { player: metaPlayer(p), facts: runFacts(world, this.deps.district ?? DEFAULT_DISTRICT) };
+  }
+
   private async run(seat: BankSeat): Promise<RunRewards> {
     const record = copyRecord(seat.record);
     const leftWave = seat.ending === "quit" ? Math.max(0, Math.floor(seat.wave ?? 0)) : 0;
     const repo = this.deps.repo();
+    const writes: RunMetaWrites | undefined = seat.meta ? seatMeta(seat.playerId, seat.meta.player as PlayerState, seat.ending === "extracted", seat.meta.facts) : undefined;
+    const team = seat.teamLoot ? { teamLoot: seat.teamLoot } : {};
+    // Unsaved / failed: nothing is written; the find still shows what it would have been (7.12: starter parts only owned).
+    const preview = (): MetaLines => ({ ...team, ...(writes ? storedMeta(writes.grant(statsDelta(seat.meta?.player as PlayerState), new Set(), []).breakdown) : {}) });
     if (seat.accountId === null || repo === null) {
       const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY); // no rookie guess: the lifetime is unknown
-      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, seat.lockedUsed);
+      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
     }
     const accountId = seat.accountId;
     const now = this.deps.nowMs ?? (() => performance.now());
@@ -206,16 +282,23 @@ export class RunBank {
       const breakdown: Breakdown = { ...s, ending: seat.ending, leftWave, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, record };
       return { supplies: s.total, breakdown: breakdown as unknown as Record<string, unknown> };
     };
+    let lastErr = "";
     for (let attempt = 1; attempt <= 2; attempt++) {
       const t0 = now();
       try {
-        const r = await repo.addSupplies(this.runId, accountId, pay);
+        const r = await repo.addSupplies(this.runId, accountId, pay, writes);
         const b = storedBreakdown(r.breakdown, r.supplies);
+        const meta = storedMeta(r.breakdown);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
-        const m = message(this.runId, this.seed, "saved", b, r.newTotal, seat.lockedUsed);
+        if (r.banked && (meta.newItems?.length || meta.loot || meta.newDistricts?.length)) {
+          // 7.11 / 7.12 / 7.7 log lines (keys and ids only; no names a player typed)
+          this.deps.log.info({ runId: this.runId, accountId, items: meta.newItems?.map((x) => x.key) ?? [], loot: meta.loot ? { wave: meta.loot.wave, collector: meta.loot.key === null } : null, districts: meta.newDistricts?.map((x) => x.id) ?? [] }, "meta_granted");
+        }
+        const m = message(this.runId, this.seed, "saved", b, r.newTotal, { ...meta, ...team }, seat.lockedUsed);
         return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
         const err = dbErrText(e); // review L5: never a query's parameters
+        lastErr = err;
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
         // COMMIT reply with the database then unreachable can mean "failed" although paid: the retry's duplicate key
         // or the hand-grant check (run_rewards first, docs/deploy.md › Database) covers it.
@@ -223,7 +306,30 @@ export class RunBank {
         if (attempt === 1) await new Promise((r) => setTimeout(r, this.deps.retryMs ?? BANK_RETRY_MS));
       }
     }
+    // B33 (designer override 2026-11-25): a find whose bank failed is lost; one greppable line per failed find (no params).
+    if (seat.meta && seat.meta.facts.lootFoundBy === seat.playerId) {
+      this.deps.log.error({ playerId: seat.playerId, accountId, runId: this.runId, wave: seat.meta.facts.lootWave, err: lastErr }, "loot_bank_failed");
+    }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
-    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, seat.lockedUsed);
+    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, lootOnly(preview()), seat.lockedUsed);
   }
+}
+
+/** Unsaved / failed: only the find is shown (no item was granted; milestone and district lines need a saved bank). */
+function lootOnly(m: MetaLines): MetaLines {
+  const out: MetaLines = {};
+  if (m.loot) out.loot = m.loot;
+  if (m.teamLoot) out.teamLoot = m.teamLoot;
+  return out;
+}
+
+/**
+ * 7.12 D1: the teammates' line from the finder's result. B33 (designer override 2026-11-25): when the finder's item
+ * isn't known — its bank failed (or timed out), or it never banked here — there is NO team line (no item is guessed,
+ * no nameless "found the bag"). Review round 2 L1: only a SAVED find is named to teammates (`not_saved` too: no line).
+ */
+function teamLootOf(finder: string, r: RunRewards | undefined): TeamLoot | undefined {
+  const l = (r as { loot?: LootFind } | undefined)?.loot;
+  if (!l || r?.status !== "saved") return undefined; // review round 2 L1: only a saved find names an item
+  return { playerId: finder, wave: l.wave, key: l.key, name: l.name };
 }

@@ -1,6 +1,6 @@
 # Story 7.7: District unlock rule
 
-Status: ready-for-dev
+Status: done (built in the merged story 7.7 + 7.11 + 7.12 on branch `story-7-12`; Dev Agent Record in `7-12-surprise-loot-bag.md`)
 
 <!-- Epic 7 progression story 7 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decision D12 (the host can pick a district if anyone in the lobby has it) is a rule here. District 2 content is out of v1 (FR81: "rule only"); Epic 11 later adds a Random city card to the same picker (open from the start, not an unlock; sprint-change-proposal-2026-11-24-random-city.md). -->
 
@@ -36,11 +36,11 @@ so that I have a goal beyond one map.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Data + rule** (AC 1, 4): `progression.json › districts`, zod, `meta/districts.ts` (`openMask(members)`, `canPick(id, mask, isHost)`), tests.
-- [ ] **T2 Unlock write** (AC 2; R1): banking writer, `newDistricts` in `run.rewards`, Results line. Tests with 7.2's PGlite harness.
-- [ ] **T3 Lobby** (AC 3–5; R2–R4): member district load, schema fields + every copy, message + guard, leave fallback + notice, Start reads the pick.
-- [ ] **T4 UI** (AC 6, 7) after the designer's pick.
-- [ ] **T5 Tests + gate + hand-back.**
+- [x] **T1 Data + rule** (AC 1, 4): `progression.json › districts`, zod, `meta/districts.ts` (`openMask(members)`, `canPick(id, mask, isHost)`), tests.
+- [x] **T2 Unlock write** (AC 2; R1): banking writer, `newDistricts` in `run.rewards`, Results line. Tests with 7.2's PGlite harness.
+- [x] **T3 Lobby** (AC 3–5; R2–R4): member district load, schema fields + every copy, message + guard, leave fallback + notice, Start reads the pick.
+- [x] **T4 UI** (AC 6, 7) after the designer's pick.
+- [x] **T5 Tests + gate + hand-back.**
 
 ## Dev Notes
 
@@ -115,3 +115,5 @@ so that I have a goal beyond one map.
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+
+- 2026-11-25: built in the merged story 7.7 + 7.11 + 7.12 (branch `story-7-12`); the named tests per task, the Gate line, Notes for the merge and Not verified are in `7-12-surprise-loot-bag.md` › Dev Agent Record.

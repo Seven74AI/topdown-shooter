@@ -218,6 +218,18 @@ const runFields = {
   // Story 8.1 (F6, D5): nobody connected (or the 3-2-1 running): the World is not stepped; the count 3 → 2 → 1.
   frozen: t.boolean().default(false),
   resumeIn: t.uint8().default(0),
+  // Story 7.12: the loot bag (one record, set on drop / pick-up / expiry only; never per tick, never the plan).
+  /** `LOOT_BAG` (0 none, 1 out, 2 found, 3 gone). */
+  lootBagState: t.uint8().default(0),
+  /** Its centre (m) and the server tick it is gone at. */
+  lootBagX: t.float32().default(0),
+  lootBagY: t.float32().default(0),
+  lootBagUntilTick: t.uint32().default(0),
+  /** Its look (0–4: LB4–LB8). */
+  lootBagVariant: t.uint8().default(0),
+  // Story 7.7: the run's district (the host's pick in the lobby) and the districts anyone in the lobby has (bit i = list index).
+  district: t.string().default("downtown"),
+  districtsOpen: t.uint8().default(1),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

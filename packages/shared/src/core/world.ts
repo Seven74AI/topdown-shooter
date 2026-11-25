@@ -29,6 +29,8 @@ import { createLightState, type LightState } from "../decay/lightState";
 import { createShopOffers, type ShopOffers } from "../economy/shopOffers";
 import { createSpecialEventState, type SpecialEventState } from "../events/eventState";
 import { createBossState, recordBossHistory, type BossState } from "../boss/bossState";
+import { createLootState, type LootState } from "../loot/lootBag";
+import { makeLootPlan } from "../loot/lootPlan";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -146,6 +148,12 @@ export interface World {
    * client's mirror copies the active event from the room state.
    */
   readonly special: SpecialEventState;
+  /**
+   * Story 7.12: the surprise loot bag (`loot/lootBag.ts`): the run's plan (from the salted `loot`
+   * stream, made in `createWorld`; never on the wire), the kill count and the bag. Server truth, in
+   * `snapshotWorld`; the client's mirror copies the bag from the room's `lootBag*` record.
+   */
+  readonly loot: LootState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -201,6 +209,12 @@ export interface CreateWorldOptions {
   map?: DistrictMap;
   /** Tests only: replace systems by name. */
   systems?: Partial<Systems>;
+  /**
+   * Story 7.12: the loot plan. `salt` = the server's secret u32 (D3; default 0: tests, replays);
+   * `prevVariant` = the look of this server's previous bag (7-UI-6: never twice in a row; −1 none);
+   * `off` = no plan (offline practice, D2; the client's mirror and prediction Worlds). Default: a plan, salt 0.
+   */
+  loot?: { readonly salt?: number; readonly prevVariant?: number; readonly off?: boolean };
 }
 
 /** Systems are kept outside the World so snapshots and deep-equal checks never see functions. */
@@ -212,7 +226,8 @@ export function createWorld(opts: CreateWorldOptions): World {
   const seed = opts.seed >>> 0;
   const map = opts.map ?? PLACEHOLDER_MAP;
   // Story 4.5 DecayTimeline: the run's variation candidates, picked once from the `decay` stream.
-  const streams = createSeedStreams(seed);
+  const lootSalt = (opts.loot?.salt ?? 0) >>> 0;
+  const streams = createSeedStreams(seed, lootSalt);
   const decay = createDecayState(pickDecayVariants(map, streams.decay), map, opts.balance.decay.fire.radiusM);
   // Story 4.2: a new World is at the first decay stage.
   const obstacles = createObstacles(map, FIRST_DECAY_STAGE, decay.variants);
@@ -255,7 +270,10 @@ export function createWorld(opts: CreateWorldOptions): World {
     shop: createShopOffers(), // Story 5.13
     boss: createBossState(), // Story 6.5
     special: createSpecialEventState(), // Story 6.8
+    loot: createLootState(), // Story 7.12
   };
+  world.loot.salt = lootSalt;
+  if (opts.loot?.off !== true) makeLootPlan(streams.loot, opts.balance, opts.loot?.prevVariant ?? -1, world.loot.plan);
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;
 }

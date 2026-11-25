@@ -6,6 +6,7 @@ import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 import { formatSupplies, rewardsStore } from "../net/rewardsStore";
 import type { RunRewards } from "@topdown/shared";
 import { lineAmount, rewardsView, trainingCell, type RewardsView } from "./rewardsModel";
+import { itemPortraitUrl } from "../render/city/survivorPortrait";
 import { ACCOUNT_TEXT, showNudge } from "./accountModel";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
 import { openAccount } from "./uiState";
@@ -58,7 +59,7 @@ export function ResultsScreen() {
   }
   const sub = resultsSub(screen);
   const cls = `game-over results rw${screen.ending === "extracted" ? " results--held" : screen.ending === "lost" ? " results--lost" : ""}`;
-  const view = rewardsView(rewards, screen.online, screen.seed);
+  const view = rewardsView(rewards, screen.online, screen.seed, undefined, (slot) => screen.rows.find((r) => r.slot === slot)?.name ?? "");
   return (
     <div class={look !== "none" ? `results-backdrop results-backdrop--${look}` : undefined}>
       <div class={cls} role="dialog" aria-labelledby="results-title">
@@ -160,6 +161,15 @@ function TrainCell({ r }: { r: { training?: Parameters<typeof trainingCell>[0] }
   );
 }
 
+/**
+ * Stories 7.11 / 7.12: a found or granted part's picture — the default survivor wearing it (7.9's portrait drawing;
+ * 7.10's `partTileUrl` close-up replaces it when it lands). A Collector row shows the bag badge instead.
+ */
+function ItemPicture({ partKey }: { partKey: string | null }) {
+  const url = partKey ? itemPortraitUrl(partKey) : null;
+  return url ? <img class="rw-item__pic" src={url} alt="" /> : <span class="rw-item__pic rw-item__pic--bag" aria-hidden="true" />;
+}
+
 /** Story 7.2 (AC 5, RW1): the "Run rewards" card. One scrolling column; rows in the fixed order of brief 26. */
 export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** Story 7.6 (AC 10): the Results screen to come back to, when the nudge shows. */ nudge?: UiScreen | null }) {
   return (
@@ -218,12 +228,35 @@ export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** 
             </p>
           )}
         </div>
-        {/* Brief 26: groups 2–4 (items 7.11/7.12, unlocks 7.4/7.7, nudge 7.6) append here, in this order; empty groups render nothing. */}
-        {view.unlockLine ? (
-          <div class="rw-group rw-group--unlocks" data-group="unlocks">
-            <p class="rw-unlock" data-testid="unlock-line">
-              {view.unlockLine}
-            </p>
+        {view.items.length > 0 ? (
+          <ul class="rw-group rw-group--items" data-group="items" data-testid="rewards-items">
+            {view.items.map((it, i) => (
+              <li key={`${it.kind}${i}`} class={`rw-item rw-item--${it.kind}${it.big ? " rw-item--big" : ""}`}>
+                <ItemPicture partKey={it.key} />
+                <span class="rw-item__text">
+                  <span class="rw-item__line" style={it.slot >= 0 ? { color: SLOT_COLOR_CSS[it.slot] } : undefined}>
+                    {it.text}
+                  </span>
+                  {it.sub ? <span class="rw-item__sub">{it.sub}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {view.unlockLine || view.unlocks.length > 0 ? (
+          <div class="rw-group rw-group--unlocks" data-group="unlocks" data-testid="rewards-unlocks">
+            {/* Story 7.4's line first, then 7.7's districts (brief 26 group 3). */}
+            {view.unlockLine ? (
+              <p class="rw-unlock" data-testid="unlock-line">
+                {view.unlockLine}
+              </p>
+            ) : null}
+            {view.unlocks.map((u) => (
+              <p key={u.id} class="rw-unlock rw-unlock--district">
+                <span class="rw-unlock__line">{u.text}</span>
+                {u.sub ? <span class="rw-unlock__sub">{u.sub}</span> : null}
+              </p>
+            ))}
           </div>
         ) : null}
         {nudge ? (

@@ -99,6 +99,13 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   trainDmg: "kept",
   trainMoney: "kept",
   trainReload: "kept",
+  waveMask: "kept", // Story 7.11: the milestone counters ride with the held seat (NP 21)
+  kills: "kept",
+  revives: "kept",
+  downs10: "kept",
+  barricades: "kept",
+  barricadesPending: "kept",
+  downedBy: "kept", // review M2: only read on the next player.revived (a fresh down resets it)
 };
 
 /** Gives every field a non-default value so "kept" really means kept. */
@@ -122,6 +129,13 @@ function scramble(world: World, p: PlayerState): void {
   p.trainDmg = 2;
   p.trainMoney = 5;
   p.trainReload = 1;
+  p.waveMask = 0b11111; // Story 7.11
+  p.kills = 321;
+  p.revives = 3;
+  p.downs10 = 1;
+  p.barricades = 7;
+  p.barricadesPending.push(42);
+  p.downedBy = "p3";
   p.slowTicksLeft = 5;
   p.slowPct = 30;
   p.fireTicks = 3;

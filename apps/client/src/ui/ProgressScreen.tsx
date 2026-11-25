@@ -10,7 +10,7 @@ import {
   hubSections,
   refreshAfterFailureMs,
   rowAction,
-  suppliesText,
+  districtsLine, suppliesText,
   tapUnlock,
   TRAIN_TEXT,
   answerTrain,
@@ -164,6 +164,12 @@ export function ProgressScreen() {
             </span>
           ) : null}
         </p>
+        {/* Story 7.7 (AC 7, D2; review M4): the Districts line under the rule, outside the tablist, wrapping (never cut). */}
+        {districtsLine(progress) ? (
+          <p class="ph-districts" data-testid="hub-districts">
+            {districtsLine(progress)}
+          </p>
+        ) : null}
         <div class="ph-tabs" role="tablist">
           {HUB_TABS.map((t) => (
             <button

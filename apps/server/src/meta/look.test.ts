@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { accountsRepo } from "../db/accountsRepo";
 import { type Database, openPglite } from "../db/client";
 import { progressRepo, type Progress, type ProgressRepo } from "../db/progressRepo";
+import { setProgressListsForTest } from "../db/testQueries";
 import { MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN } from "../net/limits";
 import { SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
@@ -101,6 +102,19 @@ describe("POST /account/look (Story 7.10 AC 8, 11; E2)", () => {
     expect(want).toContain("head:cap");
   });
 
+  it("Stories 7.11 / 7.12 (7.10 lands first): the parts the account OWNS (a milestone and a loot item in its cosmetics) are stored as asked", async () => {
+    const a = await account();
+    await setProgressListsForTest(database, a.id, [], ["head:riot", "pack:cat"]);
+    const look = "v1|top:hoodie|head:riot|hair:mohawk|pack:cat|skin:4|c:3d8bff,8b1a1a,ff8a1f";
+    const r = await post(port, { token: a.token, look });
+    expect(r.status).toBe(200);
+    expect(r.body.look).toBe(look);
+    expect(await stored(a.id)).toBe(look);
+    // an item it doesn't own still becomes the default part
+    const r2 = await post(port, { token: a.token, look: look.replace("top:hoodie", "top:camo") });
+    expect(r2.body.look).toBe(look.replace("top:hoodie", `top:${DEFAULT_LOOK.top}`));
+  });
+
   it("the default look (or junk that decodes to it) is stored as null (7.6 reads null as 'never customised')", async () => {
     const a = await account();
     await post(port, { token: a.token, look: STARTER });
@@ -184,7 +198,7 @@ describe("saveLook (unit): owned set from the locked row, 503 when the save serv
   const accounts = { findByTokenHash: async () => ({ id: "acc-1" }) } as never;
 
   it("the owned set comes from the row (7.11's cosmetics), never from the request", async () => {
-    const row = { accountId: "acc-1", supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null } as Progress;
+    const row = { accountId: "acc-1", supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null, cosmetics: [], stats: { revives: 0, kills: 0, barricades: 0, runs: 0 } } as Progress;
     expect(ownedFor(row).has("head:riot")).toBe(false);
     expect(ownedFor({ ...row, cosmetics: ["head:riot"] } as Progress).has("head:riot")).toBe(true);
     let written: string | null | undefined;

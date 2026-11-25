@@ -109,6 +109,15 @@ export interface FakeState {
   safeY: number;
   frozen: boolean; // Story 8.1
   resumeIn: number;
+  /** Story 7.12: the loot bag record. */
+  lootBagState: number;
+  lootBagX: number;
+  lootBagY: number;
+  lootBagUntilTick: number;
+  lootBagVariant: number;
+  /** Story 7.7. */
+  district: string;
+  districtsOpen: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -161,6 +170,13 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     safeY: 0,
     frozen: false, // Story 8.1
     resumeIn: 0,
+    lootBagState: 0, // Story 7.12: none
+    lootBagX: 0,
+    lootBagY: 0,
+    lootBagUntilTick: 0,
+    lootBagVariant: 0,
+    district: "downtown", // Story 7.7
+    districtsOpen: 1,
   };
 }
 

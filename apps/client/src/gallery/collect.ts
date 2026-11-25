@@ -11,6 +11,8 @@ import { ensureThrowFxAtlas } from "../render/city/throwArt";
 import { ensureHudWarnTextures } from "../render/city/hudWarnArt";
 import { ensureHeliAtlas } from "../render/city/heliArt";
 import { ensureEventTextures } from "../render/city/eventArt";
+import { ensureLootBagTextures } from "../render/city/lootBagAtlas";
+import { loadBalance } from "@topdown/shared";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
 import { WEAPON_ART, WEAPON_ICON_ART, tierMarkUrl, weaponIconUrl } from "../render/city/weaponArt";
 
@@ -48,6 +50,7 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureHudWarnTextures(this);
           ensureHeliAtlas(this);
           ensureEventTextures(this);
+          ensureLootBagTextures(this, loadBalance().loot.glint.rimAlpha); // Story 7.12: the five loot bags, ring, glint, badge
           new SurvivorLayerPool(this);
           const art = textureAssets(this); // before the game (and its textures) is destroyed below
           void shopAssets().then((shop) => resolve([...art, ...shop]), reject);

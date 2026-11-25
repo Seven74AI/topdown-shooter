@@ -163,19 +163,19 @@ development_status:
   epic-6-retrospective: done  # 2026-11-25, headless (auto-accepted overnight); action items A1–A12, §10 brief lines for the Network pass and Epic 7
 
   # Epic 7: Accounts and meta-progression
-  epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
+  epic-7: done  # all 12 stories on master 2026-11-25; story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
   7-1-progress-saved-on-the-server: done  # 2026-11-25: PostgreSQL/PGlite + repos, guest accounts (__Host-tdg cookie + localStorage), ticket bound to the token, account at join, deploy/backups; review 1M/6L + 1 narrow re-review, pg client crash fix
   7-2-earn-and-bank-supplies: done  # 2026-11-25: Supplies banked once per (run, account) in boundedTransaction (status always = committed), RW1 Lumen Results panel, practice earns nothing; review 1M/5L + 2 narrow re-reviews + main-session check (cap)
   7-3-unlock-screen: done  # 2026-11-25: 14 unlocks, /account/unlock in boundedTransaction, PH1 Lumen hub; review 3M/7L + 2 narrow re-reviews; merged with 7.9 (one progress object, B17/B18)
   7-4-shop-deck-from-my-unlocks: done  # 2026-11-25: merged 7.4+7.5 (one story, one review): my deck + 1 borrowed card, not_unlocked rules, lockedUsed line; review clean (no H/M) + main-session check
   7-5-training-boosts: done  # merged into 7.4+7.5: Training (HP, damage, start money, reload) in full, /account/training, TR1 tab, TL3 column
   7-6-upgrade-to-an-account: done  # 2026-11-25: username + Argon2id password, recovery code, login/reset/logout, guest merge in boundedTransaction, device_tokens (0003_accounts_devices); review 2M/7L + 1 narrow re-review + main-session check (cap)
-  7-7-district-unlock-rule: ready-for-dev  # MERGED into 7.7+7.11+7.12
+  7-7-district-unlock-rule: done  # landed 2026-11-25 after 2 narrow re-reviews; MERGED into 7.7+7.11+7.12 (story-7-12)
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: done  # 2026-11-25: look code + progress.look (0002_look), ownership-checked at join, gun under the body, per-player textures, SC3 lobby cards; review 4M/8L + 1 narrow re-review
   7-10-survivor-editor: done  # landed 2026-11-25 after light review; built 2026-11-25 on story-7-10 (layout ED1+LK2+LS1; D1–D7 + B1–B14 auto-accepted, docs/epic-7-story-decisions-looks.md); awaiting light review + beat-the-rule on POST /account/look
-  7-11-milestone-items: ready-for-dev  # MERGED into 7.7+7.11+7.12
-  7-12-surprise-loot-bag: ready-for-dev  # T0-T4 built (story-7-12); T5 in the merged 7.7+7.11+7.12
+  7-11-milestone-items: done  # landed 2026-11-25 after 2 narrow re-reviews; MERGED into 7.7+7.11+7.12 (story-7-12)
+  7-12-surprise-loot-bag: done  # landed 2026-11-25 after 2 narrow re-reviews; merged 7.7+7.11+7.12 built on story-7-12 (one review)
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience

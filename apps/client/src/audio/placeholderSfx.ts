@@ -71,7 +71,10 @@ export type SfxName =
   | "event_crate_taken"
   | "event_power_down"
   | "event_survivor_help"
-  | "event_survivor_saved";
+  | "event_survivor_saved"
+  // Story 7.12: the loot bag lands (soft, where it fell) / someone takes it.
+  | "loot_drop"
+  | "loot_found";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -567,6 +570,16 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       click(c, t, 1400, 0.3);
       tone(c, t + 0.05, 0.18, 0.25, 660);
       tone(c, t + 0.2, 0.25, 0.25, 990);
+      break;
+    case "loot_drop": // Story 7.12: a soft cloth flop and a faint sparkle (quiet: heard by everyone)
+      burst(c, t, 0.18, 0.35, 380);
+      tone(c, t + 0.08, 0.12, 0.08, 1760);
+      break;
+    case "loot_found": // Story 7.12: a zip and a bright three-note rise
+      sweep(c, t, 0.14, 0.25, 1800, 5200);
+      tone(c, t + 0.12, 0.12, 0.22, 784);
+      tone(c, t + 0.22, 0.12, 0.22, 988);
+      tone(c, t + 0.32, 0.22, 0.22, 1319);
       break;
     case "event_power_down": // Story 6.10 (D1): a thunk and a dying hum
       burst(c, t, 0.3, 0.9, 160);

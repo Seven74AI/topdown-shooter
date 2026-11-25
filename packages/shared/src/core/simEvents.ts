@@ -68,8 +68,9 @@ export type SimEvent =
    * meaning (the biting zombie, or −1 fire / −2 blast / −3 acid).
    */
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number; tag: DamageTag; sourcePlayerId: string | null }
-  | { type: "player.downed"; playerId: string }
-  | { type: "player.revived"; playerId: string; reviverId: string }
+  /** `inWave` (server bookkeeping, not on the wire): the phase was "wave" when it happened (review N1: a later system may flip it this tick). */
+  | { type: "player.downed"; playerId: string; inWave?: boolean }
+  | { type: "player.revived"; playerId: string; reviverId: string; inWave?: boolean }
   | { type: "player.out"; playerId: string }
   | { type: "player.returned"; playerId: string; x: number; y: number }
   | { type: "team.wiped"; wave: number }
@@ -231,6 +232,13 @@ export type SimEvent =
   | { type: "event.ended"; kind: EventKind; outcome: EventOutcome }
   /** A scheduled event could not start (F9 safety net) or its wave passed without it. */
   | { type: "event.skipped"; kind: EventKind; wave: number }
+  // Story 7.12: the surprise loot bag (global on the wire: everyone sees the same bag, B4).
+  /** The bag appeared at (x, y) (already moved out of solids); it is gone at server tick `untilTick`. `variant` = its look (LB4–LB8). */
+  | { type: "loot.dropped"; x: number; y: number; untilTick: number; variant: number; /** Client only: seconds since it happened. */ ageS?: number }
+  /** `playerId` took the bag (the bag dropped in `wave`); the server picks the item (T5). */
+  | { type: "loot.found"; playerId: string; wave: number; /** Client only: seconds since it happened (a woken tab: no late toast). */ ageS?: number }
+  /** Nobody took it: its 20 s ran out (or the run ended). */
+  | { type: "loot.expired" }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

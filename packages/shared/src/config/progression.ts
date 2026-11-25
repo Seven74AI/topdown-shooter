@@ -24,6 +24,19 @@ const suppliesSchema = z
   })
   .strict();
 
+/**
+ * Story 7.7 (AC 1, D1): the districts, in list order (the lobby bitmask's bit i = index i). `unlock: null` = open from the
+ * start; `{ extractFrom }` = an extraction from that district unlocks it (R1). `playable: false` = "coming soon" (R5).
+ */
+const districtSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9_]{1,32}$/),
+    name: z.string().min(1).max(24),
+    unlock: z.object({ extractFrom: z.string().regex(/^[a-z0-9_]{1,32}$/) }).strict().nullable(),
+    playable: z.boolean(),
+  })
+  .strict();
+
 const itemId = z.string().regex(/^[a-z0-9_]{1,32}$/, "item ids are lowercase snake_case");
 
 /** Story 7.3 (AC 1): the four shop categories an unlock (and a starter item) belongs to, in hub order. */
@@ -97,6 +110,13 @@ export const progressionSchema = z
     training: trainingSchema,
     /** Story 7.6 (AC 10, D9): a guest's first run banking at least this many Supplies shows "Save my progress" once. */
     account: z.object({ saveNudgeSupplies: z.number().int().positive() }).strict(),
+    districts: z
+      .array(districtSchema)
+      .min(1)
+      .max(8) // the lobby's u8 bitmask
+      .refine((ds) => new Set(ds.map((x) => x.id)).size === ds.length, "districts has a duplicate id")
+      .refine((ds) => ds[0]?.unlock === null && ds[0]?.playable === true, "the first district is open and playable (the default pick)")
+      .refine((ds) => ds.every((x) => x.unlock === null || ds.some((y) => y.id === x.unlock?.extractFrom)), "an unlock names an unknown district"),
   })
   .strict()
   .superRefine((p, ctx) => {
@@ -146,6 +166,11 @@ export function loadProgression(data: unknown = raw): Readonly<Progression> {
   Object.freeze(p.training.boosts);
   Object.freeze(p.training);
   Object.freeze(p.account);
+  for (const d of p.districts) {
+    if (d.unlock) Object.freeze(d.unlock);
+    Object.freeze(d);
+  }
+  Object.freeze(p.districts);
   return Object.freeze(p);
 }
 

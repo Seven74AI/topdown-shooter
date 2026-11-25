@@ -193,6 +193,18 @@ export interface RunStateView {
   readonly frozen: boolean;
   /** Story 8.1: the restart count after a freeze, 3 → 2 → 1 (0 = none). */
   readonly resumeIn: number;
+  /**
+   * Story 7.12: the loot bag — `LOOT_BAG` state, centre (m), the server tick it is gone at, its look.
+   * Set on drop / pick-up / expiry only; a late Game scene or a woken tab draws the bag from these.
+   */
+  readonly lootBagState: number;
+  readonly lootBagX: number;
+  readonly lootBagY: number;
+  readonly lootBagUntilTick: number;
+  readonly lootBagVariant: number;
+  /** Story 7.7: the run's district id (the host's lobby pick) and the open districts' bitmask (bit i = `progression.json › districts[i]`). */
+  readonly district: string;
+  readonly districtsOpen: number;
 }
 
 /**
@@ -339,6 +351,13 @@ export const RUN_STATE_FIELDS = {
   safeY: true,
   frozen: true, // Story 8.1
   resumeIn: true,
+  lootBagState: true, // Story 7.12
+  lootBagX: true,
+  lootBagY: true,
+  lootBagUntilTick: true,
+  lootBagVariant: true,
+  district: true, // Story 7.7
+  districtsOpen: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

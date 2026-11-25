@@ -315,6 +315,8 @@ export {
   lobbySetReadySchema,
   lobbySetLookSchema, // Story 7.10 (D3)
   type LobbySetLook,
+  lobbyDistrictSchema, // Story 7.7
+  type LobbyDistrictReset,
   netPongSchema,
   playerNameSchema,
   runStartSchema,
@@ -762,5 +764,10 @@ export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";
 
 export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, RECONNECT, SeatRecovery, Watchdog, configureReconnection, shouldRescueReload, type RecoveryDeps, type RecoveryJoin, type ReconnectionLike } from "./net/reconnect"; // Story 8.1
+// Story 7.12: the surprise loot bag (plan, bag, dev switch)
+export { emptyLootPlan, lootKillIndex, makeLootPlan, pickLootVariant, type LootPlan } from "./loot/lootPlan";
+export { LOOT_BAG, createLootState, forceLootPlan, lootSpot, lootTaker, parseDevLoot, snapshotLoot, updateLootBag, type LootBagStateCode, type LootState } from "./loot/lootBag";
 // Stories 7.10 / 7.11 / 7.12: milestone data and the loot parts list
 export { MILESTONES, MILESTONE_IDS, MilestonesError, loadMilestones, lootPartKeys, milestonePartKey, type Milestone, type MilestoneId, type MilestoneRule } from "./config/milestones";
+export { countMilestoneEvent, hadWave, waveBit } from "./meta/milestoneRecord"; // Story 7.11
+export { DEFAULT_DISTRICT, districtIndex, districtList, districtName, districtsUnlockedBy, openMask, pickRefusal, type PickRefusal } from "./meta/districts"; // Story 7.7

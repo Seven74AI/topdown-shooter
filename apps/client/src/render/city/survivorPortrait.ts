@@ -3,7 +3,7 @@
  * drawn once per look code into a DOM canvas and cached as a data URL (the `weaponIconUrl` pattern; a DOM <img>, not a
  * Phaser texture). Turned like the SC3 drawing (gun up and to the left). The slot ring is the card's CSS, not here.
  */
-import { catalogueParts, decodeLook } from "@topdown/shared";
+import { DEFAULT_LOOK, catalogueParts, decodeLook, encodeLook, type CosmeticSlot } from "@topdown/shared";
 import { drawSurvivor } from "./spriteArt";
 import { resolveLook } from "./survivorLook";
 
@@ -41,4 +41,14 @@ export function survivorPortraitUrl(code: string, makeCanvas: () => HTMLCanvasEl
 /** Tests: forget the cache. */
 export function clearPortraitCache(): void {
   urls.clear();
+}
+
+/**
+ * Stories 7.11 / 7.12: the Results picture of a part (`slot:id`): the default survivor wearing it, drawn like the lobby
+ * portrait (null without a DOM or for an unknown key). 7.10's `partTileUrl` close-up replaces it when 7.10 lands.
+ */
+export function itemPortraitUrl(partKey: string, makeCanvas?: () => HTMLCanvasElement | null): string | null {
+  const [slot, id] = partKey.split(":") as [CosmeticSlot, string | undefined];
+  if (!id || !ANY_PART.has(partKey) || !(slot in DEFAULT_LOOK)) return null;
+  return survivorPortraitUrl(encodeLook({ ...DEFAULT_LOOK, [slot]: id }), makeCanvas);
 }

@@ -7,13 +7,13 @@ import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 import { survivorPortraitUrl } from "../render/city/survivorPortrait";
 import { lobbyLayout, type Insets, type Rect } from "./lobbyLayout";
+import { districtCards, districtResetText } from "./districtModel";
+import { districtName } from "@topdown/shared";
 
 /** How long "Link copied" stays visible. */
 const NOTICE_MS = 2000;
 /** Dev builds let the host start alone (the dev server allows it too, Story 2.3). */
 const ALLOW_SOLO_START = import.meta.env.DEV;
-/** Story 7.9: the district line shows the run's district read-only; Story 7.7 makes it the host's picker (DP2). */
-const DISTRICT_NAME = "Downtown";
 
 const place = (r: Rect): Record<string, string> => ({ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
 
@@ -55,6 +55,7 @@ export function LobbyScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   const [notice, setNotice] = useState("");
+  const [sheet, setSheet] = useState(false); // Story 7.7: the DP2 district sheet
   const vp = useViewport();
   const [startTap, setStartTap] = useState<number | null>(null); // Stories 7.4/7.5: "Starting…" while the server reads progress
   useEffect(() => {
@@ -64,6 +65,10 @@ export function LobbyScreen() {
   }, [startTap]);
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => lobbyStore.subscribe(setLobby), []);
+  // Story 7.7 R3: "Back to Downtown: nobody here has District 2", once per notice from the server.
+  useEffect(() => {
+    if (lobby.districtResetSeq > 0 && lobby.districtReset) setNotice(districtResetText(lobby.districtReset));
+  }, [lobby.districtResetSeq]);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(""), NOTICE_MS);
@@ -81,6 +86,8 @@ export function LobbyScreen() {
   const view = lobbyView(lobby, ALLOW_SOLO_START);
   const ready = view.me?.ready === true;
   const L = lobbyLayout(vp.w, vp.h, vp.inset);
+  const pickedName = districtName(lobby.district);
+  const cards = districtCards(lobby.district, lobby.districtsOpen, view.isHost);
   const showLink = L.code.w >= 200;
 
   return (
@@ -94,17 +101,47 @@ export function LobbyScreen() {
         </p>
         {showLink && <p class="lobby__link">{shareLink(code)}</p>}
       </section>
-      <section class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${DISTRICT_NAME}`}>
+      {/* Story 7.7 (DP2): the district line opens the sheet; the host picks there, everyone sees the pick. */}
+      <button type="button" class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${pickedName}. ${view.isHost ? "Change" : "See"} districts`} aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
         <span class="lobby__district-thumb" aria-hidden="true" />
         <span class="lobby__district-text">
           <span class="lobby__label lobby__label--accent">District</span>
-          <span class="lobby__district-name">{DISTRICT_NAME}</span>
+          <span class="lobby__district-name">{pickedName}</span>
         </span>
-      </section>
+      </button>
       {/* Story 7.3 (D2): spend Supplies between runs without leaving the room; beside Leave in the header. */}
       <button type="button" class="lobby__leave lobby__progress" style={place(L.progress)} onClick={() => uiStore.set(openProgress({ kind: "lobby", code }))}>
         Progress
       </button>
+      {sheet && (
+        <section class="lobby__panel district-sheet" style={place(L.sheet.panel)} aria-label="Districts" data-testid="district-sheet">
+          <ul class="district-sheet__cards">
+            {cards.map((d, i) => {
+              const at = L.sheet.cards[i];
+              if (!at) return null;
+              const box = place({ x: at.x - L.sheet.panel.x, y: at.y - L.sheet.panel.y, w: at.w, h: at.h });
+              return (
+                <li key={d.id} style={box} class={`district-card district-card--${d.state}`}>
+                  <button
+                    type="button"
+                    class="district-card__btn"
+                    disabled={!d.pickable}
+                    aria-pressed={d.state === "selected"}
+                    onClick={() => {
+                      lobbyStore.pickDistrict(d.id);
+                      setSheet(false);
+                    }}
+                  >
+                    <span class="district-card__thumb" aria-hidden="true" />
+                    <span class="district-card__name">{d.name}</span>
+                    {d.line && <span class="district-card__line">{d.line}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <button type="button" class="lobby__leave" style={place(L.leave)} onClick={() => uiStore.request("leaveLobby")}>
         <span aria-hidden="true">◆ </span>Leave
       </button>

@@ -15,6 +15,7 @@ import gear from "../config/balance/gear.json" with { type: "json" };
 import consumables from "../config/balance/consumables.json" with { type: "json" };
 import boss from "../config/balance/boss.json" with { type: "json" };
 import eventsJson from "../config/balance/events.json" with { type: "json" };
+import lootJson from "../config/balance/loot.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, step, type World } from "../core/world";
@@ -177,7 +178,7 @@ describe("contact damage (FR9)", () => {
     for (const [intervalS, expectedTicks] of [[0.3, 6], [1.5, 30], [0.7, 14]] as const) {
       const z = JSON.parse(JSON.stringify(zombiesJson));
       z.types.walker.attackIntervalS = intervalS;
-      const b = loadBalance({ weapons, zombies: z, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson } as RawBalanceFiles);
+      const b = loadBalance({ weapons, zombies: z, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson, loot: lootJson } as RawBalanceFiles);
       const world = createWorld({ balance: b, seed: 1 , systems: NO_WAVES });
       const p = addPlayer(world, "local", 24, 16);
       p.hp = 1e9;
@@ -224,7 +225,7 @@ describe("contact damage (FR9)", () => {
     run(world, 21);
     expect(p.hp).toBe(0);
     expect(p.status).toBe("downed");
-    expect(events.filter((e) => e.type === "player.downed")).toEqual([{ type: "player.downed", playerId: "local" }]);
+    expect(events.filter((e) => e.type === "player.downed")).toMatchObject([{ type: "player.downed", playerId: "local" }]); // + inWave (review N1)
     const hitsAfter = events.filter((e) => e.type === "player.damaged").length;
     run(world, 40);
     expect(events.filter((e) => e.type === "player.damaged").length).toBe(hitsAfter);

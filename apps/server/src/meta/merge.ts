@@ -101,6 +101,14 @@ export const MERGE_RULES = {
   updatedAt: (_a, _g, ctx) => ctx.now,
   /** Story 7.9 / 7.10: the account's look kept unless it is the default (null), then the guest's. */
   look: (a, g) => (typeof a === "string" ? a : typeof g === "string" ? g : null),
+  /** Story 7.11 / 7.12: owned milestone and loot parts, joined (an item owned on either side stays owned). */
+  cosmetics: (a, g) => union(a, g),
+  /** Story 7.11: the lifetime stats (M5, M6, M7, M9), added per key (both sides' runs really happened). */
+  stats: (a, g) => {
+    const o = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {});
+    const [x, y] = [o(a), o(g)];
+    return { revives: int(x.revives) + int(y.revives), kills: int(x.kills) + int(y.kills), barricades: int(x.barricades) + int(y.barricades), runs: int(x.runs) + int(y.runs) };
+  },
 } satisfies Record<string, MergeRule>;
 
 export type MergeColumn = keyof typeof MERGE_RULES;

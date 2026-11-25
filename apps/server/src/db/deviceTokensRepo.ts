@@ -20,7 +20,7 @@ import { mergeProgress, type MergeRefunds, type MergeRow } from "../meta/merge";
 import type { Account } from "./accountsRepo";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 import type { Database } from "./client";
-import type { Progress } from "./progressRepo";
+import { readStats, type Progress } from "./progressRepo";
 import { accounts, deviceTokens, progress, type ProgressRow } from "./schema";
 
 /** Compile-time half of the merge-writers check (`mergeRules.test.ts` is the runtime half): every column has a rule. */
@@ -59,7 +59,7 @@ export interface DeviceTokensRepo {
 }
 
 const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
-const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look">): Progress => ({
+const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats">): Progress => ({
   accountId: r.accountId,
   supplies: r.supplies,
   lifetimeSupplies: r.lifetimeSupplies,
@@ -67,6 +67,8 @@ const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplie
   training: r.training,
   districts: r.districts,
   look: r.look, // Story 7.9
+  cosmetics: r.cosmetics, // Stories 7.11 / 7.12
+  stats: readStats(r.stats),
 });
 
 /** The account row is already locked by the caller (device → account → guest: review L4); the guest is locked here. */

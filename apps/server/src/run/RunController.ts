@@ -1,5 +1,6 @@
 import {
   INPUT_QUEUE_TARGET,
+  forceLootPlan,
   NEUTRAL_INPUT,
   REWIND_MAX_TICKS,
   activeSlot,
@@ -267,6 +268,14 @@ export interface RunControllerOptions {
   bossWaves?: readonly number[] | null;
   /** Story 6.8 dev (`DEV_EVENTS=car_alarm@3,stampede@4`): the run's event schedule instead of the draw. null = the real draw. */
   events?: readonly { readonly kind: string; readonly wave: number }[] | null;
+  /**
+   * Story 7.12: the loot plan's server-only salt (D3: a random u32 per run from the room; default 0
+   * for tests and replays), the look of this server's previous bag (7-UI-6: never twice in a row;
+   * −1 none) and the dev switch `DEV_LOOT=<wave>:<frac>` (a forced plan; null = the real draw).
+   */
+  lootSalt?: number;
+  lootPrevVariant?: number;
+  devLoot?: readonly [number, number] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
@@ -340,7 +349,14 @@ export class RunController {
     this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
     this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
     this.onSeqResync = opts.onSeqResync ?? null;
-    this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, ...(opts.systems ? { systems: opts.systems } : {}) });
+    this.world = createWorld({
+      balance: opts.balance,
+      seed: opts.seed,
+      map: opts.map ?? DOWNTOWN_MAP,
+      ...(opts.systems ? { systems: opts.systems } : {}),
+      loot: { salt: opts.lootSalt ?? 0, prevVariant: opts.lootPrevVariant ?? -1 }, // Story 7.12
+    });
+    if (opts.devLoot) forceLootPlan(this.world, opts.devLoot[0], opts.devLoot[1]); // Story 7.12 dev switch
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
