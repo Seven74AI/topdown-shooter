@@ -38,6 +38,11 @@ export interface PlayerInfo {
  * `lerp(prev, current, alpha)`. This interface only provides `alpha`.
  */
 export interface SimHost {
+  /**
+   * Story 8.1 re-review RR1-M1 (online only): the slots of teammates on hold (`heldUntilTick > 0` in the
+   * room state). The mirror World has no body for them; the vote panel shows them as silent seats.
+   */
+  heldSeatSlots?(): readonly number[];
   /** Advance by a real frame time in seconds; steps the simulation 0..N times. */
   update(frameDtS: number): void;
   /** Fraction of the next step already elapsed, in [0, 1). */
