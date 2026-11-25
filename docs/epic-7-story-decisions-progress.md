@@ -1,5 +1,7 @@
 # Epic 7 progression stories (7.1–7.7): decisions to confirm
 
+**Status: accepted.** Designer 2026-11-25: "Okay, for all" — every recommended value (first, in bold) accepted. Account / progress deletion: no story yet; default is Epic 10 polish (10.1 settings screen) unless the designer asks for an Epic 7 story.
+
 Written 2026-11-24 from the seven story files `_bmad-output/implementation-artifacts/7-1-*.md` … `7-7-*.md`, which were built from the real code on master `7385b47`. The other Epic 7 writer covers 7.9–7.12 (survivor look, editor, milestone items, loot bag) in its own file.
 
 Each line shows the **recommended value** first, in bold, with the alternative after it. **"ok" accepts all 40.** To change one, use its code, for example "7.2 D8: doesn't count". Your earlier decisions D1–D12 (`docs/epic-7-decisions.md`) are already rules in the stories and are not asked again.
