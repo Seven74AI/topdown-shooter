@@ -5,14 +5,17 @@
  * (index.ts; each test file boots its servers one after the other, the newest wins).
  */
 import type { AccountsRepo } from "../db/accountsRepo";
+import type { ProgressRepo } from "../db/progressRepo";
 import { randomSessionSecret, verifyTicket } from "./ticket";
 
 export interface RoomAccounts {
   sessionSecret: string;
   accounts: AccountsRepo | null;
+  /** Story 7.2: the progress repository (banking a run's Supplies); null = no database (everyone `not_saved`). */
+  progress?: ProgressRepo | null;
 }
 
-let current: RoomAccounts = { sessionSecret: randomSessionSecret(), accounts: null };
+let current: RoomAccounts = { sessionSecret: randomSessionSecret(), accounts: null, progress: null };
 
 export function setRoomAccounts(next: RoomAccounts): void {
   current = next;
@@ -25,4 +28,9 @@ export function ticketAccountId(ticket: string | undefined): string | null {
 
 export function roomAccountsRepo(): AccountsRepo | null {
   return current.accounts;
+}
+
+/** Story 7.2: the progress repository for banking, or null. */
+export function roomProgressRepo(): ProgressRepo | null {
+  return current.progress ?? null;
 }

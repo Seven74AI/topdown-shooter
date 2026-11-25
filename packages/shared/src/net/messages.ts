@@ -59,6 +59,12 @@ export const C2S = {
   SHOP_BUY_ITEM: "shop.buy_item",
   /** `{ choice: "extract" | "stay" }` during the evacuation vote (Story 6.11); a new choice replaces the old one. */
   EVAC_VOTE: "evac.vote",
+  /**
+   * `{}` (Story 7.2, decision 7.2 D4): "I am leaving this run now" — sent right before a consented Leave mid-run so
+   * the server banks this player's run at once (ending `quit`) and answers with `run.rewards` while the socket is
+   * still open. Never an amount (S6); a second one, one outside a run or one with no account does nothing more.
+   */
+  RUN_LEAVE: "run.leave",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -103,6 +109,12 @@ export const S2C = {
   SHOP_BOUGHT_ITEM: "shop.bought_item",
   /** `{ item, error: ShopError }` to the buyer only (Story 5.11); nothing changed. */
   SHOP_REFUSED_ITEM: "shop.refused_item",
+  /**
+   * `RunRewards` to the owner only (Story 7.2 AC 5): this player's Supplies for the run, after the bank (status
+   * `saved` / `failed`), or at once (`not_saved`) for a player without an account. Once per run (a repeat after a
+   * rejoin carries the same result).
+   */
+  RUN_REWARDS: "run.rewards",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -423,6 +435,33 @@ export interface ShopRefusedItem {
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */
 export const lobbyReturnSchema = z.object({}).strict();
+/** Story 7.2: `run.leave` carries nothing. */
+export const runLeaveSchema = z.object({}).strict();
+
+/** Story 7.2 (AC 5): how this player's bank went. */
+export type RunRewardsStatus = "saved" | "failed" | "not_saved";
+const supplyAmount = z.number().int().min(0).max(1_000_000_000);
+/**
+ * Story 7.2 (AC 5): `run.rewards`. `lines` are the unscaled breakdown (`runSupplies`), `waveCount` /
+ * `endlessWaveCount` the waves behind them (the "Waves 9 × 10" text), `total` the run's Supplies (rookie × 2
+ * included), `newTotal` the account's Supplies after the bank (0 unless `saved`). `runId` marks the run (the start
+ * screen shows a quitter's bank once, D4), `seed` matches the Results table's run seed (a late message of an earlier
+ * run is never shown on a newer Results). 7.4 / 7.6 / 7.7 / 7.11 / 7.12 add their own fields (brief 26).
+ */
+export const runRewardsSchema = z
+  .object({
+    runId: z.string().uuid(),
+    seed: z.number().int().min(0).max(0xffffffff),
+    status: z.enum(["saved", "failed", "not_saved"]),
+    lines: z.object({ waves: supplyAmount, boss: supplyAmount, extract: supplyAmount, endless: supplyAmount, endlessBoss: supplyAmount }).strict(),
+    waveCount: z.number().int().min(0).max(0xff),
+    endlessWaveCount: z.number().int().min(0).max(0xffff),
+    rookie: z.boolean(),
+    total: supplyAmount,
+    newTotal: supplyAmount,
+  })
+  .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
+export type RunRewards = z.infer<typeof runRewardsSchema>;
 
 /** `net.pinged` (Story 2.4): sent to each client every second during a run. `rttMs` is the server's EWMA so far. */
 export interface NetPinged {

@@ -19,6 +19,7 @@ import {
   TICK_RATE_HZ,
   buildSetReadySchema,
   evacVoteSchema,
+  runLeaveSchema,
   DOWNTOWN_MAP,
   buildingPlaceSchema,
   buildingRepairSchema,
@@ -62,6 +63,7 @@ import {
   type PlayerLeft,
   type PlayerLeftReason,
   type RunJoined,
+  type RunRewards,
   type ShopBought,
   type ShopOffered,
   type ShopBoughtItem,
@@ -82,7 +84,8 @@ import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, sameSeat, seatKey, type Member } from "../run/lobby";
-import { roomAccountsRepo, ticketAccountId } from "../auth/roomAccounts";
+import { roomAccountsRepo, roomProgressRepo, ticketAccountId } from "../auth/roomAccounts";
+import { BANK_RETRY_MS, RunBank } from "../meta/banking";
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
@@ -267,6 +270,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
   private resumeTimer: Delayed | null = null;
   private frozenAtMs = 0;
+  /** Story 7.2: this run's bank (`meta/banking.ts`; made at Start with the run id), null outside a run. */
+  bank: RunBank | null = null;
+  /** Story 7.2: the bank's one retry delay (tests shorten it on a live room, like `holdS`). */
+  bankRetryMs = BANK_RETRY_MS;
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -333,6 +340,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice))); // Story 6.11
+    this.onMessage(C2S.RUN_LEAVE, this.net.guard(runLeaveSchema, (c) => this.onRunLeave(c))); // Story 7.2 (D4)
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.build, m.rev, m.card, m.item, m.slot ?? null)));
     this.onMessage(C2S.SHOP_REROLL, this.net.guard(shopRerollSchema, (c, m) => this.onShopReroll(c, m.build, m.rev))); // Story 5.13
@@ -423,6 +431,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.net.add(client, member.playerId);
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
+    // Story 7.2: a seat that comes back on Results gets its run rewards again (it may have missed them while away).
+    const rewards = this.state.phase === "results" ? this.bank?.resultFor(member.playerId) : undefined;
+    if (rewards) client.send(S2C.RUN_REWARDS, rewards);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
     client.ref.on("error", (e: { code?: string }) => {
       if (e.code === "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH") this.net.drop(client, "too_large");
@@ -618,8 +629,35 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     this.net.remove(client);
     if (member === undefined) return; // a seat taken over or already freed: nothing to do
+    if (code === CloseCode.CONSENTED) this.bankLeaver(member); // Story 7.2 (S3): a Leave mid-run banks at once (before the state leaves the World)
     const expired = this.holds.has(member.playerId) && code !== CloseCode.CONSENTED;
     this.finalLeave(member, expired ? "hold_expired" : code === CloseCode.CONSENTED ? "left" : "disconnected", code);
+  }
+
+  /**
+   * Story 7.2 (S3, D2, D4): a consented Leave mid-run banks this seat now, ending `quit` (the waves and boss it was
+   * there for, never the extract bonus). Fire and forget (never awaited); once per seat per run (`RunBank`). A seat
+   * remembered after this Leave (8.1 F8) that comes back plays on, but this run is already banked for it (brief 18).
+   */
+  private bankLeaver(member: Member): void {
+    const world = this.controller?.world;
+    if (!world || !this.inRun() || !this.bank) return;
+    const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
+    if (!p) return;
+    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit" });
+  }
+
+  /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
+  onRunLeave(client: RunClient): void {
+    const member = this.members.get(client.sessionId);
+    if (member) this.bankLeaver(member);
+  }
+
+  /** Story 7.2: `run.rewards` to the seat's owner, if connected now. */
+  private deliverRewards(playerId: string, msg: RunRewards): void {
+    for (const m of this.members.values()) {
+      if (m.playerId === playerId) this.clients.getById(m.sessionId)?.send(S2C.RUN_REWARDS, msg);
+    }
   }
 
   /**
@@ -658,6 +696,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out): the run is lost (Story 8.4 saves build phases).
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase }, "run_abandoned");
+      void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: every remembered seat banks `quit`
     }
     this.updateFreeze();
   }
@@ -1019,6 +1058,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
+    this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs }); // Story 7.2
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that
     // are not one of the run's seats are refused in `join()` (run_started) whatever the count.
@@ -1104,7 +1144,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       earnedAfter10Lost[playerId] = run.ending === "lost" ? p.earned - p.earnedAtEvac : 0;
     }
     const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
-    this.log.info({ runSeed: this.runSeed, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
+    this.log.info({ runSeed: this.runSeed, runId: this.bank?.runId, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
+    void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: one call (never awaited by the tick)
   }
 
   /**
@@ -1116,6 +1157,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     if (!member || this.state.phase !== "results") return;
     this.controller = null;
+    this.bank = null; // Story 7.2: banks still in flight finish and deliver (the client matches them by run seed)
     this.horde = null;
     this.eventCtx = null;
     this.hordeStats.clear();

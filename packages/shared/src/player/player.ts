@@ -129,6 +129,16 @@ export interface PlayerState {
    * down by `movePlayers`; 0 = none. On the wire (uint8): the phone blinks the body and holds its fire.
    */
   protectTicks: number;
+  /**
+   * Story 7.2 (S2, `meta/runRecord.ts`): the run record Supplies are paid from. Waves 1–`runWaves` that ended while this
+   * player was in the run (present or held; the wave a team wipe falls in counts too, decision 7.2 D8), endless waves
+   * the same way, Behemoths killed while present (the wave-10 one included) and the endless ones among them. Server
+   * bookkeeping only: not in the Colyseus schema, not mirrored; a late joiner starts at 0.
+   */
+  wavesIn: number;
+  endlessWavesIn: number;
+  bossesIn: number;
+  endlessBossesIn: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -180,6 +190,10 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     lastAimM: -1,
     lastAimTicks: 0,
     protectTicks: 0, // Story 8.1
+    wavesIn: 0, // Story 7.2
+    endlessWavesIn: 0,
+    bossesIn: 0,
+    endlessBossesIn: 0,
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

@@ -13,5 +13,16 @@
     "auto_turret",
     "medkit",
     "grenades"
-  ]
+  ],
+  "supplies": {
+    "perWave": 10,
+    "behemoth": 50,
+    "extract": 100,
+    "perEndlessWave": 20,
+    "endlessBehemoth": 50,
+    "rookieLift": {
+      "belowLifetime": 300,
+      "multiplier": 2
+    }
+  }
 }
