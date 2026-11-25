@@ -28,6 +28,10 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
     expect(s).toMatch(/logInAccount\(fields\.username, fields\.password\)\.then\(\(r\) => done\(r, goBack\)\)/);
     expect(s).toMatch(/recoverAccount\(fields\.username, fields\.code, fields\.password\)/);
     expect(s).toMatch(/openAccount\("code", from, r\.body\.recoveryCode\)/);
+    expect(s).toMatch(/openAccount\("code", from, r\.body\.recoveryCode, true\)/); // review M2: the reset card says other phones are out
+    expect(s).toMatch(/\{screen\.reset \? \(/);
+    expect(s).toMatch(/form === "login" && showMergeWarning\(accountStore\.get\(\), progressStore\.get\(\)\.progress\)/); // review L7
+    expect(s).toMatch(/name="recovery-code"\s*autocomplete="off"/); // review N4
     expect(s).toMatch(/void logOutAccount\(\)/);
     expect(s).toMatch(/const blocked = inRoom\(screen\.back\);/);
     expect(s).toMatch(/if \(form !== "save" && blocked\) return setError\(ACCOUNT_TEXT\.leaveFirst\);/);
@@ -37,7 +41,7 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
 
   it("every session answer feeds the account line; a login/reset/logout adopts the new token and drops the old ticket", () => {
     const a = read("apps/client/src/net/account.ts");
-    expect(a).toMatch(/if \(parsed\.data\.saved\) accountStore\.accept\(parsed\.data\.account\.username\);/);
+    expect(a).toMatch(/if \(parsed\.data\.saved\) \{\s*accountStore\.accept\(parsed\.data\.account\.username\);[^\n]*\n\s*if \(parsed\.data\.progress\) progressStore\.accept\(parsed\.data\.progress\);/);
     expect(a).toMatch(/tokens\.set\(s\.deviceToken\);\s*forgetTicket\(\);\s*accountStore\.accept\(s\.account\.username\);\s*if \(s\.progress\) progressStore\.accept\(s\.progress\);/);
     for (const fn of ["logInAccount", "recoverAccount", "logOutAccount"]) expect(a).toMatch(new RegExp(`export async function ${fn}[\\s\\S]*?if \\(r\\.kind === "ok"\\) adopt\\(r\\.body, over\\.tokens \\?\\? guestTokens\\);`));
   });

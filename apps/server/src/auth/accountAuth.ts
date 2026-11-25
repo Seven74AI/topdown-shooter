@@ -18,6 +18,7 @@ import {
   PASSWORD_MIN,
   USERNAME_RE,
   guestTokenSchema,
+  isCommonPassword,
   normaliseRecoveryCode,
   type AccountErrorCode,
   type DeviceSessionResponse,
@@ -101,6 +102,7 @@ export async function upgradeAccount(
   }
   if (!USERNAME_RE.test(input.username)) return fail(400, "bad_username");
   if (!validPassword(input.password)) return fail(400, "bad_password");
+  if (isCommonPassword(input.password)) return fail(400, "common_password"); // review N1
   try {
     // Cheap check before hashing; the unique index decides a race. "That name is taken" reveals a name exists:
     // accepted (names are shown in lobbies anyway; story "Beat the rule" 1).
@@ -181,6 +183,7 @@ export async function recoverAccount(
   const pre = precheck(input.cookieToken, input.username, input.ip, "recover", deps);
   if ("status" in pre) return pre;
   if (!validPassword(input.newPassword)) return fail(400, "bad_password");
+  if (isCommonPassword(input.newPassword)) return fail(400, "common_password"); // review N1
   try {
     const creds = USERNAME_RE.test(input.username) ? await deps.accounts.findByUsernameLower(input.username.toLowerCase()) : null;
     const ok = await verifySecret(creds?.recoveryCodeHash ?? null, normaliseRecoveryCode(input.code));

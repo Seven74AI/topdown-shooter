@@ -112,6 +112,10 @@ describe("Story 7.6: Save my progress (POST /account/upgrade)", () => {
     }
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: "short" }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "bad_password" } });
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: "x".repeat(129) }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "bad_password" } });
+    // review N1: the most common passwords are refused (any case), on Save and on a reset
+    for (const common of ["12345678", "Password1", "QWERTYUIOP"]) {
+      expect(await post("/account/upgrade", { username: "mo.4-2_", password: common }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "common_password" } });
+    }
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: PASSWORD })).toMatchObject({ status: 401, body: { message: "no_account" } });
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: PASSWORD, accountId: a.id }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "invalid_body" } });
   });
@@ -227,7 +231,7 @@ describe("Story 7.6: forgot password (POST /account/recover)", () => {
     const missing = await post("/account/recover", { username: "nobody_x", code: a.code, newPassword: "brand new 1" });
     expect(wrong).toMatchObject({ status: 401, body: { message: "wrong_code" } });
     expect(missing.text).toBe(wrong.text);
-    const r = await post("/account/recover", { username: a.username, code: a.code.replace(/-/g, "").toLowerCase(), newPassword: "brand new 1" });
+    const r = await post("/account/recover", { username: a.username, code: a.code.replace(/-/g, "").toLowerCase().replace(/0/g, "o").replace(/1/g, "l"), newPassword: "brand new 1" }); // L3: O/L typed for 0/1
     expect(r.status).toBe(200);
     const body = recoverResponseSchema.parse(r.body);
     expect(body.recoveryCode).not.toBe(a.code);
@@ -261,6 +265,7 @@ describe("Story 7.6: forgot password (POST /account/recover)", () => {
     const a = await account();
     expect(await post("/account/recover", { username: a.username, code: a.code, newPassword: "short" })).toMatchObject({ status: 400, body: { message: "bad_password" } });
     expect(await post("/account/recover", { username: a.username, code: "0000-0000-0000", newPassword: "short" })).toMatchObject({ status: 400, body: { message: "bad_password" } });
+    expect(await post("/account/recover", { username: a.username, code: a.code, newPassword: "password123" })).toMatchObject({ status: 400, body: { message: "common_password" } });
   });
 });
 

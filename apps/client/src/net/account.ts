@@ -67,7 +67,10 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
     if (!parsed.success) return null;
     // P2: both copies end up naming the same account (the cookie is renewed by the server).
     deps.tokens.set(parsed.data.deviceToken);
-    if (parsed.data.saved) accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
+    if (parsed.data.saved) {
+      accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
+      if (parsed.data.progress) progressStore.accept(parsed.data.progress); // review L7: the Log in merge warning knows the guest's progress
+    }
     return parsed.data;
   } catch {
     return null;

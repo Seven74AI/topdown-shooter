@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { uiStore, openAccount, type UiScreen } from "./uiState";
-import { ACCOUNT_TEXT, EMPTY_FIELDS, VIEW_ACTION, VIEW_TITLE, formState, inRoom, saveHints, type AccountFields } from "./accountModel";
+import { ACCOUNT_TEXT, EMPTY_FIELDS, VIEW_ACTION, VIEW_TITLE, formState, inRoom, saveHints, showMergeWarning, type AccountFields } from "./accountModel";
+import { accountStore } from "../net/accountStore";
+import { progressStore } from "../net/progressStore";
 import { logInAccount, logOutAccount, recoverAccount, upgradeAccount } from "../net/account";
 
 /** Back (and Esc): the screen the account screen was opened from. */
@@ -65,6 +67,11 @@ export function AccountScreen() {
             {code}
           </p>
           <p class="ac-card__line">{ACCOUNT_TEXT.codeLine}</p>
+          {screen.reset ? (
+            <p class="ac-card__line ac-card__line--note" data-testid="ac-others-out">
+              {ACCOUNT_TEXT.othersLoggedOut}
+            </p>
+          ) : null}
           <div class="ac-card__row">
             <button type="button" class="ph-btn ac-btn" onClick={copy}>
               {copied ? ACCOUNT_TEXT.copied : ACCOUNT_TEXT.copy}
@@ -131,7 +138,7 @@ export function AccountScreen() {
     };
     if (form === "save") void upgradeAccount(fields.username, fields.password).then((r) => done(r, () => r.kind === "ok" && uiStore.set(openAccount("code", from, r.body.recoveryCode))));
     else if (form === "login") void logInAccount(fields.username, fields.password).then((r) => done(r, goBack));
-    else void recoverAccount(fields.username, fields.code, fields.password).then((r) => done(r, () => r.kind === "ok" && uiStore.set(openAccount("code", from, r.body.recoveryCode))));
+    else void recoverAccount(fields.username, fields.code, fields.password).then((r) => done(r, () => r.kind === "ok" && uiStore.set(openAccount("code", from, r.body.recoveryCode, true))));
   };
 
   return (
@@ -155,6 +162,11 @@ export function AccountScreen() {
             </p>
           ) : null}
           {form !== "save" && blocked ? <p class="ac-note">{ACCOUNT_TEXT.leaveFirst}</p> : null}
+          {form === "login" && showMergeWarning(accountStore.get(), progressStore.get().progress) ? (
+            <p class="ac-note ac-note--warn" data-testid="ac-merge-warning">
+              {ACCOUNT_TEXT.mergeWarning}
+            </p>
+          ) : null}
           <div class="ac-fields">
             <label class="ac-field">
               <span class="ac-label">
@@ -184,7 +196,7 @@ export function AccountScreen() {
                   class="ac-input ac-input--code"
                   type="text"
                   name="recovery-code"
-                  autocomplete="one-time-code"
+                  autocomplete="off"
                   autocapitalize="characters"
                   spellcheck={false}
                   maxLength={20}

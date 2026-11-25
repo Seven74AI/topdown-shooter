@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { guestTokenSchema } from "./messages";
+import commonPasswords from "../config/commonPasswords.json" with { type: "json" };
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -95,13 +96,22 @@ export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 128;
 export const passwordSchema = z.string().min(PASSWORD_MIN).max(PASSWORD_MAX);
 
+/** Review N1: the most common passwords (`config/commonPasswords.json`), compared ignoring case. */
+const COMMON = new Set(commonPasswords.passwords.map((p) => p.toLowerCase()));
+export function isCommonPassword(password: string): boolean {
+  return COMMON.has(password.toLowerCase());
+}
+
 /** AC 2: the recovery code alphabet (Crockford base 32: no I, L, O, U), 12 characters shown `ABCD-EFGH-JKMN`. */
 export const RECOVERY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 export const RECOVERY_CODE_LENGTH = 12;
 
-/** What a person typed as a recovery code, upper-cased with dashes and spaces dropped (AC 5: case-insensitive, dashes optional). */
+/**
+ * What a person typed as a recovery code, upper-cased with dashes and spaces dropped (AC 5: case-insensitive, dashes
+ * optional), with Crockford's decoding (review L3): O reads as 0, I and L as 1 (the alphabet has 0 and 1, never O, I, L).
+ */
 export function normaliseRecoveryCode(input: string): string {
-  return input.toUpperCase().replace(/[\s-]/g, "");
+  return input.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
 }
 
 /** `ABCDEFGHJKMN` → `ABCD-EFGH-JKMN`. */
@@ -143,6 +153,7 @@ export const ACCOUNT_ERRORS = {
   invalid_body: "Check the form and try again",
   bad_username: "Use 3–20 letters, numbers, _ - or .",
   bad_password: `Use ${PASSWORD_MIN}–${PASSWORD_MAX} characters`,
+  common_password: "That password is too common: pick another one",
   name_taken: "That name is taken",
   already_account: "This phone is already saved",
   not_logged_in: "This phone isn't logged in",

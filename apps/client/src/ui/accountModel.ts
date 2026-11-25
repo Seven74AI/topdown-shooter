@@ -7,7 +7,7 @@
  * button in the header (Back · title · Save / Log in / Next) so it never hides under the phone keyboard, the fields
  * scroll in the strip under it, errors are red (allowed in menus), Next stays off until the recovery code is complete.
  */
-import { PASSWORD_MAX, PASSWORD_MIN, RECOVERY_CODE_LENGTH, USERNAME_RE, isCompleteRecoveryCode, normaliseRecoveryCode } from "@topdown/shared";
+import { ACCOUNT_ERRORS, PASSWORD_MAX, PASSWORD_MIN, RECOVERY_CODE_LENGTH, USERNAME_RE, isCommonPassword, isCompleteRecoveryCode, normaliseRecoveryCode, type ProgressView } from "@topdown/shared";
 import type { AccountView, UiScreen } from "./uiState";
 
 export const ACCOUNT_TEXT = {
@@ -38,6 +38,10 @@ export const ACCOUNT_TEXT = {
   leaveFirst: "Leave the game first",
   noCodeNote: "No recovery code? Without it a forgotten password can't be reset (there is no email).",
   nudgeLine: "Keep these Supplies on any phone:",
+  /** Review M2: the code card after a reset. */
+  othersLoggedOut: "Every other phone on this account was logged out.",
+  /** Review L7 (decision 7.6 B19): on Log in, when this phone is a guest with progress (D11 merges it). */
+  mergeWarning: "This phone's guest progress will be added to that account.",
 } as const;
 
 /** The header title of each view. */
@@ -60,7 +64,7 @@ export interface AccountFields {
 
 export const EMPTY_FIELDS: AccountFields = { username: "", password: "", code: "" };
 
-const passwordOk = (p: string) => p.length >= PASSWORD_MIN && p.length <= PASSWORD_MAX;
+const passwordOk = (p: string) => p.length >= PASSWORD_MIN && p.length <= PASSWORD_MAX && !isCommonPassword(p);
 
 /**
  * Can the form be sent, and the hint under the field that blocks it (null = none). Save checks the server's own
@@ -79,7 +83,7 @@ export function formState(view: "save" | "login" | "forgot", f: AccountFields): 
 export function saveHints(f: AccountFields): { username: string | null; password: string | null } {
   return {
     username: f.username !== "" && !USERNAME_RE.test(f.username) ? `Use ${ACCOUNT_TEXT.usernameHint}` : null,
-    password: f.password !== "" && !passwordOk(f.password) ? `Use ${PASSWORD_MIN}–${PASSWORD_MAX} characters` : null,
+    password: f.password === "" || passwordOk(f.password) ? null : isCommonPassword(f.password) ? ACCOUNT_ERRORS.common_password : `Use ${PASSWORD_MIN}–${PASSWORD_MAX} characters`,
   };
 }
 
@@ -115,4 +119,12 @@ export function accountLine(s: { known: boolean; username: string | null }): Acc
 /** AC 10 (D9, brief 26 group 4): the Results nudge shows for this phone's own rewards with `nudge: true` and a guest. */
 export function showNudge(rewards: { nudge?: boolean | undefined; status: string } | null, account: { known: boolean; username: string | null }): boolean {
   return rewards !== null && rewards.nudge === true && rewards.status === "saved" && account.username === null;
+}
+
+/**
+ * Review L7 (decision 7.6 B19): the Log in form warns before D11's merge when this phone is a guest with progress
+ * (Supplies or unlocks): logging into an account here moves that progress into it, for good.
+ */
+export function showMergeWarning(account: { known: boolean; username: string | null }, progress: ProgressView | null): boolean {
+  return account.known && account.username === null && progress !== null && (progress.supplies > 0 || progress.lifetimeSupplies > 0 || progress.unlocks.length > 0);
 }

@@ -21,7 +21,7 @@ export type UiScreen =
    * one-time recovery-code card (`code`) or the log-out confirm. `back` is the screen it returns to (the start screen,
    * the hub, or Results for the nudge); a room stays joined meanwhile.
    */
-  | { kind: "account"; view: AccountView; back: UiScreen; code?: string }
+  | { kind: "account"; view: AccountView; back: UiScreen; code?: string; /** review M2: the code card after a reset says every other phone was logged out. */ reset?: boolean }
   /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
@@ -40,9 +40,10 @@ export type UiScreen =
 export type AccountView = "save" | "login" | "forgot" | "code" | "logout";
 
 /** Story 7.6: an account screen over `from` (an account screen's own back is kept: Back never returns to a form). */
-export const openAccount = (view: AccountView, from: UiScreen, code?: string): UiScreen => {
+export const openAccount = (view: AccountView, from: UiScreen, code?: string, reset = false): UiScreen => {
   const back = from.kind === "account" ? from.back : from.kind === "start" ? { kind: "start" as const } : from;
-  return code === undefined ? { kind: "account", view, back } : { kind: "account", view, back, code };
+  if (code === undefined) return { kind: "account", view, back };
+  return reset ? { kind: "account", view, back, code, reset: true } : { kind: "account", view, back, code };
 };
 
 /** Story 7.3: where the Progress hub can be opened from, and returns to. */

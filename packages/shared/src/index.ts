@@ -397,6 +397,7 @@ export {
   usernameSchema,
   passwordSchema,
   normaliseRecoveryCode,
+  isCommonPassword,
   formatRecoveryCode,
   isCompleteRecoveryCode,
   upgradeRequestSchema,

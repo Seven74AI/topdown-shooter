@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountLine, formState, inRoom, saveHints, showNudge } from "./accountModel";
+import { accountLine, formState, inRoom, saveHints, showMergeWarning, showNudge } from "./accountModel";
+import { normaliseRecoveryCode } from "@topdown/shared";
 import { openAccount, type UiScreen } from "./uiState";
 
 /** Story 7.6 (AC 3, 9, 10): the account screens' rules. */
@@ -7,13 +8,16 @@ const results = (online: boolean): UiScreen => ({ kind: "results", wave: 10, row
 
 describe("accountModel (Story 7.6)", () => {
   it("Save turns on only for the server's rules (3–20 of A-Z a-z 0-9 _ - ., password 8–128) and hints what's wrong", () => {
-    expect(formState("save", { username: "mo_42", password: "12345678", code: "" }).canSubmit).toBe(true);
-    expect(formState("save", { username: "mo", password: "12345678", code: "" }).canSubmit).toBe(false);
-    expect(formState("save", { username: "mo 42", password: "12345678", code: "" }).canSubmit).toBe(false);
+    expect(formState("save", { username: "mo_42", password: "zebra lamp 7", code: "" }).canSubmit).toBe(true);
+    expect(formState("save", { username: "mo", password: "zebra lamp 7", code: "" }).canSubmit).toBe(false);
+    expect(formState("save", { username: "mo 42", password: "zebra lamp 7", code: "" }).canSubmit).toBe(false);
     expect(formState("save", { username: "mo_42", password: "1234567", code: "" }).canSubmit).toBe(false);
     expect(formState("save", { username: "mo_42", password: "x".repeat(129), code: "" }).canSubmit).toBe(false);
     expect(saveHints({ username: "mo!", password: "short", code: "" })).toEqual({ username: "Use 3–20 letters, numbers, _ - .", password: "Use 8–128 characters" });
     expect(saveHints({ username: "", password: "", code: "" })).toEqual({ username: null, password: null });
+    // review N1: a common password (any case) keeps Save off and says why
+    expect(formState("save", { username: "mo_42", password: "12345678", code: "" }).canSubmit).toBe(false);
+    expect(saveHints({ username: "mo_42", password: "Password123", code: "" }).password).toBe("That password is too common: pick another one");
   });
 
   it("Log in only needs something typed (the answer never says which part was wrong)", () => {
@@ -29,6 +33,12 @@ describe("accountModel (Story 7.6)", () => {
     expect(f("ABCD-EFGH-JKMU").canSubmit).toBe(false); // U is not in the alphabet
     expect(f("ABCD-EFGH-JKMNP").codeHint).toBe("That isn't a recovery code: check your screenshot.");
     expect(formState("forgot", { username: "mo_42", password: "short", code: "ABCD-EFGH-JKMN" }).canSubmit).toBe(false);
+    expect(formState("forgot", { username: "mo_42", password: "iloveyou", code: "ABCD-EFGH-JKMN" }).canSubmit).toBe(false); // N1
+  });
+
+  it("review L3: the code is read the Crockford way — O as 0, I and L as 1 — so a misread screenshot still works", () => {
+    expect(normaliseRecoveryCode("e o8n-ilab-cdef")).toBe("E08N11ABCDEF");
+    expect(formState("forgot", { username: "mo_42", password: "new pass 1", code: "EO8N-ILAB-CDEF" })).toEqual({ canSubmit: true, codeHint: null });
   });
 
   it("AC 9: in a room (lobby, online Results or run, the hub opened from the lobby) a switch is refused; start, solo Results and the start hub allow it", () => {
@@ -52,6 +62,16 @@ describe("accountModel (Story 7.6)", () => {
     expect(accountLine({ known: false, username: null })).toEqual({ kind: "unknown" });
     expect(accountLine({ known: true, username: null })).toEqual({ kind: "guest" });
     expect(accountLine({ known: true, username: "mo_42" })).toEqual({ kind: "user", username: "mo_42" });
+  });
+
+  it("review L7: Log in warns only when this phone is a guest with progress", () => {
+    const empty = { supplies: 0, lifetimeSupplies: 0, unlocks: [] };
+    expect(showMergeWarning({ known: true, username: null }, { ...empty, supplies: 340 })).toBe(true);
+    expect(showMergeWarning({ known: true, username: null }, { ...empty, unlocks: ["mine"] })).toBe(true);
+    expect(showMergeWarning({ known: true, username: null }, empty)).toBe(false);
+    expect(showMergeWarning({ known: true, username: null }, null)).toBe(false);
+    expect(showMergeWarning({ known: true, username: "mo_42" }, { ...empty, supplies: 340 })).toBe(false); // an account just switches
+    expect(showMergeWarning({ known: false, username: null }, { ...empty, supplies: 340 })).toBe(false);
   });
 
   it("AC 10: the nudge shows for a saved bank with nudge: true and a guest only", () => {
