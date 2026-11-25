@@ -169,7 +169,7 @@ development_status:
   7-3-unlock-screen: review  # 2026-11-25 overnight: unlock list (14, 3,120), pool/mask/Good next pick, POST /account/unlock (one conditional update, request-id memo, 20/min/account), Progress hub PH1 Lumen LF5; review fixes F1-F11, gate green on fed5cc51 (branch story-7-3)
   7-4-shop-deck-from-my-unlocks: ready-for-dev  # MERGED with 7.5 (docs/story-merges-2026-11-25.md)
   7-5-training-boosts: ready-for-dev  # MERGED into 7.4+7.5
-  7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-6-upgrade-to-an-account: review  # 2026-11-25 overnight (branch story-7-6): device_tokens + fresh token at login (B1), argon2id, recovery code, upgrade/login/recover/logout, guest merge + writers list (D1/D2 refunds), bank of a merged guest, Results nudge, AC1 screens; B1-B17 auto-accepted
   7-7-district-unlock-rule: ready-for-dev  # MERGED into 7.7+7.11+7.12
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)

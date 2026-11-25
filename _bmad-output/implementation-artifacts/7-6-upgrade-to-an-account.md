@@ -134,14 +134,64 @@ so that I keep my progress on a new phone.
 
 ### Agent Model Used
 
+Claude (builder cloud session, `gds-dev-story`), 2026-11-25 overnight run.
+
+### Gate
+
+GATE_LINE_PLACEHOLDER
+
 ### Debug Log References
+
+- Mutations (each made, test run, file restored by copy): merge Supplies with `max` instead of `+` → `mergeRules.test.ts` 2 failed; dummy Argon2 verify removed → `accountAuth.test.ts` "A3 … one Argon2 verify" failed; login limiter counting only failed attempts → `accountAuth.test.ts` "A3 / AC 8 … right or wrong" failed.
+- drizzle-kit 0.31 asks "rename or create?" on a TTY when one migration adds and drops text columns: generated in two passes and folded into one migration (B9; the generator script lives in the builder's scratchpad, the steps are in B9).
+- Real PostgreSQL: a local PostgreSQL 16 cluster (`/usr/lib/postgresql/16`, port 2765), `TEST_DATABASE_URL=postgres://postgres@127.0.0.1:2765/t76`; PG 16 has no `transaction_timeout`, so the pre-COMMIT budget path of `boundedTransaction` is the one exercised (production 18 adds the in-database cut).
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.6 D1–D6 pending.
+- Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.6 D1–D6 accepted 2026-11-25 ("Okay, for all": D1 refund doubled unlocks, D2 higher Training + refund, D3 "I saved it" only, D4 OWASP-minimum Argon2id, D5 logout = new empty guest, D6 per-address limit).
+- Build-time choices **7.6 B1–B17** in `docs/epic-7-decisions.md` (all "auto-accepted (designer: follow the GDS recommendation)"). The ones that change the story's text: B1 a fresh device token at login/reset (not the same row re-pointed), B2 `run_rewards` stay under the guest id (a late bank of the guest pays the account), B3 a per-username limit on top of the per-IP one (brief 19), B9 the migration number.
+- **Token hand-over (7.1 M1).** The 7.1 ticket is bound to the token hash. After a login or reset the device has a NEW token (row → account), the response's ticket is signed for (account, new token), the server sets the new cookie and the client writes the new token to `localStorage` and drops its cached seat-recovery ticket (`forgetTicket`). An old ticket names the old token, which no longer exists, so it can't seat anyone as the account or as the retired guest. Logout does the same with a new guest. Save my progress keeps the token and the account id (tickets stay valid; allowed in a room).
+- **Merge (D11, A2).** One `boundedTransaction`: device row FOR UPDATE → both `accounts` rows FOR UPDATE in id order (re-checks the guest is still an unsaved, unmerged guest) → both `progress` rows FOR UPDATE in id order → `mergeProgress` (writers list) → account row updated, guest's progress row deleted, `merged_into` set, guest's device rows deleted. The bank locks the seat's `accounts` row FOR NO KEY UPDATE first, so a bank and a merge of one guest serialize; a bank after the merge pays the account (B2). Real-PostgreSQL races (10 phones into one account, crossed id orders ×10, bank vs merge ×20 in both orders, two nudging banks, name race, code race) all pass.
+- **Beat the rule (start list, results):** brute force — 5/min/IP shared by login + recover, 10/min per name from anywhere, Argon2id ≈ 13 ms/verify here; recovery code 60 bits under the same limits; username enumeration — byte-identical 401s, a missing or malformed name still runs one verify (test), but "That name is taken" on Save reveals a name (accepted, story); merging your guest into someone else's account only adds to it (D11); farming by merging — allowed, and the sum test proves refunds never create Supplies; a merge failing mid-way rolls back (one transaction); two devices banking at once — `FOR UPDATE` (7.2) + the new NKU lock, tested on real PG; a copied guest key after a login — dead (B1); a hand-made `accountId` in a body — 400 `invalid_body` (strict schemas); a client claiming "nudge shown" — not a client path (B13).
+- **Privacy (brief 28):** no email, no IP in the database (IP only in rate-limit log lines, as 7.1); the username is never shown to other players (the lobby keeps the display name).
+- Bandwidth: no in-run traffic added (HTTP only; `run.rewards` gains an optional `nudge` boolean once). No balance file change (progression.json is not in `balanceVersion`, 7.3 B14).
+
+### Notes for the merge
+
+- **Migration:** `apps/server/drizzle/0002_accounts_devices.sql` + `meta/0002_snapshot.json` + journal entry, generated on story-7-3 (7.1 + 7.2's `0001_run_rewards`). **7.9's look migration** (`progress.look`) lands before 7.6 on master: when it does, DELETE my `0002_accounts_devices.sql`, its snapshot and journal entry, merge master, and REGENERATE (B9 steps: two passes — first with `guest_token_hash` still in `schema.ts`, then without — folded into one file, then add the `INSERT INTO device_tokens … SELECT guest_token_hash, id, created_at, now() FROM accounts;` statement before the drop). Never rename a migration (Drizzle skips a migration whose journal `when` is older than the last applied).
+- **`meta/merge.ts › MERGE_RULES` (writers list):** 7.9/7.10 add `look: (a, g) => a ?? g` ("the account's look kept unless it is the default"; null = default); **7.11 adds `cosmetics` (union, like `unlocks`) and `stats` (added per key)**; 8.4 adds saved runs' rows. A missing rule fails `db/mergeRules.test.ts` and the typecheck of `db/deviceTokensRepo.ts` (`everyColumnHasARule`). When 7.9 lands its `look` column, add the `look` rule in the same merge, and add `look: r.look` to `viewOf` in `db/deviceTokensRepo.ts` (7.9 adds `look` to `Progress`); 7.9's `look.db.test.ts` inserts `accounts (guest_token_hash, …)` on the pre-7.6 schema only (a migration test): check it still runs before my migration.
+- **`db/progressRepo.ts › addSupplies`:** 7.6 adds the `accounts` row lock + `payee` (merged guest → account) + the nudge at the end; 7.7/7.11/7.12 writers inside the bank should write to `payee` (not the seat's `accountId`) for progress columns, and keep `run_rewards` keyed by the seat's id.
+- **`db/accountsRepo.ts`:** `guestTokenHash` is gone from `accounts`; any branch that still inserts `accounts.guest_token_hash` (7.9's tests, 7.7+7.11+7.12 tests) must create guests through `accountsRepo.createGuest(tokenHash, name)` (it now writes `device_tokens`).
+- **`auth/accountRoutes.ts` / `app.ts`:** one `routes` object: `createRouter({ health, accountSession, accountUnlock, accountUpgrade, accountLogin, accountRecover, accountLogout })`; 7.4+7.5 (training) and 7.10 (look) append theirs. `tools/checks/progressHubWiring.test.ts` now accepts appended routes.
+- **`progression.json`:** new `training { maxLevel, costPerLevel }` (7.5 extends the object: keep both keys, its `boosts` go beside them) and `account { saveNudgeSupplies }`. `progression.test.ts` builds files with both keys.
+- **`ResultsScreen.tsx`:** the nudge is the last row of `RunRewardsCard` (brief 26 group 4); 7.11 / 7.12 / 7.4 / 7.7 rows go ABOVE it (`rewardsWiring.test.ts` now accepts the extra prop).
+- **`StartScreen.tsx`:** the account line is the first child of `.menu` (above the title); `ProgressScreen.tsx`: the compact line is the header's last child (7.10's tab bar is untouched).
+- **`RunRoom.ts`:** two lines (register the room's device reader in `onCreate`, unregister in `onDispose`).
+- **`net/account.ts`:** `accountSession` feeds `accountStore`; `progressStore` ↔ `account.ts` import each other (function declarations only at module scope; keep it that way).
+
+### Not verified
+
+- Real phones' password managers (Chrome Android / iOS Safari offering to save and fill: the fields carry `autocomplete="username"`, `"new-password"`, `"current-password"` in a `<form>`), the real landscape keyboard (the strip is emulated at 568×130 / 800×150), clipboard Copy on iOS Safari (try/catch; "Copy" stays if it fails).
+- Argon2 timing on the VPS (≈ 13 ms per hash/verify on this container; D4 estimated ≈ 50 ms) and its memory under many parallel logins (19 MiB each on the libuv pool, 4 threads by default).
+- The Alpine Docker image installing `@node-rs/argon2`'s musl binary (`npm ci` in the image can't run here: HANDOFF §9 TLS interception); CI builds the image.
+- PostgreSQL 18 (`transaction_timeout`): the real-PG tests ran on PostgreSQL 16 (PGlite 18 for the rest).
+- The migration on the production database copy (only on PGlite / PG 16 with rows).
 
 ### File List
+
+- apps/server/drizzle/0002_accounts_devices.sql (new), apps/server/drizzle/meta/0002_snapshot.json (new), apps/server/drizzle/meta/_journal.json
+- apps/server/package.json, package-lock.json (`@node-rs/argon2` 2.2.2)
+- apps/server/src/db/schema.ts, accountsRepo.ts, progressRepo.ts, deviceTokensRepo.ts (new); tests db.test.ts, runRewards.test.ts, deviceTokens.test.ts (new), mergeRules.test.ts (new), realPostgresAccounts.test.ts (new)
+- apps/server/src/meta/merge.ts (new), banking.ts, banking.test.ts
+- apps/server/src/auth/accountAuth.ts (new), passwords.ts (new), recoveryCode.ts (new), devicesInRooms.ts (new), accountRoutes.ts, accountAuth.test.ts (new), guestSession.test.ts
+- apps/server/src/app.ts, net/limits.ts, net/rateLimit.ts, rooms/RunRoom.ts, test/bootTestServer.ts
+- packages/shared/src/net/account.ts, net/messages.ts, config/progression.json, config/progression.ts, config/progression.test.ts, index.ts
+- apps/client/src/ui/AccountScreen.tsx (new), accountModel.ts (new), accountModel.test.ts (new), App.tsx, StartScreen.tsx, ProgressScreen.tsx, ResultsScreen.tsx, uiState.ts, overlay.css
+- apps/client/src/net/account.ts, accountStore.ts (new), accountActions.test.ts (new)
+- tools/checks/accountDomLayout.test.ts (new), accountWiring.test.ts (new), resultsDomLayout.test.ts, progressHubWiring.test.ts, rewardsWiring.test.ts
+- docs/deploy.md, docs/epic-7-decisions.md, docs/art/epic-7/built/7-6-*.png (11 screenshots), _bmad-output/implementation-artifacts/sprint-status.yaml
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
+- 2026-11-25: built (builder session, branch story-7-6); status review.
