@@ -3,7 +3,7 @@ import { EVENT_KINDS, EVENT_PHASE, type StampedeLane, type World } from "@topdow
 import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, ensureEventTextures } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook } from "./eventMarkers";
-import { newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
+import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -120,11 +120,14 @@ export class EventView {
     this.tip.setVisible(onEdge);
     if (onEdge) {
       const e = this.arrowAt;
-      const discM = (arrowPx * 0.7) / pxPerM;
+      const discM = (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM;
       const ex = vx + e.x / pxPerM;
       const ey = vy + e.y / pxPerM;
       this.arrow.setFrame(kind === "stampede" ? EVENT_FRAMES.arrowBang : EVENT_FRAMES.arrowBell).setDisplaySize(discM, discM).setPosition(ex, ey);
-      this.tip.setDisplaySize(discM * 0.5, discM * 0.5).setPosition(ex + Math.cos(e.angle) * discM * 0.62, ey + Math.sin(e.angle) * discM * 0.62).setRotation(e.angle);
+      this.tip
+        .setDisplaySize(discM * EVENT_ARROW_TIP_FRAC, discM * EVENT_ARROW_TIP_FRAC)
+        .setPosition(ex + Math.cos(e.angle) * discM * EVENT_ARROW_TIP_OFFSET, ey + Math.sin(e.angle) * discM * EVENT_ARROW_TIP_OFFSET)
+        .setRotation(e.angle);
     }
     this.updateCar(look.visible && kind === "car_alarm" && look.blinkOn, vx, vw);
     this.updateStampede(dtS, look.chevrons ? look.lane : -1);
