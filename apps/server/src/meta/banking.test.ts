@@ -126,7 +126,7 @@ describe("Story 7.2: RunBank", () => {
     Object.assign(p0, rec(10, 1));
     Object.assign(p1, rec(10, 1));
     world.players.delete("p1");
-    world.heldPlayers.set("p1", { player: p1, wave: 10, phase: "vote" }); // held at the extract (8.1)
+    world.heldPlayers.set("p1", { player: p1, buildIdx: 0, atTick: 0 }); // held at the extract (8.1)
     world.run.ending = "extracted";
     const { repo } = fakeRepo();
     const { bank, log } = bankWith(repo);

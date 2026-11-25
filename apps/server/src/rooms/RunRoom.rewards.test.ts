@@ -8,6 +8,7 @@ import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
 import { type Database, openPglite } from "../db/client";
 import { progressRepo } from "../db/progressRepo";
+import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
 
@@ -38,14 +39,17 @@ const hex = (): string => randomBytes(16).toString("hex");
 async function newAccount(): Promise<string> {
   return (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
 }
-const options = (intent: "create" | "join", name: string, accountId: string | null) => ({
-  intent,
-  name,
-  balanceVersion: serverBalance.version,
-  mapVersion: DOWNTOWN_MAP.version,
-  guestToken: hex(),
-  ...(accountId ? { ticket: signTicket(accountId, SECRET) } : {}),
-});
+const options = (intent: "create" | "join", name: string, accountId: string | null) => {
+  const guestToken = hex();
+  return {
+    intent,
+    name,
+    balanceVersion: serverBalance.version,
+    mapVersion: DOWNTOWN_MAP.version,
+    guestToken,
+    ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
+  };
+};
 function listen(c: RunSdkRoom): RunRewards[] {
   const got: RunRewards[] = [];
   for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
