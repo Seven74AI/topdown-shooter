@@ -262,6 +262,15 @@ Claude (Claude Code cloud session, branch `story-6-9`).
 - **L11 fixed** `render/eventArrowPair.ts › placeSecondEventArrow`: the flag's edge arrow keeps 6.8's placement rules and also keeps off the NPC arrow's drawn rect; `hudLayout.test.ts` checks every bearing pair (5° steps, also 1°/3°/10°/45°/180° apart): both arrows keep every rule and never overlap.
 - Merged `origin/story-6-8` 185496d (arrow placement rewrite: the flag keeps its own `EventArrowPlace` with `side` hysteresis).
 
+### Re-review follow-ups (re-review of 90269c0: M1, L1–L5, L7, L8, L10 hold; 1 M + 3 L + 1 note)
+
+- **RR1 fixed [behaviour]** `render/eventArrowPair.ts`: the flag arrow is placed by 6.8's own rule (its own `EventArrowPlace`, 6 control rects from `newWaveControlRects()`); only when it would overlap the NPC arrow does it move to a spot right beside the NPC arrow (above / below / left / right, or two steps out), every 6.8 rule kept, the legal spot closest to its bearing. Pair test asserts ≤ 30° bearing error; measured max **19.4° at 568 × 320, 18.1° at 640 × 360** (the reported NPC 225° / flag 240.78° case and 15.78° apart are in the sweep).
+- **RR2 fixed** the beside-spot is held (`PairHold`, kept in `EventView`) while the flag's own spot stays within the NPC rect + 24 px; reset when no flag. Oscillation test (±0.01° jitter at every 0.25° of a ±20° sweep past the NPC arrow, every 15°): **0 flips in 30,912 frames** at each size.
+- **RR3 fixed** no per-frame arrays: fixed rects and a module-level probe; spots by index.
+- **RR4 fixed [behaviour]** `combat/firing.ts`: an armed tank's t is a blocker in the hit gather (`gasLeak.gasTankT`), so nothing behind the tank — zombie or Behemoth — is hit by the round that blows it. Test (Behemoth 1.2 m past the tank: loses exactly the blast's 150; 190 without the fix).
+- **N1 fixed** `CRATE_CANCEL_UNTIL` 0.75 → 0.6 (8 ticks ≈ 400 ms of headroom: honest up to ~250 ms RTT); test at 11 / 12 of 20 ticks.
+- Merged `origin/rereview-6-9` 7b1d9a6 and `origin/master` dfaefcb (6.8 on master).
+
 ### File List
 
 New: `packages/shared/src/events/{gasLeak,supplyDrop,powerFailure,survivor}.ts` (+ `.test.ts`), `packages/shared/src/events/eventsRunSim.test.ts`, `apps/client/src/render/EventPickupsView.ts`, `apps/client/src/render/eventPickups.test.ts`, `apps/client/src/render/fog/fogWiring.ts` (+ `.test.ts`), `tools/checks/fogWiring.test.ts`, `docs/art/6-9/*.png`.

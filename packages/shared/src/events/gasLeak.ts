@@ -79,6 +79,13 @@ function blow(world: World, by: string | null): void {
   log.gasShotBy = by;
 }
 
+/** Re-review RR4: where a step (x0, y0) → (x1, y1) enters the ARMED tank's circle (t in [0, 1]), or −1. */
+export function gasTankT(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): number {
+  if (!gasTankArmed(world)) return -1;
+  const a = world.special.active;
+  return segmentCircleT(x0, y0, x1, y1, a.x, a.y, world.balance.events.gasLeak.tankRadiusM);
+}
+
 /**
  * G3 (the 6.8 shot hook): a player's projectile step (x0, y0) → (x1, y1), stopped at `stopT` (−1: it
  * flies on), reaches the armed tank when it enters the tank's circle no later than where it stops.

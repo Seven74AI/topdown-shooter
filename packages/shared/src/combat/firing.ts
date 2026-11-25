@@ -34,6 +34,7 @@ import { applyBossDamage, bossCircleHitBySegment, zombieUnderBoss } from "../bos
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { bulletBlockT } from "./cover";
 import { onSpecialShot, specialShotTarget } from "../events/specialEvents";
+import { gasTankT } from "../events/gasLeak";
 
 
 /** Story 5.3 counters (they live in `damage.ts` since Story 5.2; re-exported for the old imports). */
@@ -307,7 +308,13 @@ function updateProjectiles(world: World, dtS: number): void {
     const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
     // Story 4.2: the shot stops where this sweep first enters a car, the bus or a map box (-1: none);
     // zombies past that point are behind cover and not hit.
-    const coverT = bulletBlockT(world, x0, y0, x1, y1); // barricades stop bullets too (designer 2026-11-23)
+    let coverT = bulletBlockT(world, x0, y0, x1, y1); // barricades stop bullets too (designer 2026-11-23)
+    // Story 6.9 re-review RR4: an armed gas tank stops a PLAYER's bullet like cover (nothing behind it —
+    // a zombie, the Behemoth — is hit by the round that blows it).
+    if ((pool.building[id] as number) === 0 && pool.owner[id] != null) {
+      const tankT = gasTankT(world, x0, y0, x1, y1);
+      if (tankT >= 0 && (coverT < 0 || tankT < coverT)) coverT = tankT;
+    }
     // Story 6.5 (D3, AC 11): the Behemoth's body stops the shot (no pierce through it); a player's
     // shot meets it where the shooter saw it (rewound like the zombies), a turret's where it is.
     const bossT = bossBodyOn(world.boss) ? bossCircleHitBySegment(world, x0, y0, x1, y1, rewind > 0 ? world.tick - rewind + REWIND_SWEEP_MID_TICKS : -1) : -1;

@@ -280,10 +280,10 @@ const promptOut: CrateOutcome = { slot: -1, how: "refused" };
 export const CRATE_ALREADY_HAVE = "You already have it";
 /**
  * Review L7: the "· step off to cancel" promise only while the server's fill is below this (a
- * step-off reaches the server ~1 RTT later: under ?lag=150 the claim keeps counting 3–4 ticks, so
- * the last fifth of the second can't be cancelled from the screen). The warning itself stays (G7).
+ * step-off reaches the server ~1 RTT later and the fill the client sees is ~½ RTT old). Re-review
+ * N1: 0.6 leaves 8 ticks (400 ms), so the text never lies up to ~250 ms RTT. The warning stays (G7).
  */
-export const CRATE_CANCEL_UNTIL = 0.75;
+export const CRATE_CANCEL_UNTIL = 0.6; // re-review N1: 8 of 20 ticks of headroom (≈ 400 ms): honest up to ~250 ms RTT + jitter
 export const CRATE_CANCEL_SUFFIX = " · step off to cancel";
 export function cratePrompt(world: Readonly<World>, localId: string): string {
   const a = world.special.active;

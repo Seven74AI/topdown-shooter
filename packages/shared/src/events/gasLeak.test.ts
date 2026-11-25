@@ -231,6 +231,20 @@ describe("Story 6.9 review L4 / L5", () => {
     expect(cfg.bossDamage).toBe(150);
   });
 
+  it("re-review RR4: a Behemoth right behind the tank takes the blast's 150 only — the bullet that blows the tank never reaches it", () => {
+    const t = eventWorld({ players: [[24, 16]], systems: { zombies: () => {}, boss: () => {} } }); // the boss stands still on the bullet's line
+    t.world.decay.stage = 2;
+    placeBoss(t.world, TANK.x + 1.2 + balance.boss.radiusM, TANK.y); // its body starts 1.2 m past the tank, inside the bullet's 3 m step
+    t.world.boss.gapTicks = 10_000;
+    const hp0 = t.world.boss.hp;
+    startNext(t.world, "gas_leak");
+    tickN(t.world, ticks(cfg.armDelayS) + 2);
+    spawnProjectile(t.world.projectiles, { x: TANK.x - 1, y: TANK.y, dirX: 1, dirY: 0, speedMps: 60, rangeM: 10, damage: 40, pierce: 5, weaponIndex: 0, owner: "p0", building: 0, advanceM: 0 });
+    tickN(t.world, 1);
+    expect(t.world.special.log.gasBooms).toBe(1);
+    expect(hp0 - t.world.boss.hp).toBe(cfg.bossDamage);
+  });
+
   it("L5: the bullet that blows the tank stops at the tank (a piercing round goes no further)", () => {
     const { world } = hissWorld();
     tickN(world, ticks(cfg.armDelayS) + 1);

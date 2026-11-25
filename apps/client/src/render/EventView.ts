@@ -4,7 +4,7 @@ import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, en
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
 import { EventPickupsView } from "./EventPickupsView";
-import { placeSecondEventArrow } from "./eventArrowPair";
+import { createPairHold, placeSecondEventArrow } from "./eventArrowPair";
 import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
@@ -59,6 +59,7 @@ export class EventView {
   private readonly pickups: EventPickupsView;
   private readonly controls = newWaveControlRects();
   private readonly arrowAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // `side`: the placement's hysteresis (re-review 2 RR1)
+  private readonly flagHold = createPairHold(); // re-review RR2: the beside-side hold
   private readonly flagAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // Story 6.10: the flag's own placement (its own hysteresis)
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
@@ -142,9 +143,12 @@ export class EventView {
     // px, off the wave controls / HP block, inside the safe area).
     const f = look.flag;
     // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
-    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt);
+    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt, this.flagHold);
     f.edge.visible = flagEdge;
-    if (!f.visible) this.flagAt.side = 0; // no flag: its hysteresis starts fresh next time (6.8 RR1: one placement object per arrow)
+    if (!f.visible) {
+      this.flagAt.side = 0;
+      this.flagHold.side = 0;
+    } // no flag: its hysteresis starts fresh next time (6.8 RR1: one placement object per arrow)
     if (flagEdge) {
       f.edge.x = vx + this.flagAt.x / pxPerM;
       f.edge.y = vy + this.flagAt.y / pxPerM;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOWNTOWN_MAP, EVENT_KINDS, EVENT_PHASE, NPC_STATE, addPlayer, createWorld, loadBalance, setLoadout, weaponIds, type SimEvent } from "@topdown/shared";
-import { CRATE_ALREADY_HAVE, NPC_PIN_LIFT_M, PIN_LIFT_M, GAS_LABEL, GAS_LABEL_ARMED, NPC_LABEL_FOLLOWING, NPC_LABEL_WAITING, cratePrompt, createEventCue, createEventMarkerLook, eventCue, eventMarkerLook } from "./eventMarkers";
+import { CRATE_ALREADY_HAVE, CRATE_CANCEL_UNTIL, NPC_PIN_LIFT_M, PIN_LIFT_M, GAS_LABEL, GAS_LABEL_ARMED, NPC_LABEL_FOLLOWING, NPC_LABEL_WAITING, cratePrompt, createEventCue, createEventMarkerLook, eventCue, eventMarkerLook } from "./eventMarkers";
 import { mirrorSpecialEvent } from "../net/mirrorEvent";
 import { fakeState } from "../net/fakeRoom";
 import { eventSpecs, npcFrame } from "./city/eventArt";
@@ -59,9 +59,14 @@ describe("Story 6.9: gas leak and supply drop markers (from the room state, serv
     mirrorSpecialEvent(w, s);
     expect(cratePrompt(w, "p0")).toBe("Replaces your SMG III · step off to cancel");
     // review L7: past 3/4 of the second the cancel promise drops (a step-off can't reach the server in time); the warning stays
-    Object.assign(s, { crateClaimSlot: 0, crateClaimTicks: 16 });
+    // re-review N1: the promise holds below 0.6 of the second (11 of 20 ticks), drops from 12 on
+    Object.assign(s, { crateClaimSlot: 0, crateClaimTicks: 11 });
+    mirrorSpecialEvent(w, s);
+    expect(cratePrompt(w, "p0")).toBe("Replaces your SMG III · step off to cancel");
+    Object.assign(s, { crateClaimSlot: 0, crateClaimTicks: 12 });
     mirrorSpecialEvent(w, s);
     expect(cratePrompt(w, "p0")).toBe("Replaces your SMG III");
+    expect(CRATE_CANCEL_UNTIL).toBe(0.6);
     // review L8: a teammate holds the claim → nothing to lose here
     Object.assign(s, { crateClaimSlot: 1, crateClaimTicks: 5 });
     mirrorSpecialEvent(w, s);
