@@ -104,6 +104,8 @@ export interface Bake {
   useWorker: boolean;
   /** Follow-up L2: when the worker must have answered by (ms, `now()`), else the main thread takes its frames back. */
   workerDeadline: number;
+  /** When the last pump ran (`now()`): a long gap (the tab was in the background) pushes the deadline out (R3-L2). */
+  lastPump: number;
 }
 let bake: Bake | null = null;
 interface Sheet {
@@ -155,9 +157,13 @@ export function pumpBake(b: Bake, budgetUnits: number, budgetMs: number, now: ()
     if ("close" in d.base) (d.base as ImageBitmap).close();
     if (d.bloom && "close" in d.bloom) (d.bloom as ImageBitmap).close();
   }
+  // R3-L2: a frozen tab (app switched away) isn't a silent worker: the gap since the last pump extends the deadline
+  const tPump = now();
+  if (b.lastPump > 0 && tPump - b.lastPump > 1000) b.workerDeadline += tPump - b.lastPump;
+  b.lastPump = tPump;
   if (b.worker) {
     // follow-up L2: a worker that never answers; N3: the worker is closed once it has nothing left to do
-    if (b.inFlight.length > 0 && now() > b.workerDeadline) workerFailed(b);
+    if (b.inFlight.length > 0 && tPump > b.workerDeadline) workerFailed(b);
     else if (b.inFlight.length === 0 && b.queue.length === 0) {
       b.worker.terminate();
       b.worker = null;
@@ -236,6 +242,7 @@ function sendToWorker(b: Bake): void {
 
 /** A picture from the worker: kept for the next pump, or (an older generation's, after a re-bake) dropped and freed. */
 export function receiveWorkerResult(b: Bake, r: WorkerResult, now = performance.now()): void {
+  b.workerDeadline = now + WORKER_TIMEOUT_MS; // R3-L1: any answer (even a stale one) shows the worker is alive
   if (r.gen !== b.gen) {
     r.base.close();
     r.bloom?.close();
@@ -247,7 +254,12 @@ export function receiveWorkerResult(b: Bake, r: WorkerResult, now = performance.
 
 /** The worker failed or went silent: it's closed and the main thread bakes what it didn't send back (and the rest). */
 export function workerFailed(b: Bake): void {
-  b.worker?.terminate();
+  if (b.worker) {
+    // R3-N1: no late picture may arrive after its frame went back to the main thread
+    b.worker.onmessage = null;
+    b.worker.onerror = null;
+    b.worker.terminate();
+  }
   b.worker = null;
   b.useWorker = false;
   b.queue = [...b.inFlight.map((n) => ART_SPECS.find((a) => a.frame === n)).filter((a): a is ArtSpec => a !== undefined), ...b.queue];
@@ -285,13 +297,20 @@ export function rebakeAfterCacheLoss(b: Bake | null = bake): number {
   b.arrived.length = 0;
   b.queue = [...relitSpecs()];
   const n = b.queue.length;
+  if (b.worker) {
+    // R3-L1: a fresh worker for the new generation (the old one may still be busy with stale frames)
+    b.worker.onmessage = null;
+    b.worker.onerror = null;
+    b.worker.terminate();
+    b.worker = null;
+  }
   if (b.useWorker) sendToWorker(b);
   return n;
 }
 
 /** A bake over `canvas` (the atlas) and `glowCanvas` (tests make one with a node canvas); main-thread until `sendToWorker`. */
 export function newBake(canvas: HTMLCanvasElement, frames: readonly PlacedFrame[], glowCanvas: HTMLCanvasElement, glowFrames: readonly PlacedFrame[], make: (w: number, h: number) => HTMLCanvasElement, queue: ArtSpec[] = relitSpecs().filter((a) => !relitCache.has(a.frame))): Bake {
-  return { queue, job: null, make, lastUnits: 0, sheets: [{ canvas, frames, tex: null, dirty: false }], glowCanvas, glowFrames, glowTex: null, worker: null, inFlight: [], arrived: [], gen: 0, useWorker: false, workerDeadline: 0 };
+  return { queue, job: null, make, lastUnits: 0, sheets: [{ canvas, frames, tex: null, dirty: false }], glowCanvas, glowFrames, glowTex: null, worker: null, inFlight: [], arrived: [], gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0 };
 }
 
 /** Empties the kept pictures (tests start from a clean cache). */

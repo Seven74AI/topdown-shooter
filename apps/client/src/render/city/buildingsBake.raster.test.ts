@@ -104,7 +104,7 @@ describe("the buildings atlas bake, main-thread fallback (review M1, R1–R4, R8
 describe("the worker path's housekeeping (follow-ups L2, L3, N2, N3)", () => {
   /** A stand-in worker: records posts and terminate. */
   const fakeWorker = () => {
-    const w = { posts: 0, terminated: false, postMessage() { w.posts++; }, terminate() { w.terminated = true; } };
+    const w = { posts: 0, terminated: false, onmessage: (() => undefined) as unknown, onerror: (() => undefined) as unknown, postMessage() { w.posts++; }, terminate() { w.terminated = true; } };
     return w;
   };
   const bitmap = () => {
@@ -160,6 +160,42 @@ describe("the worker path's housekeeping (follow-ups L2, L3, N2, N3)", () => {
     b2.queue = [];
     expect(pumpBake(b2, Infinity, Infinity)).toBe(false);
     expect(w2.terminated).toBe(true);
+  });
+
+  it("R3-L2: a tab frozen 25 s mid-bake (app switched away) keeps a healthy worker", () => {
+    const { b } = mineBake();
+    const w = fakeWorker();
+    b.worker = w as unknown as Worker;
+    b.useWorker = true;
+    b.inFlight = [FRAME_MINE];
+    b.queue = [];
+    b.workerDeadline = 1000 + WORKER_TIMEOUT_MS;
+    pumpBake(b, 0, 0, () => 1000);
+    pumpBake(b, 0, 0, () => 1016);
+    pumpBake(b, 0, 0, () => 26_016); // 25 s with no frame
+    expect(w.terminated).toBe(false);
+    // genuinely silent afterwards (the game running, a pump every half second): given up on once the deadline passes
+    let t = 26_016;
+    while (!w.terminated && t < 26_016 + 2 * WORKER_TIMEOUT_MS) {
+      t += 500;
+      pumpBake(b, 0, 0, () => t);
+    }
+    expect(w.terminated).toBe(true);
+    expect(t).toBeGreaterThan(1000 + WORKER_TIMEOUT_MS + 25_000); // not before the frozen time was added
+  });
+
+  it("R3-L1: any answer (a stale one too) re-arms the deadline; R3-N1: a failed worker can't deliver late", () => {
+    const { b } = mineBake();
+    b.gen = 3;
+    receiveWorkerResult(b, { gen: 2, frame: FRAME_MINE, base: bitmap() as unknown as ImageBitmap, bloom: null, glowAt: [0, 0, 0], spots: [] }, 500);
+    expect(b.workerDeadline).toBe(500 + WORKER_TIMEOUT_MS);
+    const w = fakeWorker();
+    b.worker = w as unknown as Worker;
+    b.inFlight = [FRAME_MINE];
+    workerFailed(b);
+    expect(w.onmessage).toBeNull();
+    expect(w.onerror).toBeNull();
+    expect(w.terminated).toBe(true);
   });
 
   it("L3: a restore before the first picture landed re-bakes nothing (the bake in flight carries on)", () => {
