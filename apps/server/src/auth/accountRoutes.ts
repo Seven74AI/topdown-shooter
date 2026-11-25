@@ -10,6 +10,7 @@ import {
   ACCOUNT_LOGOUT_PATH,
   ACCOUNT_RECOVER_PATH,
   ACCOUNT_SESSION_PATH,
+  ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
   ACCOUNT_UPGRADE_PATH,
   GUEST_COOKIE,
@@ -17,6 +18,7 @@ import {
   loginRequestSchema,
   logoutRequestSchema,
   recoverRequestSchema,
+  trainRequestSchema,
   unlockRequestSchema,
   upgradeRequestSchema,
 } from "@topdown/shared";
@@ -26,11 +28,14 @@ import { log } from "../ops/logger";
 import { resolveGuestSession, type GuestSessionDeps } from "./guestSession";
 import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
 import { actionIpAllowed, logIn, logOut, loginIpAllowed, recoverAccount, upgradeAccount, type AccountAuthDeps, type AuthOutcome } from "./accountAuth";
+import { buyTraining, trainIpAllowed, trainRefused, type TrainDeps } from "./train";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
   /** Story 7.3: `POST /account/unlock`. */
   unlock: Omit<UnlockDeps, "accounts" | "logGate">;
+  /** Story 7.5: `POST /account/training`. */
+  train: Omit<TrainDeps, "accounts" | "logGate">;
   /** Story 7.6: upgrade, login, recover, logout. */
   auth: Omit<AccountAuthDeps, "accounts" | "logGate" | "sessionSecret">;
 }
@@ -84,6 +89,34 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     const out = await buyUnlock(
       { cookieToken: ctx.getCookie(GUEST_COOKIE), unlockId: body.data.unlockId, requestId: body.data.requestId, ip },
       { ...deps.unlock, accounts: deps.accounts, logGate: deps.logGate },
+    );
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    return out.body;
+  });
+
+  /**
+   * Story 7.5 (AC 3): `POST /account/training` `{ boost, level, requestId }`. Same answers and guards as the unlock:
+   * 200 `{ ok, boost, level, progress }` or `{ ok: false, reason: already_trained | not_enough | maxed, need?, progress }`;
+   * 400 bad body, 401 no account, 403 foreign Origin, 429 over the limits, 503 save server down.
+   */
+  const accountTraining = createEndpoint(ACCOUNT_TRAINING_PATH, { method: "POST" }, async (ctx) => {
+    const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
+    const origin = headers?.get("origin");
+    if (!originAllowed(origin, deps.allowedOrigins)) {
+      log.warn({ origin: origin ?? null }, "account_origin_refused");
+      throw ctx.error(403, { message: "forbidden" });
+    }
+    ctx.setHeader("cache-control", "no-store");
+    const ip = clientIp(headers);
+    if (!trainIpAllowed(ip, { ipLimiter: deps.train.ipLimiter, logGate: deps.logGate })) throw ctx.error(429, { message: "rate_limited" });
+    const body = trainRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) {
+      trainRefused(ip, deps.logGate);
+      throw ctx.error(400, { message: "invalid_body" });
+    }
+    const out = await buyTraining(
+      { cookieToken: ctx.getCookie(GUEST_COOKIE), boost: body.data.boost, level: body.data.level, requestId: body.data.requestId, ip },
+      { ...deps.train, accounts: deps.accounts, logGate: deps.logGate },
     );
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
@@ -150,7 +183,7 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (!body.success) return badBody(ctx);
     return answer(ctx, await logOut({ cookieToken: ctx.getCookie(GUEST_COOKIE), ip }, authDeps));
   });
-  return { accountSession, accountUnlock, accountUpgrade, accountLogin, accountRecover, accountLogout };
+  return { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout };
 }
 
 /** The `__Host-tdg` cookie (HttpOnly, Secure, SameSite=Lax, Path=/, no Domain, 1 year). */

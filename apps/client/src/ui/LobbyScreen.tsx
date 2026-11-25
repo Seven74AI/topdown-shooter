@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { STARTING_MS, startButton } from "./startButton";
 import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { copyLink, share, shareLink } from "./share";
 import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
@@ -54,6 +55,12 @@ export function LobbyScreen() {
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   const [notice, setNotice] = useState("");
   const vp = useViewport();
+  const [startTap, setStartTap] = useState<number | null>(null); // Stories 7.4/7.5: "Starting…" while the server reads progress
+  useEffect(() => {
+    if (startTap === null) return;
+    const id = setTimeout(() => setStartTap(null), STARTING_MS);
+    return () => clearTimeout(id);
+  }, [startTap]);
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => lobbyStore.subscribe(setLobby), []);
   useEffect(() => {
@@ -163,12 +170,15 @@ export function LobbyScreen() {
           type="button"
           class="lobby__btn lobby__btn--primary lobby__start"
           style={place(L.start)}
-          disabled={!view.canStart}
+          disabled={!view.canStart || startButton(startTap, performance.now()).starting}
           title={view.startHint ?? undefined}
           aria-label={view.startHint ? `Start. ${view.startHint}` : "Start"}
-          onClick={() => lobbyStore.start()}
+          onClick={() => {
+            setStartTap(performance.now()); // Stories 7.4/7.5: "Starting…" while the server reads progress
+            lobbyStore.start();
+          }}
         >
-          <span>Start</span>
+          <span>{startButton(startTap, performance.now()).label}</span>
           {view.startHintShort && <span class="lobby__start-hint">{view.startHintShort}</span>}
         </button>
       ) : (

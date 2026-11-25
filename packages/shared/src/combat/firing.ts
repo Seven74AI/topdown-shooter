@@ -23,7 +23,7 @@ import {
 } from "./projectilePool";
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
-import { isFlame, isLauncher, isMelee, magazineOf, usesAmmo, weaponDamage, weaponIds, weaponStats } from "./weapons";
+import { isFlame, isLauncher, isMelee, magazineOf, usesAmmo, playerWeaponDamage, reloadSecondsFor, weaponIds, weaponStats } from "./weapons";
 import { launchGrenade, updateGrenades } from "./grenades";
 import { useConsumables } from "./consumables";
 import { flameTick, updateIgnites } from "./flame";
@@ -128,8 +128,8 @@ function updateSwap(world: World, p: PlayerState, input: PlayerInput | undefined
       world.events.emit({ type: "weapon.swapped", playerId: p.id, active: lo.active, weapon: slot.weapon });
       const stats = weaponStats(world.balance, slot.weapon);
       if (usesAmmo(stats) && slot.ammo === 0 && slot.reloadTicks === 0) {
-        slot.reloadTicks = ticksFor(stats.reloadS);
-        world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+        slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5
+        world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: reloadSecondsFor(p, stats) });
         return true; // the reload starts counting next tick, like a reload after the last shot
       }
       return false; // the new weapon may fire from this tick
@@ -176,8 +176,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     }
     slot.ammo--;
     if (slot.ammo === 0) {
-      slot.reloadTicks = ticksFor(stats.reloadS);
-      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+      slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: reloadSecondsFor(p, stats) });
     }
     return false; // no cooldown: the next tick may flame again
   }
@@ -189,7 +189,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
     // Story 5.1: the swing's damage comes from the slot's upgrade level (the one shared rule).
-    if (!dryFire) swingMelee(world, p, slot.weapon, stats, weaponDamage(world.balance, slot.weapon, slot.level), dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
+    if (!dryFire) swingMelee(world, p, slot.weapon, stats, playerWeaponDamage(world.balance, p, slot.weapon, slot.level), dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
     return true;
   }
   if (slot.ammo <= 0) return false;
@@ -197,8 +197,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     // A skipped input's shot: its round and cooldown are spent, nothing flies (see skippedInputWeaponTick).
     slot.ammo--;
     if (slot.ammo === 0) {
-      slot.reloadTicks = ticksFor(stats.reloadS);
-      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+      slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: reloadSecondsFor(p, stats) });
     }
     return true;
   }
@@ -211,8 +211,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     slot.ammo--;
     world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: p.x + dir.x * offset, y: p.y + dir.y * offset, dirX: dir.x, dirY: dir.y });
     if (slot.ammo === 0) {
-      slot.reloadTicks = ticksFor(stats.reloadS);
-      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+      slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: reloadSecondsFor(p, stats) });
     }
     return true;
   }
@@ -233,7 +233,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   spawn.speedMps = stats.projectileSpeedMps;
   spawn.rangeM = stats.rangeM;
-  spawn.damage = weaponDamage(world.balance, slot.weapon, slot.level); // Story 5.1: every pellet/bullet
+  spawn.damage = playerWeaponDamage(world.balance, p, slot.weapon, slot.level); // Story 5.1: every pellet/bullet
   spawn.pierce = stats.pierce;
   spawn.weaponIndex = weaponIds(world.balance).indexOf(slot.weapon);
   spawn.owner = p.id;
@@ -272,8 +272,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   if (pellets === 1) world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y });
   else world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y, seq: input.seq & 0xffff });
   if (slot.ammo === 0) {
-    slot.reloadTicks = ticksFor(stats.reloadS);
-    world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+    slot.reloadTicks = ticksFor(reloadSecondsFor(p, stats)); // Story 7.5
+    world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: reloadSecondsFor(p, stats) });
   }
   return true;
 }

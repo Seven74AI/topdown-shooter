@@ -1,6 +1,6 @@
 import type { NetSession } from "../net/session";
 import type { ShopAction } from "./shopStore";
-import type { RunEnding } from "@topdown/shared";
+import type { RunEnding, TrainingLevels } from "@topdown/shared";
 
 /**
  * Tiny typed store between Phaser scenes and Preact screens (no globals on window).
@@ -90,6 +90,8 @@ export interface ResultRow {
   readonly kills: number;
   /** Story 3.10: money earned this run (`PlayerState.earned`; the starting wallet not included). */
   readonly earned: number;
+  /** Story 7.5 (T4, TL3): the player's Training levels (the schema's; absent = all 0). */
+  readonly training?: TrainingLevels;
 }
 
 /** Story 6.11 / 6.12: the Results title: "Extracted", "Lost in the city" (a wipe after Stay), else "Wave reached N". */

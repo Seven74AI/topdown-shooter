@@ -51,6 +51,16 @@ export type UnlockResult =
   | { outcome: "already_unlocked"; progress: Progress }
   | { outcome: "not_enough"; need: number; progress: Progress };
 
+/**
+ * Story 7.5 (AC 3, T3): the result of a Training purchase, with the progress row as it is after it. A missing progress
+ * row counts as the empty one (0 Supplies, every level 0).
+ */
+export type TrainResult =
+  | { outcome: "trained"; progress: Progress }
+  | { outcome: "already_trained"; progress: Progress }
+  | { outcome: "maxed"; progress: Progress }
+  | { outcome: "not_enough"; need: number; progress: Progress };
+
 export interface ProgressRepo {
   get(accountId: string): Promise<Progress | null>;
   /** The empty row ("starter pool only"); a no-op when it exists. */
@@ -71,6 +81,14 @@ export interface ProgressRepo {
    * the bank (7.2 M1 / RR-M1): a purchase never commits after the route answered 503.
    */
   unlock(accountId: string, unlockId: string, price: number): Promise<UnlockResult>;
+  /**
+   * Story 7.5 (AC 3, T3; brief 18): buys Training level `level` of `boost` for `cost` (both from the SERVER's
+   * progression.json) in ONE conditional update: `supplies >= cost AND COALESCE((training->>boost)::int, 0) = level − 1`
+   * (and `level <= maxLevel`). Two concurrent trains serialize on the row lock; the second re-checks and finds the level
+   * already bought (or the Supplies gone), so one level is bought and charged once. 0 rows → re-read in the same
+   * transaction to say why. In 7.2's `boundedTransaction`, like the unlock.
+   */
+  train(accountId: string, boost: string, level: number, cost: number, maxLevel: number): Promise<TrainResult>;
 }
 
 const progressColumns = {
@@ -85,6 +103,42 @@ const progressColumns = {
 
 export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bankOptions: BoundedOptions = {}): ProgressRepo {
   return {
+    train: async (accountId, boost, level, cost, maxLevel) => {
+      if (!Number.isInteger(cost) || cost <= 0) throw new Error("training cost must be a positive integer");
+      if (!Number.isInteger(level) || level < 1) throw new Error("training level must be a positive integer");
+      return boundedTransaction(
+        database,
+        "progress.train",
+        async (tx): Promise<TrainResult> => {
+          if (level <= maxLevel) {
+            const updated = await tx
+              .update(progress)
+              .set({
+                supplies: sql`${progress.supplies} - ${cost}`,
+                training: sql`jsonb_set(${progress.training}, ARRAY[${boost}::text], to_jsonb(${level}::int), true)`,
+                updatedAt: sql`now()`,
+              })
+              .where(
+                and(
+                  eq(progress.accountId, accountId),
+                  sql`${progress.supplies} >= ${cost}`,
+                  sql`COALESCE((${progress.training} ->> ${boost})::int, 0) = ${level - 1}`,
+                ),
+              )
+              .returning(progressColumns);
+            const row = updated[0];
+            if (row) return { outcome: "trained", progress: row };
+          }
+          const now = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).limit(1);
+          const current: Progress = now[0] ?? { accountId, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null };
+          const have = typeof current.training[boost] === "number" ? current.training[boost] : 0;
+          if (have >= maxLevel || level > maxLevel) return { outcome: "maxed", progress: current };
+          if (have !== level - 1) return { outcome: "already_trained", progress: current };
+          return { outcome: "not_enough", need: Math.max(1, cost - current.supplies), progress: current };
+        },
+        bankOptions,
+      );
+    },
     unlock: async (accountId, unlockId, price) => {
       if (!Number.isInteger(price) || price <= 0) throw new Error("unlock price must be a positive integer");
       return boundedTransaction(

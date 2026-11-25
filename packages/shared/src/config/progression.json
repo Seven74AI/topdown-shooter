@@ -171,7 +171,33 @@
   },
   "training": {
     "maxLevel": 5,
-    "costPerLevel": 50
+    "costPerLevel": 50,
+    "boosts": [
+      {
+        "id": "max_hp",
+        "name": "Max HP",
+        "pctPerLevel": 2,
+        "line": "More health for the whole run"
+      },
+      {
+        "id": "damage",
+        "name": "Damage",
+        "pctPerLevel": 1,
+        "line": "Your weapons hit a little harder"
+      },
+      {
+        "id": "start_money",
+        "name": "Start money",
+        "perLevel": 10,
+        "line": "More cash in the first build phase"
+      },
+      {
+        "id": "reload",
+        "name": "Reload",
+        "pctPerLevel": 1,
+        "line": "Reload a little faster"
+      }
+    ]
   },
   "account": {
     "saveNudgeSupplies": 200

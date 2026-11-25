@@ -5,6 +5,7 @@ import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spendMoney } from "./economy";
 import type { ShopError } from "./shop";
+import { inPool } from "../meta/pool";
 
 /**
  * Story 5.12: consumables (FR8, FR49) — one quick-use slot per player, bought in a build phase.
@@ -199,6 +200,7 @@ export function buyConsumable(world: World, playerId: string, item: string): Res
   if (p.status !== "alive") return err("not_alive");
   const s = consumableStats(world.balance, item);
   if (!s || !s.inShop) return err("not_for_sale");
+  if (!inPool(p.unlocks, item)) return err("not_unlocked"); // Story 7.4 (K5): never borrowed
   if (p.consumable === item && p.consumableCount >= s.pack) return err("already_full");
   const paid = spendMoney(world, playerId, s.price);
   if (!paid.ok) return paid;

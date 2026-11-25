@@ -16,6 +16,8 @@ import {
   ByteRate,
   C2S,
   MAX_PLAYERS,
+  NO_LENDER,
+  NO_TRAINING,
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
@@ -99,6 +101,7 @@ import { decodeLook, encodeLook, ownedParts, parseDevEvents } from "@topdown/sha
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
+import { loadRunInits, pickDevUnlocks, runPlayers, type RunPlayerInit } from "../meta/runStart";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -302,6 +305,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private shuttingDown = false;
   /** The current run's seed (for `run_ended`) and its ping interval (cleared on the way back to the lobby). */
   private runSeed = 0;
+  /** Story 7.4 (AC 5): each slot's name at run start (a borrowed card's "Borrowed from <name>" survives the lender leaving). */
+  private readonly runNames = new Map<number, string>();
+  /** Stories 7.4/7.5 (AC 2): the run-start progress read is in flight (a second Start is ignored meanwhile). */
+  private starting = false;
   private pingTimer: Delayed | null = null;
   /** Latest `net.pinged` id; send times of the last PING_HISTORY ids (slot `id % PING_HISTORY`). */
   private pingId = 0;
@@ -735,7 +742,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!world || !this.inRun() || !this.bank) return;
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
-    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number });
+    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, lockedUsed: p.lockedUsed });
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
@@ -1014,7 +1021,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private sendOffer(client: RunClient, playerId: string): void {
     const o = this.controller?.offerFor(playerId);
     if (!o) return;
-    client.send(S2C.SHOP_OFFERED, { build: o.build, rev: o.rev, cards: [...o.cards], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll } satisfies ShopOffered);
+    // Story 7.4 (AC 5): the lender's name as it was at run start, so it survives the lender leaving.
+    const lenderName = o.lender === NO_LENDER ? "" : (this.runNames.get(o.lender) ?? "");
+    client.send(S2C.SHOP_OFFERED, { build: o.build, rev: o.rev, cards: [...o.cards], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll, borrowed: o.borrowed, lender: o.lender, lenderName } satisfies ShopOffered);
   }
 
   /** Story 5.13: every member's own offer (each build start; the stored one, never redrawn). */
@@ -1079,19 +1088,56 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.state.phase !== "lobby"
         ? "not_lobby"
         : startBlocker(players, member.slot === this.state.hostSlot, this.allowSoloStart);
-    if (reason !== null) {
-      this.log.info({ playerId: member.playerId, reason }, "run_start_refused");
+    if (reason !== null || this.starting) {
+      this.log.info({ playerId: member.playerId, reason: reason ?? "starting" }, "run_start_refused");
       return;
     }
-    this.startRun();
+    void this.loadAndStart();
+  }
+
+  /**
+   * Stories 7.4 (AC 2, K8; D3) and 7.5 (AC 6): reads every member's progress (parallel, 2 s timeout each, off the
+   * tick), then starts the run with those unlock masks and Training levels. A failed read plays with the starter pool
+   * and Training 0 (logged). Members, phase and Ready are checked again after the read (someone may have left).
+   */
+  private async loadAndStart(): Promise<void> {
+    this.starting = true;
+    let inits: RunPlayerInit[];
+    try {
+      inits = await loadRunInits(
+        Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot, accountId: m.accountId })),
+        roomProgressRepo(),
+      );
+    } finally {
+      this.starting = false;
+    }
+    if (this.state.phase !== "lobby" || this.shuttingDown || this.members.size === 0) return;
+    const players = Array.from(this.members.values(), (m) => ({ ready: this.state.players.get(m.playerId)?.ready === true }));
+    const host = Array.from(this.members.values()).some((m) => m.slot === this.state.hostSlot);
+    const reason = startBlocker(players, host, this.allowSoloStart);
+    if (reason !== null) {
+      this.log.info({ reason }, "run_start_refused");
+      return;
+    }
+    for (const i of inits) if (i.source === "read_failed") this.log.warn({ playerId: i.playerId }, "run_progress_read_failed");
+    this.startRun(inits);
   }
 
   /**
    * Builds the World from the members (join order, `teamSpawnPoint` by slot) and starts the 20 Hz loop.
    * Story 3.1: the run starts in its first build phase; `syncState` writes phase "build".
    */
-  private startRun(): void {
-    const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
+  private startRun(inits: readonly RunPlayerInit[] = []): void {
+    // Stories 7.4/7.5: each member's unlock mask and Training from the run-start read; a member who joined during the
+    // read (or a test calling this directly) has none: the starter pool and Training 0 (decision 7.4 D3).
+    const devUnlocks = pickDevUnlocks(process.env, devShopAll);
+    if (devUnlocks.mask !== null) this.log.warn({ mask: devUnlocks.mask }, "dev_unlocks");
+    else if (devUnlocks.ignored !== null) this.log.warn({ value: process.env.DEV_UNLOCKS, reason: devUnlocks.ignored }, "dev_unlocks_ignored");
+    const initOf = new Map(inits.map((i) => [i.playerId, i]));
+    // DEV_STARTING_WALLET sets the exact start money (dev wins over Training's start money): `runPlayers` (review L4).
+    const players = runPlayers(Array.from(this.members.values()), inits, devUnlocks.mask, devStartingWallet);
+    this.runNames.clear();
+    for (const m of this.members.values()) this.runNames.set(m.slot, m.name);
     const runSeed = this.devRunSeed ?? randomUint32();
     this.runSeed = runSeed;
     if (this.devRunSeed !== null) this.log.warn({ runSeed }, "dev_run_seed");
@@ -1182,7 +1228,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.waveStartMs = performance.now();
     this.lastClearedWave = 0;
     this.peakZombiesAlive = 0;
-    this.log.info({ runSeed, players: players.length }, "run_started");
+    this.log.info(
+      {
+        runSeed,
+        players: Array.from(this.members.values(), (m) => {
+          const p = players.find((x) => x.playerId === m.playerId);
+          return { accountId: m.accountId, unlocks: p?.unlocks ?? 0, training: p?.training ?? NO_TRAINING, source: initOf.get(m.playerId)?.source ?? "none" };
+        }),
+      },
+      "run_started",
+    );
     if (this.scenario) {
       this.state.scenario = this.scenario;
       this.log.info({ scenario: this.scenario, startWave: controller.world.waves.number + 1 }, "test_scenario_started");

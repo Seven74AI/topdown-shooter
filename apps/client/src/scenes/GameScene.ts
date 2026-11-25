@@ -9,6 +9,9 @@ import {
   type MoveRequest,
   consumableStats,
   shopConsumables,
+  inPoolOnly,
+  ALL_UNLOCKED,
+  reloadSecondsFor,
   throwAimLength,
   throwStatsOf,
   type ThrowStats,
@@ -140,6 +143,8 @@ import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
+import { cachedProgress, practiceInit } from "../net/practicePool";
+import { progressStore } from "../net/progressStore";
 import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -219,6 +224,11 @@ const SOLO_NAME = "You";
 /** Story 3.3: shop inputs the scene sends often, allocated once. */
 const SHOP_CLOSE: ShopInput = Object.freeze({ type: "close" });
 const shopTime: { type: "time"; nowMs: number } = { type: "time", nowMs: 0 };
+/** Story 7.4 (K5): my unlock mask (the World's copy: solo from progress, online from the schema); every unlock if unknown. */
+export function localUnlocks(host: { readonly world: { readonly players: ReadonlyMap<string, { readonly unlocks: number }> }; readonly localPlayerId: string }): number {
+  return host.world.players.get(host.localPlayerId)?.unlocks ?? ALL_UNLOCKED;
+}
+
 /** Story 5.13: the per-frame offer feed (reused: no allocation per frame). */
 const shopOffer: { type: "offer"; offer: ShopOfferView | null; build: number } = { type: "offer", offer: null, build: -1 };
 
@@ -647,7 +657,9 @@ export class GameScene extends Phaser.Scene {
     const localId = host.localPlayerId;
     const cx = world.map.widthM / 2;
     const cy = world.map.heightM / 2;
-    if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
+    // Stories 7.4/7.5 (D1, T2): Practice solo starts with my cached unlocks and Training (online: from the server).
+    // The ?stress tool keeps every unlock (its build scenarios place traps and lights).
+    if (!session) addPlayer(world, localId, cx, cy, stress !== null ? {} : practiceInit(opts, progressStore.get().progress ?? cachedProgress()));
     // Story 3.9 dev hook, kept by 3.10 as an override: ?wavemix=walker,crawler replaces the waves.json mix (solo).
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     // Story 5.13 dev (?shopcards=, dev builds, solo): set before my first offer is drawn (lazily, on first read).
@@ -1104,12 +1116,14 @@ export class GameScene extends Phaser.Scene {
    */
   private showSoloResults(host: SceneHost, wave: number): void {
     this.gameOver = true;
-    const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
+    const me = host.world.players.get(host.localPlayerId);
+    const earned = me?.earned ?? 0;
+    const training = { maxHp: me?.trainHp ?? 0, damage: me?.trainDmg ?? 0, startMoney: me?.trainMoney ?? 0, reload: me?.trainReload ?? 0 }; // Story 7.5 (T4)
     const run = host.world.run;
     const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
     // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
     const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned, training }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
   }
 
   /**
@@ -1442,7 +1456,7 @@ export class GameScene extends Phaser.Scene {
    */
   private keyPick(host: SceneHost, slot: number, menuOpen: boolean): void {
     if (!this.canPlace(host, menuOpen) || this.repairPanel.open) return;
-    const items = buildBarItems(host.world.balance);
+    const items = buildBarItems(host.world.balance, localUnlocks(host)); // Story 7.4 (K5)
     const item = slot >= 0 && slot < items.length ? items[slot] : undefined;
     if (!item) return;
     const p = this.placement;
@@ -1685,7 +1699,7 @@ export class GameScene extends Phaser.Scene {
       const catalog = cardCatalog(balance);
       const cardPrices: Record<string, number> = {};
       for (const c of catalog) cardPrices[c.id] = cardPrice(balance, c.id, build) ?? c.basePrice;
-      this.shopInput({ type: "open", catalog, cardPrices, cardStats: cardStatLines(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: allGear(balance), consumables: shopConsumables(balance) });
+      this.shopInput({ type: "open", catalog, cardPrices, cardStats: cardStatLines(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: allGear(balance), consumables: inPoolOnly(shopConsumables(balance), localUnlocks(host)) }); // Story 7.4 (K5)
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -1753,7 +1767,7 @@ export class GameScene extends Phaser.Scene {
     f.owned = ownedCount(world, host.localPlayerId) + this.pending.count; // Story 5.18 (5.16 L2): pending counts
     f.cap = world.balance.buildings.maxPerPlayer;
     f.wallet = this.shownWallet(host);
-    m.buildItems = buildBarItems(world.balance); // Story 5.10 review M2: the ?shopall dev balance lists the floodlight
+    m.buildItems = buildBarItems(world.balance, localUnlocks(host)); // Story 5.10 review M2 (?shopall); Story 7.4 (K5): my unlocks only
     const r = stepBuildBar(m, f, this.barStep);
     if (r.toast !== "") {
       this.toasts.pushUnique(r.toast); // tapping a refused tile again doesn't queue the same line again
@@ -2251,7 +2265,7 @@ export class GameScene extends Phaser.Scene {
       if (hasMagazine(stats) || isFlame(stats)) {
         this.hudModel.ammo = isFlame(stats) ? fuelPercent(slot.ammo, stats) : slot.ammo;
         this.hudModel.magazine = isFlame(stats) ? 100 : stats.magazine;
-        const totalTicks = ticksFor(stats.reloadS);
+        const totalTicks = ticksFor(reloadSecondsFor(player, stats)); // Story 7.5 review L5: the trained reload (the ring fills to 1)
         this.hudModel.reloadFrac = slot.reloadTicks > 0 ? 1 - slot.reloadTicks / totalTicks : -1;
       } else {
         this.hudModel.ammo = -1;

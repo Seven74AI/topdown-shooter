@@ -1,6 +1,12 @@
 import {
   PROGRESSION,
+  TRAINING_BOOSTS,
   UNLOCK_CATEGORIES,
+  boostValue,
+  levelOf,
+  trainingCost,
+  type TrainResponse,
+  type TrainingBoostId,
   goodNextPick,
   itemCategories,
   loadBalance,
@@ -54,7 +60,10 @@ export interface HubTab {
   readonly label: string;
 }
 /** The tabs in order. 7.5 appends `{ id: "training", label: "Training" }`, 7.10 `{ id: "survivor", label: "Survivor" }`. */
-export const HUB_TABS: readonly HubTab[] = Object.freeze([{ id: "unlocks", label: "Unlocks" }]);
+export const HUB_TABS: readonly HubTab[] = Object.freeze([
+  { id: "unlocks", label: "Unlocks" },
+  { id: "training", label: "Training" }, // Story 7.5 (TR1)
+]);
 /** The tab bar is sized for three tabs (Unlocks · Training · Survivor). */
 export const HUB_TAB_SLOTS = 3;
 
@@ -332,4 +341,112 @@ export function layoutHub(w: number, h: number, inset: { left: number; right: nu
   const text = { x: icon.x + PH_ICON_W + 8, y: inner.y, w: action.x - 8 - (icon.x + PH_ICON_W + 8), h: PH_ROW_H };
   const button = { x: action.x, y: action.y + (PH_ROW_H - PH_BTN_H) / 2, w: PH_ACTION_W, h: PH_BTN_H };
   return { frame, back, title, supplies, rule, tabs, list, row: { icon, text, action, button } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Story 7.5 (AC 8; designer pick TR1): the Training tab: four rows, 5 pips, Now / Next · price, Train → Confirm
+// ---------------------------------------------------------------------------------------------------------------
+
+export const TRAIN_TEXT = {
+  /** AC 8: the header line of the tab. */
+  header: "Small boosts, capped. They always apply in full.",
+  offline: "Offline · can't train now",
+  train: "Train",
+  maxed: "Maxed",
+  nothing: "Now: nothing yet",
+  training: "Training…",
+} as const;
+
+/** The row key a Training row uses in the shared Buy → Confirm → spinner state (`train:max_hp`). */
+export const trainKey = (boost: TrainingBoostId): string => `train:${boost}`;
+
+/** "+6 % max HP", "+5 % damage", "+$30 at the start", "3 % faster reload" (a boost's effect at `level`). */
+export function boostEffect(boost: TrainingBoostId, level: number): string {
+  const v = boostValue(boost, level);
+  switch (boost) {
+    case "max_hp":
+      return `+${v} % max HP`;
+    case "damage":
+      return `+${v} % damage`;
+    case "start_money":
+      return "+$" + String(v) + " at the start";
+    case "reload":
+      return `${v} % faster reload`;
+  }
+}
+
+export interface TrainRow {
+  readonly key: string;
+  readonly boost: TrainingBoostId;
+  readonly name: string;
+  readonly line: string;
+  readonly level: number;
+  readonly maxLevel: number;
+  /** "Now: +6 % max HP" / "Now: nothing yet". */
+  readonly now: string;
+  /** "Next: +8 % max HP" ("Maxed" at the cap). */
+  readonly next: string;
+  /** The next level's price (0 at the cap). */
+  readonly price: number;
+  readonly state: "buy" | "short" | "maxed";
+  readonly need: number;
+}
+
+/** The four Training rows from the server's progress (absent levels = 0). Every number from `progression.json`. */
+export function trainingRows(progress: ProgressView | null, t = PROGRESSION.training): TrainRow[] {
+  const supplies = progress?.supplies ?? 0;
+  return TRAINING_BOOSTS.map((boost, i) => {
+    const b = t.boosts[i] as (typeof t.boosts)[number];
+    const level = levelOf(progress?.training, boost);
+    const maxed = level >= t.maxLevel;
+    const price = maxed ? 0 : trainingCost(level + 1, t);
+    const need = maxed ? 0 : Math.max(0, price - supplies);
+    return {
+      key: trainKey(boost),
+      boost,
+      name: b.name,
+      line: b.line,
+      level,
+      maxLevel: t.maxLevel,
+      now: level === 0 ? TRAIN_TEXT.nothing : `Now: ${boostEffect(boost, level)}`,
+      next: maxed ? TRAIN_TEXT.maxed : `Next: ${boostEffect(boost, level + 1)}`,
+      price,
+      state: maxed ? "maxed" : need > 0 ? "short" : "buy",
+      need,
+    };
+  });
+}
+
+/** What a Training row's action area shows. */
+export type TrainAction =
+  | { kind: "maxed" }
+  | { kind: "short"; text: string }
+  | { kind: "buy"; label: string; disabled: boolean }
+  | { kind: "confirm"; label: string; sub: string }
+  | { kind: "sending" };
+
+export function trainAction(row: TrainRow, state: BuyState, offline: boolean): TrainAction {
+  if (row.state === "maxed") return { kind: "maxed" };
+  if (row.state === "short") return { kind: "short", text: notEnoughText(row.need) };
+  const s = state.step;
+  if (s.kind === "sending" && s.unlockId === row.key) return { kind: "sending" };
+  if (s.kind === "confirm" && s.unlockId === row.key) return { kind: "confirm", label: confirmLabel(row.price), sub: HUB_TEXT.tapAgain };
+  return { kind: "buy", label: TRAIN_TEXT.train, disabled: offline || s.kind === "sending" };
+}
+
+/** A Training answer → the next state and the server's progress (U5: never a local guess). Same rules as an unlock. */
+export function answerTrain(
+  state: BuyState,
+  requestId: string,
+  call: { kind: "answer"; body: TrainResponse } | { kind: "failed"; status: number },
+): { state: BuyState; progress: ProgressView | null; offline: boolean } {
+  if (state.step.kind !== "sending" || state.step.requestId !== requestId) return { state, progress: null, offline: false };
+  const key = state.step.unlockId;
+  if (call.kind === "failed") {
+    const text = call.status === 429 ? HUB_TEXT.rateLimited : HUB_TEXT.failed;
+    return { state: { step: { kind: "idle" }, note: { unlockId: key, text } }, progress: null, offline: call.status === 0 || call.status >= 500 };
+  }
+  const b = call.body;
+  const note = !b.ok && b.reason === "not_enough" ? { unlockId: key, text: notEnoughText(b.need ?? 1) } : null;
+  return { state: { step: { kind: "idle" }, note }, progress: b.progress, offline: false };
 }

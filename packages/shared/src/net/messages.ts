@@ -409,6 +409,11 @@ export interface ShopOffered {
   sold: number;
   rerollPrice: number;
   canReroll: boolean;
+  /** Story 7.4 (K2): bit c = card c is borrowed (at most one). */
+  borrowed: number;
+  /** Story 7.4: the lender's slot (255 none) and name at build start ("" none: survives the lender leaving). */
+  lender: number;
+  lenderName: string;
 }
 
 /**
@@ -489,6 +494,14 @@ export const runRewardsSchema = z
     leftWave: z.number().int().min(0).max(0xffff).optional(),
     /** Story 7.6 (AC 10, D9): a guest's first bank of ≥ 200 Supplies: show "Save my progress" once (true only once per account). */
     nudge: z.boolean().optional(),
+    /**
+     * Story 7.4 (K7, AC 9; decision 7.4 D4): the last unlock this player used without owning it (a supply-drop weapon
+     * or a bought borrowed card): Results shows "You used the Grenade Launcher: unlock it for 500". null / absent none.
+     */
+    lockedUsed: z
+      .object({ unlockId: z.string().max(32), name: z.string().max(40), price: z.number().int().positive().max(1_000_000) })
+      .nullable()
+      .optional(),
   })
   .passthrough(); // later stories append fields; an older client keeps reading the ones it knows
 export type RunRewards = z.infer<typeof runRewardsSchema>;

@@ -179,3 +179,34 @@ Story decisions 7.6 D1–D6 were accepted with the progress file ("Okay, for all
 | 7.6 B23 (review ops item) | `accounts.guest_token_hash` | **Kept, nullable and unused, for one release (a rollback to a 7.1–7.3 build still finds the guests made before 7.6); dropped by a later migration** (dropped now: a rollback would leave every player unsaved) |
 | 7.6 B24 (review M2 follow-up) | A login that verified the OLD password and commits after a reset | **Refused: the login transaction re-checks, under the account-row lock, that the verified password hash is still current (else "Wrong username or password")** (the thief's in-flight login would survive the reset) |
 | 7.6 B25 (re-review RR3, RR4: accepted) | The ticket row check's P3 fallback can be triggered by keeping the database pool busy > 1 s (an old ticket then seats for ≤ 10 min, banks only); `NameFailureLimiter` / `SlidingWindowLimiter` prune every name on each call (bounded by the window; several ms per call only with hundreds of thousands of live names) | **Accepted as they are (impact: earnings flow to the account; event-loop cost far from today's load); prune-at-most-once-a-second when these limiters are next touched** (fix now) |
+
+## Story 7.4+7.5 build-time choices (auto-accepted (designer: follow the GDS recommendation), 2026-11-25)
+
+Story decisions 7.4 D1–D5 and 7.5 D1–D5 were accepted with the progress file ("Okay, for all", 2026-11-25). The choices below were made while building the merged story (branch `story-7-4-5`); each is "auto-accepted (designer: follow the GDS recommendation)".
+
+| Code | Decision | Picked (alternative) |
+| --- | --- | --- |
+| 7.4 B1 | One start-data type for 7.4 and 7.5 | **`PlayerInit { unlocks?, training? }` as `addPlayer`'s 5th argument; the room's `RunPlayerInit` (`meta/runStart.ts`) fills it; absent = every unlock and Training 0 (tests, bots, sims)** (two separate option objects) |
+| 7.4 B2 | Where the borrow draw sits when dev cards are forced (`DEV_SHOP_CARDS`) | **The first draw after the forced cards** (no borrow when forced cards fill the offer); the lender is the lowest present slot whose pool has the card (decision 7.4 D5) (always draw 0: a forced card would cancel the borrow) |
+| 7.4 B3 | Where `lenderName` comes from | **Each slot's lobby name at run start (`RunRoom.runNames`), sent in `shop.offered`; the World only holds the slot** (the live member list: empty once the lender left) |
+| 7.4 B4 | BT1 on the done 5.13 card (brief 13) | **The tape row becomes the lender's tag — slot badge (player colour) + "FROM MO" on amber — and the card gets an amber outline; aria "Borrowed from Mo". BT1's side note "1 card of 6 can come from a teammate's unlocks…" is not drawn** (the side column's existing rows keep their place) (redraw the shop in Lumen: a rewrite of a done screen) |
+| 7.4 B5 | Decision 7.4 D2 with 5.9's "only its builder upgrades" | **The owner (the only payer) needs Barricade upgrades; `not_unlocked` after `not_upgradable`; the 5.21 action bar hides Upgrade for them** (let a teammate with the unlock pay: a new 5.9 rule) |
+| 7.4 B6 | The run-start read | **One parallel read after Start (2 s each, a second guard at 2.05 s); members, phase, host and Ready are checked again afterwards; a member who joined during the read starts with the starter pool; "Starting…" is client-side for 2.5 s (no wire field)** (a `starting` schema field) |
+| 7.4 B7 | `run.rewards › lockedUsed` | **`{ unlockId, name, price }` (the name of the unlock's first item, the price from progression.json), the LAST one used; shown in group 3 whatever the bank status (not in practice)** (supply drop only; saved runs only) |
+| 7.4 B8 | Room tests of the 5.9–5.13 rules (floodlight, med station, Armor II card, upgrades) | **They set `DEV_UNLOCKS=all` (a guest now plays the starter pool, D3)**; the unlock rules have their own room test (`RunRoom.progress.test.ts`) (give each test an account with every unlock) |
+| 7.4 B9 | `?stress` | **Keeps every unlock** (its build scenarios place traps and lights) (the cached pool) |
+| 7.4 B10 | Replays (brief 5, 8) | **`InputLog.inits` (optional): each slot's start data; absent = the defaults** (no change: a replay of a Training run would drift) |
+| 7.4 B11 | Review L6: a second borrowed card bought in the same build (a paid reroll after buying the first) | **Allowed: at most ONE borrowed card per offer (the letter of D7); each reroll costs reroll money and redraws the borrowed slot from the build-start snapshot** — auto-accepted (designer: follow the GDS recommendation); the designer may override (alternative: one borrowed purchase per build) |
+| 7.5 B1 | How Training joins the version check (D3) | **`balanceVersion` hashes the balance files plus `progression.json › training`: one bump, `bbdd6c4d` → `760b0734`** (a separate training version in the join options) |
+| 7.5 B2 | `/account/training` answers | **`maxed` when the level asked is above 5 or the boost is at 5; `already_trained` when the level is not current + 1; `not_enough {need}`; separate limiters with the unlock's numbers (20/min/account, 60/min/IP, before any database work); the 7.3 request memo (generic now)** (share the unlock limiters: one tap budget for both) |
+| 7.5 B3 | `progress.training` in the session reply | **Always all four boosts, clamped 0..5 (unknown keys dropped)** (the raw jsonb) |
+| 7.5 B4 | Results Training (TL3, AC 9 text) | **One "Train" column: "10/20" (MAX at 20/20) over four small bars; the story's "Training · HP 3 · Damage 2 · Money 5 · Reload 0" is the cell's label / tooltip** (the text line in each row: does not fit 568 px) |
+| 7.5 B5 | Training row at 568 × 320 (TR1) | **The Unlocks row shape: five pips in the icon column, name, "Now: …", "Next: … · ▣ 200"; the boost's line is the name's tooltip** (a fourth text line: rows grow past 56 px) |
+| 7.5 B6 | Dev start money | **`DEV_STARTING_WALLET` / `?wallet` set the exact start money (Training's start money is ignored then)** (add Training on top) |
+| 7.5 B7 | A launcher round whose owner is held or gone when it lands | **Training 0 (the owner is not in `world.players`)** (keep the owner's level on the round: one more pool field) |
+| 7.5 B8 | Migration | **None: `progress.training` jsonb exists since 7.1's `0000_init`** |
+
+
+### 7-UI-3 amended (designer, 2026-11-25)
+
+After a 6-colour comparison (`docs/art/occlusion/colours.html`), zombie wall silhouettes stay **red**. Designer: "Red is better, red shouldn't be only for bosses. I mean that the color usually used to show danger. So it works for zombie silhouette." The in-play colour rule becomes **red = danger** (boss danger and zombies), not boss-only. Menu screens keep 7-UI-3 (red allowed).

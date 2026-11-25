@@ -102,6 +102,10 @@ export const MAX_UNLOCKS_PER_ACCOUNT_PER_MIN = 20;
 /** Story 7.3 (brief 15): `/account/unlock` calls per client IP per minute, checked before any database work. */
 export const MAX_UNLOCK_CALLS_PER_IP_PER_MIN = 60;
 export const UNLOCK_WINDOW_MS = 60_000;
+/** Story 7.5 (AC 3): `/account/training` per account per minute (same rule as an unlock); over it → 429. */
+export const MAX_TRAINS_PER_ACCOUNT_PER_MIN = 20;
+/** Story 7.5 (brief 15): `/account/training` calls per client IP per minute, checked before any database work. */
+export const MAX_TRAIN_CALLS_PER_IP_PER_MIN = 60;
 /** Story 7.3 (AC 5, U3): a repeated `requestId` within this long gets the first answer (in-memory, per process). */
 export const UNLOCK_REQUEST_TTL_MS = 600_000;
 /** Story 7.3: the request-id map holds at most this many answers (oldest dropped first). */

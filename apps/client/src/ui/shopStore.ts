@@ -245,7 +245,15 @@ export interface CardView {
   /** More than my wallet: "Too dear" (still selectable). */
   readonly short: boolean;
   readonly selected: boolean;
+  /** Story 7.4 (K2, BT1): the lender's name when this card is borrowed ("" = my own pool). */
+  readonly borrowedFrom: string;
+  /** Story 7.4: the lender's slot (the tape's slot badge; 255 = none). */
+  readonly lenderSlot: number;
 }
+
+/** Story 7.4 (BT1): the tag text on a borrowed card's tape ("From Mo"; the aria label says "Borrowed from Mo"). */
+export const borrowedTag = (name: string): string => `From ${name}`;
+export const borrowedLabel = (name: string): string => `Borrowed from ${name}`;
 
 /** Story 5.13: the offer shows for this build (else "Loading cards…"). */
 export function offerCurrent(s: ShopState): boolean {
@@ -279,6 +287,8 @@ export function cardViews(s: ShopState): CardView[] {
       owned: !sold && owned,
       short: it !== undefined && !sold && !owned && price > s.wallet,
       selected: s.selected === index,
+      borrowedFrom: item !== "" && (o.borrowed & (1 << index)) !== 0 ? o.lenderName || "a teammate" : "",
+      lenderSlot: item !== "" && (o.borrowed & (1 << index)) !== 0 ? o.lender : 255,
     };
   });
 }
@@ -391,6 +401,8 @@ export function shopErrorText(error: ShopError): string {
       return "That card is gone";
     case "no_new_cards":
       return "No new cards left";
+    case "not_unlocked":
+      return "Locked: unlock it in Progress"; // Story 7.4 (K5)
     default:
       return "Can't buy that";
   }

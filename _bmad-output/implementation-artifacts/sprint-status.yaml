@@ -167,8 +167,8 @@ development_status:
   7-1-progress-saved-on-the-server: done  # 2026-11-25: PostgreSQL/PGlite + repos, guest accounts (__Host-tdg cookie + localStorage), ticket bound to the token, account at join, deploy/backups; review 1M/6L + 1 narrow re-review, pg client crash fix
   7-2-earn-and-bank-supplies: done  # 2026-11-25: Supplies banked once per (run, account) in boundedTransaction (status always = committed), RW1 Lumen Results panel, practice earns nothing; review 1M/5L + 2 narrow re-reviews + main-session check (cap)
   7-3-unlock-screen: done  # 2026-11-25: 14 unlocks, /account/unlock in boundedTransaction, PH1 Lumen hub; review 3M/7L + 2 narrow re-reviews; merged with 7.9 (one progress object, B17/B18)
-  7-4-shop-deck-from-my-unlocks: ready-for-dev  # MERGED with 7.5 (docs/story-merges-2026-11-25.md)
-  7-5-training-boosts: ready-for-dev  # MERGED into 7.4+7.5
+  7-4-shop-deck-from-my-unlocks: done  # 2026-11-25: merged 7.4+7.5 (one story, one review): my deck + 1 borrowed card, not_unlocked rules, lockedUsed line; review clean (no H/M) + main-session check
+  7-5-training-boosts: done  # merged into 7.4+7.5: Training (HP, damage, start money, reload) in full, /account/training, TR1 tab, TL3 column
   7-6-upgrade-to-an-account: review  # 2026-11-25 overnight (branch story-7-6): device_tokens + fresh token at login (B1), argon2id, recovery code, upgrade/login/recover/logout, guest merge + writers list (D1/D2 refunds), bank of a merged guest, Results nudge, AC1 screens; B1-B17 auto-accepted
   7-7-district-unlock-rule: ready-for-dev  # MERGED into 7.7+7.11+7.12
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12

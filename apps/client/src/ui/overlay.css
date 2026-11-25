@@ -747,6 +747,45 @@ p.in-run-menu__title {
   background: repeating-linear-gradient(-45deg, #c0301e 0 8px, #e8901c 8px 13px);
 }
 
+/* Story 7.4 (K2, designer pick BT1): a borrowed card's tape is the lender's tag (slot badge + "From Mo") and the card
+   gets the amber accent outline. The slot badge carries the player colour; the text stays dark-on-amber. */
+.shop-card--borrowed {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 0 2px #f59a23 inset;
+}
+
+.shop-card--borrowed.shop-card--selected {
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45), 0 0 0 3px #f5c542 inset;
+}
+
+.shop-card__tape--borrowed,
+.shop-card--epic .shop-card__tape--borrowed {
+  justify-content: flex-start;
+  gap: 4px;
+  background: #f59a23;
+  color: #17191c;
+  text-transform: uppercase;
+}
+
+.shop-card__lender {
+  flex: none;
+  display: inline-block;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  color: #fff;
+  font: 800 11px/13px system-ui, sans-serif;
+  text-align: center;
+  /* Review L7 (7-UI-4): a dark 2 px ring so the orange slot-2 badge never melts into the amber tape. */
+  box-shadow: 0 0 0 2px #17191c;
+}
+
+.shop-card__from {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .shop-card__art {
   display: flex;
   align-items: center;
@@ -1533,6 +1572,53 @@ p.in-run-menu__title {
 
 .results.rw .rw-col--earned {
   width: 6.2em;
+}
+
+/* Story 7.5 (T4, designer pick TL3): one "Train" column — "10/20" (or MAX) over four small bars, one per boost. */
+.results.rw .rw-col--train {
+  width: 3.6em;
+}
+
+.results.rw .rw-th--train {
+  color: var(--rw-accent, #f59a23);
+}
+
+.results.rw .results__train {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.rw-train__n {
+  display: block;
+  font: 700 12px/1.1 system-ui, sans-serif;
+}
+
+.rw-train__n--max {
+  display: inline-block;
+  padding: 0 4px;
+  background: #f2f2f2;
+  color: #17191c;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.rw-train__bars {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.rw-train__bar {
+  width: 8px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.rw-train__fill {
+  display: block;
+  height: 100%;
+  background: #f59a23;
 }
 
 .results.rw .results__name {
@@ -2577,4 +2663,59 @@ body:has(.menu.ph) .dev-gear {
 
 .ac-note--warn {
   color: #ffc46b;
+
+/* Story 7.4 (K7): group 3 of the Run rewards panel (brief 26): the supply-drop / borrowed-card unlock hint. */
+.rw-group--unlocks {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rw-unlock {
+  margin: 0;
+  color: #f59a23;
+  font: 700 13px/1.25 system-ui, sans-serif;
+}
+
+/* Story 7.5 (AC 8, designer pick TR1): the Training tab: the Unlocks row shape with five pips in the icon column. */
+.tr-head {
+  margin: 0 0 2px;
+  color: #c9ced6;
+  font: 600 12px/1.3 system-ui, sans-serif;
+}
+
+.tr-pips {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 56px;
+  height: 36px;
+}
+
+.tr-pip {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(245, 154, 44, 0.55);
+  transform: skewX(-12deg);
+}
+
+.tr-pip--on {
+  background: linear-gradient(180deg, #ffc46b, #f59a2c);
+  border-color: #ffc46b;
+}
+
+/* Review N2: the Supplies crate before the "Next" price (an inline span: it needs a box to show). */
+.tr-next .rw-crate {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+
+.tr-maxed {
+  background: #f59a2c;
+  color: #17191c;
 }

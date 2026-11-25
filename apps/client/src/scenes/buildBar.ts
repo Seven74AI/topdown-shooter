@@ -1,4 +1,4 @@
-import { buildingStats, shopBuildings, turretStats, type Balance } from "@topdown/shared";
+import { ALL_UNLOCKED, buildingStats, inPoolOnly, shopBuildings, turretStats, type Balance } from "@topdown/shared";
 import {
   BUILD_BAR_COLS,
   BUILD_BAR_INSET_CSS_PX,
@@ -38,24 +38,31 @@ export interface BuildTile {
   readonly depthM: number;
 }
 
-const itemCache = new WeakMap<Balance, readonly BuildTile[]>();
+const itemCache = new WeakMap<Balance, Map<number, readonly BuildTile[]>>();
 
 /**
  * The building tiles, in balance order: `shopBuildings` (every priced type except upgrade-only tiers
  * and, Story 5.10, `inShop: false` types — the floodlight until 6.3; the dev switch `?shopall=1`
  * builds a balance with every `inShop` true, so the floodlight shows then). Cached per balance (no
- * allocation per call).
+ * allocation per call). Story 7.4 (K5): only the buildings in the pool of `unlocks` (the local player's mask; default
+ * every unlock), cached per balance and mask.
  */
-export function buildBarItems(balance: Balance): readonly BuildTile[] {
-  let list = itemCache.get(balance);
+export function buildBarItems(balance: Balance, unlocks: number = ALL_UNLOCKED): readonly BuildTile[] {
+  let byMask = itemCache.get(balance);
+  if (!byMask) {
+    byMask = new Map();
+    itemCache.set(balance, byMask);
+  }
+  const mask = unlocks >>> 0;
+  let list = byMask.get(mask);
   if (!list) {
     const out: BuildTile[] = [];
-    for (const b of shopBuildings(balance)) {
+    for (const b of inPoolOnly(shopBuildings(balance), mask)) {
       const stats = buildingStats(balance, b.id);
       out.push(Object.freeze({ id: b.id, name: b.name, price: b.price, turret: turretStats(balance, b.id) !== undefined, widthM: stats?.widthM ?? 1, depthM: stats?.depthM ?? 1 }));
     }
     list = Object.freeze(out);
-    itemCache.set(balance, list);
+    byMask.set(mask, list);
   }
   return list;
 }

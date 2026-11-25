@@ -8,7 +8,9 @@ import { MAX_PLAYERS } from "../net/messages";
 import { spendMoney } from "./economy";
 import { armorTier, buyGearAt, gearBit } from "./gear";
 import { owns, titleCase, type ShopError } from "./shop";
-import { MAX_CARDS, NO_CARD } from "./shopOffers";
+import { MAX_CARDS, NO_CARD, NO_LENDER } from "./shopOffers";
+import { PROGRESSION } from "../config/progression";
+import { itemNeedBits, unlockIndexOf } from "../meta/pool";
 
 /**
  * Story 5.13: the roguelike card shop (FR46, FR47, FR65). Each build phase every player gets their
@@ -50,6 +52,8 @@ interface Catalog {
   readonly bit: readonly number[];
   /** Armor tier per catalog index (0 = not armor). */
   readonly tier: readonly number[];
+  /** Story 7.4 (AC 3): the unlock bit each catalog index needs (0 = starter item: in every pool). */
+  readonly need: Uint32Array;
 }
 
 const catalogs = new WeakMap<Balance, Catalog>();
@@ -85,7 +89,10 @@ function catalog(balance: Balance): Catalog {
     if (items.length >= NO_CARD) throw new Error("cardCatalog: too many card items for a uint8 index");
     const indexOf = new Map<string, number>();
     items.forEach((it, i) => indexOf.set(it.id, i));
-    c = Object.freeze({ items: Object.freeze(items), indexOf, bit, tier });
+    const needs = itemNeedBits(PROGRESSION);
+    const need = new Uint32Array(items.length);
+    items.forEach((it, i) => (need[i] = needs.get(it.id) ?? 0));
+    c = Object.freeze({ items: Object.freeze(items), indexOf, bit, tier, need });
     catalogs.set(balance, c);
   }
   return c;
@@ -145,27 +152,70 @@ export function ownsCardItem(balance: Balance, p: Readonly<PlayerState>, id: str
 
 // Draw scratch (one draw at a time; never allocates).
 const candidate = new Uint8Array(NO_CARD);
+/** Story 7.4: the borrow list scratch (catalog items a present teammate has and I don't). */
+const borrowCand = new Uint8Array(NO_CARD);
 const picked = new Uint8Array(MAX_CARDS);
 
 /**
- * Story 5.13, **the Epic 7 seam** (7.3/7.4 replace it with the player's unlocks): writes 1 into
- * `out[i]` for every catalog index the player may be offered, 0 otherwise. Today: every catalog item.
+ * Story 5.13's seam, **Story 7.4** (AC 3, K1): writes 1 into `out[i]` for every catalog index in the player's pool
+ * (a starter item, or an unlock bit of `PlayerState.unlocks`), 0 otherwise. Allocation-free:
+ * `need === 0 || (mask & need) !== 0`. An unknown player has an empty pool.
  */
 export function cardPool(world: Readonly<World>, playerId: string, out: Uint8Array): void {
-  void playerId;
-  const n = catalog(world.balance).items.length;
-  for (let i = 0; i < n; i++) out[i] = 1;
+  const c = catalog(world.balance);
+  const n = c.items.length;
+  const p = world.players.get(playerId);
+  const mask = p ? p.unlocks : 0;
+  for (let i = 0; i < n; i++) {
+    const need = c.need[i] as number;
+    out[i] = p && (need === 0 || (mask & need) !== 0) ? 1 : 0;
+  }
 }
 
-/** One weighted pick (one `rng.next()`, always) among candidates of `kind` (null = any); -1 when none. */
-function pick(c: Catalog, n: number, kind: CardKind | null, r: number): number {
+/**
+ * Story 7.4 (K2, D7): fills `borrowCand` with the borrow list of `slot` — weapon/gear catalog items in the pool of
+ * some OTHER slot present at the build start (`world.shop.teamMasks` / `present`, the snapshot), not in my pool, not
+ * owned. Returns how many. Solo (only my slot present) → 0 (K4).
+ */
+function fillBorrow(world: Readonly<World>, c: Catalog, n: number, slot: number, p: Readonly<PlayerState>): number {
+  const o = world.shop;
+  const others = o.present & ~(1 << slot);
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    borrowCand[i] = 0;
+    const need = c.need[i] as number;
+    if (need === 0 || (p.unlocks & need) !== 0 || others === 0) continue;
+    if (ownsIndex(world.balance, c, p, i)) continue;
+    for (let t = 0; t < MAX_PLAYERS; t++) {
+      if ((others & (1 << t)) !== 0 && ((o.teamMasks[t] as number) & need) !== 0) {
+        borrowCand[i] = 1;
+        count++;
+        break;
+      }
+    }
+  }
+  return count;
+}
+
+/** Story 7.4: the lowest slot other than `slot`, present at the build start, whose pool has catalog item `i`. */
+function lenderOf(world: Readonly<World>, c: Catalog, slot: number, i: number): number {
+  const o = world.shop;
+  const need = c.need[i] as number;
+  for (let t = 0; t < MAX_PLAYERS; t++) {
+    if (t !== slot && (o.present & (1 << t)) !== 0 && ((o.teamMasks[t] as number) & need) !== 0) return t;
+  }
+  return NO_LENDER;
+}
+
+/** One weighted pick (one `rng.next()`, always) among `from` candidates of `kind` (null = any); -1 when none. */
+function pick(c: Catalog, n: number, kind: CardKind | null, r: number, from: Uint8Array = candidate): number {
   let total = 0;
-  for (let i = 0; i < n; i++) if (candidate[i] === 1 && (kind === null || (c.items[i] as CardItem).kind === kind)) total += (c.items[i] as CardItem).weight;
+  for (let i = 0; i < n; i++) if (from[i] === 1 && (kind === null || (c.items[i] as CardItem).kind === kind)) total += (c.items[i] as CardItem).weight;
   if (total === 0) return -1;
   let x = r * total;
   let last = -1;
   for (let i = 0; i < n; i++) {
-    if (candidate[i] !== 1 || (kind !== null && (c.items[i] as CardItem).kind !== kind)) continue;
+    if (from[i] !== 1 || (kind !== null && (c.items[i] as CardItem).kind !== kind)) continue;
     last = i;
     x -= (c.items[i] as CardItem).weight;
     if (x < 0) return i;
@@ -212,12 +262,23 @@ export function drawOffer(world: World, playerId: string, rev = 0): void {
     }
   }
   const forcedCount = k;
+  // Story 7.4 (K2, decision 7.4 D5): the first real draw is the borrow draw when the borrow list is not empty.
+  const borrowN = fillBorrow(world, c, n, slot, p);
+  let borrowedIdx = -1;
   // A floor category with no candidate left counts as met: the rest come from the other one (7.4 fallback).
   let weaponFloorDone = false;
   let gearFloorDone = false;
   for (let d = 0; d < cards; d++) {
     const r = rng.next();
     if (d < forcedCount) continue; // a forced slot still uses its draw (the stream stays aligned)
+    if (d === forcedCount && borrowN > 0) {
+      const b = pick(c, n, null, r, borrowCand); // same rarity weights; still one rng.next()
+      borrowedIdx = b;
+      picked[k++] = b;
+      if ((c.items[b] as CardItem).kind === "weapon") weapons++;
+      else gear++; // the borrowed card counts toward the floor like any card
+      continue;
+    }
     const kind: CardKind | null = !weaponFloorDone && weapons < balance.shop.floor.weapon ? "weapon" : !gearFloorDone && gear < balance.shop.floor.gear ? "gear" : null;
     let i = pick(c, n, kind, r);
     if (i < 0 && kind !== null) {
@@ -246,14 +307,41 @@ export function drawOffer(world: World, playerId: string, rev = 0): void {
   }
   const o = world.shop;
   const at = base(slot);
-  for (let j = 0; j < MAX_CARDS; j++) o.cards[at + j] = j < k ? (picked[j] as number) : NO_CARD;
+  let borrowedBits = 0;
+  for (let j = 0; j < MAX_CARDS; j++) {
+    const v = j < k ? (picked[j] as number) : NO_CARD;
+    o.cards[at + j] = v;
+    if (borrowedIdx >= 0 && v === borrowedIdx) borrowedBits |= 1 << j;
+  }
   o.build[slot] = buildPhaseIndex(world);
   o.rev[slot] = rev;
   o.sold[slot] = 0;
+  o.borrowed[slot] = borrowedBits;
+  o.lender[slot] = borrowedIdx >= 0 ? lenderOf(world, c, slot, borrowedIdx) : NO_LENDER;
 }
 
-/** Story 5.13 (AC 2): every player's build-start offer (`startBuild`, after the decay steps). */
+/**
+ * Story 7.4 (K3): snapshots the room for this build's borrow draws: every slot in `world.players` and every held
+ * player (8.1: still in the run) with its unlock mask.
+ */
+export function snapshotTeam(world: World): void {
+  const o = world.shop;
+  o.teamMasks.fill(0);
+  o.present = 0;
+  for (const p of world.players.values()) noteTeam(o, p);
+  for (const h of world.heldPlayers.values()) noteTeam(o, h.player);
+}
+
+function noteTeam(o: World["shop"], p: Readonly<PlayerState>): void {
+  const t = slotOf(p.id);
+  if (t < 0) return;
+  o.present |= 1 << t;
+  o.teamMasks[t] = p.unlocks;
+}
+
+/** Story 5.13 (AC 2): every player's build-start offer (`startBuild`, after the decay steps). Story 7.4: snapshot first. */
 export function drawAllOffers(world: World): void {
+  snapshotTeam(world);
   for (const id of world.players.keys()) drawOffer(world, id, 0);
 }
 
@@ -279,6 +367,12 @@ export interface ShopOfferView {
   readonly rerollPrice: number;
   /** A reroll can show something new (F6: false when the pool is spent). */
   readonly canReroll: boolean;
+  /** Story 7.4 (K2): bit c = card c is borrowed from a teammate (at most one). */
+  readonly borrowed: number;
+  /** Story 7.4: the lender's slot (`NO_LENDER` = none); the server sends the name (`ShopOffered.lenderName`). */
+  readonly lender: number;
+  /** Story 7.4 (AC 5): the lender's name at build start ("" none). The World has no names: the server fills it in. */
+  readonly lenderName: string;
 }
 
 /** Story 5.13: a reroll could show an item not on offer now (a candidate exists outside the unsold cards). */
@@ -296,6 +390,14 @@ function rerollHasNew(world: Readonly<World>, playerId: string, slot: number): b
     if (i !== NO_CARD && (sold & (1 << j)) === 0) candidate[i] = 0;
   }
   for (let i = 0; i < n; i++) if (candidate[i] === 1 && !ownsIndex(balance, c, p, i)) return true;
+  // Story 7.4 (AC 5): a reroll that could change only the borrowed slot is a new draw too.
+  if (fillBorrow(world, c, n, slot, p) > 0) {
+    for (let j = 0; j < MAX_CARDS; j++) {
+      const i = world.shop.cards[at + j] as number;
+      if (i !== NO_CARD && (sold & (1 << j)) === 0) borrowCand[i] = 0;
+    }
+    for (let i = 0; i < n; i++) if (borrowCand[i] === 1) return true;
+  }
   return false;
 }
 
@@ -322,7 +424,17 @@ export function readOffer(world: Readonly<World>, playerId: string): ShopOfferVi
     out.push(i === NO_CARD ? "" : (items[i] as CardItem).id);
   }
   const rev = world.shop.rev[slot] as number;
-  return { build: world.shop.build[slot] as number, rev, cards: out, sold: world.shop.sold[slot] as number, rerollPrice: rerollPrice(world.balance, rev), canReroll: rerollHasNew(world, playerId, slot) };
+  return {
+    build: world.shop.build[slot] as number,
+    rev,
+    cards: out,
+    sold: world.shop.sold[slot] as number,
+    rerollPrice: rerollPrice(world.balance, rev),
+    canReroll: rerollHasNew(world, playerId, slot),
+    borrowed: world.shop.borrowed[slot] as number,
+    lender: world.shop.lender[slot] as number,
+    lenderName: "",
+  };
 }
 
 /** What a card purchase did. */
@@ -372,6 +484,8 @@ export function buyCard(world: World, playerId: string, build: number, rev: numb
     if (!r.ok) return r;
   }
   world.shop.sold[s] = (world.shop.sold[s] as number) | (1 << card);
+  // Story 7.4 (AC 9, decision 7.4 D4): a bought borrowed card is "try before you unlock" (Results' unlock line).
+  if (((world.shop.borrowed[s] as number) & (1 << card)) !== 0) p.lockedUsed = unlockIndexOf(item);
   return ok({ item, kind: it.kind, card, price, slot: into });
 }
 
@@ -405,8 +519,27 @@ export function reroll(world: World, playerId: string, build: number, rev: numbe
 }
 
 /** Story 5.13: `world.shop` as plain data (`snapshotWorld`). */
-export function snapshotShop(world: Readonly<World>): { build: number[]; rev: number[]; cards: number[]; sold: number[] } {
-  return { build: Array.from(world.shop.build), rev: Array.from(world.shop.rev), cards: Array.from(world.shop.cards), sold: Array.from(world.shop.sold) };
+export function snapshotShop(world: Readonly<World>): {
+  build: number[];
+  rev: number[];
+  cards: number[];
+  sold: number[];
+  borrowed: number[];
+  lender: number[];
+  teamMasks: number[];
+  present: number;
+} {
+  const o = world.shop;
+  return {
+    build: Array.from(o.build),
+    rev: Array.from(o.rev),
+    cards: Array.from(o.cards),
+    sold: Array.from(o.sold),
+    borrowed: Array.from(o.borrowed), // Story 7.4
+    lender: Array.from(o.lender),
+    teamMasks: Array.from(o.teamMasks),
+    present: o.present,
+  };
 }
 
 /**

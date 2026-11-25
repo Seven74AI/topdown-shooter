@@ -17,7 +17,7 @@ import { applyZombieDamageQuiet, damagePlayerBy } from "./damage";
 import type { WeaponSlot } from "./loadout";
 import type { ZombieView } from "./rewind";
 import { zombieCandidates as candidates } from "./scratch";
-import { weaponDamage, weaponIds, weaponStats } from "./weapons";
+import { playerWeaponDamage, weaponIds, weaponStats } from "./weapons";
 
 export { FLAME_SLOTS };
 
@@ -174,7 +174,7 @@ export function flameTick(world: World, p: PlayerState, slot: WeaponSlot, stats:
   const half = (stats.coneDeg / 2) * DEG_TO_RAD;
   const cosH = Math.cos(half);
   const sinH = Math.sin(half);
-  const perS = weaponDamage(world.balance, slot.weapon, slot.level); // 5.1: damage per second at this level
+  const perS = playerWeaponDamage(world.balance, p, slot.weapon, slot.level); // Story 7.5: × the owner's Training // 5.1: damage per second at this level
   const levelShare = perS / stats.damage;
   const zombiePulse = ticksFor(stats.pulseS);
   const zombieDmg = perS * stats.pulseS;

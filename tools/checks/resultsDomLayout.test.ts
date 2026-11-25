@@ -42,6 +42,8 @@ interface Measure {
   note: string;
   nCards: number;
   nudge: { w: number; h: number } | null;
+  trains: number;
+  unlock: string;
 }
 
 let pw: Pw | null = null;
@@ -109,7 +111,9 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           const rs = await import("/src/net/rewardsStore.ts");
           const as = await import("/src/net/accountStore.ts");
           as.accountStore.accept(null); // a guest (Story 7.6: the nudge shows only for a guest)
-          const rows = k.names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: k.kills, earned: k.earned }));
+          // Story 7.5 (TL3): every row has a Train cell; the worst case mixes "MAX" and "19/20".
+          const T = [{ maxHp: 5, damage: 5, startMoney: 5, reload: 5 }, { maxHp: 5, damage: 5, startMoney: 5, reload: 4 }, { maxHp: 0, damage: 0, startMoney: 0, reload: 0 }, { maxHp: 3, damage: 0, startMoney: 0, reload: 0 }];
+          const rows = k.names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: k.kills, earned: k.earned, training: T[i] }));
           ui.uiStore.set({ kind: "results", wave: k.endless ? 47 : 10, rows, online: true, ending: k.ending, endless: k.endless, seed: 4294967295, dawnEndsAtMs: 0, mySlot: 0 });
           rs.rewardsStore.setRun({ runId: k.endless ? "1f1e2d3c-4b5a-4968-8776-655443322111" : "0f1e2d3c-4b5a-4968-8776-655443322110" });
           rs.rewardsStore.receive({
@@ -125,6 +129,8 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             ending: k.endless ? "quit" : "extracted",
             leftWave: k.endless ? 47 : 0,
             ...(k.nudge ? { nudge: true } : {}),
+            // Story 7.4 (K7): the unlock line in group 3 (the longest weapon name)
+            lockedUsed: { unlockId: "grenade_launcher", name: "Grenade Launcher", price: 500 },
           });
           for (let i = 0; i < 40 && !document.querySelector(".rw-btn"); i++) await new Promise((r) => setTimeout(r, 50));
           await new Promise((r) => setTimeout(r, 150));
@@ -147,9 +153,19 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           const rects = cards.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.left, y: r.top, right: r.right, bottom: r.bottom }));
           const you = document.querySelector(".rw-row--me .rw-you")?.textContent || "";
           const note = document.querySelector("[data-testid=rewards-note]")?.textContent || "";
+          // Story 7.5 (TL3): each Train cell's number and bars fit inside the cell (no overlap with Earned).
+          const trains = [...document.querySelectorAll("[data-testid=train-cell]")];
+          for (const td of trains) {
+            const c = td.getBoundingClientRect();
+            for (const el of td.querySelectorAll("*")) {
+              const r = el.getBoundingClientRect();
+              if (r.width > 0 && (r.left < c.left - 0.5 || r.right > c.right + 0.5)) out.push(\`train cell part \${el.className} \${r.left.toFixed(1)}–\${r.right.toFixed(1)} outside \${c.left.toFixed(1)}–\${c.right.toFixed(1)}\`);
+            }
+          }
+          const unlock = document.querySelector("[data-testid=unlock-line]")?.textContent || "";
           const nb = document.querySelector("[data-testid=rewards-nudge] button")?.getBoundingClientRect();
           const nudge = nb ? { w: nb.width, h: nb.height } : null;
-          return { out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, nudge };
+          return { out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, trains: trains.length, unlock, nudge };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.nCards).toBe(2);
         expect(m.out, m.out.join("\n")).toEqual([]);
@@ -163,6 +179,8 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           expect(r.y).toBeGreaterThanOrEqual(0);
         }
         expect(m.you.toUpperCase()).toBe("YOU"); // N1: my own row is marked
+        expect(m.trains).toBe(c.names.length); // Story 7.5 liveness: the Train column is drawn on every row
+        expect(m.unlock).toBe("You used the Grenade Launcher: unlock it for 500"); // Story 7.4 K7
         if (c.endless) expect(m.note).toBe("Banked when you left (wave 47)"); // L4
         // Story 7.6 (AC 10): the nudge row is drawn exactly when asked, inside the card, its button ≥ 44 px
         if (c.nudge) expect(m.nudge && m.nudge.h >= 44 && m.nudge.w >= 44).toBe(true);

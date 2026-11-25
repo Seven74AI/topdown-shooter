@@ -4,7 +4,7 @@ import type { LauncherStats } from "../config/balanceSchema";
 import { MUZZLE_OFFSET_M, TICK_RATE_HZ } from "../config/constants";
 import { lobBlockT, segmentBoxEntryT } from "./cover";
 import { createExplosionSpec, explode } from "./explosion";
-import { weaponDamage, weaponIds, type WeaponId } from "./weapons";
+import { playerWeaponDamage, weaponIds, type WeaponId } from "./weapons";
 import { consumableAt, consumableStatsAt } from "../economy/consumables";
 import { igniteMolotov } from "../hazards/molotov";
 
@@ -334,7 +334,8 @@ export function updateGrenades(world: World): void {
       continue;
     }
     if (!stats || stats.kind !== "launcher") continue;
-    const dmg = weaponDamage(world.balance, weapon, level);
+    // Story 7.5: the launcher round carries its owner's damage Training (an owner who left: Training 0).
+    const dmg = playerWeaponDamage(world.balance, owner === null ? null : (world.players.get(owner) ?? null), weapon, level);
     // The owner left: no credit, and the friendly-fire share applied here (no player source to apply it).
     const present = owner !== null && world.players.has(owner);
     spec.radiusM = stats.blastRadiusM;
