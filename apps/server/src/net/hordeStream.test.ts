@@ -16,7 +16,7 @@ import {
   HORDE_KIND_DELTA,
   HORDE_KIND_KEY,
   HORDE_MAX_FRAME_BYTES,
-  HORDE_NEAR_M,
+  HORDE_FAR_RULE_RADIUS_M,
   HordeStreamDecoder,
   TICK_DT_S,
   ZOMBIE_STATE,
@@ -107,7 +107,7 @@ describe("Story 8.10: the delta horde stream", () => {
       }
     };
     topUp();
-    const enc = new HordeEncoder();
+    const enc = new HordeEncoder(undefined, HORDE_FAR_RULE_RADIUS_M); // the far rule ON (B7: off in the game)
     const phones = [new Phone(), new Phone()];
     const viewers = ["p0", "p2"];
     const stats = phones.map(() => newHordeStats());
@@ -159,7 +159,7 @@ describe("Story 8.10: the delta horde stream", () => {
             expect(got.typeState).toBe(want.typeState);
             expect(headingSteps(got.heading, want.heading)).toBeLessThanOrEqual(HORDE_HEADING_TOLERANCE);
             const d = Math.hypot(want.x - me.x, want.y - me.y);
-            if (d > HORDE_NEAR_M + 0.05) seen.farRefreshed++;
+            if (d > HORDE_FAR_RULE_RADIUS_M + 0.05) seen.farRefreshed++;
             else seen.near++;
             if (lastTs.has(id) && lastTs.get(id) !== want.typeState) seen.stateChanges++;
             lastTs.set(id, want.typeState);
@@ -170,7 +170,7 @@ describe("Story 8.10: the delta horde stream", () => {
             expect(before).toBeDefined();
             expect(Math.abs(got.x - before.x)).toBeLessThanOrEqual(0.01);
             expect(Math.abs(got.y - before.y)).toBeLessThanOrEqual(0.01);
-            expect(Math.hypot(before.x - me.x, before.y - me.y)).toBeGreaterThan(HORDE_NEAR_M - 1); // never a near one (1 m: the viewer moved)
+            expect(Math.hypot(before.x - me.x, before.y - me.y)).toBeGreaterThan(HORDE_FAR_RULE_RADIUS_M - 1); // never a near one (1 m: the viewer moved)
             seen.farHeld++;
           }
         }
@@ -209,7 +209,7 @@ describe("Story 8.10: the delta horde stream", () => {
     const world = createWorld({ balance, seed: 3, systems: { waves: () => {} } });
     addPlayer(world, "p0", 24, 16);
     world.debug.godMode = true;
-    const enc = new HordeEncoder();
+    const enc = new HordeEncoder(undefined, HORDE_FAR_RULE_RADIUS_M); // the far rule ON (B7: off in the game)
     const phone = new Phone();
     const stats = newHordeStats();
     const tick = (): void => {
@@ -265,7 +265,7 @@ describe("Story 8.10: the delta horde stream", () => {
       tick();
       const d = Math.hypot((z.x[id] as number) - 24, (z.y[id] as number) - 16);
       const r = [...phone.last.values()].find((q) => (q.netId & 0xff) === id) as Rec;
-      if (d <= HORDE_NEAR_M && insideSince < 0) insideSince = world.tick;
+      if (d <= HORDE_FAR_RULE_RADIUS_M && insideSince < 0) insideSince = world.tick;
       if (insideSince >= 0) {
         expect(r.refresh).toBe(world.tick);
         expect(Math.abs(r.x - (z.x[id] as number))).toBeLessThanOrEqual(0.005 + 1e-6);
@@ -304,7 +304,7 @@ describe("Story 8.10: the delta horde stream", () => {
     addPlayer(world, "p0", 24, 16);
     world.debug.godMode = true;
     for (let i = 0; i < 30; i++) spawnZombie(world, "walker", 20 + (i % 10), 14 + Math.floor(i / 10));
-    const enc = new HordeEncoder();
+    const enc = new HordeEncoder(undefined, HORDE_FAR_RULE_RADIUS_M); // the far rule ON (B7: off in the game)
     const a = new Phone();
     const b = new Phone();
     const sa = newHordeStats();
@@ -346,6 +346,29 @@ describe("Story 8.10: the delta horde stream", () => {
     enc.forceKey(phone);
     tick();
     expect((phone.frames[2] as Uint8Array)[4]).toBe(HORDE_KIND_KEY);
+  });
+
+  it("B7 (review RM2): the game's encoder (no radius given) refreshes every zombie every tick, even 20 m away", () => {
+    const world = createWorld({ balance, seed: 3, systems: { waves: () => {} } });
+    addPlayer(world, "p0", 24, 16);
+    world.debug.godMode = true;
+    const z = world.zombies;
+    const id = spawnZombie(world, "walker", 4, 16); // 20 m from the view centre; a rusher, so it is in the set from anywhere
+    z.state[id] = ZOMBIE_STATE.RUSH;
+    const enc = new HordeEncoder();
+    const phone = new Phone();
+    const stats = newHordeStats();
+    let refreshed = 0;
+    for (let t = 0; t < 40; t++) {
+      z.x[id] = 4 + (t % 2) * 0.05;
+      z.state[id] = ZOMBIE_STATE.RUSH;
+      world.tick++;
+      enc.prepare(world);
+      enc.send(world, phone, stats, 24, 16);
+      const r = phone.last.get([...phone.last.keys()][0] as number) as Rec;
+      if (r.refresh === world.tick) refreshed++;
+    }
+    expect(refreshed).toBe(40);
   });
 
   it("Story 8.1 hooks: resetHordeStream (same client object re-attached) gives a keyframe and a fresh baseline; a reconnect's new phone decodes it with no error; forgetClient drops the state", () => {
@@ -400,7 +423,7 @@ describe("Story 8.10: the delta horde stream", () => {
     expect(fresh.decodeErrors + fresh.brokenChain).toBe(refused);
     // A dropped frame mid-stream (a bug, not the socket): every delta after it is refused until the next key.
     const p = new Phone();
-    const enc2 = new HordeEncoder();
+    const enc2 = new HordeEncoder(undefined, HORDE_FAR_RULE_RADIUS_M);
     const stats = newHordeStats();
     let dropped = -1;
     let healedAt = -1;

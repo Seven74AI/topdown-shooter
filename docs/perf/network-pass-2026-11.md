@@ -123,3 +123,17 @@ Branched from master `d8d44d0` (8.8 + 8.9 on it). Change: the horde stream becom
 | Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 (control 1.0 / 0.9 / 0.7) |
 
 New horde budget (brief line 8): the measured worst case 13.4 KB/s + 20 % → **≤ 16 KB/s**. The 10 Hz rule adds no freeze (every row within ±0.2 of its all-20 Hz control) and no blink (`tools/netsim/hordeGlide.test.ts`). Clean 20 Runners kiting reads 0.9 % reversed on the real-buffer harness with or without the far rule (B2). Backpressure on a capped line: see the story file (B6: F12 confirmed for 64 kbit/s, threshold unchanged).
+
+### 8.10 review fix B7: every zombie at 20 Hz (as shipped)
+
+The review (RM2) measured the far rule's stutter on the clean line: between a far zombie's refreshes the buffer needs the frame two ticks past the render tick, and the newest frame leads by only 1.0–2.0 ticks there (p50 1.34), so far zombies stood still then jumped in 15–16 % of their between-refresh samples. Decision 8.10 B7 (supersedes D1): `HORDE_NEAR_M = Infinity`; the far rule's code stays behind `HORDE_FAR_RULE_RADIUS_M` (8 m) for a later story. Re-measured, same seeds and lines (master `02e7d8c` merged, load 0.1–0.5):
+
+| Case | Before | First build (D1 on) | As shipped (B7) |
+| --- | --- | --- | --- |
+| Audit replay, ~118 in view | 18.6 KB/s | 6.7 | **8.2 KB/s** |
+| 150 near + moving | 24.2 | 11.6 | 11.0 |
+| Stampede, 180 in one view (worst 1 s) | 28.2 | 13.4 | **13.5 KB/s** |
+| Bots clean / lossy, horde per phone | 9.2–11.0 / 8.6–12.6 | 3.4–4.3 / 3.6–5.2 | 4.4–5.5 / 2.6–5.3 KB/s |
+| Freezes /30 s, 1 % rows (standing / kiting / runners) | 1.2 / 0.9 / 0.9 | 1.2 / 0.7 / 0.7 | 1.0 / 0.9 / 0.7 |
+
+Horde budget unchanged at ≤ 16 KB/s (13.5 + 20 %). The 64 kbit/s backpressure finding (B6) is owed to Story 8.11.

@@ -35,7 +35,7 @@
  * Zombies not listed are unchanged. Heading is worked out on the phone from each refresh's move
  * (`quantizeHeading` of the cm move); the server sends it only when that would be off by more than
  * `HORDE_HEADING_TOLERANCE` steps (a standing zombie that turns, decision 8.10 D3). Zombies farther
- * than `HORDE_NEAR_M` from the view centre (FAR flag, toggled by `HORDE_CHG_FAR`; new and key
+ * than the encoder's near radius (`HORDE_NEAR_M`: Infinity in the game since B7, so off; `HORDE_FAR_RULE_RADIUS_M` 8 m with the rule on) from the view centre (FAR flag, toggled by `HORDE_CHG_FAR`; new and key
  * records start near) are refreshed only on ticks where `(slot ^ tick) & 1` is 0 (decision 8.10 D1);
  * the phone glides them between their own refresh ticks.
  *
@@ -68,10 +68,19 @@ export const HORDE_SMALL_MOVE_CM = 127;
  */
 export const HORDE_KEY_INTERVAL_TICKS = 20;
 /**
- * Story 8.10 (decision 8.10 D1): zombies within this distance (m) of the view centre are refreshed
- * every tick; farther ones every 2nd tick (a Runner at 4 m/s needs 2 s to reach you from here).
+ * Story 8.10 (decision 8.10 D1): the far rule's radius — zombies farther than this from the view
+ * centre refreshed every 2nd tick (a Runner at 4 m/s needs 2 s to reach you from here). The rule is
+ * OFF in the game (`HORDE_NEAR_M`, B7); tests and a later story pass this radius explicitly.
  */
-export const HORDE_NEAR_M = 8;
+export const HORDE_FAR_RULE_RADIUS_M = 8;
+/**
+ * Story 8.10 review RM2 → decision 8.10 B7 (supersedes D1 overnight): every zombie is refreshed every
+ * tick. With the far rule on, far zombies stood still then jumped on the CLEAN line (15–16 % of their
+ * between-refresh samples: the look-ahead frame two ticks out is often not there yet). The rule's code
+ * path stays (the encoder's `nearM`, the FAR flag, the buffer's own-refresh lerp) for a story that
+ * fixes that; cost: audit replay 6.7 → 8.2 KB/s, stampede 13.4 → 13.5 KB/s.
+ */
+export const HORDE_NEAR_M = Number.POSITIVE_INFINITY;
 /**
  * Story 8.10 (decision 8.10 D3, B1): the heading byte is sent when the phone's own derivation would be
  * more than this many steps (of 256; 4 ≈ 5.6°: a walker's 6 cm move rounded to cm can be ~5 steps off) off the server's.

@@ -140,8 +140,14 @@ describe("RunRoom", () => {
     await ok.leave();
   });
 
-  it("Story 8.10 (F5, brief 19): a client with another wire format, or a pre-8.10 tab without one, is refused at join as update_required; the right one joins", async () => {
-    for (const netProtocolVersion of [undefined, NET_PROTOCOL_VERSION - 1, NET_PROTOCOL_VERSION + 1, 0]) {
+  it("Story 8.10 (F5, brief 19): a client with another wire format is refused at join as update_required; a pre-8.10 tab without one as balance_mismatch (review RM1: the only refusal its old code shows with a Refresh button); the right one joins", async () => {
+    const old = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion: undefined })));
+    expect(old.code).toBe(JOIN_REFUSED_CODE);
+    expect(old.message).toBe("balance_mismatch");
+    // …also when the balance changed in the same deploy (the version check runs first)
+    const oldBoth = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion: undefined, balanceVersion: "00000000" })));
+    expect(oldBoth.message).toBe("balance_mismatch");
+    for (const netProtocolVersion of [NET_PROTOCOL_VERSION - 1, NET_PROTOCOL_VERSION + 1, 0]) {
       const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ netProtocolVersion })));
       expect(e.code).toBe(JOIN_REFUSED_CODE);
       expect(e.message).toBe("update_required");

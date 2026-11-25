@@ -1,5 +1,6 @@
 /** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
+import { HORDE_FAR_RULE_RADIUS_M } from "@topdown/shared";
 import { REWIND_CAP_TICKS } from "../../apps/server/src/run/RunController";
 import { emptySmooth, simulate, type Options, type Result } from "./hitsSim";
 
@@ -168,16 +169,18 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
     { name: "150 Walkers kiting", o: { walkers: 150 } },
   ] as const;
   for (const c of cases) {
-    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay; Story 8.10 B2: ≤ 1 % on the real horde path, = the all-20 Hz control), no stalls`, () => {
+    it(`${c.name}: clean line ≤ 0.5 % reversed (clean lines don't pay; Story 8.10 B2: ≤ 1 % on the real horde path, the far rule costs none), no stalls`, () => {
       const r = runSeeds(`8.8 clean ${c.name}`, { ...LINE, ...c.o }, SEEDS_88);
       expect(r.apparentHits).toBeGreaterThan(300);
       expect(r.stalls).toEqual({ up: 0, down: 0 });
       // Story 8.10 (brief 20, decision 8.10 B2): the harness now draws the horde through the real stream and
       // HordeBuffer, which keeps a killed zombie drawn until the render tick reaches its kill (Story 2.5):
-      // 20 Runners kiting 1/446 → 4/439 (0.9 %) with or without 8.10's 10 Hz far rule (control below).
+      // 20 Runners kiting 1/446 → 4/439 (0.9 %) with or without 8.10's 10 Hz far rule (comparison below).
+      // B7: the game runs every zombie at 20 Hz; the far rule (8 m, D1) is run explicitly here.
       expect(pct(r)).toBeLessThanOrEqual(1);
-      const control = runSeeds(`8.10 control (every zombie at 20 Hz) clean ${c.name}`, { ...LINE, ...c.o, hordeNearM: Infinity }, SEEDS_88);
-      expect(r.reversed).toBeLessThanOrEqual(control.reversed + 1); // the far rule costs no reversed hits
+      const farRule = runSeeds(`8.10 far rule on (8 m) clean ${c.name}`, { ...LINE, ...c.o, hordeNearM: HORDE_FAR_RULE_RADIUS_M }, SEEDS_88);
+      expect(farRule.reversed).toBeLessThanOrEqual(r.reversed + 1); // the far rule costs no reversed hits
+      expect(r.horde.bytes).toBeGreaterThan(farRule.horde.bytes); // review RL1: the two runs really differ (liveness)
       expect(r.horde.decodeErrors).toBe(0);
       expect(r.horde.keyframes).toBeGreaterThanOrEqual(170); // ≈ 1/s over 3 × 60 s (liveness of the real stream)
       expect(overCapPct(r)).toBe(0);

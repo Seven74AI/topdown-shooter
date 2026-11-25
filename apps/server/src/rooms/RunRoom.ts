@@ -177,11 +177,14 @@ const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
 /**
- * Story 8.10 (brief 19, D5): a client built for another wire format (or a pre-8.10 tab: none) would
- * decode garbage; it is refused at join as `update_required` ("A new version is out. Please reload.").
+ * Story 8.10 (brief 19, D5): a client built for another wire format would decode garbage; it is
+ * refused at join. Review RM1 (like Story 4.1 M1): a pre-8.10 tab sends no version and only knows
+ * `balance_mismatch` ("Please refresh" + Refresh), so a MISSING version gets that; a present but
+ * different one (a tab from 8.10 on) gets `update_required` ("A new version is out. Please reload.").
  * One small function so Story 8.1's onAuth/onJoin changes merge around it.
  */
 export function checkNetProtocol(version: number | undefined): void {
+  if (version === undefined) throw refuse("balance_mismatch");
   if (version !== NET_PROTOCOL_VERSION) throw refuse("update_required");
 }
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
