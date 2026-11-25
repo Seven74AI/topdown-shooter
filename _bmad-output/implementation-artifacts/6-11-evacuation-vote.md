@@ -454,6 +454,57 @@ Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays).
 
 Behaviour changes: **RR2-M1** (when the online dawn plays). RR2-L2 changes the vote sender's urgent rate (≤ 1 borrowed token, 250 ms apart).
 
+### Re-review 3 (AI) of the re-review 2 fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-25. Narrow scope: only `7f91356` (RR2-M1/L1, RR2-L2, N3, N4) on `e070c94`. The master merge (docs only) was ignored.
+**Outcome:** **Approve.** 0 high, 0 medium, 2 low, 2 nit. None of them blocks; they are cosmetic or rare-edge trade-offs.
+
+**Tests run:** `npm run typecheck` (green). Client `net/onlineFlow` (19), `ui/voteModel` (12) and `scenes/*` (234). Shared `run/endless` (10). `tools/netsim/vote` (3): 3× in a row and 4× in parallel under load, all green. Two throw-away probes (a VoteSender model against the server's `TokenBucket(10, 10)` with 1 pong/s, and an onlineFlow frozen-tab burst) were run and deleted.
+
+**LOW**
+
+- **RR3-L1: a backlog that lands more than 1 s after the show still plays a late dawn.** Where: `apps/client/src/net/onlineFlow.ts:103-106`. Scenario (probe): a phone locks in the build phase (the build sample is live). Wave 10, the vote and the extract all play without it. It unlocks 60 s later, and the socket backlog lands **1.5 s after the show**, which is plausible: after a radio or Doze wake, the TCP retransmission backoff can take seconds. Every phase sample in that burst is equally late, so the age is 0. The page is not hidden, `justShown` is false, and the dawn plays about 60 s after the extract (`dawnEndsAtMs` = now + 4 s). AC 10 says a page past `dawnS` goes straight to the card. Low because the dawn is cosmetic and can be skipped (D6). A socket that dropped and reconnected is safe: the first patch is Results, `last ≠ vote`, so there is no dawn. **Fix:** add a check that needs no visibility state. The vote lasts ≥ `allVotedHoldS` (1 s) of server time, so require `(now − voteSeenAtMs) ≥ (resultsTick − voteTick) × 50 − ~500 ms`. A late burst has a gap of about 0 and fails it.
+- **RR3-L2: the 250 ms urgent gap costs final-tap delivery without lowering the rate bound.** Where: `apps/client/src/ui/voteModel.ts:205,251`. With `VOTE_URGENT_DEBT` = 1, the rate is already capped: urgent-flood probe, every frame for 10 s → max **6 in any 1 s**, 4 in steady state, and that holds for a gap of 0, 100, 150 or 250 ms. Plus 1 pong/s, that is far inside the server's 10/s, with 0 drops in every probe. The gap only delays a change made just after a send. Probe: frantic tapping (alternate every 50–450 ms) over the last 1.5 s, with a 1 s all-voted hold, 2000 runs; the server ends up with a vote other than the last tap in this many runs:
+
+  | Sender | Lost final taps |
+  | --- | --- |
+  | gap 250 / debt 1 (now) | **136 (6.8 %)** |
+  | gap 150 / debt 1 | 72 |
+  | gap 0 / debt 1 | 43 |
+  | old gap 150 / no debt | 42 |
+  | unlimited | 0 |
+
+  The RM1 cases still pass. T−300 Stay / T−100 Extract with a full bucket goes out at once. With the bucket drained 1 s earlier it is still delivered. A drained bucket inside the hold followed by a change at T−500 … T−50 is delivered. Tap pattern Stay/Extract/Stay at T−1 s, then T−600, T−300 and T−100 changes: the last one waits for the 250 ms gap and goes out at T−50, a narrow margin. **Fix:** set `VOTE_URGENT_GAP_MS` to 0–100 and keep the debt as the rate bound. Then the "≤ 7 in the first second, 3/s after" comment still holds (measured 6, 4).
+
+**NIT**
+
+- **N5:** `VOTE_URGENT_DEBT` is not under test. Mutating it to 99 (unbounded borrowing) **survives** `voteModel.test.ts`. The "a second borrow is refused" assertion (`voteModel.test.ts:105`) is only stopped by the 250 ms gap (249 ms < 250), and the 3 s flood test is also capped by the gap. If RR3-L2's fix lowers the gap, add a test where the second borrow is ≥ gap later and still refused (tokens < 0).
+- **N6:** `GameScene.ts:1055` calling `voteSender.poll(…, false)` instead of `pollVote` still survives `scenes/*` (234 green). N3 fixed the copy, not the call site. That is acceptable for scene wiring, but now that `pollVote` exists a one-line source check (as `noUnregisteredTextures` does) would close it. Also, the netsim hold test kills the "urgent off" mutation only while `sleep(270 − 33)` (`vote.test.ts:133`) lands before the 333 ms refill. That held in all 7 runs, but a host stalled for > 60 ms would make it pass through a token send, so the kill would be lost silently, not a red test.
+
+**Exploit attempts:**
+
+- RR2-M1: a 2 s tab switch at the vote's start, live at the extract → full dawn ✓ (the builder's test).
+- A first-ever load with no `visibilitychange` (`lastShownMs` = −∞) and live samples → full dawn ✓ (probe).
+- Hidden while the Results patch is processed → no dawn ✓. This is consistent in either task order: `document.hidden` flips in the same task that fires `visibilitychange`, and `onPhase` runs from the socket's `listen("phase")` callback (`connection.ts:91`), a separate task.
+  - A frozen tab whose queued messages run *before* the show sees `hidden` = true → no dawn ✓ (closes RR2-L1).
+  - If they run within 1 s *after* the show → no dawn ✓.
+  - More than 1 s after the show → **late dawn (RR3-L1)**.
+- A desktop window that loses focus but stays visible: `hidden` = false → the dawn plays. That is correct, the player can see it.
+- A notification-shade pull usually fires blur only, so the dawn plays. On a platform that does fire hide/show for it, a pull ending < 1 s before the patch costs the dawn. Cosmetic; not checked in a real browser.
+- An app switch exactly across the extract → no dawn, even if the player is back within 0.3 s. Accepted: that is the rule as written.
+- RR2-L2: 0 server drops in every probe, including a flood every frame for the whole vote (with pongs). The final choice is delivered in every RM1 case (see RR3-L2 for the frantic-tap rate).
+
+**Mutations (all reverted):**
+
+- Killed:
+  - N3: `pollVote` urgent → false (netsim vote, 1 failed, 3/3 runs).
+  - N4: `scheduleEndlessEvent` without `bossWaves` (endless, 1).
+  - `SHOWN_GRACE_MS` = 0 (onlineFlow, 1).
+- Survived:
+  - `VOTE_URGENT_DEBT` = 99 (N5).
+  - `VOTE_URGENT_GAP_MS` = 150 (voteModel + netsim green; harmless, see RR3-L2).
+  - GameScene bypassing `pollVote` (N6).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -465,3 +516,4 @@ Behaviour changes: **RR2-M1** (when the online dawn plays). RR2-L2 changes the v
 - 2026-11-24: re-review fixes RM1, RL1, RL2, N1, N2; merged master 3a0dac8.
 - 2026-11-24: Re-review 2 (AI) of the re-review fixes on `c61e0d7`: approve with follow-ups (1 medium RR2-M1, 2 low, 2 nit).
 - 2026-11-24: re-review 2 fixes RR2-M1 (+L1), RR2-L2, N3, N4.
+- 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes on `e070c94`: approve (0 high, 0 medium, 2 low RR3-L1/L2, 2 nit N5/N6).
