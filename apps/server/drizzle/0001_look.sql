@@ -1,1 +1,0 @@
-ALTER TABLE "progress" ADD COLUMN "look" text;
