@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DOWNTOWN_MAP, RUN_ROOM_NAME, accountSessionResponseSchema, type AccountSessionResponse, NET_PROTOCOL_VERSION } from "@topdown/shared";
+import { DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, accountSessionResponseSchema, type AccountSessionResponse } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { accountsRepo } from "../db/accountsRepo";
 import { type Database, openPglite } from "../db/client";
@@ -215,7 +215,8 @@ describe("P3: the save server is down", () => {
         intent: "create",
         name: "Ana",
         balanceVersion: serverBalance.version,
-        mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION,
+        mapVersion: DOWNTOWN_MAP.version,
+        netProtocolVersion: NET_PROTOCOL_VERSION,
         guestToken: TOKEN_A,
       });
       expect(client.roomId).toBeTruthy();

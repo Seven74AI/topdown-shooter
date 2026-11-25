@@ -5,7 +5,9 @@ import type { SimEvent } from "../core/simEvents";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
 import { NEUTRAL_INPUT } from "../net/input";
-import { castVote, countVotes, resolveEvacVote, startBuild, startWave } from "../run/runStateMachine";
+import { castVote, countVotes, openEvacVote, resolveEvacVote, startBuild, startWave } from "../run/runStateMachine";
+import { playersInRun } from "../events/common";
+import { ticksFor } from "../core/time";
 import { waveSize } from "../waves/waveDirector";
 import { bossMaxHp } from "../boss/bossState";
 import { spawnZombie } from "../zombies/zombiePool";
@@ -302,16 +304,15 @@ describe("Story 8.1 F4: a mid-wave return is safe, not an escape", () => {
     expect(b.protectTicks).toBe(0);
   });
 
-  it("solo (nobody standing): returns where it vanished, still protected", () => {
+  it("decision 8.1 B18: solo (the World froze, so no tick passed while held): returns where it vanished, UNprotected — the room's 3-2-1 replaces protection", () => {
     const { world, players } = setup(["p0"]);
     inWave(world);
     const p = players[0] as PlayerState;
     p.x = 33;
     holdPlayer(world, "p0");
-    world.tick += balance.player.returnMinHoldTicks; // solo: the room freezes the World, but a hold that long (B15)
-    returnPlayer(world, "p0");
+    returnPlayer(world, "p0"); // no world.tick advanced: a frozen World (RunRoom.reconnect.test › solo freeze shows the 3-2-1)
     expect(p.x).toBe(33);
-    expect(p.protectTicks).toBe(40);
+    expect(p.protectTicks).toBe(0);
   });
 });
 
@@ -522,5 +523,28 @@ describe("Story 8.1 review M2: a held seat is a silent vote (6.11 D1: silent = E
     resolveEvacVote(world);
     expect(world.run.endless).toBe(true);
     expect(held.earnedAtEvac).toBe(555);
+  });
+});
+
+describe("Story 8.1 RR1-N1/N3: the held-seat rules really wired", () => {
+  it("N1: all present voted but a seat is held → the vote is not shortened (still open after allVotedHoldS); without the hold it would be", () => {
+    for (const held of [true, false]) {
+      const { world } = setup(["p0", "p1", "p2"], null); // the run system (in the `waves` slot) counts the vote down
+      startBuild(world);
+      startWave(world);
+      openEvacVote(world);
+      if (held) holdPlayer(world, "p2");
+      castVote(world, "p0", "stay");
+      castVote(world, "p1", "stay");
+      if (!held) castVote(world, "p2", "stay");
+      run(world, ticksFor(balance.waves.evac.allVotedHoldS) + 2);
+      expect([held, world.run.phase]).toEqual([held, held ? "vote" : "build"]);
+    }
+  });
+
+  it("N3: playersInRun (the stampede's size, D11) counts held seats", () => {
+    const { world } = setup(["p0", "p1", "p2"]);
+    holdPlayer(world, "p2");
+    expect(playersInRun(world)).toBe(3);
   });
 });

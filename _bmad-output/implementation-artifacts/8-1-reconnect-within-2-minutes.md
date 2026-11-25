@@ -4,7 +4,7 @@ baseline_commit: b0e491a9e10eb5acb73fbbecb7f30aba93ab8172
 
 # Story 8.1: Reconnect within 2 minutes
 
-Status: review
+Status: done
 
 <!-- Network pass story 3 of 5 (pulled forward from Epic 8 by the designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). Accepted Epic 8 decisions D1–D5 (docs/ideas/epic-8/decisions.md) are already rules here. -->
 
@@ -23,7 +23,7 @@ so that a bad signal doesn't end my night.
 - **F1 "Dropping is never a free revive."** A player who was **downed** when they dropped (or went quiet, D1) counts as **out** for the rest of this wave and comes back at the next build phase like any out player (Epic 8 D2).
 - **F2 "Dropping is never a free heal or reload."** On return everything is exactly as held: HP, wallet, earned, weapons and upgrades, gear, consumable count, ammo in the magazine (a reload in progress starts over), card offer and rerolls; a building being carried goes back to the hand (Epic 8 D3).
 - **F3 "A dropped teammate can't be hurt and isn't a target, and doesn't save or doom the team."** While held, their survivor is out of the World: zombies, the Behemoth and events don't target it, nothing damages it, and the team-wipe check ignores it (Epic 8 D2). If every connected player is down or out, the team wipes even with a teammate held.
-- **F4 "Coming back mid-wave is safe, not an escape."** Mid-wave a returning player appears next to a standing teammate (the 2.8 build-start spot rule: `findFreeSpotNear` the lowest-slot standing teammate), never where they vanished, with **2 s** of spawn protection (can't be hurt, can't shoot; shown blinking) (decision 8.1 D3). In a build phase they appear where they were. **Review M1 / decision 8.1 B15 (auto-accepted overnight):** the teleport + protection happen at most **once per player per wave** and only after a hold of **≥ 3 s** (`player.json › returnMinHoldTicks` 60); any other mid-wave return lands where they vanished (last server position), unprotected.
+- **F4 "Coming back mid-wave is safe, not an escape."** Mid-wave a returning player appears next to a standing teammate (the 2.8 build-start spot rule: `findFreeSpotNear` the lowest-slot standing teammate), never where they vanished, with **2 s** of spawn protection (can't be hurt, can't shoot; shown blinking) (decision 8.1 D3). In a build phase they appear where they were. **Review M1 / decision 8.1 B15 (auto-accepted overnight):** the teleport + protection happen at most **once per player per wave** and only after a hold of **≥ 3 s** (`player.json › returnMinHoldTicks` 60); any other mid-wave return lands where they vanished (last server position), unprotected. **Decision 8.1 B16:** a dropped body first stays in the World for 3 s mid-wave (standing, hittable, a target) before it vanishes; a return inside those 3 s just plays on in place. **B18:** in a frozen World (solo) the 3-2-1 replaces the protection.
 - **F5 "My turret keeps working for me, for 2 minutes."** During the 120 s hold, kills by their turrets/traps pay into the held wallet; after the hold (or after a deliberate Leave) their buildings stay, can be repaired by anyone and pay nobody.
 - **F6 "If everybody is gone, the night waits."** When no player is connected, the whole World freezes (zombies, timers, boss, events, build timer) for up to 120 s; the first player back unfreezes it after a visible **3-2-1** (3 s); after 120 s the room closes and the run is **lost** mid-wave or treated as saved in a build phase (Story 8.4's rule; until 8.4 exists: lost) (Epic 8 D5).
 - **F7 "Nothing I pressed while offline happens late."** Inputs, shop taps, placements and Ready presses made while the connection was down are dropped, never replayed on return.
@@ -167,6 +167,10 @@ Round 2, in parallel with 8.10 (see `docs/network-pass-decisions.md` › Build r
 Claude (builder child session, gds-dev-story; autonomous overnight run).
 
 ### Gate
+
+**Gate after merging Story 8.10** 2026-11-25 07:17–07:25 on story-8-1 @ 056935a (master f67154d merged): typecheck && lint && test && build → **green**: 429 files passed (1 skipped), **3893 tests passed** (3 skipped), build ✓. Load 0.73 at the start, 3.09 at the end.
+
+**Re-review-1 fix gate** 2026-11-25 06:51–06:59 on story-8-1 @ 01de5bb (master 02e7d8c merged): typecheck ✓, lint ✓, test ✓ — 423 files passed (1 skipped), **3861 tests passed** (3 skipped); build failed at first only because master's new gallery needs `@fontsource/oswald` from the merged lockfile → `npm ci` (no code change) → build ✓ (06:59). Load 0.67 at the start, 3.79 at the end.
 
 **Review-fix gate** 2026-11-25 06:13–06:20 on story-8-1 @ ae23fbd (master d8d44d0 already merged: `git merge origin/master` → up to date): typecheck && lint && test && build → **green**: 417 files passed (1 skipped), **3821 tests passed** (3 skipped), build ✓. Load 0.97 at the start, 3.90 at the end.
 
@@ -396,9 +400,219 @@ Each fix above changes behaviour → narrow re-review whose first task is "explo
 | L6 | T4's event-queue sub-item unticked (struck through, Not verified 6) | — |
 | 8.10 | Comment hooks in `attachClient` (keyframe request), `onReconnect` (reset baseline), `takeOver` and `finalLeave` (delete the old sessionId's baseline) | — |
 
+### Re-review (narrow) 1
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY the fix commits b65edc2, 5084cf3, ae23fbd. Tree: `rereview-8-1` = `origin/story-8-1` a4c802c merged with `origin/master` 02e7d8c (8.8, 8.9, building art). **One conflict**, `apps/client/src/scenes/hudLayout.test.ts` import block (master added `BOSS_BAR_NAME_CSS_PX` + moved the evacVoteCss comment; the story added `HELD_CHIPS`): resolved by keeping both (the `connectionModel` comment now names `heldChipsCss.test.ts`). Checks: `npm ci`; `npm run typecheck` green; the 9 touched test files green (127 tests) after the merge; `tools/bots/cut.test.ts` green (64 s). Probes were scratch tests (shared sim, client models, live Colyseus rooms on an OS-picked port), not committed.
+
+**Verdict: FINDINGS — 0 high, 1 medium, 3 low, 4 nit.** H1, H2, H3, M1/B15, L1, L2, L3 hold under every attempt below; the medium is a client-side consequence of M2.
+
+| ID | Sev | Where | Scenario (probed) | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **RR1-M1** | medium (created by M2) | `apps/client/src/scenes/GameScene.ts:1073` (vote chips from `host.world.players`), `apps/client/src/ui/voteModel.ts:112,121` (`allIn` / result line), `voteUrgent` | **The phone's vote panel contradicts the server once a seat is held.** The mirror drops held teammates (`NetSimHost.ts:299`), so the panel tallies only present players while the server now counts held seats as silent = Extract and `everyoneVoted` waits. Probe (`voteView` + shared `resolveEvacVote`): 4 seats, 2 Stay + 1 Extract present, 1 held → panel **"STAY · 1 – 2"**, server **Extract**. 2 Stay + 2 held → panel "STAY · 0 – 2" for the rest of the 15 s, then the run extracts. `voteUrgent` also says "everyone voted" (urgent sends) while the server waits the full timer. | Add held seats to the vote input as silent (dimmed) chips, from the room state (`heldUntilTick > 0`), so `allIn` stays false, the result line counts them as Extract and `voteUrgent` agrees with `everyoneVoted`. Test: 3 present + 1 held → no result line; result = server's choice. |
+| RR1-L1 | low (pre-existing, B15 doesn't close it) | `packages/shared/src/player/hold.ts:50` (body leaves the World at once on a drop) | **Vanishing is still an invulnerability** — B15's doc says "never an escape or an invulnerability". A held body is not in `world.players`: no zombie or boss target, no blast or slam. Probe: hold, 50-damage blast on the spot, return 5 ticks later → in place, unprotected, **HP unchanged** (the same blast hits a present body). Unlimited per wave (B15 only limits teleport + protection). Costs the cheater a blind reconnect (airplane mode, or a modified client). Co-op only. | Designer call. Option: a mid-wave DROP keeps the body in the World (standing, hittable, untargeted by nothing) for `returnMinHoldTicks` before it vanishes — the 3 s the quiet rule already waits; or record it as accepted in B15 and fix the doc line. |
+| RR1-L2 | low (designer note on H3) | `packages/shared/src/waves/waveDirector.ts:376`, `packages/shared/src/boss/behemoth.ts:182` | **A held seat that never comes back sizes what starts in its 120 s.** Probe: count drops to 1 when the hold expires (live room, `holdS` 0.4) and a real solo still gets ×0.35 / solo HP — but a 2-player team whose mate's phone dies faces the next wave sized for 2 and, if the Behemoth arrives inside the hold, 2-player HP (×0.6 vs solo ×0.4 = 1.5×) for the whole fight, while gaps / crawlers (`telegraph.ts:281`, `enrage.ts:101`, present bodies) run at solo pace. Bounded (one wave / one boss), the intended trade against H3's cheese. | Optional: when a hold expires (`releaseHeld`) with the boss alive, rescale `hp`/`maxHp` to the new seat count keeping the fraction. Or accept in B15. |
+| RR1-L3 | low (test asserts an unreachable state) | `packages/shared/src/player/hold.test.ts:303`, `hold.ts:87` | **Solo returns are never protected now.** Solo (and any all-held team) freezes the World, so `world.tick − atTick` stays 0 → `longHold` false → in place, unprotected. Probe (live room): solo drop mid-wave, 4 s frozen, token return → `protectTicks` 0. The shared test gets protection only by advancing `world.tick` by hand during a "freeze" — impossible in a room. The 3-2-1 arguably gives the beat (zombies stood still too), but D3's "nobody standing: in place, still protected" silently no longer applies to solo. | Either decide (B15 note: "a frozen World's return is covered by the 3-2-1") and change the test to expect 0, or measure the hold in room ms (`hold.atMs`) for the frozen case. |
+| RR1-N1 | nit | `hold.test.ts:494` (M2) | `everyoneVoted`'s held check survives mutation (`|| heldPlayers.size > 0` removed → 31/31 green): the test calls `resolveEvacVote` directly. The probe confirms the behaviour (3 seats, 2 Stay + 1 held: the vote runs 300 ticks = the whole 15 s, bounded; ends earlier if the hold expires). | Step the World in the vote with a held seat and assert it is still "vote" after `allVotedHoldS`. |
+| RR1-N2 | nit | `apps/client/src/net/linkMonitor.ts:110` (L3) | `adopt(r, late)` wiring untested: setting `lateAdoptedAtMs` on every adopt passes linkMonitor + lobbyStore tests (16/16) — the L3 tests set the flag by hand. | One linkMonitor test: a normal recovery leaves `lateAdoptedAtMs` −∞, a late one sets it. |
+| RR1-N3 | nit | `apps/server/src/rooms/RunRoom.ts` `takeOver` (L2), `NetSimHost.ts:1070` (M3), `events/common.ts:67` (H3) | Wiring untested: removing `net.rename` in `takeOver` passes the 24 touched server tests (my live probe — same guard object after a takeover — catches it); removing `delay.rebase()` or the link-up edge passes the M3 test; `playersInRun` without held seats passes 143 shared tests. | A room-level guard-identity test; an M3 case for the link edge; one stampede-size case with a held seat. |
+| RR1-N4 | nit | `NetSimHost.ts:1068` (M3) | The re-base is taken on the frame the overlay LIFTS (`frozen` true → false), not while it covers: the drawn picture steps back by the render delay (probe: 1 tick in the fake at 50 ms delay; ~2–5 ticks at a real 100–250 ms) — the last pre-freeze motion replays once. Monotonic after (probe: 30 frames). Link edge: 0 step. | Accept, or freeze the render clock while `frozen` (no step at all). |
+
+#### Attempts (each fix: "exploit this fix")
+
+| # | Fix | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | H1 | Live: HP 20, drop in build → wave starts → token return | HP 20 kept ✔ |
+| 2 | H1 | Live: drop in wave → build → return (heal once), drop again in that build → return in the next wave | 20 → 70, then 70 kept (no 2nd heal) ✔ |
+| 3 | H1 | Real state machine: held in the wave-10 vote → Stay → endless build → return | one heal ✔; `buildStartIndex` vote 10 → build 11 → wave 11 (no heal from build → wave) ✔ |
+| 4 | H1 | Two build starts while held | one catch-up (one heal), never two ✔ |
+| 5 | H2 | Leave + rejoin same build ×2, then Leave → next build → rejoin | 20, 20, then one heal ✔ (+ the story's live test) |
+| 6 | H3 | Count with a held seat, after hold expiry (live, `holdS` 0.4), real solo wave size | 2 → 1 on expiry; real solo ×0.35 ✔ — residual harm RR1-L2 |
+| 7 | H3 | grep `players.size` in `packages/shared/src` for other run-long counts | only per-moment ones left (boss gaps, enrage crawlers, wipe/ready checks) ✔ |
+| 8 | B15 | Live: two 3 s+ drops in one wave (teammate sending inputs) | 1st teleported + protected, 2nd `{moved 0, prot 0}` ✔ |
+| 9 | B15 | Per wave across 9 → 10 → endless 11, 12 | one protected return per wave each wave ✔ |
+| 10 | B15 | Alternate two players | per-player field, each gets one per wave (accepted rule) ✔ |
+| 11 | B15 | In-place return as an escape: blast on the vanished spot | **dodged** → RR1-L1 |
+| 12 | B15 | Solo / all-held freeze | never protected → RR1-L3 |
+| 13 | B15 | Honest phone dropping twice in a wave | 2nd lands where it vanished (zombies had retargeted away) unprotected — the accepted B15 cost |
+| 14 | M2 | 2 Stay + 1 Extract + 1 held; 2 Stay + 2 held | server Extract ✔; **phone panel says STAY** → RR1-M1 |
+| 15 | M2 | Held seat returning during the vote | vote cleared at the hold, can vote again (`castVote` once in `players`) ✔ |
+| 16 | M2 | All present voted, one held | waits the whole 15 s timer (300 ticks), bounded ✔ (RR1-N1) |
+| 17 | M3 | 6 s freeze, then resume; link down 6 s, then up | backward step 1 tick at the freeze edge (RR1-N4), 0 at the link edge; monotonic 30 frames after ✔ |
+| 18 | L2 | Live takeover: guard object for the new session; old socket's leave | same object, old key gone, 2 guards ✔ |
+| 19 | L3 | Mutation: every adopt sets the late flag | passes → RR1-N2 |
+
+#### Mutations (each reverted)
+
+| Mutation | Result |
+| --- | --- |
+| `buildStartIndex` without the build +1 | 4 fail ✔ |
+| drop `protectedReturnWave` check | 1 fail ✔ |
+| `longHold = true` | 1 fail ✔ |
+| `beginWave` count without held | 1 fail ✔ |
+| Behemoth HP without held | 1 fail ✔ |
+| `countVotes` without held silent | 1 fail ✔ |
+| no `markHeldEvac` | 1 fail ✔ |
+| `everyoneVoted` without held check | **0 fail** (RR1-N1) |
+| `restoreSeat(…, −1)` (H2) | 1 fail ✔ |
+| `playersInRun` without held | **0 fail** (RR1-N3) |
+| no `clock.rebase()` | 1 fail ✔ |
+| no `delay.rebase()` / no link-up edge | **0 fail** (RR1-N3) |
+| `add` ignores `keep` | 1 fail ✔ |
+| no `net.rename` in `takeOver` | **0 fail** in the touched tests (RR1-N3; caught by the live probe) |
+| late flag on every adopt | **0 fail** (RR1-N2) |
+| `run_ended` without held seats | 1 fail ✔ |
+| `HELD_CHIPS` renamed / CSS twin | `heldChipsCss` fails ✔ |
+
+### Re-review 1 fixes (2026-11-25, builder)
+
+| ID | Fix | Test |
+| --- | --- | --- |
+| RR1-M1 | Held seats join the vote panel as silent, dimmed chips (`NetSimHost.heldSeatSlots` from the room state → `voteModel.addHeldVoters` in GameScene): no result line until the server's rule allows one, the line counts them as Extract, `voteUrgent` agrees with `everyoneVoted` | `connectionModel.test.ts` › "RR1-M1" ×2 (2 Stay + 1 Extract + 1 held: no "STAY · 1 – 2", not urgent; outcome EXTRACT), `NetSimHost.reconnect.test.ts` › "heldSeatSlots", wiring `reconnectWiring.test.ts` › "RR1-M1" |
+| B16 (RR1-L1) | **Decision 8.1 B16** (auto-accepted overnight): `RunController.dropPlayer` — mid-wave the dropped body stays `returnMinHoldTicks` (3 s) in the World, standing, hittable, a target, then vanishes (`onDropHold`, log `player_vanished`); `cancelDrop` on a return inside the 3 s (plays on in place); build/vote hold at once. Freeze only once nobody is present (a dropping body counts) | `RunController.hold.test.ts` › "decision B16" ×4 (60 ticks then held; a blast hits the dropping body; back within 3 s in place, unprotected, inputs applied, countdown stopped; build = held at once); `RunRoom.reconnect.test.ts` › "B16: downed and back within the 3 s: still downed in place"; room tests now wait out the 3 s before "vanished" |
+| B17 (RR1-L2) | **Decision 8.1 B17**: accepted as is (bounded by the 120 s hold) | — |
+| B18 (RR1-L3) | **Decision 8.1 B18**: in a frozen World the 3-2-1 replaces protection | `hold.test.ts` › "decision 8.1 B18: solo …" (no tick advanced by hand; protectTicks 0); `RunRoom.reconnect.test.ts` › solo freeze asserts protectTicks 0 while the 3-2-1 shows |
+| RR1-N4 | While `state.frozen` both phone clocks hold still; when the freeze lifts the render clock moves on from where it stood (`AdaptiveDelay.rebase(true)`), so nothing drawn steps back; a link-up edge re-bases fully (the reconnecting panel covers it) | `NetSimHost.reconnect.test.ts` › "review M3" (render tick constant while frozen, monotonic across the lift) + "a phone that missed a whole freeze …" (link edge; fails without `delay.rebase` or without the link edge) |
+| RR1-N1/N2/N3 | Tests that bite: `everyoneVoted`'s held check (`hold.test.ts` › "N1", stepping the World), late flag only on a late adopt (`linkMonitor.test.ts` › "RR1-N2"), `net.rename` in `takeOver` (`RunRoom.reconnect.test.ts` › takeover of a connected seat checks the guard object), `playersInRun` counts held (`hold.test.ts` › "N3"), `delay.rebase` / link edge (above) | each mutation now fails a test |
+
+### Merge with Story 8.10 (2026-11-25, 8.1 lands second)
+
+- Merged master f67154d (8.10): conflicts kept both sides (sprint-status, NetSimHost — 8.10 moved `receiveHorde`, 8.1's clock re-base kept —, perf doc, `JoinRefusal` now has both `seat_kept` and `update_required`, bots `--kbps` and `--cut-*`).
+- `RunRoom.attachClient` calls `this.horde?.resetHordeStream(client)` (belt and braces: every caller passes a new Colyseus client); `takeOver` and `finalLeave` call `forgetClient` on the old socket.
+- New test `RunRoom.reconnect.test.ts` › "the first frame after a token reconnect, and after a takeover, is a keyframe and decodes with no error" (fresh `HordeStreamDecoder` decodes every frame; the frames carry the zombie). Join options in the 8.1 tests carry `netProtocolVersion`.
+
+### Re-review (narrow) 2
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY 06654ed (RR1-M1), babd790 (B16), 01de5bb (B17/B18, RR1-N4, N1–N3). Tree: `rereview2-8-1` = `origin/story-8-1` bd05dfa merged with `origin/master` ad9388f — **no conflicts**. Checks: `npm ci`; `npm run typecheck` green; touched tests (`RunRoom.reconnect`, `RunController.hold`, `hold`, `NetSimHost.reconnect`, `connectionModel`, `linkMonitor`, `reconnectWiring`) + `tools/bots/cut.test.ts`: 8 files, 88 tests green. Probes: live Colyseus rooms (test server, OS-picked port), RunController, NetSimHost on the FakeRoom; kept (not run by the gate) in `_bmad-output/implementation-artifacts/probes/8-1-rr2/*.probe.ts.txt`.
+
+**Verdict: FINDINGS — 0 high, 2 medium, 1 low, 1 nit.** RR1-M1 holds under every vote probe; B16's server side does what it says (hittable, a target, 3 s, in place within 3 s, build/vote at once, chained drops give nothing); the two mediums are B16's edges: what teammates SEE during the 3 s, and B15's 3 s clock now starting at the vanish.
+
+| ID | Severity | Where | Finding | Minimal fix |
+| --- | --- | --- | --- | --- |
+| RR2-M1 | medium | `apps/server/src/rooms/RunRoom.ts:512` (sets `heldUntilTick` at the drop) × `apps/client/src/sim/NetSimHost.ts:297-303` (`dropMissing` / `addMissing` remove any teammate with `heldUntilTick > 0`) | **The 3 s dropping body is invisible to the team.** B16 keeps the body in the server World (standing, hittable, a target), but `startHold` writes `heldUntilTick` at once, and every teammate's mirror removes a body with `heldUntilTick > 0`. Probe (NetSimHost, FakeRoom): teammate on my map before = true, after the drop patch = **false**. For 3 s zombies (and a Behemoth telegraph) converge on an empty spot; a DOWNED dropping teammate is revivable on the server (probe: still `downed`, bleed-out 400 → 379 in 1 s) but shows no body, no ring, no revive prompt; on a return within 3 s the body pops back in place. | Write `heldUntilTick` only when the body actually leaves the World: skip it in `startHold` while `controller.isDropping(id)`, set it in `onDropHold` (end time from `hold.atMs`, the 120 s unchanged). The chips, the vote panel (RR1-M1) and the mirror follow. (Or a separate `dropping` schema flag: chip yes, body kept.) |
+| RR2-M2 | medium | `packages/shared/src/player/hold.ts:54` (`atTick` = the vanish tick) × `hold.ts:87` (`longHold`) | **B15's "hold ≥ 3 s" now counts from the vanish, so the safe return needs ≥ 6 s away.** Live room (teammate present): back after 2.5 s → not vanished, in place, protect 0 ✔ (B16); after **4 s** → vanished at +59 ticks, returned **in place, protect 0, `protectedReturnWave` −1**; after 7 s → teleported next to Ana, protect 40. An honest phone back in 3–6 s (the common Wi-Fi blip) lands, unprotected, where its body stood 3 s while the horde converged — F4 "coming back mid-wave is safe" no longer holds for it. Not an escape either way. | Count the hold from the drop: the B16 vanish holds with `atTick = world.tick − returnMinHoldTicks` (e.g. `holdPlayer(world, id, sinceTick)` from the countdown in `RunController.holdQuietPlayers`), so a return after the vanish is ≥ 3 s by construction. Escape check with the fix: a 3.1 s return teleports + protects at most once per wave (B15 unchanged) after 3 s standing hittable — no new loop. |
+| RR2-L1 | low (designer note on B16 (h)) | `apps/server/src/rooms/RunRoom.ts:546-552` (`updateFreeze`: `activeCount() === 0`) × `RunController.ts:703` (the countdown runs only in a stepped wave) | **Solo: a re-drop during the 3-2-1 no longer cancels it.** Live: solo back → `resumeIn` 3 → drops again (0 ms and 300 ms into the count): the dropping body counts as present, its 3 s can't run while frozen, so the count finishes, the World **resumes with nobody connected**, runs 60 ticks (the body eaten), then refreezes. The doc line "everyone gone again cancels it" is now false. Also the plain solo drop: World ran **60 ticks (3.0 s) before `frozen`** with the phone gone — what B16 says ("a dropping body counts"), so intended; a flapping solo phone pays 3 s per flap. | Accept and fix the doc line, or while frozen treat a dropping body as absent (cancel the 3-2-1 and hold it at once: `if (state.frozen && isDropping) holdPlayer`). |
+| RR2-N1 | nit | `apps/client/src/sim/NetSimHost.ts:1089` × the `wasFrozen` guard in `update` | Link up **while** frozen (down before the freeze began): the full re-base sets the render tick NaN and the held clocks keep it NaN for the rest of the freeze; at the lift it anchors **0.34 tick (17 ms) below** the last frame drawn before the link loss (sweep, 50/50 offsets). Covered by the paused overlay; every other ordering 0. | Accept (or advance once on the link-up frame so the held value is a number). |
+
+#### Attempts
+
+| # | Area | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | RR1-M1 | 2 Stay + 1 Extract + 1 held | no result line, not urgent, final EXTRACT · 2 – 2 ✔ |
+| 2 | RR1-M1 | 2 Stay + 2 held | 4 chips (2 dimmed), no line, not urgent, EXTRACT · 2 – 2 (= server `voteOutcome(2, 4)`) ✔ |
+| 3 | RR1-M1 | held seat returns mid-vote and votes Extract | 4 in → "EXTRACT · 2 – 2", urgent ✔ (server: `returnPlayer` in vote, `castVote` accepted) |
+| 4 | RR1-M1 | last present vote while a seat is held | urgent false until the last 500 ms ✔ (server `everyoneVoted` false, waits) |
+| 5 | RR1-M1 | hold expires during the vote | seat leaves the state → chip gone, 3 chips, all in → "STAY · 1 – 2" + urgent; server `releaseHeld` drops it from `countVotes` too ✔ |
+| 6 | RR1-M1 | 568×320 with 4 chips + held | a held seat is one of the 4 seats: `addHeldVoters` caps at 4 (preallocated); buttons 96–236 / 332–472 ✔. No double chip for a seat dropped in a wave's last 3 s (the mirror already dropped its body — RR2-M1's other side) |
+| 7 | B16 (a) | blast on a dropping body | hit ✔ (builder test, re-run); a blast on the exact vanish tick misses (hold before step — inherent) |
+| 8 | B16 (b) | live: back at 2.5 s / 4 s / 7 s | in place unprotected / **in place unprotected (vanished)** / teleport + protect 40 → RR2-M2 |
+| 9 | B16 (b) | 3.1 s escape loop? | no: today 3–6 s is in place unprotected, ≥ 6 s once per wave; with RR2-M2's fix once per wave after 3 s hittable ✔ |
+| 10 | B16 (c) | chained drops: drop 55 ticks, back, ×10 (controller) | never held, B15 never used, **0 inputs applied while dropping**: a decoy that can't move or shoot — no gain over standing still connected ✔ |
+| 11 | B16 (d) | downed dropping (live) | stays downed, bleed-out runs (400 → 379 in 1 s), revivable on the server — invisible to the reviver (RR2-M1); vanish → out (F1) ✔; back < 3 s → downed in place ✔ |
+| 12 | B16 (e) | both drop at once (live) | not frozen at the drop; frozen after 60 ticks, both held ✔ |
+| 13 | B16 (f) | drop in build (live) | held at once ✔. Wave ends while dropping (controller): build heal on the body (20 → 70), held at once, return in the build heals nothing more ✔ |
+| 14 | B16 (g) | Behemoth telegraph on a dropping body | it is in `world.players`: targeted for 3 s; the vanish clears the threat slot (`holdPlayer`) → retarget ✔ (shown as aiming at nothing: RR2-M1) |
+| 15 | B16 (h) | solo drop (live) | World runs 60 ticks (3.0 s), then frozen — as B16 decided → RR2-L1 note |
+| 16 | B16 (h) | solo re-drop at 0 / 300 ms into the 3-2-1 (live) | count completes, World resumes with nobody connected 60 ticks, refreezes → RR2-L1 |
+| 17 | B16 | re-drop after a token return (2p 100 ms / 1 s, solo after the 3-2-1, SDK auto-reconnect ×2) | held each time ✔ (a socket killed in the same JS turn as the reconnect frees the seat — test artifact, a real close is a later I/O event) |
+| 18 | RR1-N4 | stateful 1 ms sweep (50 offsets): freeze/lift; down in freeze → up after lift; down → up inside a freeze it never saw start; 120 ms freeze; lift + up same ms; down before freeze → up inside it | 0 step back in 5 orderings (the lift + up same ms one: 0.34 at the covered link-up edge, allowed); **0.34 tick at the lift** in the last → RR2-N1 |
+
+#### Mutations (each reverted; one per new probe)
+
+| Mutation | Result |
+| --- | --- |
+| `longHold = true` | controller B15 probe fails ✔ |
+| `queueInput` accepts a dropping seat | chained-drop probe fails ✔ |
+| catch-up on `>=` build index | wave-end probe fails ✔ |
+| mirror keeps held teammates | client B16 probe flips to pass ✔ (it asserts the B16 intent) |
+| `addHeldVoters` adds nothing | vote probe fails ✔ |
+| `delay.rebase(false)` on the lift | N4 sweep fails ✔ |
+| `dropPlayer` holds at once mid-wave | live room probe fails ✔ |
+
+### Re-review 2 fixes (2026-11-25, builder)
+
+| ID | Fix | Test |
+| --- | --- | --- |
+| RR2-M1 | `heldUntilTick` is written only when the body really leaves the World: not in `startHold` while `controller.isDropping`, but in `onDropHold` at the vanish (end time still from the drop: `hold.atMs` + 120 s). Teammates' mirrors keep the B16 dropping body (and a downed one's ring and revive prompt) for its 3 s; the chip and the vote panel follow at the vanish | `RunRoom.reconnect.test.ts` › "a drop mid-wave …" (teammate's state `heldUntilTick` 0 while the body stands, then vanished); `NetSimHost.reconnect.test.ts` › "RR2-M1: the mirror keeps a teammate's body until heldUntilTick is written" |
+| RR2-M2 | The B16 vanish holds with `atTick` backdated by the 3 s already away (`holdPlayer(world, id, awayTicks)`), so B15's "away ≥ 3 s" counts from the DROP | `RunController.hold.test.ts` › "RR2-M2" ×2 (back at 4 s → the wave's one teleport + protection; back at 2.5 s → in place, unprotected); the room drop test now expects the protected return |
+| B18 kept | With RR2-M2 a solo return after the vanish would count as long: `returnPlayer(…, allowProtect)` — the room passes `!state.frozen`, so a frozen World's return stays in place and unprotected (the 3-2-1 replaces it) | `RunRoom.reconnect.test.ts` › solo freeze (protectTicks 0 while the 3-2-1 shows) |
+| RR2-L1 | **Decision 8.1 B19** (auto-accepted overnight): a dropping body counts as present, so a solo drop (or a re-drop during the 3-2-1) first runs its 3 s in a stepped World, then freezes; the stale doc line in `RunRoom.updateFreeze` fixed | — (doc) |
+| RR2-N1 | Accepted (the paused overlay covers the 17 ms) | — |
+| Flakes | `RunRoom.reconnect.test.ts` › "a quiet seat that then drops keeps its 120 s clock": asserts the window the room passes to `allowReconnection` (≤ 3.6 − 1.5 s: what is left of the first hold), not wall time; waits 10 s / 15 s. `tools/bots/cut.test.ts`: waits on conditions with more room (ready 30 s, ack 15 s, back 15 s × slack), the AC's 10 s bound × `max(1, load/2)` (exactly 10 s at load ≤ 2), timeout 360 s | both green together with the server suite + the economy sims in parallel (load 4.69) |
+
+
+Gate (re-review 2, 2026-11-25 07:34–07:41 UTC, after merging origin/master — already up to date): `npm run typecheck && npm run lint && npm test && npm run build` → EXIT 0; 429 test files passed / 1 skipped, 3896 tests passed / 3 skipped; build ok. Load 0.71 at start, 4.30 at end.
+
+### Re-review (narrow) 3
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY f587c26 (RR2-M1, RR2-M2, B18 `allowProtect`, B19 doc, the two flake hardenings). Tree: `rereview3-8-1` = `origin/story-8-1` 24e3aa8 merged with `origin/master` 8248be0 — **no conflicts**. Checks: `npm ci`; `npm run typecheck` green; touched tests (`RunRoom.reconnect`, `RunController.hold`, `hold`, `NetSimHost.reconnect`): 4 files, 69 tests green; `tools/bots/cut.test.ts` green (`backAfterCutEndMs` 303, `loadSlack` 1, load ≈ 0.3). Probes (controller + live Colyseus room) kept, not run by the gate, in `_bmad-output/implementation-artifacts/probes/8-1-rr3/*.probe.ts.txt`. (Re-review 2's `probes/8-1-rr2/` was never committed: RR3-N2.)
+
+**Verdict: FINDINGS — 0 high, 1 medium, 1 low, 2 nit.** RR2-M1, RR2-M2 and B18 do what they say under every attempt below; no early expiry, no carry-over, no new escape. The medium is RR2-M2's twin on the quiet path (pre-existing, not closed by the fix).
+
+| ID | Severity | Where | Finding | Minimal fix |
+| --- | --- | --- | --- | --- |
+| RR3-M1 | medium (pre-existing; RR2-M2's twin) | `apps/server/src/run/RunController.ts:712` (`holdPlayer(s.playerId)` in the quiet loop, no `awayTicks`) × `packages/shared/src/player/hold.ts:89` (`longHold`) | **D1's quiet hold still counts B15's 3 s from the vanish.** A quiet phone's body stands 3 s (60 ticks, hittable, a target) exactly like a B16 drop, but the quiet vanish holds with `atTick = world.tick`, so its "away ≥ 3 s" needs ≥ 6 s of silence. Probes: controller — silent 61 ticks → held, inputs 20 ticks later (4 s silent) → **in place, protect 0**; live room (teammate sending) — quiet hold, input 1 s later → `{moved 0, prot 0}`, while a DROP back at the same 4 s now teleports + protects 40. RR2-M2's argument ("an honest phone back in 3–6 s lands, unprotected, where its body stood while the horde converged") applies unchanged to an app switch / tunnel. Not an escape either way. The room test "a connected player with no input for 3 s … returns it next to a teammate" asserts `protectTicks` 0, contradicting its own title. | `holdPlayer(s.playerId, s.quietTicks)` (or `QUIET_HOLD_TICKS`) in `holdQuietPlayers`'s quiet loop; flip that room test to expect the wave's one protected return. Or record in B15 that the quiet path is intentionally counted from the vanish. |
+| RR3-L1 | low (test strength) | `tools/bots/cut.test.ts:61,83,86` (`loadSlack = max(1, load/2)`) | **The AC 11 bound (back ≤ 10 s after the cut) has no ceiling under load.** Load 4 → 20 s, 8 → 40 s, 16 → 80 s (the `until` wait scales too: 15 s × slack). Measured here: back **303 ms** after the cut ends — the real margin is ~30×, so the 10 s bound itself was never the flaky part; scaling it mostly lets a real regression (e.g. a reconnect that waits out a 15–20 s backoff) pass on a loaded CI box. A tick bound doesn't fit (the SDK's reconnect backoff is wall-clock; under load the server's ticks stretch too and would hide the same regression). | Keep the slack on the waits (ready / ack / `until`) only and assert the AC's 10 s unscaled; or cap it (`min(2, …)`). |
+| RR3-N1 | nit (test gap) | `apps/server/src/rooms/RunRoom.ts:1018` (`onDropHold`'s end time) | **Nothing pins "the 120 s still run from the drop" in `heldUntilTick`.** Mutation: end time from the vanish (`w.tick + holdS·20`) → all 19 `RunRoom.reconnect` tests pass; teammates' chips would read 3 s more than the seat really has (the seat still expires at drop + holdS: Colyseus window). Probe R1 pins it: `heldUntilTick − dropTick` = 121 for holdS 6 (expected 120 ± 1), seat left 6016 ms after the drop. | One assertion in the drop test: `heldUntilTick − tickAtDrop ≈ holdS × 20`. |
+| RR3-N2 | nit (record) | this file, re-review 2 header | Re-review 2 says its probes are kept in `probes/8-1-rr2/*.probe.ts.txt`; that directory was never committed (absent on `story-8-1` and master). | Accept; re-review 3's probes are committed under `probes/8-1-rr3/`. |
+| Gate flakes (this round) | Gate 6 failed in `cut.test` at "the run goes on" (wave 4 never ended in 150 s); reproduced 1 in 37 standalone runs: all 4 bots `ok`, none held, not frozen, 10 wave zombies left, 0 queued (the reconnect had worked: `backAfterCutEndMs` ≈ 350). The test now logs `cut_test_stuck` (players, zombies) when that wait fails; cause not found (bots' hunting suspected, not proven; not attributable to RR3-M1 on this evidence). Gate 7 failed in "a team wipes … (F3)": Ana never sent an input, so D1's quiet rule could hold her and freeze the room before Bo's body vanished; she now sends inputs (like the other room tests), wait 10 s | F3 test: 6× the room file in parallel with server + shared (load 4.45), all green |
+
+#### Attempts
+
+| # | Area | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | RR2-M1 | live room: drop, sample teammate state every 100 ms while the body stands | 29 samples, `heldUntilTick` 0 in all; vanish after exactly 60 ticks; Ana's state gets `heldUntilTick` at the vanish ✔ |
+| 2 | RR2-M1 | end time at the vanish | `heldUntilTick − dropTick` = 121 (holdS 6 → 120): from the drop ✔; seat left 6016 ms after the drop — **not 3 s early, not 3 s late** ✔ |
+| 3 | RR2-M1 | client mirrors (NetSimHost, Predictor, devThrottle) | one removal point (`NetSimHost.dropMissing` / `addMissing`, `heldUntilTick > 0`); the Predictor reads `host.world`, devThrottle wraps the room's patches: all follow the same field, body removed in the patch of the vanish ✔ |
+| 4 | RR2-M1 | downed dropping teammate (live) | Ana's view at +1 s: `heldUntilTick` 0, `status` downed, bleed-out 375 → body, ring and revive prompt drawn; vanish → held, `out` (F1) ✔ |
+| 5 | RR2-M2 | return at 2.9 s (58 ticks) | still dropping, `returnPlayer` false → `cancelDrop`, in place, protect 0 ✔ |
+| 6 | RR2-M2 | return on the vanish tick | away 61 ticks (60 credited + the step; same +1 convention as any hold), teleport + protect 40 ✔ |
+| 7 | RR2-M2 | return at 3.1 s / then a second ≥ 3 s drop at 4 s in the same wave | 1st teleport + protect 40; 2nd in place, protect 0 (B15 once per wave) ✔ |
+| 8 | RR2-M2 | carry-over: drop, back at 1 s, drop again, vanish | `dropTicks` restarts at 60 on the 2nd drop; away at its vanish 61 = 2nd drop only; a "0 s second drop" can't reach the hold without its own 3 s standing ✔ |
+| 9 | RR2-M2 | drop, wave ends at 1 s | held at once in build with away 21 (what it really stood) — a build return gets nothing anyway ✔ |
+| 10 | RR2-M2 | does backdating shorten the 120 s? | no: `atTick` only feeds `longHold`; the window is Colyseus's `allowReconnection(leftS)` from `hold.atMs` (the drop) and `heldUntilTick` from the drop (#2) ✔ |
+| 11 | D1 | quiet 3 s → held, inputs 1 s later (controller + live) | **in place, protect 0** → RR3-M1 |
+| 12 | B18 | `returnPlayer(id, false)` after a 4 s hold | in place, protect 0, `protectedReturnWave` not consumed (−1) ✔; room passes `!state.frozen` before `updateFreeze`, so the first back into a frozen World is unprotected; returns during the 3-2-1 too (still frozen) ✔ |
+| 13 | Flake | quiet-then-drop test now asserts the `allowReconnection` window | holds the D1 rule (mutation M6 caught) ✔ |
+| 14 | Flake | cut.test `loadSlack` | unbounded with load; real margin 303 ms vs 10 s → RR3-L1 |
+
+#### Mutations (each reverted; one per new test)
+
+| Mutation | Result |
+| --- | --- |
+| M1 `startHold` writes `heldUntilTick` at the drop (no `isDropping` guard) | room drop test fails ✔ |
+| M2 `holdPlayer(id, 0)` at the vanish (no backdating) | `RunController.hold` RR2-M2 "back 4 s" + room drop test fail ✔ |
+| M3 `returnPlayer` ignores `allowProtect` | room solo freeze test fails ✔ |
+| M4 mirror keeps held teammates (`> 1e9` in `dropMissing` + `addMissing`) | `NetSimHost` RR2-M1 test fails ✔ (a first try changing `dropMissing` only survived: `addMissing` re-adds — the test's two sides are both needed, fine) |
+| M5 `onDropHold` writes no `heldUntilTick` | room drop test fails ✔ |
+| M6 a drop after a quiet hold restarts the window (`allowReconnection(holdS)`) | quiet-then-drop test fails ✔ |
+| M7 `onDropHold` end time from the vanish (fresh holdS) | **all 19 room tests pass** → RR3-N1 |
+| cut.test | not mutated (a regression must exceed 10 s to show; argued in RR3-L1 instead) |
+
+### Re-review 3 fixes (2026-11-25, builder)
+
+| ID | Fix | Test |
+| --- | --- | --- |
+| RR3-M1 | The quiet loop holds with `holdPlayer(id, s.quietTicks)` (the drop path's RR2-M2 twin): B15's "away ≥ 3 s" counts from the last input, so a quiet phone back 1 s after the vanish gets the wave's one teleport + protection | `RunController.hold.test.ts` › "RR3-M1 … quiet 3 s (held), back 1 s later"; the room test "a connected player with no input for 3 s … next to a teammate" now expects `protectTicks > 0` (mutation: no `awayTicks` → both fail) |
+| RR3-L1 | `cut.test.ts`: the AC 11 10 s bound is fixed again; the load slack (`min(2, max(1, load/2))`) is on the condition waits only | `cut.test.ts` |
+| RR3-N1 | — (code already right) | `RunRoom.reconnect.test.ts` › drop test: `heldUntilTick − dropTick ≈ holdS × 20` (± 5 ticks); mutation "end from the vanish" fails it |
+| RR3-N2 | Re-review 3's probes committed under `probes/8-1-rr3/`. Re-review 2's `probes/8-1-rr2/` were the reviewer session's and are not in this container (not on any branch): noted, not recoverable here | — |
+
+
+Gate (re-review 3, 2026-11-25 08:44–08:51 UTC, story-8-1 merged with origin/master 8248be0, `npm ci`): `npm run typecheck && npm run lint && npm test && npm run build` → EXIT 0; 429 test files passed / 1 skipped, 3897 tests passed / 3 skipped; build ok. Load 3.31 at start, 3.53 at end. (Gates 6 and 7 of this round failed on the two flakes above.)
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
 - 2026-11-25: built (T1–T9), merged with master after 8.8 and 8.9 landed; decisions 8.1 B1–B14 auto-accepted overnight; status review.
 - 2026-11-25: senior developer review (AI): changes requested (H1–H3, M1–M3, L1–L6); findings above.
 - 2026-11-25: review fixes H1–H3, M1 (decision 8.1 B15), M2, M3, L1–L6 (builder); 8.10 hooks left as comments.
+- 2026-11-25: narrow re-review 1: RR1-M1, B16–B18 auto-accepted, nits N1–N4.
+- 2026-11-25: re-review 1 fixes RR1-M1, B16 (dropped body stays 3 s), B17 (accepted), B18 (solo: 3-2-1 replaces protection), N1–N4 (builder).
+- 2026-11-25: merged master with Story 8.10; 8.10 hooks wired (resetHordeStream / forgetClient) and the keyframe-after-reconnect test (8.1 landed second).
+- 2026-11-25: re-review 2 fixes RR2-M1, RR2-M2 (+ B18 kept via allowProtect), B19 recorded, two flaky tests hardened (builder).
+- 2026-11-25: re-review 3 fixes RR3-M1 (quiet hold backdated), RR3-L1 (cut.test 10 s bound fixed), RR3-N1 test, RR3-N2 probes (builder).
+
+
+### Main session close-out (2026-11-25)
+
+Re-review cap (designer 2026-11-25): the re-review-3 fixes (ef8674c RR3-M1 one-line mirror of RR2-M2, RR3-L1, RR3-N1, RR3-N2; 13b4095 cut.test diagnostic; 1f9e151 F3 wipe-test input) were checked by the main session (diff read, touched tests) instead of a 4th re-review. Open follow-up: cut.test 'the run goes on' flake (1 in 37 standalone runs: wave 4 never ended in 150 s; reconnect itself fine; logs cut_test_stuck now; suspected bot hunting).

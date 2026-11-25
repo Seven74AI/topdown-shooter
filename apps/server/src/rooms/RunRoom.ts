@@ -448,9 +448,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private attachClient(client: RunClient, member: Member): void {
     // Review L2: a reconnect (same sessionId) keeps its guard: buckets and drop counters carry over.
     this.net.add(client, member.playerId, true);
-    // Story 8.10 hook: every caller passes a NEW Colyseus client object (Colyseus 0.18 builds a new client on a
-    // reconnect, `_onJoin` › `reconnection.resolve(client)`), so 8.10's WeakMap-per-client encoder starts with a
-    // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
+    // Story 8.10 × 8.1: every caller passes a NEW Colyseus client object (0.18 builds a new client on a reconnect,
+    // `_onJoin` › `reconnection.resolve(client)`), so the WeakMap-per-client encoder starts with a keyframe by
+    // itself; resetting the stream here is belt and braces (first join, reconnect, takeover, restored seat).
+    this.horde?.resetHordeStream(client);
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // Story 7.2 (RR-L1): the run's id first, during a run or on its Results, so the phone accepts only this run's rewards.
@@ -486,7 +487,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.netMeters.delete(old.sessionId);
     this.lastPongId.delete(old.sessionId);
     this.net.rename(old.sessionId, client.sessionId); // review L2: the seat's buckets and drop counters move with it
-    // Story 8.10 hook: delete old.sessionId's per-client horde baseline here.
+    const oldClient = this.clients.getById(old.sessionId);
+    if (oldClient) this.horde?.forgetClient(oldClient); // Story 8.10: the old socket's horde baseline goes with it
     const hold = this.holds.get(member.playerId);
     if (hold?.reconnection) {
       hold.reconnection.reject(new Error("taken_over"));
@@ -541,7 +543,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private startHold(member: Member, reason: HoldReason, client: RunClient | null): void {
     const controller = this.controller;
     if (!controller) return;
-    controller.holdPlayer(member.playerId); // false when already held (quiet → drop)
+    // Decision 8.1 B16: a drop leaves the body standing for 3 s mid-wave (it vanishes then, `onDropHold`); a quiet seat
+    // is already out of the World (the controller held it); either is a no-op when already held (quiet → drop).
+    if (reason === "drop") controller.dropPlayer(member.playerId);
+    else controller.holdPlayer(member.playerId);
     let hold = this.holds.get(member.playerId);
     const fresh = !hold;
     if (!hold) {
@@ -561,7 +566,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       hold.timer = this.clock.setTimeout(() => this.expireQuiet(member.playerId), leftS * 1000);
     }
     const s = this.state.players.get(member.playerId);
-    if (s && fresh) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
+    // Re-review RR2-M1: `heldUntilTick` (the chip, the vote panel, and the mirror hiding the body) only once the body
+    // has really left the World — a B16 dropping body stays visible for its 3 s; `onDropHold` writes it at the vanish.
+    if (s && fresh && !controller.isDropping(member.playerId)) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
     this.log.info({ playerId: member.playerId, reason, wave: controller.world.waves.number, phase: this.state.phase }, "player_held");
     this.updateFreeze();
   }
@@ -572,7 +579,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!hold) return;
     hold.timer?.clear();
     this.holds.delete(member.playerId);
-    this.controller?.returnPlayer(member.playerId);
+    // B16: back while the dropped body still stands: it plays on in place (no return placement, no protection).
+    // Decision 8.1 B18: back into a frozen World, the 3-2-1 replaces the return protection (and placement).
+    if (!this.controller?.returnPlayer(member.playerId, !this.state.frozen)) this.controller?.cancelDrop(member.playerId);
     const s = this.state.players.get(member.playerId);
     if (s) s.heldUntilTick = 0;
     if (this.controller) syncState(this.state, this.controller); // the placed body and protection in the next patch
@@ -595,7 +604,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /**
    * Story 8.1 (F6, Epic 8 D5): nobody present in the World (all dropped or quiet) → the World
    * freezes (`onTick` stops stepping; tick-counted timers wait by construction). The first one back
-   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it.
+   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it — decision 8.1 B19: a B16
+   * dropping body counts as present, so a solo drop (or a re-drop during the 3-2-1) first runs its 3 s in a
+   * stepped World (the count finishes, the body stands hittable) and only then freezes.
    */
   private updateFreeze(): void {
     const controller = this.controller;
@@ -709,7 +720,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       controller?.removePlayer(playerId);
     }
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
-    // Story 8.10 hook: delete member.sessionId's per-client horde baseline here.
+    const gone = this.clients.getById(member.sessionId);
+    if (gone) this.horde?.forgetClient(gone); // Story 8.10: its horde baseline goes with it
     this.lastPongId.delete(member.sessionId);
     this.netMeters.delete(member.sessionId);
     const reason: PlayerLeftReason = why === "left" ? "left" : "disconnected";
@@ -745,7 +757,6 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   override onReconnect(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
-    // Story 8.10 hook: reset this sessionId's per-client horde baseline (the phone may have missed frames).
     this.lastPongId.delete(client.sessionId);
     this.attachClient(client, member);
     const hold = this.holds.get(member.playerId);
@@ -1067,6 +1078,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
       onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
       // Story 8.1 (D1): a connected player quiet for 3 s in a wave is held like a drop.
+      // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
+      onDropHold: (playerId) => {
+        this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
+        // RR2-M1: the body left the World now: teammates' chips and mirrors follow; the 120 s still run from the drop.
+        const hold = this.holds.get(playerId);
+        const s = this.state.players.get(playerId);
+        const w = this.controller?.world;
+        if (hold && s && w) s.heldUntilTick = w.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
+        this.updateFreeze();
+      },
       onQuietHold: (playerId) => {
         for (const m of this.members.values()) if (m.playerId === playerId) this.startHold(m, "quiet", null);
       },

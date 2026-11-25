@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView, NET_PROTOCOL_VERSION } from "@topdown/shared";
+import { BYTES, C2S, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setRoomAccounts } from "../auth/roomAccounts";
 import { signTicket } from "../auth/ticket";
