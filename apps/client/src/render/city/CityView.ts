@@ -4,7 +4,7 @@ import { lampOutAt } from "./lampFlicker";
 import { rainAlphaFor } from "./rainLook";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
-import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, policePieces, resetPatternTiles, type CityScene } from "./drawCity";
+import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, policePieces, releaseShadowStamps, resetPatternTiles, type CityScene } from "./drawCity";
 import { PoliceLineView } from "./PoliceLineView";
 import type { PolicePiece } from "./streetPropsFrames";
 import { standDepth } from "../barricadeLook";
@@ -494,6 +494,7 @@ export class CityView {
     this.fireRingGlow.destroy();
     this.fireView.destroy();
     this.policeLines.destroy();
+    releaseShadowStamps(); // review L1
     for (const img of [this.flickerPool, this.flickerCore, ...this.lampDark, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }

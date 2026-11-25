@@ -164,9 +164,20 @@ function carShadow(g: G, s: number, b: Box, len: number): void {
 function frameShadow(g: G, s: number, atlas: AtlasCanvas, name: string, b: Box, front: Front, len: number, alpha = 0.62): void {
   if (typeof document === "undefined") return paintFrameShadow(g, s, atlas, name, b, front, len, alpha); // tests (fake context)
   // Perf: one blurred stamp per picture, facing, size and bake density, kept between bakes (a stage change only
-  // copies it); `resetPatternTiles` drops them with the other cached tiles after a lost context.
-  const key = `${name}|${front}|${b.w}|${b.h}|${len}|${alpha}|${s}`;
+  // copies it); `resetPatternTiles` drops them with the other cached tiles after a lost context, and a new bake density
+  // drops them all (review L1: a stamp is only reused at its own density).
+  if (s !== stampScale) {
+    releaseShadowStamps();
+    stampScale = s;
+  }
+  const key = `${name}|${front}|${b.w}|${b.h}|${len}|${alpha}`;
   let st = shadowStamps.get(key);
+  if (st && !stampIntact(st)) {
+    // review L6: the browser emptied this canvas (Android drops 2D canvases in the background): paint it again
+    releaseCanvas(st.c);
+    shadowStamps.delete(key);
+    st = undefined;
+  }
   if (!st) {
     const pad = Math.ceil(len + 3 * Math.max(1.5, len * 0.3) + 4);
     const c = document.createElement("canvas");
@@ -175,12 +186,48 @@ function frameShadow(g: G, s: number, atlas: AtlasCanvas, name: string, b: Box, 
     const sg = c.getContext("2d") as G;
     sg.setTransform(s, 0, 0, s, 0, 0);
     paintFrameShadow(sg, s, atlas, name, { ...b, x: pad, y: pad }, front, len, alpha);
-    st = { c, pad };
+    st = { c, pad, probe: darkPixel(sg, c.width, c.height) };
     shadowStamps.set(key, st);
   }
   g.drawImage(st.c, b.x - st.pad, b.y - st.pad, st.c.width / s, st.c.height / s);
 }
-const shadowStamps = new Map<string, { readonly c: HTMLCanvasElement; readonly pad: number }>();
+interface ShadowStamp {
+  readonly c: HTMLCanvasElement;
+  readonly pad: number;
+  /** A pixel that is dark in the stamp, read to see it's still there (null: none found, never checked). */
+  readonly probe: readonly [number, number] | null;
+}
+/** The first dark pixel of a 3 × 3 grid round the stamp's middle (under the picture's contact shadow). */
+function darkPixel(g: G, w: number, h: number): [number, number] | null {
+  try {
+    for (const fy of [0.5, 0.4, 0.6]) {
+      for (const fx of [0.5, 0.4, 0.6]) {
+        const x = Math.floor(w * fx);
+        const y = Math.floor(h * fy);
+        if ((g.getImageData(x, y, 1, 1).data[3] ?? 0) > 0) return [x, y];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+const shadowStamps = new Map<string, ShadowStamp>();
+let stampScale = 0;
+function stampIntact(st: ShadowStamp): boolean {
+  if (st.c.width === 0) return false;
+  if (!st.probe) return true;
+  try {
+    return ((st.c.getContext("2d") as G).getImageData(st.probe[0], st.probe[1], 1, 1).data[3] ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+/** Story 9.14: frees the shadow stamps (a lost context, a new bake density, the city view going away). */
+export function releaseShadowStamps(): void {
+  for (const st of shadowStamps.values()) releaseCanvas(st.c);
+  shadowStamps.clear();
+}
 function paintFrameShadow(g: G, s: number, atlas: AtlasCanvas, name: string, b: Box, front: Front, len: number, alpha: number): void {
   softShadow(g, s, Math.max(1.5, len * 0.3), `rgba(0,0,0,${alpha})`, () => {
     for (let k = 1; k <= FRAME_SHADOW_STEPS; k++) {
@@ -239,8 +286,7 @@ let patternTiles: { grain: HTMLCanvasElement; fine: HTMLCanvasElement; wet: HTML
 /** Story 4.13: drops the cached noise tiles (the browser may have emptied them with a lost graphics context). */
 export function resetPatternTiles(): void {
   patternTiles = null;
-  for (const st of shadowStamps.values()) releaseCanvas(st.c); // Story 9.14
-  shadowStamps.clear();
+  releaseShadowStamps(); // Story 9.14
 }
 function patterns(g: G): Patterns {
   patternTiles ??= {

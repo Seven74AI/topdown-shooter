@@ -6,10 +6,10 @@ import type { PolicePiece } from "./streetPropsFrames";
 /**
  * Story 9.14 (AC 4): the sawhorse police lines stand. A small pool of images on the downtown atlas shows the pieces the
  * city bake no longer draws (`drawCity.ts › policePieces`), sorted like the 9.11 standing barricades (`standDepth`):
- * above the bodies, nearer the camera over farther; a drum just over the pieces of its row. Placed once per city bake
- * (stage change), never per frame. `sprites()` feeds the 9.12 silhouettes (GameScene).
+ * above the bodies, nearer the camera over farther; a drum just over the pieces it stands on (`PolicePiece.sortY`).
+ * Placed once per city bake (stage change), never per frame. `sprites()` feeds the 9.12 silhouettes (GameScene).
  */
-/** Depth step between pieces of one row (later pieces over earlier ones) and the drums' lift. */
+/** Depth step between pieces of one line (later pieces over earlier ones; ≪ the lift) and the drums' lift. */
 const ROW_EPS = 1e-6;
 const DRUM_LIFT = 1e-4;
 
@@ -33,7 +33,7 @@ export class PoliceLineView {
         .setOrigin(p.originX, p.originY)
         .setPosition(p.x, p.y)
         .setDisplaySize(p.wM, p.hM)
-        .setDepth(standDepth(p.sortY) + (p.drum ? DRUM_LIFT : 0) + i * ROW_EPS)
+        .setDepth(standDepth(p.sortY) + (p.drum ? DRUM_LIFT : 0) + p.order * ROW_EPS) // review M2: per line
         .setVisible(true);
       this.shown.push(img);
     });

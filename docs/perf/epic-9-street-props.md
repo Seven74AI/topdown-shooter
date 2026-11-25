@@ -74,4 +74,6 @@ referenced for repaints (another 4.4 MB); the loader's GPU copy is removed.
 | alternatives not shipped | PNG 892 KB, WebP q90 129 KB (lossy: re-encodes the approved pixels) |
 
 531 KB added to the first load, far under the 2 MB story cap and the 15 MB / 10 s first-load budget. The Boot scene
-loads it behind the title (500 ms). The frame JSON (5 KB) is bundled into the JS.
+starts the download as it shows the title; the title and the start handlers never wait for it (review H1). A run's
+start waits until the image is in, has failed, or 12 s have passed; then the street is drawn from the image, or from
+code (B8). The frame JSON (5 KB) is bundled into the JS.

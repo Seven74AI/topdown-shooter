@@ -91,7 +91,26 @@ Claude (builder session for Story 9.14, gds-dev-story flow).
 - **B17** The pilot's flat sawhorse `prop_barrier_a` stays in the atlas (frame names unchanged, gallery), but the game no longer uses it.
 - **B18 Silhouette occluders** (`policeOccluderX`): a front piece's sawhorses (units ⅓ of the width each), a side piece ±0.22 m about its middle, the drum ±0.23 m.
 - **B20 Shadow stamps.** The first perf run had the city bake +30 ms per stage change at 1× (+120 ms at 4×) because every bake blurred every picture's shadow. Each blurred shadow is now cached as a stamp (picture, facing, box, bake density) and dropped after a lost context. Stage changes now bake as fast as master; the first bake at load is +28 ms at 1× (+44–160 ms at 4×), once.
+- **B21 First city bake (review M3, accepted by the orchestrator).** The first bake at load builds the shadow stamps: +28 ms at 1× (128 / 131 vs 104 / 99 ms) and +44–160 ms at 4× (682 / 555 vs 522 / 511 ms), once, at run start before the first build phase. Stage-change bakes match master. Spreading the stamp build over the first frames was not trivial (the bake is one synchronous tile paint), so it stays as is.
+- **B22 Drift hash inputs (review M1).** The hash is built from esbuild's metafile inputs for the atlas page: 22 files, listed in `streetProps.json › sources`. `node_modules` and `packages/shared` are excluded. The shared package (balance JSON, sims, map data) is pulled in through `dressing.ts`'s imports but never reaches the pictures, and hashing it would fail every story's CI on any balance change. The check test rebuilds the list with esbuild and compares it.
+- **B23 Review L4 accepted as is** (orchestrator: the same pattern as the 9.12 side walls).
+- **B24 Boot and the image (review H1).** The Boot scene no longer preloads. `create()` puts up the title and the start handlers at once and starts the download in the background. A start request is taken at once and the Game scene starts when the download settles: loaded, failed (one `console.warn`, B8), or 12 s timeout (`STREET_PROPS_TIMEOUT_MS`; an image that lands later is dropped). Nothing is queued again after a failure or once `atlas_downtown` exists. Slow 4G (CDP, dev-mode builds served by vite preview, `docs/art/9-14/slow4g.cjs`): page load to title went from 9.7 s / 9.7 s to 6.0 s / 6.0 s (2 rounds); `?solo` to the first city bake went from 12.3 / 12.0 s to 11.6 / 11.7 s, with the photo atlas in both.
 - **B19 Perf at stage 2 too.** `?stress=150` runs at stage 1, which has no police line, so the table adds a stress row forced to stage 2 (`applyDecayStage`) on both trees.
+
+### Review fixes (orchestrator review of PR #22 @a80ae3f: 1 high, 3 medium, 8 low)
+
+- H1: `BootScene.ts` (`create` → `loadStreetProps`, `startGame` → `whenStreetPropsSettled`); `streetPropsAtlas.ts` (state machine, timeout, failure memory, late image dropped); `gallery/collect.ts` (`loadStreetProps(this, false)` from preload); test `scenes/bootStreetProps.test.ts` (startOnline taken before the image, failure, timeout, no load once the atlas exists). B24.
+- M1: `tools/art/streetProps.ts` (`streetPropsSources` from esbuild metafile, `sources` + `chromium` in the JSON); `tools/checks/streetPropsAtlas.test.ts` checks the set. B22.
+- M2: `streetPropsFrames.ts` (drum `sortY` = max of the pieces it stands on, per-line `order`, `lampOnMap`); `PoliceLineView.ts` (per-line tie-break). Tests: N–S depth in `streetPropsFrames.test.ts` and `streetPropsAtlas.test.ts` (PoliceLineView). Still: `docs/art/9-14/stage2-gasline-north-phone.png`.
+- M3: B21.
+- L1: `drawCity.ts` (stamps dropped on a new bake density, `releaseShadowStamps` in `CityView.destroy`).
+- L2: esbuild 0.28.2 pinned in the root devDependencies; Chromium version in the JSON; Playwright comment fixed.
+- L3: `policeLineLayout` (one piece: only what fits, centred; a N–S line shorter than a side piece: drums only), with a test.
+- L4: B23.
+- L5: tests for takeStreetProps / ensureAtlases (loader texture removed, wrong-size image), PoliceLineView pooling and depth, line-name variants, and a stronger bakeTiles fallback check. World digest: `packages/shared` has no diff on this branch, and the digest is computed there only (the client art modules aren't imported by it), so it can't change.
+- L6: `drawCity.ts › stampIntact`. A stamp whose probe pixel reads empty is painted again on the next bake. `invalidateBake` only runs on a lost WebGL context or a restored tile canvas, not when the browser empties another 2D canvas.
+- L7: one `console.warn` on fallback (`streetPropsAtlas.ts › settle`).
+- L8: readability key 142 notes the dumpster's 4.5 cm side gaps.
 
 ### Debug Log References
 
@@ -114,6 +133,6 @@ Claude (builder session for Story 9.14, gds-dev-story flow).
 - `apps/client/src/render/city/streetPropsAtlas.test.ts`, `streetPropsFrames.test.ts` (new); `bakeTiles.test.ts`
 - `apps/client/src/render/city/spriteAtlas.ts`, `drawCity.ts`, `CityView.ts`, `buildingsFrames.ts`, `barricadeArt.ts`
 - `apps/client/src/scenes/BootScene.ts`, `GameScene.ts`; `apps/client/src/gallery/collect.ts`
-- `tools/art/streetProps.ts`, `tools/checks/streetPropsAtlas.test.ts` (new); `tools/gallery/export.ts`, `review-page.html`, `manifest.json`; `package.json`
+- `tools/art/streetProps.ts`, `tools/checks/streetPropsAtlas.test.ts`, `apps/client/src/scenes/bootStreetProps.test.ts` (new); `package-lock.json`; `tools/gallery/export.ts`, `review-page.html`, `manifest.json`; `package.json`
 - `docs/art/photoreal-1/src/atlas.ts` (new), `pilot.ts` (exports + main guard only)
 - `docs/art/9-14/*`, `docs/perf/epic-9-street-props.md`, `docs/art/9-14/perf.cjs`, `docs/art/asset-review.md`, `docs/art/photoreal-decisions.md`, `docs/playtests/milestone-1/readability-{sheet,key}.md`, `_bmad-output/planning-artifacts/game-architecture.md`

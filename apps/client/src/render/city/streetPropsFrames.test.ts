@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { POLICE_DRUM, POLICE_DRUM_R_M, POLICE_FRONT_W_M, POLICE_SIDE_LEN_M, POLICE_UNIT_M, policeLineLayout, policeOccluderX, type PolicePiece } from "./streetPropsFrames";
+import { POLICE_DRUM, POLICE_DRUM_LAMP_DY_M, POLICE_DRUM_R_M, POLICE_FRONT_W_M, POLICE_SIDE_LEN_M, POLICE_UNIT_M, policeLineLayout, policeOccluderX, type PolicePiece } from "./streetPropsFrames";
 import { wallOccluderX } from "./buildingsFrames";
 import { blinkerSpots, policePieces } from "./drawCity";
 import { downtownScene } from "./testScene";
@@ -42,7 +42,46 @@ describe("Story 9.14 (AC 4): a sawhorse police line laid with the standing pictu
     expect(pieces.every((p) => /^prop_policeside_[ab]$/.test(p.frame) && p.x === 28.25 && p.sortY === p.y)).toBe(true);
     expect((pieces[0] as PolicePiece).y - POLICE_SIDE_LEN_M / 2).toBe(0);
     expect((pieces[4] as PolicePiece).y + POLICE_SIDE_LEN_M / 2).toBe(10);
-    expect(ps.filter((p) => p.drum).map((d) => d.y)).toEqual([POLICE_DRUM_R_M, 10 - POLICE_DRUM_R_M]);
+    // review M2: the north drum moves down so its lamp stays on the map (the line starts at the map's top edge)
+    const drums = ps.filter((p) => p.drum);
+    expect((drums[0] as PolicePiece).y + POLICE_DRUM_LAMP_DY_M).toBeGreaterThanOrEqual(0);
+    expect((drums[0] as PolicePiece).y).toBeLessThan(box.minY + 1);
+    expect((drums[1] as PolicePiece).y).toBe(10 - POLICE_DRUM_R_M);
+  });
+
+  it("review M2: on a north–south line each drum sorts over the side piece it stands on (and its blinker over the drum)", () => {
+    const box = { name: "police_line_gas", minX: 28, minY: 0, maxX: 28.5, maxY: 10 };
+    const ps = policeLineLayout(box);
+    const pieces = ps.filter((p) => !p.drum);
+    const [north, south] = ps.filter((p) => p.drum) as [PolicePiece, PolicePiece];
+    expect(north.sortY).toBe((pieces[0] as PolicePiece).sortY); // over the first piece (y = 1), not under it
+    expect(north.sortY).toBeLessThan((pieces[1] as PolicePiece).sortY);
+    expect(south.sortY).toBeGreaterThanOrEqual((pieces[4] as PolicePiece).sortY); // nearer the camera than the last piece already
+    // order: per line, so another line's pieces don't shift these
+    expect(ps.map((p) => p.order)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("review L3: a line short enough for one piece never overhangs its box", () => {
+    for (const L of [0.7, 1, 1.4, 1.9, 2]) {
+      const ps = policeLineLayout({ name: "short", minX: 5, minY: 0, maxX: 5 + L, maxY: 0.5 }).filter((p) => !p.drum);
+      expect(ps.length).toBe(1);
+      const p = ps[0] as PolicePiece;
+      const west = p.x - POLICE_FRONT_W_M / 2;
+      expect(west).toBeGreaterThanOrEqual(5 - 1e-9);
+      expect(west + unitsOf(p) * POLICE_UNIT_M).toBeLessThanOrEqual(5 + L + 1e-9);
+    }
+    // a north–south line shorter than a side piece: only its drums
+    const s = policeLineLayout({ name: "short", minX: 0, minY: 4, maxX: 0.5, maxY: 5.5 });
+    expect(s.every((p) => p.drum)).toBe(true);
+    expect(s.length).toBe(2);
+  });
+
+  it("review L5: the variants follow the line's name", () => {
+    const at = { minX: 0, minY: 0, maxX: 10, maxY: 0.5 };
+    const frames = (name: string): string[] => policeLineLayout({ name, ...at }).filter((p) => !p.drum).map((p) => p.frame);
+    const names = ["police_line_lot", "police_line_gas", "a", "b", "c"].map(frames).map((f) => f.join());
+    expect(new Set(names).size).toBeGreaterThan(1);
+    expect(frames("police_line_lot")).toEqual(frames("police_line_lot"));
   });
 
   it("a line whose length isn't a whole number of pieces: a shorter last front piece; overlapping side pieces", () => {

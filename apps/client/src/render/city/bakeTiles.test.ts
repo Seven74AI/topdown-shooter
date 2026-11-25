@@ -118,9 +118,18 @@ describe("Story 9.14: the bake with the pre-rendered photoreal atlas", () => {
     expect(cs.cover.length - noLines.cover.length).toBe(2);
     expect(overlayLog(noLines)).toBe(overlayLog(cs));
     expect(overlayLog(cs)).toContain(src(PROP_BARRIER_CONCRETE));
-    // with the code atlas the lines are still drawn flat (fallback)
-    const code = downtownScene(2);
-    expect(overlayLog({ ...code, cover: code.cover.filter((c) => !c.name.startsWith("police_line_")) })).not.toBe(overlayLog(code));
+    // with the code atlas (B8 fallback) the lines are still drawn flat, from code: many paint calls, no picture
+    const frames = new Map(packAtlas(downtownSpecs()).frames.map((f) => [f.name, f] as const));
+    const code: CityScene = { ...downtownScene(2), atlas: { canvas: {}, frames } as unknown as CityScene["atlas"] };
+    const withLines = overlayLog(code).split("\n");
+    const without = overlayLog({ ...code, cover: code.cover.filter((c) => !c.name.startsWith("police_line_")) }).split("\n");
+    expect(withLines.length - without.length).toBeGreaterThan(100);
+    expect(withLines.some((l) => l.startsWith("fillRect("))).toBe(true);
+    const codeLog = withLines.join("\n");
+    expect(Object.keys(STREET_PROPS_FRAMES).some((n) => codeLog.includes(src(n)))).toBe(false); // nothing from the image layout
+    const car = frames.get(CAR_FRAMES[0] as string) as { x: number; y: number; w: number; h: number };
+    expect(CAR_FRAMES.some((n) => { const f = frames.get(n) as typeof car; return codeLog.includes(`drawImage(obj,${f.x},${f.y},${f.w},${f.h},`); })).toBe(true);
+    expect(car).toBeDefined();
   });
 
   it("a burning car is drawn from its burnt picture, a parked one from its car picture", () => {

@@ -8,6 +8,7 @@ const SCENES = [
   ["stage1-street", "solo&startwave=1", [14, 22.5], 0, 1500],
   ["stage2-police", "stress=150", [15, 24.2], 2, 9000],
   ["stage2-gasline", "solo&startwave=3", [26.5, 6.5], 0, 1500],
+  ["stage2-gasline-north", "solo&startwave=3", [26.5, 2.2], 0, 1500], // review M2: the north drum over the first piece, its blinker on the map
   ["stage3-burning-rain", "solo&startwave=5", "fire", 0, 2500],
   ["stage4-rubble", "solo&startwave=7", [11, 15], 0, 2500],
 ];

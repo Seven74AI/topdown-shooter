@@ -6,7 +6,7 @@ import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
-import { queueStreetProps } from "../render/city/streetPropsAtlas";
+import { loadStreetProps, whenStreetPropsSettled } from "../render/city/streetPropsAtlas";
 
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
@@ -25,12 +25,10 @@ export class BootScene extends Phaser.Scene {
     super("Boot");
   }
 
-  /** Story 9.14 (B1): the pre-rendered street props atlas (one image, ~0.5 MB), loaded behind the title. */
-  preload(): void {
-    queueStreetProps(this);
-  }
-
   create(data?: BootSceneData): void {
+    // Story 9.14 (B1, review H1): the street props atlas image (~0.5 MB) downloads in the background while the title and
+    // the start screen are up; a start waits for it to settle (at most `STREET_PROPS_TIMEOUT_MS`), see `startGame`.
+    loadStreetProps(this);
     prewarmAmbience(); // Stories 4.6/4.7 review M: synthesize the ambience loops in idle time on the start screen / lobby (once per page)
     const error = data?.error;
     if (data?.lobby || data?.start) {
@@ -75,13 +73,21 @@ export class BootScene extends Phaser.Scene {
   private startOnline(session: NetSession): void {
     uiStore.handle("startSolo", undefined);
     uiStore.handle("startOnline", undefined);
-    this.scene.start("Game", { mode: "online", session } satisfies GameSceneData);
+    this.startGame({ mode: "online", session });
   }
 
   /** Offline play, exactly as in Epic 1. */
   private startSolo(): void {
     uiStore.handle("startSolo", undefined);
     uiStore.handle("startOnline", undefined);
-    this.scene.start("Game", { mode: "solo" } satisfies GameSceneData);
+    this.startGame({ mode: "solo" });
+  }
+
+  /**
+   * Story 9.14 (review H1): the request was taken (the handlers are gone, as before); the Game scene starts once the
+   * street props image has settled, so the city is drawn with it (or from code after a failure or the timeout).
+   */
+  private startGame(data: GameSceneData): void {
+    whenStreetPropsSettled(() => this.scene.start("Game", data));
   }
 }

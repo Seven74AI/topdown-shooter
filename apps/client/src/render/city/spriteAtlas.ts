@@ -448,8 +448,13 @@ export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
   register(scene, ATLAS_CHARACTERS, characterSpecs, drawCharacterFrame);
   register(scene, ATLAS_FX, fxSpecs, drawFxFrame);
   // Story 9.14: the pre-rendered photoreal props when the image loaded; the code drawings otherwise (B8)
-  const img = takeStreetProps(scene);
-  if (!scene.textures.exists(ATLAS_DOWNTOWN)) downtownAtlas = img ? imageAtlas(img, scene) : register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
-  if (!downtownAtlas) downtownAtlas = img ? imageAtlas(img) : build(downtownSpecs(), drawDowntownFrame);
+  if (!scene.textures.exists(ATLAS_DOWNTOWN)) {
+    const img = takeStreetProps(scene);
+    downtownAtlas = img ? imageAtlas(img, scene) : register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
+  }
+  if (!downtownAtlas) {
+    const img = takeStreetProps(scene);
+    downtownAtlas = img ? imageAtlas(img) : build(downtownSpecs(), drawDowntownFrame);
+  }
   return downtownAtlas;
 }

@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { ensureAtlases } from "../render/city/spriteAtlas";
-import { queueStreetProps } from "../render/city/streetPropsAtlas";
+import { loadStreetProps } from "../render/city/streetPropsAtlas";
 import { ensureBuildingsAtlas, pumpBuildingsAtlas } from "../render/city/buildingsAtlas";
 import { ensureCharacterSheets, pumpCharacters } from "../render/city/charactersAtlas";
 import { ensureBuildIcons } from "../render/city/buildIcons";
@@ -40,7 +40,7 @@ export async function collectAssets(): Promise<Asset[]> {
     class Collect extends Phaser.Scene {
       // Story 9.14: the street props atlas image, loaded before the downtown atlas is cut (as the game's Boot scene)
       preload(): void {
-        queueStreetProps(this);
+        loadStreetProps(this, false);
       }
       create(): void {
         try {

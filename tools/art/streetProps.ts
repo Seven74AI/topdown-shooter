@@ -11,28 +11,36 @@ import { build } from "esbuild";
  * which only a browser canvas has) and writes:
  *   apps/client/src/render/city/streetProps.webp  — the atlas (lossless WebP)
  *   apps/client/src/render/city/streetProps.json  — frame rects, lamp spots, the hash of the image and of the sources
- * The source hash lets `streetPropsAtlas.test.ts` fail when the drawing code changes and the atlas was not rebuilt.
+ * The source list and hash (every file the page is built from: `streetPropsSources`) let
+ * `tools/checks/streetPropsAtlas.test.ts` fail when the drawing code changes and the atlas was not rebuilt.
  * Output is deterministic for a given Chromium (seeded random everywhere).
  */
 const ROOT = join(import.meta.dirname, "..", "..");
 const OUT = join(ROOT, "apps", "client", "src", "render", "city");
 
-/** Every file whose code draws a picture in the atlas (the drift check hashes them). */
-export const STREET_PROPS_SOURCES: readonly string[] = [
-  "docs/art/photoreal-1/src/atlas.ts",
-  "docs/art/photoreal-1/src/pilot.ts",
-  "docs/art/photoreal-1/src/relief.ts",
-  "docs/art/asset-fixes-1/src/lib.ts",
-  "apps/client/src/render/city/barricadeArt.ts",
-  "apps/client/src/render/city/relight.ts",
-  "apps/client/src/render/city/groundDamageArt.ts",
-  "apps/client/src/render/city/streetPropsFrames.ts",
-];
+const ENTRY = "docs/art/photoreal-1/src/atlas.ts";
+/** The atlas page's bundle (and its metafile: the files it is built from). */
+const buildPage = () => build({ entryPoints: [join(ROOT, ENTRY)], absWorkingDir: ROOT, bundle: true, format: "iife", platform: "browser", target: "es2022", write: false, legalComments: "none", logLevel: "warning", metafile: true });
+
+/**
+ * Review M1: every file the atlas page is built from (esbuild's metafile inputs), repo-relative and sorted, except
+ * `node_modules` and `packages/shared` (B22: gameplay data and sims, pulled in through `dressing.ts`'s imports, never
+ * reach the pictures; hashing them would fail every story's CI on a balance change).
+ */
+export function inputsOf(metafile: { inputs: Record<string, unknown> }): string[] {
+  return Object.keys(metafile.inputs)
+    .filter((f) => !f.includes("node_modules") && !f.startsWith("packages/shared/"))
+    .sort();
+}
+export async function streetPropsSources(): Promise<string[]> {
+  const r = await buildPage();
+  return inputsOf(r.metafile);
+}
 
 /** sha256 of the sources (line endings normalised), first 16 hex. */
-export function sourcesHash(root = ROOT): string {
+export function sourcesHash(files: readonly string[], root = ROOT): string {
   const h = createHash("sha256");
-  for (const f of STREET_PROPS_SOURCES) h.update(f).update("\0").update(readFileSync(join(root, f), "utf8").replace(/\r\n/g, "\n")).update("\0");
+  for (const f of files) h.update(f).update("\0").update(readFileSync(join(root, f), "utf8").replace(/\r\n/g, "\n")).update("\0");
   return h.digest("hex").slice(0, 16);
 }
 
@@ -41,12 +49,14 @@ type Page = { on(ev: "pageerror" | "console", fn: (e: { message?: string; text?(
 type Browser = { newPage(): Promise<Page>; close(): Promise<void>; version(): string };
 
 async function main(): Promise<void> {
-  const r = await build({ entryPoints: [join(ROOT, "docs/art/photoreal-1/src/atlas.ts")], bundle: true, format: "iife", platform: "browser", target: "es2022", write: false, legalComments: "none", logLevel: "warning" });
+  const r = await buildPage();
   const js = (r.outputFiles[0] as { text: string }).text;
-  // The preinstalled Playwright (not a project dependency) resolves through NODE_PATH.
+  const sources = inputsOf(r.metafile);
+  // Playwright is a pinned devDependency; its Chromium is the one preinstalled in the environment (review L2).
   const { chromium } = createRequire(import.meta.url)("playwright") as { chromium: { launch(): Promise<Browser> } };
   const browser = await chromium.launch();
   let res: Result;
+  const chromiumVersion = browser.version();
   try {
     const page = await browser.newPage();
     page.on("pageerror", (e) => console.error("page error:", e.message));
@@ -55,7 +65,7 @@ async function main(): Promise<void> {
     await page.addScriptTag({ content: js });
     await page.waitForFunction(() => "__streetProps" in globalThis, null, { timeout: 300_000 });
     res = await page.evaluate(() => (globalThis as unknown as { __streetProps: Result }).__streetProps);
-    console.log(`rendered in ${((Date.now() - t0) / 1000).toFixed(1)} s (Chromium ${browser.version()})`);
+    console.log(`rendered in ${((Date.now() - t0) / 1000).toFixed(1)} s (Chromium ${chromiumVersion})`);
   } finally {
     await browser.close();
   }
@@ -69,7 +79,9 @@ async function main(): Promise<void> {
     note: "Story 9.14: written by `npm run art:street-props` (tools/art/streetProps.ts); do not edit.",
     image: "streetProps.webp",
     imageSha: createHash("sha256").update(webp).digest("hex").slice(0, 16),
-    sourcesHash: sourcesHash(),
+    chromium: chromiumVersion,
+    sourcesHash: sourcesHash(sources),
+    sources,
     width: res.width,
     height: res.height,
     pxPerM: res.pxPerM,
