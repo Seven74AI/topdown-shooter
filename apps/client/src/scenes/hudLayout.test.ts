@@ -945,6 +945,7 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
     { left: 0, right: 0, top: 0, bottom: 0 },
     { left: 44, right: 44, top: 0, bottom: 21 },
     { left: 44, right: 44, top: 20, bottom: 21 }, // review 7: a top inset too (the card keeps 12 px under ping / ☰)
+    { left: 0, right: 0, top: 20, bottom: 0 }, // re-review 2: the row's clamp under ping / ☰ with a top inset
   ] as const;
   const gapOf = (a: Box, b: Box): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
   /**
@@ -952,17 +953,28 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
    * and ↶'s one spot (above ⟳) there are 69 px for a 64 px row. Nothing overlaps; these gaps are exact.
    */
   const TIGHT_GAPS = new Map<string, number>([
-    ["568x320 44/21 closed: undo / consumable", 5],
-    ["568x320 44/21 closed: consumable / ping", 0],
-    ["568x320 44/21 closed: swap / ping", 0],
-    ["568x320 44/21 closed: swap / menu", 0],
+    ["568x320 44/21/0 closed: undo / consumable", 5],
+    ["568x320 44/21/0 closed: consumable / ping", 0],
+    ["568x320 44/21/0 closed: swap / ping", 0],
+    ["568x320 44/21/0 closed: swap / menu", 0],
+    // re-review 2: a 20 px top inset — the row clamped under ping / ☰ (0 px), 6 px above ↶
+    ["568x320 0/0/20 closed: undo / consumable", 6],
+    ["568x320 0/0/20 closed: consumable / ping", 0],
+    ["568x320 0/0/20 closed: swap / ping", 0],
+    ["568x320 0/0/20 closed: swap / menu", 0],
   ]);
+  /**
+   * Re-review 2: the one layout where the closed cluster cannot fit at all — 568 × 320 with 44/21 side / bottom insets AND a
+   * 20 px top inset (no phone has a landscape top inset at that size): between ping (bottom 80) and ↶'s one spot (top 129)
+   * there are 49 px for the 64 px row, so it would overlap one of them. Only its open panel is checked (review 7's case).
+   */
+  const CLOSED_INFEASIBLE = new Set(["568x320 44/21/20"]);
   for (const [w, h] of BUILD_SIZES) {
     for (const ins of INSETS) {
       it(`${w} × ${h}, insets ${ins.right}/${ins.bottom}/top ${ins.top}: inside the safe area, ≥ 48 px from the survivor, in the right half, no overlap, ≥ 12 px between separate controls (8 px inside a tile group); the open card ≥ 12 px from ping / ☰`, () => {
         const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
         const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
-        const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout());
+        const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout(), ins.top);
         const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
         const ms = MENU_BUTTON_CSS_PX;
         const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: ms, h: ms };
@@ -987,8 +999,8 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
         const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: s === PANEL_CELLS - 1 ? "build" : `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile }));
         const open: Box[][] = [cells, [ready], [ping], [menuBox]];
         const mine = new Set(["quick", "build", "shopchip", "undo", "consumable", "swap", ...cells.map((c) => c.id)]);
-        // review 7's top inset is a panel case (the card under ping / ☰): the closed cluster is checked without it.
-        for (const [mode, groups] of (ins.top > 0 ? [["open", open]] : [
+        const layoutKey = `${w}x${h} ${ins.right}/${ins.bottom}/${ins.top}`;
+        for (const [mode, groups] of (CLOSED_INFEASIBLE.has(layoutKey) ? [["open", open]] : [
           ["closed", closed],
           ["open", open],
         ]) as [string, Box[][]][]) {
@@ -1010,7 +1022,7 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
             for (let j = i + 1; j < groups.length; j++) {
               for (const a of gi) {
                 for (const b of groups[j] as Box[]) {
-                  const tag = `${w}x${h} ${ins.right}/${ins.bottom} ${mode}: ${a.id} / ${b.id}`;
+                  const tag = `${layoutKey} ${mode}: ${a.id} / ${b.id}`;
                   const tight = TIGHT_GAPS.get(tag);
                   if (tight !== undefined) expect(gapOf(a, b), `${tag} (listed tight gap)`).toBeCloseTo(tight, 3);
                   else expect(gapOf(a, b), tag).toBeGreaterThanOrEqual(12 - 1e-6);
@@ -1077,7 +1089,16 @@ describe("Story 10.10 review 1, 2 + re-review 1: holding-mode Place / ⟳ / ✕ 
           { id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size },
           { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh },
           { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) },
+          { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX }, // re-review 2: ☰ too
         ];
+        // re-review 2 (M): ↶'s one spot vs the open panel's cells. Only type cells (0–5 and the quick type's 7, B13) may lie
+        // over it: a pick there starts the hold, and ↶'s press is dropped within barQuietMs of it (`dropUndoAfterPick`).
+        const undoBox: Box = { id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size };
+        for (let c = 0; c < PANEL_CELLS - 1; c++) {
+          const cell: Box = { id: `ptile${c}`, x: pn.x[c] as number, y: pn.y[c] as number, w: pn.tile, h: pn.tile };
+          if (overlaps(cell, undoBox)) expect([0, 1, 2, 3, 4, 5, 7], `${key}: ptile${c} over ↶ must be a pick cell`).toContain(c);
+        }
+        expect(overlaps({ id: "close", x: pn.x[PANEL_CELLS - 1] as number, y: pn.y[PANEL_CELLS - 1] as number, w: pn.tile, h: pn.tile }, undoBox), `${key}: Close clear of ↶`).toBe(false);
         const sqb = (id: string, r: { x: number; y: number; size: number }): Box => ({ id, x: r.x, y: r.y, w: r.size, h: r.size });
         const hits: string[] = [];
         for (const hb of [sqb("place", hand.place), sqb("rotate", hand.rotate), sqb("cancel", hand.cancel)]) { // re-review 1: ⟳ too

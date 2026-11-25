@@ -391,6 +391,16 @@ export function onPanelCard(p: Readonly<BuildPanelLayout>, x: number, y: number)
  * under ⟳) Ready sit where Place, ⟳ and ✕ were, so their presses are dropped then — like the build tiles'
  * (`stepBuildBar`'s `quiet`) and the Shop chip's. ↶ too (belt and braces: its one spot is clear of all three).
  */
+/**
+ * Story 10.10 (re-review 2, M): ↶'s one spot (B15) lies under the open panel's cells 0 and 3. A pick there
+ * closes the panel and starts the hold, and ↶ shows in the hand cluster on that same spot, so a double tap
+ * on a pick would sell my last building. ↶'s press is dropped within `quietMs` of a hold started from the
+ * panel or the quick tile (`sincePickMs`: time since that pick; Infinity = none).
+ */
+export function dropUndoAfterPick(m: { undoPressed: boolean }, sincePickMs: number, quietMs: number): void {
+  if (sincePickMs < quietMs) m.undoPressed = false;
+}
+
 export function dropQuietPresses(m: { undoPressed: boolean; swapPressed: boolean; consumablePressed: boolean; buildPanelPressed: boolean; readyPressed: boolean }, quiet: boolean): void {
   if (!quiet) return;
   m.undoPressed = m.swapPressed = m.consumablePressed = m.buildPanelPressed = m.readyPressed = false;

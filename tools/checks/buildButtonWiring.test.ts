@@ -22,6 +22,9 @@ describe("Story 10.10 client wiring", () => {
     // review 1, 2: dropped before swap / quick-use reach the router (and before ↶ and Build are read later in the frame)
     expect(src.indexOf("dropQuietPresses(this.hudModel, this.barQuiet(host));")).toBeGreaterThan(-1);
     expect(src.indexOf("dropQuietPresses(this.hudModel, this.barQuiet(host));")).toBeLessThan(src.indexOf("router.build(this.input_, this.hudModel.swapPressed"));
+    // re-review 2 (M): a hold started from the panel / quick tile stamps barPickMs; updateUndo drops ↶ within barQuietMs of it
+    expect(src).toMatch(/this\.startPlacement\(r\.pick\);\s+if \(this\.placement\.active\) \{\s+this\.barPickMs = this\.time\.now;/);
+    expect(src).toMatch(/dropUndoAfterPick\(m, this\.time\.now - this\.barPickMs, host\.world\.balance\.controls\.build\.barQuietMs\);[^\n]*\n\s+const press = m\.undoPressed;/);
   });
 
   it("HudScene: Build goes through the model; a touch while open follows panelTapOutside (only KEEP / CONSUME swallow it); the quick type on the quick tile's spot", () => {
@@ -32,5 +35,6 @@ describe("Story 10.10 client wiring", () => {
     expect(src).toMatch(/if \(outside === PANEL_TAP_CONSUME \|\| outside === PANEL_TAP_KEEP\) \{\s+this\.buttons\.claim\(p\.id\);/);
     expect(src).toContain("buildPanelSlots(items.length, quick, this.barPage, this.barSlots);");
     expect(src).toContain("const shown = m.undoVisible && this.barMode() !== BAR_OPEN;");
+    expect(src).toContain("this.rightBtns, safe.top);"); // re-review 2: the row's clamp under a top inset
   });
 });

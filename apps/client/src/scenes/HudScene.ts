@@ -1127,7 +1127,7 @@ export class HudScene extends Phaser.Scene {
     const h = this.scale.height;
     if (!this.consAboveBar) return layoutRightButtons(w, h, safe.right, safe.bottom, k, false, 0, 0, this.rightBtns);
     const c = layoutBuildCluster(w, h, safe.right, safe.bottom, k, this.cluster);
-    return layoutRowAboveCluster(w, h, safe.right, safe.bottom, k, c.top, c.right, this.rightBtns);
+    return layoutRowAboveCluster(w, h, safe.right, safe.bottom, k, c.top, c.right, this.rightBtns, safe.top); // re-review 2: under a top inset too
   }
 
   /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */

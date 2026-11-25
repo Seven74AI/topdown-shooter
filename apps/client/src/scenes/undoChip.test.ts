@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, startBuild, startWave, type SystemFn } from "@topdown/shared";
 import { UndoChip, layoutUndoChip, type UndoPendingView } from "./undoChip";
-import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
+import { dropUndoAfterPick, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { CENTRE_CLEAR_CSS_PX, layoutRowAboveCluster, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
@@ -44,6 +44,32 @@ describe("Story 5.20: the undo chip (AC 6, 7)", () => {
     expect(chip.progress).toBeCloseTo(0.5);
     expect(tick(1000 + WINDOW)).toBe(false);
     expect(chip.order).toBe(0);
+  });
+
+  it("Story 10.10 (re-review 2, M): a panel pick, then ↶ pressed within barQuietMs (a double tap: ↶ lies under cells 0 / 3) sells nothing; after it, ↶ works", () => {
+    const { world, built, chip, tick, place } = setup();
+    const quietMs = balance.controls.build.barQuietMs;
+    expect(quietMs).toBe(300);
+    chip.placed(4, 0, world.waves.number);
+    const id = place(20);
+    built.set(4, id);
+    tick(100);
+    expect(chip.visible).toBe(true);
+    // the scene's frame (GameScene.updateUndo): drop the press, then read it
+    const frame = (m: { undoPressed: boolean }, now: number, pickMs: number): number => {
+      dropUndoAfterPick(m, now - pickMs, quietMs);
+      const press = m.undoPressed;
+      m.undoPressed = false;
+      return press ? chip.press(now) : 0;
+    };
+    const pickMs = 1000; // a panel pick started the hold here
+    expect(frame({ undoPressed: true }, pickMs + 200, pickMs)).toBe(0); // the second tap of a double tap: no sell
+    expect(chip.visible).toBe(true); // nothing was armed or sent either
+    expect(frame({ undoPressed: true }, pickMs + quietMs + 1, pickMs)).toBe(id); // a deliberate ↶ afterwards still takes it back
+    expect(frame({ undoPressed: true }, 5000, Number.NEGATIVE_INFINITY)).toBe(0); // (already sent) — and no pick at all never drops a press:
+    const m = { undoPressed: true };
+    dropUndoAfterPick(m, Number.POSITIVE_INFINITY, quietMs);
+    expect(m.undoPressed).toBe(true);
   });
 
   it("press → the building's id once (the scene sells it); a second press does nothing", () => {

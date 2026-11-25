@@ -150,7 +150,7 @@ import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from ".
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { cachedProgress, practiceInit } from "../net/practicePool";
 import { progressStore } from "../net/progressStore";
-import { buildBarItems, dropQuietPresses, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
+import { buildBarItems, dropQuietPresses, dropUndoAfterPick, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { HOST_TOAST_TEXT, HostToastWatch } from "../ui/hostToast";
 import { getSettings } from "../settings/settings";
@@ -560,6 +560,8 @@ export class GameScene extends Phaser.Scene {
   private barToast = "";
   /** Story 10.10 (BU-5, B9): the type of my last confirmed building this run — the server's (solo: the sim's) `building.placed` for me (the quick tile; client-side only). */
   private lastPlacedType = "";
+  /** Story 10.10 (re-review 2, M): scene clock when a panel pick or the quick tile last started a hold. */
+  private barPickMs = Number.NEGATIVE_INFINITY;
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
   /** Story 5.20: the undo chip ↶ (the last Place's take-back) and what I paid per building this build phase (the panel's label). */
@@ -704,6 +706,7 @@ export class GameScene extends Phaser.Scene {
     this.refusalsDropped.seen = host.placeRefusalsDropped;
     this.handEmptiedMs = Number.NEGATIVE_INFINITY;
     this.lastPlacedType = ""; // Story 10.10: the quick tile starts from the first unlocked type each run
+    this.barPickMs = Number.NEGATIVE_INFINITY;
     this.hudModel.buildPanelOpen = false;
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
@@ -1663,6 +1666,7 @@ export class GameScene extends Phaser.Scene {
    */
   private updateUndo(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
     const m = this.hudModel;
+    dropUndoAfterPick(m, this.time.now - this.barPickMs, host.world.balance.controls.build.barQuietMs); // Story 10.10 (re-review 2, M)
     const press = m.undoPressed;
     m.undoPressed = false;
     const standing = this.canPlace(host, false);
@@ -1815,6 +1819,7 @@ export class GameScene extends Phaser.Scene {
     if (r.pick !== "") {
       this.startPlacement(r.pick);
       if (this.placement.active) {
+        this.barPickMs = this.time.now; // re-review 2 (M): a double tap on the pick doesn't reach ↶ beneath it
         if (this.barToast !== "") this.toasts.withdraw(this.barToast); // an old refusal off the screen
         this.barToast = "";
         holdBuildingInput(this.input_); // the hold starts now: no aim or fire in this frame's input either
