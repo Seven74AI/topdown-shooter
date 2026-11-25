@@ -3,6 +3,7 @@ import {
   BYTES,
   C2S,
   CLOSE_REMOVED,
+  CLOSE_RUN_SAVED,
   CLOSE_TAKEN_OVER,
   MAX_PLAYERS,
   RECONNECT,
@@ -63,6 +64,8 @@ export interface LobbySnapshot {
   readonly districtResetSeq: number;
   /** Story 8.3 (AC 11): the run's remembered seats (left, or a hold ran out): the host's Players list can remove them. */
   readonly left: readonly LeftSeat[];
+  /** Story 8.6 (E8-R1): a resumed run's lobby: its saved wave ("Resuming · Downtown · wave 6"); 0 = a fresh run. */
+  readonly resumeWave: number;
 }
 
 /** Story 8.3: a remembered seat from `state.leftSeats`. */
@@ -85,14 +88,14 @@ export function parseLeftSeats(json: string | undefined): readonly LeftSeat[] {
   }
 }
 
-const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: [] };
+const EMPTY: LobbySnapshot = { code: "", phase: "lobby", hostSlot: 0, players: [], localPlayerId: null, district: "downtown", districtsOpen: 1, districtReset: "", districtResetSeq: 0, left: [], resumeWave: 0 };
 
 /** Copies the lobby part of the room state, players in slot order. */
 export function snapshotLobby(code: string, state: RunStateView, localPlayerId: string | null = null): LobbySnapshot {
   const players: LobbyPlayer[] = [];
   state.players.forEach((p, playerId) => players.push({ playerId, slot: p.slot, name: p.name, ready: p.ready, look: p.look, waiting: p.waiting === true, held: (p.heldUntilTick ?? 0) > 0 }));
   players.sort((a, b) => a.slot - b.slot);
-  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0, left: parseLeftSeats(state.leftSeats) };
+  return { code, phase: state.phase, hostSlot: state.hostSlot, players, localPlayerId, district: state.district ?? "downtown", districtsOpen: state.districtsOpen ?? 1, districtReset: "", districtResetSeq: 0, left: parseLeftSeats(state.leftSeats), resumeWave: state.resumeWave ?? 0 };
 }
 
 /** Text under the host's Start button (AC 4). */
@@ -305,6 +308,15 @@ class LobbyStore {
     room.onMessage(S2C.PLAYER_REMOVED, () => {
       removed = true;
     });
+    // Story 8.5 (AC 9): the host saved and quit; every socket closes with 4023 right after. Terminal either way.
+    let saved = false;
+    room.onMessage(S2C.RUN_SAVED, () => {
+      saved = true;
+      saveQuitStore.set("saved");
+    });
+    room.onMessage(S2C.RUN_SAVE_FAILED, () => {
+      if (this.room === room) saveQuitStore.set("failed"); // S8: the room plays on
+    });
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, (m: { message?: unknown }) => {
       shuttingDown = true;
       // The server says why ("Server restarting", or a room error): show its words.
@@ -320,6 +332,14 @@ class LobbyStore {
         this.set(EMPTY);
         seatStore.clear();
         return onLost("removed");
+      }
+      // Story 8.5 (AC 9): the run was saved (4023): never a reconnect, never a takeover (no hold on the server either).
+      if (saved || code === CLOSE_RUN_SAVED) {
+        this.detach();
+        this.set(EMPTY);
+        seatStore.clear();
+        saveQuitStore.set("idle");
+        return onLost("saved");
       }
       // Story 8.1 (brief 21): mid-run, an end that isn't a Leave or a shutdown is a drop the SDK
       // couldn't repair (it gave up, or the token was refused): take the seat over by guest token.
@@ -358,6 +378,13 @@ class LobbyStore {
     this.room?.send(C2S.LOBBY_DISTRICT, { id });
   }
 
+  /** Story 8.5 (AC 9, 10): the host's Save and quit (one request: the button shows "Saving…" until the answer). */
+  saveQuit(): void {
+    if (!this.room || saveQuitStore.get() === "saving") return;
+    saveQuitStore.set("saving");
+    this.room.send(C2S.RUN_SAVE_QUIT, {});
+  }
+
   /** Story 8.3 (H2): the host removes a player (the server checks host, phase and target; a refusal is only logged). */
   remove(playerId: string): void {
     this.room?.send(C2S.HOST_REMOVE, { playerId });
@@ -392,6 +419,7 @@ class LobbyStore {
   }
 
   private detach(): void {
+    if (saveQuitStore.get() !== "saved") saveQuitStore.set("idle");
     this.link?.close();
     this.link = null;
     if (this.linkTimer !== null) clearInterval(this.linkTimer);
@@ -413,6 +441,26 @@ class LobbyStore {
 }
 
 export const lobbyStore = new LobbyStore();
+
+/** Story 8.5: Save and quit's state on this phone: idle, waiting for the server, saved (4023 follows), failed (S8). */
+export type SaveQuitState = "idle" | "saving" | "saved" | "failed";
+class SaveQuitStore {
+  private state: SaveQuitState = "idle";
+  private readonly listeners = new Set<(s: SaveQuitState) => void>();
+  get(): SaveQuitState {
+    return this.state;
+  }
+  set(s: SaveQuitState): void {
+    if (this.state === s) return;
+    this.state = s;
+    for (const l of this.listeners) l(s);
+  }
+  subscribe(l: (s: SaveQuitState) => void): () => void {
+    this.listeners.add(l);
+    return () => this.listeners.delete(l);
+  }
+}
+export const saveQuitStore = new SaveQuitStore();
 
 /** Story 8.1: a room with the SDK's reconnection API (a fake room in tests has none). */
 function isLinkRoom(room: unknown): room is LinkRoom {

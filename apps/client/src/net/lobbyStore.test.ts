@@ -18,6 +18,7 @@ function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
     districtReset: "",
     districtResetSeq: 0,
     left: [], // Story 8.3
+    resumeWave: 0, // Story 8.6
     players: [
       { playerId: "p0", slot: 0, name: "Ana", ready: true, look: "" },
       { playerId: "p2", slot: 2, name: "Cid", ready: true, look: "" },

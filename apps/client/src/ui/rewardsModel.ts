@@ -74,7 +74,7 @@ export const COLLECTOR_TEXT = "Collector: you have every surprise item";
 export const LOOT_FAILED_TEXT = "Couldn't save the bag's item";
 
 /** Groups 2 and 3 from the message (Stories 7.7, 7.11, 7.12). `nameOf(slot)` = the Results table's name. */
-export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string): { items: ItemRow[]; unlocks: UnlockRow[] } {
+export function metaRows(rewards: RunRewards, nameOf: (slot: number, seatId?: string) => string): { items: ItemRow[]; unlocks: UnlockRow[] } {
   const items: ItemRow[] = [];
   for (const n of rewards.newItems ?? []) items.push({ kind: "new", text: `New item: ${n.name}`, sub: n.reason ? `(${n.reason})` : "", key: n.key, big: false, slot: -1 });
   const l = rewards.loot;
@@ -84,7 +84,9 @@ export function metaRows(rewards: RunRewards, nameOf: (slot: number) => string):
   const t = rewards.teamLoot;
   if (t) {
     const slot = playerSlotOf(t.playerId);
-    const who = (slot >= 0 && slot < 4 ? nameOf(slot) : "") || "A teammate";
+    // PR #9 review L1: matched on the finder's SEAT — whoever sits in that slot now may be someone else (a removed
+    // finder's slot reused): no seat in the run with that id → "A teammate". A message without a seat id: by slot (7.12).
+    const who = (slot >= 0 && slot < 4 ? nameOf(slot, t.seatId) : "") || "A teammate";
     items.push(t.key === null ? { kind: "team", text: `${who} found the bag`, sub: "(Collector: they have every surprise item)", key: null, big: false, slot: slot < 4 ? slot : -1 } : { kind: "team", text: `${who} found: ${t.name}`, sub: `(wave ${t.wave})`, key: t.key, big: false, slot: slot < 4 ? slot : -1 });
   }
   const unlocks: UnlockRow[] = (rewards.newDistricts ?? []).map((d) => {
@@ -103,7 +105,7 @@ export const REWARD_GROUPS = ["supplies", "items", "unlocks", "nudge"] as const;
  * The panel for this Results screen: `online` false = practice solo (decision 7.2 D1: banks nothing, says so);
  * `rewards` null = not arrived yet ("Saving…"); a message whose seed is not this run's is treated as not arrived.
  */
-export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies, nameOf: (slot: number) => string = () => ""): RewardsView {
+export function rewardsView(rewards: RunRewards | null, online: boolean, seed: number, cfg = PROGRESSION.supplies, nameOf: (slot: number, seatId?: string) => string = () => ""): RewardsView {
   const none = { headline: "", lines: [] as RewardLine[], rookie: false, total: "", note: "", groups: REWARD_GROUPS, unlockLine: "", items: [] as ItemRow[], unlocks: [] as UnlockRow[] };
   if (!online) return { ...none, state: "practice", status: REWARDS_TEXT.practice };
   if (rewards === null || rewards.seed !== seed) return { ...none, state: "saving", status: REWARDS_TEXT.saving };
