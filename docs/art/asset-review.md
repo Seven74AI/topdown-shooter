@@ -18,7 +18,9 @@ gallery, so new art can't skip the review.
 
 1. Build the approved photoreal pages first (`node docs/art/photoreal-1/src/build.mjs`,
    `node docs/art/photoreal-2/src/build4grey.mjs`): the export adds their pictures as the two "approved photoreal"
-   sections (looks approved but not in the game yet). Then `npm run gallery:export` — draws everything, writes `tools/gallery/out/assets.json` (not committed) and
+   sections (looks approved but not in the game yet). The page shows only the accepted version of each picture:
+   groups replaced by an accepted look are listed in `SUPERSEDED` in `review-page.html` (today: the current
+   characters and street props). Then `npm run gallery:export` — draws everything, writes `tools/gallery/out/assets.json` (not committed) and
    updates `tools/gallery/manifest.json` (committed: a pixel hash and the date each asset was added/changed).
 2. Republish the page to the **same URL** with the Artifact tool: `url` = the link above,
    `file_path` = `tools/gallery/review-page.html`, `files` = `{"assets.json": "tools/gallery/out/assets.json"}`.
