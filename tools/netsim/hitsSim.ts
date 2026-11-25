@@ -15,6 +15,9 @@
  *
  * It counts my apparent hits (my cosmetic bullet crossed a drawn zombie) and how many the server
  * did not confirm in time (reversed).
+ *
+ * Story 8.8: `loss` (TCP loss as head-of-line stalls both ways). Story 8.9: `latencyStep` (a lasting latency rise: a cell handover),
+ * the real clock / delay / step pacing (brief 20), and the smoothness counters in `Result.smooth`.
  */
 import {
   MUZZLE_OFFSET_M,
@@ -55,6 +58,7 @@ import { EARLY_HIT_SLACK_MS, ReversedHits, REVERSED_HIT_SLACK_MS } from "../../a
 import { ServerClock } from "../../apps/client/src/net/serverClock";
 import { AdaptiveDelay } from "../../apps/client/src/net/adaptiveDelay";
 import { HordeSample } from "../../apps/client/src/net/hordeBuffer";
+import { StepPacing } from "../../apps/client/src/net/stepPacing";
 import { mirrorZombies } from "../../apps/client/src/net/mirrorZombies";
 import { viewTickOf } from "../../apps/client/src/net/viewTick";
 
@@ -98,6 +102,40 @@ export interface Options {
    * reorder, never a lost message. Absent = no extra rng draw (the clean line is bit for bit today's).
    */
   loss?: { pct: number; stallMs: number };
+  /** Story 8.9: from `atMs` on, both directions take `addMs` longer for good (a cell handover; ordered, so nothing overtakes). */
+  latencyStep?: { atMs: number; addMs: number };
+  /** Story 8.9: the client follows the server's queue depth (default true; false = a modified client that never slows). */
+  pacing?: boolean;
+  /** Story 8.9 (beat the rule 4): a fixed step rate instead of the pacing rule (e.g. 0.5 = a client slowing on purpose). */
+  stepRate?: number;
+}
+
+/** Story 8.9: smoothness counters (brief 13 before/after). */
+export interface Smooth {
+  /** Episodes of the render tick past the newest snapshot that arrived (others held still), after the first 2 s. */
+  freezes: number;
+  /** Frames inside a freeze. */
+  freezeFrames: number;
+  /** Frames where the render tick / the server-tick estimate went down. */
+  renderBackSteps: number;
+  estimateBackSteps: number;
+  /** Render delay (estimate − render tick, ms) per frame after the first 2 s: p50 / p95 / max. */
+  delayP50: number;
+  delayP95: number;
+  delayMax: number;
+  /** Render clock speed per frame (render ticks per real tick): min / max after the first 2 s. */
+  rateMin: number;
+  rateMax: number;
+  /** Server ticks that found my queue empty after I had started sending (the survivor held still). */
+  starvedTicks: number;
+  /** Predicted (local) shots on seqs the server applied without firing or skipped: `localOnly`, and all local shots. */
+  neverFired: number;
+  localShots: number;
+  /** Frames my steps ran at the slowed rate. */
+  slowFrames: number;
+  frames: number;
+  /** Times `inputQueued` changed on the server (each change is ~2 B in the next patch: bandwidth). */
+  queuedChanges: number;
 }
 
 export interface Result {
@@ -128,12 +166,17 @@ export interface Result {
   fanMaxDiffRad: number;
   /** Story 8.8: stalls injected by `Options.loss`, per direction (liveness). */
   stalls: { up: number; down: number };
+  /** Story 8.9. */
+  smooth: Smooth;
 }
+
+/** Story 8.9: zeroed smoothness counters. */
+export const emptySmooth = (): Smooth => ({ freezes: 0, freezeFrames: 0, renderBackSteps: 0, estimateBackSteps: 0, delayP50: 0, delayP95: 0, delayMax: 0, rateMin: 0, rateMax: 0, starvedTicks: 0, neverFired: 0, localShots: 0, slowFrames: 0, frames: 0, queuedChanges: 0 });
 
 /** Story 5.3: two pellet directions this close (radians) are the same (Float32 noise). */
 export const FAN_EPS_RAD = 1e-4;
 
-/** Ordered FIFO with `dueMs`. */
+/** Ordered FIFO with `dueMs`. Loss: a held message and everything behind it wait (TCP head-of-line). */
 class Link<T> {
   private readonly items: { due: number; v: T }[] = [];
   private lastDue = -Infinity;
@@ -144,11 +187,13 @@ class Link<T> {
     private readonly jitterHalfMs: number,
     private readonly rng: { range(a: number, b: number): number },
     private readonly loss?: { pct: number; stallMs: number },
+    private readonly latencyStep?: { atMs: number; addMs: number },
   ) {}
   send(now: number, v: T, notBefore = -Infinity): void {
     const stall = this.loss && this.rng.range(0, 100) < this.loss.pct ? this.loss.stallMs : 0;
     if (stall > 0) this.stalls++;
-    const due = Math.max(this.lastDue, notBefore, now + stall + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
+    const step = this.latencyStep && now >= this.latencyStep.atMs ? this.latencyStep.addMs : 0; // Story 8.9
+    const due = Math.max(this.lastDue, notBefore, now + stall + step + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
     this.lastDue = due;
     this.items.push({ due, v });
   }
@@ -160,6 +205,8 @@ class Link<T> {
 
 interface Down {
   tick: number;
+  /** Story 8.9: `PlayerState.inputQueued` (my inputs queued when this tick started). */
+  queued: number;
   me: FireGateView & { x: number; y: number };
   zombies: { netId: number; x: number; y: number }[];
   events: NetEvent[];
@@ -205,8 +252,8 @@ export function simulate(o: Options): Result {
   const typeState = o.zombieType ? packTypeState(zombieTypeIndex(o.zombieType), ZOMBIE_STATE.CHASE) : WALKER_TYPE_STATE;
   for (let i = 0; i < walkers; i++) spawnRingWalker();
 
-  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss);
-  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng, o.loss);
+  const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep);
+  const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng, o.loss, o.latencyStep);
 
   // Client.
   const mirror = createWorld({ balance, seed: 0, map: clientMap, systems: NO_SYSTEMS });
@@ -215,7 +262,16 @@ export function simulate(o: Options): Result {
   const hits = new ReversedHits();
   const serverClock = new ServerClock();
   const delay = new AdaptiveDelay();
+  const pacing = new StepPacing();
   const sample = new HordeSample();
+  // Story 8.9: smoothness counters.
+  const sm = emptySmooth();
+  sm.rateMin = Infinity;
+  const delays: number[] = [];
+  let frozen = false;
+  let lastQueued = 0;
+  let prevRt = Number.NaN;
+  let prevEst = Number.NaN;
   const snaps: Down[] = [];
   const kills: { tick: number; netId: number }[] = [];
   const hidden = new Set<number>();
@@ -287,6 +343,7 @@ export function simulate(o: Options): Result {
       nextServerMs += TICK_MS;
       up.take(t, arrivedInputs);
       for (const input of arrivedInputs) ctrl.queueInput(ID, input);
+      if (seq > 0 && ctrl.ackSeq(ID) > 0 && ctrl.queued(ID) === 0) sm.starvedTicks++;
       sp.hp = 1e9;
       xBefore.set(pool.x);
       yBefore.set(pool.y);
@@ -319,8 +376,13 @@ export function simulate(o: Options): Result {
         const id = z.aliveIds[i] as number;
         zombies.push({ netId: ctx.zombieNetId(id), x: Math.fround(z.x[id] as number), y: Math.fround(z.y[id] as number) });
       }
+      if (ctrl.queuedAtTick(ID) !== lastQueued) {
+        lastQueued = ctrl.queuedAtTick(ID);
+        sm.queuedChanges++;
+      }
       down.send(t, {
         tick: ctrl.world.tick,
+        queued: ctrl.queuedAtTick(ID),
         me: {
           x: Math.fround(sp.x),
           y: Math.fround(sp.y),
@@ -348,8 +410,10 @@ export function simulate(o: Options): Result {
     for (const d of arrivedDown) {
       latest = d;
       snaps.push(d);
+      // Story 8.9: one sample per arrival (patch and horde frame are one message here).
       serverClock.sample(t, d.tick);
-      delay.snapshot(t, d.tick);
+      delay.sample(t, d.tick, serverClock.rawOffsetMs);
+      if (o.pacing !== false) pacing.onPatch(d.queued);
       predictor.reconcile(d.me.ackSeq, d.me.x, d.me.y, d.me.status);
       for (const e of d.events) {
         if (e[0] === NET_EVENT_KIND.ZOMBIE_HIT && e[7] === 0) hits.serverHit(e[1] as number, t, o.oneWayMs + delay.delayMs + EARLY_HIT_SLACK_MS);
@@ -360,16 +424,36 @@ export function simulate(o: Options): Result {
       }
     }
     // The frame, in NetSimHost.update order.
-    delay.frame(dtMs / 1000);
     if (serverClock.ready) {
-      const rt = delay.renderTick(serverClock.estimateTick(t));
+      const est = serverClock.estimateTick(t);
+      const rt = delay.advance(t, est, latest ? latest.tick : -1);
+      if (t > 2000) {
+        sm.frames++;
+        if (rt < prevRt) sm.renderBackSteps++;
+        if (est < prevEst) sm.estimateBackSteps++;
+        const f = latest !== null && rt > latest.tick;
+        if (f) sm.freezeFrames++;
+        if (f && !frozen) sm.freezes++;
+        frozen = f;
+        delays.push(delay.delayMs);
+        if (dtMs > 0 && !Number.isNaN(prevRt)) {
+          const r = (rt - prevRt) / (dtMs / TICK_MS);
+          sm.rateMin = Math.min(sm.rateMin, r);
+          sm.rateMax = Math.max(sm.rateMax, r);
+        }
+      }
+      prevRt = rt;
+      prevEst = est;
       viewTick = viewTickOf(rt);
       sampleHorde(rt);
       mirrorZombies(sample, mirror.zombies);
       cosmetics.zombiesMoved();
     }
     cosmetics.update(dtMs / 1000);
-    accMs += dtMs;
+    // Story 8.9 (D5): the same step pacing rule as NetSimHost.
+    const stepRate = o.stepRate ?? pacing.frame();
+    if (stepRate < 1 && t > 2000) sm.slowFrames++;
+    accMs += dtMs * stepRate;
     let steps = 0;
     while (accMs >= TICK_MS && steps < MAX_STEPS_PER_FRAME) {
       // Aim at the nearest drawn zombie from my predicted position.
@@ -462,8 +546,18 @@ export function simulate(o: Options): Result {
       if (worst > FAN_EPS_RAD) fanMismatches++;
     }
   }
+  delays.sort((a, b) => a - b);
+  sm.delayP50 = delays[Math.floor(delays.length * 0.5)] ?? 0;
+  sm.delayP95 = delays[Math.floor(delays.length * 0.95)] ?? 0;
+  sm.delayMax = delays.at(-1) ?? 0;
+  if (sm.rateMin === Infinity) sm.rateMin = 0;
+  const serverSet = new Set(serverShotSeqs);
+  const lastServerSeq = ctrl.ackSeq(ID);
+  sm.localShots = localShotSeqs.length;
+  sm.neverFired = localShotSeqs.filter((s) => !serverSet.has(s) && s <= lastServerSeq).length;
   return {
     ...hits.counts,
+    smooth: sm,
     serverHitsByMe,
     kills: killCount,
     shots,

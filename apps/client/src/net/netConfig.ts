@@ -26,17 +26,73 @@ export const PREDICTION_HISTORY_SIZE = 64;
 export const PREDICTION_ERROR_BUCKETS = 10;
 export const PREDICTION_ERROR_BUCKET_STEPS = 20;
 
-/** Interpolation delay of remote players, horde and events (ms): adapts between these from jitter. */
+/**
+ * Interpolation delay of remote players, horde and events (ms). Story 8.9 (decision 8.9 D1): it
+ * adapts between these from how LATE snapshots arrive against the server clock (was 100–150 ms
+ * from gap jitter, Story 2.6): 250 ms hides the audit's 240–290 ms frame gaps on a 1 % lossy 4G
+ * line (docs/perf/network-audit-2026-11.md §3.3); clean lines stay at 100–150 ms.
+ */
 export const RENDER_DELAY_MIN_MS = 100;
-export const RENDER_DELAY_MAX_MS = 150;
-/** Target delay = min + this × jitter (20 ms jitter → 140 ms). */
-export const RENDER_DELAY_JITTER_GAIN = 2;
-/** The delay moves toward its target at most this fast (ms per second), so nothing teleports. */
-export const RENDER_DELAY_SLEW_MS_PER_S = 20;
-/** EWMA weight of one snapshot gap in the jitter estimate. */
-export const JITTER_EWMA_ALPHA = 0.1;
-/** One gap counts at most this much jitter (ms), so a hidden tab's 5 s gap can't pin the delay at max. */
-export const JITTER_SAMPLE_CAP_MS = 100;
+export const RENDER_DELAY_MAX_MS = 250;
+/** Story 8.9: lateness samples (patches + horde frames, ~40/s) kept for the p95 (10 s). */
+export const LATENESS_WINDOW_MS = 10_000;
+/** Story 8.9: the lateness percentile the delay covers at all times. */
+export const LATENESS_PERCENTILE = 0.95;
+/** Story 8.9: one tick of margin on top of the lateness (a frame must be there one tick before it is drawn). */
+export const DELAY_MARGIN_MS = 50;
+/**
+ * Story 8.9 (decision 8.9 D3): the delay rises at once to cover the latest late sample and starts
+ * falling only after this long without a sample that needs it (no pumping up and down on a train).
+ */
+export const DELAY_FALL_AFTER_MS = 5_000;
+/**
+ * Story 8.9 (D3): after the calm, the held part of the target eases down this fast (ms per second:
+ * 250 → 100 ms in 30 s). Harness, 1 % × 200 ms, 12 × 60 s: 20 ms/s → 2.1 freezes per 30 s, 10 → 1.6,
+ * 5 → 1.0 (a stall a few seconds after the hold ends no longer finds the delay already below 230 ms).
+ */
+export const DELAY_FALL_MS_PER_S = 5;
+/**
+ * Story 8.9 (decision 8.9 D2): the render clock plays at 0.9–1.1× real time while the delay moves
+ * (a 10 % change is hard to see; ±100 ms of delay per second). Never jumps, never runs backwards.
+ */
+export const PLAYBACK_RATE_MIN = 0.9;
+export const PLAYBACK_RATE_MAX = 1.1;
+/** Story 8.9: playback rate change per ms of delay error (10 ms off → the full ±10 %; settles in ~0.1 s). */
+export const PLAYBACK_RATE_GAIN_PER_MS = 0.01;
+/** Story 8.9 review L2: the playback rate itself changes at most this much per second (0.9 → 1.1 in 0.05 s; ≤ 0.067 per 60 Hz frame). With FRAME_OVERDUE_MS 10: 0.86 freezes/30 s (2/s with 15 ms: 1.03). */
+export const PLAYBACK_RATE_SLEW_PER_S = 4;
+/**
+ * Story 8.9 (F1): a horde frame this much later than its 50 ms cadence plus the p95 lateness (ms)
+ * is overdue: the render clock plays at 0.9× at once, before the late frame lands, so
+ * a 200 ms stall + jitter is hidden even at the 250 ms cap (which alone needs 200 + jitter + one tick).
+ * Review L2 re-tune: 15 → 10 ms with the 4/s rate slew (0.86 freezes/30 s; 15 ms: 1.03).
+ */
+export const FRAME_OVERDUE_MS = 10;
+/** Story 8.9: while a frame is overdue the delay may stretch this far past its 250 ms cap (ms; ~10 % of a stall), then catches up at 1.1×. */
+export const STALL_STRETCH_MAX_MS = 25;
+/**
+ * Story 8.9: a frame-clock gap longer than this is a hidden tab / frozen page: the render clock and
+ * the server clock re-anchor once (never backwards) and lateness samples that came in it are skipped.
+ */
+export const WAKE_GAP_MS = 1000;
+/** Story 8.9: the server-tick estimate moves toward the measured clock at most this share of elapsed time (10 %). */
+export const CLOCK_SLEW_FRACTION = 0.1;
+/**
+ * Story 8.9 review M1/M2: the estimate catches up FORWARD faster, at most this share of elapsed time
+ * (50 %: up to 1.5×). After a latency fall (bufferbloat clears, a better cell) the measurement jumps
+ * ahead; at 10 % the estimate lagged real server time by the whole fall for ~2 s (boss telegraph
+ * fills ended ~200 ms after the hit). Forward is never "backwards"; 1.5× for ≤ 0.4 s per 200 ms.
+ */
+export const CLOCK_SLEW_FORWARD_FRACTION = 0.5;
+/** Story 8.9: a measured clock this far AHEAD of the estimate (ms) is snapped to at once (start, hidden tab); never backwards. */
+export const CLOCK_SNAP_AHEAD_MS = 1000;
+/**
+ * Story 8.9 (decision 8.9 D5): while the server reports more of my inputs queued than its target
+ * (INPUT_QUEUE_TARGET, 2) for this many patches in a row, my steps run at INPUT_SLOW_STEP_RATE, so
+ * the backlog empties without the server skipping inputs (its 2 s drain stays as the safety net).
+ */
+export const INPUT_SLOW_AFTER_PATCHES = 3;
+export const INPUT_SLOW_STEP_RATE = 0.9;
 
 /** Dev throttle (`?lag=&jitter=`): messages in flight per direction; when full the oldest is delivered early. */
 export const THROTTLE_QUEUE_SIZE = 128;

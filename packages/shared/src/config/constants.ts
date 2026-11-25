@@ -46,18 +46,20 @@ export const FLOW_CELL_M = 0.5;
 
 /**
  * Story 2.12 (architecture › lag compensation): a player's shot is tested against zombie positions
- * at most this many ticks old (10 = 500 ms). Netcode, not balance. The server's `REWIND_CAP_MS`
+ * at most this many ticks old (12 = 600 ms since Story 8.9 T10). Netcode, not balance. The server's `REWIND_CAP_MS`
  * (apps/server/src/net/limits.ts) can only lower it, so both move together (audit H1).
  * Story 8.8, network audit §3.5: 6 → 10 (300 → 500 ms). After a 200 ms TCP stall a shot's view is
  * one-way + input queue + render delay ≈ 75 + 200 + 140 ms > 300 ms; measured at 150 ms ± 10 ms,
  * kiting Runners on the 1 % / 2 % × 200 ms lossy line: reversed hits 7.6 → 2.0 %, 11.9 → 1.3 %
  * (decision 8.8 D1). Only zombies (and the Behemoth) are rewound, so no player is wronged by it.
+ * Story 8.9 T10: 10 → 12 (600 ms, 8.8 D1's fallback): 8.9's lossy-line delay is 250 ms, so the view
+ * offset p95 was 11.4–11.7 ticks (18–29 % of kiting shots over a 10-tick cap).
  */
-export const REWIND_MAX_TICKS = 10;
+export const REWIND_MAX_TICKS = 12;
 
 /**
  * Story 2.12: rows of the zombie position history (`combat/rewind.ts`): REWIND_MAX_TICKS back, one
- * more to interpolate a fractional tick, one spare (Story 8.8: 12 rows, ≈ 24 KB per room; the
+ * more to interpolate a fractional tick, one spare (Story 8.8: 12 rows, ≈ 24 KB per room; Story 8.9 T10: 14 rows, ≈ 28 KB; the
  * Behemoth's history uses the same count, decision 8.8 D3).
  */
 export const ZOMBIE_HISTORY_TICKS = REWIND_MAX_TICKS + 2;
@@ -75,3 +77,10 @@ export const MIN_AIM_LEN = 1e-6;
  * the pool capacities); `loadBalance` refuses a `fixed` entry above it.
  */
 export const MAX_FIXED_PER_WAVE = 8;
+
+/**
+ * Story 2.4 (review): the input backlog the server's queue should settle at (2 inputs = 100 ms of
+ * jitter cover). Story 8.9 moves it here: the client slows its steps while the server reports more
+ * of its inputs queued than this (`PlayerState.inputQueued`). Netcode, not balance.
+ */
+export const INPUT_QUEUE_TARGET = 2;

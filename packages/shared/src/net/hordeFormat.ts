@@ -24,8 +24,12 @@ export const POS_SCALE = 100;
 export const MAX_POS_CM = 0xffff;
 /** Records per frame at most: the pool size (a slot fits 8 bits). */
 export const HORDE_MAX_RECORDS = 256;
-/** A zombie absent from this many frames in a row is removed from view (AC 3). */
-export const HORDE_MISSING_LIMIT = 3;
+/**
+ * Story 8.9 (decision 8.9 D4; was "absent from 3 frames in a row", Story 2.5 AC 3): a zombie absent
+ * from a frame leaves the view once the render tick is this many ticks (150 ms) past the first frame
+ * that lacked it. Counted in render time, not per arriving frame: 3 frames can land in one burst.
+ */
+export const HORDE_MISSING_TICKS = 3;
 /** Zombies this far outside a client's view are still sent (AC 1). */
 export const HORDE_VIEW_MARGIN_M = 4;
 /** A client whose socket holds more than this skips horde frames until it drains (AC 4). */

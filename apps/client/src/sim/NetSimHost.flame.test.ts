@@ -97,8 +97,9 @@ describe("NetSimHost flames (Story 5.4)", () => {
     t.drain();
     expect(t.host.flames.flaming("p0")).toBe("flamethrower");
     t.room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 21, events: [[NET_EVENT_KIND.FLAME_STOPPED, 0]] } satisfies SimEventsFlushed);
-    t.setNow(500 + (21 + RENDER_DELAY_TICKS) * 50);
+    t.setNow(500 + 21 * 50); // Story 8.9: on time (a late patch now raises the render delay)
     t.arrive(21);
+    t.setNow(500 + (21 + RENDER_DELAY_TICKS) * 50);
     t.host.update(0);
     t.drain();
     expect(t.host.flames.flaming("p0")).toBe("");
