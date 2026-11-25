@@ -58,7 +58,7 @@ describe("LocalSimHost repairs (Story 3.7)", () => {
   it("solo repairs at once with the shared rules; a refusal is taken once", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
-    const r = placeBuilding(host.world, LOCAL_PLAYER_ID, { type: "wood_barricade", gx: 24, gy: 20, rot: 0 });
+    const r = placeBuilding(host.world, LOCAL_PLAYER_ID, { type: "wood_barricade", gx: 40, gy: 22, rot: 0 });
     if (!r.ok) throw new Error(r.error);
     const me = host.world.players.get(LOCAL_PLAYER_ID);
     const before = me?.wallet ?? 0;

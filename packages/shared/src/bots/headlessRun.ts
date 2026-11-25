@@ -9,6 +9,7 @@ import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } 
 import { botBuildPhase, botGearPrice, createBotShopResult } from "./botShop";
 import { readOffer } from "../economy/shopCards";
 import { zombieTypeIndex } from "../zombies/zombieTypes";
+import { castVote, type RunEnding } from "../run/runStateMachine";
 
 /**
  * Story 3.10: one seeded headless run with bots (the Epic 2 retro A10 sim, grown up): the real
@@ -16,7 +17,7 @@ import { zombieTypeIndex } from "../zombies/zombieTypes";
  * tick of every build phase each bot shops from `list` (default `bots.json › shoppingList`) through
  * the real shop and placement rules (`botBuildPhase`) and taps Ready, so a build phase lasts one
  * tick (nothing moves in a build anyway; the heal and returns happen at its start). The run goes
- * until Results (held out or wiped) or `maxTicks`. For sims and balance sweeps (tests,
+ * until Results (extracted or wiped) or `maxTicks`. For sims and balance sweeps (tests,
  * `tools/sims`); not used by the game.
  */
 /** Story 5.7: the Brute's type index (the sims log its spawns and kills). */
@@ -33,6 +34,13 @@ export interface HeadlessRunOptions {
   maxTicks?: number;
   /** Story 6.1 (D2): bots can't die (`world.debug.godMode`, as `applyTestScenario`), so the run plays every wave (the earnings check). */
   god?: boolean;
+  /**
+   * Story 6.11: what the bots vote at each evacuation vote (on its first tick; default "extract").
+   * Story 6.12: with "stay", `stayUntilWave` (default: forever) — they vote Extract at the first vote
+   * after clearing that wave.
+   */
+  vote?: "extract" | "stay";
+  stayUntilWave?: number;
   /**
    * Story 4.4: when given (from `createInputLog(seed, players)`), every input and build action is
    * appended to it with its tick, and `endTick` is set, so `replayRun` can play the run again.
@@ -60,10 +68,14 @@ export interface HeadlessWaveLog {
 export interface HeadlessRunLog {
   seed: number;
   players: number;
-  /** The run ended because wave `runWaves` was cleared. */
-  heldOut: boolean;
+  /** Story 6.11: how the run ended (`world.run.ending`; "none" when the tick limit stopped it). */
+  ending: RunEnding;
+  /** Story 6.12: waves cleared after `runWaves` (endless). */
+  endlessWaves: number;
+  /** Story 6.11: the votes resolved in the run, in order. */
+  votes: ("extract" | "stay")[];
   wiped: boolean;
-  /** The tick limit stopped it (neither held out nor wiped). */
+  /** The tick limit stopped it (neither extracted nor wiped). */
   timedOut: boolean;
   /** Waves whose `wave.ended` fired. */
   wavesCleared: number;
@@ -78,7 +90,7 @@ export interface HeadlessRunLog {
   buildingsPlaced: number[];
   spent: number[];
   /** Money paid to the whole team by reason (kill, assist, revive, wave bonus). */
-  earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number };
+  earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number; boss: number };
   /** Turrets' kills (they pay the owner `buildingKillShare`; included in `earnedBy.kill`). */
   turretKills: number;
   /** Story 5.3: players' kills by weapon id (liveness of a new weapon in the sims). */
@@ -127,7 +139,9 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   const log: HeadlessRunLog = {
     seed,
     players,
-    heldOut: false,
+    ending: "none",
+    endlessWaves: 0,
+    votes: [],
     wiped: false,
     timedOut: false,
     wavesCleared: 0,
@@ -139,7 +153,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     purchases: ids.map(() => []),
     buildingsPlaced: ids.map(() => 0),
     spent: ids.map(() => 0),
-    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0 },
+    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0, boss: 0 },
     turretKills: 0,
     killsByWeapon: {},
     upgrades: ids.map(() => 0),
@@ -226,6 +240,9 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       case "team.wiped":
         if (current) current.ticks = world.tick - waveStart;
         break;
+      case "run.vote_resolved":
+        log.votes.push(e.choice);
+        break;
       default:
         break;
     }
@@ -251,6 +268,15 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         if (shop.swap) swapNext[i] = true;
       });
     }
+    if (world.run.phase === "vote" && lastPhase !== "vote") {
+      // Story 6.11: every bot votes on the vote's first tick (6.12: Stay until `stayUntilWave`).
+      const stay = opts.vote === "stay" && world.waves.number < (opts.stayUntilWave ?? Number.MAX_SAFE_INTEGER);
+      const choice = stay ? "stay" : "extract";
+      for (const id of ids) {
+        castVote(world, id, choice);
+        rec?.commands.push({ kind: "vote", playerId: id, choice, tick: world.tick });
+      }
+    }
     lastPhase = world.run.phase;
     seq++;
     for (let i = 0; i < ids.length; i++) {
@@ -271,7 +297,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   }
   if (rec) rec.endTick = world.tick;
   opts.onEnd?.(world);
-  log.heldOut = world.run.heldOut;
+  log.ending = world.run.ending;
+  log.endlessWaves = Math.max(0, log.wavesCleared - balance.waves.runWaves);
   log.wiped = world.teamWiped;
   log.timedOut = world.run.phase !== "results";
   log.reached = world.waves.number;
@@ -285,7 +312,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
 
 /** One line per run for test output and `tools/sims`. */
 export function formatRunLine(r: HeadlessRunLog): string {
-  const end = r.heldOut ? "HELD OUT" : r.wiped ? `wiped in W${r.reached}` : `timed out in W${r.reached}`;
+  const end = r.ending === "extracted" ? `EXTRACTED after W${r.reached}` : r.ending === "lost" ? `LOST in W${r.reached}` : r.wiped ? `wiped in W${r.reached}` : `timed out in W${r.reached}`;
   const buys = r.purchases.map((p) => (p.length ? p.join("+") : "-")).join(", ");
   return (
     `${r.players}p seed ${r.seed}: ${end} (cleared ${r.wavesCleared}); earned ${r.earned.join("/")}; kills ${r.kills.join("/")}; ` +

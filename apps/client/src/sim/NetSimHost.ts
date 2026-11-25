@@ -46,6 +46,7 @@ import {
   type SimEventsFlushed,
   type WeaponSlot,
   type World,
+  type EvacChoice,
 } from "@topdown/shared";
 import { viewTickOf } from "../net/viewTick";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
@@ -63,6 +64,7 @@ import { mirrorDecay } from "../net/mirrorDecay";
 import { bossDrawAt, bossRenderPos, createBossTrack, mirrorBoss, trackBoss, type BossTrack } from "../net/mirrorBoss";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
+import { endingOf } from "../net/onlineFlow";
 import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
 import { LocalFireClock } from "../net/localFire";
 import { CosmeticProjectiles } from "../net/cosmeticProjectiles";
@@ -201,6 +203,8 @@ export class NetSimHost implements SimHost {
   private forgivenShots = 0;
   private readonly localSlot: number;
   private readonly aimDir = { x: 1, y: 0 };
+  /** Story 6.4 (F4): the aim-assist fog filter's shooter (my predicted position, my gear). */
+  private readonly aimShooter = { x: 0, y: 0, gear: 0 };
   private readonly localFired: FiredEvent[] = [];
   private readonly localSwung: SwungEvent[] = [];
   /** Story 5.5: my instant launches (id 0: the server's echo replaces them in the view). */
@@ -449,6 +453,11 @@ export class NetSimHost implements SimHost {
     if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
   }
 
+  /** Story 6.11: `evac.vote` (the server ignores it outside the vote); my `vote` comes back in the state. */
+  castVote(choice: EvacChoice): void {
+    if (!this.disposed) this.session.room.send(C2S.EVAC_VOTE, { choice });
+  }
+
   /** Story 3.4: `building.place`; the building comes back in the state, a refusal as `building.refused`. */
   placeBuilding(req: PlaceRequest): void {
     if (!this.disposed) this.session.room.send(C2S.BUILDING_PLACE, { type: req.type, gx: req.gx, gy: req.gy, rot: req.rot });
@@ -615,8 +624,19 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
-      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.telegraph" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
+      } else if (
+        e.type === "boss.warning" ||
+        e.type === "boss.arrived" ||
+        e.type === "boss.telegraph" ||
+        e.type === "boss.slammed" ||
+        e.type === "boss.target_changed" ||
+        e.type === "boss.crashed" ||
+        e.type === "boss.thrown_impact" ||
+        e.type === "boss.enraged" ||
+        e.type === "boss.killed"
+      ) {
         // Story 6.5 (brief 14): a woken tab's backlog plays no late banner or sound (the telegraph draws from its own ticks).
+        // Stories 6.6 / 6.7: the crash, the impact, the roar and the death too (EVAC INBOUND still shows once: bossCue).
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "molotov.ignited") {
         // Story 5.12: back-dated by its age (MolotovFires starts it that much earlier and drops one
@@ -738,7 +758,10 @@ export class NetSimHost implements SimHost {
     // Story 3.1: the run state machine's phase and build timer (the mirror never steps it).
     this.world.run.phase = state.phase;
     this.world.run.buildTicksLeft = state.buildTicksLeft;
-    this.world.run.heldOut = state.resultHeldOut === true; // Story 3.10 (the Results come from the room state)
+    // Story 6.11 / 6.12: the vote's ticks, the ending and endless (server truth; the Results come from the room state).
+    this.world.run.voteTicksLeft = state.voteTicksLeft ?? 0;
+    this.world.run.ending = state.phase === "results" ? endingOf(state.resultEnding) : "none";
+    this.world.run.endless = state.endless === true;
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
@@ -811,7 +834,12 @@ export class NetSimHost implements SimHost {
     dir.y = a.dirY;
     if (!isMouse) {
       this.cosmetics.ensureGrid();
-      assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
+      // Story 6.4 (F4): the same fog filter as the server (my own beam along the aim, from my centre).
+      const me = this.world.players.get(this.localPlayerId);
+      this.aimShooter.x = px;
+      this.aimShooter.y = py;
+      this.aimShooter.gear = me ? me.gear : 0;
+      assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir, null, this.aimShooter);
     }
     // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
     // Story 5.3: a pellet gun's centre aim has no roll (its fan does: `cosmetics.spawn` with the seq).
@@ -884,6 +912,7 @@ export class NetSimHost implements SimHost {
     p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;
     p.buildReady = s.buildReady;
+    p.vote = s.vote ?? 0; // Story 6.11
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)
     p.slowPct = s.slowPct;
     p.knockTicks = s.knockTicks; // Story 5.7: mirrored for the look (the predictor has its own copy)

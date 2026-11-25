@@ -9,11 +9,18 @@ import type { World } from "../core/world";
  * `NET150_START_WAVE` pattern: only the wave counter is set; nothing else is skipped or faked.
  */
 
-/** A start wave from text: an integer 1 … `waves.runWaves`, else null (absent or invalid: the run starts at wave 1). */
+/** Story 6.12 (AC 13): the highest start wave the switch accepts (endless waves past `runWaves`). */
+export const MAX_START_WAVE = 99;
+
+/**
+ * A start wave from text: an integer 1 … `MAX_START_WAVE`, else null (absent or invalid: the run
+ * starts at wave 1). Story 6.12: a wave past `waves.runWaves` starts the run in endless (dev only).
+ */
 export function parseStartWave(raw: string | null | undefined, balance: Balance): number | null {
+  void balance;
   if (raw === null || raw === undefined || !/^\d{1,3}$/.test(raw.trim())) return null;
   const n = Number(raw.trim());
-  return n >= 1 && n <= balance.waves.runWaves ? n : null;
+  return n >= 1 && n <= MAX_START_WAVE ? n : null;
 }
 
 /**
@@ -22,6 +29,7 @@ export function parseStartWave(raw: string | null | undefined, balance: Balance)
  */
 export function applyStartWave(world: World, wave: number): void {
   if (world.run.phase !== "lobby") throw new Error(`applyStartWave: only before the first build (phase "${world.run.phase}")`);
-  if (!Number.isInteger(wave) || wave < 1 || wave > world.balance.waves.runWaves) throw new Error(`applyStartWave: wave ${wave} is not 1 … ${world.balance.waves.runWaves}`);
+  if (!Number.isInteger(wave) || wave < 1 || wave > MAX_START_WAVE) throw new Error(`applyStartWave: wave ${wave} is not 1 … ${MAX_START_WAVE}`);
   world.waves.number = wave - 1;
+  world.run.endless = wave > world.balance.waves.runWaves; // Story 6.12 (AC 13): as if the team had chosen Stay
 }

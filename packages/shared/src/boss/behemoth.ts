@@ -11,9 +11,12 @@ import type { PlayerState } from "../player/player";
 import { FLOW_UNREACHED, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell } from "../zombies/flowField";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
-import { BOSS_ATTACK, BOSS_STATE, bossBodyOn, bossMaxHp, isBossWave, resetBoss } from "./bossState";
+import { BOSS_ATTACK, BOSS_STATE, bossBodyOn, bossMaxHp, endlessBossHpMult, isBossWave, resetBoss } from "./bossState";
 import { flushBossHits } from "./bossDamage";
-import { bossStats, startBossAttack, updateBossAttack } from "./telegraph";
+import { bossStats, createAttackZone, startBossAttack, updateBossAttack } from "./telegraph";
+import { planCharge } from "./charge";
+import { pickThrowTarget, throwSource, updateThrowFlight } from "./throw";
+import { checkEnrage, updateCrawlerDrops, updateRoar } from "./enrage";
 import { advanceThreat, pickBossTarget } from "./target";
 
 /**
@@ -175,14 +178,18 @@ function arrive(world: World): void {
   const bal = world.balance.boss;
   b.number++;
   b.look = behemothLookIndex(world.seed, b.number, b.number > 1 ? b.look : -1);
-  b.maxHp = bossMaxHp(world.balance, world.players.size, world.debug.bossHpScale);
+  b.maxHp = bossMaxHp(world.balance, world.players.size, world.debug.bossHpScale, endlessBossHpMult(world.balance, world.waves.number, world.run.endless)); // Story 6.12 (F4)
   b.hp = b.maxHp;
   b.state = BOSS_STATE.WALK;
   b.stateTicks = 0;
   b.gapTicks = ticksFor(bal.firstGapS);
   b.cooldown.slam = 0;
-  b.cooldown.charge = 0; // 6.6 sets its initial ones
-  b.cooldown.throw = 0;
+  b.cooldown.charge = ticksFor(bal.charge.initialCooldownS); // Story 6.6 (AC 6)
+  b.cooldown.throw = ticksFor(bal.throw.initialCooldownS);
+  b.attack.live = false;
+  b.attack.kind = BOSS_ATTACK.NONE;
+  b.enraged = false;
+  b.crawlerTicks = 0;
   b.targetId = null;
   b.lastSwitchTick = -1_000_000;
   b.threat.fill(0);
@@ -196,14 +203,14 @@ function arrivalDue(world: Readonly<World>): boolean {
   const w = world.waves;
   const b = world.boss;
   if (b.state !== BOSS_STATE.NONE || b.wave === w.number) return false;
-  if (!isBossWave(world.balance, w.number, false, world.debug.bossWaves)) return false;
+  if (!isBossWave(world.balance, w.number, world.run.endless, world.debug.bossWaves)) return false;
   return w.size - w.queued >= Math.round(w.size * world.balance.boss.arriveAtFraction);
 }
 
 /** F11 helper: this wave is a boss wave whose boss has not come yet (the wave can't end before it). */
 export function bossPending(world: Readonly<World>): boolean {
   const b = world.boss;
-  return b.wave !== world.waves.number && isBossWave(world.balance, world.waves.number, false, world.debug.bossWaves);
+  return b.wave !== world.waves.number && isBossWave(world.balance, world.waves.number, world.run.endless, world.debug.bossWaves);
 }
 
 /** Any standing player's centre within `slam.triggerM` of the boss's centre. */
@@ -221,22 +228,94 @@ function slamTriggered(world: Readonly<World>): boolean {
 }
 
 /** `pickBossAttack` zone (reused). */
-const zone = { cx: 0, cy: 0, radiusM: 0 };
+const zone = createAttackZone();
+const lane = { dirX: 0, dirY: 0, lenM: 0, crash: false };
+
+function clearZone(): void {
+  zone.dirX = 0;
+  zone.dirY = 0;
+  zone.lenM = 0;
+  zone.crash = false;
+  zone.src = 0;
+}
+
+/** Story 6.6 (AC 3): the charge's target rule: its target 5–12 m away and a lane ≥ `minLaneM`. */
+function chargeZone(world: World): boolean {
+  const b = world.boss;
+  const c = world.balance.boss.charge;
+  const t = b.targetId !== null ? world.players.get(b.targetId) : undefined;
+  if (!t || t.status !== "alive") return false;
+  const dx = t.x - b.x;
+  const dy = t.y - b.y;
+  const d2 = dx * dx + dy * dy;
+  if (d2 < c.minM * c.minM || d2 > c.maxM * c.maxM) return false;
+  if (!planCharge(world, t.x, t.y, lane)) return false; // F1: toward its position at this tick (no lead)
+  if (lane.lenM < c.minLaneM - 1e-9) return false;
+  clearZone();
+  zone.cx = b.x;
+  zone.cy = b.y;
+  zone.radiusM = 0;
+  zone.dirX = lane.dirX;
+  zone.dirY = lane.dirY;
+  zone.lenM = lane.lenM;
+  zone.crash = lane.crash;
+  zone.srcX = b.x;
+  zone.srcY = b.y;
+  return true;
+}
+
+/** Story 6.6 (AC 5, F7): the throw's landing spot (the target's position now) and the chunk's source. */
+function throwZone(world: World): boolean {
+  const t = pickThrowTarget(world);
+  if (!t) return false;
+  clearZone();
+  zone.cx = t.x;
+  zone.cy = t.y;
+  zone.radiusM = world.balance.boss.throw.radiusM;
+  const src = throwSource(world);
+  zone.src = src.src;
+  zone.srcX = src.x;
+  zone.srcY = src.y;
+  return true;
+}
 
 /**
- * AC 9 (6.5 part): when the gap is over and it walks: (1) slam if its cooldown is 0 and a standing
- * player is within `slam.triggerM`; (2)–(3) 6.6's charge and throw. Returns the kind started (0: none).
+ * AC 9 (6.5) + 6.6 AC 6 (F9): when it walks, the gap is over and no attack is live (a chunk in
+ * flight included): (1) slam if its cooldown is 0 and a standing player is within `slam.triggerM`;
+ * (2) charge if its cooldown is 0, its target is 5–12 m away and the lane is ≥ 4 m; (3) throw if its
+ * cooldown is 0 and a standing player qualifies; (4) else it walks. Returns the kind started (0: none).
  */
 export function pickBossAttack(world: World): number {
   const b = world.boss;
-  if (b.state !== BOSS_STATE.WALK || b.gapTicks !== 0) return BOSS_ATTACK.NONE;
+  if (b.state !== BOSS_STATE.WALK || b.gapTicks !== 0 || b.attack.live) return BOSS_ATTACK.NONE;
   if (b.cooldown.slam === 0 && slamTriggered(world)) {
+    clearZone();
     zone.cx = b.x; // F2: fixed now; the boss stands still while it winds up
     zone.cy = b.y;
     zone.radiusM = world.balance.boss.slam.radiusM;
+    zone.srcX = b.x;
+    zone.srcY = b.y;
     if (startBossAttack(world, BOSS_ATTACK.SLAM, zone)) return BOSS_ATTACK.SLAM;
   }
-  return BOSS_ATTACK.NONE; // 6.6: charge, throw
+  if (b.cooldown.charge === 0 && chargeZone(world) && startBossAttack(world, BOSS_ATTACK.CHARGE, zone)) return BOSS_ATTACK.CHARGE;
+  if (b.cooldown.throw === 0 && throwZone(world) && startBossAttack(world, BOSS_ATTACK.THROW, zone)) return BOSS_ATTACK.THROW;
+  return BOSS_ATTACK.NONE;
+}
+
+/** Story 6.6 (F9): the attack it will pick next if it could now (the edge marker's icon; 0: none due). */
+export function nextBossAttack(world: Readonly<World>): number {
+  const b = world.boss;
+  if (b.cooldown.slam === 0 && slamTriggered(world)) return BOSS_ATTACK.SLAM;
+  if (b.cooldown.charge === 0) {
+    const t = b.targetId !== null ? world.players.get(b.targetId) : undefined;
+    const c = world.balance.boss.charge;
+    if (t && t.status === "alive") {
+      const d2 = (t.x - b.x) ** 2 + (t.y - b.y) ** 2;
+      if (d2 >= c.minM * c.minM && d2 <= c.maxM * c.maxM) return BOSS_ATTACK.CHARGE;
+    }
+  }
+  if (b.cooldown.throw === 0 && pickThrowTarget(world)) return BOSS_ATTACK.THROW;
+  return BOSS_ATTACK.NONE;
 }
 
 /** Steering target (reused). */
@@ -356,7 +435,7 @@ function walk(world: World, target: PlayerState | null): void {
   const dy = steer.y - b.y;
   const d = Math.sqrt(dx * dx + dy * dy);
   if (d < 1e-6) return;
-  const speed = bal.speedMps * (b.pushing ? bal.pathing.buildingSlowPct / 100 : 1); // 6.7: × enraged
+  const speed = bal.speedMps * (b.enraged ? bal.enrage.speedMult : 1) * (b.pushing ? bal.pathing.buildingSlowPct / 100 : 1); // 6.7 F3: × 1.3 enraged
   const step = Math.min(d, speed * TICK_DT_S);
   const nx = b.x + (dx / d) * step;
   const ny = b.y + (dy / d) * step;
@@ -521,10 +600,16 @@ export const updateBoss: SystemFn = (world) => {
   if (b.cooldown.charge > 0) b.cooldown.charge--;
   if (b.cooldown.throw > 0) b.cooldown.throw--;
   const target = pickBossTarget(world);
+  updateThrowFlight(world); // Story 6.6: a chunk in flight lands on its hit tick, whatever the boss does
+  updateCrawlerDrops(world); // Story 6.7: while enraged, every state
   if (b.state === BOSS_STATE.WALK) {
-    if (b.gapTicks > 0) b.gapTicks--;
-    if (pickBossAttack(world) === BOSS_ATTACK.NONE) walk(world, target);
-  } else updateBossAttack(world);
+    // Story 6.7 (DD1): the roar only from WALK, before the gap counts down.
+    if (!checkEnrage(world)) {
+      if (b.gapTicks > 0) b.gapTicks--;
+      if (pickBossAttack(world) === BOSS_ATTACK.NONE) walk(world, target);
+    }
+  } else if (b.state === BOSS_STATE.ROAR) updateRoar(world);
+  else updateBossAttack(world);
   if (bossBodyOn(b)) {
     crushBuildings(world);
     if (world.balance.boss.bodyPushZombies) shoveZombies(world);

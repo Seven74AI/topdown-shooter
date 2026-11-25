@@ -3,13 +3,14 @@ import type { Building } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { currentDecayStage } from "../map/decayStage";
-import type { DistrictMap, SpawnPoint } from "../map/districtMap";
+import type { DistrictMap, MapBox, SpawnPoint } from "../map/districtMap";
 
 /**
  * Story 4.3 (FR32): which spawn point the wave director uses for the next zombie.
  *
  * A point is, in this order:
- * - CLOSED: not open yet at the decay stage (`minStage > decayStage(world)`);
+ * - CLOSED: not open yet at the decay stage (`minStage > decayStage(world)`), or (Story 6.2) buried:
+ *   its position lies inside an active solid (the collapsed alley's mouth);
  * - BLOCKED: a building overlaps its `buildings.spawnClearM` circle. A guard only: placement keeps
  *   that clearance from the spawns of every stage (review M), so it never happens in normal play;
  * - NEAR: closer than `waves.spawnMinPlayerDistanceM` + `spawnJitterM` to a living player (standing
@@ -76,6 +77,52 @@ function blockedByBuilding(world: Readonly<World>, sp: Readonly<SpawnPoint>): bo
   return false;
 }
 
+/**
+ * Story 6.2 (F5, "buried" rule): bit per spawn point = its position lies inside an active solid
+ * (rubble on an alley mouth). Cached per obstacle list and its `version` (rebuilt only at a stage
+ * change), so a pick does no box loop and allocates nothing.
+ */
+interface BuriedCache {
+  version: number;
+  map: unknown;
+  buried: Uint8Array;
+}
+const buriedCaches = new WeakMap<object, BuriedCache>();
+/** Story 6.2 (tests): buried-cache rebuilds (one per obstacle version, never per pick). */
+export const spawnPickCounters = { buriedRebuilds: 0 };
+
+function buriedOf(world: Readonly<World>): Uint8Array {
+  const o = world.obstacles;
+  let c = buriedCaches.get(o);
+  const points = world.map.spawnPoints;
+  if (!c) {
+    c = { version: -1, map: null, buried: new Uint8Array(points.length) };
+    buriedCaches.set(o, c);
+  }
+  if (c.version !== o.version || c.map !== world.map || c.buried.length < points.length) {
+    if (c.buried.length < points.length) c.buried = new Uint8Array(points.length);
+    const solids = o.solids;
+    for (let i = 0; i < points.length; i++) {
+      const sp = points[i] as SpawnPoint;
+      let inside = 0;
+      for (let k = 0; k < solids.length && inside === 0; k++) {
+        const b = solids[k] as MapBox;
+        if (sp.x >= b.minX && sp.x <= b.maxX && sp.y >= b.minY && sp.y <= b.maxY) inside = 1;
+      }
+      c.buried[i] = inside;
+    }
+    c.version = o.version;
+    c.map = world.map;
+    spawnPickCounters.buriedRebuilds++;
+  }
+  return c.buried;
+}
+
+/** Story 6.2: spawn point `i` lies inside an active solid (closed by the "buried" rule). */
+export function isSpawnBuried(world: Readonly<World>, i: number): boolean {
+  return buriedOf(world)[i] === 1;
+}
+
 /** Fills the scratch `states` / `nearestD2` for every spawn point; returns the OPEN count. */
 function classify(world: Readonly<World>): number {
   const points = world.map.spawnPoints;
@@ -86,6 +133,7 @@ function classify(world: Readonly<World>): number {
   const stage = currentDecayStage(world);
   const minD = world.balance.waves.spawnMinPlayerDistanceM + world.balance.waves.spawnJitterM;
   const minD2 = minD * minD;
+  const buried = buriedOf(world);
   let open = 0;
   for (let i = 0; i < points.length; i++) {
     const sp = points[i] as (typeof points)[number];
@@ -98,7 +146,7 @@ function classify(world: Readonly<World>): number {
     }
     nearestD2[i] = nearest;
     let s: SpawnState;
-    if (sp.minStage > stage) s = SPAWN_STATE.CLOSED;
+    if (sp.minStage > stage || buried[i] === 1) s = SPAWN_STATE.CLOSED; // Story 6.2: buried under rubble
     else if (blockedByBuilding(world, sp)) s = SPAWN_STATE.BLOCKED;
     else if (nearest < minD2) s = SPAWN_STATE.NEAR;
     else s = SPAWN_STATE.OPEN;

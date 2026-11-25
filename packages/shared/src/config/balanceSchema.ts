@@ -427,6 +427,68 @@ export const wavesSchema = z
       .array(z.number().min(0).lt(1))
       .refine((a) => a.every((v, i) => i === 0 || v >= (a[i - 1] as number)), "fixedAtFractions must be ascending")
       .default([]),
+    /**
+     * Story 6.11: the evacuation vote. It opens after clearing wave `runWaves` (the single source:
+     * no separate `firstWave` key to keep equal, so every `runWaves` override moves it too) and lasts `voteS`; once every player voted it ends `allVotedHoldS`
+     * later (D3). `dawnS`: the client's dawn after Extract. `padRadiusM`: the helicopter pad's drawn
+     * ring (the centre is map data: the `evac_pad` event spot). Story 6.12: in endless a vote also
+     * opens after every `everyWaves`-th wave past `runWaves` (15, 20, 25…).
+     */
+    evac: z
+      .object({
+        voteS: z.number().positive().max(120).default(15),
+        allVotedHoldS: z.number().min(0).max(10).default(1),
+        dawnS: z.number().min(0).max(30).default(4),
+        everyWaves: z.number().int().min(1).max(100).default(5),
+        padRadiusM: z.number().positive().max(10).default(3),
+      })
+      .strict()
+      .default({ voteS: 15, allVotedHoldS: 1, dawnS: 4, everyWaves: 5, padRadiusM: 3 }),
+    /**
+     * Story 6.12: endless waves (past `runWaves`, after Stay). Size `min(N × zombiesPerWave,
+     * maxZombiesPerWave)` × the party scale (F1); every zombie spawned in wave N > `hpGrowthFromWave`
+     * has `1 + hpGrowthPerWave × (N − hpGrowthFromWave)` × HP (F2); `N − (brutesFirstWave −
+     * brutesAtFirstWave)` Brutes spread from `bruteFromFraction` to `bruteToFraction` of the wave,
+     * at most `brutesMaxAlive` alive (F3); a Behemoth every `bossEveryWaves`-th wave past `runWaves`
+     * with `1 + bossHpGrowthPerBoss × k` × HP (F4); odd waves reuse wave `oddWaveMix`'s mix, even
+     * waves wave `evenWaveMix`'s (D5); `eventEvenWaves`: one special event on even non-boss waves (F6).
+     * The light rule is `decay.json › blackout.endlessOddWaves / endlessEvenHalfDark` (6.3's block).
+     */
+    endless: z
+      .object({
+        maxZombiesPerWave: z.number().int().positive().max(65535).default(600),
+        hpGrowthFromWave: z.number().int().min(1).max(255).default(15),
+        hpGrowthPerWave: z.number().min(0).max(1).default(0.06),
+        brutesFirstWave: z.number().int().min(1).max(255).default(11),
+        brutesAtFirstWave: z.number().int().min(0).max(255).default(3),
+        brutesPerWave: z.number().int().min(0).max(10).default(1),
+        brutesMaxAlive: z.number().int().min(1).max(64).default(6),
+        bruteFromFraction: z.number().min(0).lt(1).default(0.25),
+        bruteToFraction: z.number().min(0).lt(1).default(0.9),
+        bossEveryWaves: z.number().int().min(1).max(100).default(5),
+        bossHpGrowthPerBoss: z.number().min(0).max(10).default(0.25),
+        eventEvenWaves: z.boolean().default(true),
+        oddWaveMix: z.number().int().min(1).max(255).default(9),
+        evenWaveMix: z.number().int().min(1).max(255).default(10),
+      })
+      .strict()
+      .refine((e) => e.bruteToFraction >= e.bruteFromFraction, "endless.bruteToFraction must be ≥ bruteFromFraction")
+      .default({
+        maxZombiesPerWave: 600,
+        hpGrowthFromWave: 15,
+        hpGrowthPerWave: 0.06,
+        brutesFirstWave: 11,
+        brutesAtFirstWave: 3,
+        brutesPerWave: 1,
+        brutesMaxAlive: 6,
+        bruteFromFraction: 0.25,
+        bruteToFraction: 0.9,
+        bossEveryWaves: 5,
+        bossHpGrowthPerBoss: 0.25,
+        eventEvenWaves: true,
+        oddWaveMix: 9,
+        evenWaveMix: 10,
+      }),
   })
   .strict();
 
@@ -825,13 +887,15 @@ export const shopSchema = z
     });
   });
 
-/** Story 6.3: the shipped blackout values (every `lightPctByWave` entry 0: 6.4 fills waves 9–10). */
+/** Story 6.3: the blackout defaults (every `lightPctByWave` entry 0; Story 6.4 sets waves 9–10 and `halfDarkInBuild` in decay.json). */
 export const BLACKOUT_DEFAULTS = {
   lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   powerFailureLightPct: 20,
   endlessLightPct: 5,
   halfDarkK: 0.5,
   halfDarkInBuild: false,
+  endlessOddWaves: true,
+  endlessEvenHalfDark: true,
   glowM: 1.6,
   fireLightM: 4,
   muzzleLightM: 3,
@@ -863,6 +927,10 @@ export const blackoutSchema = z
     endlessLightPct: z.number().int().min(1).max(100).default(BLACKOUT_DEFAULTS.endlessLightPct),
     halfDarkK: z.number().gt(0).max(1).default(BLACKOUT_DEFAULTS.halfDarkK),
     halfDarkInBuild: z.boolean().default(BLACKOUT_DEFAULTS.halfDarkInBuild),
+    /** Story 6.12 (F5): odd endless waves (11, 13, 15…) are blackout waves at `endlessLightPct`. */
+    endlessOddWaves: z.boolean().default(true),
+    /** Story 6.12 (D3): even endless waves are drawn at `endlessLightPct` at half strength (`halfDarkK`), like a stage-5 build phase. */
+    endlessEvenHalfDark: z.boolean().default(true),
     /** F2: the glow round every standing/downed survivor (crossCheck: > every zombie radius + the player's). */
     glowM: z.number().positive().max(4).default(BLACKOUT_DEFAULTS.glowM),
     fireLightM: z.number().positive().max(16).default(BLACKOUT_DEFAULTS.fireLightM),
@@ -885,6 +953,82 @@ export const blackoutSchema = z
     hazardAboveDarkPct: z.number().min(0).max(100).default(BLACKOUT_DEFAULTS.hazardAboveDarkPct),
   })
   .strict();
+
+/** Story 6.2: the shipped Ruins values (stage 4). */
+export const RUINS_DEFAULTS = {
+  lampOutMinS: 0.15,
+  lampOutMaxS: 0.6,
+  lampGapMinS: 4,
+  lampGapMaxS: 10,
+  dustGapMinS: 0.6,
+  dustGapMaxS: 1.6,
+  maxDustSmoke: 40,
+  maxDustGrit: 60,
+  collapseBurstS: 2,
+};
+
+/**
+ * Story 6.2 (Ruins, client look only; F6/F7): each streetlight drops out for `lampOutMinS`–`lampOutMaxS`
+ * every `lampGapMinS`–`lampGapMaxS` (keyed to the run seed and the World tick, so every phone agrees);
+ * a falling-debris dust puff every `dustGapMinS`–`dustGapMaxS` within the view (pooled: at most
+ * `maxDustSmoke` + `maxDustGrit` particles, halved with `?fx=low`); the stage-4 collapse burst lasts
+ * `collapseBurstS`. Nothing here changes the game.
+ */
+export const ruinsSchema = z
+  .object({
+    lampOutMinS: z.number().positive().max(5).default(RUINS_DEFAULTS.lampOutMinS),
+    lampOutMaxS: z.number().positive().max(5).default(RUINS_DEFAULTS.lampOutMaxS),
+    lampGapMinS: z.number().positive().max(60).default(RUINS_DEFAULTS.lampGapMinS),
+    lampGapMaxS: z.number().positive().max(60).default(RUINS_DEFAULTS.lampGapMaxS),
+    dustGapMinS: z.number().positive().max(30).default(RUINS_DEFAULTS.dustGapMinS),
+    dustGapMaxS: z.number().positive().max(30).default(RUINS_DEFAULTS.dustGapMaxS),
+    maxDustSmoke: z.number().int().min(0).max(256).default(RUINS_DEFAULTS.maxDustSmoke),
+    maxDustGrit: z.number().int().min(0).max(256).default(RUINS_DEFAULTS.maxDustGrit),
+    collapseBurstS: z.number().positive().max(10).default(RUINS_DEFAULTS.collapseBurstS),
+  })
+  .strict()
+  .refine((r) => r.lampOutMinS <= r.lampOutMaxS, "lampOutMinS must be ≤ lampOutMaxS")
+  .refine((r) => r.lampGapMinS <= r.lampGapMaxS, "lampGapMinS must be ≤ lampGapMaxS")
+  .refine((r) => r.lampGapMinS > r.lampOutMaxS, "a lamp's gap must be longer than its longest drop-out")
+  .refine((r) => r.dustGapMinS <= r.dustGapMaxS, "dustGapMinS must be ≤ dustGapMaxS");
+
+/** Story 6.4: the shipped Collapse values (stage 5). */
+export const COLLAPSE_DEFAULTS = {
+  powerOutFromStage: 5,
+  fog: { fromStage: 5, waveClearM: 9, waveRadiusM: 10, buildClearM: 13, buildRadiusM: 14 },
+  growlMinS: 6,
+  growlMaxS: 14,
+  maxAshFlakes: 128,
+};
+
+/**
+ * Story 6.4 (Collapse; FR63, FR87). From `powerOutFromStage` the streetlights, shop glow, neon, the
+ * canopy and the running car's lights are off (floodlights and fires stay lit). From `fog.fromStage`
+ * a zombie farther than `…ClearM` from your survivor fades out, hidden beyond `…RadiusM` (wave / build
+ * phase), unless a standing survivor's beam shows it; touch aim assist never snaps to a zombie your
+ * fog hides. Sound: a distant growl every `growlMinS`–`growlMaxS`; CO3's ash pool is capped.
+ */
+export const collapseSchema = z
+  .object({
+    powerOutFromStage: z.number().int().min(1).max(5).default(COLLAPSE_DEFAULTS.powerOutFromStage),
+    fog: z
+      .object({
+        fromStage: z.number().int().min(1).max(5),
+        waveClearM: z.number().positive().max(60),
+        waveRadiusM: z.number().positive().max(60),
+        buildClearM: z.number().positive().max(60),
+        buildRadiusM: z.number().positive().max(60),
+      })
+      .strict()
+      .refine((f) => f.waveClearM < f.waveRadiusM, "waveClearM must be < waveRadiusM")
+      .refine((f) => f.buildClearM < f.buildRadiusM, "buildClearM must be < buildRadiusM")
+      .default(COLLAPSE_DEFAULTS.fog),
+    growlMinS: z.number().positive().max(120).default(COLLAPSE_DEFAULTS.growlMinS),
+    growlMaxS: z.number().positive().max(120).default(COLLAPSE_DEFAULTS.growlMaxS),
+    maxAshFlakes: z.number().int().min(0).max(512).default(COLLAPSE_DEFAULTS.maxAshFlakes),
+  })
+  .strict()
+  .refine((c) => c.growlMinS <= c.growlMaxS, "growlMinS must be ≤ growlMaxS");
 
 /**
  * Story 4.5: the decay timeline (GDD › Level Progression; FR58). `stageByWave[n - 1]` is the decay
@@ -923,6 +1067,10 @@ export const decaySchema = z
       .refine((f) => Math.abs(f.pulseS * TICK_RATE_HZ - Math.round(f.pulseS * TICK_RATE_HZ)) < 1e-9, "pulseS must be a whole number of ticks"),
     /** Story 6.3: blackout lighting (defaults = the shipped values; 6.4/6.10/6.12 switch blackouts on). */
     blackout: blackoutSchema.default(BLACKOUT_DEFAULTS),
+    /** Story 6.2: the Ruins flicker and dust (client look only). */
+    ruins: ruinsSchema.default(RUINS_DEFAULTS),
+    /** Story 6.4: power out and fog at stage 5. */
+    collapse: collapseSchema.default(COLLAPSE_DEFAULTS),
   })
   .strict();
 
@@ -1156,6 +1304,76 @@ export const bossSchema = z
       })
       .strict(),
     caps: z.object({ maxDecals: z.number().int().min(1).max(32) }).strict(),
+    /** Story 6.6: the charge (F1–F6). Every `*S` is whole ticks. */
+    charge: z
+      .object({
+        /** The target's centre is this far (5–12 m) from the boss's centre. */
+        minM: z.number().positive(),
+        maxM: z.number().positive(),
+        /** The swept lane must be at least this long. */
+        minLaneM: z.number().positive(),
+        /** Longest rush (m). */
+        distM: z.number().positive().max(30),
+        telegraphS: z.number().positive().refine(wholeTickS, "charge.telegraphS must be whole ticks"),
+        speedMps: z.number().positive().max(40),
+        /** The drawn lane's width (body 4 m + a survivor 0.8 m). */
+        laneWidthM: z.number().positive().max(12),
+        damage: z.number().int().positive(),
+        shoveM: z.number().min(0).max(8),
+        shoveS: z.number().positive().refine(wholeTickS, "charge.shoveS must be whole ticks"),
+        zombieDamage: z.number().int().min(0),
+        recoverS: z.number().positive().refine(wholeTickS, "charge.recoverS must be whole ticks"),
+        cooldownS: z.number().positive().refine(wholeTickS, "charge.cooldownS must be whole ticks"),
+        initialCooldownS: z.number().min(0).refine(wholeTickS, "charge.initialCooldownS must be whole ticks"),
+        stunS: z.number().positive().refine(wholeTickS, "charge.stunS must be whole ticks"),
+        /** Every damage source × this while stunned (designer D1). */
+        stunDamageMult: z.number().min(1).max(5),
+        /** The lane sweep's step (m). */
+        sweepStepM: z.number().positive().max(0.5),
+      })
+      .strict()
+      .refine((s) => (s.shoveM * 1000) / Math.round(s.shoveS * TICK_RATE_HZ) <= 65535, "charge shove per tick must fit knockStepMm (u16)"),
+    /** Story 6.6: the throw (F7, F8). */
+    throw: z
+      .object({
+        /** A standing player farther than this from the boss's centre can be thrown at. */
+        minM: z.number().positive(),
+        /** ... or farther than this when the boss can't walk to them (D5). */
+        unreachableMinM: z.number().positive(),
+        liftS: z.number().positive().refine(wholeTickS, "throw.liftS must be whole ticks"),
+        flightS: z.number().positive().refine(wholeTickS, "throw.flightS must be whole ticks"),
+        radiusM: z.number().positive().max(8),
+        damage: z.number().int().positive(),
+        zombieDamage: z.number().int().min(0),
+        recoverS: z.number().positive().refine(wholeTickS, "throw.recoverS must be whole ticks"),
+        cooldownS: z.number().positive().refine(wholeTickS, "throw.cooldownS must be whole ticks"),
+        initialCooldownS: z.number().min(0).refine(wholeTickS, "throw.initialCooldownS must be whole ticks"),
+        /** D7: a rubble pile or burnt car within this of its body edge is the chunk's look (visual only). */
+        sourceRangeM: z.number().min(0).max(20),
+      })
+      .strict(),
+    /** Story 6.7: enrage (F1–F4). */
+    enrage: z
+      .object({
+        atHpFrac: z.number().gt(0).lt(1),
+        roarS: z.number().positive().refine(wholeTickS, "enrage.roarS must be whole ticks"),
+        roarRadiusM: z.number().min(0).max(12),
+        roarPushM: z.number().min(0).max(8),
+        roarPushS: z.number().positive().refine(wholeTickS, "enrage.roarPushS must be whole ticks"),
+        speedMult: z.number().min(1).max(3),
+        cooldownMult: z.number().gt(0).max(1),
+        gapMult: z.number().gt(0).max(1),
+        /** A Crawler off its back every N s, by player count (index 0 = solo). */
+        crawlerEveryS: z.array(z.number().positive().refine(wholeTickS, "enrage.crawlerEveryS must be whole ticks")).min(1),
+        firstCrawlerS: z.number().positive().refine(wholeTickS, "enrage.firstCrawlerS must be whole ticks"),
+        crawlerBehindM: z.number().min(0).max(8),
+        crawlerPlayerClearM: z.number().min(0).max(8),
+      })
+      .strict(),
+    /** Story 6.7 (F6): money to every player in the run the tick it dies. */
+    killPay: z.number().int().min(0),
+    /** Story 6.7: the collapse (client pose sequence). */
+    death: z.object({ collapseS: z.number().positive().refine(wholeTickS, "death.collapseS must be whole ticks") }).strict(),
   })
   .strict();
 

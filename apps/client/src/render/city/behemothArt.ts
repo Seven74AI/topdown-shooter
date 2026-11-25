@@ -24,7 +24,7 @@ const LOOKS: readonly { look: LookKind; skin: string }[] = [
   { look: "riot", skin: "#66705e" },
 ];
 
-export type BehemothPose = "walk" | "slam" | "slamHit" | "charge" | "rush" | "throw" | "stun" | "roar";
+export type BehemothPose = "walk" | "slam" | "slamHit" | "charge" | "rush" | "throw" | "stun" | "roar" | "dead"; // Story 6.7: + "dead" (the collapse, k 0–1)
 
 /** Reference body radius (m). */
 export const BH_R_M = 2;
@@ -98,7 +98,8 @@ function throwChunk(c: G): void {
 
 /** The pose drawing (reference units, metres, facing +x). `k` = pose progress 0–1, `ph` = walk phase 0–1. */
 function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind, skin: string, enr: boolean, ph: number): void {
-  const skinC = enr ? "#7d6a5e" : skin;
+  // Story 6.7: the collapse darkens the body as it sags (the corpse reads as no longer a threat).
+  const skinC = pose === "dead" ? shade(skin, -0.3 * k) : enr ? "#7d6a5e" : skin;
   const sh = 0.12 * r;
   const sy = 0.82 * r;
   let A: number[];
@@ -134,6 +135,13 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
     B = [0.42 * r, 1.25 * r, 0.32 * r];
     headX = 0.55 * r;
     headY = 0.22 * r;
+  } else if (pose === "dead") {
+    // Story 6.7 (D6): from the stun's slump to sprawled flat, arms thrown wide, head lolled aside.
+    A = [lerp(0.3, -0.15, k) * r, lerp(-1.28, -1.5, k) * r, 0.32 * r];
+    B = [lerp(0.42, 0.05, k) * r, lerp(1.25, 1.45, k) * r, 0.32 * r];
+    headX = lerp(0.55, 0.78, k) * r;
+    headY = lerp(0.22, 0.5, k) * r;
+    swell = lerp(1, 0.92, k);
   } else if (pose === "roar") {
     A = [0.45 * r, -1.32 * r, 0.35 * r];
     B = [0.45 * r, 1.32 * r, 0.35 * r];
@@ -310,7 +318,7 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
   }
   fillP(c, (q) => E(q, 0.08 * r, 0, 0.08 * r, 0.2 * r), shade(skinC, -0.38));
   if (pose === "roar") fillP(c, (q) => E(q, 0.19 * r, 0, 0.1 * r, 0.12 * r), "#1a0606");
-  drawEyes(c, r, enr);
+  if (pose !== "dead") drawEyes(c, r, enr); // Story 6.7: a dead body has no glowing eyes (no false danger in the dark)
   c.restore();
 }
 

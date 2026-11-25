@@ -1,5 +1,5 @@
 import type { World } from "../core/world";
-import { bossBodyOn } from "../boss/bossState";
+import { BOSS_STATE, bossBodyOn } from "../boss/bossState";
 import { createExplosionSpec, explode } from "../combat/explosion";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { buildingStats, removeBuilding, type Building } from "./buildings";
@@ -49,6 +49,7 @@ function zombieTouches(world: World, x: number, y: number, r: number): boolean {
 function bossTouches(world: World, x: number, y: number, r: number): boolean {
   const b = world.boss;
   if (!bossBodyOn(b)) return false;
+  if (b.state === BOSS_STATE.RUSH) return false; // Story 6.6 (D2): a charge breaks mines without setting them off
   const reach = r + world.balance.boss.radiusM;
   const dx = b.x - x;
   const dy = b.y - y;

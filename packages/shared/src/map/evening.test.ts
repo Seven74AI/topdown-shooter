@@ -3,7 +3,7 @@ import { loadBalance } from "../config/balance";
 import { buildingStats, footprint, placeBuilding, placementError, type Box } from "../buildings/buildings";
 import { shotBlockT } from "../combat/cover";
 import { createWorld, type World } from "../core/world";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { changeDecayStage } from "../decay/decaySystem";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
@@ -73,7 +73,7 @@ describe("Story 4.6 Evening: lit shop fronts", () => {
     if (!wood) throw new Error("wood");
     const box = { minX: 0, minY: 0, maxX: 0, maxY: 0 } as Box;
     let survived = 0;
-    for (const mask of legalDecayMasks(DT)) {
+    for (const mask of gameplayDecayMasks(DT)) {
       const w = run();
       w.decay.variants = mask; // force each combination (the run would draw one from streams.decay)
       const placed: number[] = [];
@@ -102,7 +102,7 @@ describe("Story 4.6 Evening: lit shop fronts", () => {
       }
       survived += placed.length;
     }
-    expect(survived).toBe(45 * 5); // Story 4.8: 45 combinations; liveness: every combination, every shop front
+    expect(survived).toBe(135 * 5); // Story 4.8: 45 combinations, Story 6.2: × 3 alleys; liveness: every combination, every shop front
   });
 
   it("the strips touch their shop (a strip touching nothing would lose its glow: skipped, and this test fails)", () => {

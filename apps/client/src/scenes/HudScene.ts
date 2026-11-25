@@ -45,7 +45,7 @@ import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { BossHud } from "./BossHud";
 import { MAX_PLAYERS } from "@topdown/shared";
-import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark } from "./hudModel";
+import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark, waveLine } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
@@ -349,6 +349,8 @@ export class HudScene extends Phaser.Scene {
   private shownBarItems: readonly BuildTile[] | null = null;
   private shownBarKey = -1;
   private shownBuildSecs = -2;
+  private shownEndless = false; // Story 6.12
+  private shownVoting = false; // Story 6.11
   private buttons = new HudButtons();
   /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line; Story 5.15: the hand cluster, the 🔒 badge. */
   private readonly placeBtns: Phaser.GameObjects.Graphics[] = [];
@@ -437,6 +439,7 @@ export class HudScene extends Phaser.Scene {
   private shownWave = -1;
   private shownRemaining = -1;
   private shownBanner = "";
+  private shownBannerColor = "";
   private shownWeapon = "";
   private shownAmmo = Number.NaN;
   private shownMag = Number.NaN;
@@ -1153,7 +1156,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined;
+    const show = m.consumableVisible && frame !== undefined && !m.voting; // Story 6.11: hidden in the vote
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;
@@ -1818,7 +1821,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   override update(): void {
-    const touch = !this.router.isMouse; // mouse mode hides the sticks
+    const touch = !this.router.isMouse && !this.model.voting; // mouse mode hides the sticks; Story 6.11: so does the vote
     this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
@@ -1988,27 +1991,35 @@ export class HudScene extends Phaser.Scene {
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
   private drawWave(): void {
     const m = this.model;
-    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs) {
+    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs || m.endless !== this.shownEndless || m.voting !== this.shownVoting) {
       this.shownWave = m.wave;
       this.shownRemaining = m.remaining;
       this.shownBuildSecs = m.buildSecs;
+      this.shownEndless = m.endless; // Story 6.12
+      this.shownVoting = m.voting; // Story 6.11
       // Story 3.1: during a build the top line counts down to the next wave.
-      const text =
-        m.buildSecs >= 0 ? `Wave ${m.wave + 1} in ${m.buildSecs} s` : m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready";
+      const text = waveLine(m);
       this.waveText
         .setText(text)
         .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
-    if (m.bannerText !== this.shownBanner) {
+    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor) {
       this.shownBanner = m.bannerText;
-      this.bannerText.setText(m.bannerText).setPosition(this.scale.width / 2, this.scale.height * 0.32);
+      this.shownBannerColor = m.bannerColor; // Stories 6.6 / 6.7: CRASH! / EVAC INBOUND amber, ENRAGED red
+      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it.
+      this.bannerText
+        .setWordWrapWidth(this.scale.width * 0.92)
+        .setText(m.bannerText)
+        .setColor(m.bannerColor || "#ffffff")
+        .setPosition(this.scale.width / 2, this.scale.height * 0.32);
     }
     const age = this.time.now - m.bannerAtMs;
-    if (!m.bannerText || age > BANNER_SHOW_MS) {
+    const showMs = m.bannerShowMs > 0 ? m.bannerShowMs : BANNER_SHOW_MS;
+    if (!m.bannerText || age > showMs) {
       this.bannerText.setVisible(false);
     } else {
-      const fadeStart = BANNER_SHOW_MS - BANNER_FADE_MS;
-      this.bannerText.setVisible(true).setAlpha(age < fadeStart ? 1 : 1 - (age - fadeStart) / BANNER_FADE_MS);
+      const fadeStart = showMs - Math.min(BANNER_FADE_MS, showMs / 2);
+      this.bannerText.setVisible(true).setAlpha(age < fadeStart ? 1 : 1 - (age - fadeStart) / (showMs - fadeStart));
     }
   }
 
@@ -2038,7 +2049,7 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3); Story 5.21: under the action bar.
-    const hidden = m.placementActive || m.buildBar || m.repairOpen;
+    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting; // Story 6.11: under the vote's buttons too
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;
@@ -2051,7 +2062,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen; // Story 5.21 (D3): not under the action bar either
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

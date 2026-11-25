@@ -242,7 +242,18 @@ export function step(world: World, dtS: number): void {
   }
   const systems = worldSystems.get(world);
   if (!systems) throw new Error("step: world was not created by createWorld()");
-  for (const name of SYSTEM_ORDER) systems[name](world, dtS);
+  if (world.run.phase === "vote") {
+    // Story 6.11 (F5, D4): nothing acts during the evacuation vote — no zombie, fire, hazard, timer
+    // (downed countdown included), building or player move/shot; only the inputs, the run (the
+    // vote's countdown) and the economy (it only pays this tick's pending events, e.g. a wave bonus
+    // whose `wave.ended` was emitted between steps by the dev skip). Decided once per tick: the tick
+    // the vote opens runs every system.
+    systems.input(world, dtS);
+    systems.waves(world, dtS);
+    systems.economy(world, dtS);
+  } else {
+    for (const name of SYSTEM_ORDER) systems[name](world, dtS);
+  }
   world.tick += 1;
   recordZombieHistory(world); // Story 2.12: row `world.tick` = what this tick's horde frame shows
   recordBossHistory(world); // Story 6.5 (D3): the boss's row of the same tick

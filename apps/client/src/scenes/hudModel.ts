@@ -58,6 +58,10 @@ export interface HudModel {
   remaining: number;
   /** Story 3.1: whole seconds left in the build phase, or -1 outside a build. */
   buildSecs: number;
+  /** Story 6.12 (AC 12): the team chose Stay: the top line reads "Wave 13 · Endless". */
+  endless: boolean;
+  /** Story 6.11: the evacuation vote is on (the sticks hide; the top line says so). */
+  voting: boolean;
   /** Story 3.1: the Ready button is shown (a build phase, a run on screen, menu closed). */
   readyButton: boolean;
   /** The local player is Ready (as this device last asked: shown at once, also online). */
@@ -183,6 +187,9 @@ export interface HudModel {
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
+  /** Stories 6.6 / 6.7: the banner's colour (CSS; "" = white) and how long it shows (ms; 0 = the default). */
+  bannerColor: string;
+  bannerShowMs: number;
   /** World positions of rushing zombies (x0, y0, x1, y1, …) and how many are valid. */
   readonly rushers: Float32Array;
   rusherCount: number;
@@ -199,6 +206,10 @@ export interface HudModel {
   bossX: number;
   bossY: number;
   bossAtkKind: number;
+  /** Story 6.6 (D6): stunned after a crash (the bar flashes amber). */
+  bossStunned: boolean;
+  /** Story 6.7: the bar's opacity (1; empties and fades over 2 s after its death). */
+  bossBarAlpha: number;
   /** Main camera's visible world rectangle and zoom, to turn world positions into screen positions. */
   camX: number;
   camY: number;
@@ -304,6 +315,8 @@ export const createHudModel = (): HudModel => ({
   wave: 0,
   remaining: 0,
   buildSecs: -1,
+  endless: false,
+  voting: false,
   readyButton: false,
   readyOn: false,
   readyCount: 0,
@@ -380,6 +393,8 @@ export const createHudModel = (): HudModel => ({
   soldPopCount: 0,
   bannerText: "",
   bannerAtMs: 0,
+  bannerColor: "",
+  bannerShowMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),
   rusherCount: 0,
   bossVisible: false, // Story 6.5
@@ -390,6 +405,8 @@ export const createHudModel = (): HudModel => ({
   bossX: 0,
   bossY: 0,
   bossAtkKind: 0,
+  bossStunned: false,
+  bossBarAlpha: 1,
   camX: 0,
   camY: 0,
   camZoom: 1,
@@ -423,4 +440,17 @@ export const createHudModel = (): HudModel => ({
 export function fuelPercent(fuelTicks: number, stats: { readonly fuelS: number }): number {
   const full = Math.round(stats.fuelS * 20);
   return full > 0 ? Math.max(0, Math.min(100, Math.ceil((fuelTicks / full) * 100))) : 0;
+}
+
+/**
+ * The top line (Story 3.1 build countdown; Story 6.11 the vote; Story 6.12 the "Endless" tag):
+ * "Wave 4 in 22 s", "Wave 3   ·   Zombies 47", "Wave 13 · Endless · Zombies 300",
+ * "Wave 14 · Endless · 22 s", "Wave 10 · Evac vote", "Get ready".
+ */
+export function waveLine(m: { wave: number; remaining: number; buildSecs: number; endless: boolean; voting: boolean }): string {
+  // Story 6.11 / 6.12: the vote and endless lines use single-spaced dots so they fit beside the HP bar at 568 px.
+  if (m.voting) return `Wave ${m.wave} · Evac vote`;
+  if (m.endless) return m.buildSecs >= 0 ? `Wave ${m.wave + 1} · Endless · ${m.buildSecs} s` : `Wave ${m.wave} · Endless · Zombies ${m.remaining}`;
+  if (m.buildSecs >= 0) return `Wave ${m.wave + 1} in ${m.buildSecs} s`;
+  return m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready";
 }

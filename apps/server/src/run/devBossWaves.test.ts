@@ -5,6 +5,7 @@ describe("Story 6.5 DEV_BOSS_WAVES", () => {
   it("parses wave lists; refuses junk; production ignores it", () => {
     expect(parseDevBossWaves("3")).toEqual([3]);
     expect(parseDevBossWaves(" 1, 4 ")).toEqual([1, 4]);
+    expect(parseDevBossWaves("none")).toEqual([]); // re-review N1: no Behemoth at all, endless included
     expect(parseDevBossWaves("0")).toBeNull();
     expect(parseDevBossWaves("x")).toBeNull();
     expect(parseDevBossWaves("")).toBeNull();

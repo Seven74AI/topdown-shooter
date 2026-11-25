@@ -302,7 +302,7 @@ describe("Story 4.3 spawn points: stages, buildings, determinism, review fixes",
         checked++;
       }
     }
-    expect(checked).toBe(2 * 10); // all 10 stage-2/3 spawns
+    expect(checked).toBe(2 * 12); // all 10 stage-2/3 spawns + Story 6.2: the 2 stage-4 breaches
     // Just outside spawnClearM (2 m) of manhole_west is still fine: the rule is clearance, not a ban on the street.
     const mw = byName(map, "manhole_west");
     footprint(stats, Math.round((mw.x + 2.5) / 0.5), Math.round((mw.y - 0.5) / 0.5), 0, box);

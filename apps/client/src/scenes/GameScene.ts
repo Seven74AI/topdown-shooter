@@ -27,6 +27,8 @@ import {
   ownedCount,
   upgradePriceTable,
   spectateTarget,
+  collapseStyleAt,
+  ruinsLookAt,
   weaponName,
   ticksFor,
   weaponIds,
@@ -101,6 +103,9 @@ import { ABOVE_DARK } from "../render/darkness/aboveDark";
 import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
+import { ScreenFog } from "../render/fog/screenFog";
+import { FogView } from "../render/fog/FogView";
+import { DustView } from "../render/city/DustView";
 import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
@@ -121,9 +126,12 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { CLOSED_VOTE, VoteRequest, VoteSender, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { dawnEndsAt } from "../ui/dawnModel";
+import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
+import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -185,6 +193,8 @@ const RUSH_COLOR = 0xff3b30;
 /** Story 5.8: the gas-slow edge tint (steady: slowed, not hurt). */
 const GAS_GLOW_ALPHA = 0.32;
 const SHAKE_MS = 80;
+/** Story 6.7: the boss bar empties and fades over this many seconds after its death. */
+const BOSS_BAR_FADE_S = 2;
 const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
@@ -291,8 +301,31 @@ export class GameScene extends Phaser.Scene {
   private zombieView: ZombieView | null = null;
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
+  /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
+  private heliView: HeliView | null = null;
+  private readonly voteReq = new VoteRequest();
+  private readonly voteSend = new VoteSender();
+  /** Review L8: four reused voter records, filled by a callback made once; the panel is rebuilt only when its key changes. */
+  private readonly votePlayers: VotePlayerIn[] = [0, 1, 2, 3].map(() => ({ slot: 0, vote: 0, standing: true, mine: false }));
+  private voteCount = 0;
+  private voteKey = -1;
+  private voteCollectHost: SceneHost | null = null;
+  private readonly collectVoter = (p: PlayerState, id: string): void => {
+    const h = this.voteCollectHost;
+    if (!h || this.voteCount >= this.votePlayers.length) return;
+    const o = this.votePlayers[this.voteCount++] as VotePlayerIn;
+    o.slot = h.playerInfo(id).slot;
+    o.vote = p.vote;
+    o.standing = p.status === "alive";
+    o.mine = id === h.localPlayerId;
+  };
   private bossMusic = false;
-  private readonly bossCueOut: BossCue = { banner: "", sound: "", shake: false, buzz: false, music: "" };
+  private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
+  /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
+  private bossEvacShown = 0;
+  /** Story 6.7: seconds since its death (the bar empties and fades over 2 s); the last state seen (6.6: the rush sound). */
+  private bossDeadS = 0;
+  private bossLastState = 0;
   private readonly bossAt = { x: 0, y: 0 };
   /** Story 3.9: blood trails behind Crawlers. */
   private trailView: BloodTrailView | null = null;
@@ -337,6 +370,11 @@ export class GameScene extends Phaser.Scene {
   private flashLights: FlashLights | null = null;
   /** Story 6.3: a blackout is on this frame (survivors above the darkness; flashes recorded). */
   private blackoutNow = false;
+  /** Story 6.4: my screen's fog (the camera's survivor + every standing survivor's beam) and its look. */
+  private screenFog: ScreenFog | null = null;
+  private fogView: FogView | null = null;
+  /** Story 6.2: Ruins dust puffs and the collapse burst. */
+  private dustView: DustView | null = null;
   private readonly darkInputs: DarknessInputs = {
     localId: "",
     drawnOf: (id) => this.playerViews.get(id),
@@ -555,6 +593,9 @@ export class GameScene extends Phaser.Scene {
     }
     this.gameOver = false;
     this.kills = 0;
+    this.bossEvacShown = 0; // Story 6.7
+    this.bossDeadS = 0;
+    this.bossLastState = 0;
     this.consumablePending.active = false; // Story 5.12: Phaser reuses the scene: no pending use from the last run
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
     this.pending.reset(); // Story 5.18: nor a pending box
@@ -610,6 +651,17 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
+    this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
+    this.voteReq.reset();
+    this.voteSend.reset();
+    this.voteKey = -1;
+    voteStore.set(CLOSED_VOTE);
+    voteStore.handle((choice) => {
+      // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
+      const h = this.host;
+      if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
+      this.voteSend.want(this.voteReq.tap(choice, this.time.now)); // review M1: paced in updateVote
+    });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -643,6 +695,14 @@ export class GameScene extends Phaser.Scene {
     this.darkInputs.flashes = this.flashLights;
     this.darkInputs.molotovs = [];
     this.blackoutNow = false;
+    // Story 6.4: the fog (rule on my screen + its look, painted into the darkness when it is drawn).
+    this.screenFog = new ScreenFog();
+    this.fogView = new FogView(this, this.screenFog, opts.lowFx);
+    this.darknessView.fog = this.fogView;
+    if (this.zombieView) this.zombieView.fog = this.screenFog;
+    if (this.trailView) this.trailView.fog = this.screenFog; // review L5: no trail marks from fog-hidden Crawlers
+    // Story 6.2: Ruins dust (pools sized by decay.json › ruins; halved with ?fx=low).
+    this.dustView = new DustView(this, balance.decay.ruins.maxDustSmoke, balance.decay.ruins.maxDustGrit, opts.lowFx);
     // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.
     if (!session && opts.blackoutPct !== null) setForcedBlackout(world, opts.blackoutPct);
     this.medStationView = new MedStationView(this, balance);
@@ -679,7 +739,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
-    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx);
+    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx, () => this.runSeed); // Story 6.2: the lamp flicker key
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
@@ -742,6 +802,11 @@ export class GameScene extends Phaser.Scene {
       this.floodlightView = null;
       this.darknessView?.destroy(); // Story 6.3
       this.darknessView = null;
+      this.fogView?.destroy(); // Story 6.4
+      this.fogView = null;
+      this.screenFog = null;
+      this.dustView?.destroy(); // Story 6.2
+      this.dustView = null;
       this.eyesView?.destroy();
       this.eyesView = null;
       this.sparkleView?.destroy();
@@ -765,6 +830,9 @@ export class GameScene extends Phaser.Scene {
       this.projectileView?.destroy();
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
+      this.heliView = null; // Story 6.11: its images go with the scene
+      voteStore.handle(null);
+      voteStore.set(CLOSED_VOTE);
       if (this.bossMusic) stopBossLoop();
       this.bossMusic = false;
       this.trailView?.destroy();
@@ -883,9 +951,11 @@ export class GameScene extends Phaser.Scene {
     this.scene.start("Boot", { start: true } satisfies BootSceneData); // stops Game, which stops Hud
   }
 
-  private showBanner(text: string): void {
+  private showBanner(text: string, color = "", showMs = 0): void {
     this.hudModel.bannerText = text;
     this.hudModel.bannerAtMs = this.time.now;
+    this.hudModel.bannerColor = color; // Stories 6.6 / 6.7 (colour rule: red boss danger, amber something you can use)
+    this.hudModel.bannerShowMs = showMs;
   }
 
   /**
@@ -933,6 +1003,8 @@ export class GameScene extends Phaser.Scene {
     m.camY = cy - halfH;
     m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
+    m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
+    m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
     m.remaining = host.world.waves.remaining;
   }
 
@@ -942,10 +1014,53 @@ export class GameScene extends Phaser.Scene {
    * when `phase` becomes "results" (every player's kills and earnings). `earned` is read from the
    * World after the step, so it includes the last wave's bonus (paid later in the same tick).
    */
-  private showSoloResults(host: SceneHost, wave: number, heldOut: boolean): void {
+  private showSoloResults(host: SceneHost, wave: number): void {
     this.gameOver = true;
     const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed });
+    const run = host.world.run;
+    const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
+    // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
+    const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs });
+  }
+
+  /**
+   * Story 6.11 (EX1, F1–F4): the vote panel each frame from the World (server truth online: phase,
+   * ticks left, each player's `vote`) and my pending tap; the helicopter on the pad. A woken tab or a
+   * late scene start during the vote finds the helicopter landed (no replayed descent).
+   */
+  private updateVote(host: SceneHost): void {
+    const run = host.world.run;
+    const open = run.phase === "vote" && !this.gameOver;
+    const nowS = this.time.now / 1000;
+    if (open && this.heliView && this.heliView.phase === "gone") {
+      const total = ticksFor(host.world.balance.waves.evac.voteS);
+      this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
+    }
+    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
+    this.heliView?.update(nowS);
+    if (!open) {
+      if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);
+      this.voteKey = -1;
+      return;
+    }
+    const me = host.world.players.get(host.localPlayerId);
+    this.voteCount = 0;
+    this.voteCollectHost = host;
+    host.world.players.forEach(this.collectVoter);
+    this.voteCollectHost = null;
+    // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
+    // a change of mind goes out at once even with the bucket empty.
+    // Review M1 / re-review 2 (N3): paced, newest choice last, urgent near the end (one shared step with the netsim test).
+    const send = pollVote(this.voteSend, host.world.waves.number, me?.vote ?? 0, this.time.now, run.voteTicksLeft, TICK_RATE_HZ, this.votePlayers, this.voteCount);
+    if (send) host.castVote(send);
+    const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
+    const total = ticksFor(host.world.balance.waves.evac.voteS);
+    const pending = this.voteReq.isPending();
+    const key = voteFrameKey(run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers, this.voteCount, shown, pending);
+    if (key === this.voteKey) return; // review L8: nothing visible changed, nothing built
+    this.voteKey = key;
+    voteStore.set(voteView(true, run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers.slice(0, this.voteCount), shown, pending));
   }
 
   /**
@@ -1608,12 +1723,26 @@ export class GameScene extends Phaser.Scene {
   /** Story 6.5: a boss event's banner, sound, shake, buzz and music (none for a woken tab's backlog). */
   private bossEvent(host: SceneHost, e: SimEvent, localId: string): void {
     const me = host.world.players.get(localId);
-    const cue = bossCue(e, localId, me?.x ?? 0, me?.y ?? 0, this.bossCueOut);
-    if (cue.banner) this.stackBanner(cue.banner);
+    let killer = "";
+    if (e.type === "boss.killed") {
+      if (e.number <= this.bossEvacShown) return; // once per Behemoth
+      this.bossEvacShown = e.number;
+      killer = e.killerId !== null ? host.playerInfo(e.killerId).name || "" : "";
+      if (e.killerId === localId && !host.online) this.kills++; // D5: who finished it gets +1 kill (online: the server counts it)
+    }
+    const cue = bossCue(e, localId, me?.x ?? 0, me?.y ?? 0, this.bossCueOut, killer, host.world.balance.boss.killPay);
+    if (cue.banner) {
+      if (cue.bannerColor || cue.bannerMs) this.showBanner(cue.banner, cue.bannerColor, cue.bannerMs);
+      else this.stackBanner(cue.banner);
+    }
     if (cue.sound) playSfx(cue.sound);
     if (cue.shake && getSettings().screenShake) this.shake(MINE_SHAKE_MS, 1);
     if (cue.buzz) vibrate(BOSS_TARGET_BUZZ); // D10: off with vibration off (the haptics setting)
     if (e.type === "boss.slammed") this.bossView?.onSlammed(e.x, e.y, (e.attackId * 2.39996) % (Math.PI * 2));
+    else if (e.type === "boss.thrown_impact") this.bossView?.onThrownImpact(e.x, e.y, (e.attackId * 2.39996) % (Math.PI * 2));
+    else if (e.type === "boss.crashed") this.bossView?.onCrashed(e.x, e.y);
+    else if (e.type === "boss.enraged") this.bossView?.onEnraged(e.x, e.y);
+    else if (e.type === "boss.crawler_dropped") this.bossView?.onCrawlerDropped(e.x, e.y);
   }
 
   /**
@@ -1629,9 +1758,15 @@ export class GameScene extends Phaser.Scene {
     this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target, this.zombieView?.drawn);
     const m = this.hudModel;
     const walking = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
-    m.bossVisible = walking;
-    m.bossHpFrac = b.maxHp > 0 ? b.hp / b.maxHp : 0;
+    // Story 6.7: after its death the bar shows empty and fades out over 2 s.
+    this.bossDeadS = b.state === BOSS_STATE.DEAD ? this.bossDeadS + dtS : 0;
+    m.bossVisible = walking || (b.state === BOSS_STATE.DEAD && this.bossDeadS < BOSS_BAR_FADE_S);
+    m.bossBarAlpha = walking ? 1 : Math.max(0, 1 - this.bossDeadS / BOSS_BAR_FADE_S);
+    m.bossHpFrac = walking && b.maxHp > 0 ? b.hp / b.maxHp : 0;
     m.bossEnraged = b.enraged;
+    m.bossStunned = b.state === BOSS_STATE.STUN; // Story 6.6 (D6): the bar flashes amber
+    if (b.state === BOSS_STATE.RUSH && this.bossLastState !== BOSS_STATE.RUSH && !document.hidden) playSfx("boss_charge_rush");
+    this.bossLastState = b.state;
     m.bossState = b.state;
     m.bossAtkKind = b.attack.kind;
     m.bossX = walking ? this.bossAt.x : b.x;
@@ -1776,7 +1911,9 @@ export class GameScene extends Phaser.Scene {
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
-    if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
+    // everything; neutral moves keep the Predictor standing still too).
+    if (standsStill(menuOpen, shopOpen, host.world.run.phase)) neutralizeInput(this.input_);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
@@ -1829,8 +1966,10 @@ export class GameScene extends Phaser.Scene {
         this.fireCue.clear();
         this.acidCue.clear();
       }
-      if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
-        this.showSoloResults(host, e.wave, e.type === "run.held_out");
+      if (e.type === "run.vote_opened") this.heliView?.opened(this.time.now / 1000);
+      else if (e.type === "run.vote_resolved") this.heliView?.left(this.time.now / 1000, e.choice === "extract");
+      if ((e.type === "team.wiped" || e.type === "run.extracted") && !host.online && !this.gameOver) {
+        this.showSoloResults(host, e.wave);
       } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
         // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
         // with an alert; the pulsing edge arrow shows where and how long they have.
@@ -1865,10 +2004,21 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave
-      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
-        this.bossEvent(host, e, localId); // Story 6.5
+      } else if (
+        e.type === "boss.warning" ||
+        e.type === "boss.arrived" ||
+        e.type === "boss.slammed" ||
+        e.type === "boss.target_changed" ||
+        e.type === "boss.crashed" ||
+        e.type === "boss.thrown_impact" ||
+        e.type === "boss.enraged" ||
+        e.type === "boss.crawler_dropped" ||
+        e.type === "boss.killed"
+      ) {
+        this.bossEvent(host, e, localId); // Stories 6.5–6.7
       } else if (e.type === "boss.telegraph") {
-        this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM);
+        this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM, e.endX, e.endY, e.crash, e.src);
+        this.bossEvent(host, e, localId); // Story 6.6: the scrape / lift sound
       } else if (e.type === "boss.hit") {
         this.bossView?.onHit();
       } else if (e.type === "wave.started") {
@@ -1877,6 +2027,9 @@ export class GameScene extends Phaser.Scene {
         if (perf.net && perf.overlayOn) netSummary.start(performance.now(), e.number, perf.net, netMeter);
       } else if (e.type === "decay.stage_changed") {
         this.stackBanner(host.world.balance.decay.stageNames[e.stage - 1] ?? `Stage ${e.stage}`); // Story 4.5: "Panic"
+        // Story 6.2 (D9): the collapse moment — a rumble and a dust burst, live only (a tab that slept
+        // across the build start wakes with a long frame: it shows the stage without the one-off cue).
+        if (e.stage === 4 && deltaMs < LIVE_FRAME_MAX_MS && !document.hidden) this.dustView?.burst(host.world, host.world.balance.decay.ruins.collapseBurstS);
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
@@ -1896,8 +2049,10 @@ export class GameScene extends Phaser.Scene {
       stopFlameLoop();
       this.flameLooping = false;
     }
+    this.updateScreenFog(host, localId);
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
+    this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;
@@ -1919,7 +2074,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
-    this.ambience?.update(host.world.decay.stage);
+    this.ambience?.update(host.world.decay.stage, collapseStyleAt(host.world)); // Story 6.4: the ash style mutes the rain bed
     // Story 5.23 (AC 1): a fresh pick pops the ghost (0.8 → 1 in 120 ms) with a soft click
     if (this.placement.picks !== this.seenPicks) {
       this.seenPicks = this.placement.picks;
@@ -2019,7 +2174,24 @@ export class GameScene extends Phaser.Scene {
     // stage-1 bake followed by a second one a moment later on a late join).
     const synced = !(host instanceof NetSimHost) || host.decaySynced;
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
-    this.updateDarkness(host, zoom);
+    this.dustView?.update(host.world, ruinsLookAt(host.world), this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+    this.updateDarkness(host, zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+  }
+
+  /**
+   * Story 6.4 (F3, D2, D10): this frame's fog on my screen, before the zombie, eye and spit views:
+   * centred on the camera's survivor (mine; the teammate I spectate while out), every standing
+   * survivor's beam at its drawn pose (last frame's: the views update after the zombies).
+   */
+  private updateScreenFog(host: SceneHost, localId: string): void {
+    const fog = this.screenFog;
+    if (!fog) return;
+    const world = host.world;
+    const me = world.players.get(localId);
+    const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
+    const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
+    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
+    if (this.acidView) this.acidView.fog = fog;
   }
 
   /**
@@ -2027,7 +2199,7 @@ export class GameScene extends Phaser.Scene {
    * is known: the stamp plan, the darkness, the eyes within `eyesM` of my (or my spectated) survivor
    * and the beam sparkles. All hidden and idle while no blackout (F9).
    */
-  private updateDarkness(host: SceneHost, zoom: number): void {
+  private updateDarkness(host: SceneHost, zoom: number, dtS: number): void {
     const world = host.world;
     const on = isBlackoutNow(world);
     if (on !== this.blackoutNow) {
@@ -2047,6 +2219,7 @@ export class GameScene extends Phaser.Scene {
       padDarknessView(m.camX, m.camY, vw, vh, inp); // review M1: the padded darkness (camera shake)
       planDarkness(plan, world, inp);
     }
+    this.fogView?.update(world, plan, dtS); // Story 6.4: before the darkness paints (the fog rides in it)
     this.darknessView?.update(world, plan, m.camX, m.camY, vw, vh, zoom, this.scale.width, this.scale.height);
     if (this.zombieView) this.eyesView?.update(world, this.zombieView, m.localX, m.localY, world.balance.decay.blackout.eyesM);
     this.sparkleView?.update(world, plan, this.acidClockS);
@@ -2065,6 +2238,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 }
+
+/** Story 6.2: a frame longer than this follows a hidden tab (no one-off collapse burst on wake). */
+const LIVE_FRAME_MAX_MS = 250;
 
 /** Story 6.3: a muzzle flash lights round a point this far ahead of the shooter (looks.html: 0.8 m). */
 const MUZZLE_LIGHT_AHEAD_M = 0.8;

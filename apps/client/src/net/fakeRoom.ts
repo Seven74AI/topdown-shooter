@@ -42,6 +42,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     reviveNeed: 0,
     consumable: 255, // Story 5.12
     consumableCount: 0,
+    vote: 0, // Story 6.11
     ...over,
   };
 }
@@ -59,7 +60,7 @@ export interface FakeState {
   remaining: number;
   aliveCount: number;
   resultWave: number;
-  resultHeldOut: boolean;
+  resultEnding: string;
   buildTicksLeft: number;
   scenario: string;
   /** Story 4.4. */
@@ -72,6 +73,8 @@ export interface FakeState {
   /** Story 6.3. */
   blackoutPct: number;
   halfDark: boolean;
+  voteTicksLeft: number;
+  endless: boolean;
   /** Story 6.5: the boss record. */
   boss: FakeBoss;
 }
@@ -80,7 +83,7 @@ export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] 
 
 /** Story 6.5: a boss record with every field at the schema default (state NONE). */
 export function fakeBoss(over: Partial<FakeBoss> = {}): FakeBoss {
-  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, ...over };
+  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, atkEndX: 0, atkEndY: 0, atkCrash: false, atkSrc: 0, atkSrcX: 0, atkSrcY: 0, ...over };
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -94,7 +97,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     remaining: 0,
     aliveCount: players.length,
     resultWave: 0,
-    resultHeldOut: false,
+    resultEnding: "",
     buildTicksLeft: 0,
     scenario: "",
     runSeed: 0,
@@ -103,6 +106,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayFiresOut: 0,
     blackoutPct: 0,
     halfDark: false,
+    voteTicksLeft: 0, // Story 6.11
+    endless: false, // Story 6.12
     boss: fakeBoss(),
   };
 }

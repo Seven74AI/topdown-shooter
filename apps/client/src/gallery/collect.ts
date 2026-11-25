@@ -9,6 +9,7 @@ import { ensureFireFxAtlas } from "../render/city/fireFxAtlas";
 import { ensureGearIcons, GEAR_ICON_FRAMES, gearIconUrl } from "../render/city/gearIcons";
 import { ensureThrowFxAtlas } from "../render/city/throwArt";
 import { ensureHudWarnTextures } from "../render/city/hudWarnArt";
+import { ensureHeliAtlas } from "../render/city/heliArt";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
 import { WEAPON_ART, WEAPON_ICON_ART, tierMarkUrl, weaponIconUrl } from "../render/city/weaponArt";
 
@@ -43,6 +44,7 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureGearIcons(this);
           ensureThrowFxAtlas(this);
           ensureHudWarnTextures(this);
+          ensureHeliAtlas(this);
           new SurvivorLayerPool(this);
           const art = textureAssets(this); // before the game (and its textures) is destroyed below
           void shopAssets().then((shop) => resolve([...art, ...shop]), reject);

@@ -64,7 +64,8 @@ export interface HazardZone extends MapBox {
 }
 
 /** Story 4.3: what a spawn point is in the city (GDD › District 1: alleys, manholes, broken shop windows). */
-export const SPAWN_KINDS = ["street", "alley", "manhole", "window"] as const;
+/** Story 6.2: `breach` = a hole blown in a building wall at stage 4 (spawns like a window). */
+export const SPAWN_KINDS = ["street", "alley", "manhole", "window", "breach"] as const;
 export type SpawnKind = (typeof SPAWN_KINDS)[number];
 
 /** Story 4.3: the axis a spawn's zombies are jittered along (`waves.spawnJitterM`). */
@@ -87,7 +88,7 @@ export interface MapSpawn extends SpawnPoint {
 }
 
 /** Story 4.5: what a decay mutation does at the build start that enters its stage. */
-export const DECAY_ACTIONS = ["add", "remove", "ignite", "block"] as const;
+export const DECAY_ACTIONS = ["add", "remove", "ignite", "block", "look"] as const;
 export type DecayAction = (typeof DECAY_ACTIONS)[number];
 
 /** Story 4.5: most variation candidates a map may hold (the chosen set travels as a uint32 bitmask). */
@@ -106,6 +107,9 @@ export const MAX_DECAY_FIRES = 32;
  *   (a cover object that duplicates a collision box, the bus, takes the box with it);
  * - `ignite`: a fire zone at the centre of `target` (Story 4.8: damage, flow cost, expiry after
  *   `decay.json › fire.durationWaves`; the radius is `fire.radiusM` unless the object overrides it).
+ * - `look` (Story 6.2): a point that only carries a variant (the run's Ruins material, 6.4's
+ *   Collapse weather style). No box (min = max = the point), no gameplay: `fillObstacles` and
+ *   `applyDecayStage` never read it; the client reads the chosen bit (`decay/ruinsLook.ts`).
  *
  * For `remove` / `ignite` the box is the target's (resolved by the loader). `variant` ≥ 0 makes it
  * part of a variation candidate (`DistrictMap.decayVariants`): it applies only when chosen.

@@ -20,6 +20,9 @@ const BAR_BG = 0x101012;
 const BAR_FILL = 0xb8161c;
 const BAR_FILL_ENRAGED = 0xff3a2a;
 const NOTCH = 0xf2c14e;
+/** Story 6.6 (D6): the bar flashes amber while it is stunned (amber = something you can use: hit it now). */
+const BAR_FILL_STUN = 0xffb52e;
+const STUN_FLASH_HZ = 4;
 const MARKER_MARGIN_CSS_PX = 30;
 /** The edge panel and attack plates are shown at this share of their art size (CSS px). */
 const PANEL_SCALE = 0.75;
@@ -48,6 +51,8 @@ export class BossHud {
   /** What the bar was last drawn for (numbers: no string per frame). */
   private shownStep = -1;
   private shownEnraged = false;
+  private shownFlash = false;
+  private shownAlpha = -1;
   private shownW = -1;
   private shownK = -1;
   private shownInsets = -1;
@@ -84,16 +89,24 @@ export class BossHud {
     } else {
       const step = Math.round(Math.max(0, Math.min(1, m.bossHpFrac)) * 200);
       const ins = insets.top * 1e6 + insets.left * 1e3 + insets.right;
-      if (step !== this.shownStep || m.bossEnraged !== this.shownEnraged || w !== this.shownW || k !== this.shownK || ins !== this.shownInsets) {
+      const flash = m.bossStunned && Math.floor((nowMs / 1000) * STUN_FLASH_HZ * 2) % 2 === 0;
+      const alpha = Math.round(Math.max(0, Math.min(1, m.bossBarAlpha)) * 20) / 20;
+      if (alpha !== this.shownAlpha) {
+        this.shownAlpha = alpha;
+        this.bar.setAlpha(alpha);
+        this.name.setAlpha(alpha);
+      }
+      if (step !== this.shownStep || m.bossEnraged !== this.shownEnraged || flash !== this.shownFlash || w !== this.shownW || k !== this.shownK || ins !== this.shownInsets) {
         this.shownStep = step;
         this.shownEnraged = m.bossEnraged;
+        this.shownFlash = flash;
         this.shownW = w;
         this.shownK = k;
         this.shownInsets = ins;
         const l = layoutBossBar(w, insets.left, insets.top, insets.right, k, this.layout);
         const g = this.bar.clear();
         g.fillStyle(BAR_BG, 0.75).fillRect(l.x - 2 * k, l.barY - 2 * k, l.w + 4 * k, l.barH + 4 * k);
-        g.fillStyle(m.bossEnraged ? BAR_FILL_ENRAGED : BAR_FILL, 1).fillRect(l.x, l.barY, (l.w * step) / 200, l.barH);
+        g.fillStyle(flash ? BAR_FILL_STUN : m.bossEnraged ? BAR_FILL_ENRAGED : BAR_FILL, 1).fillRect(l.x, l.barY, (l.w * step) / 200, l.barH);
         g.fillStyle(NOTCH, 1).fillRect(l.x + l.w * BOSS_BAR_NOTCH - k, l.barY - 3 * k, 2 * k, l.barH + 6 * k);
         this.name.setText(m.bossName).setFontSize(Math.round(BOSS_BAR_NAME_CSS_PX * k)).setPosition(w / 2, l.y);
       }

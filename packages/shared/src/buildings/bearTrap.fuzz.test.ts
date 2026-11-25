@@ -4,7 +4,7 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { createRng, type Rng } from "../core/rng";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import type { MapBox } from "../map/districtMap";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
@@ -36,7 +36,7 @@ import { bearTrapCounters, resetBearTrapCounters } from "./bearTrap";
 /** Weak guns (as the 5.9 floor fuzz): zombies get close, yet the bots still end every wave. */
 const balance = loadBalance(withOverrides(bundledBalanceFiles(), [["weapons", "pistol.damage", 2], ["weapons", "smg.damage", 1]]));
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const LAYOUTS = 16;
 const TICKS = 2000;
 const WAVE_LIMIT_S = 150;

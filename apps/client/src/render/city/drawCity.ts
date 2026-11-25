@@ -1,8 +1,9 @@
-import { shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
+import { isRubble, shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
+import { alleyHeap, breachHole, brokenRoof, deadLampHead, fallenLamp, flatSpill, floodPuddle, looseDebris, rubblePile, soot } from "./ruinsArt";
 import { SCORCH_FULL_FRAC } from "./fireRing";
 import type { AtlasCanvas } from "./spriteAtlas";
 import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
-import { HEIGHT_BY_KIND, MAP_PX_PER_M, barrierStyle, carStyle, nameHash, type Dressing, type Front } from "./dressing";
+import { HEIGHT_BY_KIND, MAP_PX_PER_M, barrierStyle, carStyle, nameHash, powerOff, type Dressing, type Front } from "./dressing";
 import {
   GROUND,
   LAMP,
@@ -47,7 +48,18 @@ export interface CityScene {
   /** The burning cars (`world.decay.fires`, 4.5: which car burns is picked per run). */
   readonly fires: readonly FireRecord[];
   readonly atlas: AtlasCanvas;
+  /** Story 6.2: the Ruins material (`ruinsLookAt`: 0 RU1 concrete … 3 RU4 fire-gutted); default 0. */
+  readonly ruinsLook?: number;
+  /** Story 6.4: the Collapse weather style (`collapseStyleAt`: −1 none, 0 haze, 1 fog bank, 2 ash, 3 flood). */
+  readonly collapseStyle?: number;
+  /** Story 6.4 (F1): the power is out (`isPowerOut`): no lamps, shop glow, neon, canopy light, headlights. */
+  readonly powerOut?: boolean;
+  /** `?fx=low`: CO4 puddles without reflections. */
+  readonly lowFx?: boolean;
 }
+
+/** Story 6.4: the dressing whose lights the bake draws (power out: `powerOff`, floodlights and fires are not dressing). */
+const litDressing = (cs: CityScene): Dressing => (cs.powerOut ? powerOff(cs.dressing) : cs.dressing);
 
 interface Box {
   readonly name: string;
@@ -838,14 +850,124 @@ export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
     else if (o.kind === "bus") castBoxShadow(g, s, { ...o, x: o.x + 1, y: o.y + 1, w: o.w - 2, h: o.h - 2 }, shadowLenPx(heightOf(d, o)), 0.6);
     else castBoxShadow(g, s, { ...o, x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 }, shadowLenPx(heightOf(d, o)), 0.45, false);
   }
-  for (const o of k.blocks) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.5);
+  for (const o of k.blocks) if (boxIn(bd, o) && !isRubble(o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.5); // rubble casts its own
   hazards(g, cs);
   for (const f of cs.fires) scorch(g, f);
-  for (const o of k.stageProps) if (boxIn(bd, o)) debris(g, o); // every stage-group prop is debris-like for now
-  for (const o of k.blocks) if (boxIn(bd, o)) drawFrame(g, cs.atlas, o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK, o, "right");
+  ruinsUnder(g, cs, k, bd);
+  for (const o of k.stageProps) if (boxIn(bd, o)) stageProp(g, cs, o);
+  for (const o of k.blocks) {
+    if (!boxIn(bd, o)) continue;
+    if (isRubble(o)) rubbleOf(g, cs, o);
+    else drawFrame(g, cs.atlas, o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK, o, "right");
+  }
   for (const o of k.cover) if (boxIn(bd, o)) coverPiece(g, cs, o);
   for (const o of k.ground) if (o.kind === "canopy" && boxIn(bd, o)) canopy(g, o);
-  lampHeads(g, d, cs.map.widthM * P);
+  if (cs.powerOut) deadLampHeads(g, cs, k);
+  else lampHeads(g, d, cs.map.widthM * P);
+}
+
+// ---------------------------------------------------------------------------
+// Stories 6.2 / 6.4: Ruins and Collapse (painters in `ruinsArt.ts`, drawn in metres)
+// ---------------------------------------------------------------------------
+
+/** Run `fn` with the context in metres (map px → m). */
+function inMetres(g: G, fn: () => void): void {
+  g.save();
+  g.scale(P, P);
+  fn();
+  g.restore();
+}
+
+const lookOf = (cs: CityScene): number => cs.ruinsLook ?? 0;
+
+/** Story 6.2: a rubble box (hard cover): the collapsed alley's heap wall to wall, or a street pile. */
+function rubbleOf(g: G, cs: CityScene, o: Box): void {
+  const seed = nameHash(o.name) & 0xffff;
+  const mat = lookOf(cs);
+  inMetres(g, () => {
+    const x = o.x / P;
+    const y = o.y / P;
+    const w = o.w / P;
+    const h = o.h / P;
+    if (o.name.startsWith("rubble_alley") && w * h >= 4) {
+      // The street end of the alley: the side facing the map's middle row.
+      const streetEnd = y + h / 2 < cs.map.heightM / 2 ? "max" : "min";
+      alleyHeap(g, x, y, w, h, seed, mat, streetEnd);
+    } else rubblePile(g, x + w / 2, y + h / 2, w, h, seed, mat);
+  });
+}
+
+/** A stage-group visual prop: 4.x debris, Ruins loose debris and spills, the Collapse fallen streetlight. */
+function stageProp(g: G, cs: CityScene, o: Box): void {
+  if (cs.stage < 4) {
+    debris(g, o);
+    return;
+  }
+  const seed = nameHash(o.name) & 0xffff;
+  inMetres(g, () => {
+    const x = o.x / P;
+    const y = o.y / P;
+    const w = o.w / P;
+    const h = o.h / P;
+    if (o.kind === "fallen_lamp") fallenLamp(g, x, y + h / 2, FALLEN_LAMP_ANGLE, w);
+    else if (o.kind === "spill") flatSpill(g, x, y, w, h, seed, lookOf(cs));
+    else looseDebris(g, x, y, w, h, seed, lookOf(cs));
+  });
+}
+
+/** Story 6.4: the fallen streetlight lies at this angle (rad) from its foot (the lab's 0.45). */
+const FALLEN_LAMP_ANGLE = 0.45;
+
+/**
+ * Ruins at stage ≥ 4 under the rubble: caved roof corners (the dressing's `ruinedRoofs` of each
+ * stage reached), the breach holes (`breach` spawn points open at this stage), RU4 soot; Collapse
+ * CO4 flood puddles. All visual only.
+ */
+function ruinsUnder(g: G, cs: CityScene, k: Classified, bd: Bounds): void {
+  if (cs.stage < 4) return;
+  const mat = lookOf(cs);
+  inMetres(g, () => {
+    for (const r of cs.dressing.ruinedRoofs) {
+      if (r.stage > cs.stage) continue;
+      brokenRoof(g, r.poly, r.seed, mat);
+      if (mat === 3) soot(g, r.poly[0] as number, r.poly[1] as number, 3.4, 2.4, 0.55);
+    }
+    for (const sp of cs.map.spawnPoints) {
+      if (sp.kind !== "breach" || sp.minStage > cs.stage) continue;
+      if (!pointIn(bd, sp.x * P, sp.y * P, 3 * P)) continue;
+      const out = breachOutward(k, sp.x, sp.y, sp.jitterAxis);
+      breachHole(g, sp.x - out[0] * BREACH_OFF_M, sp.y - out[1] * BREACH_OFF_M, out[0], out[1], BREACH_W_M, nameHash(sp.name) & 0xffff, mat);
+      if (mat === 3) soot(g, sp.x - out[0] * 1.2, sp.y - out[1] * 1.2, 1.6, 1.6, 0.45);
+    }
+    if (cs.stage >= 5 && cs.collapseStyle === 3) {
+      const fire = cs.fires[0];
+      for (const [x, y, rx, ry] of cs.dressing.floodPuddles) floodPuddle(g, x, y, rx, ry, (x * 7) | 0, fire ? fire.x : Number.NaN, fire ? fire.y : Number.NaN, !cs.lowFx);
+    }
+  });
+}
+
+/** Story 6.2: a breach spawn sits this far off its wall face; the hole is this wide (m). */
+const BREACH_OFF_M = 0.6;
+const BREACH_W_M = 1.8;
+
+/** The outward normal of the wall a breach spawn faces: the side whose probe point lies in a building. */
+function breachOutward(k: Classified, x: number, y: number, axis: "x" | "y"): [number, number] {
+  const inside = (px: number, py: number): boolean => k.buildings.some((b) => px * P >= b.x && px * P <= b.x + b.w && py * P >= b.y && py * P <= b.y + b.h);
+  if (axis === "x") return inside(x, y - 1) ? [0, 1] : [0, -1];
+  return inside(x + 1, y) ? [-1, 0] : [1, 0];
+}
+
+/** Story 6.4: dead lamp heads (the power is out); none where the fallen streetlight lies. */
+function deadLampHeads(g: G, cs: CityScene, k: Classified): void {
+  const fallen = k.stageProps.filter((o) => o.kind === "fallen_lamp");
+  inMetres(g, () => {
+    for (const [lx, ly] of cs.dressing.lamps) {
+      const x = lx / P;
+      const y = ly / P;
+      if (fallen.some((o) => Math.hypot(o.x / P - x, o.y / P + o.h / P / 2 - y) < 0.8)) continue;
+      deadLampHead(g, x, y);
+    }
+  });
 }
 
 /** Base + overlay in one go (tests, one-off bakes). */
@@ -932,7 +1054,7 @@ export function windowSpill(map: DistrictMap, d: Dressing): readonly Spill[] {
 
 /** The lightmap (drawn with MULTIPLY): ambient, lit tops, lamp pools, window spill, canopy, headlights; roofs at a fixed level (D6). */
 export function drawLightmap(g: G, cs: CityScene): void {
-  const d = cs.dressing;
+  const d = litDressing(cs);
   const k = classify(cs);
   const W = cs.map.widthM * P;
   const H = cs.map.heightM * P;
@@ -983,7 +1105,7 @@ export function drawLightmap(g: G, cs: CityScene): void {
 
 /** The glow layer (drawn with ADD over a black field): lamp heads, their tails, spill, neon, canopy, headlights. */
 export function drawGlow(g: G, cs: CityScene): void {
-  const d = cs.dressing;
+  const d = litDressing(cs);
   const k = classify(cs);
   const W = cs.map.widthM * P;
   const H = cs.map.heightM * P;
@@ -1007,7 +1129,15 @@ export function drawGlow(g: G, cs: CityScene): void {
     const n = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / 40));
     for (let q = 0; q <= n; q++) oval(g, x1 + ((x2 - x1) * q) / n + nx * 8, y1 + ((y2 - y1) * q) / n + ny * 8, 24, 24, col, a * SPILL_GLOW_K);
   }
-  for (const [x, y, rx, ry, col, a] of d.neon) oval(g, x, y, rx, ry, col, a);
+  for (const [x, y, rx, ry, col, a] of d.neon) oval(g, x, y, rx, ry, col, a * night.neonK); // Story 6.2 (D8): × 0.3 at stage 4
+  if (cs.stage >= 5 && cs.collapseStyle === 2) {
+    // Story 6.4 CO3 ash: the city burning beyond the district glows orange along the east edge (baked).
+    const gr = g.createLinearGradient(W, 0, W * 0.55, H * 0.3);
+    gr.addColorStop(0, "rgba(255,110,40,0.28)");
+    gr.addColorStop(1, "rgba(255,110,40,0)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, W, H);
+  }
   for (const f of cs.fires) oval(g, f.x * P, f.y * P, f.radiusM * P, f.radiusM * P, "255,130,50", 0.12); // review M3: no glow past the ring
   const cp = k.ground.find((o) => o.name === d.canopy);
   if (cp) oval(g, cp.x + cp.w / 2, cp.y + cp.h / 2, 110, 120, "190,215,255", 0.12);

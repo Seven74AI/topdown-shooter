@@ -23,6 +23,8 @@ import {
   DOWNTOWN_MAP,
   removePlayer,
   setBuildReady,
+  castVote,
+  type EvacChoice,
   setZombieHistoryEnabled,
   setInput,
   skippedInputWeaponTick,
@@ -307,6 +309,11 @@ export class RunController {
     if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
   }
 
+  /** Story 6.11: an evacuation vote (the World ignores it outside phase "vote"). */
+  castVote(playerId: string, choice: EvacChoice): void {
+    castVote(this.world, playerId, choice);
+  }
+
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
   setBuildReady(playerId: string, ready: boolean): void {
     setBuildReady(this.world, playerId, ready);
@@ -565,6 +572,12 @@ export class RunController {
     const events = this.events;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
+      // Story 6.7 (D5): who finished the Behemoth gets +1 kill on Results.
+      if (e.type === "boss.killed" && e.killerId !== null) {
+        const k = this.slots.get(e.killerId);
+        if (k) k.kills++;
+        continue;
+      }
       // Story 3.6: a turret's kill pays its owner but is not their kill.
       if (e.type !== "zombie.killed" || e.killerId === null || e.buildingId !== undefined) continue;
       const killer = this.slots.get(e.killerId);

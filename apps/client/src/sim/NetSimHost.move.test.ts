@@ -108,13 +108,13 @@ describe("LocalSimHost moves (Story 5.22)", () => {
   it("solo moves at once with the shared rules (free); a refused move comes back once with its id", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
-    const r = placeBuilding(host.world, LOCAL_PLAYER_ID, { type: "wood_barricade", gx: 24, gy: 20, rot: 0 });
+    const r = placeBuilding(host.world, LOCAL_PLAYER_ID, { type: "wood_barricade", gx: 40, gy: 22, rot: 0 });
     if (!r.ok) throw new Error(r.error);
     const me = host.world.players.get(LOCAL_PLAYER_ID);
     const before = me?.wallet ?? 0;
-    host.moveBuilding({ id: r.value.id, gx: 25, gy: 20, rot: 0 }, 1); // 0.5 m along: onto its own old footprint
+    host.moveBuilding({ id: r.value.id, gx: 41, gy: 22, rot: 0 }, 1); // 0.5 m along: onto its own old footprint
     expect(host.takeMoveRefusal()).toBeNull();
-    expect([r.value.gx, r.value.gy, me?.wallet]).toEqual([25, 20, before]);
+    expect([r.value.gx, r.value.gy, me?.wallet]).toEqual([41, 22, before]);
     host.moveBuilding({ id: r.value.id, gx: 46, gy: 31, rot: 0 }, 2); // onto me at (24, 16)
     expect(host.takeMoveRefusal()).toEqual({ id: r.value.id, reason: "blocked", seq: 2 });
     expect(host.takeMoveRefusal()).toBeNull();

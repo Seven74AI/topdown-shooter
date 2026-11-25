@@ -63,6 +63,8 @@ export interface PlayerStateView {
   /** Story 5.12: the quick-use slot — the consumable's index (255 = empty) and how many are left. */
   readonly consumable: number;
   readonly consumableCount: number;
+  /** Story 6.11: my evacuation vote (0 none, 1 extract, 2 stay), on change only; every phone shows the chips (F2). */
+  readonly vote: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -110,8 +112,8 @@ export interface RunStateView {
   readonly aliveCount: number;
   /** Story 2.8: the wave the team reached, set with phase "results" (0 otherwise). */
   readonly resultWave: number;
-  /** Story 3.10: set with phase "results" when the team cleared the run's last wave ("You held out!"); false for a wipe. */
-  readonly resultHeldOut: boolean;
+  /** Story 6.11: how the run ended (`RunEnding`: "wiped" | "extracted" | "lost"), set with phase "results"; "" otherwise. Replaces 3.10's `resultHeldOut`. */
+  readonly resultEnding: string;
   /** Story 3.1: ticks left in the build phase (0 outside a build). */
   readonly buildTicksLeft: number;
   /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
@@ -138,6 +140,10 @@ export interface RunStateView {
    */
   readonly blackoutPct: number;
   readonly halfDark: boolean;
+  /** Story 6.11: ticks left in the evacuation vote (0 outside one); the client draws the ring from it (F4). */
+  readonly voteTicksLeft: number;
+  /** Story 6.12: the team chose Stay (endless waves; the HUD tag "Endless"). */
+  readonly endless: boolean;
   /** Story 6.5: the Behemoth's record (one nested schema; `boss/bossState.ts` is the sim side). */
   readonly boss?: BossStateView; // absent before the first fight patch (a lobby state)
 }
@@ -170,6 +176,14 @@ export interface BossStateView {
   readonly atkX: number;
   readonly atkY: number;
   readonly atkR: number;
+  /** Story 6.6: the charge lane's stop point (= atkX/Y otherwise) and whether it crashes there. */
+  readonly atkEndX: number;
+  readonly atkEndY: number;
+  readonly atkCrash: boolean;
+  /** Story 6.6: the throw's chunk source (`BOSS_THROW_SRC`) and spot (visual only). */
+  readonly atkSrc: number;
+  readonly atkSrcX: number;
+  readonly atkSrcY: number;
 }
 
 /**
@@ -215,6 +229,7 @@ export const PLAYER_STATE_FIELDS = {
   reviveNeed: true,
   consumable: true, // Story 5.12
   consumableCount: true,
+  vote: true, // Story 6.11
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -237,7 +252,7 @@ export const RUN_STATE_FIELDS = {
   remaining: true,
   aliveCount: true,
   resultWave: true,
-  resultHeldOut: true,
+  resultEnding: true, // Story 6.11
   buildTicksLeft: true,
   scenario: true,
   runSeed: true,
@@ -246,6 +261,8 @@ export const RUN_STATE_FIELDS = {
   decayFiresOut: true,
   blackoutPct: true, // Story 6.3
   halfDark: true, // Story 6.3
+  voteTicksLeft: true, // Story 6.11
+  endless: true, // Story 6.12
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -267,4 +284,10 @@ export const BOSS_STATE_FIELDS = {
   atkX: true,
   atkY: true,
   atkR: true,
+  atkEndX: true,
+  atkEndY: true,
+  atkCrash: true,
+  atkSrc: true,
+  atkSrcX: true,
+  atkSrcY: true,
 } as const satisfies Record<keyof BossStateView, true>;

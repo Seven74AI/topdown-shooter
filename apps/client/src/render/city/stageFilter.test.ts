@@ -24,7 +24,10 @@ describe("what the static city draws at a stage", () => {
     expect(at(1)).toEqual([]);
     expect(at(2)).toEqual(["debris_east", "debris_west"]);
     expect(at(3)).toEqual(["debris_mid", "debris_south"]);
-    expect(at(4)).toEqual([]);
+    // Story 6.2 / 6.4: stage 4's loose debris and spills; stage 5 repeats them (swap model) plus the fallen lamp.
+    expect(at(4).every((n) => n.startsWith("ruins_"))).toBe(true);
+    expect(at(5)).toContain("collapse_fallen_lamp");
+    expect(at(5).filter((n) => n.startsWith("collapse_debris_"))).toHaveLength(at(4).filter((n) => n.startsWith("ruins_debris_")).length);
   });
   it("cover comes from the active obstacle list: the barrier from stage 2, sandbags from 3, mutations applied", () => {
     const kinds = (s: number): string[] => createObstacles(DOWNTOWN_MAP, s).cover.map((c) => c.kind);

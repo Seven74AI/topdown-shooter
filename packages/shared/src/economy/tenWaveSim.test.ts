@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
+import type { World } from "../core/world";
+import { isSpawnBuried } from "../waves/spawnPick";
 
 /**
  * Story 6.1 (AC 5; brief lines 9 and 15): the full 10-wave run with the real balance and every real
@@ -9,7 +11,7 @@ import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headles
  * (a) Economy run (D2): 4 bots that can't die (`god`), seeds 1–3, so every run really plays all 10
  *     waves; each player's earnings are logged next to the GDD target (2,500–3,000 per player) with
  *     the gap in %. Earnings are logged only (D3: the Epic 5 balance pass owns the numbers).
- * (b) Survival run: 1–4 bots × seeds 1–3, mortal: every run ends on Results (held out or wiped,
+ * (b) Survival run: 1–4 bots × seeds 1–3, mortal: every run ends on Results (extracted or wiped,
  *     never the tick limit); survival by wave is logged. Bot survival is not difficulty evidence.
  */
 const balance = loadBalance();
@@ -22,27 +24,46 @@ const info = (msg: string): void => (globalThis as unknown as { console: { info(
 const gapPct = (v: number): number => (v < GDD_MIN ? ((v - GDD_MIN) / GDD_MIN) * 100 : v > GDD_MAX ? ((v - GDD_MAX) / GDD_MAX) * 100 : 0);
 
 describe("Story 6.1: ten-wave sim", () => {
-  it("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and held out; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
+  it("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and extracted; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
     expect(balance.waves.runWaves).toBe(10);
     const lines: string[] = [];
     const runs: HeadlessRunLog[] = [];
     for (const seed of SEEDS) {
       let god = false;
-      const r = runHeadless({ balance, seed, players: 4, god: true, onEnd: (w) => void (god = w.debug.godMode) });
+      // Story 6.2 review M3: from wave 7 (stage 4) the run's collapsed alley buries one mouth, and the
+      // wave director really picks the breaches (read from its recent-pick ring every tick).
+      const buriedAtRuins = new Set<string>();
+      const pickedFrom7 = new Set<string>();
+      let prevHead = -1;
+      const onTick = (w: World): void => {
+        if (w.decay.stage < 4) return;
+        if (buriedAtRuins.size === 0) w.map.spawnPoints.forEach((sp, i) => void (isSpawnBuried(w, i) && buriedAtRuins.add(sp.name)));
+        const cap = Math.min(w.waves.recentSpawns.length, balance.waves.spawnPick.recentPicks);
+        if (prevHead < 0) prevHead = w.waves.recentSpawnHead; // picks before stage 4 stay out
+        // Only the picks made since the last tick (the ring advanced from prevHead to the head).
+        for (let k = prevHead; k !== w.waves.recentSpawnHead; k = (k + 1) % cap) pickedFrom7.add((w.map.spawnPoints[w.waves.recentSpawns[k] as number] as { name: string }).name);
+        prevHead = w.waves.recentSpawnHead;
+      };
+      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void (god = w.debug.godMode) });
+      expect([...buriedAtRuins].length, `seed ${seed}: one alley mouth buried at stage 4`).toBe(1);
+      expect([...buriedAtRuins][0], `seed ${seed}`).toMatch(/^alley_[123]_mouth$/);
+      expect(pickedFrom7.has([...buriedAtRuins][0] as string), `seed ${seed}: the buried mouth is never picked`).toBe(false);
+      expect([...pickedFrom7].some((n) => n.startsWith("breach_")), `seed ${seed}: a breach used from wave 7`).toBe(true);
       runs.push(r);
       // Mutation check: mortal 4-bot runs often clear all 10 waves too, so prove D2's method was really used.
       expect(god, `seed ${seed}: god mode on`).toBe(true);
       expect(r.waves.reduce((a, w) => a + w.downs, 0), `seed ${seed}: no one went down`).toBe(0);
       expect(r.timedOut, `seed ${seed}`).toBe(false); // never the tick limit
       expect(r.wavesCleared).toBe(10); // liveness: all 10 waves really played
-      expect(r.heldOut).toBe(true);
+      expect((r.ending === "extracted")).toBe(true);
       expect(r.wiped).toBe(false);
       expect(r.waves.map((w) => w.wave)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(r.waves.map((w) => w.size)).toEqual([40, 80, 120, 160, 200, 240, 280, 320, 360, 400]);
       for (let i = 0; i < 4; i++) {
         expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
       }
-      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.boss, `seed ${seed}: the Behemoth's 150 to each of the 4 (Story 6.7)`).toBe(4 * balance.boss.killPay);
       // F3: exactly 2 Brutes in each of waves 7–10 (one in 5 and 6).
       for (let w = 5; w <= 10; w++) expect(r.brutes.spawnedInWave.filter((n) => n === w).length, `seed ${seed} wave ${w}`).toBe(w >= 7 ? 2 : 1);
       expect(r.bloaters.burstsInWave[9] ?? 0, `seed ${seed}: Bloater bursts in wave 10`).toBeGreaterThanOrEqual(1);
@@ -69,16 +90,16 @@ describe("Story 6.1: ten-wave sim", () => {
         const r = runHeadless({ balance, seed, players });
         rs.push(r);
         expect(r.timedOut, `${players}p seed ${seed}`).toBe(false); // F6: a run always ends on Results
-        expect(r.heldOut !== r.wiped).toBe(true); // exactly one ending
+        expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
-        if (r.heldOut) expect(r.wavesCleared).toBe(10);
+        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(10);
         else expect(r.wavesCleared).toBe(r.reached - 1); // "Wave reached N": the wave it died in
         if (r.reached >= 7) reachedLate++;
         lines.push(formatRunLine(r));
       }
       const byWave = Array.from({ length: 10 }, (_, i) => rs.filter((r) => r.wavesCleared >= i + 1).length);
       const earned = rs.flatMap((r) => r.earned);
-      summary.push(`${players}p: held out ${rs.filter((r) => r.heldOut).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
+      summary.push(`${players}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
     }
     info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
     expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10

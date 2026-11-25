@@ -42,9 +42,18 @@ export function blockNames(map: DistrictMap): Set<string> {
   return out;
 }
 
-/** A stable number for "what the static layers show": the obstacles' stage and version, the fire count. */
-export function staticKey(stage: number, obstaclesVersion: number, fires: number): number {
-  return (stage * 1_000_000 + obstaclesVersion) * 16 + Math.min(15, fires);
+/**
+ * A stable number for "what the static layers show": the obstacles' stage and version, the fire
+ * count, and (Stories 6.2 / 6.4) the look key (`lookKey`: the Ruins material and Collapse style, so
+ * the wave-11 switch to RU4 and each endless style step rebake once).
+ */
+export function staticKey(stage: number, obstaclesVersion: number, fires: number, look = 0): number {
+  return ((stage * 1_000_000 + obstaclesVersion) * 16 + Math.min(15, fires)) * 64 + (look & 63);
+}
+
+/** Stories 6.2 / 6.4: the look part of `staticKey` (material 0–3, weather style −1–3). */
+export function lookKey(ruinsLook: number, collapseStyle: number): number {
+  return (ruinsLook & 7) * 8 + ((collapseStyle + 1) & 7);
 }
 
 /** Cover objects of a kind (drawing order: cars and the bus, then the low ones). */

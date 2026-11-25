@@ -345,7 +345,7 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
     expect(maxAlive).toBe(150);
     expect(rushedWithQueue).toBe(false);
     expect(world.run.phase).toBe("build"); // Story 5.8: wave 6 is the run's last now
-    expect(world.run.heldOut).toBe(false);
+    expect(world.run.ending).toBe("none");
   });
 
   it("the last-zombies rush waits until the whole wave has spawned (3.10 review)", () => {
@@ -546,7 +546,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
     for (let players = 1; players <= 4; players++) {
       const { orders, world } = runOrders(players, { startWave: 5 });
       expect(world.run.phase, `${players}p`).toBe("results");
-      expect(world.run.heldOut).toBe(true);
+      expect(world.run.ending).toBe("extracted");
       for (let wave = 5; wave <= 10; wave++) {
         const order = orders.get(wave) ?? [];
         const size = waveSize(world.balance, wave, players);
@@ -612,6 +612,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
 
   it("F5: the last-5 rush in wave 10 (queue empty, 5 left → they rush)", () => {
     const { world, events } = setup({ runWaves: 10 });
+    world.debug.bossWaves = []; // the rush alone (Story 6.6: the wave-10 Behemoth throws at the player and kills zombies by the spot)
     world.waves.number = 9; // the next wave is 10 (single player at × 1.0: 400)
     skipWave(world); // no-op in a build; the build countdown starts wave 10
     for (let i = 0; i < 200 && world.run.phase !== "wave"; i++) step(world, TICK_DT_S);

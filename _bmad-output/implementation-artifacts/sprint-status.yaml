@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-24-2026 18:00
+# last_updated: 11-24-2026 20:00
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -147,44 +147,44 @@ development_status:
   # Epic 6: The full run: decay, boss, events, endless
   epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)
   6-1-the-full-10-wave-curve: done  # 2026-11-24: fresh review clean (4 lows fixed)
-  6-2-ruins: ready-for-dev  # merged with 6.4 (designer 2026-11-24): one story 'Ruins and Collapse'
+  6-2-ruins: done  # 2026-11-24: review 3M+6L fixed, narrow re-review clean (R1 GameScene fog wiring test + R2 nit = follow-ups); decisions 6.2 B1-B3; merged with 6.4: 'Ruins and Collapse'
   6-3-blackout-lighting: done  # 2026-11-24: review H1+2M fixed, re-review clean, lows fixed; B1–B3 decisions
-  6-4-collapse: ready-for-dev  # merged into 6.2 (designer 2026-11-24)
+  6-4-collapse: done  # merged into 6.2 (designer 2026-11-24)
   6-5-the-behemoth-arrives: done  # 2026-11-24: review H1+2M fixed, re-review found M-new-1 (fixed), re-review 2 clean, lows fixed; decisions 6.5 B1–B3
-  6-6-behemoth-charge-and-throw: ready-for-dev  # merged with 6.7 (designer 2026-11-24): one story 'Behemoth charge, throw, enrage and end'
-  6-7-enrage-and-the-end-of-the-behemoth: ready-for-dev  # merged into 6.6 (designer 2026-11-24)
+  6-6-behemoth-charge-and-throw: done  # 2026-11-24: review (1M perf + 4L) fixed, narrow re-review clean (R1 accepted: unreachable with room cap 4; R2 trampleGen test gap = follow-up); merged with 6.7: 'Behemoth charge, throw, enrage and end'
+  6-7-enrage-and-the-end-of-the-behemoth: done  # merged into 6.6 (designer 2026-11-24)
   6-8-special-events-car-alarm-and-stampede: ready-for-dev
   6-9-gas-leak-and-supply-drop: ready-for-dev  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
   6-10-power-failure-and-survivor: ready-for-dev  # merged into 6.9 (designer 2026-11-24)
-  6-11-evacuation-vote: ready-for-dev  # merged with 6.12 (designer 2026-11-24): one story 'Evacuation vote and endless mode'. Pad = map point evac_pad, not waves.json (random-city CCP 2026-11-24)
-  6-12-endless-mode: ready-for-dev  # merged into 6.11 (designer 2026-11-24)
+  6-11-evacuation-vote: done  # 2026-11-25: review 3M+12L fixed; re-review found RM1 (fix-made), re-review 2 found RR2-M1 (fix-made), re-review 3 clean (RR3-L1 late dawn after a long lock, RR3-L2 urgent gap 250 → 0–100, N5, N6 = follow-ups); decisions 6.11 B1; merged with 6.12; pad = map point evac_pad
+  6-12-endless-mode: done  # merged into 6.11 (designer 2026-11-24); endless events wired when 6.8 lands
   epic-6-retrospective: optional
 
   # Epic 7: Accounts and meta-progression
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
-  7-1-progress-saved-on-the-server: backlog
-  7-2-earn-and-bank-supplies: backlog
-  7-3-unlock-screen: backlog
-  7-4-shop-deck-from-my-unlocks: backlog
-  7-5-training-boosts: backlog
-  7-6-upgrade-to-an-account: backlog
-  7-7-district-unlock-rule: backlog  # Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
+  7-1-progress-saved-on-the-server: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-2-earn-and-bank-supplies: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-3-unlock-screen: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-4-shop-deck-from-my-unlocks: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-5-training-boosts: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
+  7-7-district-unlock-rule: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
-  7-9-my-look-in-the-game: backlog  # customization (docs/ideas/customization)
-  7-10-survivor-editor: backlog  # customization (docs/ideas/customization)
-  7-11-milestone-items: backlog  # customization (docs/ideas/customization)
-  7-12-surprise-loot-bag: backlog  # customization (docs/ideas/customization)
+  7-9-my-look-in-the-game: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-10-survivor-editor: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-11-milestone-items: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-12-surprise-loot-bag: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience
-  epic-8: backlog
+  epic-8: in-progress  # Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
   # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
   # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
-  8-8-my-shots-count-on-a-bad-4g-line: backlog  # network pass 1: 500 ms rewind + lossy-line test switch
-  8-9-smooth-through-hiccups: backlog  # network pass 2: adaptive 100-250 ms delay, time-stretch, clock never backwards
-  8-1-reconnect-within-2-minutes: backlog  # network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
-  8-10-half-size-horde-stream: backlog  # network pass 4: delta horde stream
-  8-11-one-packet-per-tick-optional: backlog  # network pass 5, optional
+  8-8-my-shots-count-on-a-bad-4g-line: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 1: 500 ms rewind + lossy-line test switch
+  8-9-smooth-through-hiccups: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 2: adaptive 100-250 ms delay, time-stretch, clock never backwards
+  8-1-reconnect-within-2-minutes: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
+  8-10-half-size-horde-stream: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 4: delta horde stream
+  8-11-one-packet-per-tick-optional: ready-for-dev  # story file 2026-11-24, decisions accepted 2026-11-24; network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: backlog
   8-3-host-migration: backlog
   8-4-autosave-at-every-build-phase: backlog

@@ -47,7 +47,19 @@ export type SfxName =
   // Story 6.5: the Behemoth's warning rumble, arrival roar and slam (not positional: team cues).
   | "boss_rumble"
   | "boss_roar"
-  | "boss_slam";
+  | "boss_slam"
+  // Story 6.2: the Ruins collapse rumble (stage 4 starts: D9) and a falling-debris patter (panned ambience, D10).
+  | "ruins_rumble"
+  | "debris_fall"
+  // Stories 6.6 / 6.7
+  | "boss_charge_scrape"
+  | "boss_charge_rush"
+  | "boss_crash"
+  | "boss_throw_lift"
+  | "boss_throw_impact"
+  | "boss_roar_enrage"
+  | "boss_crawler_drop"
+  | "boss_death";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -523,10 +535,54 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       roar(c, t + 0.25, pan);
       burst(c, t, 0.9, 0.8, 120);
       break;
+    case "ruins_rumble": // Story 6.2 (D9): 2 s of low rumble with a crumbling tail
+      burst(c, t, 1.0, 0.8, 80);
+      burst(c, t + 0.6, 1.4, 0.7, 60);
+      burst(c, t + 0.2, 0.9, 0.35, 900);
+      break;
+    case "debris_fall": // Story 6.2 (D10): a few small stones (quiet, panned)
+      {
+        const out = outputFor(c, pan);
+        if (!out) break;
+        for (let i = 0; i < 3; i++) noiseInto(c, out, t + i * 0.07, 0.05, 0.18 - i * 0.04, 2400 - i * 500);
+      }
+      break;
     case "boss_slam": // Story 6.5: a huge ground thump with a cracking tail
       burst(c, t, 0.45, 1, 110);
       burst(c, t + 0.03, 0.3, 0.7, 700);
       click(c, t + 0.05, 70, 0.9);
+      break;
+    case "boss_charge_scrape": // Story 6.6: the charge's wind-up (hooves on asphalt: a grinding sweep, twice)
+      sweep(c, t, 0.4, 0.5, 300, 120);
+      sweep(c, t + 0.45, 0.4, 0.5, 300, 120);
+      break;
+    case "boss_charge_rush": // Story 6.6: the rush (a rising roar of footfalls)
+      burst(c, t, 0.7, 0.8, 140);
+      sweep(c, t, 0.7, 0.4, 200, 600);
+      break;
+    case "boss_crash": // Story 6.6: it hits hard cover (a metal-and-concrete crunch)
+      burst(c, t, 0.5, 1, 90);
+      burst(c, t + 0.02, 0.25, 0.8, 1200);
+      click(c, t + 0.04, 60, 1);
+      break;
+    case "boss_throw_lift": // Story 6.6: tearing a chunk loose (a low groan rising)
+      sweep(c, t, 0.9, 0.5, 90, 220);
+      break;
+    case "boss_throw_impact": // Story 6.6: the chunk lands
+      burst(c, t, 0.35, 0.9, 130);
+      click(c, t + 0.02, 80, 0.8);
+      break;
+    case "boss_roar_enrage": // Story 6.7: the enrage roar (the arrival roar, three times, higher)
+      roar(c, t, pan);
+      roar(c, t + 0.2, pan);
+      roar(c, t + 0.4, pan);
+      break;
+    case "boss_crawler_drop": // Story 6.7: a Crawler sloughs off its back (a wet thud)
+      burst(c, t, 0.12, 0.5, 220);
+      break;
+    case "boss_death": // Story 6.7: the collapse (a long falling groan, then a ground thump)
+      sweep(c, t, 1.2, 0.6, 180, 50);
+      burst(c, t + 1.2, 0.5, 1, 80);
       break;
     case "zombie_bloater_gurgle": // Story 5.8: a Bloater first in view (a low, slow gurgle)
       gurgle(c, t, pan);

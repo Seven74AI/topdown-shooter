@@ -4,7 +4,7 @@ import { BUILD_GRID_M, MUZZLE_OFFSET_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
 import { circleOverlapsBox } from "../buildings/collision";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { createRng, type Rng } from "../core/rng";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -35,7 +35,7 @@ import { throwStatsOf } from "../economy/consumables";
  */
 const balance = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 20]]));
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const GREN = throwStatsOf(balance, "grenades")!;
 const SAMPLE_M = 0.002;
 const EPS = 1e-5;

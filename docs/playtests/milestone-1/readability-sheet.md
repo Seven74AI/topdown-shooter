@@ -173,3 +173,52 @@ Player:
 
 ## 49: do these four survivors carry anything that does something in the game? (Story 7.8)
 ![49](objects/49_survivor_looks.png)
+
+## 50: the heaps in the street and in the alley: can you walk through them, and do they stop bullets? (Story 6.2: rubble piles and the collapsed alley are hard cover; answer: no, yes)
+![50](../../art/epic-6/ingame/build/ru1-bake-1240.png)
+
+## 51: the dark holes in the apartment and office walls: what comes out of them? (Story 6.2: breach spawns, open from wave 7)
+![51](../../art/epic-6/ingame/build/ru-build7-390.png)
+
+## 52: the lamp on the ground by the crosswalk and the flat debris: cover or not? (Story 6.4: visual only; answer: not cover)
+![52](../../art/epic-6/ingame/build/co1-wave9-1240.png)
+
+## 53: a zombie fading at the edge of the fog: is it still there? Can your teammate's flashlight show it to you? (Story 6.4: yes, and yes)
+![53](../../art/epic-6/ingame/build/co2-wave9-390.png)
+
+## 54: the dark puddles in the flooded street: do they slow you? (Story 6.4 CO4: visual only; answer: no)
+![54](../../art/epic-6/ingame/build/co4-wave9-1240.png)
+
+## 60: where will it run, and where will it stop? Is the yellow bar good or bad for you? (Story 6.6: the charge lane and its CRASH mark)
+![60](../../art/6-6/6-6-800x360-charge-telegraph.png)
+
+## 61: it hit the bus. What now? (Story 6.6: the stun — the amber bar and "CRASH!" mean hit it now, it takes ×1.5)
+![61](../../art/6-6/6-6-800x360-crash-stun.png)
+
+## 62: something is flying at you. Where does it land, and when? Do you move? (Story 6.6: the throw ring, the shrinking white ring, the chunk)
+![62](../../art/6-6/6-6-800x360-throw-flight.png)
+
+## 63: what changed? Is it more dangerous now? (Story 6.7: the roar, the red bar, ENRAGED)
+![63](../../art/6-6/6-6-800x360-roar.png)
+
+## 64: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
+![64](../../art/6-6/6-6-800x360-death.png)
+
+## 80: the wave is over. What are the two buttons asking, how long do you have, and who has voted? (Story 6.11: the evacuation vote, EX1)
+![80](../../art/6-11/6-11-844x390-vote.png)
+
+## 81: is the helicopter in your way? Can you shoot through it or stand under it? (Story 6.11: a picture only — it blocks nothing, the dashed ring is the pad)
+![81](../../art/6-11/6-11-800x360-vote-endless15.png)
+
+## 82: everyone has voted. What did the team choose, and what happens next? (Story 6.11: "STAY · 0 – 1", the chips filled)
+![82](../../art/6-11/6-11-568x320-voted-stay.png)
+
+## 83: what is happening to the light? Can you skip it? (Story 6.11: the DW1 sunrise after Extract; "Tap to skip")
+![83](../../art/6-11/6-11-844x390-dawn-dw1.png)
+
+## 84: did you win? What did you keep? (Story 6.11: Results "Extracted" on the warm dawn; 6.12: on the blue hour after an endless extract)
+![84](../../art/6-11/6-11-844x390-extracted.png)
+![84b](../../art/6-11/6-11-800x360-extracted-endless.png)
+
+## 85: which wave is this, and is it a normal one? (Story 6.12: the top line "Wave 11 · Endless · 25 s")
+![85](../../art/6-11/6-11-568x320-endless-build.png)

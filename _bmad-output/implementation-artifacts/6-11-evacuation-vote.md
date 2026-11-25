@@ -1,6 +1,6 @@
 # Story 6.11: Evacuation vote
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -81,35 +81,35 @@ Most relevant here: **28 (one run flow: the vote is a new phase with tested tran
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (picks: docs/epic-6-decisions.md › 6 Vote EX1, 6 Dawn DW1 + DW2).** Port from `docs/art/epic-6/src/main5.js` (`voteUI` EX1 branch, `drawHeliTop`, `pad`, `searchlight`, the DW1/DW2 branches of the dawn card) into game code: helicopter top-down (body + rotor frames) in a small `render/city/heliArt.ts` baked through `addGeneratedTexture` (frames `heli_body_0`, `heli_rotor_0..n`, `pad_ring_0`); dawn as a full-screen overlay drawn with Phaser Graphics/gradients each frame for 4 s (no texture) or one gradient texture through `addGeneratedTexture`. The EX1 vote UI is HTML/CSS (Preact), no texture. Screenshot for the designer (no new pick).
-- [ ] **T1 Balance + phase** (AC 1, 2, 4)
-  - [ ] `balanceSchema.ts › wavesSchema`: `evac { voteS, allVotedHoldS, dawnS, firstWave, padRadiusM }` (strict, with defaults); `balance.ts › crossCheck` (`firstWave === runWaves`); the pad centre is map data (`DistrictMap.eventSpots`, point `evac_pad` in the `events` layer, generator `tools/maps/buildDowntown.ts`), and a map test checks it is inside the map and clear of map boxes (random-city CCP 2026-11-24: Random city places the pad per city).
-  - [ ] `runStateMachine.ts`: `RunPhase` + `"vote"`; `RunState { voteTicksLeft, ending, endless }`; `openEvacVote`, `castVote`, `resolveEvacVote`, `isEvacWave`; `endWave` → vote; `updateRun` vote branch; `expectPhase` lists.
-  - [ ] `core/world.ts › step`: vote freeze (AC 3). Also any `run.phase` switch that lists phases (`consumables.ts`, `bearTrap.ts`, `medStation.ts`, `fire.ts`, `turret.ts`): confirm "vote" falls into the safe branch (they never run in a vote thanks to the freeze, but their types must compile).
-  - [ ] Tests `runStateMachine.test.ts` (+ every transition; wrong-phase throws; F3 table for 1–4 players incl. silent players; changed vote; all voted → ends after 20 ticks; timer → 300 ticks; Stay → build of wave 11 with downed players returned; Extract → results "extracted").
-- [ ] **T2 Events + schema + server** (AC 5, 6; brief 2, 17)
-  - [ ] `core/simEvents.ts`: `run.vote_opened`, `run.vote_resolved`, `run.extracted` (remove `run.held_out`); `net/netEvents.ts` encode/decode (new `K` codes, append-only); `apps/server/src/net/eventInterest.ts`: to everyone.
-  - [ ] `apps/server/src/rooms/schema/RunState.ts`: `voteTicksLeft`, `resultEnding`, `PlayerState.vote`; `schema/syncState.ts` (on change, + `resetRunFields`); `net/stateView.ts` (`RUN_STATE_FIELDS`, `PLAYER_STATE_FIELDS`, views); `fakeRoom`; devThrottle key lists.
-  - [ ] `net/messages.ts`: `C2S.EVAC_VOTE`, `evacVoteSchema`; `RunRoom`: `onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice)))`; `onTick` phase gate; `endRun(controller, wave, ending)`; logs.
-  - [ ] Tests `RunRoom.vote.test.ts` (new, `bootTestServer()`): a real room cleared to wave 10 (balance override `runWaves 2`, `evac.firstWave 2` for speed): vote opens, two clients vote, live `vote` fields, result; a vote outside "vote" ignored; a third message burst inside the guard bucket; reconnect-free leave during the vote (the leaver is no longer counted; the vote can end early); `syncState.test.ts` (+ fields synced and reset).
-- [ ] **T3 Solo + mirror** (AC 7; brief 2, 14)
-  - [ ] `LocalSimHost`: `castVote` call path; menu pause covers the vote.
-  - [ ] `NetSimHost`: copies `phase` "vote", `voteTicksLeft`, each player's `vote`; `world.run.ending` from `resultEnding` (replaces the `resultHeldOut` line).
-  - [ ] `net/onlineFlow.ts`: phase "vote" keeps the session (build ↔ wave ↔ vote are one run); `resultsFromState` reads `resultEnding`.
-  - [ ] Tests: `NetSimHost.vote.test.ts` (new: a state that jumps across the whole vote; a wake after `run.extracted` + 5 s → Results, no dawn), `onlineFlow.test.ts` (+ vote phase keeps the session).
-- [ ] **T4 Vote UI** (AC 8; EX1)
-  - [ ] `ui/EvacVote.tsx` + CSS in `overlay.css`; `uiState.ts`: the `playing` screen gets a `vote` sub-state, or a `vote` screen kind (choose the one that keeps the HUD drawing; Story 2.11's menu pattern: overlay over the live game); requests `evacVote(choice)`.
-  - [ ] Pending vote (`readyRequest.ts` pattern): my chip fills at once, the server confirms.
-  - [ ] Hide joysticks / fire during the vote (`GameScene` / input layer read `phase === "vote"`); send neutral moves while the vote is on (so the Predictor stands still too; see D-B).
-  - [ ] Tests: a `voteModel.ts` (pure: chips, counts, ring fraction from ticks, pending → confirmed) + `voteModel.test.ts`; layout check at 568 × 320 / 800 × 360 (≥ 12 px gaps, buttons ≥ 56 px tall).
-- [ ] **T5 Helicopter + dawn** (AC 9, 10; brief 20, 24)
-  - [ ] `render/HeliView.ts` (new): descend 2 s on `run.vote_opened`, rotor, searchlight, pad ring, lift-off on Stay/Extract; `aboveDarkness(heli, ABOVE_DARK.marker)` from Story 6.3 (`render/darkness/aboveDark.ts`; if 6.3 is not merged: top depth, a merge note).
-  - [ ] `render/DawnView.ts` (new): DW1 / DW2 4 s overlay; skip on tap; no dawn if the extract tick is older than `dawnS` (hidden tab / late scene start).
-  - [ ] `GameScene`: on `run.extracted` → dawn, then Results (`showSoloResults` / the online Results path); `ResultsScreen.tsx` + `uiState.resultsTitle`: "Extracted" / "Wave reached N" / (6.12) "Lost in the city".
-  - [ ] Tests: `noUnregisteredTextures.test.ts` stays green; a heli texture redraw test after a simulated context loss (4.13 pattern); `dawnModel.test.ts` (look per ending, skip rule, late-wake rule).
-- [ ] **T6 Bots and sims** (AC 12)
-  - [ ] `bots/headlessRun.ts` (`vote` option; log `ending`), `tools/bots/run.ts`, the 6.1 sims (`ending === "extracted"`).
-- [ ] **T7 Gates.** Mutations (tie → Stay; silent counted as Stay; freeze removed → a zombie/fire acts in the vote test; `startBuild` from vote not allowed → Stay test; dawn ignores the late-wake rule → wake test) and which tests failed. Browser check (Playwright): solo `?startwave=10&wallet=3000` (6.1's switch) → clear → vote → Extract → dawn → "Extracted"; again with Stay → build phase "Wave 11 in 30 s"; online 2 tabs under `?lag=150&jitter=20`: live chips, a changed vote, all voted → ends after 1 s; a hidden tab across the vote. Screenshots at 568 × 320 and 844 × 390. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art (picks: docs/epic-6-decisions.md › 6 Vote EX1, 6 Dawn DW1 + DW2).** Port from `docs/art/epic-6/src/main5.js` (`voteUI` EX1 branch, `drawHeliTop`, `pad`, `searchlight`, the DW1/DW2 branches of the dawn card) into game code: helicopter top-down (body + rotor frames) in a small `render/city/heliArt.ts` baked through `addGeneratedTexture` (frames `heli_body_0`, `heli_rotor_0..n`, `pad_ring_0`); dawn as a full-screen overlay drawn with Phaser Graphics/gradients each frame for 4 s (no texture) or one gradient texture through `addGeneratedTexture`. The EX1 vote UI is HTML/CSS (Preact), no texture. Screenshot for the designer (no new pick).
+- [x] **T1 Balance + phase** (AC 1, 2, 4)
+  - [x] `balanceSchema.ts › wavesSchema`: `evac { voteS, allVotedHoldS, dawnS, firstWave, padRadiusM }` (strict, with defaults); `balance.ts › crossCheck` (`firstWave === runWaves`); the pad centre is map data (`DistrictMap.eventSpots`, point `evac_pad` in the `events` layer, generator `tools/maps/buildDowntown.ts`), and a map test checks it is inside the map and clear of map boxes (random-city CCP 2026-11-24: Random city places the pad per city).
+  - [x] `runStateMachine.ts`: `RunPhase` + `"vote"`; `RunState { voteTicksLeft, ending, endless }`; `openEvacVote`, `castVote`, `resolveEvacVote`, `isEvacWave`; `endWave` → vote; `updateRun` vote branch; `expectPhase` lists.
+  - [x] `core/world.ts › step`: vote freeze (AC 3). Also any `run.phase` switch that lists phases (`consumables.ts`, `bearTrap.ts`, `medStation.ts`, `fire.ts`, `turret.ts`): confirm "vote" falls into the safe branch (they never run in a vote thanks to the freeze, but their types must compile).
+  - [x] Tests `runStateMachine.test.ts` (+ every transition; wrong-phase throws; F3 table for 1–4 players incl. silent players; changed vote; all voted → ends after 20 ticks; timer → 300 ticks; Stay → build of wave 11 with downed players returned; Extract → results "extracted").
+- [x] **T2 Events + schema + server** (AC 5, 6; brief 2, 17)
+  - [x] `core/simEvents.ts`: `run.vote_opened`, `run.vote_resolved`, `run.extracted` (remove `run.held_out`); `net/netEvents.ts` encode/decode (new `K` codes, append-only); `apps/server/src/net/eventInterest.ts`: to everyone.
+  - [x] `apps/server/src/rooms/schema/RunState.ts`: `voteTicksLeft`, `resultEnding`, `PlayerState.vote`; `schema/syncState.ts` (on change, + `resetRunFields`); `net/stateView.ts` (`RUN_STATE_FIELDS`, `PLAYER_STATE_FIELDS`, views); `fakeRoom`; devThrottle key lists.
+  - [x] `net/messages.ts`: `C2S.EVAC_VOTE`, `evacVoteSchema`; `RunRoom`: `onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice)))`; `onTick` phase gate; `endRun(controller, wave, ending)`; logs.
+  - [x] Tests `RunRoom.vote.test.ts` (new, `bootTestServer()`): a real room cleared to wave 10 (balance override `runWaves 2`, `evac.firstWave 2` for speed): vote opens, two clients vote, live `vote` fields, result; a vote outside "vote" ignored; a third message burst inside the guard bucket; reconnect-free leave during the vote (the leaver is no longer counted; the vote can end early); `syncState.test.ts` (+ fields synced and reset).
+- [x] **T3 Solo + mirror** (AC 7; brief 2, 14)
+  - [x] `LocalSimHost`: `castVote` call path; menu pause covers the vote.
+  - [x] `NetSimHost`: copies `phase` "vote", `voteTicksLeft`, each player's `vote`; `world.run.ending` from `resultEnding` (replaces the `resultHeldOut` line).
+  - [x] `net/onlineFlow.ts`: phase "vote" keeps the session (build ↔ wave ↔ vote are one run); `resultsFromState` reads `resultEnding`.
+  - [x] Tests: `NetSimHost.vote.test.ts` (new: a state that jumps across the whole vote; a wake after `run.extracted` + 5 s → Results, no dawn), `onlineFlow.test.ts` (+ vote phase keeps the session).
+- [x] **T4 Vote UI** (AC 8; EX1)
+  - [x] `ui/EvacVote.tsx` + CSS in `overlay.css`; `uiState.ts`: the `playing` screen gets a `vote` sub-state, or a `vote` screen kind (choose the one that keeps the HUD drawing; Story 2.11's menu pattern: overlay over the live game); requests `evacVote(choice)`.
+  - [x] Pending vote (`readyRequest.ts` pattern): my chip fills at once, the server confirms.
+  - [x] Hide joysticks / fire during the vote (`GameScene` / input layer read `phase === "vote"`); send neutral moves while the vote is on (so the Predictor stands still too; see D-B).
+  - [x] Tests: a `voteModel.ts` (pure: chips, counts, ring fraction from ticks, pending → confirmed) + `voteModel.test.ts`; layout check at 568 × 320 / 800 × 360 (≥ 12 px gaps, buttons ≥ 56 px tall).
+- [x] **T5 Helicopter + dawn** (AC 9, 10; brief 20, 24)
+  - [x] `render/HeliView.ts` (new): descend 2 s on `run.vote_opened`, rotor, searchlight, pad ring, lift-off on Stay/Extract; `aboveDarkness(heli, ABOVE_DARK.marker)` from Story 6.3 (`render/darkness/aboveDark.ts`; if 6.3 is not merged: top depth, a merge note).
+  - [x] `render/DawnView.ts` (new): DW1 / DW2 4 s overlay; skip on tap; no dawn if the extract tick is older than `dawnS` (hidden tab / late scene start).
+  - [x] `GameScene`: on `run.extracted` → dawn, then Results (`showSoloResults` / the online Results path); `ResultsScreen.tsx` + `uiState.resultsTitle`: "Extracted" / "Wave reached N" / (6.12) "Lost in the city".
+  - [x] Tests: `noUnregisteredTextures.test.ts` stays green; a heli texture redraw test after a simulated context loss (4.13 pattern); `dawnModel.test.ts` (look per ending, skip rule, late-wake rule).
+- [x] **T6 Bots and sims** (AC 12)
+  - [x] `bots/headlessRun.ts` (`vote` option; log `ending`), `tools/bots/run.ts`, the 6.1 sims (`ending === "extracted"`).
+- [x] **T7 Gates.** Mutations (tie → Stay; silent counted as Stay; freeze removed → a zombie/fire acts in the vote test; `startBuild` from vote not allowed → Stay test; dawn ignores the late-wake rule → wake test) and which tests failed. Browser check (Playwright): solo `?startwave=10&wallet=3000` (6.1's switch) → clear → vote → Extract → dawn → "Extracted"; again with Stay → build phase "Wave 11 in 30 s"; online 2 tabs under `?lag=150&jitter=20`: live chips, a changed vote, all voted → ends after 1 s; a hidden tab across the vote. Screenshots at 568 × 320 and 844 × 390. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -198,15 +198,328 @@ EX1 (vote UI: HTML/CSS), the helicopter + pad + searchlight (game code, `addGene
 
 ## Dev Agent Record
 
+Merged story (designer 2026-11-24): **6.11 Evacuation vote + 6.12 Endless mode**, built as ONE story on branch `story-6-11` (from `story-6-6`, merged with `origin/master`). This record covers both story files; `6-12-endless-mode.md` points here.
+
 ### Agent Model Used
+
+Claude (cloud builder session, BMAD gds-dev-story method).
 
 ### Debug Log References
 
+- Shared: `npx vitest run src/run src/waves src/config src/net/netEvents.test.ts src/decay/lightState.test.ts src/replay src/economy/endlessSim.test.ts` — green.
+- Server: `RunRoom.vote.test.ts`, `RunRoom.3-10.test.ts`, `devStartWave.test.ts`, `schema/*`, `tickCostEndless.test.ts` — green.
+- Client: full client suite 159 files / 1490 tests green (load 0.38).
+- Endless flow sim: 30,094 ticks, waves 11–30, Behemoths at 10/15/20/25/30, HP 6,000 × 1 / 1.25 / 1.5 / 1.75 / 2.0, tick p99 0.571 ms, heap 41.2 → 38.5 MB (load 0.64).
+- Tick cost (load 0.47): wave 10 p99 1.125 ms; wave 19 endless (600 zombies, ≤ 6 Brutes, HP × 1.24) p99 1.837 ms (`docs/perf/epic-6-blackout.md`).
+
 ### Completion Notes List
 
+**Fairness rules → tests (brief 3).** 6.11 F1 everyone votes (downed too; a leaver not counted) — `evacVote.test.ts`, `RunRoom.vote.test.ts`; F2 live + changeable — `RunRoom.vote.test.ts` (chip on the other phone, changed vote), `voteModel.test.ts`; F3 the 1–4 player table incl. silent players and ties — `evacVote.test.ts`; F4 300 ticks, all voted → exactly 20 ticks later, never past the timer, ring from server ticks — `evacVote.test.ts`, `voteModel.test.ts`; F5 freeze (zombie, downed timer, move, shot) — `evacVote.test.ts`; F6 opens only on the clearing tick of wave 10 (and 15/20/25 in endless) — `evacVote.test.ts`, `runStateMachine.test.ts`; F7 Extract → Results "extracted" same tick, Stay → wave-11 build — `evacVote.test.ts`. 6.12 F1 sizes 11–30 × 1–4 players, F2 hpMult and spawn HP, F3 Brute counts, ≤ 6 alive every tick and the wave ends only after all of them died, thresholds 25–90 %, F4 boss waves / HP growth / telegraph ticks at wave 25 = wave 10 (enraged too, 1–4 players) — `waveDirector.endless.test.ts`, `endlessSim.test.ts`; F5 odd/even darkness, power failure D6/D8 — `endless.test.ts`; F6 event waves and no repeat — `endless.test.ts`; F7 "lost" and the earnings split — `evacVote.test.ts`, `endlessSim.test.ts` (b).
+
+**Mutations (brief 9 / T7) — each failed tests:** tie → Stay (3 failed); silent counted as Stay (2); vote freeze removed (1: the freeze test); `startBuild` not allowed from "vote" (7); `ending` stays "wiped" in endless (2: `evacVote` + wipe sim); endless size cap removed (2); Brute alive cap off (1); boss every 4 waves (1); event repeat allowed (1); `hpMult` not applied at spawn (1); endless boss HP growth not wired (1: flow sim, added after the first run let it survive); dawn ignores the late-wake rule (2).
+
+**Builder decisions (no designer question needed; listed for the reviewer):**
+1. **No `evac.firstWave` key**: the vote keys on `waves.runWaves` (the one source). A separate key that must equal `runWaves` broke every test that overrides `runWaves` (6-wave sims, `runWaves 20` fuzz tests) because the cross-check refused the balance. `isEvacWave(balance, wave, endless)` is the single place: outside endless any wave ≥ `runWaves` opens the vote (a run never plays on without a Stay).
+2. **Loader checks dropped for the same reason**: "endless.maxZombiesPerWave ≥ wave 10's size" and "brutesMaxAlive ≤ maxAlive" refused override-built balances; kept: the 65,535 count cap and `oddWaveMix`/`evenWaveMix` inside the mix list.
+3. **The vote freeze keeps the `economy` system running** (besides `input` and `waves`): it only pays this tick's pending events, so a wave bonus whose `wave.ended` was emitted between steps (the dev skip) is still paid. Nothing else can earn in a vote.
+4. **All-voted hold**: the check runs before the decrement, so the vote ends exactly `allVotedHoldS` (20 ticks) after the last vote lands.
+5. **Dawn is a Preact/CSS overlay** (`ResultsScreen` + `dawnModel.ts`): DW1 = soft-light orange-pink gradient from the east over a lifting dark layer, DW2 = cold screen-blend blue + grey; no texture, nothing to repaint. The dawn's end is a wall-clock time set when the extract is SEEN: online only when the previous phase was the vote (seen live); a reload/late scene start or a tab woken past it gets the card at once. "Lost" shows DW2 behind the card at once (D7). The dawn length comes from `waves.json › evac.dawnS` (main.ts passes `clientBalance()`).
+6. **Helicopter** (`render/HeliView.ts`, `render/heliPose.ts`, atlas `render/city/heliArt.ts` through `addGeneratedTexture`, frames `heli_body_0`, `heli_rotor_0` (spun), `heli_beacon_0`, `heli_pad_0`, `heli_beam_0`): all in `ABOVE_DARK.marker`; the searchlight pool is a flat soft fall-off, additive, no hot core. A woken tab / late start during the vote finds it landed (descent age from the server's ticks).
+7. **HUD during the vote**: sticks, weapon label, swap and consumable buttons hidden (STAY covered the weapon label at 568 × 320); input neutral (D-B). Top line: "Wave 10 · Evac vote"; endless "Wave 13 · Endless · Zombies N" / "Wave 14 · Endless · 25 s" (single-spaced dots to fit at 568 px).
+8. **Brief 31 layout test**: new "vote" mode (☰ + EXTRACT + STAY from `layoutEvacVote`, the same numbers as `overlay.css`); every rule applies except "in the move-stick half" for EXTRACT — the designer's EX1 puts it left of the ring, and in a vote the sticks are hidden and nothing moves (D4). No new break; the baseline is unchanged.
+9. **Colour rule (brief 24)**: EXTRACT green / STAY red are the picked EX1 UI buttons, not map danger; the boss-only red rule is about the map.
+10. **Endless events (6.12 F6, D4, D6)** are built against a small interface (`run/endlessEvents.ts`): the build-start hook schedules `run.endlessEvent` from the `events` stream with "no repeat", but `endlessEventCandidates` returns none until Story 6.8's framework lands — see Notes for the merge.
+11. **Endless darkness** lives inside 6.3's `refreshBlackout` (the only writer): odd → `endlessLightPct` (5) full strength; even → 5 at half strength; a power failure in an even wave → `powerFailureLightPct` (20) full (D6/D8); endless build phases half dark when 6.4's `halfDarkInBuild` is on; the vote keeps the wave's rule. New keys `decay.json › blackout.endlessOddWaves / endlessEvenHalfDark`.
+12. **Endless Brutes**: computed count (`N − 8`), thresholds by formula from `bruteFromFraction` to `bruteToFraction` (no growing list), an owed Brute stays in the queue while 6 are alive (the alive scan runs only when a Brute is due). The type is now chosen before the spawn pick (no RNG or state in `waveZombieType`), so waves 1–10 are bit-identical.
+13. **Replay**: new input-log command `vote`; `headlessRun` records it (bots vote on the vote's first tick, `vote` / `stayUntilWave` options; log `ending`, `endlessWaves`, `votes`).
+14. **Dev switch**: `?startwave=` / `DEV_START_WAVE` accept 1–99; > `runWaves` starts the run in endless.
+15. **Server logs**: `vote_resolved { wave, extract, stay, silent, choice }`; `run_ended` gains `ending`, `endless`, `endlessWaves`, `earnedBeforeEndless`, `earnedAfter10Lost` (no in-run money is taken away).
+
+**Bandwidth (brief 11):** `voteTicksLeft` uint16 per patch during a vote (≈ 40 B/s for 15 s), `PlayerState.vote` 1 B per change, `RunState.endless` once, `resultEnding` once; 3 small reliable events per vote. Negligible.
+
+### Copies touched (brief 2)
+
+World (`run.phase "vote"`, `run.voteTicksLeft/ending/endless/endlessEvent/lastEndlessEvent`, `PlayerState.vote/earnedAtEvac`, `waves.hpMult/fixedFormula/fixedFromSpawn/fixedToSpawn/brutesMaxAlive`) → schema (`RunState.voteTicksLeft/resultEnding/endless`, `PlayerState.vote`) → `syncState` + `resetRunFields` → `stateView` (`RUN_STATE_FIELDS`, `PLAYER_STATE_FIELDS`) → `fakeRoom` → mirror (`NetSimHost`: phase, ticks, votes, ending, endless) → Predictor: none (neutral moves in a vote) → devThrottle: through the key lists → `snapshotWorld` (run/waves/players spread). Solo: `LocalSimHost.castVote`. Bots: `headlessRun`, `tools/bots/botClient.ts` + `run.ts`, `tools/sims/*`.
+
+### Notes for the merge (brief 19; every shared file touched)
+
+- **`run/runStateMachine.ts`** (owner of this change, brief 28): `RunPhase` + "vote"; `RunState` replaces `heldOut` with `ending` + `voteTicksLeft`, `endless`, `endlessEvent`, `lastEndlessEvent`; new `openEvacVote`, `castVote`, `resolveEvacVote`, `isEvacWave`, `countVotes`, `voteOutcome`, `VOTE_*`; `endWave` → vote; `startBuild` from lobby | wave | vote (calls `scheduleEndlessEvent`); `endRun` from build | wave | vote. 6.3's `refreshBlackout` lines kept (none added in `openEvacVote`).
+- **`core/world.ts › step`**: the vote freeze `if` (input, waves, economy only).
+- **`core/simEvents.ts` / `net/netEvents.ts`**: `run.held_out` (K 25) removed and retired; new K **65** `RUN_VOTE_OPENED`, **66** `RUN_VOTE_RESOLVED`, **67** `RUN_EXTRACTED` (our 65–74 range; 6.8 owns 55–64).
+- **`net/messages.ts`**: `C2S.EVAC_VOTE` + `evacVoteSchema` (index.ts exports).
+- **`net/stateView.ts`**, **`apps/server/src/rooms/schema/RunState.ts`**, **`schema/syncState.ts`**, **`apps/client/src/net/fakeRoom.ts`**: `resultHeldOut` → `resultEnding` (string); appended `voteTicksLeft`, `endless` (RunState, after `boss`) and `vote` (PlayerState, last). 6.8/6.9/6.10 appending fields: append after ours.
+- **`apps/server/src/rooms/RunRoom.ts`**: `EVAC_VOTE` handler under `this.net.guard`; `onTick` steps "vote"; `endRun(controller, wave)` reads `world.run.ending`; logs. **`run/RunController.ts`**: `castVote`.
+- **`waves/waveDirector.ts`**: `waveSize`/`waveMixOf` gain `endless = false` (every existing caller unchanged); `waveHpMult`, `endlessBrutes`, `isEndlessNumber`; `applyFixedCounts(…, endless)`; `WaveState` new fields; `waveZombieType` Brute alive cap; the type is picked before `pickSpawnPoint` (6.8's stampede spawns go through `spawnZombie`, not this path).
+- **`zombies/zombiePool.ts › spawnZombie`**: one multiply `stats.hp × world.waves.hpMult` (6.7's Crawlers and 6.8's stampede get it in endless).
+- **`boss/bossState.ts`**: `isBossWave` endless rule; `endlessBossHpMult`; `bossMaxHp(…, growth = 1)`. **`boss/behemoth.ts`**: passes `world.run.endless` and the growth (HP only; `bossTicks` untouched, 6.6 note).
+- **`decay/lightState.ts › refreshBlackout`**: the endless rules + "vote keeps the wave's light". 6.2+6.4 (`story-6-2`) does not touch this function; 6.10's power failure sets `lights.powerFailure` and calls it (order respected).
+- **`config/balanceSchema.ts` / `balance.ts` / `waves.json` / `decay.json`**: `waves.evac`, `waves.endless`, `blackout.endlessOddWaves/endlessEvenHalfDark`, `BLACKOUT_DEFAULTS`; cross-checks.
+- **`run/endlessEvents.ts` (MERGE POINT with 6.8/6.10)**: `endlessEventCandidates(world, wave)` returns `[]`. At the 6.8 merge make it return the event ids whose gates pass for that wave (power failure included, 6.12 D6), and have 6.8's scheduler start `world.run.endlessEvent` in that wave with its normal 20–60 % window, banner, sound and marker. The "which waves" (`isEndlessEventWave`) and "no repeat" (`pickEndlessEvent`, `events` stream) rules are done and tested.
+- **`render/HeliView.ts › evacPadOf` (MERGE POINT with 6.8's map `events` layer)**: reads `map.eventSpots` point `evac_pad`, falls back to the map centre (Downtown (24, 16)). When 6.8 adds the layer with `evac_pad` (24, 15.9), nothing else changes; add the map test (inside the map, clear of boxes) with it.
+- **`decay/collapse.ts` / `ruinsLook.ts` (story-6-2)**: no change needed — they already rotate the weather (D7) and use RU4 by wave number past the table.
+- **`run/devStartWave.ts`** (+ server `devStartWave.ts` tests): 1–99, > `runWaves` = endless.
+- **`replay/inputLog.ts`**: `vote` command. **`bots/headlessRun.ts`**: `heldOut` → `ending`, `endlessWaves`, `votes`; `vote`, `stayUntilWave`.
+- **Client**: `sim/SimHost.ts` (`castVote`), `LocalSimHost.ts`, `NetSimHost.ts`; `net/onlineFlow.ts` (vote keeps the session; `resultsFromState` → `ending`/`endless`; dawn; new required dep `dawnS`), `main.ts`; `ui/uiState.ts` (results `ending`, `endless`, `dawnEndsAtMs`; `resultsTitle`/`resultsSub`), `ResultsScreen.tsx`, new `EvacVote.tsx`, `voteModel.ts`, `dawnModel.ts`, `App.tsx`, `overlay.css`; `scenes/GameScene.ts` (vote feed, heli, solo results, neutral input), `HudScene.ts` + `hudModel.ts` (`endless`, `voting`, `waveLine`), `hudLayout.test.ts` (vote mode).
+- **Docs**: readability sheet items **80–85**; `docs/perf/epic-6-blackout.md` endless section; screenshots `docs/art/6-11/`.
+- `sprint-status.yaml` not touched (main session).
+
+### Not verified
+
+- Online two-tab browser check under `?lag=150&jitter=20` (live chips, a changed vote, all voted → 1 s, a hidden tab across the vote): covered only by the server room test, the mirror test and `onlineFlow.test.ts`, not in a browser.
+- A wipe in endless in the browser ("Lost in the city" on DW2): unit/sim tested, not screenshotted.
+- Headless FPS (`?stress=150`) with the story's effects: not run (the vote is an HTML overlay and one sprite on a cleared map; the wave-25 blackout + fog + Behemoth FPS case belongs to 6.3/6.5 and needs the Mi 11i).
+- Darkness during the vote/endless in the browser: on this branch `lightPctByWave` is still all 0 and `halfDarkInBuild` false (6.4 turns them on), so screenshots of wave 10 show no blackout; endless wave 15 showed the 5 % blackout (`blackout 5` in the check).
+- Endless events in play (6.8 not merged: the hook schedules nothing yet).
+- Pre-existing at 568 × 320: the HP bar covers the start of the top wave line (also before this story).
+
 ### File List
+
+New: `packages/shared/src/run/endlessEvents.ts`, `run/evacVote.test.ts`, `run/endless.test.ts`, `waves/waveDirector.endless.test.ts`, `economy/endlessSim.test.ts`; `apps/server/src/rooms/RunRoom.vote.test.ts`, `run/tickCostEndless.test.ts`; `apps/client/src/ui/EvacVote.tsx`, `ui/voteModel.ts`, `ui/voteModel.test.ts`, `ui/dawnModel.ts`, `ui/dawnModel.test.ts`, `render/HeliView.ts`, `render/heliPose.ts`, `render/HeliView.test.ts`, `render/city/heliArt.ts`, `render/city/heliArt.test.ts`, `sim/NetSimHost.vote.test.ts`; `docs/art/6-11/*.png`.
+
+Modified: see Notes for the merge (shared: runStateMachine, world, simEvents, netEvents, messages, stateView, player, waveDirector, zombiePool, bossState, behemoth, lightState, balanceSchema, balance, waves.json, decay.json, devStartWave, inputLog, headlessRun, index; their tests; server: RunRoom, RunController, RunState, syncState and tests; client: SimHost, LocalSimHost, NetSimHost, onlineFlow, main, uiState, ResultsScreen, App, overlay.css, GameScene, HudScene, hudModel, fakeRoom and tests; tools: bots, sims; docs: readability sheet, perf).
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh-agent reviewer (cloud session), 2026-11-24, method `gds-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) + brief lines 1–32.
+**Reviewed commit:** `132c90d` (story-6-11 merged with master), diff `efbe4ad...132c90d`. Covers the merged story 6.11 + 6.12.
+**Outcome:** **Changes requested** — 0 high, 3 medium, 12 low/nit. No stuck run found; every phase change lobby → build → wave → vote → build/results is a real transition with a test.
+
+**Tests run (no full gate, designer speed-up):** `npm run typecheck` (green); shared `src/run src/waves/waveDirector.endless.test.ts src/economy/endlessSim.test.ts src/decay/lightState.test.ts src/net/netEvents.test.ts` (7 files / 96 green); for mutations: shared `evacVote`, `endless`, `waveDirector.endless`, `endlessSim`; server `RunRoom.vote`, `syncState`, `tickCostEndless`; client `voteModel`, `dawnModel`, `onlineFlow`, `NetSimHost.vote`, `HeliView`, `hudModel`, `hudLayout`. Two throw-away probes (an endless Behemoth wave-15 cap probe; a real-server vote flood) were run and deleted.
+
+### Findings
+
+**MEDIUM**
+
+- **M1 — A vote flood silently drops the player's LAST choice (brief 17, 30).** `apps/client/src/scenes/GameScene.ts` (`voteStore.handle` → `h.castVote(...)` on every tap), `apps/client/src/sim/NetSimHost.ts › castVote`. Every tap is sent, with no dedupe and no throttle, in the shared "other" bucket (10/s, which pongs share too). Probe on the real server (`RunRoom.vote.test.ts` changed locally, then reverted): 30 × `extract` then 1 × `stay` in a burst → the server keeps **extract** (1), not the last tap. Scenario: friends argue and someone toggles quickly in the last second or during the 1 s all-voted hold; their final tap is dropped, the pending chip shows it for 1.5 s, then flips back, and the vote resolves against what they last tapped. (The existing test sends only 6, inside the bucket.) **Fix:** client side, send only when the latched choice differs from the last one sent and at most ~3/s with a trailing send of the newest choice (the latch stays on the tap frame, brief 30); optionally a server `vote` bucket like `ghost`. Test: a 20-tap burst ending on Stay → server Stay.
+- **M2 — A late dawn after a frozen tab (AC 10, brief 14).** `apps/client/src/net/onlineFlow.ts:75` (`dawnEndsAt(r.ending, last === "vote", now, deps.dawnS)`). The dawn's clock starts when the Results patch is *processed*, not at the extract tick. A page frozen across the extract (Android background freeze; the WebSocket backlog is delivered on resume) sees vote → results on wake, so `live` is true and the 4 s dawn plays late, which the AC forbids ("more than `dawnS` after the extract tick goes straight to Results"). The T3 test "a wake after `run.extracted` + 5 s → Results, no dawn" is not in `NetSimHost.vote.test.ts`; only the pure `dawnModel` with a hand-set `live` flag is tested. Cosmetic and skippable, so medium, not high. **Fix:** decide `live` from server time: (the session's estimated server tick now − `state.tick` of the Results patch) < `dawnS × 20`, or no dawn if the page was hidden or resumed within the last `dawnS`; add the test.
+- **M3 — The 20-wave endless sim does not assert "flat" (brief 25).** `packages/shared/src/economy/endlessSim.test.ts:131-141`. Tick p99 is only logged, never compared between early and late waves. The heap check runs only behind `PERF_ASSERT`. `sizes()` compares fixed-capacity typed arrays (they cannot grow) and masks the lists that can grow (`lights`, `fires`, `grenades` set to 0). Mutation: removing `list.length = 0` from the light-list rebuild (`decay/lightState.ts`, a leak on every rebuild) **survived**. The sim also kills every 6 ticks, so it never runs at 150 alive. **Fix:** record p99 per wave block and assert waves 26–30 ≤ waves 11–15 × 1.5 + 0.2 ms (behind PERF_ASSERT with the load if needed); compare `lights.list.length`, `decay.fires.length`, `grenades.count`, and the event and listener queue sizes at the same point (e.g. each wave's first tick) at wave 11 and wave 30 without masking; run a few waves at the 150 cap.
+
+**LOW / NIT**
+
+- **L1 — The vote layout test misses T4's checks (brief 31).** `apps/client/src/scenes/hudLayout.test.ts:79-83`: the 48 px ring is not a box, there is no ≥ 12 px gap rule, there is no 800 × 360 size, and `overlay.css` repeats the `layoutEvacVote` numbers without a cross-check. Mutation `half = 0` (buttons touching, ring covered) **survived**. Fix: add the ring box and a min-gap rule in vote mode.
+- **L2 — The EXTRACT exemption from "nothing pressable in the move-stick half".** `hudLayout.test.ts:102-104`. It is safe in mechanics: sticks hidden, input neutral, the server frozen, and an accidental Extract is the silent default and can be changed (D2). But a left thumb planted again out of habit lands on EXTRACT, and if it is the last missing vote the 1 s hold ends the vote before the player notices. Brief 31 is absolute and the exemption is not in the decision log. Fix: a designer line in `docs/epic-6-decisions.md` (EX1 keeps EXTRACT left), or add it to KNOWN_LIST with its offset, so the exemption is visible.
+- **L3 — Vacuous grenade assertion.** `packages/shared/src/run/evacVote.test.ts:73` asserts `grenades.count === 0`, but no grenade was ever thrown; removing `clearGrenades` from `openEvacVote` **survived** (beat the rule 6). Fix: throw a grenade, drop a molotov and acid on the clearing tick, then assert they are gone and nothing bursts or burns during the vote.
+- **L4 — The tick-cost Brute bound doesn't bite.** `apps/server/src/run/tickCostEndless.test.ts:58`: with the Brute alive cap removed the test **survived** (600 measured ticks never reach 7 Brutes alive). Fix: measure longer, or assert `peakBrutes === 6` was reached.
+- **L5 — No cross-check `waves.evac.everyWaves === waves.endless.bossEveryWaves`.** `packages/shared/src/config/balance.ts:87-96`. Changing one key separates the votes from the Behemoth waves (6.11 F6 / 6.12 F4: a vote after every Behemoth wave). Fix: add the check, or derive one key from the other.
+- **L6 — D-B Predictor in the vote is untested.** The story asked for a `tools/netsim` or `prediction.test.ts` case: for the first ~175 ms of a vote under lag the client still predicts the movement the server froze. Fix: a netsim test asserting the correction stays < `PREDICTION_SNAP_M`.
+- **L7 — The dev override can no longer turn off endless Behemoths.** `packages/shared/src/boss/bossState.ts:212-217`: `?bosswave=` / `DEV_BOSS_WAVES` (`world.debug.bossWaves = []`) is OR-ed with the endless rule, so `[]` still gives bosses at 15/20/25. Fix: when an override is set use only the list, or document it.
+- **L8 — Allocation every frame during the vote (brief 10).** `apps/client/src/ui/voteModel.ts:96-110,131` (a sorted copy, new chip objects, a `map().join()` key string each frame) and `GameScene.updateVote` (new objects pushed into `votePlayers` each frame). 15 s on a cleared map, so cheap, but against the rule. Fix: key from scalars, reuse chip objects.
+- **L9 — Story text stale on solo sizes.** `6-12-endless-mode.md` F1 and Beat-the-rule 5 say × 0.4 / 240. The code uses balance pass **B2's × 0.35** (`docs/epic-5-decisions.md:212`, brief 15): 210 at wave 15+. **The code is right; update the story text.**
+- **L10 — Brief 22 wording vs 6.5's rule (pre-existing, not this story).** Probe: endless wave 15 at 4p had up to **125** alive while the Behemoth lived (wave 10: 139). That is 6.5 AC 4 as accepted ("zombies above 110 when it arrives are not killed; no new spawns until below 110"), and endless behaves exactly like wave 10. The brief's literal "at most 110 alive" disagrees; flagged for the main session only.
+- **L11 (nit) — `run_ended.endlessWaves` is one lower for a wipe in a build phase.** `apps/server/src/rooms/RunRoom.ts:813` (`wave − 1`). Also the doc comment for `setBuildReady` now sits above `castVote` (`apps/server/src/run/RunController.ts:312-313`).
+- **L12 (nit) — Leftovers.** Comments still say "held out": `bots/headlessRun.ts:20,78`, `tools/bots/run.ts:20`, `economy/fiveWaveSim.test.ts`, `sixWaveSim.test.ts`, HANDOFF Epic 3 line (history, fine). Readers of K25 / `resultHeldOut`: **none left**; K25 is retired and not reused. Removing `resultHeldOut` and inserting fields shifts schema field indexes, so a cached old client can't decode the new server; fine with atomic deploys. The pad test checks only the pad centre on Downtown (the 3 m ring isn't checked against boxes); the helicopter is visual only, so this is safe.
+
+### Merge points left for 6.8
+
+- `run/endlessEvents.ts › endlessEventCandidates` returns `[]`, so `scheduleEndlessEvent` writes `""` and nothing runs. Safe: no RNG draw with ≤ 1 candidate, and the "which waves" and "no repeat" rules are tested.
+- `HeliView`/`heliPose › evacPadOf` falls back to the map centre (24, 16) on Downtown. The new map test shows it is inside the map and clear of every solid and cover box. Safe (visual only, D5).
+
+### Acceptance and decision audit
+
+- 6.11 F1–F7: met. F4's all-voted rule ends exactly 20 ticks after the last vote; F5's freeze runs input, waves and economy only. Gaps: M2 (AC 10 late wake), M1 (F2 "the last vote that arrived counts", but the last *tapped* can be dropped).
+- **6.11 decisions:** D1 (majority of the whole team, silent = Extract) ✓ `voteOutcome`. D2 (change until the end) ✓. D3 (all voted → 1 s) ✓. D4 (nothing moves) ✓ `step()` freeze plus neutral client input; the vote-opening tick still runs the systems after `waves` (economy, `decayTimers`), the same tick as the clear, harmless. D5 (helicopter is a picture) ✓. D6 (tap skips the dawn) ✓.
+- **6.12 decisions:** D1 (Behemoth +25 % per endless boss only, not `hpMult`) ✓. D2 (+1 Brute per wave, ≤ 6 alive, owed Brute waits) ✓. D3 (even waves half dark) ✓. D4 (no repeat) ✓. D5 (wave 9 / 10 mixes) ✓. D6 (power failure allowed on even waves) and D8 (20 %) ✓ (order in `refreshBlackout`: odd waves stay 5 % even in a power failure). D7 ("lost" on DW2, no wait) ✓.
+- Builder decisions 1–15: accepted. No `firstWave` key: `runWaves` is the single source and `isEvacWave` the single place. Economy runs in the vote. Dawn as CSS.
+
+### Brief lines 1–32
+
+1 ✓ (merged commit; the builder ran the gate) · 2 ✓ (World → schema → syncState → stateView → fakeRoom → mirror; Predictor: neutral input; `snapshotWorld` via spread) · 3 ✓ rules → tests · 4 see below · 5 n/a · 6 n/a · 7 the pad is visual only; Brute owed/spread logic tested, no fuzz needed · 8 ✓ replay test with votes · 9 liveness ✓ except L3 / L4 / M3 (mutations below) · 10 ✓ ticks and JSON; L8 · 11 ✓ (≈ 40 B/s for 15 s) · 12 FPS not run (builder says so) · 13 ✓ sheet items 80–85 · 14 M2, L6 · 15 ✓ B2 × 0.35 · 16 recorded, wave 19 p99 1.837 ms vs wave 10 1.125 ms (+0.7 ms of the 2 ms Epic 6 budget) · 17 M1 · 18 ✓ `?startwave` 1–99 · 19 ✓ notes · 20 ✓ heli atlas through `addGeneratedTexture` with a redraw test · 21e ✓ wave 25 = wave 10 ticks · 22 L10 · 23 n/a (6.8) · 24 ✓ (green/red are UI buttons; heli above the darkness) · 25 M3 · 26 ✓ endless light inside `refreshBlackout`, mirrored · 27 ✓ no Epic 5 UI rewrites (HUD hides only) · 28 ✓ every transition tested, Results always reached · 29 ✓ · 30 latch ✓ (the choice is fixed and sent on the tap), flood M1, no 60 fps / lag latch test (minor) · 31 L1 / L2 · 32 ✓ decisions read, merged commit reviewed.
+
+### Beat the rule (attempts → result)
+
+1. Spam votes: 6 in a burst holds; **31 in a burst drops the final Stay (M1)**.
+2. Vote Stay, then leave: not counted; the vote ends early ✓.
+3. F3 table, 1–4 players, silent/ties ✓; solo silent → Extract ✓.
+4. Hidden tab across the whole vote, wake in wave 11's build: the mirror lands on server truth, the helicopter resets, no vote UI ✓.
+5. Revive, downed bleed-out or fire during the vote: frozen ✓ (a downed player is returned on Stay, as built).
+6. Grenade on the clearing tick: cleared by `openEvacVote` (code); the test is vacuous (L3).
+7. `?lag=150` running into the vote: no test (L6).
+8. Two votes on the timer's last tick: one result ✓.
+9. Late scene start during the vote: the session starts on "vote", the helicopter is already landed (age from ticks) ✓.
+10. Everyone leaves during the vote: 0 players → timer → Extract → Results; the room auto-disposes ✓.
+11. A player joins or reconnects during the vote: joins refused (`run_started`); no reconnect before 8.1 (D-D: a held player = silent) ✓.
+12. Host leaves during the vote: the host passes on, the vote is unaffected ✓.
+13. The last standing player leaves during the vote with the others downed: no wipe in the freeze; Stay returns everyone, Extract extracts ✓ (acceptable).
+14. Vote while downed or out: counts, chip dimmed ✓.
+15. Behemoth still alive at wave 10's end: the wave cannot end (`bossActive` / `bossPending`), so no vote ✓.
+16. Shop, build, sell, repair or consumable during the vote: all gated to "build" or not run ✓.
+17. Wipe during endless → "lost", earnings split adds up ✓ (sim b).
+18. Farm an endless wave by not killing: no respawns, nothing to farm; the owed Brute is delivered when one dies, and the wave can't end while one is owed ✓.
+19. Kill Brutes one at a time: owed ones still arrive ✓.
+20. Wave 25 Behemoth: telegraph, windup, recovery and gap ticks equal wave 10's ✓.
+21. Solo wave 20: 210 zombies (B2 × 0.35), 12 Brutes, × 1.3 HP ✓.
+22. Cap 110 during an endless Behemoth: spawns stop at ≥ 110, as at wave 10 (L10).
+23. Event on a Behemoth wave or twice in a row: never ✓ (tests).
+24. 30 endless waves: pools fixed by construction; the sim's flatness check is weak (M3).
+25. Accidental Extract with the left thumb: possible (L2).
+
+### Mutations (one per new test; all reverted)
+
+Killed (good): tie → Stay (evacVote: 3 failed) · freeze removed (1) · all-voted hold off (8) · "lost" → "wiped" (evacVote 1, endlessSim 1) · `earnedAtEvac` not set (2) / set at every Stay (1) · `castVote` in any phase (1) · endless size cap off (2) · Brute alive cap off (waveDirector.endless 1) · Brutes from 0 % (2) · `hpMult` not at spawn (1) · odd/even mix swapped (1) · endless boss growth 1 (1) · even waves at full darkness (1) · power failure before the odd rule (1) · event repeat allowed (1) · event on boss waves (1) · voteModel: result shown while pending (1), ring ignores ticks (1), pending kept across votes (1) · dawn ignores the late rule (1), no skip (1) · onlineFlow: dawn always live (1), vote starts a new session (1) · NetSimHost: endless not copied (1), vote not copied (1) · pad fallback (1, 1) (2) · HUD vote line removed (1) · RunRoom: no vote ticks (2), `run.extracted` not ending the run (1) · syncState: vote not synced (1), not reset (1).
+
+Survived (bad): `clearGrenades` removed from `openEvacVote` (L3) · light-list leak (endlessSim, M3) · Brute cap off (tickCostEndless, L4) · vote buttons touching, `half = 0` (hudLayout, L1) · RunRoom's own phase check removed (equivalent mutant: `castVote` checks the phase; fine).
+
+### Review fixes (builder, 2026-11-24, on story-6-11 merged with `origin/review-6-11` + `origin/master` 9c540b3)
+
+Merged master 9c540b3 (6.2+6.4 Ruins/Collapse): two conflicts resolved — `index.ts` exports (both sets kept: `MAX_START_WAVE` + 6.2's ruinsLook/collapse exports) and `decay.json › blackout` (6.4's `halfDarkInBuild: true` + this story's `endlessOddWaves` / `endlessEvenHalfDark`). With 6.4's values in, the browser check now shows the real darkness: the wave-10 vote keeps the 5 % blackout, Results are lit, endless wave 12 = 5 % half dark, wave 13 = 5 % full, endless builds half dark.
+
+- **M1 [BEHAVIOUR] fixed** — `ui/voteModel.ts › VoteSender`: the client sends `evac.vote` only when the latched choice differs from the last one sent, at most one per `VOTE_SEND_GAP_MS` (334 ms ≈ 3/s) with a trailing send of the newest choice, and resends after `VOTE_PENDING_MS` if the server still shows another vote. `GameScene` latches on the tap (brief 30) and polls the sender each frame. Tests: `voteModel.test.ts` (20 taps at 60 fps → ≤ 3 sends, ≥ 334 ms apart, last = Stay; dedupe; resend; new vote clean) and `tools/netsim/vote.test.ts` (a REAL room: bucket drained to 2 tokens, the teammate already voted so the 1 s hold runs, 20 taps ending on Stay through `VoteSender` → ≤ 4 sends and the vote resolves Stay).
+- **M2 [BEHAVIOUR] fixed** — `net/onlineFlow.ts`: "live" now comes from server time. The handler keeps the smallest (arrival ms − tick × 50) over the run's phase patches (a late backlog can't lower it), estimates the server tick now, and plays the dawn only if the extract tick (the Results patch's tick) is less than `dawnS` old; the dawn ends at extract tick + `dawnS` (a 1 s late wake plays the remaining 3 s). Test `onlineFlow.test.ts`: frozen across the extract, vote → results delivered 5 s late → no dawn; 1 s late → ends 4 s after the extract.
+- **M3 fixed** — `economy/endlessSim.test.ts`: every growable list/pool count read UNMASKED at the same phase point (each wave's first tick): lights list + pool, fires, grenades, spits, acid, gas, molotov zones, blasts, buildings, event handlers + pending events, inputs, players… — wave 30 ≤ wave 11 for every key (fires may burn out), light pool equal; a floodlight placed every build phase and removed at the wave start forces ≥ 38 light-list rebuilds; waves 16–17 run up to the 150-alive cap (peak 150 asserted); p99 of waves 26–30 ≤ waves 11–15 × 1.5 + 0.2 ms and the heap check behind `PERF_ASSERT`. Run: p99 0.543 → 0.414 ms, heap 38.2 → 42.3 MB. **The light-list-leak mutation (no `list.length = 0`) now fails.**
+- **L1 fixed** — `voteModel.ts › layoutEvacVote` returns the ring too; `hudLayout.test.ts`: vote row at 568×320 / 640×360 / 800×360 / 844×390 — extract → ring → stay with ≥ 12 px gaps, 56 px tall, inside the safe area, ≥ 48 px from the survivor, clear of ☰; `tools/checks/evacVoteCss.test.ts` cross-checks `overlay.css` (140 × 56, gap 24, bottom max(14px, safe area), centred) and the 48 px ring in `EvacVote.tsx` (vitest empties CSS imports in the client, so the check lives in tools). **`half = 0` now fails.**
+- **L2 done** — the EXTRACT exemption is gone from the rule code; the two breaks are in `KNOWN_LIST` (`vote vote_extract: in the move-stick half`, 118 px) with the comment citing designer decision **6.11 B1 "K: keep EX1 as picked"** (decided while the fixes were built; master da82847).
+- **L3 fixed** — `evacVote.test.ts`: a grenade in flight, molotov fire and an acid puddle on the clearing tick → all gone at the vote; no damage, no explosion in 120 vote ticks. **Removing `clearGrenades` from `openEvacVote` now fails.**
+- **L4 fixed** — `tickCostEndless.test.ts`: after the timing, the non-Brutes are thinned until every Brute of wave 19 has spawned; asserts the 6-alive cap is REACHED and never passed. **Brute cap off now fails.**
+- **L5 fixed** — `balance.ts › crossCheck`: `evac.everyWaves === endless.bossEveryWaves`; test in `balance.test.ts`.
+- **L6 fixed** — `tools/netsim/vote.test.ts`: the bot runs into the vote under 75 ± 10 ms each way on the real `RunController` with the client `Predictor` (offset decayed per frame), neutral moves once the client sees the vote: largest correction 0.225 m, no snap (< 1 m), 138 reconciles in the vote.
+- **L7 [BEHAVIOUR, dev only] fixed** — `bossState.ts › isBossWave`: a dev override (`DEV_BOSS_WAVES` / `?bosswave=`) is the whole list, endless included (`[]` = no Behemoth at all). Test in `waveDirector.endless.test.ts`.
+- **L8 fixed** — `GameScene.updateVote` fills four reused voter records through a callback made once; `voteFrameKey` (scalars only) decides whether anything visible changed, and only then `voteView` builds the panel (the only allocation, a few times per second). Test `voteFrameKey` in `voteModel.test.ts`.
+- **L9 fixed** — `6-12-endless-mode.md` F1 and Beat-the-rule 5: × 0.35 (B2), solo wave 15+ = 210.
+- **L10** — no change (6.5 AC 4 as accepted).
+- **L11 fixed** — `RunRoom` counts `endlessWaves` from the last `wave.ended` it saw (right for a wipe in a build phase too); `RunController`'s `setBuildReady` doc comment back above its method.
+- **L12 fixed** — "held out" comments in `headlessRun.ts`, `tools/bots/run.ts`, the 5/6/10-wave sims and `bossRunSim.test.ts` now say "extracted".
+
+Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the online dawn plays), **L7** (dev boss override governs endless). The rest are tests, docs and comments.
+
+### Re-review (AI) of the review fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-24, narrow re-review (designer speed-up): only the fix commits `aaf1099..3008990` (13f7711, merge 57bed76's resolutions in `index.ts` / `decay.json`, 3008990).
+**Outcome:** **Approve with follow-ups** — 0 high, 1 medium, 2 low, 2 nit. Every fix target's mutation is now killed except one pre-existing client line (N2).
+
+**Tests run:** `npm run typecheck` (green); probes and mutations only: client `ui/voteModel`, `scenes/hudLayout`, `net/onlineFlow`; shared `economy/endlessSim`, `run/evacVote`, `config/balance`, `waves/waveDirector.endless`, `decay/lightState` (16/16); server `run/tickCostEndless`; `tools/netsim/vote`. Two throw-away probe files (VoteSender timing, dawn clock drift) were run and deleted.
+
+**MEDIUM**
+
+- **RM1 — A quick change of mind in the last ~⅓ s is still lost (the M1 fix adds up to 334 ms to the 2nd tap).** `apps/client/src/ui/voteModel.ts:221` (`nowMs - sentAtMs < VOTE_SEND_GAP_MS` → wait). Probe: Stay tapped 300 ms before the vote ends (sent at once), Extract tapped 100 ms before the end → Extract would go out 34 ms *after* the end; `updateVote` stops polling once the phase leaves "vote" (`GameScene.ts:1042-1046`), so it is never sent and the vote resolves Stay. Before the fix that 2nd tap was sent on the tap. Same in the 1 s all-voted hold (the hold is `min`, so it is not extended). Two taps, not a flood: the M1 class with a smaller window. Also a tap followed by switching apps within 334 ms waits for the next rAF. **Fix:** a token bucket instead of a strict gap (burst 3, refill 3/s; the server's ~10/s shared bucket still holds with pongs), or send at once when `voteTicksLeft` ≤ ~0.5 s. Test: Stay at T−300 ms, Extract at T−100 ms → Extract sent before T.
+
+**LOW**
+
+- **RL1 — The dawn's server clock drifts with dropped server ticks.** `apps/client/src/net/onlineFlow.ts:65-74,85-87`. `minOffsetMs` is the minimum over the whole run, and `setFixedTimestep` drops the backlog after 5 catch-up steps (`RunRoom.ts:748`), so every server stall > 250 ms makes the server tick fall behind wall time for good; the estimate of "server tick now" runs ahead by the sum. Probe (10-min run, live extract, 100 ms latency): 0 ms of lost ticks → 4000 ms of dawn; 1000 → 3000; 3500 → 500; 4500 → **no dawn for a live player**. Needs seconds of stalls (CPU-throttled host, long GC), so low; cosmetic. Clock skew, a slow first patch, lag 150 ± 20 (error ≤ jitter + one patch interval) and a tab hidden across the vote that wakes at Results are handled (the min keeps a live sample; a backlog only raises the offset; on device sleep the post-wake sample is accurate). **Fix:** use only recent samples (reset the min at each wave → vote, or keep the min over the last wave's phase patches), or the session's ping clock if it has one.
+- **RL2 — No reset of `minOffsetMs` on "a new run seen without its lobby patch".** `onlineFlow.ts:72` resets only on "lobby"; the branch at `:78` (`session?.release()`, new run) keeps run 1's offset while `state.tick` restarts at 0 (`syncState.ts:222`), so run 2's estimate is off by run 1's length → no dawn in run 2. Theoretical today (lobby needs a ready-up), cheap to fix: reset there too.
+
+**NIT**
+
+- **N1 — L7 with the override:** `run/endlessEvents.ts:22` calls `isBossWave(balance, wave, true)` without the dev override, so in a `?bosswave=` / `DEV_BOSS_WAVES` run the endless events skip 15/20/25 (no Behemoth there) and may land on an override boss wave. Dev only. Also `parseDevBossWaves` never yields `[]` (empty → null), so "[] = none" is reachable from code only. Production: override is always `null` (`devBossWaves.ts:14`, `urlOptions.ts:167`) → `isBossWave` is byte-for-byte the old path.
+- **N2 — The client's neutral input in the vote is not under any test (pre-existing, D-B).** `GameScene.ts:1913` (`… || host.world.run.phase === "vote"`): removing it **survives** `tools/netsim/vote.test.ts` + every `apps/client/src/scenes` test (236 green); the L6 netsim test hand-codes the neutral input. Fix: move the rule into a pure helper the netsim test imports.
+
+**Exploit attempts (M1):** final tap with no recent send → sent on the tap ✓; tap → server confirm → tap back → sent after the gap ✓; A, B, A inside one gap → nothing extra sent, server keeps A ✓; resend vs a newer send → only the current choice is ever resent, WebSocket is ordered, so no stale overwrite ✓; never-confirmed vote → 10 resends in 15 s (≤ 0.7/s), none after the vote (polling stops with the phase), none in Results ✓; worst case ≈ 3/s + pongs within the ~10/s bucket ✓; tap in the last 334 ms after a recent send → **lost (RM1)**. The `openKey` reset discards a `want()` made before a vote's first poll; unreachable (the buttons appear only after that poll).
+
+**Mutations (all reverted):** killed — M3 light-list leak (`list.length = 0` removed; endlessSim 1 failed) · L1 `half = 0` (hudLayout 1) · L3 `clearGrenades` out of `openEvacVote` (evacVote 1) · L4 Brute cap off (tickCostEndless 1) · L5 cross-check off (balance 1) · L6 server vote freeze off (netsim vote 1) · L6 Predictor snap at 0.1 m (1) · M1 resend off (1) · M1 gap off (2) · M2 last sample instead of min (onlineFlow 1) · L7 override OR-ed again (waveDirector.endless 1). Survived — client neutral input in the vote (N2, pre-existing).
+
+**Merge resolution:** `decay.json › blackout` keeps 6.4's `halfDarkInBuild: true` and adds `endlessOddWaves` / `endlessEvenHalfDark: true` (the only diff vs master da82847); `index.ts` keeps both export sets (`MAX_START_WAVE` + 6.2's ruinsLook/collapse); `lightState.test.ts` 16/16 green; typecheck green.
+
+### Re-review fixes (builder, 2026-11-24, on story-6-11 merged with `origin/rereview-6-11` + `origin/master` 3a0dac8)
+
+- **RM1 [BEHAVIOUR] fixed** — `ui/voteModel.ts › VoteSender`: a token bucket replaces the strict gap (`VOTE_SEND_BURST` 3, refilled `VOTE_SEND_PER_S` 3/s): a change goes out at once unless more than 3 went out in the last second. `poll(…, urgent)`: in the vote's last `VOTE_URGENT_MS` (500 ms) or once everyone has voted (the 1 s hold) a change goes out even with the bucket empty, at most one per `VOTE_URGENT_GAP_MS` (150 ms) — ≤ ~6.7/s with the bucket, inside the server's 10/s. `GameScene.updateVote` computes `urgent` from the server's ticks and the voters. Tests: `voteModel.test.ts` (Stay at T−300 ms then Extract at T−100 ms → both sent on the tap, with and without urgent; inside the hold with the bucket empty → sent ≥ 150 ms after the last; the 20-tap burst → ≤ 4 sends, last = Stay, never > 6 in a second); `tools/netsim/vote.test.ts` (real room: the 20-tap burst outside the hold → ≤ 4 sends and the server holds Stay; inside the hold, Stay then a late Extract with ≤ 3 ticks left → sent at once, the server holds Extract, the vote resolves Extract).
+- **RL1 [BEHAVIOUR] fixed** — `net/onlineFlow.ts`: the minimum clock offset restarts at each wave start (dropped server ticks earlier in the run no longer push the estimate ahead), and a page that was hidden or came back within the last `voteS + dawnS` (`lastHiddenMs`, a `visibilitychange` tracker in `main.ts`) never plays a late dawn — this covers a freeze that also swallowed the wave start. New deps `voteS`, `lastHiddenMs`. Tests: 5 s of dropped ticks before wave 10 → the live player still gets the full dawn; a page that came back just before Results → no dawn. Mutations killed: no wave-start reset (1), no hidden rule (1).
+- **RL2 fixed** — the same reset when a new run is seen without its lobby patch (the tick restarts at 0). Test: run 2 first seen in its vote → its dawn plays; mutation without the reset fails.
+- **N1 fixed (dev only)** — `run/endlessEvents.ts`: `isEndlessEventWave(…, bossOverride)` and `scheduleEndlessEvent` pass `world.debug.bossWaves`, so with `?bosswave=` the endless event skips the override's boss waves and may use 15/20/25. `DEV_BOSS_WAVES=none` / `?bosswave=none` → `[]` (no Behemoth at all, endless included). Tests in `endless.test.ts`, `devBossWaves.test.ts`, `urlOptions.test.ts`.
+- **N2 fixed** — `input/menuInput.ts › standsStill(menuOpen, shopOpen, phase)` is the one rule; `GameScene` and the netsim test both use it; the netsim test asserts the prediction sits on the frozen server position once settled in the vote (< 0.01 m). Removing the vote from the rule now fails.
+
+Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays). N1 is dev-only; the rest are tests.
+
+6.8 merge plan (main session): keep 6.8's `!eventHoldsWave` in `updateRun` and `skipWave` ending the event; implement `endlessEventCandidates` with 6.8's `eventFits(world, kind, wave)` and keep ONE scheduler (this story's); `evacPadOf` reads 6.8's `evac_pad` (24, 15.9); schema: 6.8's event* fields, then `voteTicksLeft`, `endless`; `PlayerState.vote` last.
+
+### Re-review 2 (AI) of the re-review fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-24, narrow (designer speed-up): only `b42eab9` (RM1, RL1, RL2, N1, N2) on `c61e0d7`; the master merges (docs/decisions) ignored.
+**Outcome:** **Approve with follow-ups**: 0 high, 1 medium, 2 low, 2 nit.
+
+**Tests run:** `npm run typecheck` (green); probes and mutations only: client `ui/voteModel`, `net/onlineFlow`, `debug/urlOptions`, `scenes/*` (237); shared `run/endless`; server `run/devBossWaves`; `tools/netsim/vote`. Two throw-away probes (VoteSender rate vs the server's real `TokenBucket(10, 10)` with 1 pong/s; an onlineFlow tab switch) were run and deleted.
+
+**MEDIUM**
+
+- **RR2-M1: The RL1 hidden rule takes the dawn from live players who switch tab or app at any time in the 19 s before Results.** `apps/client/src/net/onlineFlow.ts:96-98` + `main.ts:28-31`. `lastHiddenMs` is set on *every* `visibilitychange` (hide and show), and any change within `voteS + dawnS` (15 + 4 s) of the Results patch means no dawn. Probe: a live run (80 ms latency), the player alt-tabs for 2 s at the vote's start (waiting for teammates) and is back 13 s before the end; Results arrive live → `dawnEndsAtMs` = now (no dawn) instead of extract + 4 s. That's common on desktop (tab switch while waiting) and on phones (glancing at a message), and it breaks AC 10 (a live player sees the dawn). A notification-shade pull usually fires no `visibilitychange` (blur only), so that case is safe. **Fix:** decide on the page's state *around the extract*, not on any change in the last 19 s. Not live if `document.hidden` when the Results patch is processed, or if the page became visible less than ~1 s before (a wake backlog lands right after the show). Track `lastVisibleMs` (shows only) plus the current hidden state, not the last change. Test: hidden then shown 12 s before Results, live samples → full dawn.
+
+**LOW**
+
+- **RR2-L1: The hidden rule depends on the event order on resume.** Same lines. If a frozen tab (Android freezes background tabs) runs its queued socket messages before the `visibilitychange` task (the order between task sources is not specified), `lastHiddenMs` is still the hide time. A hide more than 19 s before means hiddenLately = false; every sample since the wave start arrives in the same burst, so age ≈ 0 and a late dawn plays. Not checked in a real browser. **Fix:** the same as RR2-M1: `document.visibilityState` flips in the same task as the event, so checking `document.hidden` when the patch is processed covers this order.
+- **RR2-L2: The rate headroom is 1 message, and the comment's "≤ ~6.7/s" is wrong.** `apps/client/src/ui/voteModel.ts:196-198,239-240`. Token sends and urgent sends add up (a token send does not wait for the 150 ms gap), so the sustained rate is about 3 + 6.7 ≈ 9.7/s. Probe (tap every frame for the whole 1 s hold, full bucket at the start): **8 sends in 1 s** + 1 pong = 9 against the server's 10-token bucket, so 0 dropped. Tapping every 120 ms over the last 3 s gives at most 5 in any 1 s, also 0 dropped. Only 1 token of headroom is left for any other non-input message in the hold. **Fix:** count urgent sends against the bucket (allow tokens to go to −2, for example), or set `VOTE_URGENT_GAP_MS` to 250, and correct the comment. The remaining loss window is a change made within 150 ms of an urgent send in the vote's last ~150 ms: in the probe the final tap was not sent in 2 of 4 runs, both at the very end. A patch stall that leaves `voteTicksLeft` stale (urgent stays false) delays a change by up to 333 ms when the bucket is empty. Both windows are about one RTT, which every client already loses, so I accept them.
+
+**NIT**
+
+- **N3:** the `urgent` computation in `GameScene.updateVote` (`GameScene.ts:1054-1056`) is copied by hand into `tools/netsim/vote.test.ts:115`. Setting `urgent = false` in GameScene **survives** netsim vote + every `scenes` test (237 green), the same class as N2. Move it into a pure `voteUrgent(players, voteTicksLeft)` in `voteModel.ts` that both use.
+- **N4:** N1's `scheduleEndlessEvent` passing `world.debug.bossWaves` (`endlessEvents.ts:64`) is not under any test: removing it survives `endless.test.ts` (only `isEndlessEventWave` is tested with an override). Dev only.
+
+**Exploit attempts:** RM1: Stay at T−300 ms then Extract at T−100 ms → both sent at once ✓. 20 taps outside urgent → ≤ 4 sends, the last is the newest ✓. Urgent flood → 0 dropped at the server ✓ (RR2-L2 headroom). Lag 150 ± 20: the client's `voteTicksLeft` lags by the one-way delay, so urgent starts at about 350 ms of real time left, still before the end ✓. A voter leaving makes the server's `everyoneVoted` and the client's `allIn` flip together (both over all players, downed included) ✓. No sends after the vote or in Results (`updateVote` returns when the phase leaves "vote") ✓. RL1: 5 s of dropped ticks before the last wave ✓ (reset at the wave start; samples are taken only on phase changes, so drift now needs ≥ 4 s of stalls within one wave + vote). A very short final wave or a wave start right before the vote: the Results sample bounds the age, so the dawn is safe ✓. A frozen tab that comes back at Results → no dawn ✓ (but RR2-L1). A tab switch during the vote → **no dawn (RR2-M1)**.
+
+**Mutations (all reverted):** killed: RL2 no new-run reset (onlineFlow 1) · RL1 no hidden rule (1) · RL1 no wave-start reset (1) · RM1 urgent off (voteModel/netsim 1) · RM1 urgent gap off (1) · RM1 no refill (1) · N1 `isEndlessEventWave` without the override (endless 1) · N1 `none` → [] removed, server (devBossWaves 1) and client (urlOptions 1) · N2 `standsStill` without the vote (netsim vote 1). Survived: GameScene `urgent` (N3), `scheduleEndlessEvent` override (N4).
+
+### Re-review 2 fixes (builder, 2026-11-24, on story-6-11 merged with `origin/rereview2-6-11` bb38395 + master)
+
+- **RR2-M1 [BEHAVIOUR] fixed (also RR2-L1)** — `net/onlineFlow.ts`: the "hidden lately" window is gone. The dawn is judged when the Results patch is processed: no dawn if the page is hidden then (`pageHidden`), or if it became visible less than `SHOWN_GRACE_MS` (1 s) before (`lastShownMs` — `main.ts` now tracks the last SHOW, not every change; a frozen tab runs its queued socket messages around the time it comes back). A tab switch earlier in the vote no longer costs a live player the dawn. Deps `voteS` / `lastHiddenMs` removed. Tests: a 2 s switch at the vote's start, live at the extract → the full dawn; hidden at the patch → none; shown 0.5 s before → none. Mutations killed: no hidden-now check (1), no just-shown check (1).
+- **RR2-L2 fixed** — `VoteSender`: an urgent send with the bucket empty BORROWS a token (at most `VOTE_URGENT_DEBT` = 1 below zero) and needs `VOTE_URGENT_GAP_MS` = 250 ms since the last send, so urgent sends count against the bucket: ≤ 7 sends in the first second (3 + 3 + 1), 3/s after — with ~1 pong/s inside the server's 10/s. Comment fixed. Test: taps every frame for 3 s, urgent throughout → ≤ 7 in any second, ≤ 4 in the third; a second borrow is refused.
+- **N3 fixed** — `voteModel.ts › voteUrgent(ticksLeft, hz, players, count)` and `pollVote(sender, …)` (the scene's exact per-frame step); `GameScene.updateVote` and `tools/netsim/vote.test.ts` both call `pollVote`. The hold test drains the bucket and changes again ~270 ms later (past the urgent gap, before a refill): only the borrowed urgent send gets it out; with urgent forced false that test fails.
+- **N4 fixed** — `scheduleEndlessEvent(world, candidatesOf = endlessEventCandidates)` (a test seam for the candidates until 6.8); `endless.test.ts`: with `bossWaves = [12]` nothing is scheduled before wave 12 and wave 20 gets one; without the override wave 20 gets none. Mutation (override not passed) fails.
+
+Behaviour changes: **RR2-M1** (when the online dawn plays). RR2-L2 changes the vote sender's urgent rate (≤ 1 borrowed token, 250 ms apart).
+
+### Re-review 3 (AI) of the re-review 2 fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-25. Narrow scope: only `7f91356` (RR2-M1/L1, RR2-L2, N3, N4) on `e070c94`. The master merge (docs only) was ignored.
+**Outcome:** **Approve.** 0 high, 0 medium, 2 low, 2 nit. None of them blocks; they are cosmetic or rare-edge trade-offs.
+
+**Tests run:** `npm run typecheck` (green). Client `net/onlineFlow` (19), `ui/voteModel` (12) and `scenes/*` (234). Shared `run/endless` (10). `tools/netsim/vote` (3): 3× in a row and 4× in parallel under load, all green. Two throw-away probes (a VoteSender model against the server's `TokenBucket(10, 10)` with 1 pong/s, and an onlineFlow frozen-tab burst) were run and deleted.
+
+**LOW**
+
+- **RR3-L1: a backlog that lands more than 1 s after the show still plays a late dawn.** Where: `apps/client/src/net/onlineFlow.ts:103-106`. Scenario (probe): a phone locks in the build phase (the build sample is live). Wave 10, the vote and the extract all play without it. It unlocks 60 s later, and the socket backlog lands **1.5 s after the show**, which is plausible: after a radio or Doze wake, the TCP retransmission backoff can take seconds. Every phase sample in that burst is equally late, so the age is 0. The page is not hidden, `justShown` is false, and the dawn plays about 60 s after the extract (`dawnEndsAtMs` = now + 4 s). AC 10 says a page past `dawnS` goes straight to the card. Low because the dawn is cosmetic and can be skipped (D6). A socket that dropped and reconnected is safe: the first patch is Results, `last ≠ vote`, so there is no dawn. **Fix:** add a check that needs no visibility state. The vote lasts ≥ `allVotedHoldS` (1 s) of server time, so require `(now − voteSeenAtMs) ≥ (resultsTick − voteTick) × 50 − ~500 ms`. A late burst has a gap of about 0 and fails it.
+- **RR3-L2: the 250 ms urgent gap costs final-tap delivery without lowering the rate bound.** Where: `apps/client/src/ui/voteModel.ts:205,251`. With `VOTE_URGENT_DEBT` = 1, the rate is already capped: urgent-flood probe, every frame for 10 s → max **6 in any 1 s**, 4 in steady state, and that holds for a gap of 0, 100, 150 or 250 ms. Plus 1 pong/s, that is far inside the server's 10/s, with 0 drops in every probe. The gap only delays a change made just after a send. Probe: frantic tapping (alternate every 50–450 ms) over the last 1.5 s, with a 1 s all-voted hold, 2000 runs; the server ends up with a vote other than the last tap in this many runs:
+
+  | Sender | Lost final taps |
+  | --- | --- |
+  | gap 250 / debt 1 (now) | **136 (6.8 %)** |
+  | gap 150 / debt 1 | 72 |
+  | gap 0 / debt 1 | 43 |
+  | old gap 150 / no debt | 42 |
+  | unlimited | 0 |
+
+  The RM1 cases still pass. T−300 Stay / T−100 Extract with a full bucket goes out at once. With the bucket drained 1 s earlier it is still delivered. A drained bucket inside the hold followed by a change at T−500 … T−50 is delivered. Tap pattern Stay/Extract/Stay at T−1 s, then T−600, T−300 and T−100 changes: the last one waits for the 250 ms gap and goes out at T−50, a narrow margin. **Fix:** set `VOTE_URGENT_GAP_MS` to 0–100 and keep the debt as the rate bound. Then the "≤ 7 in the first second, 3/s after" comment still holds (measured 6, 4).
+
+**NIT**
+
+- **N5:** `VOTE_URGENT_DEBT` is not under test. Mutating it to 99 (unbounded borrowing) **survives** `voteModel.test.ts`. The "a second borrow is refused" assertion (`voteModel.test.ts:105`) is only stopped by the 250 ms gap (249 ms < 250), and the 3 s flood test is also capped by the gap. If RR3-L2's fix lowers the gap, add a test where the second borrow is ≥ gap later and still refused (tokens < 0).
+- **N6:** `GameScene.ts:1055` calling `voteSender.poll(…, false)` instead of `pollVote` still survives `scenes/*` (234 green). N3 fixed the copy, not the call site. That is acceptable for scene wiring, but now that `pollVote` exists a one-line source check (as `noUnregisteredTextures` does) would close it. Also, the netsim hold test kills the "urgent off" mutation only while `sleep(270 − 33)` (`vote.test.ts:133`) lands before the 333 ms refill. That held in all 7 runs, but a host stalled for > 60 ms would make it pass through a token send, so the kill would be lost silently, not a red test.
+
+**Exploit attempts:**
+
+- RR2-M1: a 2 s tab switch at the vote's start, live at the extract → full dawn ✓ (the builder's test).
+- A first-ever load with no `visibilitychange` (`lastShownMs` = −∞) and live samples → full dawn ✓ (probe).
+- Hidden while the Results patch is processed → no dawn ✓. This is consistent in either task order: `document.hidden` flips in the same task that fires `visibilitychange`, and `onPhase` runs from the socket's `listen("phase")` callback (`connection.ts:91`), a separate task.
+  - A frozen tab whose queued messages run *before* the show sees `hidden` = true → no dawn ✓ (closes RR2-L1).
+  - If they run within 1 s *after* the show → no dawn ✓.
+  - More than 1 s after the show → **late dawn (RR3-L1)**.
+- A desktop window that loses focus but stays visible: `hidden` = false → the dawn plays. That is correct, the player can see it.
+- A notification-shade pull usually fires blur only, so the dawn plays. On a platform that does fire hide/show for it, a pull ending < 1 s before the patch costs the dawn. Cosmetic; not checked in a real browser.
+- An app switch exactly across the extract → no dawn, even if the player is back within 0.3 s. Accepted: that is the rule as written.
+- RR2-L2: 0 server drops in every probe, including a flood every frame for the whole vote (with pongs). The final choice is delivered in every RM1 case (see RR3-L2 for the frantic-tap rate).
+
+**Mutations (all reverted):**
+
+- Killed:
+  - N3: `pollVote` urgent → false (netsim vote, 1 failed, 3/3 runs).
+  - N4: `scheduleEndlessEvent` without `bossWaves` (endless, 1).
+  - `SHOWN_GRACE_MS` = 0 (onlineFlow, 1).
+- Survived:
+  - `VOTE_URGENT_DEBT` = 99 (N5).
+  - `VOTE_URGENT_GAP_MS` = 150 (voteModel + netsim green; harmless, see RR3-L2).
+  - GameScene bypassing `pollVote` (N6).
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built together with 6.12 (merged story) on `story-6-11`; status review.
+- 2026-11-24: Senior Developer Review (AI) on `132c90d`: changes requested (0 high, 3 medium, 12 low).
+- 2026-11-24: review fixes M1–M3, L1–L9, L11, L12 (L10 no change); merged master 9c540b3.
+- 2026-11-24: Re-review (AI) of the review fixes on `3008990`: approve with follow-ups (1 medium RM1, 2 low, 2 nit).
+- 2026-11-24: re-review fixes RM1, RL1, RL2, N1, N2; merged master 3a0dac8.
+- 2026-11-24: Re-review 2 (AI) of the re-review fixes on `c61e0d7`: approve with follow-ups (1 medium RR2-M1, 2 low, 2 nit).
+- 2026-11-24: re-review 2 fixes RR2-M1 (+L1), RR2-L2, N3, N4.
+- 2026-11-25: Re-review 3 (AI) of the re-review 2 fixes on `e070c94`: approve (0 high, 0 medium, 2 low RR3-L1/L2, 2 nit N5/N6).
+
+### Main session close-out (2026-11-25)
+
+- Re-review 3 approved (0 high/medium). Follow-ups for the Epic 6 tidy-up story: RR3-L1 (late dawn when a backlog lands > 1 s after unlocking; cosmetic, skippable), RR3-L2 (VOTE_URGENT_GAP_MS 250 → 0–100, keep VOTE_URGENT_DEBT as the rate bound: 6.8 % → ~2 % lost final taps under frantic tapping), N5 (VOTE_URGENT_DEBT untested), N6 (GameScene bypassing pollVote untested).
+- Lands on master BEFORE 6.8: endlessEventCandidates returns [] and HeliView falls back to the map centre until 6.8 merges and wires them (6.8's builder owns that merge).
+- Main-session full gate on story-6-11 e070c94 + rereview3 docs on master 7385b47: typecheck, lint, 373 files / 3,451 tests passed (3 skipped), build OK; load → 2.52 (4 cores). Story done.

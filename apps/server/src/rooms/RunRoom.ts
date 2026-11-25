@@ -17,6 +17,7 @@ import {
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
+  evacVoteSchema,
   DOWNTOWN_MAP,
   buildingPlaceSchema,
   buildingRepairSchema,
@@ -201,6 +202,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 2.10: when the current wave started (or the run, before the first wave), and its most zombies alive. */
   private waveStartMs = 0;
   private peakZombiesAlive = 0;
+  /** Review L11: the last wave whose `wave.ended` fired this run (the run_ended log's endlessWaves). */
+  private lastClearedWave = 0;
   /** The fight (Story 2.4): set when the run starts; the room is its only writer. */
   controller: RunController | null = null;
   /** Tick durations; logs `slow_tick` (AC 5). */
@@ -287,6 +290,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
+    this.onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice))); // Story 6.11
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.build, m.rev, m.card, m.item, m.slot ?? null)));
     this.onMessage(C2S.SHOP_REROLL, this.net.guard(shopRerollSchema, (c, m) => this.onShopReroll(c, m.build, m.rev))); // Story 5.13
@@ -414,6 +418,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     const player = member && this.state.players.get(member.playerId);
     if (player) player.ready = ready;
+  }
+
+  /**
+   * `evac.vote` (Story 6.11): the sender's vote; the World ignores it outside phase "vote" (F1, D2:
+   * the last one that arrived counts). Under the guard's bucket like every non-input message.
+   */
+  onEvacVote(client: RunClient, choice: "extract" | "stay"): void {
+    const member = this.members.get(client.sessionId);
+    if (member && this.state.phase === "vote") this.controller?.castVote(member.playerId, choice);
   }
 
   /** `build.set_ready` (Story 3.1): the sender's build-phase Ready; the World ignores it outside a build. */
@@ -737,6 +750,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.pingTimer?.clear();
     this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
     this.waveStartMs = performance.now();
+    this.lastClearedWave = 0;
     this.peakZombiesAlive = 0;
     this.log.info({ runSeed, players: players.length }, "run_started");
     if (this.scenario) {
@@ -748,13 +762,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /**
    * One server tick: step, copy to schema, forward events, send horde frames (all inside the
    * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`. Only phases
-   * "build" and "wave" step the World (Story 3.1): after a team wipe (Results) nothing moves any more
-   * (Story 2.8).
+   * "build", "wave" and (Story 6.11) "vote" step the World (Story 3.1): after Results nothing moves
+   * any more (Story 2.8).
    */
   onTick(): void {
     const controller = this.controller;
     const phase = this.state.phase;
-    if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave")) return;
+    if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
     const t0 = performance.now();
     const events = controller.tick();
     syncState(this.state, controller);
@@ -766,9 +780,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
       if (e.type === "wave.started") this.startWaveStats();
-      else if (e.type === "wave.ended") this.logWaveStats(e.number);
-      else if (e.type === "team.wiped") this.endRun(controller, e.wave, false);
-      else if (e.type === "run.held_out") this.endRun(controller, e.wave, true); // Story 3.10
+      else if (e.type === "wave.ended") {
+        this.lastClearedWave = e.number;
+        this.logWaveStats(e.number);
+      }
+      else if (e.type === "team.wiped") this.endRun(controller, e.wave);
+      else if (e.type === "run.extracted") this.endRun(controller, e.wave); // Story 6.11
+      else if (e.type === "run.vote_resolved") this.log.info({ wave: controller.world.waves.number, extract: e.extract, stay: e.stay, silent: e.silent, choice: e.choice }, "vote_resolved"); // Story 6.11 (run stats)
       else if (e.type === "build.started") this.sendOffers(); // Story 5.13: each player's new cards (after the tick's events)
       else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
     }
@@ -776,23 +794,30 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /**
-   * Team wipe (Story 2.8 AC 4) or, Story 3.10, the last wave cleared (`heldOut`): the run ends for
-   * everyone. `team.wiped` / `run.held_out` was already forwarded this tick; the World's run state
-   * machine already went to "results" (Story 3.1 `endRun`), and the patch with phase "results"
+   * Team wipe (Story 2.8 AC 4) or, Story 6.11, the team extracted: the run ends for everyone.
+   * `team.wiped` / `run.extracted` was already forwarded this tick; the World's run state machine
+   * already went to "results" (`endRun`, which set `run.ending`), and the patch with phase "results"
    * follows. The World stays as it was (no more ticks). `earned` includes the last wave's bonus
-   * (paid by the economy system in the same tick).
+   * (paid by the economy system in the same tick). Story 6.12 (F7): the log splits each player's
+   * earnings at the first Stay (`earnedBeforeEndless`) and marks the after-10 part lost on a wipe.
    */
-  private endRun(controller: RunController, wave: number, heldOut: boolean): void {
+  private endRun(controller: RunController, wave: number): void {
+    const run = controller.world.run;
     this.state.phase = "results"; // syncState already copied it from the World; kept explicit
     this.state.resultWave = wave;
-    this.state.resultHeldOut = heldOut;
+    this.state.resultEnding = run.ending;
     const kills: Record<string, number> = {};
     const earned: Record<string, number> = {};
+    const earnedBeforeEndless: Record<string, number> = {};
+    const earnedAfter10Lost: Record<string, number> = {};
     for (const [playerId, p] of controller.world.players) {
       kills[playerId] = controller.kills(playerId);
       earned[playerId] = p.earned; // Story 3.2 (3.10 compares it with the GDD target)
+      earnedBeforeEndless[playerId] = run.endless ? p.earnedAtEvac : p.earned;
+      earnedAfter10Lost[playerId] = run.ending === "lost" ? p.earned - p.earnedAtEvac : 0;
     }
-    this.log.info({ runSeed: this.runSeed, wave, heldOut, kills, earned }, "run_ended");
+    const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
+    this.log.info({ runSeed: this.runSeed, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
   }
 
   /**

@@ -53,6 +53,14 @@ export interface Dressing {
   /** Crash marks of the bus: skid lines' y and the glass field (x, y, w, h). */
   readonly busSkidY: readonly number[];
   readonly busGlass: readonly [number, number, number, number] | null;
+  /**
+   * Stories 6.2 / 6.4: caved-in roof corners (visual only, D6), in METRES: the polygon of the hole,
+   * the first stage it shows (4: the diner's north-east corner, 5: the apartments' south-east corner)
+   * and the art seed.
+   */
+  readonly ruinedRoofs: readonly { readonly poly: readonly number[]; readonly stage: number; readonly seed: number }[];
+  /** Story 6.4 CO4: flooded-gutter puddles (visual only, D11), metres: x, y, rx, ry. */
+  readonly floodPuddles: readonly (readonly [number, number, number, number])[];
 }
 
 /** Height (m) by object kind when a name has none. */
@@ -154,6 +162,18 @@ export const DOWNTOWN_DRESSING: Dressing = {
   canopy: "gas_canopy",
   busSkidY: [478, 530],
   busGlass: [900, 470, 58, 70],
+  ruinedRoofs: [
+    { poly: [3.0, 22, 7, 22, 7, 27.0, 6.5, 26.3, 6.0, 26.6, 5.7, 25.6, 5.0, 25.4, 4.6, 24.5, 3.9, 24.4, 3.7, 23.4, 3.2, 23.0], stage: 4, seed: 111 },
+    { poly: [14.2, 10, 18, 10, 18, 6.4, 17.1, 6.9, 16.6, 6.2, 15.8, 7.4, 15.0, 7.2, 14.6, 8.6, 14.0, 8.9], stage: 5, seed: 121 },
+  ],
+  floodPuddles: [
+    [23, 13.6, 4.2, 1.1],
+    [31, 12.8, 2.8, 0.9],
+    [20.8, 6.2, 1.4, 1.8],
+    [24, 26.5, 1.2, 2.4],
+    [8, 18.6, 3, 0.7],
+    [40, 19.4, 2.6, 0.6],
+  ],
 };
 
 /** A district with no dressing of its own (the open placeholder street): shadows and roofs only. */
@@ -176,10 +196,30 @@ export const EMPTY_DRESSING: Dressing = {
   canopy: "",
   busSkidY: [],
   busGlass: null,
+  ruinedRoofs: [],
+  floodPuddles: [],
 };
 
 export function dressingFor(mapName: string): Dressing {
   return mapName === "downtown" ? DOWNTOWN_DRESSING : EMPTY_DRESSING;
+}
+
+const powerOffCache = new WeakMap<Dressing, Dressing>();
+
+/**
+ * Story 6.4 (F1, the look lab's `dressingFor(power: "off")`): the dressing with the power out: no
+ * streetlights, shop light, side-window spill, neon, canopy light or running car. Floodlights and
+ * fires are not dressing (they stay lit). Cached per dressing.
+ */
+export function powerOff(d: Dressing): Dressing {
+  let off = powerOffCache.get(d);
+  if (!off) {
+    const shop: Record<string, readonly [string, number]> = {};
+    for (const [k, [col]] of Object.entries(d.shopLight)) shop[k] = [col, 0];
+    off = Object.freeze({ ...d, lamps: [], flickerLamp: -1, spill: [], shopLight: shop, neon: [], canopy: "", runningCar: "" });
+    powerOffCache.set(d, off);
+  }
+  return off;
 }
 
 /** Small string hash (FNV-1a) → uint32: stable car colours for cars a mutation adds. */

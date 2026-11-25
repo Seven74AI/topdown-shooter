@@ -1,4 +1,5 @@
 import { ResultsScreen } from "./ResultsScreen";
+import { EvacVote } from "./EvacVote";
 import { InRunMenu } from "./InRunMenu";
 import { ShopScreen } from "./ShopScreen";
 import { StartScreen } from "./StartScreen";
@@ -22,6 +23,7 @@ export function App({ joinCode = null }: AppProps) {
     <>
       <StartScreen joinCode={joinCode} />
       <LobbyScreen />
+      <EvacVote />
       <ResultsScreen />
       <ShopScreen />
       <InRunMenu />

@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import { ZOMBIE_HISTORY_TICKS } from "../config/constants";
+import { ZOMBIE_HISTORY_TICKS, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import type { World } from "../core/world";
 import { MAX_PLAYERS } from "../net/messages";
 import type { PlayerState } from "../player/player";
@@ -43,12 +43,29 @@ export interface BossAttack {
   cx: number;
   cy: number;
   radiusM: number;
-  // Story 6.6 (charge lane / throw): reserved, 0 here.
+  // Story 6.6 (charge lane / throw).
+  /** Charge: the lane's unit direction (fixed at the start, F1). */
   dirX: number;
   dirY: number;
+  /** Charge: how far its centre travels (the sweep's stop, F1). */
   lenM: number;
+  /** Charge: the drawn lane's width. */
   widthM: number;
+  /** Charge: the lane ends on hard cover: it crashes there (F2). */
+  crash: boolean;
+  /** Throw (D7, visual only): 0 road, 1 rubble, 2 burnt car, and where the chunk comes from. */
+  src: number;
+  srcX: number;
+  srcY: number;
+  /** DD4: the attack has not resolved yet (telegraph, rush, chunk in flight): no other attack may start (F5). */
+  live: boolean;
+  /** Charge: metres travelled in the rush. Throw: 1 once the chunk is released. */
+  travelled: number;
+  /** Charge: bit per player slot already hit by this charge (F4: once per charge). */
+  hitMask: number;
 }
+
+export const BOSS_THROW_SRC = { ROAD: 0, RUBBLE: 1, CAR: 2 } as const;
 
 export interface BossState {
   state: BossStateId;
@@ -77,8 +94,13 @@ export interface BossState {
   threatHead: number;
   readonly attack: BossAttack;
   readonly entry: { x: number; y: number; name: string };
-  /** Story 6.7 sets it. */
+  /** Story 6.7 sets it (after the roar). */
   enraged: boolean;
+  /** Story 6.7: ticks to the next Crawler off its back while enraged. */
+  crawlerTicks: number;
+  /** Story 6.6 review N2: per zombie slot, the charge that trampled it (attack id; −1 none) and the slot's generation then. */
+  readonly trampleId: Int32Array;
+  readonly trampleGen: Uint8Array;
   /** The body overlapped a player building this tick (it pushes through at `buildingSlowPct`). */
   pushing: boolean;
   /** Review H1: `bossChase.rebuilds` last evaluated, and where / since when the fallback holds. */
@@ -116,9 +138,12 @@ export function createBossState(): BossState {
     lastSwitchTick: -1_000_000,
     threat: new Float32Array(MAX_PLAYERS * THREAT_BUCKETS),
     threatHead: 0,
-    attack: { id: 0, kind: BOSS_ATTACK.NONE, startTick: 0, hitTick: 0, cx: 0, cy: 0, radiusM: 0, dirX: 0, dirY: 0, lenM: 0, widthM: 0 },
+    attack: { id: 0, kind: BOSS_ATTACK.NONE, startTick: 0, hitTick: 0, cx: 0, cy: 0, radiusM: 0, dirX: 0, dirY: 0, lenM: 0, widthM: 0, crash: false, src: 0, srcX: 0, srcY: 0, live: false, travelled: 0, hitMask: 0 },
     entry: { x: 0, y: 0, name: "" },
     enraged: false,
+    crawlerTicks: 0,
+    trampleId: new Int32Array(ZOMBIE_POOL_CAPACITY).fill(-1),
+    trampleGen: new Uint8Array(ZOMBIE_POOL_CAPACITY),
     pushing: false,
     fieldChecked: 0,
     farX: 0,
@@ -156,7 +181,21 @@ export function resetBoss(b: BossState): void {
   b.attack.cx = 0;
   b.attack.cy = 0;
   b.attack.radiusM = 0;
+  b.attack.dirX = 0;
+  b.attack.dirY = 0;
+  b.attack.lenM = 0;
+  b.attack.widthM = 0;
+  b.attack.crash = false;
+  b.attack.src = 0;
+  b.attack.srcX = 0;
+  b.attack.srcY = 0;
+  b.attack.live = false;
+  b.attack.travelled = 0;
+  b.attack.hitMask = 0;
   b.enraged = false;
+  b.crawlerTicks = 0;
+  b.trampleId.fill(-1);
+  b.trampleGen.fill(0);
   b.pushing = false;
   b.farX = 0;
   b.farY = 0;
@@ -168,12 +207,28 @@ export function resetBoss(b: BossState): void {
 
 /**
  * The one helper that says whether wave `wave` is a boss wave (`boss.json › bossWaves`, or the dev
- * override `DEV_BOSS_WAVES` / `?bosswave=`). 6.12 extends it for endless (`endless` = true).
+ * override `DEV_BOSS_WAVES` / `?bosswave=`, which replaces every rule). Story 6.12: in endless also every
+ * `endless.bossEveryWaves`-th wave past the run.
  */
 export function isBossWave(balance: Balance, wave: number, endless = false, override: readonly number[] | null = null): boolean {
-  void endless; // Story 6.12
-  const list = override ?? balance.boss.bossWaves;
-  return list.includes(wave);
+  // Review L7: a dev override (`DEV_BOSS_WAVES` / `?bosswave=`) is the whole list, endless included ([] = no Behemoth at all).
+  if (override) return override.includes(wave);
+  if (balance.boss.bossWaves.includes(wave)) return true;
+  // Story 6.12 (F4): in endless, every `endless.bossEveryWaves`-th wave past the run (15, 20, 25…).
+  const runWaves = balance.waves.runWaves;
+  return endless && wave > runWaves && (wave - runWaves) % balance.waves.endless.bossEveryWaves === 0;
+}
+
+/**
+ * Story 6.12 (F4, D1): the k-th endless Behemoth (k = (wave − runWaves) / bossEveryWaves) has
+ * `1 + bossHpGrowthPerBoss × k` × its HP; 1 for the wave-10 one. Its HP only: telegraphs, zones,
+ * damage and gaps never change (brief 21e), and the zombies' `hpMult` never applies to it.
+ */
+export function endlessBossHpMult(balance: Balance, wave: number, endless = false): number {
+  const runWaves = balance.waves.runWaves;
+  if (!endless || wave <= runWaves) return 1;
+  const k = Math.floor((wave - runWaves) / balance.waves.endless.bossEveryWaves);
+  return 1 + balance.waves.endless.bossHpGrowthPerBoss * k;
 }
 
 /** The boss warns or lives (WARNING…ROAR): the alive cap is 110 (D6, D11) and the wave can't end (F11). */
@@ -191,10 +246,10 @@ export function bossBodyOn(b: Readonly<BossState>): boolean {
  * solo × `soloHpScale` (0.4: designer 2026-11-24; the solo wave size has its own 0.35), and the dev
  * `?bosshp=` scale (tests only).
  */
-export function bossMaxHp(balance: Balance, players: number, devScale = 1): number {
+export function bossMaxHp(balance: Balance, players: number, devScale = 1, growth = 1): number {
   const n = Math.min(4, Math.max(1, players));
   const scale = n === 1 ? balance.boss.soloHpScale : (balance.waves.playerCountScale[n - 1] as number);
-  return Math.max(1, Math.round(balance.boss.hp * scale * devScale));
+  return Math.max(1, Math.round(balance.boss.hp * growth * scale * devScale)); // Story 6.12: `growth` = endlessBossHpMult
 }
 
 /** Records the boss position for this tick (`step()`, after the systems; row = `world.tick`). */
@@ -259,6 +314,8 @@ export function snapshotBoss(b: Readonly<BossState>) {
     attack: { ...b.attack },
     entry: { ...b.entry },
     enraged: b.enraged,
+    crawlerTicks: b.crawlerTicks,
+    trample: [Array.from(b.trampleId), Array.from(b.trampleGen)],
     pushing: b.pushing,
     field: [b.fieldChecked, b.farX, b.farY, b.farSinceTick],
     hist: [Array.from(b.histX), Array.from(b.histY), Array.from(b.histTick)],
