@@ -302,9 +302,44 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 
 `_bmad-output/implementation-artifacts/7-2-review-probes/`: `realPostgres.probe.ts.txt` (run against `postgres://…:5731`, PostgreSQL 16, as `apps/server/src/db/*.test.ts`), `roomProbes.probe.ts.txt` (P1–P4, as `apps/server/src/rooms/*.test.ts`), `resultsHarness.probe.tsx.txt` (Vite page for the panel states). Typecheck ✔ (`npm run typecheck`, exit 0). The full gate was not run (reviewer rule).
 
+### Re-review (narrow) 1 — 2026-11-25, branch `rereview-7-2` (origin/story-7-2 9b9cb3e + origin/master 8248be0, clean merge)
+
+**Verdict: changes requested — 1 M, 1 L, 4 nits.** Scope: the fix commits b21fe3b, fee1ae1 (+ 8c70247, 9b9cb3e notes). Real PostgreSQL 16.x scratch cluster (`initdb`, port 5440); PGlite in this repo reports `server_version_num` 180006.
+
+**Findings**
+
+- **RR-M1 (Medium) — M1 is only closed for lock waits; a bank can still commit after the caller was told it failed.** The PG-side budget (`SET LOCAL lock_timeout` / `statement_timeout` 1500 ms, `transaction_timeout` 1800 ms) starts at `BEGIN`, but `withDbTimeout`'s 2 s starts before `database.db()` and the **pool checkout** (`pg.Pool` max 5, `connectionTimeoutMillis` 2000) — the pool wait is outside every PostgreSQL timeout. Reproduced on real PostgreSQL: **B1** five other banks hold the 5 pool connections ~1.3 s (each waiting on a row lock), the sixth bank's row is locked 2.3 s → `addSupplies` rejected `timeout` at 2001 ms, **row committed** (supplies 1000 → 1050). **B2** the same squeeze before both attempts through `RunBank` → status **`failed`** (6003 ms) **and 1 `run_rewards` row paid** — exactly "Couldn't save this run" + paid, and a hand grant per the deploy.md note would then hit the PK (good) but the player was misinformed. The pool-wait gap is independent of the server version (so it applies to production PG 18; not run here: PG 17/18 not installable in this container). **C** (PG < 17 only, no `transaction_timeout`): each statement under 1.5 s but the sum over 2 s (1.0 s row lock + a 1.2 s slow `run_rewards` insert via a test trigger) → rejected at 2001 ms, committed. Code comment and docs/deploy.md say "a failed bank never commits later" unconditionally. Direction: don't decide the outcome by the 2 s race for this op — when the timer fires keep awaiting the transaction's own result (it is bounded by the PG timeouts + the pool's 2 s checkout limit) and report what actually happened; or start the PG budget from the caller's t0 (remaining = 2000 − elapsed − margin, set after checkout, refuse if ≤ 0) and, on PG < 17, check elapsed before COMMIT.
+- **RR-L1 (Low) — L5 ignores only a previous run whose message had already arrived.** `startRun()` marks `latest.runId` stale; a run-1 message that is actually *late* (arrives after run 2 started — the case L5 is about) is not stale and is accepted by run 2's (open) session. With different seeds `forSeed` hides it; with the same seed (dev `?seed=`, which B18 explicitly claims) run 2's Results shows run 1's rewards (probe: `receive(run0); startRun(); startRun(); receive(late run1)` → accepted, `rewardsView(...).total` "999"). Reachable when run 2 starts within ~6 s of run 1's end on a slow/failing DB (`lobby.return` is allowed at once). Direction: drop non-Leave `run.rewards` while the phase is build/wave/vote, or match a run id the server puts in the Results state.
+- **N-R1** `rewardsModel` note boundary `leftWave > 0` → `> 1` mutant survives (tests use 4 and 0; leftWave 1 untested).
+- **N-R2** (reading) a Leave before wave 1 (`world.waves.number` 0) stores `leftWave` 0 → a seat that comes back sees no "Banked when you left" note though it was banked `quit`.
+- **N-R3** no room-level test of Leave → come back → run end delivering the earlier `quit` result with the note; verified by reading (`RunBank.bank` dedupe by playerId; across seats the DB key + `storedBreakdown` keeps `ending`/`leftWave`).
+- **N-R4** in `realPostgres.test.ts` only the 5.5 s case pins M1 (the 3 s case also passes with the SET LOCALs removed); no pool-pressure case (would have caught RR-M1).
+
+**Attempts (real PostgreSQL 16 unless noted)**
+
+| # | Attempt | Result |
+|---|---|---|
+| 1 | shipped `realPostgres.test.ts` with `TEST_DATABASE_URL` | 6/6 pass |
+| A | row locked 1.4 / 1.6 / 2.5 / 5.5 s, through `RunBank` | saved@1407 ms paid 1 / saved@3513 (retry) paid 1 / saved@3507 (retry) paid 1 / failed@5007 paid 0 — all consistent |
+| D | one legitimately slow statement (1.6 s) on attempt 1 only | attempt 1 aborted by statement_timeout, retry saved, paid once (no false "Couldn't save") |
+| B1 | pool saturated + row lock | **rejected@2001 ms, committed** (RR-M1) |
+| B2 | pool squeeze before both attempts, `RunBank` | **failed + paid** (RR-M1) |
+| C | PG 16: summed statements > 2 s, each < 1.5 s | **rejected, committed** (RR-M1, PG < 17) |
+| P | PGlite: `SET LOCAL lock_timeout / statement_timeout / transaction_timeout` | accepted (PGlite is 18.x); PGlite suites green |
+| L4 | can the client forge `ending`/`leftWave`? | no: `run.leave` carries nothing; set from the server World (`waves.number`) and the stored breakdown |
+| L5a | late run-1 message during run 2 | **accepted** (RR-L1) |
+| L5b | reconnect on Results: re-sent result (`resultFor`, phase results) | accepted (not stale) |
+| L2 | `tools/checks/resultsDomLayout.test.ts` in real Chromium | 8/8 pass (ran, not skipped) |
+| S | refreshed `docs/art/epic-7/built/7-2-results*.png` vs `lumen/results.jpg` (RW1) | YOU row (white marker), `$1,840`, wave top right, states drawn; matches RW1 minus later-story parts (TRAIN column, items, RW-07 tag); seed bottom-left instead of the sheet's bottom-right (unchanged, not a fix target) |
+
+**Mutations (each new test once)**: drop both `SET LOCAL lock/statement_timeout` → `realPostgres` 5.5 s case fails (killed). `table-layout: fixed` → `auto` → 4 worst-case DOM layout tests fail (killed). Remove the stale mark in `startRun` → L5 test fails (killed). Leave bank without `wave` → `RunRoom.rewards` S3/D4 test fails (killed). Note `> 0` → `> 1` → survives (N-R1).
+
+**Checks**: `npm ci`; `npm run typecheck` green; server banking/db/rewards/account/accountRoutes suites, client rewardsStore/rewardsModel/onlineFlow, tools rewardsWiring + resultsDomLayout green. Out of scope: `RunRoom.reconnect.test.ts` › "a quiet seat that then drops…" times out at 5 s here, identically on origin/master (8.1 code). Probes kept: `7-2-review-probes/rereview1-realPostgres.probe.ts.txt`, `rereview1-rewardsStore.probe.ts.txt`.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built on `story-7-2` (early start from `story-7-1`): T1–T7; build-time choices B1–B15; full gate green; status review.
 - 2026-11-25: Addressed code review findings - 7 items resolved (M1, L1–L5, N1); B16–B18; merged origin/master (8.10) and origin/story-7-1 (re-review fixes).
 - 2026-11-25: Senior Developer Review (AI): changes requested — M1 (timed-out bank commits later), L1–L5, N1.
+- 2026-11-25: Re-review (narrow) 1: changes requested — RR-M1 (pool wait / PG<17 sum still let a timed-out bank commit), RR-L1 (late message of the previous run), 4 nits.

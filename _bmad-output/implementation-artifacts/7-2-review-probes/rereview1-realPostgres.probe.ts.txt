@@ -1,0 +1,135 @@
+// Re-review 1 of Story 7.2 (probe, not shipped): real PostgreSQL attacks on the M1 fix.
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { log } from "../ops/logger";
+import { BANK_RETRY_MS, RunBank } from "../meta/banking";
+import { accountsRepo } from "./accountsRepo";
+import { openPostgres, type Database } from "./client";
+import { migrateDb } from "./migrate";
+import { progressRepo } from "./progressRepo";
+import { countRunRewards } from "./testQueries";
+
+const URL = process.env.TEST_DATABASE_URL as string;
+log.level = "silent";
+let database: Database;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const rec = { wavesIn: 5, endlessWavesIn: 0, bossesIn: 0, endlessBossesIn: 0 };
+
+describe.skipIf(!URL)("rr72 probes", () => {
+  beforeAll(async () => {
+    database = openPostgres(URL);
+    await migrateDb({ kind: "postgres", db: await database.db() });
+  });
+  afterAll(async () => database?.close());
+  const acct = async () => accountsRepo(database).createGuest(randomUUID().replace(/-/g, "").padEnd(64, "a"), "Ana");
+
+  async function lockFor(accountId: string, ms: number): Promise<void> {
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [accountId]);
+    setTimeout(() => void c.query("commit").then(() => c.end()), ms);
+  }
+  async function seeded() {
+    const a = await acct();
+    const repo = progressRepo(database);
+    await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 1000, breakdown: {} }));
+    return { a, repo, before: await countRunRewards(database, a.id) };
+  }
+
+  for (const lockMs of [1400, 1600, 2500, 5500]) {
+    it(`A: lock ${lockMs} ms → status matches money`, async () => {
+      const { a, repo, before } = await seeded();
+      await lockFor(a.id, lockMs);
+      const t0 = Date.now();
+      const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+      const r = await bank.bank({ playerId: "p1", accountId: a.id, record: rec, ending: "wiped" });
+      const ms = Date.now() - t0;
+      await sleep(Math.max(0, lockMs - ms) + 1500);
+      const paid = (await countRunRewards(database, a.id)) - before;
+      console.log(`A lock=${lockMs} status=${r.status} after=${ms}ms paidRows=${paid}`);
+      expect(paid).toBe(r.status === "saved" ? 1 : 0);
+    }, 20_000);
+  }
+
+  // B: the repo's own pool (max 5) is busy: 5 banks on other accounts each wait ~1.4 s on a lock; the 6th bank waits
+  // for a pool connection (outside every SET LOCAL timeout), then for its own row lock: commit > 2 s after the call.
+  async function saturate(n: number, holdMs: number, repo: ReturnType<typeof progressRepo>) {
+    const others = await Promise.all(Array.from({ length: n }, () => acct()));
+    for (const o of others) await repo.addSupplies(randomUUID(), o.id, () => ({ supplies: 1, breakdown: {} }));
+    await Promise.all(others.map((o) => lockFor(o.id, holdMs)));
+    return others.map((o) => repo.addSupplies(randomUUID(), o.id, () => ({ supplies: 1, breakdown: {} })).catch((e) => e));
+  }
+
+  it("B1: pool wait + lock wait → addSupplies rejects (timeout) but the bank commits afterwards", async () => {
+    const { a, repo, before } = await seeded();
+    await lockFor(a.id, 2300);
+    const busy = await saturate(5, 1300, repo);
+    const t0 = Date.now();
+    const res = await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 50, breakdown: {} })).then(() => "resolved", (e) => `rejected:${(e as Error).message}`);
+    const ms = Date.now() - t0;
+    await Promise.all(busy);
+    await sleep(2500);
+    const paid = (await countRunRewards(database, a.id)) - before;
+    console.log(`B1 result=${res} after=${ms}ms paidRows=${paid} supplies=${(await repo.get(a.id))?.supplies}`);
+    expect(res.startsWith("rejected") && paid === 1).toBe(false); // the invariant "never a commit after the caller gave up"
+  }, 30_000);
+
+  it("B2: RunBank, pool busy at both attempts → player told 'failed', paid anyway", async () => {
+    const { a, repo, before } = await seeded();
+    const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+    await lockFor(a.id, 2300);
+    const busy1 = await saturate(5, 1300, repo);
+    const t0 = Date.now();
+    const p = bank.bank({ playerId: "p1", accountId: a.id, record: rec, ending: "wiped" });
+    // attempt 2 starts at ~2 s (timeout) + 2 s (retry) = ~4 s: prepare the same squeeze just before it.
+    await sleep(3700 - (Date.now() - t0));
+    await lockFor(a.id, 2600);
+    const busy2 = await saturate(5, 1300, repo);
+    const r = await p;
+    const ms = Date.now() - t0;
+    await Promise.all([...busy1, ...busy2]);
+    await sleep(3000);
+    const paid = (await countRunRewards(database, a.id)) - before;
+    console.log(`B2 status=${r.status} after=${ms}ms paidRows=${paid}`);
+    expect(paid).toBe(r.status === "saved" ? 1 : 0);
+  }, 40_000);
+
+  // C (PG 16 only: no transaction_timeout): each statement under 1.5 s, the sum over 2 s.
+  it("C: slow-but-fine statements, each < 1.5 s, sum > 2 s → reject + late commit (PG < 17)", async () => {
+    const { a, repo, before } = await seeded();
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create or replace function rr72_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(1.2); return new; end $$`);
+    await c.query(`drop trigger if exists rr72 on run_rewards; create trigger rr72 before insert on run_rewards for each row when (new.supplies = 51) execute function rr72_slow()`);
+    await lockFor(a.id, 1000);
+    const t0 = Date.now();
+    const res = await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 51, breakdown: {} })).then(() => "resolved", (e) => `rejected:${(e as Error).message}`);
+    const ms = Date.now() - t0;
+    await sleep(2000);
+    await c.query(`drop trigger rr72 on run_rewards`);
+    await c.end();
+    const paid = (await countRunRewards(database, a.id)) - before;
+    console.log(`C result=${res} after=${ms}ms paidRows=${paid}`);
+    expect(res.startsWith("rejected") && paid === 1).toBe(false);
+  }, 20_000);
+
+  it("D: a legitimately slow single statement (1.6 s) aborts attempt 1; the retry then saves; paid once", async () => {
+    const { a, repo, before } = await seeded();
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query(`create table if not exists rr72_deadline (until timestamptz)`);
+    await c.query(`delete from rr72_deadline; insert into rr72_deadline values (clock_timestamp() + interval '1 second')`);
+    await c.query(`create or replace function rr72_slow2() returns trigger language plpgsql as $$ begin if clock_timestamp() < (select until from rr72_deadline) then perform pg_sleep(1.6); end if; return new; end $$`);
+    await c.query(`drop trigger if exists rr72b on run_rewards; create trigger rr72b before insert on run_rewards for each row when (new.account_id = '${a.id}') execute function rr72_slow2()`);
+    const bank = new RunBank(7, { repo: () => repo, log: { info: () => {}, error: () => {} }, deliver: () => {}, retryMs: BANK_RETRY_MS });
+    const t0 = Date.now();
+    const r = await bank.bank({ playerId: "p1", accountId: a.id, record: { wavesIn: 15, endlessWavesIn: 0, bossesIn: 0, endlessBossesIn: 0 }, ending: "wiped" });
+    const ms = Date.now() - t0;
+    await c.query(`drop trigger rr72b on run_rewards`);
+    await c.end();
+    const paid = (await countRunRewards(database, a.id)) - before;
+    console.log(`D status=${r.status} total=${r.total} after=${ms}ms paidRows=${paid}`);
+  }, 20_000);
+});
