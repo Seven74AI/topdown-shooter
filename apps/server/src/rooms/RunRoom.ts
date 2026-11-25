@@ -220,8 +220,9 @@ export function randomUint32(): number {
 }
 
 /**
- * Story 7.12 (7-UI-6): the look of this server's last planned loot bag, so the next one differs
- * ("never the same twice in a row"); −1 before the first. Server memory only (a restart forgets it).
+ * Story 7.12 (7-UI-6): the look of this server's last DROPPED loot bag, so the next one differs ("never the same twice
+ * in a row", per process); −1 before the first. Review M6: set on `loot.dropped`, not on the plan, so a run that ends
+ * before its bag drops doesn't steer the next look. Server memory only (a restart forgets it).
  */
 let lastLootVariant = -1;
 
@@ -1238,7 +1239,6 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
     });
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
-    if (controller.world.loot.plan.has) lastLootVariant = controller.world.loot.plan.variant; // Story 7.12
     if (lootPick.plan !== null) this.log.warn({ plan: lootPick.plan }, "dev_loot");
     else if (lootPick.ignored !== null) this.log.warn({ value: process.env.DEV_LOOT, reason: lootPick.ignored }, "dev_loot_ignored");
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
@@ -1315,6 +1315,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
       if (e.type === "wave.started") this.startWaveStats();
+      else if (e.type === "loot.dropped") lastLootVariant = e.variant; // Story 7.12 (review M6): only a bag players saw
       else if (e.type === "wave.ended") {
         this.lastClearedWave = e.number;
         this.logWaveStats(e.number);
