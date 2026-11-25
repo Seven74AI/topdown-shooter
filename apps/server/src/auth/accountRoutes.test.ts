@@ -26,6 +26,7 @@ interface Reply {
   status: number;
   body: AccountSessionResponse;
   cookie: string | null;
+  cacheControl: string | null;
 }
 
 async function call(port: number, opts: { cookie?: string; deviceToken?: string; ip?: string; origin?: string; raw?: string } = {}): Promise<Reply> {
@@ -44,7 +45,7 @@ async function call(port: number, opts: { cookie?: string; deviceToken?: string;
   } catch {
     body = text;
   }
-  return { status: res.status, body: body as AccountSessionResponse, cookie: res.headers.get("set-cookie") };
+  return { status: res.status, body: body as AccountSessionResponse, cookie: res.headers.get("set-cookie"), cacheControl: res.headers.get("cache-control") };
 }
 
 const cookieToken = (setCookie: string | null): string | undefined => /^__Host-tdg=([0-9a-f]{32});/.exec(setCookie ?? "")?.[1];
@@ -93,6 +94,8 @@ describe("POST /account/session (Story 7.1 AC 4)", () => {
     expect(r.cookie).toMatch(/Path=\/(;|$)/); // review L5: __Host- needs Path=/ and no Domain
     expect(r.cookie).not.toMatch(/Domain=/i);
     expect(r.cookie).toMatch(/Max-Age=31536000/);
+    // Review L6: the reply carries the token and the ticket: never cached by a proxy or the browser.
+    expect(r.cacheControl).toBe("no-store");
   });
 
   it("review L5: a cookie under the old name `tdg` (or planted with another name) is not read", async () => {
