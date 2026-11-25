@@ -1,2 +1,0 @@
-ALTER TABLE "progress" ADD COLUMN "cosmetics" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
-ALTER TABLE "progress" ADD COLUMN "stats" jsonb DEFAULT '{"revives":0,"kills":0,"barricades":0,"runs":0}'::jsonb NOT NULL;
