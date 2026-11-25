@@ -225,6 +225,7 @@ Progress (guest accounts, later Supplies and unlocks) lives in **PostgreSQL 18**
   docker compose -f deploy/docker-compose.yml exec -T postgres pg_restore -U topdown -d topdown --no-owner --exit-on-error < /root/backups/topdown/YYYY-MM-DD.dump
   deploy/deploy.sh "$(awk 'END { print $2 }' deploy/deploy-history.log)"
   ```
+- **Dev on a phone over the LAN (review N3):** the guest cookie is `__Host-tdg` (`Secure`), and browsers store a Secure cookie only on `https://` or `http://localhost`. On a phone opening `http://<LAN-IP>:5173` the cookie is never stored, so only the `localStorage` half of P2 can be tried there (the account still works through `deviceToken`); try the cookie half on `localhost` or on the real HTTPS site.
 - **Local Postgres** (any machine with Docker, optional; dev and tests use the embedded PGlite in `apps/server/.data/pglite` when `DATABASE_URL` is unset): `GIT_SHA=none POSTGRES_PASSWORD=dev SESSION_SECRET=dev docker compose -f deploy/docker-compose.yml up -d postgres` does not publish a port; add a `ports: ["127.0.0.1:5432:5432"]` override file locally if you want to connect from the host, then `DATABASE_URL=postgres://topdown:dev@127.0.0.1:5432/topdown npm run db:migrate`.
 
 ## Rollback

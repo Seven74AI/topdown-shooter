@@ -445,6 +445,7 @@ export class NetSimHost implements SimHost {
     const t0 = this.now();
     this.stats.lastUpdateSteps = 0;
     if (this.disposed) return;
+    this.rebaseAfterGap(t0);
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
     // Story 8.9: both clocks are monotonic; the render clock stretches 0.9–1.1× toward its delay.
     this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
@@ -1050,6 +1051,29 @@ export class NetSimHost implements SimHost {
   private receiveHorde(bytes: unknown): void {
     if (this.disposed || !this.hordeStats.receive(bytes)) return;
     this.sampleClock(this.now(), this.horde.latestTick);
+  }
+
+  /** Story 8.1 review M3: the last frame's `state.frozen` and link status (edges re-base the clocks). */
+  private wasFrozen = false;
+  private wasLinkUp = true;
+
+  /**
+   * Story 8.1 review M3: when a freeze ends (the World stood still while the phone's estimate ran on)
+   * or the same room reconnects (the link was down), the server clock and the render clock start
+   * again from the newest tick — the one step back the brief allows, taken while the paused /
+   * reconnecting overlay covers the picture. Normal play keeps 8.9's forward-only rules.
+   */
+  private rebaseAfterGap(now: number): void {
+    const state = this.session.room.state;
+    const frozen = state?.frozen === true;
+    const up = this.linkUp();
+    if ((this.wasFrozen && !frozen) || (!this.wasLinkUp && up)) {
+      this.clock.rebase();
+      this.delay.rebase();
+      if (state && state.tick > 0) this.sampleClock(now, state.tick);
+    }
+    this.wasFrozen = frozen;
+    this.wasLinkUp = up;
   }
 
   /** Story 8.9: patches and horde frames feed the server clock and the delay's lateness. */

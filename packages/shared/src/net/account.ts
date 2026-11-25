@@ -1,6 +1,6 @@
 /**
  * Story 7.1: the account HTTP API shared by client and server. `POST /api/account/session` (the server sees
- * `/account/session`: Caddy and Vite strip `/api`). The guest token travels in the HttpOnly `tdg` cookie and, as
+ * `/account/session`: Caddy and Vite strip `/api`). The guest token travels in the HttpOnly `__Host-tdg` cookie and, as
  * the `localStorage` copy, in `deviceToken` (designer D9: either one finds the account; the cookie wins, 7.1 D3).
  */
 import { z } from "zod";
@@ -8,8 +8,11 @@ import { guestTokenSchema } from "./messages";
 import { LOOK_CODE_MAX } from "../config/cosmetics";
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
-/** The cookie that holds the guest token (HttpOnly, Secure, SameSite=Lax, Path=/api, 1 year). */
-export const GUEST_COOKIE = "tdg";
+/**
+ * The cookie that holds the guest token (HttpOnly, Secure, SameSite=Lax, Path=/, no Domain, 1 year). Review L5: the
+ * `__Host-` prefix makes the browser refuse any copy set with a Domain (a sibling `*.sevend.io` page can't plant one).
+ */
+export const GUEST_COOKIE = "__Host-tdg";
 
 export const accountSessionRequestSchema = z.object({ deviceToken: guestTokenSchema.optional() }).strict();
 export type AccountSessionRequest = z.infer<typeof accountSessionRequestSchema>;

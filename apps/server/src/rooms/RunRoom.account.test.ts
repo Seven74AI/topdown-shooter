@@ -37,14 +37,14 @@ afterAll(async () => {
 
 type RunSdkRoom = SdkRoom<unknown, RunStateView>;
 const token = (): string => randomBytes(16).toString("hex");
-const opts = (intent: "create" | "join", name: string, guestToken: string, extra: Record<string, unknown> = {}) => ({
-  intent,
-  name,
-  balanceVersion: serverBalance.version,
-  mapVersion: DOWNTOWN_MAP.version,
-  guestToken,
-  ...extra,
-});
+/** `ticket: bound(acct)` in `extra` becomes a real ticket for `acct` issued for THIS join's guest token (review M1). */
+const BOUND = Symbol("bound");
+const bound = (accountId: string) => ({ [BOUND]: accountId });
+const opts = (intent: "create" | "join", name: string, guestToken: string, extra: Record<string, unknown> = {}) => {
+  const t = extra.ticket as { [BOUND]?: string } | undefined;
+  const ticket = t && typeof t === "object" && t[BOUND] ? signTicket(t[BOUND], hashGuestToken(guestToken), SECRET) : extra.ticket;
+  return { intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, guestToken, ...extra, ...(ticket === undefined ? {} : { ticket }) };
+};
 const quiet = (c: RunSdkRoom): RunSdkRoom => {
   for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
   return c;
@@ -71,7 +71,7 @@ async function host(guestToken = token(), extra: Record<string, unknown> = {}) {
 describe("Story 7.1 AC 5: the join ticket names the account", () => {
   it("a valid ticket sets Member.accountId and the acct: identity key", async () => {
     const t = token();
-    const { c, room } = await host(t, { ticket: signTicket(ACCT, SECRET) });
+    const { c, room } = await host(t, { ticket: bound(ACCT) });
     expect(memberOf(room, c)).toMatchObject({ accountId: ACCT, seatKey: `acct:${ACCT}`, guestTokenHash: hashGuestToken(t) });
   });
 
@@ -82,13 +82,17 @@ describe("Story 7.1 AC 5: the join ticket names the account", () => {
   });
 
   it("P4: a forged, expired or other-secret ticket is accepted as a join but names no account", async () => {
-    const real = signTicket(ACCT, SECRET);
+    const real = signTicket(ACCT, hashGuestToken(token()), SECRET);
     const sig = real.split(".")[1];
     const forged = `${Buffer.from(`${OTHER}.${Date.now() + 86_400_000}`).toString("base64url")}.${sig}`;
-    const expired = signTicket(ACCT, SECRET, Date.now() - SESSION_TICKET_TTL_MS - 1);
-    const otherSecret = signTicket(ACCT, "another-secret-".padEnd(48, "z"));
-    for (const ticket of [forged, expired, otherSecret, "garbage"]) {
-      const { c, room } = await host(token(), { ticket });
+    for (const make of [
+      () => forged,
+      (t: string) => signTicket(ACCT, hashGuestToken(t), SECRET, Date.now() - SESSION_TICKET_TTL_MS - 1),
+      (t: string) => signTicket(ACCT, hashGuestToken(t), "another-secret-".padEnd(48, "z")),
+      () => "garbage",
+    ]) {
+      const t = token();
+      const { c, room } = await host(t, { ticket: make(t) });
       expect(memberOf(room, c)?.accountId).toBeNull();
       expect(memberOf(room, c)?.seatKey.startsWith("guest:")).toBe(true);
       await c.leave();
@@ -104,11 +108,11 @@ describe("Story 7.1 AC 5: the join ticket names the account", () => {
 
   it("logs join_account with the account id, never the ticket or the token", async () => {
     const t = token();
-    const ticket = signTicket(ACCT, SECRET);
+    const ticket = signTicket(ACCT, hashGuestToken(t), SECRET);
     const c = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", t, { ticket })));
     const room = roomOf(c);
     const info = vi.spyOn(room.log, "info");
-    const b = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: signTicket(OTHER, SECRET) })));
+    const b = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: bound(OTHER) })));
     await vi.waitFor(() => expect(info.mock.calls.some((x) => x[1] === "join_account")).toBe(true));
     expect(info.mock.calls.find((x) => x[1] === "join_account")?.[0]).toEqual({ accountId: OTHER });
     const all = JSON.stringify(info.mock.calls);
@@ -120,33 +124,33 @@ describe("Story 7.1 AC 5: the join ticket names the account", () => {
 
 describe("Story 7.1 AC 6: one account, one seat", () => {
   it("lobby: a second join of the same account (another guest token) is already_joined", async () => {
-    const { c } = await host(token(), { ticket: signTicket(ACCT, SECRET) });
-    const e = await refusal(colyseus.sdk.joinById(c.roomId, opts("join", "Bo", token(), { ticket: signTicket(ACCT, SECRET) })));
+    const { c } = await host(token(), { ticket: bound(ACCT) });
+    const e = await refusal(colyseus.sdk.joinById(c.roomId, opts("join", "Bo", token(), { ticket: bound(ACCT) })));
     expect([e.code, e.message]).toEqual([JOIN_REFUSED_CODE, "already_joined"]);
   });
 
   it("lobby: the same guest token with and without a ticket is one seat (a phone can't sit twice when the save server flips)", async () => {
     const t = token();
-    const { c } = await host(t, { ticket: signTicket(ACCT, SECRET) });
+    const { c } = await host(t, { ticket: bound(ACCT) });
     const e = await refusal(colyseus.sdk.joinById(c.roomId, opts("join", "Bo", t)));
     expect(e.message).toBe("already_joined");
     const { c: c2 } = await host(token());
     const same = (await colyseus.sdk.joinById<RunStateView>(c2.roomId, opts("join", "Bo", t))) as RunSdkRoom;
     quiet(same);
-    const e2 = await refusal(colyseus.sdk.joinById(c2.roomId, opts("join", "Bo", t, { ticket: signTicket(ACCT, SECRET) })));
+    const e2 = await refusal(colyseus.sdk.joinById(c2.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
     expect(e2.message).toBe("already_joined");
   });
 
   it("two different accounts in one lobby both get seats", async () => {
-    const { c, room } = await host(token(), { ticket: signTicket(ACCT, SECRET) });
-    quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: signTicket(OTHER, SECRET) })));
+    const { c, room } = await host(token(), { ticket: bound(ACCT) });
+    quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: bound(OTHER) })));
     await vi.waitFor(() => expect(room.members.size).toBe(2));
   });
 
   /** A started run with Ana (host) and Bo, Bo joining with `boOpts`. */
   async function started(boToken: string, boExtra: Record<string, unknown>) {
     vi.stubEnv("DEV_NO_WAVES", "1");
-    const { c, room } = await host(token(), { ticket: signTicket(OTHER, SECRET) });
+    const { c, room } = await host(token(), { ticket: bound(OTHER) });
     const bo = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", boToken, boExtra)));
     await vi.waitFor(() => expect(room.members.size).toBe(2));
     for (const x of [c, bo]) x.send(C2S.LOBBY_SET_READY, { ready: true });
@@ -160,7 +164,7 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     let code = 0;
     bo.onLeave((c) => (code = c));
     const f = quiet(await fresh);
-    await vi.waitFor(() => expect(code).toBe(CLOSE_TAKEN_OVER));
+    await vi.waitFor(() => expect(code).toBe(CLOSE_TAKEN_OVER), { timeout: 5000 });
     expect(room.members.size).toBe(2);
     const m = [...room.members.values()].find((x) => x.playerId === "p1");
     expect(m?.sessionId).toBe(f.sessionId);
@@ -168,26 +172,79 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
   }
 
   it("started run: the same account from another device (another guest token) takes the seat over (8.1 D5)", async () => {
-    const { room, bo } = await started(token(), { ticket: signTicket(ACCT, SECRET) });
-    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: signTicket(ACCT, SECRET) })));
+    const { room, bo } = await started(token(), { ticket: bound(ACCT) });
+    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: bound(ACCT) })));
   });
 
   it("started run: a copied guest token (7.1 D5, same token, its own ticket) behaves exactly the same", async () => {
     const t = token();
-    const { room, bo } = await started(t, { ticket: signTicket(ACCT, SECRET) });
-    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: signTicket(ACCT, SECRET) })));
+    const { room, bo } = await started(t, { ticket: bound(ACCT) });
+    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
   });
 
   it("started run: a seat that joined unsaved takes the account of a later valid ticket from the same token", async () => {
     const t = token();
     const { room, bo } = await started(t, {});
     expect([...room.members.values()].find((x) => x.playerId === "p1")?.accountId).toBeNull();
-    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: signTicket(ACCT, SECRET) })));
+    await expectTakeover(room, bo, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
+  });
+
+  it("review M1: my OWN valid ticket + someone's copied token takes their unsaved seat as a token holder but never re-labels it to my account", async () => {
+    const t = token();
+    const { room, bo } = await started(t, {});
+    const mine = token();
+    let code = 0;
+    bo.onLeave((c) => (code = c));
+    const thief = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: signTicket(ACCT, hashGuestToken(mine), SECRET) })));
+    await vi.waitFor(() => expect(code).toBe(CLOSE_TAKEN_OVER), { timeout: 5000 });
+    const m = [...room.members.values()].find((x) => x.playerId === "p1");
+    expect(m?.sessionId).toBe(thief.sessionId);
+    expect(m?.accountId).toBeNull(); // 7.2 would bank into nobody's account, not into mine
+    expect(m?.seatKey).toBe(`guest:${hashGuestToken(t)}`);
+  });
+
+  it("review M1: account A's ticket + Bo's token never takes Ana's (A's) seat", async () => {
+    vi.stubEnv("DEV_NO_WAVES", "1");
+    const anaToken = token();
+    const boToken = token();
+    const { c, room } = await host(anaToken, { ticket: bound(ACCT) });
+    const bo = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", boToken)));
+    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    for (const x of [c, bo]) x.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    c.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+    let anaCode = 0;
+    c.onLeave((x) => (anaCode = x));
+    const anaTicket = signTicket(ACCT, hashGuestToken(anaToken), SECRET);
+    const probe = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", boToken, { ticket: anaTicket })));
+    await vi.waitFor(() => expect([...room.members.values()].find((x) => x.playerId === "p1")?.sessionId).toBe(probe.sessionId), { timeout: 5000 });
+    const ana = [...room.members.values()].find((x) => x.playerId === "p0");
+    expect(ana?.sessionId).toBe(c.sessionId); // Ana keeps her seat
+    expect(anaCode).toBe(0);
+    expect([...room.members.values()].find((x) => x.playerId === "p1")?.accountId).toBeNull();
+  });
+
+  it("review M1: a leaked ticket with any other token can't take the account's seat (run_started)", async () => {
+    const t = token();
+    const { bo } = await started(t, { ticket: bound(ACCT) });
+    const leaked = signTicket(ACCT, hashGuestToken(t), SECRET);
+    const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Bo", token(), { ticket: leaked })));
+    expect(e.message).toBe("run_started");
+  });
+
+  it("review L1: a seat that gained an account is re-keyed, so the same account from another device then takes it over", async () => {
+    const t = token();
+    const { room, bo } = await started(t, {});
+    const same = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
+    await vi.waitFor(() => expect([...room.members.values()].find((x) => x.playerId === "p1")?.sessionId).toBe(same.sessionId), { timeout: 5000 });
+    expect([...room.members.values()].find((x) => x.playerId === "p1")?.seatKey).toBe(`acct:${ACCT}`);
+    await expectTakeover(room, same, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: bound(ACCT) })));
   });
 
   it("started run: another account (new token) is still run_started", async () => {
-    const { bo } = await started(token(), { ticket: signTicket(ACCT, SECRET) });
-    const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Cy", token(), { ticket: signTicket("22222222-2222-4333-8444-555555555555", SECRET) })));
+    const { bo } = await started(token(), { ticket: bound(ACCT) });
+    const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Cy", token(), { ticket: bound("22222222-2222-4333-8444-555555555555") })));
     expect(e.message).toBe("run_started");
   });
 });
@@ -206,7 +263,7 @@ describe("Story 7.1 AC 7: the join name becomes the display name", () => {
     const down: Database = { kind: "postgres", db: () => Promise.reject(new Error("ECONNREFUSED")), close: async () => {} };
     const other = await bootTestServer({ database: down, sessionSecret: SECRET });
     try {
-      const c = await other.colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), { ticket: signTicket(ACCT, SECRET) }));
+      const c = await other.colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), { ticket: bound(ACCT) }));
       quiet(c as RunSdkRoom);
       const room = other.colyseus.getRoomById<RunRoom>(c.roomId) as unknown as RunRoom;
       await vi.waitFor(() => expect(room.members.get(c.sessionId)?.accountId).toBe(ACCT));

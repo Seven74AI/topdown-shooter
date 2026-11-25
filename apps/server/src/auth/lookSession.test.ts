@@ -1,5 +1,4 @@
 /** Story 7.9 AC 1: the session response carries the saved look (canonical; null = default), and a failing read never unsaves. */
-import { sql } from "drizzle-orm";
 import { accountSessionResponseSchema } from "@topdown/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { accountsRepo } from "../db/accountsRepo";
@@ -7,7 +6,6 @@ import { type Database, openPglite } from "../db/client";
 import { progressRepo, type ProgressRepo } from "../db/progressRepo";
 import { SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
-import { hashGuestToken } from "../run/lobby";
 import { resolveGuestSession } from "./guestSession";
 
 log.level = process.env.LOG_LEVEL ?? "silent";
@@ -22,14 +20,17 @@ afterEach(async () => {
 async function session(database: Database, progress: ProgressRepo = progressRepo(database)) {
   const { response } = await resolveGuestSession(
     { cookieToken: null, deviceToken: TOKEN, ip: "1.2.3.4" },
-    { accounts: accountsRepo(database), progress, newGuestLimiter: new SlidingWindowLimiter(20, 3_600_000), sessionSecret: SECRET },
+    { accounts: accountsRepo(database), progress, newGuestLimiter: new SlidingWindowLimiter(20, 3_600_000), sessionLimiter: new SlidingWindowLimiter(30, 60_000), logGate: new SlidingWindowLimiter(1, 60_000), sessionSecret: SECRET },
   );
   return accountSessionResponseSchema.parse(response);
 }
-async function storeLook(database: Database, look: string): Promise<void> {
-  const acct = await accountsRepo(database).findByTokenHash(hashGuestToken(TOKEN));
-  const db = await database.db();
-  await db.execute(sql`update progress set look = ${look} where account_id = ${acct?.id ?? ""}`);
+/** The real progress row, with `look` as 7.10's editor would have saved it (the column read itself: db/look.db.test.ts). */
+function storedLook(database: Database, look: string): ProgressRepo {
+  const real = progressRepo(database);
+  return { ...real, get: async (id) => {
+    const row = await real.get(id);
+    return row === null ? null : { ...row, look };
+  } };
 }
 
 describe("session response look (Story 7.9 AC 1)", () => {
@@ -44,10 +45,8 @@ describe("session response look (Story 7.9 AC 1)", () => {
     const database = openPglite();
     open.push(database);
     await session(database);
-    await storeLook(database, CODE);
-    expect(await session(database)).toMatchObject({ progress: { look: CODE } });
-    await storeLook(database, "v1|head:zzz|" + "x".repeat(500));
-    const r = await session(database);
+    expect(await session(database, storedLook(database, CODE))).toMatchObject({ progress: { look: CODE } });
+    const r = await session(database, storedLook(database, "v1|head:zzz|" + "x".repeat(500)));
     expect(r.saved && r.progress?.look).toBe("v1|top:jacket|head:cap|hair:short|pack:backpack|skin:1|c:3c5670,231f1c,1f2326");
   });
 

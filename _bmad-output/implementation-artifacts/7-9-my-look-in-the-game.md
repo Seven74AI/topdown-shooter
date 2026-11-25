@@ -69,9 +69,9 @@ so that I can find myself and they can recognise me.
   - [x] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
 - [x] **T6 Lobby card** (AC 12) — after the designer's pick
   - [x] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
-- [ ] **T7 Perf and gate** (AC 9, 14)
-  - [ ] Bake timing (4 bodies) headless with and without a 4× CPU throttle; `?stress=150` before/after with `&devlooks=4`; load recorded; `docs/perf/epic-7-looks.md`.
-  - [ ] Full gate on the branch merged with current master; "Notes for the merge"; "Not verified".
+- [x] **T7 Perf and gate** (AC 9, 14)
+  - [x] Bake timing (4 bodies) headless with and without a 4× CPU throttle; `?stress=150` before/after with `&devlooks=4`; load recorded; `docs/perf/epic-7-looks.md`.
+  - [x] Full gate on the branch merged with current master; "Notes for the merge"; "Not verified".
 
 ## Dev Notes
 
@@ -209,6 +209,7 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 - **"No look sent"** (`undefined`, `null`, `""`) decodes to the default look with `replaced: 0` (bots and old tabs: no `look_replaced` log noise); any other bad input counts its replaced fields (a non-string / over-long / other-version input = all 8).
 - **Client decode uses every catalogue part** (`catalogueParts()`): the server already checked ownership; the client only falls back for ids its catalogue doesn't know. Practice (`LocalSimHost`) checks against `ownedParts()` like a join.
 - **`?devlooks=N`** = N survivors in all (mine + N − 1 extras, AC 14's "devlooks=4 → 3 extra"), 1–4, fixed-seed random starter looks, views only.
+- Build-time choices B1–B10 are listed (code, value, alternative) in `docs/epic-7-story-decisions-looks.md` › "7.9 build-time choices", all auto-accepted overnight (designer: follow the GDS recommendation).
 - **PlayerView** keeps the 7.8 one-piece atlas path until `setBodyTexture` is called (GameScene always calls it), so 7.8's tests and any view without a look still draw.
 
 ### Tests per checked task (retro R1: file > test name)
@@ -221,11 +222,17 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 - T5 SurvivorLookTextures.ts → `apps/client/src/render/SurvivorLookTextures.test.ts` > "bakes each player's body once …", "L4: the same code and stage every frame does nothing …", "D1: a new decay stage repaints once, darker …", "brief 20: a lost context repaints the CURRENT look …", "a restarted scene drops the previous run's leftover bodies first", "beat the rule 4: 50 rejoins …", "beat the rule 3: …", "L6: the same code and stage draw the same pixels on two phones"
 - T5 PlayerView.ts → same file > "body from the player's texture, gun from the shared atlas just under it …", "the flamethrower's tanks …", "downed / slowed tints, out and the blackout depth …", "L4: no frame or texture call per frame …", "L3: no look changes the ring colour …", "without a look texture (7.8 path) …", "AC 10: a look with the propeller cap …"
 - T5 GameScene hookup (R2 wiring) → `apps/client/src/scenes/lookWiring.test.ts` (each of the 5 hookup lines; deleting the leave line fails it) + `SurvivorLookTextures.test.ts` > "sets the body texture, follows the stage, and takes the layer from the look (once per code)"; LocalSimHost look → `apps/client/src/sim/LocalSimHost.look.test.ts` (3 tests); `apps/client/src/sim/playerInfo.test.ts` (look "")
+- T2 migration / repository → `apps/server/src/db/look.db.test.ts` > "the 7.9 migration adds the nullable look column to progress and nothing else", "runs forward on 7.1's schema with rows in it: the rows stay, their look is null", "the repository returns null by default and a stored code unchanged"; `db.test.ts` (repository shape incl. `look: null`)
+- T2 session response → `apps/server/src/auth/lookSession.test.ts` > "a new guest: progress.look is null", "a stored look comes back as saved; junk in the column comes back canonical", "beat the rule 5: a progress read that fails keeps the session saved with the default look"
+- T3 join option / checkAuth / state → `apps/server/src/rooms/RunRoom.look.test.ts` > "1,000 random looks … all accepted, each canonical ≤ 96 characters" (L1), "logs look_replaced with the count only …", "12 bad looks: 12 joins accepted …", "L2: an unowned part … is the default part on the room state …", "no look (bots, old tabs) joins with the default look", "kept through a run and a lobby return …", "NP 21: a takeover keeps the seat's look …", "NP 21: a remembered seat (hold ran out) comes back with its own look", "L4: 0 B/s per tick …"
+- T3 client join path → `apps/client/src/net/deviceLook.test.ts` (6 tests: server copy first and kept, null clears, save server down → device copy, blocked storage), `apps/client/src/net/connection.account.test.ts` > "Story 7.9 (AC 5, R2): every join path carries my look …"; `NetSimHost` reads `state.look` → `apps/client/src/sim/playerInfo.test.ts`; L5 → `apps/client/src/sim/LocalSimHost.look.test.ts` > "same seed and inputs → the same World digest with any look"
+- T6 lobby → `apps/client/src/ui/lobbyLayout.test.ts` (R9: 568×320, 640×360, 800×360, 844×390 × insets 44/21 and 0), `apps/client/src/render/city/survivorPortrait.test.ts` (3 tests), `apps/client/src/ui/lobbyWiring.test.ts` (R2: 4 tests), `apps/client/src/net/lobbyStore.test.ts` (rows carry `look`); screenshots at the four sizes, host and guest (Playwright, 3 real players joined through the real server)
+- T7 → `docs/perf/epic-7-looks.md`; repaint budget → `SurvivorLookTextures.test.ts` > "AC 9: a build start repaints at most one existing body per frame …", `lookWiring.test.ts` > "the per-frame repaint budget is reset once per frame …"
 - T5 `?devlooks=N` → `apps/client/src/debug/urlOptions.test.ts` > "Story 7.9: ?devlooks=N (dev builds only) …"; `SurvivorLookTextures.test.ts` > "beat the rule 4" uses `devLookCodes`
 
 ### Gate (retro R6)
 
-- Early part (46d60e3 + R1/R2 commit): typecheck + lint clean; touched tests (render, sim, debug, scenes, tools/checks, shared cosmetics/config) 1360 passed / 0 failed, load 0.22. Full gate: not yet (at the end, after T2/T3/T6/T7 and a master merge).
+- Early part (46d60e3): typecheck + lint clean; touched tests (render, sim, debug, scenes, tools/checks, shared cosmetics/config) 1360 passed / 0 failed, load 0.22. Full gate: not yet (at the end, after T2/T3/T6/T7 and a master merge).
 
 ### Completion Notes List
 
@@ -237,3 +244,29 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 
 - New: `packages/shared/src/cosmetics/lookCode.ts`, `packages/shared/src/cosmetics/lookCode.test.ts`, `apps/client/src/render/SurvivorLookTextures.ts`, `apps/client/src/render/SurvivorLookTextures.test.ts`, `apps/client/src/render/devLooks.ts`, `apps/client/src/render/city/survivorGunSplit.raster.test.ts`, `apps/client/src/sim/LocalSimHost.look.test.ts`
 - Changed: `packages/shared/src/config/cosmetics.ts` (`LOOK_CODE_MAX`), `packages/shared/src/index.ts`, `apps/client/src/render/city/spriteArt.ts`, `apps/client/src/render/city/spriteAtlas.ts`, `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/darkness/fakeScene.testkit.ts` (stroke colour, `getTextureKeys`), `apps/client/src/scenes/GameScene.ts`, `apps/client/src/sim/SimHost.ts`, `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/LocalSimHost.ts`, `apps/client/src/sim/playerInfo.test.ts`, `apps/client/src/debug/urlOptions.ts`, `apps/client/src/debug/urlOptions.test.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+### Notes for the merge (per shared file)
+
+- `packages/shared/src/net/messages.ts` `joinOptionsSchema`: one optional key `look: z.unknown()`, after 7.1's `ticket`. A NEW client against an OLD server (the schema is `.strict()`) would be `invalid_options`: deploy server and client together (same image), as every release does.
+- `packages/shared/src/net/account.ts`: the saved variant gains an OPTIONAL `progress: { look }` (strict inside); the client copes with a server that sends none.
+- `packages/shared/src/net/stateView.ts` / `apps/server/src/rooms/schema/RunState.ts` / `apps/client/src/net/fakeRoom.ts`: `look` appended LAST, after 8.1's `heldUntilTick` / `protectTicks` (8.9's `inputQueued` before them). `devThrottle.ts` copies it through `PLAYER_STATE_FIELDS` (no line there). `syncState.ts`: comment only (`resetRunFields` keeps `look` like `name`). World / mirror / Predictor / snapshotWorld / bots: untouched on purpose (L5: the World never sees the look; bots send none → the default look).
+- `apps/server/src/rooms/RunRoom.ts`: `checkAuth` decodes the look after 7.1's ticket check (M1: ticket bound to the guest token); `RunAuth.look`, `Member.look` (`run/lobby.ts`), `RememberedSeat.look` (next to 8.1's `buildIdx`); `join` / `restoreRemembered` pass it to `new PlayerState`; a takeover keeps the member's look (spread). `authLog` is now exported (tests). **7.11:** pass the account's `cosmetics` to `ownedParts()` in `checkAuth` — checkAuth is sync and DB-free, so 7.11 needs the owned items on the ticket or an async load: decide there.
+- `apps/server/src/auth/guestSession.ts` / `app.ts`: `GuestSessionDeps.progress?` (app.ts passes `progressRepo(database)`); the read runs inside 7.1's one 2 s deadline (L3).
+- `apps/server/src/db/schema.ts` + `drizzle/0001_look.sql` + `meta/0001_snapshot.json` + `_journal.json`: generated by `drizzle-kit generate --name look`. A later story's migration goes on top (0002_…); if another branch also generated a 0001, regenerate one of them.
+- `apps/client/src/net/connection.ts`: `options(intent, name, { ticket, look })` from `joinAccount()` (replaces 7.1's `sessionTicket()` call in the 3 join paths; `sessionTicket` is still exported); `watchLobby` also listens to `look` (7.10 D3).
+- `apps/client/src/ui/LobbyScreen.tsx` + `overlay.css`: the lobby is rewritten (SC3); every old `.lobby*` rule is gone except `.lobby__dot` (ResultsScreen uses it). **7.7:** the district panel (`.lobby__district`, `L.district`) is the place for the picker (DP2): make it a button with the chevron and the sheet; the layout test already reserves ≥ 120 px. Lumen tokens are scoped under `.lobby` (`--lumen-*`): a later story that adds shared Lumen tokens should hoist them.
+- `apps/client/src/render/PlayerView.ts`: a gun image under the body and `setBodyTexture`; 8.1's D3 blinking: if it sets body alpha, set the gun's too.
+- `apps/client/src/render/city/spriteAtlas.ts`: 9 new `survivorgun_*` frames (the atlas still passes `atlasLayout.test.ts`); the old `survivor_*` frames stay (7.8's digest pin) but the game no longer shows them (cleanup later).
+- `apps/client/src/render/darkness/fakeScene.testkit.ts`: `strokeColor` and `getTextureKeys` added (additive).
+- `apps/client/src/scenes/GameScene.ts`: `syncLook` / `layerPoolOf` / `lookTextures` / `devLooks` fields, one line each in `syncPlayerView`, `dropPlayerView`, `syncPlayerViews`, create, shutdown, and `look: deviceLook.get()` in the solo `LocalSimHost`.
+- For **7.10**: `encodeLook` / `decodeLook` / `catalogueParts`, `survivorPortraitUrl`, `drawSurvivorBody`, `deviceLook` (write the device copy when saving) are ready; the lobby redraws on a `look` change.
+- For **7.12**: a found loot part is owned only from the next join.
+
+### Not verified
+
+- Real phones: the Xiaomi Mi 11i bake time and build-start repaint (the 4× throttled headless bake is 9.1 ms, over AC 9's ~2 ms; mitigations in `docs/perf/epic-7-looks.md`), `?stress=150&devlooks=4` on the phone, iOS Safari (the lobby's condensed font falls back to system fonts: no web font is loaded).
+- An Android app switch (canvas wipe / context loss) on a real phone: covered by the registry test only.
+- `?lag=150&jitter=20&loss=1`, a hidden tab across a build start and a reconnect on a real line: the look is set once at join and the repaint compares the stage each frame, so none of them can change it; tested in rooms (takeover, remembered seat) but not by hand under the lag switch.
+- The VPS: migration `0001_look` on the production PostgreSQL 18 (Hermes's deploy runs `db:migrate`); tested forward on PGlite with 7.1's schema and rows.
+- The lobby on a phone with a real notch (insets read from `env(safe-area-inset-*)`): tested by the layout function and desktop screenshots only.
+

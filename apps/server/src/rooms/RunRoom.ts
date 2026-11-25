@@ -182,6 +182,8 @@ export interface RememberedSeat {
   readonly look: string;
   readonly player: SimPlayer;
   readonly kills: number;
+  /** Review H2: `buildStartIndex` when the seat was held (restored with it: no free build-start heal). */
+  readonly buildIdx: number;
 }
 
 /** `ms` rounded to one decimal, for log lines. */
@@ -308,12 +310,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       throw refuse("rate_limited");
     }
     // Story 7.1 (P4): only a server-signed ticket names an account; pure HMAC, no database (AC 9). Never logged.
-    const accountId = ticketAccountId(parsed.data.ticket);
+    // Review M1: the ticket counts only with the guest token it was issued for.
+    const guestTokenHash = hashGuestToken(parsed.data.guestToken);
+    const accountId = ticketAccountId(parsed.data.ticket, guestTokenHash);
     // Story 7.9 (L1, L2): a look never refuses a join; parts the account doesn't own (until 7.11: non-starter parts)
     // become default parts. Logged as a count only, never the player-chosen text.
     const look = decodeLook(parsed.data.look, ownedParts());
     if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
-    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken), accountId, look: encodeLook(look.look) };
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId, look: encodeLook(look.look) };
   }
 
   override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {
@@ -429,7 +433,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /** The per-socket parts of a join (a first join, a reconnect, a takeover): guard, byte meters, `run.joined`. */
   private attachClient(client: RunClient, member: Member): void {
-    this.net.add(client, member.playerId);
+    // Review L2: a reconnect (same sessionId) keeps its guard: buckets and drop counters carry over.
+    this.net.add(client, member.playerId, true);
+    // Story 8.10 hook: every caller passes a NEW Colyseus client object (Colyseus 0.18 builds a new client on a
+    // reconnect, `_onJoin` › `reconnection.resolve(client)`), so 8.10's WeakMap-per-client encoder starts with a
+    // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
@@ -452,12 +460,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    */
   private takeOver(old: Member, client: RunClient): void {
     // Story 7.1: a seat that joined unsaved gains the account of a later valid ticket; an account seat keeps its own.
+    // Review L1: re-keyed to `acct:` then, so the same account from another device takes it over too (8.1 D5).
     const accountId = old.accountId ?? client.auth?.accountId ?? null;
-    const member: Member = { ...old, sessionId: client.sessionId, accountId };
+    const member: Member = { ...old, sessionId: client.sessionId, accountId, seatKey: seatKey({ guestTokenHash: old.guestTokenHash, accountId }) };
     this.members.delete(old.sessionId);
     this.members.set(client.sessionId, member);
     this.netMeters.delete(old.sessionId);
     this.lastPongId.delete(old.sessionId);
+    this.net.rename(old.sessionId, client.sessionId); // review L2: the seat's buckets and drop counters move with it
+    // Story 8.10 hook: delete old.sessionId's per-client horde baseline here.
     const hold = this.holds.get(member.playerId);
     if (hold?.reconnection) {
       hold.reconnection.reject(new Error("taken_over"));
@@ -481,17 +492,18 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const controller = this.controller;
     const slotTaken = Array.from(this.members.values()).some((m) => m.slot === seat.slot);
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
-    if (!controller.restoreSeat(seat.player, seat.kills)) throw refuse("seat_kept");
+    if (!controller.restoreSeat(seat.player, seat.kills, seat.buildIdx)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
+    const accountId = seat.accountId ?? client.auth?.accountId ?? null;
     const member: Member = {
       playerId: seat.playerId,
       slot: seat.slot,
       sessionId: client.sessionId,
       name: seat.name,
       guestTokenHash: seat.guestTokenHash,
-      accountId: seat.accountId ?? client.auth?.accountId ?? null,
+      accountId,
       look: seat.look, // Story 7.9: the seat's look, not the new connection's (mid-run the look never changes)
-      seatKey: key,
+      seatKey: seatKey({ guestTokenHash: seat.guestTokenHash, accountId }), // review L1: `acct:` once it has an account
       joinOrder: ++this.joinCounter, // the newest member: the host role never moves back (Epic 8 D8)
       rttMs: 0,
     };
@@ -648,11 +660,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
-      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills });
+      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
     } else {
       controller?.removePlayer(playerId);
     }
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
+    // Story 8.10 hook: delete member.sessionId's per-client horde baseline here.
     this.lastPongId.delete(member.sessionId);
     this.netMeters.delete(member.sessionId);
     const reason: PlayerLeftReason = why === "left" ? "left" : "disconnected";
@@ -687,6 +700,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   override onReconnect(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
+    // Story 8.10 hook: reset this sessionId's per-client horde baseline (the phone may have missed frames).
     this.lastPongId.delete(client.sessionId);
     this.attachClient(client, member);
     const hold = this.holds.get(member.playerId);
@@ -1107,7 +1121,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const earned: Record<string, number> = {};
     const earnedBeforeEndless: Record<string, number> = {};
     const earnedAfter10Lost: Record<string, number> = {};
-    for (const [playerId, p] of controller.world.players) {
+    // Story 8.1 review L1: a seat held when the run ends counts too.
+    const seats = [...controller.world.players.entries(), ...[...controller.world.heldPlayers.entries()].map(([id, h]) => [id, h.player] as const)];
+    for (const [playerId, p] of seats) {
       kills[playerId] = controller.kills(playerId);
       earned[playerId] = p.earned; // Story 3.2 (3.10 compares it with the GDD target)
       earnedBeforeEndless[playerId] = run.endless ? p.earnedAtEvac : p.earned;
