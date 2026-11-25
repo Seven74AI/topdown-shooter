@@ -286,25 +286,25 @@ describe("rewound hit testing (Story 2.12)", () => {
     };
     const a = runOnce();
     expect(a.zombieHistory.enabled).toBe(true);
-    expect(a.zombieHistory.tickOf.filter((t) => t >= 0).length).toBe(ZOMBIE_HISTORY_TICKS); // Story 8.8: every row filled (12 rows since the 500 ms window; was 8)
+    expect(a.zombieHistory.tickOf.filter((t) => t >= 0).length).toBe(ZOMBIE_HISTORY_TICKS); // Story 8.8: every row filled (14 rows since the 600 ms window, Story 8.9 T10; 12 at 500 ms, 8 before)
     expect(runOnce()).toEqual(a);
   });
 });
 
 /**
- * Story 8.8 (F2–F4, T5; network audit §3.5): the 500 ms window. Only zombies (and the Behemoth) are
+ * Story 8.8 (F2–F4, T5; network audit §3.5): the 500 ms window (600 ms since Story 8.9 T10, 8.9 B8). Only zombies (and the Behemoth) are
  * rewound; cover and barricades are tested where they are now; a dead zombie or a reused slot is
  * never hit; an older claimed view is clamped to the cap.
  */
-describe("Story 8.8: the 500 ms rewind window is fair", () => {
-  it("the window is 10 ticks (500 ms); a view 12 ticks old (or tick 0) is clamped to 10, never more", () => {
-    expect(REWIND_MAX_TICKS).toBe(10);
-    expect(ZOMBIE_HISTORY_TICKS).toBe(12);
+describe("Story 8.8: the 500 ms (8.9: 600 ms) rewind window is fair", () => {
+  it("the window is 12 ticks (600 ms, Story 8.9 T10); a view 14 ticks old (or tick 0) is clamped to 12, never more", () => {
+    expect(REWIND_MAX_TICKS).toBe(12);
+    expect(ZOMBIE_HISTORY_TICKS).toBe(14);
     const { world, p, idle } = setup("pistol");
     idle(20);
     expect(rewindTicksFor(world, p, input(world.tick - 8))).toBe(8); // inside the window: as asked
-    expect(rewindTicksFor(world, p, input(world.tick - 12))).toBe(10);
-    expect(rewindTicksFor(world, p, input(0))).toBe(10); // a modified client's "tick 0" buys nothing extra
+    expect(rewindTicksFor(world, p, input(world.tick - 14))).toBe(12);
+    expect(rewindTicksFor(world, p, input(0))).toBe(12); // a modified client's "tick 0" buys nothing extra
     expect(rewindTicksFor(world, p, input(world.tick + 50))).toBe(0); // a future view: no rewind
   });
 

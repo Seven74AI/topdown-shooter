@@ -122,7 +122,7 @@ describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", ()
       expect(pct(on)).toBeLessThan(5);
       // The harness does see the problem the rewind fixes (review M3: a margin, not an absolute control level).
       expect(pct(off) - pct(on)).toBeGreaterThan(5);
-      // The view offset at 150 ms RTT fits the 500 ms cap (one-way + queue wait + render delay; Story 8.8: was < 6 for 300 ms).
+      // The view offset at 150 ms RTT fits the 600 ms cap (one-way + queue wait + render delay; Story 8.8: was < 6 for 300 ms).
       const offs = [...on.viewOffsets].sort((a, b) => a - b);
       expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(10);
     }
@@ -171,16 +171,18 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
       expect(overCapPct(r)).toBe(0);
     });
     for (const lossPct of [1, 2]) {
-      it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 500 ms window)`, () => {
+      it(`${c.name}: ${lossPct} % × 200 ms stalls < 5 % reversed (the 600 ms window, Story 8.9 T10)`, () => {
         const r = runSeeds(`8.8 loss ${lossPct}% ${c.name}`, { ...LINE, ...c.o, loss: { pct: lossPct, stallMs: 200 } }, SEEDS_88);
         console.info(`[netsim hits] 8.8 loss ${lossPct}% ${c.name}: stalls up ${r.stalls.up} down ${r.stalls.down}, shots over the ${REWIND_CAP_TICKS}-tick cap ${overCapPct(r).toFixed(1)} %`);
         expect(r.stalls.up).toBeGreaterThan(10 * lossPct); // liveness: the line really stalled, both ways
         expect(r.stalls.down).toBeGreaterThan(10 * lossPct);
-        expect(r.apparentHits).toBeGreaterThan(300);
+        // Story 8.9: with the 250 ms lossy-line delay fewer cosmetic bullets cross a drawn Runner (~290 vs ~410): liveness only.
+        expect(r.apparentHits).toBeGreaterThan(250);
         expect(pct(r)).toBeLessThan(5);
-        // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none do.
+        // Before: 38–73 % of these shots asked for more than the 300 ms cap; with 500 ms almost none did, until Story 8.9's
+        // 250 ms delay (view offset p95 11.4–11.7 ticks: 18–29 % over 10); with 600 ms (Story 8.9 T10, 8.8 D1's fallback):
         expect(overCapPct(r)).toBeLessThan(5);
-        expect(REWIND_CAP_TICKS).toBe(10);
+        expect(REWIND_CAP_TICKS).toBe(12);
       });
     }
   }

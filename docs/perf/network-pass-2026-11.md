@@ -67,3 +67,18 @@ First pass (my local copy of the loss model with its own RNG; same story code): 
 - **Latency step row:** the old clock stepped back 3 times (audit F5); now 0. Its reversed % is a harness artefact (`setRtt` stays at 150 ms after the step).
 - **Bandwidth:** `inputQueued` changes 0–10 times/s per player (harness count) at ~2 B per change in a patch the player is already in → ≤ 0.1 KB/s per phone with 4 players.
 - **Tuning runs** (1 % × 200 ms, 12 × 60 s, 20 Walkers standing + 20 Runners kiting): ease-down 20 ms/s → 2.1 freezes/30 s, 10 → 1.6, 5 → 1.0 (chosen); p99 instead of p95 for the target: no better; without the overdue slowdown 3.0 (with: 1.0).
+
+### 8.9 T10: rewind window with the 250 ms lossy-line delay (after merging story-8-8 c1c5ef1)
+
+`tools/netsim/hits.test.ts` › Story 8.8 lossy rows (150 ms ± 10, Pistol, kiting, seeds 1–3 × 60 s), load 1.0–1.5:
+
+| Case | Line | 8.8 alone (500 ms, 8.8's numbers) | 8.8 + 8.9 at 500 ms | 8.8 + 8.9 at 600 ms (B8, applied) |
+|---|---|---|---|---|
+| 20 Runners | 1 % × 200 ms | 2.0 % reversed | 1.8 %, 16.0 % of shots over the 10-tick cap | **0.7 %**, 0 % over the 12-tick cap |
+| 20 Runners | 2 % × 200 ms | 1.3 % | 4.2 %, 32.7 % over | **1.4 %**, 0 % over |
+| 150 Walkers | 1 % × 200 ms | — | 0.3 %, 17.9 % over | **0.3 %**, 0 % over |
+| 150 Walkers | 2 % × 200 ms | — | 0.5 %, 29.4 % over | **1.1 %**, 0 % over |
+
+View offset p95 11.4–11.7 ticks with the 250 ms delay (one-way + queue + delay), so 8.8 D1's fallback (600 ms / 12 ticks, history 14 rows) was applied. Clean rows unchanged (0.2 %). Tick cost (`PERF_ASSERT=1 tickCostRewind.test.ts`, load 1.1): rewind adds mean 0.011 / p99 0.070 ms. `smoothRun.ts 60 3` after the merge (load 1.4): freezes/30 s 0.9–1.2 at 1 %, 0.3–1.2 at 2 %; never fired 0 %; starved 75–98 at 1 % (B7); 0 back steps.
+
+Bots on the lossy line (`npm run bots -- --count 4 --scenario net150 --until-wave 4 --lag 150 --jitter 20 --loss 1`): wave 4 played, 173 kills, 48 stalls up / 106 down, 7.6 KB/s down avg (peak 19.8), 2.2 up, RTT 147–210 ms; 0 `seq_gap_suspect` / `spread_cancel_suspect`.

@@ -95,8 +95,8 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
     expect(on.drained).toBeLessThan(off.drained);
     expect(on.neverFiredPct).toBeLessThanOrEqual(off.neverFiredPct);
     // Starved ticks: the backlog no longer sits 2 s as cover for the next stall (Story 2.4's trade-off): recorded,
-    // bounded so a regression shows (measured +30–50 %, AC "± 10 %" not met: docs/perf/network-pass-2026-11.md § 8.9).
-    expect(on.starved).toBeLessThanOrEqual(off.starved * 1.6);
+    // bounded so a regression shows (measured +41–61 %, AC "± 10 %" not met, accepted as 8.9 B7: docs/network-pass-decisions.md).
+    expect(on.starved).toBeLessThanOrEqual(off.starved * 1.7);
   }, 60_000);
 
   it("beat the rule 4: a client that slows to 0.5× on purpose only starves its own survivor: no speed-up, no extra shots", () => {
