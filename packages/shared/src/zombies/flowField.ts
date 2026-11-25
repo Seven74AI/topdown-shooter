@@ -175,8 +175,8 @@ export interface FlowField {
  * Per zombie slot. `anchorX/anchorY/ticks/stuck/gen` held the 3.5 review's "no progress" record,
  * whose trigger was dropped in the re-review (crowds looked stuck and broke walkable walls). Story
  * 6.13 reuses them for wide bodies only, and only while the wide field gives them no next cell
- * (`zombieAi.ts › wideStall`; zero for every other zombie), plus `stuckBuilding`: the wall building a
- * stuck wide body goes for. The flank fields are 3.8's time limit.
+ * (`zombieAi.ts › wideStall`; zero for every other zombie), plus `stuckBuilding`, `stuckOpen` and
+ * `stuckSkip` (the stuck target, its open-way counter and the building given up on). The flank fields are 3.8's time limit.
  */
 export interface ZombieProgress {
   readonly anchorX: Float32Array;
@@ -187,6 +187,12 @@ export interface ZombieProgress {
   readonly gen: Uint8Array;
   /** Story 6.13: the building a stuck wide body attacks (0: not stuck). */
   readonly stuckBuilding: Int32Array;
+  /** Story 6.13 (review L1): while stuck, ticks in a row the wide field gave the body a next cell. */
+  readonly stuckOpen: Uint16Array;
+  /** Story 6.13 (review H1): a building the body gave up on (not touched within `wideStuckS`), excluded at its next pick. */
+  readonly stuckSkip: Int32Array;
+  /** Story 6.13 (review H1): while stuck, the body's closest distance yet to its building (its give-up clock runs while it gets no closer). */
+  readonly stuckDist: Float32Array;
   /**
    * 3.8 review H1: per flanker, ticks spent not closing in (up to `flank.maxFlankS`, then it goes
    * straight in until it bites), its distance to its target last tick, and the generation they belong to.
@@ -326,6 +332,9 @@ function createProgress(capacity: number): ZombieProgress {
     stuck: new Uint8Array(capacity),
     gen: new Uint8Array(capacity),
     stuckBuilding: new Int32Array(capacity),
+    stuckOpen: new Uint16Array(capacity),
+    stuckSkip: new Int32Array(capacity),
+    stuckDist: new Float32Array(capacity),
     flankTicks: new Uint16Array(capacity),
     flankLastD: new Float32Array(capacity),
     flankGen: new Int16Array(capacity).fill(-1),
@@ -1234,7 +1243,7 @@ export function snapshotPathing(p: PathingState) {
   return {
     navVersion: p.nav.version,
     navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS) ^ hashBytes(p.nav.closedE) ^ hashBytes(p.nav.closedS),
-    progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen) ^ hashInts(pr.stuckBuilding), // Story 6.13: the wide-body stall net
+    progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen) ^ hashInts(pr.stuckBuilding) ^ hashBytes(pr.stuckOpen) ^ hashInts(pr.stuckSkip) ^ hashInts(new Int32Array(pr.stuckDist.buffer)), // Story 6.13: the wide-body stall net
     // 3.8 review H1: the flank timers
     flankHash: hashInts(new Int32Array(pr.flankLastD.buffer)) ^ hashInts(Int32Array.from(pr.flankTicks)) ^ hashInts(Int32Array.from(pr.flankGen)),
     chase: snapshotField(p.chase),

@@ -22,6 +22,8 @@ export interface WideTrial {
   rush: boolean;
   players: PlayerState[];
   closed: boolean;
+  /** A floodlight or med station stands inside the box (fuzz only). */
+  inner?: boolean;
   label: string;
 }
 
@@ -36,7 +38,7 @@ export function insideBox(world: World, x: number, y: number, r: number): string
  * "player": it touched a player, wound up on one or burst; "building": a building lost HP or a Bloater
  * swelled away from every player (against a building); "none": neither within `boundTicks`.
  */
-export function runTrial(t: WideTrial, boundTicks: number): { outcome: "player" | "building" | "none"; atTick: number; longestStill: number; inBox: string | null } {
+export function runTrial(t: WideTrial, boundTicks: number, onTick?: () => void): { outcome: "player" | "building" | "none"; atTick: number; longestStill: number; inBox: string | null } {
   const { world, id } = t;
   const z = world.zombies;
   const rz = balance.zombies.types[t.type]?.radiusM ?? 0;
@@ -52,6 +54,7 @@ export function runTrial(t: WideTrial, boundTicks: number): { outcome: "player" 
     const hpBefore = world.buildings.list.reduce((s, b) => s + b.hp, 0);
     const countBefore = world.buildings.list.length;
     step(world, TICK_DT_S);
+    onTick?.();
     if (z.generation[id] !== gen) return { outcome: "player", atTick: tick, longestStill, inBox }; // burst (only after a swell)
     const x = z.x[id] as number;
     const y = z.y[id] as number;

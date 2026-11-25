@@ -1,6 +1,6 @@
 # Story 6.13: Wide-body stall fix (6.8 review M1)
 
-Status: review
+Status: review (review fixes in, re-review pending)
 
 ## Story
 
@@ -18,8 +18,8 @@ Brief: `docs/epic-6-brief.md` lines 1–32 apply, especially 7 (spatial fuzz), 8
 
 ## Acceptance criteria
 
-1. **Net.** A wide body becomes stuck when all of these hold: its line to the nearest standing player is blocked, its wide field gives it no next cell (it stands on the field's end, i.e. a seed cell at the mouth of a slot it can't enter, or in a grown wall cell whose nearest reached cell is that end), and it has moved less than `pathing.wideStuckProgressM` (0.25 m) for `pathing.wideStuckS` (2 s = 40 ticks). A stuck body targets the solid building within `pathing.wideStuckReachM` (2.5 m) of it that is nearest its player (ties: lower id). It steers at the nearest point of that building's box and attacks it on contact (a Brute hits ×3; a Bloater swells there).
-2. **Exit.** The stuck state ends when its building is gone (broken or sold), when its line to a player clears, when it has no target, or when its pool slot is reused. Then the field takes over again.
+1. **Net.** A wide body becomes stuck when all of these hold: its line to the nearest standing player is blocked, its wide field gives it no next cell (it stands on the field's end, i.e. a seed cell at the mouth of a slot it can't enter, or in a grown wall cell whose nearest reached cell is that end), and it has moved less than `pathing.wideStuckProgressM` (0.25 m) for `pathing.wideStuckS` (2 s = 40 ticks). A stuck body targets the solid building within `pathing.wideStuckReachM` (2.5 m) of it that is nearest **its body** (review H1; ties: nearest its target, then the lower id). If it neither touches that building nor gets any closer to it for `wideStuckS`, it gives it up, excludes it and picks again. It steers at the nearest point of that building's box and attacks it on contact (a Brute hits ×3; a Bloater swells there).
+2. **Exit.** The stuck state ends when its building is gone (broken or sold), when its line to a player clears, when it has no target, or when its pool slot is reused. Since review L1 it also ends when the field has given it a way round for `wideStuckS`, or when its target moves more than `wideStuckReachM` from where it stood when the net fired. Then the field takes over again. With no building in reach (shut out by map cover only), the count starts over, so the building scan runs once per `wideStuckS` (review L3).
 3. **No crowd false positives.** A body on an ordinary field cell (the field gives a next cell), which includes one held back by a crowd, never counts towards the net. This keeps the 3.5/5.7 re-review rule that crowds must not smash walls they could walk around.
 4. **Bit-identical when nothing is stuck.** Steering, positions and every other piece of World state are unchanged unless the net fires. Proof: 16 headless runs (seeds 1–3 × 1/4 bots × god/mortal on the real balance, plus seeds 1–4 × 4 god bots with the strafe flip off). Their `snapshotWorld` digest, minus the pathing `progressHash` (the record the net writes) and `balanceVersion` (a hash of the parsed balance, which the 3 new keys change), is the same before and after the change.
 5. **No per-tick allocation.** The record lives in the existing `pathing.progress` typed arrays (plus one `Int32Array stuckBuilding`) and is included in the snapshot hash (brief 8).
@@ -153,3 +153,20 @@ Reviewer: fresh agent (gds-code-review: Blind Hunter, Edge Case Hunter, Acceptan
 - 16: timing within noise; PERF_ASSERT not run.
 - 19 (merge notes): present.
 - 3 (fairness rule as a test): the N = 4 s rule is asserted in the layouts and the fuzz. H1 breaks it in a case neither covers.
+
+
+### Review fixes (builder, 2026-11-25)
+
+| # | Fix | Where | Test |
+| --- | --- | --- | --- |
+| H1 | **[BEHAVIOUR]** The stuck target is the solid building in reach **nearest the body** (ties: nearest the target, then the lower id). Give-up: if the body neither touches it (≤ rz + 0.02 m) nor gets 0.01 m closer than its closest yet for `wideStuckS`, it gives the building up, keeps it in `stuckSkip` and picks again at once. New record slots: `stuckSkip` (Int32), `stuckDist` (Float32). | `zombieAi.ts › wideStall`, `pickStuckBuilding`, `resetWideStall`; `flowField.ts` (ZombieProgress + progressHash) | Floodlight-in-box and med-station-in-box regression tests (layout 2084 + a building at (9, 9)): a barricade is attacked within 45 s, the body is never still for more than 4 s, the inner building is **never** the stuck target and keeps full HP. A forced unreachable target (the pre-fix pick) is given up within `wideStuckS` + 1 tick and replaced. The fuzz now puts a floodlight or med station inside a third of the boxes (its own rng stream; liveness `inner` > 0). It passes at 240 trials and at 1,500 (run by hand). |
+| M1 | AC 3 guard test: a Brute slowed to 0.01 m/s behind a 6 m wall moves less than 0.25 m in 10 s, its line blocked and a barricade in reach, but the field has a next cell, so the net never fires and HP is unchanged. | `wideBodyStall.test.ts` | Kills mutation C (gate removed). |
+| L1 | **[BEHAVIOUR]** While stuck, it leaves the state when the field has given it a next cell for `wideStuckS` in a row (`stuckOpen`, Uint16), or when its target moved more than `wideStuckReachM` from its spot at firing (kept in `anchorX/Y` while stuck). | `zombieAi.ts › wideStall` | Target-moved exit (white-box: anchor shifted 2.6 m) and another-wall-falls exit (leaves without giving its wall up). The open-way rule has **no isolated test**: whenever a path opens, the clear-line exit ends the state first in the probes. Its mutant survives. |
+| L2 | Tests: clear line (body shoved into the open, so not the target-moved exit) → cleared (D); stuck building removed → cleared and it reaches the player (E); every stuck field changes `progressHash` (F); `wideStuckS: 0.07` throws (G); a stale generation resets the record (H); reach 0.3 m → never fires (I). | `wideBodyStall.test.ts` | Mutations D, E, F, G, H and I are all killed. |
+| L3 | With no building in reach the count restarts (`ticks` = 0), so the scan runs once per `wideStuckS`. | `pickStuckBuilding` | Reach 0.3 m: `ticks` never exceeds 40 and restarts after each empty scan. |
+
+Mutation re-run (`wideBodyStall` + fuzz + config tests, each mutation once):
+- Killed: C fieldEnd gate, D clear no-op, E record kept after its building is gone, F hash term, G refine, H generation reset, I reach ignored, the old "nearest the target" pick, no give-up, L1 target-moved exit removed, L3 no restart.
+- Survived: L1 open-way exit removed (see above).
+
+Bit-identical (AC 4): the code before the net fires is unchanged by these fixes. They change only the stuck branch, the pick and the clear check, and the new arrays stay zero for a body that never fires. The 16-run digest was not re-run after the fixes.

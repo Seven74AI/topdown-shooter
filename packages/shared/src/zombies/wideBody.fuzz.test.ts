@@ -20,7 +20,9 @@ import { STILL_S, insideBox, runTrial, type WideTrial } from "./wideBody.testkit
  * boxes on Downtown, every wall of the box randomly shifted half a cell along and/or out, so its
  * corners leave 0.5 m diagonal gaps (too narrow for a wide body, the 6.8 review M1 shape); some boxes
  * have an open side (players reachable by walking), some are closed (the body must break in). 1–3
- * god-mode players camp inside, standing still. One wide zombie (CHASE or RUSH) starts 2–8 m out.
+ * god-mode players camp inside, standing still; a third of the boxes also hold a floodlight or med
+ * station (review H1: a solid building inside the box, nearer the campers than the walls). One wide
+ * zombie (CHASE or RUSH) starts 2–8 m out.
  *
  * Every trial: (i) within `BOUND_S` the zombie reaches a player (contact, a Bloater swell, a Brute
  * windup) or attacks a building (a building lost HP, or a Bloater swelled against one);
@@ -76,6 +78,21 @@ function trial(seed: number): WideTrial | null {
     desc.push(`${type}@(${w.x},${w.y},r${w.rot})`);
   }
   if (walls < 2) return null;
+  // Review H1: a third of the boxes also hold a solid non-wall building (floodlight or med station,
+  // 1 × 1 m) inside, nearer the campers than the walls (its own stream: the wall layouts stay as they were).
+  const extra = createRng(seed * 31 + 5);
+  let inner = false;
+  if (extra.int(0, 2) === 0) {
+    const type = extra.int(0, 1) === 0 ? "floodlight" : "med_station";
+    const stats = buildingStats(balance, type);
+    const gx = Math.round((x0 + extra.int(0, 2) * 0.5) / BUILD_GRID_M);
+    const gy = Math.round((y0 + extra.int(0, 2) * 0.5) / BUILD_GRID_M);
+    if (stats && !footprintBlocked(world, footprint(stats, gx, gy, 0, box))) {
+      addBuildingAt(world, { id, type, ownerId: "p0", gx, gy, rot: 0, hp: stats.hp });
+      desc.push(`${type}@(${gx * BUILD_GRID_M},${gy * BUILD_GRID_M})`);
+      inner = true;
+    }
+  }
   const pr = balance.player.radiusM;
   const players: PlayerState[] = [];
   const want = rng.int(1, 3);
@@ -103,7 +120,7 @@ function trial(seed: number): WideTrial | null {
     const zid = spawnZombie(world, type, x, y);
     if (zid < 0) return null;
     if (rush) world.zombies.state[zid] = ZOMBIE_STATE.RUSH;
-    return { world, id: zid, type, rush, players, closed: open < 0 && walls === 4, label: `seed ${seed} stage ${stage} box (${x0},${y0}) open ${open} ${desc.join(" ")} ${type}${rush ? " RUSH" : ""} at (${x.toFixed(2)},${y.toFixed(2)}) players ${players.map((p) => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(" ")}` };
+    return { world, id: zid, type, rush, players, closed: open < 0 && walls === 4, inner, label: `seed ${seed} stage ${stage} box (${x0},${y0}) open ${open} ${desc.join(" ")} ${type}${rush ? " RUSH" : ""} at (${x.toFixed(2)},${y.toFixed(2)}) players ${players.map((p) => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(" ")}` };
   }
   return null;
 }
@@ -113,7 +130,7 @@ describe("Story 6.13: wide-body fuzz round barricade boxes with 0.5 m diagonal g
     const bound = ticksFor(BOUND_S);
     const stillMax = ticksFor(STILL_S);
     const fails: string[] = [];
-    const seen = { player: 0, building: 0, bloater: 0, brute: 0, rush: 0, chase: 0, closed: 0, trials: 0 };
+    const seen = { player: 0, building: 0, bloater: 0, brute: 0, rush: 0, chase: 0, closed: 0, inner: 0, trials: 0 };
     const net0 = wideStallStats.fired;
     for (let seed = 1; seen.trials < TRIALS && seed < TRIALS * 4; seed++) {
       const t = trial(seed);
@@ -123,6 +140,7 @@ describe("Story 6.13: wide-body fuzz round barricade boxes with 0.5 m diagonal g
       seen[t.type === "bloater" ? "bloater" : "brute"]++;
       seen[t.rush ? "rush" : "chase"]++;
       if (t.closed) seen.closed++;
+      if (t.inner) seen.inner++;
       if (r.outcome !== "none") seen[r.outcome]++;
       if (r.outcome === "none" || r.longestStill > stillMax || r.inBox) fails.push(`${t.label}: ${r.outcome} @${r.atTick} still ${r.longestStill} inBox ${r.inBox}`);
     }
@@ -130,7 +148,7 @@ describe("Story 6.13: wide-body fuzz round barricade boxes with 0.5 m diagonal g
     expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
     expect(seen.trials).toBe(TRIALS);
     // Liveness (brief 9): both outcomes, both types, both states, and closed boxes really happened.
-    for (const k of ["player", "building", "bloater", "brute", "rush", "chase", "closed"] as const) expect(seen[k], k).toBeGreaterThan(0);
+    for (const k of ["player", "building", "bloater", "brute", "rush", "chase", "closed", "inner"] as const) expect(seen[k], k).toBeGreaterThan(0);
     // The M1 shape really came up: the stall net fired (seed 128's layout, `wideBodyStall.test.ts`), and
     // only where a body was stuck (it fired 3× in 1,500 trials, exactly the 3 that stalled without it).
     expect(wideStallStats.fired - net0).toBeGreaterThan(0);

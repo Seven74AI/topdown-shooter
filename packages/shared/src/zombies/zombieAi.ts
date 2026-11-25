@@ -10,7 +10,7 @@ import { zombieTypeOf } from "./zombiePool";
 import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { LURE_READY, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid } from "./flowField";
+import { LURE_READY, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid, type ZombieProgress } from "./flowField";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
 import { knockPlayer } from "../player/knockback";
 import { meleeLineClear } from "../combat/cover";
@@ -57,6 +57,8 @@ const steer = { x: 0, y: 0, fieldEnd: false };
  * it joins only this list, the chase seeding and the Spitters' list). Both have x, y, radiusM, status.
  */
 type ChaseTarget = PlayerState | SurvivorState;
+/** Story 6.13: a stuck wide body walking up to its building counts as getting closer when this much nearer than its closest yet (per tick). */
+const STUCK_CLOSING_M = 0.01;
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie); then the survivor. */
 const alivePlayers: ChaseTarget[] = [];
 /** How many of `alivePlayers` are players (the survivor, when alive, is the last entry). */
@@ -326,7 +328,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
           if (isWideType(world, pool.type[id] as number)) {
             steered = steerByField(world, pa.wideChase, pa.wide, x, y, id);
             // Story 6.13 (6.8 review M1): stuck at the wide field's end → go for the barricade.
-            if (wideStall(world, id, x, y, target, steer.fieldEnd)) steered = true;
+            if (wideStall(world, id, x, y, stats.radiusM, target, steer.fieldEnd)) steered = true;
             wideCounted = true;
           } else {
             steered = steerByField(world, pa.chase, pa.nav, x, y, id);
@@ -593,37 +595,66 @@ export function touchingBuilding(world: World, x: number, y: number, reach: numb
  * against buildings) never fires and a Bloater never swells.
  *
  * Only while the wide field gave it no next cell (`fieldEnd`) and its line to `target` (a player or,
- * Story 6.10, the survivor; only its position is read) is blocked
- * (the caller's branch), it counts ticks with less than `wideStuckProgressM` from its anchor; after
- * `wideStuckS` it is stuck: the wall building within `wideStuckReachM` of it nearest `target` becomes
- * its target (kept until that building is gone, its line clears or it is no longer stuck by the
- * caller's rule) and it steers straight at the nearest point of the box; pass 4 attacks it on contact
- * (a Bloater swells there). A body in a crowd on an ordinary field cell (5.7/3.5 review: crowds look
+ * Story 6.10, the survivor; only its position is read) is blocked (the caller's branch), it counts
+ * ticks with less than `wideStuckProgressM` from its anchor; after `wideStuckS` it is stuck. Its
+ * target is then the wall building within `wideStuckReachM` NEAREST ITS BODY (review H1: nearest the
+ * player could pick a floodlight inside the box it can never touch; ties: nearest `target`, then the
+ * lower id), and it steers straight at the nearest point of that box; pass 4 attacks it on contact (a
+ * Bloater swells there). A body in a crowd on an ordinary field cell (5.7/3.5 review: crowds look
  * stuck) never counts: the field gives it a next cell. True when it overrides `steer` this tick.
- * Allocation-free; writes only the wide body's own progress record.
+ *
+ * While stuck (the record: `stuckBuilding`; `ticks` = ticks it neither touched it nor got
+ * `STUCK_CLOSING_M` closer to it than `stuckDist`, its closest yet; `stuckOpen` =
+ * ticks in a row the field gave a next cell; `anchorX/Y` = where `target` stood when it fired), it
+ * leaves the stuck state when the building is gone, when its line clears or it loses its target
+ * (`wideStallClear`), when the field has given it a way round for `wideStuckS` (review L1: a wall fell,
+ * a path opened), or when `target` moved more than `wideStuckReachM` from where it was (L1: the
+ * campers left). It gives up a building it hasn't touched for `wideStuckS` (review H1: unreachable)
+ * and excludes it (`stuckSkip`) when it picks again. Allocation-free; writes only the wide body's own
+ * progress record.
  */
-function wideStall(world: World, id: number, x: number, y: number, target: ChaseTarget, fieldEnd: boolean): boolean {
+function wideStall(world: World, id: number, x: number, y: number, rz: number, target: ChaseTarget, fieldEnd: boolean): boolean {
   const pr = world.pathing.progress;
   if (id >= pr.ticks.length) return false; // a World without pathing
   const gen = world.zombies.generation[id] as number;
   if (pr.gen[id] !== gen) {
     pr.gen[id] = gen; // a reused slot starts over
-    pr.ticks[id] = 0;
-    pr.stuck[id] = 0;
-    pr.stuckBuilding[id] = 0;
+    resetWideStall(pr, id);
   }
+  const pa = world.balance.zombies.pathing;
+  const limit = ticksFor(pa.wideStuckS);
   if (pr.stuck[id] !== 0) {
     const b = buildingById(world, pr.stuckBuilding[id] as number);
-    if (b && b.solid) return steerAtBuilding(id, b, x, y);
-    pr.stuck[id] = 0; // broken (or sold): the field takes over again (it is rebuilt round the new gap)
-    pr.stuckBuilding[id] = 0;
-    pr.ticks[id] = 0;
+    const open = fieldEnd ? 0 : (pr.stuckOpen[id] as number) + 1;
+    pr.stuckOpen[id] = open;
+    const tx = target.x - (pr.anchorX[id] as number);
+    const ty = target.y - (pr.anchorY[id] as number);
+    if (!b || !b.solid || open >= limit || tx * tx + ty * ty > pa.wideStuckReachM * pa.wideStuckReachM) {
+      // Broken or sold, a way round opened, or the target left: the field takes over again.
+      resetWideStall(pr, id);
+      return false;
+    }
+    const d = distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY);
+    const closer = d < (pr.stuckDist[id] as number) - STUCK_CLOSING_M;
+    if (closer) pr.stuckDist[id] = d;
+    if (d <= rz + CONTACT_EPS_M || closer) {
+      pr.ticks[id] = 0; // touching it (pass 4 attacks it), or still walking up to it
+    } else if ((pr.ticks[id] as number) + 1 >= limit) {
+      // Review H1: it can't reach this one (a building inside the box, behind cover): give it up,
+      // exclude it and pick again from here at once (it is still stuck by the rule above).
+      const skip = b.id;
+      resetWideStall(pr, id);
+      pr.stuckSkip[id] = skip;
+      return pickStuckBuilding(world, pr, id, x, y, target, pa.wideStuckReachM);
+    } else {
+      pr.ticks[id] = (pr.ticks[id] as number) + 1;
+    }
+    return steerAtBuilding(id, b, x, y);
   }
   if (!fieldEnd) {
     if (pr.ticks[id] !== 0) pr.ticks[id] = 0;
     return false;
   }
-  const pa = world.balance.zombies.pathing;
   const dx = x - (pr.anchorX[id] as number);
   const dy = y - (pr.anchorY[id] as number);
   if (pr.ticks[id] === 0 || dx * dx + dy * dy >= pa.wideStuckProgressM * pa.wideStuckProgressM) {
@@ -633,28 +664,59 @@ function wideStall(world: World, id: number, x: number, y: number, target: Chase
     return false;
   }
   const t = pr.ticks[id] as number;
-  if (t < ticksFor(pa.wideStuckS)) {
+  if (t < limit) {
     pr.ticks[id] = t + 1;
     return false;
   }
-  // Stuck: the wall building in reach nearest the player it wants (the cover it is shut out by).
+  return pickStuckBuilding(world, pr, id, x, y, target, pa.wideStuckReachM);
+}
+
+/**
+ * Story 6.13: the stuck body's target — the wall building within `reach` nearest its body (ties:
+ * nearest `target`, then the lower id), never `stuckSkip`. Found: the record turns stuck and the body
+ * steers at it (true). None (shut out by map cover only, review L3): the count starts over, so the
+ * list is scanned once per `wideStuckS`, not every tick (false).
+ */
+function pickStuckBuilding(world: World, pr: ZombieProgress, id: number, x: number, y: number, target: ChaseTarget, reach: number): boolean {
   const list = world.buildings.list;
+  const skip = pr.stuckSkip[id] as number;
   let best: Building | null = null;
   let bestD = Infinity;
+  let bestT = Infinity;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
-    if (!b.solid || distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) > pa.wideStuckReachM) continue;
-    const d = distanceToBox(target.x, target.y, b.minX, b.minY, b.maxX, b.maxY);
-    if (d < bestD || (d === bestD && best !== null && b.id < best.id)) {
+    if (!b.solid || b.id === skip) continue;
+    const d = distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY);
+    if (d > reach || d > bestD) continue;
+    const dt = distanceToBox(target.x, target.y, b.minX, b.minY, b.maxX, b.maxY);
+    if (d < bestD || dt < bestT || (dt === bestT && best !== null && b.id < best.id)) {
       best = b;
       bestD = d;
+      bestT = dt;
     }
   }
-  if (!best) return false; // shut out by map cover only: nothing to break (it keeps counting, capped)
+  if (!best) {
+    pr.ticks[id] = 0;
+    return false;
+  }
   pr.stuck[id] = 1;
   pr.stuckBuilding[id] = best.id;
+  pr.ticks[id] = 0;
+  pr.stuckOpen[id] = 0;
+  pr.stuckDist[id] = bestD;
+  pr.anchorX[id] = target.x;
+  pr.anchorY[id] = target.y;
   wideStallStats.fired++;
   return steerAtBuilding(id, best, x, y);
+}
+
+/** Story 6.13: the wide-body stall record of slot `id` back to "not counting, not stuck" (the skip too). */
+function resetWideStall(pr: ZombieProgress, id: number): void {
+  pr.ticks[id] = 0;
+  pr.stuck[id] = 0;
+  pr.stuckBuilding[id] = 0;
+  pr.stuckOpen[id] = 0;
+  pr.stuckSkip[id] = 0;
 }
 
 /** Story 6.13: `b` is the zombie's target this tick; steer at the nearest point of its box (as `steerByField`'s building branch). */
@@ -668,10 +730,8 @@ function steerAtBuilding(id: number, b: Building, x: number, y: number): boolean
 /** Story 6.13: the wide body didn't run `wideStall` this tick (line clear, no target, …): its record restarts. */
 function wideStallClear(world: World, id: number): void {
   const pr = world.pathing.progress;
-  if (id >= pr.ticks.length || (pr.ticks[id] === 0 && pr.stuck[id] === 0)) return;
-  pr.ticks[id] = 0;
-  pr.stuck[id] = 0;
-  pr.stuckBuilding[id] = 0;
+  if (id >= pr.ticks.length || (pr.ticks[id] === 0 && pr.stuck[id] === 0 && pr.stuckSkip[id] === 0)) return;
+  resetWideStall(pr, id);
 }
 
 /**
