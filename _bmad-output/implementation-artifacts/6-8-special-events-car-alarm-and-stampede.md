@@ -498,6 +498,47 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
   - `endless.test`: the 6.12 hook test now expects a pick in wave 12.
   - `HeliView.test`: the pad is at (24, 15.9).
 
+### Re-review 2 (AI) (fresh agent, 2026-11-25, narrow: re-review fixes 8a580ff..b12187c and the merge of master 739eb2c, at 9bb6e65)
+
+**Outcome: approve with notes (0 high, 1 medium, 3 low, 1 nit).** No overlap anywhere, the merge holds, endless events behave. The perimeter walk, though, can put the arrow far from the event's direction for up-left events, and it can jump across the screen.
+
+**Run:** `npm run typecheck` (clean); `hudLayout.test` (8/8), `schedule.test` endless blocks, `endless.test` (10/10); throw-away probes (deleted).
+
+| # | Sev | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- |
+| RR1 | medium | `apps/client/src/render/eventArrow.ts:85` (perimeter walk) | At 568 × 320 the inflated HP block and wave line block the whole top edge from L (67) to x ≈ 427, and the left edge down to y ≈ 102. Up-left events walk around them. Sweep at 0.1°: the error between the arrow's bearing from the centre and the true bearing is up to **75.6°** (568 × 320), 73.5° (640 × 360), 83° (800 × 360), 79.7° (844 × 390, also at k = 3), 32° (390 × 844). More than 30° off for **61.5° of directions** at 568 × 320 (55° at 640 × 360 and 844 × 390). At the walk's tie point it **teleports**: 240.6° → (67, 102) and 240.8° → (427, 23), a 369 px jump (404–501 px at the other landscape sizes). An event near that bearing, with the survivor moving, flips the arrow between the left edge and the top-right every frame. The tip still rotates to the true angle, so at (427, 23) it points down-left across the HUD. Nothing overlaps (0 overlaps, 0 outside the safe area, 0 within 48 px, at every size), so no brief-31 rule breaks, but the readability goal of D10 (and R1's own intent, "as close as possible to the true direction") does not hold. | Don't walk around the top HUD band. Lower the inner rect's top edge to the band's bottom + half over the band's x span (a notched perimeter), so the ray hits just under the HP block or wave line. Add hysteresis (keep the previous spot unless the new one is several px nearer). Test the bearing error (for example ≤ 30°) and the jump between neighbouring 1° steps. |
+| RR2 | low | `apps/client/src/scenes/hudTopLayout.ts:15` (`WAVE_LINE_RESERVE_CSS_PX` 240) | The reserve was sized for "Wave 10 · Zombies 400" (195 px). The 6.12 endless line is wider: Chromium system-ui 16 px measures "Wave 13 · Endless · Zombies 300" at **248 px** and "Wave 25 · Endless · Zombies 1200" at 258 px, plus stroke. The arrow can cover about 4–9 px at each end of the line. | Reserve 280 px (or measure the text in HudScene and pass the width). |
+| RR3 | low | `hudTopLayout.ts:37` (`layoutHpBlock`) | The block is 204 px wide: the bar only. The HP text's "Burning" / "Acid" suffix and the 5.11 gear icons (HudScene `drawGear`, beside the HP text, 24 + 4 px each, up to 5) go further right. With 5 gear items + "Burning" the row ends at x ≈ 306, against the block's right edge at 218. The arrow can sit on gear icons. | Widen the block to the widest HP row (text + 5 icons), or keep it in step with `drawGear`. |
+| RR4 | low (dev) | `packages/shared/src/events/schedule.ts:112` (`armEndlessEvent`) | `forceEvent(stampede)` during endless wave 11 sets extra = stampede @ 12. `endWave` → `startBuild` → `armEndlessEvent` then overwrites it with the endless pick (car_alarm @ 12), so the forced event is lost. A force during the build works, as documented ("after this"). `run.lastEndlessEvent` also records the pick even when a force replaces it or it is skipped. | Don't arm over an un-done extra for the same wave, or document "force in the build only". |
+| nit | — | `apps/client/src/net/fakeRoom.ts:76` | The fake room lists `voteTicksLeft` / `endless` before the `event*` fields. It is a plain object, so this doesn't affect the wire format, but it differs from RunState and `RUN_STATE_FIELDS`. | Reorder for consistency. |
+
+**Exploit attempts:**
+
+1. **Arrow (R1–R3).** 3600 directions × 9 layouts (568 × 320, 640 × 360, 800 × 360, 844 × 390 at k 1 and 3, no-inset 568 × 320, 390 × 844, 360 × 640, 1280 × 720): no overlap with ☰, swap, quick-use, the HP block or the wave line; never outside the safe rect; never within 48 px of the survivor. Bearing error and jumps: RR1. HudScene's values are unchanged (16 / 200 / 16 / 14 / 16 / 4 / 1.3 / 12 / 16, same draw formulas). No per-frame allocation (avoid rects and the scratch are reused). **Holds, except RR1–RR3.**
+2. **Merge, updateRun.** The vote branch returns before the hold check. `endWave` → `openEvacVote` → `specialEvents` (after `waves`) sees phase "vote" and ends any active event with "wave_end" the same tick, so no event runs during the vote. Events stay off evac waves: the run schedule uses waves 3–8 only, and endless evac waves are Behemoth waves, which get no endless event. Only a dev `forceEvent` stampede on wave 10 can delay the vote, and by at most the 15 s hold. `skipWave` ends the event first. Schema order matches across RunState, `RUN_STATE_FIELDS`, syncState and stateView (event*, then voteTicksLeft / endless; `PlayerState.vote` last). NET_EVENT_KIND 55–58 and 65–67, no reuse. **Holds.**
+3. **Endless events.** 3 seeds × 22 endless waves (11 → 32, Stay at each vote), stepped: triggers only on 12, 14, 16, 18, 22, 24, 26, 28, 32 (never 20 or 30, the Behemoth waves; never odd), car alarm / stampede alternating, never the same twice in a row. The same seed gives an identical event trace twice (determinism). The log stays fixed-size (Int32Array counters, triggered 9 / skipped 2). No candidate → "" (`pickEndlessEvent([])`). A wipe mid car alarm in wave 12 → Results "lost", event cleared. forceEvent: RR4. **Holds.**
+4. **HeliView pad.** `evac_pad` = (24, 15.9) on the 48 × 32 m map, no solid within 3 m. **Holds.**
+
+**Mutations (each applied, the named test run, reverted). All killed:**
+
+- `endlessEventCandidates` ignores `eventFits` → schedule.test 7 failed.
+- `pickEndlessEvent` ignores `previous` (no-repeat) → schedule.test 4 of 6 seeds failed.
+- `scheduleEndlessEvent` gets empty candidates → endless.test wave-12 pick failed.
+- `startBuild` without `armEndlessEvent` → schedule.test 6 failed.
+- `isEndlessEventWave` without the boss check → endless.test 3 failed.
+- `waveControlRects` with a zero-width HP block → hudLayout 2 failed; the same with the wave line → 2 failed.
+- On-screen test without `underAny` (R2) → hudLayout 2 failed.
+
+### Re-review 2 fixes (builder, 2026-11-25, after merging `rereview2-6-8` d136cb3 and master 5bdb847)
+
+| # | Fix | Test / measured |
+| --- | --- | --- |
+| RR1 [BEHAVIOUR] | `placeEventArrow` no longer walks the perimeter. The arrow sits on the bearing's own ray, at its exit from a notched safe rect: wide HUD bands along an edge (the HP block, the wave line: span ≥ 2 × depth) are cut out as notches, chamfered so the region is star-shaped from the centre, and the exit is found by bisection. The compact controls (☰, swap, quick-use) are obstacles: an exit inside one is pulled back along the ray to where the ray enters it. When that point is within 48 px of the survivor (the swap / quick-use pair sits across the centre row), the arrow takes the nearest clear ray each way, at most 30° off. Hysteresis keeps whichever of the two is nearer last frame's spot (`EventArrowPlace.side`, kept by EventView). | `hudLayout.test`, every 0.1° both ways at 568×320, 640×360, 800×360 and 844×390, k 1 and 3; every keep-off assertion holds. Max bearing error: **30.0° at 568×320, 0.0° at 640×360 and wider**. Neighbouring steps move ≤ 4.4 CSS px, except ≤ 3 jumps per turn where the legal spots part. At 568×320 those are straight up (51 px: the HP row reserve reaches past the centre column), up-right (86 px: the HP block meets quick-use) and right (111 px, across the swap / quick-use pair). Wider screens have one, at a corner of the swap / quick-use pair (≤ 173 px). Max jump 173 CSS px (was 370–500). No jump > 40 px under ±0.1° jitter at any degree (hysteresis). |
+| RR2 | `WAVE_LINE_RESERVE_CSS_PX` 240 → **280**: the widest line, "Wave 99 · Endless · Zombies 9999", measures 261.5 px at 16 px system-ui (Chromium canvas). | the layout tests above use it. |
+| RR3 | New `HP_ROW_RESERVE_CSS_PX` **306**: "HP 175 / 175   Burning" measures 143.4 px at 14 px, plus 8 px and 5 gear icons × 28 px = 291.4 px, plus a margin. `layoutHpBlock` is 308 wide. | ditto |
+| RR4 | `armEndlessEvent(world, previousLast)`: if an un-done forced extra is pending for the coming wave, it wins. The endless pick is dropped (`run.endlessEvent` ""), and `run.lastEndlessEvent` goes back to what was last really armed. A force during the build still replaces the pick. | `schedule.test` "RR4": forced in wave 11 for wave 12 → kept, no-repeat memory unchanged; forced after `startBuild` → replaces it. |
+| nit | `fakeRoom` field order: event*, then voteTicksLeft / endless (schema order). | typecheck |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -508,3 +549,5 @@ Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is 
 - 2026-11-25: Re-review (AI) of the review fixes: approve with notes (1 medium R1 edge arrow over the HP bar / wave line, 3 low).
 - 2026-11-25: re-review fixes R1–R4 (arrow off the HP block and the wave line, safe-rect on-screen test, drawn-extent test, runS 12 / ≤ 15 s docs and the hold test).
 - 2026-11-25: merged 6.11 + 6.12 from master: one endless scheduler (6.12) feeding the framework (`armEndlessEvent`); HeliView pad from `evac_pad`.
+- 2026-11-25: Re-review 2 (AI) of R1–R4 + the 6.11/6.12 merge: approve with notes (1 medium RR1 arrow bearing / jump, 3 low).
+- 2026-11-25: re-review 2 fixes: RR1 arrow on its ray (notched safe rect, obstacles, ≤ 30° fallback with hysteresis), RR2/RR3 wave-line and HP-row reserves, RR4 forced event wins over the endless pick, fakeRoom order.

@@ -73,10 +73,6 @@ export interface FakeState {
   /** Story 6.3. */
   blackoutPct: number;
   halfDark: boolean;
-  voteTicksLeft: number;
-  endless: boolean;
-  /** Story 6.5: the boss record. */
-  boss: FakeBoss;
   /** Story 6.8: the active special event. */
   eventKind: number;
   eventPhase: number;
@@ -85,6 +81,10 @@ export interface FakeState {
   eventX: number;
   eventY: number;
   eventLane: number;
+  voteTicksLeft: number;
+  endless: boolean;
+  /** Story 6.5: the boss record. */
+  boss: FakeBoss;
   /** Story 6.9: the crate. */
   crateWeapon: number;
   crateClaimSlot: number;
@@ -127,9 +127,6 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayFiresOut: 0,
     blackoutPct: 0,
     halfDark: false,
-    voteTicksLeft: 0, // Story 6.11
-    endless: false, // Story 6.12
-    boss: fakeBoss(),
     eventKind: 255, // Story 6.8: none
     eventPhase: 0,
     eventStartTick: 0,
@@ -137,6 +134,9 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     eventX: 0,
     eventY: 0,
     eventLane: 255,
+    voteTicksLeft: 0, // Story 6.11
+    endless: false, // Story 6.12
+    boss: fakeBoss(),
     crateWeapon: 255, // Story 6.9: none
     crateClaimSlot: 255,
     crateClaimTicks: 0,

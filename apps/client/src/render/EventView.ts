@@ -4,7 +4,7 @@ import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, en
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
 import { EventPickupsView } from "./EventPickupsView";
-import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
+import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -57,8 +57,8 @@ export class EventView {
   /** Stories 6.9 / 6.10: tank, crate, survivor and flag. */
   private readonly pickups: EventPickupsView;
   private readonly controls = newWaveControlRects();
-  private readonly arrowAt = { x: 0, y: 0, angle: 0 };
-  private readonly flagAt = { x: 0, y: 0, angle: 0 };
+  private readonly arrowAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // `side`: the placement's hysteresis (re-review 2 RR1)
+  private readonly flagAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // Story 6.10: the flag's own placement (its own hysteresis)
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 

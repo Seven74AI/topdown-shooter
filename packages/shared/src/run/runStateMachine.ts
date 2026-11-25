@@ -107,8 +107,9 @@ export function startBuild(world: World): void {
   returnOutPlayers(world);
   if (decayed) decayFinish(world, from);
   drawAllOffers(world); // Story 5.13: each player's card offer, after the decay steps (loadouts final)
+  const lastEndless = world.run.lastEndlessEvent;
   scheduleEndlessEvent(world); // Story 6.12 (F6): the coming endless wave's event (events stream; none in waves 1–10)
-  armEndlessEvent(world); // Story 6.8: the framework starts it in that wave like a scheduled entry
+  armEndlessEvent(world, lastEndless); // Story 6.8: the framework starts it in that wave like a scheduled entry (a pending forced one wins)
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
   refreshBlackout(world); // Story 6.3: the build phase's light (half dark at stage 5 once 6.4 turns it on)
 }

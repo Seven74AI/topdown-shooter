@@ -242,3 +242,75 @@ describe("Story 6.8 review M2 / re-review R1–R3: the event edge arrow (not pre
     });
   }
 });
+
+describe("Story 6.8 re-review 2 RR1: the edge arrow keeps its bearing and moves smoothly", () => {
+  const CASES: [number, number, number][] = [];
+  for (const k of [1, 3]) for (const [w, h] of [[568, 320], [640, 360], [800, 360], [844, 390]] as const) CASES.push([w, h, k]);
+  const angErr = (a: number, b: number): number => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  for (const [cw, ch, k] of CASES) {
+    it(`${cw} × ${ch} at k ${k}: every 0.1° both ways — bearing error ≤ 30°, every keep-off held, jumps > 40 px only where the legal spots part (≤ 3 per turn), none while jittering ±0.1°`, () => {
+      const w = cw * k;
+      const h = ch * k;
+      const avoid = waveControlRects(w, h, INSET, k, newWaveControlRects());
+      const size = EVENT_ARROW_CSS_PX * k;
+      const drawn = { x: 0, y: 0, w: 0, h: 0 };
+      const keepOff = avoid.map((r, i) => ({ id: `avoid${i}`, x: r.x, y: r.y, w: r.w, h: r.h }));
+      let maxErr = 0;
+      let maxSmoothJump = 0;
+      let maxJump = 0;
+      const check = (at: { x: number; y: number; angle: number }, tag: string): void => {
+        const r = eventArrowDrawnRect(at, size, drawn);
+        const box: Box = { id: tag, x: r.x, y: r.y, w: r.w, h: r.h };
+        expect(box.x, tag).toBeGreaterThanOrEqual(INSET.left * k - 1e-6);
+        expect(box.x + box.w, tag).toBeLessThanOrEqual(w - INSET.right * k + 1e-6);
+        expect(box.y, tag).toBeGreaterThanOrEqual(INSET.top * k - 1e-6);
+        expect(box.y + box.h, tag).toBeLessThanOrEqual(h - INSET.bottom * k + 1e-6);
+        for (const c of keepOff) expect(overlaps(box, c), `${tag} overlaps ${c.id}`).toBe(false);
+        expect(rectCentreGap(box.x, box.y, box.w, box.h, w / 2, h / 2), `${tag}: within 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * k - 1e-6);
+      };
+      for (const dir of [1, -1]) {
+        const at = { x: 0, y: 0, angle: 0, side: 0 };
+        let px = NaN;
+        let py = NaN;
+        let bigJumps = 0;
+        for (let i = 0; i <= 3600 * 2; i++) {
+          const deg = (dir * i) / 10;
+          const a = (deg * Math.PI) / 180;
+          expect(placeEventArrow(w / 2 + Math.cos(a) * 5000 * k, h / 2 + Math.sin(a) * 5000 * k, w, h, INSET, k, size, avoid, at)).toBe(true);
+          const tag = `arrow@${deg.toFixed(1)}`;
+          check(at, tag);
+          const err = angErr(Math.atan2(at.y - h / 2, at.x - w / 2), a);
+          maxErr = Math.max(maxErr, err);
+          if (!Number.isNaN(px)) {
+            const jump = Math.hypot(at.x - px, at.y - py) / k;
+            if (jump > 40) bigJumps++;
+            else maxSmoothJump = Math.max(maxSmoothJump, jump);
+            maxJump = Math.max(maxJump, jump);
+          }
+          px = at.x;
+          py = at.y;
+        }
+        // Jumps > 40 px happen only where the legal spots are cut apart or at a control's corner (the arrow
+        // stays on its ray): at 568 × 320 the HP row reserve (RR3) reaches past the centre column and
+        // meets the quick-use button, so straight up, up-right and right each need one; wider screens
+        // need one at the swap / quick-use pair. One per place per turn — the hysteresis stops a flicker.
+        expect(bigJumps, `jumps > 40 px over two turns (${dir > 0 ? "clockwise" : "anticlockwise"})`).toBeLessThanOrEqual(2 * 3);
+        // jitter ±0.1° round every whole degree after settling: no jump > 40 px (hysteresis)
+        for (let deg = 0; deg < 360; deg++) {
+          const j = { x: 0, y: 0, angle: 0, side: 0 };
+          let qx = NaN;
+          let qy = NaN;
+          for (const off of [0, 0.1, -0.1, 0.1, -0.1, 0]) {
+            const a = ((deg + off) * Math.PI) / 180;
+            placeEventArrow(w / 2 + Math.cos(a) * 5000 * k, h / 2 + Math.sin(a) * 5000 * k, w, h, INSET, k, size, avoid, j);
+            if (!Number.isNaN(qx) && off !== 0) expect(Math.hypot(j.x - qx, j.y - qy) / k, `jitter round ${deg}°`).toBeLessThanOrEqual(40);
+            qx = j.x;
+            qy = j.y;
+          }
+        }
+      }
+      expect((maxErr * 180) / Math.PI, "max bearing error (°)").toBeLessThanOrEqual(30 + 1e-6);
+      console.info(`RR1 ${cw}×${ch} k${k}: max bearing error ${((maxErr * 180) / Math.PI).toFixed(2)}°, max smooth step ${maxSmoothJump.toFixed(2)} CSS px, max jump ${maxJump.toFixed(1)} CSS px`);
+    });
+  }
+});

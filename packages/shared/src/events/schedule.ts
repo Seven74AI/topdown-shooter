@@ -107,11 +107,19 @@ function put(world: World, kind: number, wave: number): void {
  * one endless scheduler: which waves, no repeat). The picked kind (`world.run.endlessEvent`, "" =
  * none) becomes the framework's extra entry for the coming wave, with its start fraction (stream
  * `events`); it then triggers like a scheduled entry. A dev-forced event (`forceEvent`) after this
- * replaces it. Returns the kind index, or EVENT_NONE.
+ * replaces it; one forced BEFORE it for the same wave and not yet run wins (re-review 2 RR4): the
+ * endless pick is dropped and 6.12's no-repeat memory goes back to `previousLast` (what was last
+ * really armed). Returns the kind index, or EVENT_NONE.
  */
-export function armEndlessEvent(world: World): number {
+export function armEndlessEvent(world: World, previousLast: string = world.run.lastEndlessEvent): number {
   const id = world.run.endlessEvent;
   if (id === "") return EVENT_NONE;
+  const x = world.special.extra;
+  if (x.kind !== EVENT_NONE && !world.special.extraDone && x.wave === world.waves.number + 1) {
+    world.run.endlessEvent = "";
+    world.run.lastEndlessEvent = previousLast;
+    return EVENT_NONE;
+  }
   const kind = EVENT_KINDS.indexOf(id as (typeof EVENT_KINDS)[number]);
   if (kind < 0) return EVENT_NONE;
   const s = world.special;
