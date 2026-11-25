@@ -1265,8 +1265,6 @@ export function drawFrontIn(g: Ctx, style: Style, variant: number): void {
         bolt(c, foot - 0.025, YB + 0.165, 0.006);
         bolt(c, foot + 0.025, YB + 0.165, 0.006);
       }
-      const bags = 3 + Math.floor(r() * 4);
-      for (let i = 0; i < bags; i++) sandbag(c, -0.85 + r() * 1.7, YB + 0.06 + r() * 0.05, 0.22 + r() * 0.04, seed + 80 + i);
     }
   });
 }
@@ -1338,8 +1336,7 @@ export function drawSide(g: Ctx, style: Style, braceSide: 1 | -1, variant: numbe
         g.fillRect(braceSide * 0.22 - 0.04, py + 0.03, 0.08, 0.03);
       } else bar(g, 0, py - up * 0.72, braceSide * 0.22, py + 0.04, 0.05, "wood", "#6a4e33", 5410 + Math.round(py * 10));
     }
-    if (style === "mt") for (let i = 0; i < 4; i++) sandbag(g, braceSide * 0.2, SIDE_C - 0.6 + i * 0.4 + r() * 0.1, 0.2, 6450 + i);
-    else cinder(g, braceSide * 0.24, SIDE_C + 0.7);
+    if (style !== "mt") cinder(g, braceSide * 0.24, SIDE_C + 0.7);
   };
   if (braceSide < 0) drawProps();
   for (const p of parts) {

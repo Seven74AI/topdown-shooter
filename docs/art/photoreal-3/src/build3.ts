@@ -591,7 +591,7 @@ const styleSet = (st: Style, title: string, caption: string): FortSet => ({ titl
 const FORTS: FortSet[] = [
   styleSet("wood", "Wood barricade (approved)", "Far wall: inside face (braces, junk) · near wall: outside face (clean, rubble at its foot) · side walls: braces inside · corner pieces close every corner"),
   styleSet("rf", "Reinforced barricade", "The wood wall reinforced: rusty corrugated steel, steel straps, chains, razor wire along every top · banded posts with wire at the corners"),
-  styleSet("mt", "Metal barricade", "Welded plates of uneven size: hazard bands and rust outside, angle-iron stiffeners, I-beam props and sandbags inside · steel I-beam corner posts"),
+  styleSet("mt", "Metal barricade", "Welded plates of uneven size: hazard bands and rust outside, angle-iron stiffeners, I-beam props inside · steel I-beam corner posts"),
   { title: "Police barricade", caption: "Sawhorses look the same from both sides, so inside and outside are just two variants · side lines show the sawhorses end-on · a traffic drum at each corner", inside: (g, v) => drawPoliceFront(g, v), outside: (g, v) => drawPoliceFront(g, v + 10), side: (g, _b, v) => drawPoliceSide(g, v), corner: (g) => drawPoliceCorner(g), glow: true },
 ];
 

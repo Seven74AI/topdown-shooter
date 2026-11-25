@@ -21,5 +21,5 @@ and the asset review in `docs/art/asset-review.md`.
   - a corner piece fills the empty square where two lines meet (post + stubs over both walls), so corners close;
   - pieces run edge to edge (no holes), each placed piece is a random variant built from scavenged parts, tilted and overlapping (not "too well arranged");
   - frame 2 × 1 m (footprint unchanged), shadows cast from the real silhouette, one light direction.
-- Same system drawn for reinforced, metal and police (police corner = traffic drum): awaiting the designer's verdict.
+- Same system for reinforced, metal and police (police corner = traffic drum): approved ("pretty cool"), with the sandbags removed from the metal barricade.
 - References: Meshy images in `docs/art/photoreal-3/refs/`.
