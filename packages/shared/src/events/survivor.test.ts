@@ -194,25 +194,57 @@ describe("Story 6.10 S3 / S4: zombies want it; your weapons never hurt it", () =
     expect((cfg.hp - n.hp) % bite).toBe(0);
   });
 
-  it("the chase field is seeded from it like a player (its cell is a seed; none once it is gone)", () => {
-    const { world } = npcWorld(11, [[44, 30]], {});
+  it("decision 6.10 B1: while it waits, a zombie 10 m off ignores it (and the chase field has no seed there); once led, zombies come from afar and the field is seeded from it", () => {
+    const { world, players } = npcWorld(11, [[44, 30]], {});
     const n = world.special.survivor;
-    tickN(world, 400); // the round-robin builds the chase field
+    const zx = n.x > 24 ? n.x - 10 : n.x + 10;
+    const zid = spawnZombie(world, "walker", zx, n.y, true);
+    const dist = (): number => Math.hypot((world.zombies.x[zid] as number) - n.x, (world.zombies.y[zid] as number) - n.y);
+    const d0 = dist();
+    tickN(world, 100);
+    expect(dist()).toBeGreaterThan(d0 - 1); // it went for the far player, not the waiting survivor
     const pa = world.pathing;
-    expect(pa.chase.back[flowCellAt(pa.nav, n.x, n.y)]).toBe(0); // a seed cell (back 0)
-    damageSurvivor(world, cfg.hp);
-    tickN(world, 400);
     expect(pa.chase.back[flowCellAt(pa.nav, n.x, n.y)]).not.toBe(0);
+    // a zombie within 5 m still goes for it
+    const near = spawnZombie(world, "walker", n.x + (n.x > 24 ? -4 : 4), n.y, true);
+    const nd0 = Math.hypot((world.zombies.x[near] as number) - n.x, (world.zombies.y[near] as number) - n.y);
+    tickN(world, 20);
+    expect(Math.hypot((world.zombies.x[near] as number) - n.x, (world.zombies.y[near] as number) - n.y)).toBeLessThan(nd0 - 1);
+    // led: the far zombie now comes, and the chase field is seeded from it
+    const p = players[0]!;
+    p.x = n.x + 1;
+    p.y = n.y;
+    p.status = "alive";
+    tickN(world, 1);
+    expect(n.state).toBe(NPC_STATE.FOLLOWING);
+    const dLed = dist();
+    for (let i = 0; i < 300; i++) {
+      p.x = n.x + 1; // the leader stays with it
+      p.y = n.y;
+      tickN(world, 1);
+    }
+    expect(dist()).toBeLessThan(dLed - 3);
   });
 
-  it("zombies walk to it from afar (the chase field is seeded from it)", () => {
-    const { world } = npcWorld(11, [[44, 30]], {});
+  it("decision 6.10 B1: the chase field is seeded from a LED survivor (its cell is a seed), never from a waiting one", () => {
+    const { world, players } = npcWorld(11, [[44, 30]], { zombies: () => {} });
     const n = world.special.survivor;
-    const zid = spawnZombie(world, "walker", n.x > 24 ? n.x - 10 : n.x + 10, n.y, true);
-    const d0 = Math.hypot((world.zombies.x[zid] as number) - n.x, (world.zombies.y[zid] as number) - n.y);
-    tickN(world, 200);
-    const d1 = Math.hypot((world.zombies.x[zid] as number) - n.x, (world.zombies.y[zid] as number) - n.y);
-    expect(d1).toBeLessThan(d0 - 3);
+    const pa = world.pathing;
+    tickN(world, 400);
+    expect(pa.chase.back[flowCellAt(pa.nav, n.x, n.y)]).not.toBe(0);
+    players[0]!.x = n.x + 0.8;
+    players[0]!.y = n.y;
+    tickN(world, 1);
+    expect(n.state).toBe(NPC_STATE.FOLLOWING);
+    let seeded = false;
+    for (let i = 0; i < 400 && !seeded; i++) {
+      n.state = NPC_STATE.FOLLOWING;
+      players[0]!.x = n.x + 0.8;
+      players[0]!.y = n.y;
+      tickN(world, 1);
+      seeded = pa.chase.back[flowCellAt(pa.nav, n.x, n.y)] === 0;
+    }
+    expect(seeded).toBe(true);
   });
 
   it("a player's bullet passes through it; a grenade blast spares it; a Bloater blast hurts it", () => {
@@ -233,6 +265,28 @@ describe("Story 6.10 S3 / S4: zombies want it; your weapons never hurt it", () =
     spec.friendlyFire = false;
     explode(world, spec);
     expect(n.hp).toBe(cfg.hp - 20);
+  });
+});
+
+describe("Story 6.10 S4 / DD5: it never walks into a fire", () => {
+  it("led straight through a burning car fire, it stops at the fire's edge (its circle never enters it)", () => {
+    const { world, players } = npcWorld();
+    const n = world.special.survivor;
+    const p = players[0]!;
+    const dir = n.x > 24 ? -1 : 1;
+    // a 1.5 m fire 3 m ahead of it, on its way to the leader
+    (world.decay.fires as unknown as { name: string; target: string; x: number; y: number; radiusM: number; stage: number; index: number }[]).push({ name: "test_fire", target: "x", x: n.x + dir * 3, y: n.y, radiusM: 1.5, stage: 1, index: 0 });
+    p.x = n.x + dir * 1;
+    p.y = n.y;
+    tickN(world, 1);
+    expect(n.state).toBe(NPC_STATE.FOLLOWING);
+    for (let i = 0; i < 60; i++) {
+      p.x = Math.min(46, Math.max(2, p.x + dir * 0.1)); // the leader walks through the fire (players can)
+      tickN(world, 1);
+      expect(circleInFire(world.decay.fires, n.x, n.y, n.radiusM)).toBe(false);
+    }
+    const f = world.decay.fires[world.decay.fires.length - 1]!;
+    expect(Math.hypot(n.x - f.x, n.y - f.y)).toBeLessThan(f.radiusM + n.radiusM + 0.25); // it reached the edge and waits there
   });
 });
 

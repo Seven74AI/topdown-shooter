@@ -8,7 +8,7 @@ import { segmentCircleT } from "../math/sweep";
 import { damagePlayerBy } from "../combat/damage";
 import type { PlayerState } from "../player/player";
 import type { SurvivorState } from "../events/eventState";
-import { damageSurvivor, survivorTarget } from "../events/survivor";
+import { damageSurvivor, survivorTarget, survivorWanted } from "../events/survivor";
 import { AREA_KIND, clearAreas, spawnArea } from "../hazards/areaPool";
 import { freeSpit, clearSpits } from "./spitPool";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
@@ -69,6 +69,7 @@ function spitTargetFor(world: World, x: number, y: number, rangeM: number): Spit
     const dy = p.y - y;
     const d2 = dx * dx + dy * dy;
     if (d2 > bestD2 || (best !== null && d2 === bestD2)) continue;
+    if (p === world.special.survivor && !survivorWanted(world, p as SurvivorState, d2)) continue; // decision 6.10 B1
     if (!shotLineClear(world, x, y, p.x, p.y)) continue;
     best = p;
     bestD2 = d2;

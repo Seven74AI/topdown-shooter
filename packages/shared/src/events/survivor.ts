@@ -100,6 +100,23 @@ export function survivorTarget(world: Readonly<World>): SurvivorState | null {
 }
 
 /**
+ * Decision 6.10 B1 (designer): may a zombie (or a Spitter) at squared distance `d2` from the living
+ * survivor `n` go for it? While it waits (not yet led) only within `waitIgnoreM` (5 m); once a
+ * standing player leads it, always (S3, like a player).
+ */
+export function survivorWanted(world: Readonly<World>, n: Readonly<SurvivorState>, d2: number): boolean {
+  if (n.state === NPC_STATE.FOLLOWING) return true;
+  const m = world.balance.events.survivor.waitIgnoreM;
+  return d2 <= m * m;
+}
+
+/** Decision 6.10 B1: the chase fields are seeded from the survivor only while it is led. */
+export function survivorSeedsField(world: Readonly<World>): boolean {
+  const n = world.special.survivor;
+  return n.status === "alive" && n.state === NPC_STATE.FOLLOWING;
+}
+
+/**
  * S3 / S4: damage to the survivor (zombie bites, spit and acid, a Bloater blast, fire). No slow, no
  * knockback, no downed state; at 0 HP it dies (the event ends "failed" on its next tick). God mode
  * (the players' dev cheat, the bots' sims) does NOT spare it: a survivor nobody can hurt would hold

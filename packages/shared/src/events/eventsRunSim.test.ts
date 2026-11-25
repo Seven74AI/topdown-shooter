@@ -7,6 +7,10 @@ import { parseDevEvents } from "./devEvents";
 import { EVENT_KINDS } from "./eventState";
 
 /**
+ * The survivor is forced in wave 3: god-mode bots walk straight lines and lose it in the late waves
+ * crowds (probe 2026-11-25: 0–1 saves in 16 runs in waves 6–8 whatever the B1 radius) — bot
+ * survival is not difficulty evidence (brief 15); the liveness here is "a save really happens".
+ *
  * Stories 6.9 + 6.10 (T5, brief 9 / 15): whole 10-wave runs with every real system and the four new
  * events forced in different waves (`DEV_EVENTS`-style: `debug.events`), 4 god-mode bots, 8 seeds.
  * Liveness: ≥ 1 gas boom that killed ≥ 1 zombie, ≥ 1 crate taken by a bot, a power failure that went

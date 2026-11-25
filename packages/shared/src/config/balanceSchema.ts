@@ -1411,6 +1411,8 @@ export const eventsSchema = z
         helpCallS: z.number().positive(),
         /** S5: a saved survivor waves this long at the flag, then the event ends. */
         waveOffS: z.number().min(0).refine(wholeTickS, "survivor.waveOffS must be whole ticks"),
+        /** Decision 6.10 B1: while it waits (not yet led) zombies ignore it unless their centre is within this. */
+        waitIgnoreM: z.number().min(0).max(48),
       })
       .strict()
       .refine((s) => s.loseM > s.pickUpM, "survivor.loseM must exceed pickUpM")

@@ -21,7 +21,7 @@ import { catchOnBearTraps } from "../buildings/bearTrap";
 import { BLOATER_SWELL_WEAPON, burstBurntSwells, startSwell, tickSwell } from "./bloater";
 import { killZombie } from "./zombiePool";
 import { stampedeContact, stampedeSteer, stampedeVel } from "../events/stampede";
-import { damageSurvivor, survivorTarget } from "../events/survivor";
+import { damageSurvivor, survivorTarget, survivorWanted } from "../events/survivor";
 import type { SurvivorState } from "../events/eventState";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
@@ -59,6 +59,7 @@ const alivePlayers: ChaseTarget[] = [];
 let playerTargets = 0;
 /** This tick's survivor target (null: none), compared by reference. */
 let npc: SurvivorState | null = null;
+let npcWorld: World | null = null;
 
 function collectAlivePlayers(world: World): void {
   alivePlayers.length = 0;
@@ -67,6 +68,7 @@ function collectAlivePlayers(world: World): void {
   });
   playerTargets = alivePlayers.length;
   npc = survivorTarget(world); // Story 6.10 (S3): with no survivor the list is exactly as before
+  npcWorld = world;
   if (npc) alivePlayers.push(npc);
 }
 
@@ -80,6 +82,7 @@ function nearestAlivePlayer(x: number, y: number): ChaseTarget | null {
     const dx = p.x - x;
     const dy = p.y - y;
     const d2 = dx * dx + dy * dy;
+    if (p === npc && !survivorWanted(npcWorld as World, p, d2)) continue; // decision 6.10 B1: a waiting survivor only within 5 m
     if (d2 < bestD2) {
       bestD2 = d2;
       best = p;

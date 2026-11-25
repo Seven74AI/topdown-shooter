@@ -7,6 +7,7 @@ import { segmentHitsBox } from "../buildings/collision";
 import type { DistrictBounds, MapBox } from "../map/districtMap";
 import { fillCollisionCells, mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
+import { survivorSeedsField } from "../events/survivor";
 import { ZOMBIE_TYPES, isRushState } from "./zombieTypes";
 
 /**
@@ -832,7 +833,7 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   } else {
     world.players.forEach(seedPlayer); // Map insertion order: the same on every run
     // Story 6.10 (S3): a living survivor seeds the field like a player (last: no change without one).
-    if (world.special.survivor.status === "alive") seedPlayer(world.special.survivor);
+    if (survivorSeedsField(world)) seedPlayer(world.special.survivor); // decision 6.10 B1: only while it is led
   }
   seed.field = null;
   seed.nav = null;

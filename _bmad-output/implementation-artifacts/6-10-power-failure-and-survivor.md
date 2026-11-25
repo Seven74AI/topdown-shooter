@@ -1,6 +1,6 @@
 # Story 6.10: Power failure and survivor
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -73,13 +73,13 @@ Most relevant here: 2 (the survivor NPC is a new body: World → schema → mirr
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (picks fixed; no new pick).** `docs/epic-6-decisions.md` › section 5: **power failure: no new art** (the Ruins flicker for 2 s, then the blackout); **survivor: all three SV1 yellow raincoat, SV2 nurse, SV3 office worker**, one at random per event. Port `NPCS` / `drawNPC` (standing + crouched) and `IC.person`, `IC.flag` from `docs/art/epic-6/looks.html` (`makeSurvivorCard`) into `render/city/eventArt.ts` (frames `npc_<look>_<pose>` in the event atlas) and `render/EventView.ts`, every texture via `addGeneratedTexture` (brief 20). Colour rule: white for the NPC's pin, label, HP bar and the safe flag (D8: the drawing's green flag becomes white). Add the NPC and the flag to the readability sheet ("is this a teammate?" — must read "no").
-- [ ] **T1 Balance** (AC 1, 3, 4): `events.json › powerFailure`, `survivor` (below); schema + cross-checks (`loseM > pickUpM`, `saveRadiusM < safeMinFromNpcM`, waves ⊂ 6.8's waves); `MONEY_REASONS` + `"event"` (append; `net/netEvents.ts` encodes the index).
-- [ ] **T2 Power failure** (AC 1, 2; P1–P3): `events/powerFailure.ts` using 6.3's `world.lights.powerFailure` + `refreshBlackout(world)`. Tests `events/powerFailure.test.ts`: no darkness for 40 ticks after the start, then `isBlackout` true with `blackoutPct` = 20; cleared at `wave.ended` (the next build phase is not dark); never scheduled outside 6–8 (6.8 schedule test covers it); replay digest includes it; a mirror World that receives the state mid-wave reports the same `darknessAlpha`.
-- [ ] **T3 Survivor body + AI** (AC 3–5; S1–S5): `events/survivor.ts` (spawn, leader rule, movement, save, death), the target-list refactor in `zombies/zombieAi.ts` (behaviour for players unchanged bit-for-bit when no NPC), `damageSurvivor` (`combat/damage.ts`), `collectStanding` (`zombies/spit.ts`), chase seeding (`zombies/flowField.ts`), the Bloater-only blast pass (`combat/explosion.ts`), `earn(…, "event")` (`economy/economy.ts`). Tests `events/survivor.test.ts`: spots ≥ 15 / ≥ 20 m at every stage × mask; pick-up at 2.99 m yes / 3.01 m no; lost at 6 m, on a downed leader, on a leave; never led by a downed or out player; speed ≤ 4.0; stops at a car fire's edge; never inside a box (pushed out round the bus); zombies bite it (Walker 10, Runner 8, Brute windup, Spitter acid), a Bloater blast hurts it, players' pistol/shotgun/flame/grenade/mine/molotov never do; saved at 2 m → +100 to all 4 (downed too); death at 0 HP → nothing; wave end → nothing; last-5 rush can target it; the wave still ends with the NPC alive.
-- [ ] **T4 Wire + client** (AC 6, 7): schema fields, `syncState` (+ reset), views, `fakeRoom`, devThrottle, `NetSimHost` mirror + interpolation, `EventView`/`eventArt`, banners and sounds in `GameScene`, the flicker hook in the city light layer (`render/city/CityView.ts`; 6.2 owns the per-lamp flicker — reuse it). Tests: round trips, `syncState.test.ts`, `eventMarkers.test.ts` (+ NPC/flag), atlas size, redraw after context loss.
-- [ ] **T5 Fuzz, sims, bandwidth, perf** (brief 7, 9, 11, 16): extend the 6.8 fuzz with a forced survivor: random layouts × stages 2–4 × masks × ≥ 3,000 ticks with a bot leader — no NPC centre inside a box or a fire, no stall (the NPC reaches the safe point with a bot leader in ≥ 90 % of layouts), zombies reach it; 10-wave sim over 8 seeds with forcing: ≥ 1 power failure (blackout ticks counted), ≥ 1 survivor saved and ≥ 1 lost, +100 paid; bandwidth (NPC record ≈ 80–200 B/s while it moves); tick cost with the NPC in the target list (`PERF_ASSERT=1`, load).
-- [ ] **T6 Gates.** Mutations (e.g. no flicker delay → P1; `blackoutPct` written directly → the 6.3 writer test; downed player may lead → S2; bullets hurt the NPC → S4; reward to the leader only → S5; NPC not seeded in the chase field → zombies-reach test) and which tests failed. Browser check: solo `?events=power_failure@6` (+ a Floodlight to see the 6 m pool) and `?events=survivor@3`, online two tabs `?lag=150&jitter=20`: flicker in step on both phones, darkness identical, a tab woken mid-blackout is dark, NPC follows the leader smoothly on the other phone, saved banner + money on both. Full gate. Merge notes.
+- [x] **T0 Art (picks fixed; no new pick).** `docs/epic-6-decisions.md` › section 5: **power failure: no new art** (the Ruins flicker for 2 s, then the blackout); **survivor: all three SV1 yellow raincoat, SV2 nurse, SV3 office worker**, one at random per event. Port `NPCS` / `drawNPC` (standing + crouched) and `IC.person`, `IC.flag` from `docs/art/epic-6/looks.html` (`makeSurvivorCard`) into `render/city/eventArt.ts` (frames `npc_<look>_<pose>` in the event atlas) and `render/EventView.ts`, every texture via `addGeneratedTexture` (brief 20). Colour rule: white for the NPC's pin, label, HP bar and the safe flag (D8: the drawing's green flag becomes white). Add the NPC and the flag to the readability sheet ("is this a teammate?" — must read "no").
+- [x] **T1 Balance** (AC 1, 3, 4): `events.json › powerFailure`, `survivor` (below); schema + cross-checks (`loseM > pickUpM`, `saveRadiusM < safeMinFromNpcM`, waves ⊂ 6.8's waves); `MONEY_REASONS` + `"event"` (append; `net/netEvents.ts` encodes the index).
+- [x] **T2 Power failure** (AC 1, 2; P1–P3): `events/powerFailure.ts` using 6.3's `world.lights.powerFailure` + `refreshBlackout(world)`. Tests `events/powerFailure.test.ts`: no darkness for 40 ticks after the start, then `isBlackout` true with `blackoutPct` = 20; cleared at `wave.ended` (the next build phase is not dark); never scheduled outside 6–8 (6.8 schedule test covers it); replay digest includes it; a mirror World that receives the state mid-wave reports the same `darknessAlpha`.
+- [x] **T3 Survivor body + AI** (AC 3–5; S1–S5): `events/survivor.ts` (spawn, leader rule, movement, save, death), the target-list refactor in `zombies/zombieAi.ts` (behaviour for players unchanged bit-for-bit when no NPC), `damageSurvivor` (`combat/damage.ts`), `collectStanding` (`zombies/spit.ts`), chase seeding (`zombies/flowField.ts`), the Bloater-only blast pass (`combat/explosion.ts`), `earn(…, "event")` (`economy/economy.ts`). Tests `events/survivor.test.ts`: spots ≥ 15 / ≥ 20 m at every stage × mask; pick-up at 2.99 m yes / 3.01 m no; lost at 6 m, on a downed leader, on a leave; never led by a downed or out player; speed ≤ 4.0; stops at a car fire's edge; never inside a box (pushed out round the bus); zombies bite it (Walker 10, Runner 8, Brute windup, Spitter acid), a Bloater blast hurts it, players' pistol/shotgun/flame/grenade/mine/molotov never do; saved at 2 m → +100 to all 4 (downed too); death at 0 HP → nothing; wave end → nothing; last-5 rush can target it; the wave still ends with the NPC alive.
+- [x] **T4 Wire + client** (AC 6, 7): schema fields, `syncState` (+ reset), views, `fakeRoom`, devThrottle, `NetSimHost` mirror + interpolation, `EventView`/`eventArt`, banners and sounds in `GameScene`, the flicker hook in the city light layer (`render/city/CityView.ts`; 6.2 owns the per-lamp flicker — reuse it). Tests: round trips, `syncState.test.ts`, `eventMarkers.test.ts` (+ NPC/flag), atlas size, redraw after context loss.
+- [x] **T5 Fuzz, sims, bandwidth, perf** (brief 7, 9, 11, 16): extend the 6.8 fuzz with a forced survivor: random layouts × stages 2–4 × masks × ≥ 3,000 ticks with a bot leader — no NPC centre inside a box or a fire, no stall (the NPC reaches the safe point with a bot leader in ≥ 90 % of layouts), zombies reach it; 10-wave sim over 8 seeds with forcing: ≥ 1 power failure (blackout ticks counted), ≥ 1 survivor saved and ≥ 1 lost, +100 paid; bandwidth (NPC record ≈ 80–200 B/s while it moves); tick cost with the NPC in the target list (`PERF_ASSERT=1`, load).
+- [x] **T6 Gates.** Mutations (e.g. no flicker delay → P1; `blackoutPct` written directly → the 6.3 writer test; downed player may lead → S2; bullets hurt the NPC → S4; reward to the leader only → S5; NPC not seeded in the chase field → zombies-reach test) and which tests failed. Browser check: solo `?events=power_failure@6` (+ a Floodlight to see the 6 m pool) and `?events=survivor@3`, online two tabs `?lag=150&jitter=20`: flicker in step on both phones, darkness identical, a tab woken mid-blackout is dark, NPC follows the leader smoothly on the other phone, saved banner + money on both. Full gate. Merge notes.
 
 `events.json` additions (starting values):
 
@@ -188,15 +188,10 @@ Power failure: no new art (2 s flicker with the Ruins lamp flicker, then 6.3's b
 
 ## Dev Agent Record
 
-### Agent Model Used
-
-### Debug Log References
-
-### Completion Notes List
-
-### File List
+Merged with 6.9 (designer 2026-11-24): the one Dev Agent Record, the "Not verified" list and the "Notes for the merge" are in `6-9-gas-leak-and-supply-drop.md`. Decision 6.10 B1 (designer, 2026-11-25): while the survivor waits zombies ignore it unless within 5 m; once led, S3 unchanged.
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-25: built inside the merged story 6.9 + 6.10 (record in 6-9's file); status review.
