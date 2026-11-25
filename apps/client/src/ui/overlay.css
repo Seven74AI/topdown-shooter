@@ -2663,6 +2663,7 @@ body:has(.menu.ph) .dev-gear {
 
 .ac-note--warn {
   color: #ffc46b;
+}
 
 /* Story 7.4 (K7): group 3 of the Run rewards panel (brief 26): the supply-drop / borrowed-card unlock hint. */
 .rw-group--unlocks {
