@@ -2,6 +2,10 @@ import { carAlarmModule } from "./carAlarm";
 import type { EventModule } from "./common";
 import { EVENT_KINDS, type EventKind } from "./eventState";
 import { stampedeModule } from "./stampede";
+import { gasLeakModule } from "./gasLeak";
+import { supplyDropModule } from "./supplyDrop";
+import { powerFailureModule } from "./powerFailure";
+import { survivorModule } from "./survivor";
 
 /**
  * Story 6.8 (AC 1): every event kind's module, by `EVENT_KINDS` index. This story builds the car
@@ -32,6 +36,14 @@ export function eventModules(): readonly EventModule[] {
           return carAlarmModule;
         case "stampede":
           return stampedeModule;
+        case "gas_leak":
+          return gasLeakModule; // Story 6.9
+        case "supply_drop":
+          return supplyDropModule; // Story 6.9
+        case "power_failure":
+          return powerFailureModule; // Story 6.10
+        case "survivor":
+          return survivorModule; // Story 6.10
         default:
           return stub(k);
       }

@@ -2,7 +2,9 @@ import type * as Phaser from "phaser";
 import { EVENT_KINDS, EVENT_PHASE, type StampedeLane, type World } from "@topdown/shared";
 import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, ensureEventTextures } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
-import { createEventMarkerLook, eventMarkerLook } from "./eventMarkers";
+import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
+import { EventPickupsView } from "./EventPickupsView";
+import { createPairHold, placeSecondEventArrow } from "./eventArrowPair";
 import { EVENT_ARROW_DISC_FRAC, EVENT_ARROW_TIP_FRAC, EVENT_ARROW_TIP_OFFSET, newWaveControlRects, placeEventArrow, waveControlRects, type EventArrowPlace, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
@@ -53,8 +55,12 @@ export class EventView {
   private dustAcc = 0;
   private clockS = 0;
   private readonly look = createEventMarkerLook();
+  /** Stories 6.9 / 6.10: tank, crate, survivor and flag. */
+  private readonly pickups: EventPickupsView;
   private readonly controls = newWaveControlRects();
   private readonly arrowAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // `side`: the placement's hysteresis (re-review 2 RR1)
+  private readonly flagHold = createPairHold(); // re-review RR2: the beside-side hold
+  private readonly flagAt: EventArrowPlace = { x: 0, y: 0, angle: 0, side: 0 }; // Story 6.10: the flag's own placement (its own hysteresis)
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 
@@ -76,6 +82,7 @@ export class EventView {
       const img = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, dustFrames[i % 3]).setDisplaySize(DUST_M, DUST_M).setVisible(false), "marker");
       this.dust.push({ img, age: DUST_LIFE_S, vx: 0, vy: 0 });
     }
+    this.pickups = new EventPickupsView(scene, world);
   }
 
   private rand(): number {
@@ -94,15 +101,15 @@ export class EventView {
     // The pin, its pulse ring and the countdown arc.
     this.pin.setVisible(look.visible);
     this.ring.setVisible(look.visible && look.pulse);
-    this.arc.setVisible(look.visible && look.arc >= 0);
+    this.arc.setVisible(look.visible && look.arc >= 0 && kind === "car_alarm"); // 6.9: the gas arc is round the tank
     if (look.visible) {
       const bob = Math.sin(this.clockS * 4) * 0.06;
-      this.pin.setFrame(kind === "stampede" ? EVENT_FRAMES.pinBang : EVENT_FRAMES.pinBell).setPosition(look.x, look.y + bob);
+      this.pin.setFrame(pinFrameOf(look)).setPosition(look.x, look.y + bob);
       if (look.pulse) {
         const u = (this.clockS * 0.9) % 1;
         this.ring.setPosition(look.x, look.y).setDisplaySize(RING_M * (0.4 + u * 1.6), RING_M * (0.4 + u * 1.6)).setAlpha(0.6 * (1 - u));
       }
-      if (look.arc >= 0) {
+      if (look.arc >= 0 && kind === "car_alarm") {
         const cy = look.y + bob - PIN_M * ((PIN_TIP_Y - 30) / PIN_H);
         const r = PIN_M * (30 / PIN_H) + 0.08;
         this.arc.clear();
@@ -123,14 +130,43 @@ export class EventView {
       const discM = (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM;
       const ex = vx + e.x / pxPerM;
       const ey = vy + e.y / pxPerM;
-      this.arrow.setFrame(kind === "stampede" ? EVENT_FRAMES.arrowBang : EVENT_FRAMES.arrowBell).setDisplaySize(discM, discM).setPosition(ex, ey);
+      this.arrow.setFrame(arrowFrameOf(look)).setDisplaySize(discM, discM).setPosition(ex, ey);
       this.tip
+        .setFrame(look.icon === "flame" ? EVENT_FRAMES.arrowTipGas : look.icon === "gun" || look.icon === "person" ? EVENT_FRAMES.arrowTipWhite : EVENT_FRAMES.arrowTip)
         .setDisplaySize(discM * EVENT_ARROW_TIP_FRAC, discM * EVENT_ARROW_TIP_FRAC)
         .setPosition(ex + Math.cos(e.angle) * discM * EVENT_ARROW_TIP_OFFSET, ey + Math.sin(e.angle) * discM * EVENT_ARROW_TIP_OFFSET)
         .setRotation(e.angle);
     }
     this.updateCar(look.visible && kind === "car_alarm" && look.blinkOn, vx, vw);
     this.updateStampede(dtS, look.chevrons ? look.lane : -1);
+    // Story 6.10 (S1): the survivor's flag gets its own edge arrow, placed by the same rule (screen
+    // px, off the wave controls / HP block, inside the safe area).
+    const f = look.flag;
+    // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
+    const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt, this.flagHold);
+    f.edge.visible = flagEdge;
+    if (!f.visible) {
+      this.flagAt.side = 0;
+      this.flagHold.side = 0;
+    } // no flag: its hysteresis starts fresh next time (6.8 RR1: one placement object per arrow)
+    if (flagEdge) {
+      f.edge.x = vx + this.flagAt.x / pxPerM;
+      f.edge.y = vy + this.flagAt.y / pxPerM;
+      f.edge.angle = this.flagAt.angle;
+    }
+    this.pickups.update(dtS, look, this.clockS, (arrowPx * EVENT_ARROW_DISC_FRAC) / pxPerM);
+  }
+
+  /** Stories 6.9 / 6.10 (tests): the live vapour / smoke particle counts. */
+  liveParticles(): { gas: number; smoke: number } {
+    return this.pickups.liveParticles();
+  }
+
+  /** Story 6.10 (P1): the city lamps this frame: −1 no power-failure flicker, 0 on, 1 out (`CityView.powerFlicker`). */
+  powerFlicker(): -1 | 0 | 1 {
+    const a = this.world.special.active;
+    if (EVENT_KINDS[a.kind] !== "power_failure" || a.phase !== EVENT_PHASE.FLICKER) return -1;
+    return this.look.flicker ? 1 : 0;
   }
 
   private updateCar(blink: boolean, vx: number, vw: number): void {
@@ -215,5 +251,36 @@ export class EventView {
   /** The scene shuts down: the loop stops. */
   destroy(): void {
     if (carAlarmLoopPlaying()) stopCarAlarmLoop();
+  }
+}
+
+/** Stories 6.9 / 6.10: the pin frame of the marker's icon (amber bell / bang, yellow-green flame, white gun / person). */
+function pinFrameOf(look: Readonly<EventMarkerLook>): string {
+  switch (look.icon) {
+    case "bang":
+      return EVENT_FRAMES.pinBang;
+    case "flame":
+      return EVENT_FRAMES.pinFlame;
+    case "gun":
+      return EVENT_FRAMES.pinGun;
+    case "person":
+      return EVENT_FRAMES.pinPerson;
+    default:
+      return EVENT_FRAMES.pinBell;
+  }
+}
+
+function arrowFrameOf(look: Readonly<EventMarkerLook>): string {
+  switch (look.icon) {
+    case "bang":
+      return EVENT_FRAMES.arrowBang;
+    case "flame":
+      return EVENT_FRAMES.arrowFlame;
+    case "gun":
+      return EVENT_FRAMES.arrowGun;
+    case "person":
+      return EVENT_FRAMES.arrowPerson;
+    default:
+      return EVENT_FRAMES.arrowBell;
   }
 }

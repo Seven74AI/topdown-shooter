@@ -1442,7 +1442,76 @@ export const eventsSchema = z
         sidestepAlongFrac: z.number().min(0).max(1),
       })
       .strict(),
-    fx: z.object({ maxDustParticles: z.number().int().min(1).max(256), maxMarkers: z.number().int().min(1).max(8), maxChevrons: z.number().int().min(1).max(32) }).strict(),
+    /** Story 6.9 (FR39, G1–G4): the gas leak at the gas-station zone's centre. */
+    gasLeak: z
+      .object({
+        hissS: z.number().positive().refine(wholeTickS, "gasLeak.hissS must be whole ticks"),
+        /** G3: bullets pass the tank for this long, then the first player bullet that reaches it blows it. */
+        armDelayS: z.number().min(0).refine(wholeTickS, "gasLeak.armDelayS must be whole ticks"),
+        radiusM: z.number().positive().max(12),
+        playerDamage: z.number().min(0).max(200),
+        /** DD2: every zombie in the blast dies through the normal damage path (no kill flag). */
+        killDamage: z.number().positive(),
+        buildingDamage: z.number().min(0),
+        /** D1: where the tank sits ("zone_centre": the centre of the map's `gas_leak` hazard). */
+        tankAt: z.literal("zone_centre"),
+        tankRadiusM: z.number().positive().max(2),
+        /** Review L4: what the blast does to the Behemoth (every zombie dies; the boss takes this, never a one-shot). */
+        bossDamage: z.number().min(0),
+      })
+      .strict()
+      .refine((g) => g.armDelayS < g.hissS, "gasLeak.armDelayS must be below hissS"),
+    /** Story 6.9 (FR40, G5–G8): the supply crate. */
+    supplyDrop: z
+      .object({
+        flareS: z.number().positive().refine(wholeTickS, "supplyDrop.flareS must be whole ticks"),
+        minFromTeamM: z.number().min(0),
+        takeRadiusM: z.number().positive().max(3),
+        takeS: z.number().positive().max(10).refine(wholeTickS, "supplyDrop.takeS must be whole ticks"),
+        level: z.number().int().min(1).max(8),
+        weapons: z.array(z.string().min(1)).min(1).max(16),
+        /** The landing spot's circle must be free of boxes, buildings and fire. */
+        spotClearM: z.number().positive().max(3),
+      })
+      .strict(),
+    /** Story 6.10 (FR42, P1–P3): the power failure (its light level is `decay.json › blackout.powerFailureLightPct`). */
+    powerFailure: z
+      .object({
+        waves: z.array(z.number().int().min(1).max(255)).min(1),
+        flickerS: z.number().positive().refine(wholeTickS, "powerFailure.flickerS must be whole ticks"),
+      })
+      .strict(),
+    /** Story 6.10 (FR43, S1–S5): the survivor NPC. */
+    survivor: z
+      .object({
+        hp: z.number().int().min(1).max(255),
+        radiusM: z.number().positive().max(1),
+        speedMps: z.number().positive().max(10),
+        followGapM: z.number().min(0).max(4),
+        pickUpM: z.number().positive(),
+        loseM: z.number().positive(),
+        minFromTeamM: z.number().min(0),
+        safeMinFromNpcM: z.number().min(0),
+        saveRadiusM: z.number().positive(),
+        reward: z.number().int().min(0),
+        helpCallS: z.number().positive(),
+        /** S5: a saved survivor waves this long at the flag, then the event ends. */
+        waveOffS: z.number().min(0).refine(wholeTickS, "survivor.waveOffS must be whole ticks"),
+        /** Decision 6.10 B1: while it waits (not yet led) zombies ignore it unless their centre is within this. */
+        waitIgnoreM: z.number().min(0).max(48),
+      })
+      .strict()
+      .refine((s) => s.loseM > s.pickUpM, "survivor.loseM must exceed pickUpM")
+      .refine((s) => s.saveRadiusM < s.safeMinFromNpcM, "survivor.saveRadiusM must be below safeMinFromNpcM"),
+    fx: z
+      .object({
+        maxDustParticles: z.number().int().min(1).max(256),
+        maxMarkers: z.number().int().min(1).max(8),
+        maxChevrons: z.number().int().min(1).max(32),
+        maxGasParticles: z.number().int().min(1).max(256), // Story 6.9
+        maxFlareParticles: z.number().int().min(1).max(256), // Story 6.9
+      })
+      .strict(),
     banners: z.record(z.string(), z.string().min(1)),
   })
   .strict()

@@ -62,9 +62,9 @@ describe("Story 6.8 event markers (AC 12, F1, D10)", () => {
   it("F1 cues: a fresh start shows the banner and its sound; a woken tab's start older than lateBannerS shows neither", () => {
     const cue = createEventCue();
     const tr = (kind: "car_alarm" | "stampede", ageS: number): SimEvent => ({ type: "event.triggered", kind, wave: 3, x: 1, y: 2, startTick: 5, phase: 1, lane: -1, ageS });
-    expect(eventCue(tr("car_alarm", 0.1), balance, cue)).toEqual({ banner: "CAR ALARM · shoot it to set it off", sound: "event_car_alarm_armed", alarm: null });
-    expect(eventCue(tr("stampede", 2.9), balance, cue)).toEqual({ banner: "STAMPEDE!", sound: "event_stampede_rumble", alarm: null });
-    expect(eventCue(tr("stampede", 3.5), balance, cue)).toEqual({ banner: null, sound: null, alarm: null });
+    expect(eventCue(tr("car_alarm", 0.1), balance, cue)).toMatchObject({ banner: "CAR ALARM · shoot it to set it off", sound: "event_car_alarm_armed", alarm: null });
+    expect(eventCue(tr("stampede", 2.9), balance, cue)).toMatchObject({ banner: "STAMPEDE!", sound: "event_stampede_rumble", alarm: null });
+    expect(eventCue(tr("stampede", 3.5), balance, cue)).toMatchObject({ banner: null, sound: null, alarm: null });
     expect(eventCue({ type: "event.ended", kind: "car_alarm", outcome: "done" }, balance, cue).alarm).toBe("stop");
   });
 });

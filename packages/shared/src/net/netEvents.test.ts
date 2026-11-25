@@ -93,6 +93,8 @@ const EVENTS: SimEvent[] = [
   // Story 5.1: a weapon upgrade.
   { type: "weapon.upgraded", playerId: "p2", weapon: "smg", slot: 1, level: 3 },
   { type: "weapon.upgraded", playerId: "p0", weapon: "pistol", slot: 0, level: 4 },
+  // Story 6.9: the supply crate taken (any phase).
+  { type: "weapon.crate_taken", playerId: "p1", weapon: "flamethrower", slot: 1, level: 2 },
   // Story 5.7: the Brute's roar / banner (first of the run, then a later one).
   { type: "zombie.brute_spawned", zombieId: 9, x: 0.6, y: 31.4, first: true },
   { type: "zombie.brute_spawned", zombieId: 200, x: 47.4, y: 16, first: false },

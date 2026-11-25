@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runHeadless } from "../bots/headlessRun";
 import type { World } from "../core/world";
 import { balance } from "./testEvents";
+import { EVENT_KINDS } from "./eventState";
 
 /**
  * Story 6.8 (T7, brief 9): the real 10-wave run with every system (god-mode bots: every wave is
@@ -44,6 +45,7 @@ describe("Story 6.8: events in the 10-wave run", () => {
       }
       expect((world as World | null)?.special.log.triggered).toBe(2);
     }
-    expect([...kinds].sort()).toEqual(["car_alarm", "stampede"]);
+    // Stories 6.9 + 6.10: all six kinds are in the draw now, and 8 seeds × 2 events see every one.
+    expect([...kinds].sort()).toEqual([...EVENT_KINDS].sort());
   }, 300_000);
 });

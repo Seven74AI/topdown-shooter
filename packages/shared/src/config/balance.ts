@@ -342,5 +342,14 @@ function crossCheckEvents(parsed: Record<string, unknown>, issues: string[]): vo
   }
   // (a test balance whose maxAlive is the pool itself has nothing to check: the pool is the cap)
   if (maxAlive < ZOMBIE_POOL_CAPACITY && maxAlive + ev.stampede.overCap > ZOMBIE_POOL_CAPACITY) issues.push(`events.json: stampede.overCap ${ev.stampede.overCap} + waves.maxAlive ${maxAlive} exceeds the zombie pool (${ZOMBIE_POOL_CAPACITY})`);
-  for (const k of ["car_alarm", "stampede"]) if (!(k in ev.banners)) issues.push(`events.json: banners.${k} is missing`);
+  for (const k of ["car_alarm", "stampede", "gas_leak", "supply_drop", "power_failure", "survivor", "survivor_saved", "survivor_lost"]) if (!(k in ev.banners)) issues.push(`events.json: banners.${k} is missing`);
+  // Stories 6.9 / 6.10: the crate's weapons exist and its level is a real level; the power failure's waves are event waves.
+  const ext = parsed.events as { supplyDrop?: { weapons: readonly string[]; level: number }; powerFailure?: { waves: readonly number[] } };
+  const weaponIds = Object.keys((parsed.weapons as { weapons?: Record<string, unknown> }).weapons ?? (parsed.weapons as Record<string, unknown>));
+  const maxLevel = (parsed.shop as { upgrades?: { maxLevel: number } }).upgrades?.maxLevel ?? 1;
+  if (ext.supplyDrop) {
+    for (const w of ext.supplyDrop.weapons) if (!weaponIds.includes(w)) issues.push(`events.json: supplyDrop.weapons: ${w} is not a weapon`);
+    if (ext.supplyDrop.level > maxLevel) issues.push(`events.json: supplyDrop.level ${ext.supplyDrop.level} exceeds shop upgrades.maxLevel ${maxLevel}`);
+  }
+  if (ext.powerFailure) for (const w of ext.powerFailure.waves) if (!ev.waves.includes(w)) issues.push(`events.json: powerFailure.waves: ${w} is not one of events.waves`);
 }

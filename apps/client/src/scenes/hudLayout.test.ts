@@ -5,9 +5,10 @@ import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCen
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { layoutBossBar } from "./bossBar";
-import { eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
+import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { layoutHpBlock, layoutMoneyLine, layoutWaveLine } from "./hudTopLayout";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
+import { createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
@@ -240,6 +241,93 @@ describe("Story 6.8 review M2 / re-review R1–R3: the event edge arrow (not pre
       expect(placeEventArrow(INSET.left * K * 0.5, h / 2, w, h, INSET, K, size, avoid, at)).toBe(true);
       const hp = keepOff[0]!;
       expect(placeEventArrow(hp.x + hp.w / 2, hp.y + hp.h / 2, w, h, INSET, K, size, avoid, at)).toBe(true);
+    });
+  }
+});
+
+describe("Story 6.10 review L11 / re-review RR1–RR2: the survivor's two edge arrows (NPC + flag) in the one HUD layout test", () => {
+  const bearingErr = (at: { x: number; y: number; angle: number }, w: number, h: number): number => {
+    const d = Math.atan2(at.y - h / 2, at.x - w / 2) - at.angle;
+    return Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+  };
+  const maxErr: number[] = [];
+  for (const [w, h] of SIZES) {
+    it(`${w} × ${h}: every pair of bearings (5° steps; also 1°, 3°, 10°, 15.78°, 45°, 180° apart): both drawn arrows keep every rule, never overlap, each within 30° of its bearing`, () => {
+      const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
+      const wave = modes(w, h).wave!.filter((b) => b.id !== "boss_bar");
+      const keepOff: Box[] = [
+        { id: "hp_block", ...layoutHpBlock(INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+        { id: "wave_line", ...layoutWaveLine(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) },
+      ];
+      const size = EVENT_ARROW_CSS_PX * K;
+      const npc = { x: 0, y: 0, angle: 0, side: 0 };
+      const flag = { x: 0, y: 0, angle: 0, side: 0 };
+      const hold = createPairHold();
+      const rn = { x: 0, y: 0, w: 0, h: 0 };
+      const rf = { x: 0, y: 0, w: 0, h: 0 };
+      let pairs = 0;
+      let worst = 0;
+      const check = (r: { x: number; y: number; w: number; h: number }, id: string): void => {
+        const box: Box = { id, x: r.x, y: r.y, w: r.w, h: r.h };
+        expect(box.x, id).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+        expect(box.x + box.w, id).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+        expect(box.y, id).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
+        expect(box.y + box.h, id).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+        for (const c of [...wave, ...keepOff]) expect(overlaps(box, c), `${id} overlaps ${c.id}`).toBe(false);
+        expect(rectCentreGap(box.x, box.y, box.w, box.h, w / 2, h / 2), `${id}: within 48 px of the survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+      };
+      for (let da = 0; da < 360; da += 5) {
+        for (const db of [da, da + 1, da + 3, da + 10, da + 15.78, da + 45, da + 180]) {
+          const a = (da * Math.PI) / 180;
+          const b = (db * Math.PI) / 180;
+          npc.side = 0;
+          flag.side = 0;
+          hold.side = 0;
+          expect(placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc)).toBe(true);
+          expect(placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag, hold)).toBe(true);
+          eventArrowDrawnRect(npc, size, rn);
+          eventArrowDrawnRect(flag, size, rf);
+          check(rn, `npc_arrow@${da}`);
+          check(rf, `flag_arrow@${db}`);
+          expect(overlaps({ id: "n", ...rn }, { id: "f", ...rf }), `npc@${da} and flag@${db} overlap`).toBe(false);
+          const e = bearingErr(flag, w, h);
+          worst = Math.max(worst, e);
+          expect(e, `flag@${db} (npc@${da}): bearing error`).toBeLessThanOrEqual(EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-9);
+          pairs++;
+        }
+      }
+      expect(pairs).toBe(72 * 7);
+      maxErr.push((worst * 180) / Math.PI);
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: max flag bearing error ${((worst * 180) / Math.PI).toFixed(1)}°`);
+    });
+
+    it(`${w} × ${h}: re-review RR2 — the flag bearing jittering ±0.01° round every 0.25° of a sweep past the NPC arrow never flips its spot frame to frame`, () => {
+      const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
+      const size = EVENT_ARROW_CSS_PX * K;
+      let flips = 0;
+      let frames = 0;
+      for (let da = 0; da < 360; da += 15) {
+        const npc = { x: 0, y: 0, angle: 0, side: 0 };
+        const flag = { x: 0, y: 0, angle: 0, side: 0 };
+        const hold = createPairHold();
+        const a = (da * Math.PI) / 180;
+        for (let off = -20; off <= 20; off += 0.25) {
+          let lastX = Number.NaN;
+          let lastY = Number.NaN;
+          for (let j = 0; j < 8; j++) {
+            const b = ((da + off + (j % 2 === 0 ? 0.01 : -0.01)) * Math.PI) / 180;
+            placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
+            placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag, hold);
+            if (j > 0 && Math.hypot(flag.x - lastX, flag.y - lastY) > 10 * K) flips++;
+            lastX = flag.x;
+            lastY = flag.y;
+            frames++;
+          }
+        }
+      }
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: ${flips} flips in ${frames} jittering frames`);
+      expect(frames).toBeGreaterThan(1000);
+      expect(flips).toBe(0);
     });
   }
 });

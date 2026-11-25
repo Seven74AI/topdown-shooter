@@ -1,7 +1,7 @@
 import type { Balance } from "../config/balance";
 import { err, ok, type Result } from "../core/result";
 import type { World } from "../core/world";
-import type { Loadout, WeaponSlot } from "../combat/loadout";
+import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
 import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
 import { buyConsumable, isConsumable } from "./consumables";
@@ -195,4 +195,74 @@ export function buyItem(world: World, playerId: string, item: string): Result<Bo
   if (!p) return err("unknown_player");
   if (p.status !== "alive") return err("not_alive");
   return err("not_for_sale");
+}
+
+/** Story 6.9 (G7): why a player can't take the crate's weapon (`crateRefusal`). */
+export type CrateRefusal = "already_have" | null;
+
+/** Story 6.9 (G7, D10): `already_have` when the loadout holds `weapon` at `level` or higher. */
+export function crateRefusal(loadout: Loadout, weapon: WeaponId, level: number): CrateRefusal {
+  for (const s of loadout.slots) if (s && s.weapon === weapon && s.level >= level) return "already_have";
+  return null;
+}
+
+/** Story 6.9: what taking the crate does to a loadout (`crateOutcome`; the HUD's G7 prompt reads it). */
+export interface CrateOutcome {
+  /** The slot the weapon goes into, or −1 when it can't be taken (`already_have`). */
+  slot: -1 | 0 | 1;
+  /** "empty" (second slot free), "upgrade" (carried below `level`), "replace" (both full: the active slot). */
+  how: "empty" | "upgrade" | "replace" | "refused";
+}
+
+/** Story 6.9 (D8–D10): where the crate's weapon would go. Pure; fills `out`. */
+export function crateOutcome(loadout: Loadout, weapon: WeaponId, level: number, out: CrateOutcome): CrateOutcome {
+  if (crateRefusal(loadout, weapon, level) !== null) {
+    out.slot = -1;
+    out.how = "refused";
+  } else if (loadout.slots[0].weapon === weapon) {
+    out.slot = 0;
+    out.how = "upgrade";
+  } else if (loadout.slots[1]?.weapon === weapon) {
+    out.slot = 1;
+    out.how = "upgrade";
+  } else if (loadout.slots[1] === null) {
+    out.slot = 1;
+    out.how = "empty";
+  } else {
+    out.slot = loadout.active;
+    out.how = "replace";
+  }
+  return out;
+}
+
+const crateOut: CrateOutcome = { slot: -1, how: "refused" };
+
+/**
+ * Story 6.9 (DD4, D8–D10): gives the crate's `weapon` at `level` to `playerId` — not a purchase (no
+ * wallet, no build-phase check). An empty second slot takes it (the active slot stays: D9); the
+ * same weapon carried below `level` becomes `level` with a full magazine (D10); both slots full →
+ * the ACTIVE slot is replaced by a fresh slot at `level` (its upgrades are lost; reload and swap
+ * cancelled: D8). Refused (−1) when already carried at `level` or higher (G7). Emits
+ * `weapon.crate_taken`. Returns the slot, or −1.
+ */
+export function giveCrateWeapon(world: World, playerId: string, weapon: WeaponId, level: number): -1 | 0 | 1 {
+  const p = world.players.get(playerId);
+  if (!p) return -1;
+  const lo = p.loadout;
+  const o = crateOutcome(lo, weapon, level, crateOut);
+  if (o.slot < 0) return -1;
+  const slot = o.slot as 0 | 1;
+  const fresh = createSlot(world.balance, weapon);
+  fresh.level = level;
+  if (o.how === "upgrade") {
+    const s = lo.slots[slot] as WeaponSlot;
+    s.level = level;
+    s.ammo = fresh.ammo;
+    s.reloadTicks = 0;
+  } else {
+    lo.slots[slot] = fresh;
+    if (o.how === "replace") lo.swapTicks = 0;
+  }
+  world.events.emit({ type: "weapon.crate_taken", playerId, weapon, slot, level });
+  return slot;
 }

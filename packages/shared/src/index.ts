@@ -653,4 +653,11 @@ export { armEndlessEvent, eventFits, scheduleRunEvents } from "./events/schedule
 export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
 export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
 export { parseDevEvents } from "./events/devEvents";
+// Stories 6.9 + 6.10: gas leak, supply drop, power failure, survivor
+export { NPC_STATE, type GasLeakState, type SupplyDropState, type SurvivorState } from "./events/eventState";
+export { GAS_LEAK_WEAPON, gasLeakZone, gasTankArmed } from "./events/gasLeak";
+export { pickCrateSpot } from "./events/supplyDrop";
+export { powerFailureWave } from "./events/powerFailure";
+export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
+export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";

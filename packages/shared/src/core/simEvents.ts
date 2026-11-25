@@ -4,7 +4,7 @@ import type { EventKind, EventOutcome } from "../events/eventState";
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
  * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
  */
-export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss"] as const; // Story 6.7: + "boss" (append only: the wire sends the index)
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss", "event"] as const; // Story 6.7: + "boss"; 6.10: + "event" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
@@ -148,6 +148,8 @@ export type SimEvent =
   | { type: "zombie.brute_spawned"; zombieId: number; x: number; y: number; first: boolean; /** Client only: seconds since it happened (a woken tab's backlog: no late banner). */ ageS?: number }
   /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
   | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
+  /** Story 6.9 (G6): `playerId` took the supply crate: `weapon` at `level` into `slot` (any phase; no money). */
+  | { type: "weapon.crate_taken"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   /**
    * Story 5.5: `playerId` lobbed round `grenadeId` (u8, wraps) from the muzzle (x, y); it bursts at
    * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on

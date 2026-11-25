@@ -2,6 +2,7 @@ import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { carAlarmShot, armedCarBox } from "./carAlarm";
+import { gasLeakShot, gasTankArmed } from "./gasLeak";
 import { EVENT_KINDS, EVENT_NONE, EVENT_PHASE, type EventKind, type EventOutcome, type ScheduleEntry } from "./eventState";
 import { eventModule } from "./registry";
 import { scheduleRunEvents } from "./schedule";
@@ -161,13 +162,15 @@ export function forceEvent(world: World, kind: string): boolean {
  * shootable box this tick (the armed car; 6.9 adds the gas tank). Cheap: one compare when none.
  */
 export function specialShotTarget(world: Readonly<World>): boolean {
-  return armedCarBox(world);
+  return armedCarBox(world) || gasTankArmed(world); // Story 6.9: + the gas tank after its 3 s (G3)
 }
 
 /**
  * F4: a PLAYER projectile's step (x0, y0) → (x1, y1), stopped at `stopT` (−1: flies on), credited to
  * `ownerId`. Called only while `specialShotTarget` is true.
  */
-export function onSpecialShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): void {
+export function onSpecialShot(world: World, x0: number, y0: number, x1: number, y1: number, stopT: number, ownerId: string | null): number {
   if (armedCarBox(world)) carAlarmShot(world, x0, y0, x1, y1, stopT, ownerId);
+  else if (gasTankArmed(world)) return gasLeakShot(world, x0, y0, x1, y1, stopT, ownerId); // Story 6.9 (review L5: where the bullet stops, −1 none)
+  return -1; // the car is map cover: the bullet already stops at its face
 }

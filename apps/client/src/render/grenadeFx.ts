@@ -205,7 +205,8 @@ export const STALE_EXPLOSION_S = 0.5;
 
 /** The look per explosion kind (designer, round C): grenade EX1 fireball; mine EX2 shockwave (5.8/5.12 add theirs). */
 export function blastLookFor(kind: number): BlastLook {
-  return EXPLOSION_KINDS[kind] === "grenade" ? "fireball" : "shockwave";
+  const k = EXPLOSION_KINDS[kind];
+  return k === "grenade" || k === "gas_leak" ? "fireball" : "shockwave"; // Story 6.9: the gas leak is EX1 at 6 m
 }
 
 /** A small seeded generator (cosmetic only: never the sim's streams). */

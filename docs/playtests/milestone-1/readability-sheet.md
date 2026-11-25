@@ -237,3 +237,24 @@ Player:
 
 ## 85: which wave is this, and is it a normal one? (Story 6.12: the top line "Wave 11 · Endless · 25 s")
 ![85](../../art/6-11/6-11-568x320-endless-build.png)
+
+## 90: what is hissing, how far does it reach, and when does it go off? Can you set it off? (Story 6.9: the gas leak — two steel caps between the pumps, a yellow-green vapour cloud, the dashed 6 m ring and the countdown arc round the tank; GL1. The tank is a floor cap: it does NOT stop bullets; the pumps and cars round it do shield the blast)
+![90](../../art/6-9/6-9-800x360-gas-hiss.png)
+
+## 91: in the dark, can you still see the gas ring and the tank? (Story 6.9 at 5 % blackout: ring, arc, label, pin and the tank's caps above the darkness)
+![91](../../art/6-9/6-9-800x360-gas-blackout5.png)
+
+## 92: something is falling. Where, and what is inside? Who should run for it? (Story 6.9: the supply drop — green smoke flare, the crate on its chute with a shrinking shadow, the white pin and "GAS TORCH · II" from the flare on; SD2 + SD3. The crate does NOT stop bullets: it is a pick-up)
+![92](../../art/6-9/6-9-800x360-crate-flare.png)
+
+## 93: you are standing on the crate with two weapons. What will you lose, and how do you cancel? (Story 6.9 G7: the white fill ring and "Replaces your SMG III · step off to cancel" on the HUD's toast line; the cancel promise drops for the last quarter of the second, review L7; the crate is drawn under you, review L6)
+![93](../../art/6-9/6-9-800x360-crate-replace.png)
+
+## 94: who is that? Is it a teammate? Where must it go? (Story 6.10: the survivor — off screen its white person arrow and the white flag arrow; S1. Must read "not a teammate")
+![94](../../art/6-9/6-9-800x360-survivor-waiting.png)
+
+## 95: is it following you? How far can you get ahead before it stops? (Story 6.10: "following", the yellow-raincoat NPC with its white HP bar, no gun, no slot ring, a faint 3 m circle round its leader; the flag arrow at the edge)
+![95](../../art/6-9/6-9-800x360-survivor-following.png)
+
+## 96: the lights went out. Is it the same for everyone, and when does it come back? (Story 6.10: the power failure after its 2 s flicker — the moonlit 20 % blackout until the wave ends; no marker, the banner said "POWER FAILURE")
+![96](../../art/6-9/6-9-800x360-power-failure-dark.png)

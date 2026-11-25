@@ -7,6 +7,7 @@ import { segmentHitsBox } from "../buildings/collision";
 import type { DistrictBounds, MapBox } from "../map/districtMap";
 import { fillCollisionCells, mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
+import { survivorSeedsField } from "../events/survivor";
 import { ZOMBIE_TYPES, isRushState } from "./zombieTypes";
 
 /**
@@ -680,7 +681,7 @@ function pop(f: FlowField): number {
 
 /** Seeding pass in progress (module-level callback: no closure per rebuild). */
 const seed: { field: FlowField | null; nav: NavGrid | null; world: Readonly<World> | null } = { field: null, nav: null, world: null };
-const seedPlayer = (p: PlayerState): void => {
+const seedPlayer = (p: Readonly<{ status: string; x: number; y: number }>): void => {
   if (p.status !== "alive") return;
   const f = seed.field as FlowField;
   const nav = seed.nav as NavGrid;
@@ -837,7 +838,11 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   else if (f.seedOnly !== null) {
     const p = world.players.get(f.seedOnly); // Story 6.5: the boss's target only
     if (p) seedPlayer(p);
-  } else world.players.forEach(seedPlayer); // Map insertion order: the same on every run
+  } else {
+    world.players.forEach(seedPlayer); // Map insertion order: the same on every run
+    // Story 6.10 (S3): a living survivor seeds the field like a player (last: no change without one).
+    if (survivorSeedsField(world)) seedPlayer(world.special.survivor); // decision 6.10 B1: only while it is led
+  }
   seed.field = null;
   seed.nav = null;
   seed.world = null;

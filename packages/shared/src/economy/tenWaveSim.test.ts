@@ -59,10 +59,12 @@ describe("Story 6.1: ten-wave sim", () => {
       expect(r.wiped).toBe(false);
       expect(r.waves.map((w) => w.wave)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(r.waves.map((w) => w.size)).toEqual([40, 80, 120, 160, 200, 240, 280, 320, 360, 400]);
+      // Money adds up per player (review L10: building refunds — 6.2's 50 % back when rubble or a
+      // fire takes a building — are not in `earned`; the log keeps them per player).
       for (let i = 0; i < 4; i++) {
-        expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
+        expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) + (r.refunded[i] as number) - (r.spent[i] as number));
       }
-      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss + r.earnedBy.event).toBe(r.earned.reduce((a, b) => a + b, 0)); // 6.10: + the survivor's "event" pay
       expect(r.earnedBy.boss, `seed ${seed}: the Behemoth's 150 to each of the 4 (Story 6.7)`).toBe(4 * balance.boss.killPay);
       // F3: exactly 2 Brutes in each of waves 7–10 (one in 5 and 6).
       for (let w = 5; w <= 10; w++) expect(r.brutes.spawnedInWave.filter((n) => n === w).length, `seed ${seed} wave ${w}`).toBe(w >= 7 ? 2 : 1);
