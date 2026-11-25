@@ -157,3 +157,21 @@ describe("Story 5.23 (D12): the router counts real mouse moves (the cursor follo
     expect(r.mouseMoves).toBe(n + 1);
   });
 });
+
+describe("Story 8.7: F opens the ping wheel", () => {
+  it("F is bound to ping (KeyF on every layout: AZERTY / QWERTZ keep F there), once per press, never by auto-repeat; blur clears it", () => {
+    expect(keyAction("KeyF")).toBe("ping");
+    expect(letterAction("KeyF", "f")).toBe("ping");
+    const k = new KeyboardMouse();
+    expect(k.keyDown("KeyF")).toBe(true);
+    expect(k.heldCountOf("ping")).toBe(1);
+    expect(k.keyDown("KeyF", true)).toBe(true); // auto-repeat
+    expect([k.takePing(), k.takePing()]).toEqual([true, false]);
+    k.keyUp("KeyF");
+    expect(k.heldCountOf("ping")).toBe(0);
+    k.keyDown("KeyF");
+    k.releaseAll();
+    expect(k.takePing()).toBe(false);
+    expect(k.heldCountOf("ping")).toBe(0);
+  });
+});

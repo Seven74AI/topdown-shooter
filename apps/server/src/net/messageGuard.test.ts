@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { playerInputSchema, NEUTRAL_INPUT } from "@topdown/shared";
 import { MessageGuard } from "./messageGuard";
-import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S } from "./limits";
+import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S, PING_PER_S } from "./limits";
 
 function setup() {
   let now = 0;
@@ -58,6 +58,27 @@ describe("MessageGuard", () => {
     for (let i = 0; i < 40; i++) ho(client, {});
     hg(client, {});
     expect(ghosts).toBe(MAX_GHOST_MESSAGES_PER_S + 1);
+  });
+
+  it("Story 8.7 (E8-P5): pings have their own 1/s bucket (burst 1): a flood never eats the shared one, nor the other way", () => {
+    const { guard, client, setNow } = setup();
+    let pings = 0;
+    let others = 0;
+    const any = { safeParse: (v: unknown) => ({ success: true as const, data: v }) };
+    const hp = guard.guard(any, () => pings++, "ping");
+    const ho = guard.guard(any, () => others++);
+    expect(PING_PER_S).toBe(1);
+    for (let i = 0; i < 50; i++) hp(client, {});
+    expect(pings).toBe(1); // burst 1
+    for (let i = 0; i < 40; i++) ho(client, {});
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S); // the shared bucket was untouched by 50 pings
+    expect(guard.pending(client)?.rate).toBeGreaterThan(0);
+    setNow(999);
+    hp(client, {});
+    expect(pings).toBe(1); // not yet a second
+    setNow(1000);
+    hp(client, {});
+    expect(pings).toBe(2); // an empty shared bucket doesn't stop pings
   });
 
   it("charges unknown message types against the shared bucket (rate once it is empty)", () => {

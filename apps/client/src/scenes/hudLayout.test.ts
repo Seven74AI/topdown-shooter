@@ -8,8 +8,9 @@ import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
 import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { LOOT_FOUND_MINE } from "../render/lootBagCue";
-import { WIDEST_LOOT_LINE, layoutLootLine } from "./hudTopLayout";
-import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
+import { WIDEST_LOOT_LINE, layoutLootLine, layoutPingButton } from "./hudTopLayout";
+import { layoutPingWheel, newPingChipRects } from "./pingWheel";
+import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, WIDEST_WAVE_LINE_COMPACT, fitWaveText, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
@@ -69,6 +70,15 @@ function heldChipsBox(): Box {
   return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
 }
 
+/** Story 8.7 (AC 2): the ping button, left of ☰ (HudScene draws it from `layoutPingButton`). */
+function pingBtn(w: number): Box {
+  return { id: "ping", ...layoutPingButton(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) };
+}
+/** Story 8.7 (AC 3, B5): the open wheel's four chips (HudScene draws and hit-tests them from `layoutPingWheel`). */
+function pingChips(w: number): Box[] {
+  return layoutPingWheel(w, INSET, K, newPingChipRects()).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
+}
+
 /** Every mode's pressable controls. */
 function modes(w: number, h: number): Record<string, Box[]> {
   const bar = layoutBuildBar(w, h, INSET.right, INSET.bottom, K, newBuildBarLayout());
@@ -85,8 +95,17 @@ function modes(w: number, h: number): Record<string, Box[]> {
   const sq = (id: string, x: number, y: number, s: number): Box => ({ id, x, y, w: s, h: s });
   return {
     // Story 6.5: the boss bar (top centre, shown in a wave while the Behemoth walks).
-    wave: [menu(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
-    build: [menu(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 8.7: the ping button shows in wave, build and vote (and while downed); never holding, with a building
+    // selected (the action bar: decision 8.7 B9) or reconnecting.
+    wave: [menu(w), pingBtn(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
+    build: [menu(w), pingBtn(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 8.7 (B5): the wheel open — the right-hand buttons under it (swap, quick-use, build bar, action bar) hide.
+    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w), bossBar(w)],
+    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    ping_wheel_vote: (() => {
+      const v = layoutEvacVote(w, h, INSET.bottom);
+      return [menu(w), pingBtn(w), ...pingChips(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+    })(),
     holding: [
       menu(w),
       sq("place", hand.place.x, hand.place.y, hand.place.size),
@@ -100,7 +119,7 @@ function modes(w: number, h: number): Record<string, Box[]> {
     // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
     vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
-      return [menu(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+      return [menu(w), pingBtn(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
     })(),
     selected: [menu(w), ...act.rects.filter((r) => r.visible).map((r, i) => ({ id: `action_${ACTION_IDS[i]}`, x: r.x, y: r.y, w: r.w, h: r.h }))],
   };
@@ -163,6 +182,11 @@ const KNOWN_LIST: [string, number][] = [
   // silent default and can be changed (D2).
   ["568x320 vote vote_extract: in the move-stick half", 118],
   ["640x360 vote vote_extract: in the move-stick half", 118],
+  // Story 8.7: the same baseline lines in the open-wheel modes (the wheel leaves Ready and the vote buttons where they are).
+  ["568x320 ping_wheel_build ready: in the move-stick half", 120],
+  ["640x360 ping_wheel_build ready: in the move-stick half", 84],
+  ["568x320 ping_wheel_vote vote_extract: in the move-stick half", 118],
+  ["640x360 ping_wheel_vote vote_extract: in the move-stick half", 118],
 ];
 const KNOWN_AS_BUILT = new Map<string, number>(KNOWN_LIST);
 
@@ -258,12 +282,18 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
       expect(boss.y + boss.h, "the boss bar stays in the upper third").toBeLessThan(h / 3);
       // The drawn wave text (a 10-wave line, an endless line, the widest one) stays inside its rect.
       const wave = top[4]!;
+      // Story 8.7 (B3): beside the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
+      // Its width here: the full width × the compact/full length ratio of the widest strings (same font, same digits).
+      const ratio = WIDEST_WAVE_LINE_COMPACT.length / WIDEST_WAVE_LINE.length;
       for (const textW of [150, 200, 261.5]) {
-        const at = placeWaveText(w, INSET, K, textW, { x: 0, scale: 1 });
-        expect(at.x - (textW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
-        expect(at.x + (textW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
+        const at = fitWaveText(w, INSET, K, textW, textW * ratio, { x: 0, scale: 1, compact: false });
+        const drawnW = at.compact ? textW * ratio : textW;
+        expect(at.x - (drawnW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
+        expect(at.x + (drawnW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
         expect(at.scale, "the wave line never under 11 px (16 px × 11/16)").toBeGreaterThanOrEqual(11 / 16);
+        if (w >= 640) expect(at.compact, `${w} px: the full line fits`).toBe(false);
       }
+      expect(placeWaveText(w, INSET, K, 150, { x: 0, scale: 1 }).scale, "a usual line needs no compact form").toBeGreaterThan(0.85);
       expect(waveLine({ wave: 10, remaining: 400, buildSecs: -1, endless: false, voting: false }).length).toBeLessThan(WIDEST_WAVE_LINE.length);
       // Banners: short / wide / the wrap width, 1–3 lines, with and without the boss bar.
       const wrap = bannerWrapWidth(w, INSET, K);
@@ -827,6 +857,52 @@ describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () 
         }
       }
       expect(checked).toBe(2 * 720);
+    });
+  }
+});
+
+/**
+ * Story 8.7 (P6): the ping button and the open wheel at all four test sizes (568 × 320, 640 × 360, 800 × 360,
+ * 844 × 390) and under a 20 px top inset: inside the safe area, off every other control of the modes they show in,
+ * clear of the survivor's 48 px, in the right half; the chips ≥ 44 px and apart.
+ */
+describe("Story 8.7: the ping button and wheel at every test size", () => {
+  for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
+    it(`${w} × ${h}`, () => {
+      const m = modes(w, h);
+      let checked = 0;
+      for (const [mode, boxes] of Object.entries(m)) {
+        const mine = boxes.filter((b) => b.id === "ping" || b.id.startsWith("ping_chip"));
+        if (mode === "holding" || mode === "reconnecting" || mode === "selected") {
+          expect(mine, `${mode}: no ping button`).toEqual([]);
+          continue;
+        }
+        expect(mine.length, mode).toBe(mode.startsWith("ping_wheel") ? 5 : 1);
+        for (const b of mine) {
+          expect(b.x, `${mode} ${b.id} left`).toBeGreaterThanOrEqual(INSET.left);
+          expect(b.x + b.w, `${mode} ${b.id} right`).toBeLessThanOrEqual(w - INSET.right + 1e-6);
+          expect(b.y + b.h, `${mode} ${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom);
+          expect(Math.min(b.w, b.h), `${b.id} ≥ 44 px`).toBeGreaterThanOrEqual(44);
+          expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${mode} ${b.id}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+          expect(b.x + b.w / 2, `${mode} ${b.id}: right half`).toBeGreaterThan(w / 2);
+          for (const o of boxes) if (o !== b) expect(overlaps(b, o), `${w}x${h} ${mode}: ${b.id} overlaps ${o.id}`).toBe(false);
+          checked++;
+        }
+      }
+      expect(checked).toBe(3 + 3 * 5); // liveness: wave, build, vote + the three open-wheel modes
+      // the band: the ping button keeps off the wave line and the boss bar keeps its 12 px gap to it
+      const r0 = { x: 0, y: 0, w: 0, h: 0 };
+      const wl = layoutWaveLine(w, INSET, K, { ...r0 });
+      const p = pingBtn(w);
+      expect(wl.x + wl.w, "wave line ends a band gap before the ping button").toBeLessThanOrEqual(p.x - 6 + 1e-6);
+      const boss = bossBar(w);
+      expect(overlaps(boss, p)).toBe(false);
+      // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
+      const top = { ...INSET, top: 20 };
+      for (const c of layoutPingWheel(w, top, K, newPingChipRects())) {
+        expect(c.y + c.h).toBeLessThanOrEqual(h - top.bottom);
+        expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+      }
     });
   }
 });

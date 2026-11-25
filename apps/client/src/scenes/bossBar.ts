@@ -8,7 +8,7 @@ import {
   MENU_BUTTON_CSS_PX,
   MENU_BUTTON_INSET_CSS_PX,
 } from "../ui/sizes";
-import { HUD_BAND_GAP_CSS_PX, layoutHpBlock } from "./hudTopLayout";
+import { HUD_BAND_GAP_CSS_PX, layoutHpBlock, pingButtonLeft } from "./hudTopLayout";
 
 /**
  * Story 6.5 (D9, AC 13): where the boss bar sits — top centre, under the wave line, never over the
@@ -28,7 +28,8 @@ export interface BossBarLayout {
 }
 
 export function layoutBossBar(width: number, insetLeft: number, insetTop: number, insetRight: number, k: number, out: BossBarLayout): BossBarLayout {
-  const menuLeft = width - (MENU_BUTTON_INSET_CSS_PX + insetRight + MENU_BUTTON_CSS_PX) * k;
+  // Story 8.7: the gap is kept to the ping button now (left of ☰ in the same row).
+  const menuLeft = pingButtonLeft(width, { right: insetRight }, k);
   const leftLimit = (MENU_BUTTON_INSET_CSS_PX + insetLeft + MENU_BUTTON_CSS_PX) * k; // a mirrored corner keeps it symmetric
   const half = Math.min(BOSS_BAR_MAX_W_CSS_PX * k, 2 * Math.min(width / 2 - leftLimit, menuLeft - width / 2) - 2 * BOSS_BAR_GAP_CSS_PX * k) / 2;
   const w = Math.max(BOSS_BAR_MIN_W_CSS_PX * k, 2 * half);

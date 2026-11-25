@@ -61,6 +61,10 @@ import {
   type BuildingMoveRefused,
   type BuildingGhost,
   type BuildingGhosted,
+  PING_KINDS,
+  pingSendSchema,
+  type PingSend,
+  type PingShown,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -215,6 +219,22 @@ const RTT_EWMA = 0.25;
 /** Tick exceptions in a row before the room gives up and disconnects everyone. */
 export const MAX_TICK_ERRORS_IN_A_ROW = 20;
 export const TICK_ERROR_MESSAGE = "The game hit an error, sorry";
+
+/** Story 8.7: why a `ping.send` is refused (null = shown). */
+export type PingRefusal = "phase" | "frozen" | "held" | "status";
+
+/**
+ * Story 8.7 (P4, decision E8-P4): who may ping. The World's phase is build, wave or vote (never the lobby or Results),
+ * the World runs (not frozen, 8.1), the seat is not held (8.1; 8.2's waiting joiners have no World player), and the
+ * sender's World player is standing or downed (out = spectating can't).
+ */
+export function pingRefusal(phase: string, frozen: boolean, held: boolean, status: string | undefined): PingRefusal | null {
+  if (phase !== "build" && phase !== "wave" && phase !== "vote") return "phase";
+  if (frozen) return "frozen";
+  if (held) return "held";
+  if (status !== "alive" && status !== "downed") return "status";
+  return null;
+}
 
 /** A random uint32 run seed (`node:crypto`; never Math.random). */
 export function randomUint32(): number {
@@ -444,6 +464,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILDING_GHOST, this.net.guard(buildingGhostSchema, (c, m) => this.onGhost(c, m), "ghost")); // Story 5.24: own bucket (D1)
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
     this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
+    // Story 8.7 (pings) ↓ — one block (8.2+8.3 adds its own): own 1/s bucket (E8-P5), rate drops counted (`pingDropped`).
+    this.onMessage(C2S.PING_SEND, this.net.guard(pingSendSchema, (c, m) => this.onPing(c, m), "ping", (c) => this.countPingDrop(c)));
+    // Story 8.7 ↑
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -1076,6 +1099,44 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     client.send(S2C.BUILDING_MOVE_REFUSED, { id: m.id, reason, seq: m.seq } satisfies BuildingMoveRefused); // review L3: seq echoed
   }
 
+  /** Story 8.7: the one `ping.shown` payload, reused (`broadcast` encodes synchronously). */
+  private readonly pingMsg: PingShown = [0, 0, 0, 0, 0];
+  /** Story 8.7 (P2): pings the 1/s bucket dropped, per player id, since the wave started (`net_stats` `pingDropped`). */
+  readonly pingDropped = new Map<string, number>();
+
+  /** Story 8.7 (P2): a `ping.send` over the player's 1/s bucket: dropped silently, counted. */
+  private countPingDrop(client: RunClient): void {
+    const member = this.members.get(client.sessionId);
+    if (member) this.pingDropped.set(member.playerId, (this.pingDropped.get(member.playerId) ?? 0) + 1);
+  }
+
+  /**
+   * `ping.send` (Story 8.7, D15; shape-checked and rate-limited by its own "ping" bucket). Allowed for a seated member
+   * whose World player is standing or downed (E8-P4), in a build phase, a wave or the vote, while the World runs (not
+   * frozen) and the seat is not held. The server stamps the sender's slot and SERVER position at this tick (P1) and
+   * broadcasts `ping.shown` to everyone, the sender too. Never stored: not in the World, the schema, the event bus or
+   * a replay (P5). A refused ping gets no answer (logged at debug: a flood must not flood the log).
+   */
+  onPing(client: RunClient, m: PingSend): void {
+    const member = this.members.get(client.sessionId);
+    const world = this.controller?.world;
+    if (!member || !world) return;
+    const p = world.players.get(member.playerId);
+    const reason = pingRefusal(world.run.phase, this.state.frozen, this.holds.has(member.playerId), p?.status);
+    if (reason !== null || !p) {
+      this.log.debug({ playerId: member.playerId, kind: m.kind, reason }, "ping_refused");
+      return;
+    }
+    const g = this.pingMsg;
+    g[0] = member.slot; // P1: the sender's own slot and position, never anything from the payload
+    g[1] = PING_KINDS.indexOf(m.kind);
+    g[2] = Math.round(p.x * 10); // decimetres (B1: integers are 3 B on the wire, floats 9)
+    g[3] = Math.round(p.y * 10);
+    g[4] = world.tick;
+    this.log.debug({ playerId: member.playerId, kind: m.kind, x: g[2], y: g[3], tick: g[4] }, "ping_shown");
+    this.broadcast(S2C.PING_SHOWN, g);
+  }
+
   /** Story 5.24: the one relay payload, reused (`broadcast` encodes synchronously). */
   private readonly ghostMsg: BuildingGhosted = [0, -1, 0, 0, 0];
 
@@ -1536,6 +1597,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     this.slowTicks?.takeWindow();
     this.slowPatches?.takeWindow();
+    this.pingDropped.clear(); // Story 8.7
   }
 
   /** On `wave.ended`: `net_stats` per player and `tick_stats` (2.10), `horde_stats` (2.5). */
@@ -1572,6 +1634,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
           avgInKBps: round1(m.in.avgKBps(now)),
           hordeKBps: round1(waveS > 0 ? (this.hordeStats.get(member.playerId)?.bytesSent ?? 0) / 1024 / waveS : 0),
           rttMs: Math.round(member.rttMs),
+          pingDropped: this.pingDropped.get(member.playerId) ?? 0, // Story 8.7 (P2)
         },
         "net_stats",
       );

@@ -9,6 +9,8 @@ import {
   lobFlightTicks,
   lobTarget,
   NET_NONE,
+  PING_KINDS,
+  type PingKind,
   NO_SYSTEMS,
   TICK_DT_S,
   acidSpitOf,
@@ -54,6 +56,7 @@ import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } fro
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { MoveRefusal, NetSession } from "../net/session";
 import type { TeammateGhosts } from "../net/teammateGhosts";
+import type { PingModel } from "../render/pingModel";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
@@ -594,6 +597,22 @@ export class NetSimHost implements SimHost {
   /** Story 5.24: the inbox's store (listened since the join). */
   get teammateGhosts(): TeammateGhosts {
     return this.session.inbox.ghosts;
+  }
+
+  /** Story 8.7: the one `ping.send` payload, reused. */
+  private readonly pingMsg: { kind: PingKind } = { kind: "help" };
+
+  /** Story 8.7 (AC 4): `ping.send { kind }` — only the kind (P1); nothing while disposed or while the link is down. */
+  sendPing(kind: number): void {
+    const k = PING_KINDS[kind];
+    if (this.disposed || k === undefined || !this.linkUp()) return;
+    this.pingMsg.kind = k;
+    this.session.room.send(C2S.PING_SEND, this.pingMsg);
+  }
+
+  /** Story 8.7: the inbox's ping model (listened since the join). */
+  get pings(): PingModel {
+    return this.session.inbox.pings;
   }
 
   takeRepairRefusal(): RepairError | null {

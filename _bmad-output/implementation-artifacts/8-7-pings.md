@@ -4,8 +4,9 @@ baseline_commit: 0ee0d6db
 
 # Story 8.7: Pings
 
-Status: ready-for-dev
+Status: review
 
+<!-- Designer 2026-11-25: ALL 33 Epic 8 story decisions (E8-J/H/S/R/P, docs/epic-8-story-decisions.md) ANSWERED: accepted as recommended. Built overnight 2026-11-25 on story-8-7 (gds-dev-story, autonomous); build-time decisions 8.7 B1–B13 auto-accepted overnight (same file). -->
 <!-- Story file 2026-11-25 (gds-create-story, autonomous) from the real code on master 0ee0d6db. Kept separate (docs/story-merges-2026-11-25.md: "small, parallel"). Epic 8 D15 is the RULE (accepted 2026-11-24). New decisions: docs/epic-8-story-decisions.md (codes P…), "recommended, to accept". -->
 
 ## Story
@@ -42,15 +43,15 @@ so that we can coordinate without voice chat.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Fairness tests first** (P1–P6): `apps/server/src/rooms/RunRoom.ping.test.ts` (server position, 1/s drop, out/held/waiting/lobby/results refused, broadcast to all), `apps/client/src/render/pingModel.test.ts`, `packages/shared/src/replay/` digest-with-pings test.
-- [ ] **T2 Wire** (AC 1, 4, 5): `packages/shared/src/net/messages.ts` (`PING_KINDS`, `C2S.PING_SEND`, `S2C.PING_SHOWN`, `pingSendSchema`, `PingShown`), `apps/server/src/net/limits.ts` (`PING_PER_S`), `apps/server/src/net/messageGuard.ts` (bucket `"ping"`), `apps/server/src/rooms/RunRoom.ts` (`onMessage`, `onPing`).
-- [ ] **T3 Client net** : `apps/client/src/net/session.ts` (`room.onMessage(S2C.PING_SHOWN, …)`), `apps/client/src/sim/NetSimHost.ts` (`sendPing(kind)`, nothing while disconnected), `fakeRoom`/devThrottle/bot copies (brief 2: messages pass the throttle with the same delay as other S2C messages).
-- [ ] **T4 HUD** (AC 2, 3): `apps/client/src/scenes/hudTopLayout.ts` (`layoutPingButton`, wave line end), `ui/sizes.ts`, `scenes/hudModel.ts` (`pingButton`, `pingWheelOpen`, `pingPressed` latches), `scenes/pingWheel.ts` (new, pure layout + hit test), `scenes/HudScene.ts` (draw + taps), `scenes/GameScene.ts` (wiring only), `input/keyMap.ts` + `input/KeyboardMouse.ts` (`takePing`, `heldCount`), digits suspended while open.
-- [ ] **T5 Draw** (AC 1, 6, 7): `render/pingModel.ts`, `render/PingView.ts` (icons via `addGeneratedTexture`, `aboveDarkness(obj, "ping")`), edge arrows in HudScene via `placeEventArrow`.
-- [ ] **T6 Sound** (AC 8): `audio/placeholderSfx.ts`.
-- [ ] **T7 Layout** (P6): `scenes/hudLayout.test.ts` (ping button + wheel chips in modes `wave`, `build`, `vote`; absent in `holding`, `reconnecting`), `scenes/hudTopLayout.test.ts` (widest wave line with the button), wheel-in-safe-area test at all four sizes with insets 44/21; wiring tests (R2) for the button, F key, and `PING_SHOWN` → view.
-- [ ] **T8 Bots + readability** (AC 10): `tools/bots/botClient.ts` + flag; `docs/playtests/milestone-1/readability-sheet.md` items 130–133 (the four icons at 14 px over stage 1 dusk and stage 5 blackout).
-- [ ] **T9 Gate** (R6); screenshots of the wheel open at 568×320 and 844×390 (stills only, designer: no videos) in `docs/art/epic-8/pings-*.png`.
+- [x] **T1 Fairness tests first** (P1–P6): `apps/server/src/rooms/RunRoom.ping.test.ts` (server position, 1/s drop, out/held/waiting/lobby/results refused, broadcast to all), `apps/client/src/render/pingModel.test.ts`, `packages/shared/src/replay/` digest-with-pings test.
+- [x] **T2 Wire** (AC 1, 4, 5): `packages/shared/src/net/messages.ts` (`PING_KINDS`, `C2S.PING_SEND`, `S2C.PING_SHOWN`, `pingSendSchema`, `PingShown`), `apps/server/src/net/limits.ts` (`PING_PER_S`), `apps/server/src/net/messageGuard.ts` (bucket `"ping"`), `apps/server/src/rooms/RunRoom.ts` (`onMessage`, `onPing`).
+- [x] **T3 Client net** : `apps/client/src/net/session.ts` (`room.onMessage(S2C.PING_SHOWN, …)`), `apps/client/src/sim/NetSimHost.ts` (`sendPing(kind)`, nothing while disconnected), `fakeRoom`/devThrottle/bot copies (brief 2: messages pass the throttle with the same delay as other S2C messages).
+- [x] **T4 HUD** (AC 2, 3): `apps/client/src/scenes/hudTopLayout.ts` (`layoutPingButton`, wave line end), `ui/sizes.ts`, `scenes/hudModel.ts` (`pingButton`, `pingWheelOpen`, `pingPressed` latches), `scenes/pingWheel.ts` (new, pure layout + hit test), `scenes/HudScene.ts` (draw + taps), `scenes/GameScene.ts` (wiring only), `input/keyMap.ts` + `input/KeyboardMouse.ts` (`takePing`, `heldCount`), digits suspended while open.
+- [x] **T5 Draw** (AC 1, 6, 7): `render/pingModel.ts`, `render/PingView.ts` (icons via `addGeneratedTexture`, `aboveDarkness(obj, "ping")`), edge arrows in HudScene via `placeEventArrow`.
+- [x] **T6 Sound** (AC 8): `audio/placeholderSfx.ts`.
+- [x] **T7 Layout** (P6): `scenes/hudLayout.test.ts` (ping button + wheel chips in modes `wave`, `build`, `vote`; absent in `holding`, `reconnecting`), `scenes/hudTopLayout.test.ts` (widest wave line with the button), wheel-in-safe-area test at all four sizes with insets 44/21; wiring tests (R2) for the button, F key, and `PING_SHOWN` → view.
+- [x] **T8 Bots + readability** (AC 10): `tools/bots/botClient.ts` + flag; `docs/playtests/milestone-1/readability-sheet.md` items 130–133 (the four icons at 14 px over stage 1 dusk and stage 5 blackout).
+- [x] **T9 Gate** (R6); screenshots of the wheel open at 568×320 and 844×390 (stills only, designer: no videos) in `docs/art/epic-8/pings-*.png`.
 
 ## Dev Notes
 
@@ -108,10 +109,61 @@ Shared: `net/messages.ts`. Server: `rooms/RunRoom.ts`, `net/messageGuard.ts`, `n
 
 ### Agent Model Used
 
+Claude (Claude Code cloud session, builder for story-8-7), gds-dev-story, autonomous overnight run.
+
 ### Gate
+
+GATE_LINE
+
+### Tests per task (brief R1: "file > test name")
+
+- **T1** `apps/server/src/rooms/RunRoom.ping.test.ts` > "P1 + P3: broadcast to everyone (the sender too) with the sender's slot and SERVER position…", "P5: a ping changes nothing in the World — its snapshotWorld digest is the same…", "P2: at most 1 per second per player (own bucket, counted as pingDropped)…", "P4 rule table (pingRefusal)…", "P4: downed can ping; out, held, frozen, lobby and results can't"; `apps/client/src/render/pingModel.test.ts` (5 tests: 4 s, replace, > 4 s late not shown, malformed, clears). The `packages/shared/src/replay/` digest test is replaced by the P5 handler-digest test (pings never enter shared sim code: no shared file but `messages.ts` changed).
+- **T2** `apps/server/src/net/messageGuard.test.ts` > "Story 8.7 (E8-P5): pings have their own 1/s bucket (burst 1)…"; RunRoom.ping tests above; `tools/checks/pingWiring.test.ts` > "server: ping.send through the guard's own 'ping' bucket…".
+- **T3** `apps/client/src/sim/NetSimHost.ping.test.ts` (sendPing kind only / link down; ping.shown → inbox model, never the World; solo B8); devThrottle wraps every `onMessage` generically, so `ping.shown` passes it with the same delay as other S2C messages (no change needed); `tools/checks/pingWiring.test.ts` > "client net…".
+- **T4** `apps/client/src/scenes/pingWheel.test.ts` (4 tests), `apps/client/src/scenes/pingFrame.test.ts` (4 tests: P4 visibility, F / 1–4 latch + digits eaten while open, chip send, pan), `apps/client/src/input/keyMap.test.ts` > "Story 8.7: F opens the ping wheel"; `tools/checks/pingWiring.test.ts` > "GameScene…", "HudScene…".
+- **T5** `apps/client/src/render/pingArrows.test.ts` (20 tests: 0.01° stateful sweeps both ways at 568×320 / 640×360 / 800×360 / 844×390, oscillation ±0.01°/0.1°/0.5° across every jump, four pings at 0°/3°/10°/25° spread, keep off the event arrow, resize 568×320 → 844×390, no allocation); `tools/checks/pingWiring.test.ts` > "the view puts every ping object above the darkness"; `tools/checks/galleryCoversAllArt.test.ts` and `noUnregisteredTextures.test.ts` (the new `atlas_ping`).
+- **T6** `tools/checks/pingWiring.test.ts` > GameScene (`playSfx(… "ping_double" : "ping", pingPan(sx, sw), PING_SFX_VOLUME)`), `pingFrame.test.ts` > "pan…". Sound itself: not verified by ear (headless).
+- **T7** `apps/client/src/scenes/hudLayout.test.ts` > ONE HUD LAYOUT TEST (ping in wave / build / vote, three open-wheel modes, absent holding / selected / reconnecting), "Story 6.14: … wave line …" (compact line ≥ 11 px), "Story 8.7: the ping button and wheel at every test size" (568×320, 640×360, 800×360, 844×390, + a 20 px top inset).
+- **T8** `tools/bots/ping.test.ts` > "two bots: Bot 1 every 2 s, Bot 2 every 0.25 s — both shown on the other bot, Bot 2's extras dropped at the 1/s bucket"; `npm run bots -- --ping-every 2`; readability sheet items 130–133.
+- **T9** gate above; stills in `docs/art/epic-8/built/8-7-*.png` (phone landscape 844×390 and desktop 1280×720 at deviceScaleFactor 2, real server, two tabs; script `docs/art/epic-8/built/8-7-shots.cjs`).
+
+### Measurements
+
+- **Bandwidth (AC 9, brief 8):** `ping.shown` = 24 B on the wire (protocol byte + type string + msgpack integer array; asserted ≤ 30 B in RunRoom.ping.test). Worst case 4 pings/s per room → **≤ 96 B/s per phone** (budget 120). `ping.send` from a phone: ≈ 25 B, ≤ 1/s. Before: 0 (new feature).
+- **Arrows (R3):** bearing error ≤ 30° in every frame of the 0.01° sweeps for one ping and for up to three crowded pings; ≤ 45° for a 4th on the same bearing at 568×320 only (B7, measured 43.5°); jumps > 40 px ≤ 3 per turn, each oscillation flips at most once; ≥ 4 px between ping arrows and from the event arrow.
 
 ### Debug Log References
 
+- `eventArrow.ts` held at most 8 obstacles and silently dropped the rest; the 8th keep-off (ping button) broke the 6.14 L4 fan test that way. Capacity → 24 (B10).
+- The dev ⚙ sat exactly where the ping button goes (touch taps hit it in dev builds): moved left (B11).
+- The large slot-colour triangle seen next to a ping's edge arrow in `8-7-phone-edge-arrow.png` is the existing Story 2.9 teammate arrow (the pinging teammate is off screen too), drawn by HudScene on the same bearing.
+
 ### Completion Notes List
 
+- Server: `C2S.PING_SEND { kind }` (strict) through `this.net.guard(…, "ping")` — its own `TokenBucket(1, 1)` (`PING_PER_S`); `RunRoom.onPing` + pure `pingRefusal` (phase build/wave/vote, not frozen, not held, alive or downed); `S2C.PING_SHOWN [slot, kindIdx, xDm, yDm, tick]` to everyone; rate drops counted per player (`pingDropped` in `net_stats`). Never World state.
+- Client: `PingModel` (4 slots, 4 s, late pings dropped), `PingView` (world icon + edge arrows, `ABOVE_DARK.ping`), `pingArrows` (6.8 placement + pair gap + beside fallback), `PingHud` (button left of ☰ with the 1 s ring, 2 × 2 chip wheel), `pingFrame` (visibility, F / 1–4 / Esc, send), `pingArt` (code-drawn atlas, gallery), sound `ping` / `ping_double`. Layout: `layoutPingButton`, wave line ends before it, compact wave line at 568 px (B3), boss bar gap to the ping button, event arrows keep off it.
+- Bots: `pingEveryS` / `--ping-every <S>`, seeded kinds per bot.
+- netEvents kinds 150–154: none used (pings are an S2C message). Readability numbers 130–133 used.
+
+### Notes for the merge
+
+- `packages/shared/src/net/messages.ts`: 8.7 appends `PING_SEND` at the end of `C2S` and `PING_SHOWN` at the end of `S2C` under a `// Story 8.7 (pings) ↓` comment, and one block at the end of the file (`PING_KINDS`, `PING_LABELS`, `pingSendSchema`, `PingShown`, `PING_SHOW_MS`, `PING_COOLDOWN_MS`). 8.2+8.3's own entries go beside them: keep both.
+- `packages/shared/src/index.ts`: a `// Story 8.7 (pings)` export block after `type BuildingGhosted`: keep both.
+- `apps/server/src/rooms/RunRoom.ts` `onCreate`: one block of 3 lines (`// Story 8.7 (pings) ↓ … ↑`) just before the `"*"` handler; plus `pingRefusal` (module level, before `randomUint32`), `onPing` / `countPingDrop` / `pingDropped` (before `ghostMsg`), `pingDropped` in `logNetStats`, a clear in `startWaveStats`. If 8.2+8.3 adds waiting joiners WITH a World player, add them to `pingRefusal` (today a waiting joiner has no World player → refused as "status").
+- `apps/server/src/net/messageGuard.ts`: bucket type gains `"ping"`; the bucket pick is now `g[bucket]`.
+- `apps/client/src/scenes/hudLayout.test.ts`: 8.7 adds `pingBtn` / `pingChips`, the ping in `wave` / `build` / `vote`, three `ping_wheel_*` modes and 4 KNOWN_LIST lines; 8.2+8.3's waiting mode: add it to the "no ping button" list in the 8.7 describe at the end.
+- `apps/client/src/render/eventArrow.ts`: `newWaveControlRects()` makes 8 rects (8th = ping button); `MAX_NOTCHES` 24.
+- `apps/client/src/scenes/hudModel.ts` `waveLine(m, compact?)`: new optional arg.
+- `apps/client/src/debug/DevCheats.css`: ⚙ at right 128 px, panel at 180 px.
+
+### Not verified
+
+- Real phones, real 4G, iOS Safari (touch on the ping button / chips was driven headless with Playwright's touchscreen only).
+- The sound by ear (synth cue scheduled; headless).
+- A stage 5 blackout still (B13); a still in a wave (the stills are in a build phase: `DEV_NO_WAVES=1`).
+- Under `?lag=150&jitter=20` and `&loss=1` in a browser: pings ride the same reliable channel as other S2C messages (devThrottle wraps all of them); the model's age rule (B4) handles late ones; not run on the lossy line in a browser.
+- A 4G TCP stall can deliver two honest pings < 1 s apart at the server: the second is dropped by the 1/s bucket (rare; the client cooldown is 1 s).
+
 ### File List
+
+FILE_LIST

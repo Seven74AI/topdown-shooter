@@ -27,6 +27,8 @@
  *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
+ *   --ping-every <S>      Story 8.7: each bot pings every S seconds (a random kind from its own seeded stream);
+ *                         under 1 s the server's 1/s bucket drops the extra ones (`pingDropped` in net_stats)
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
  *   --cut-at <S>          … cut S seconds after the run started (default 30) …
  *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
@@ -54,6 +56,8 @@ interface Args {
   untilWave: number;
   maxSeconds: number;
   holdFireS: number;
+  /** Story 8.7: `--ping-every <S>` (0 = off). */
+  pingEveryS: number;
   /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
   line: LineArgs | null;
   /** Story 8.1: the cut switch (bot index 1-based, start and length in seconds); 0 = off. */
@@ -63,7 +67,7 @@ interface Args {
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -104,6 +108,7 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
+    pingEveryS: Number(get("ping-every") ?? 0),
     line: parseLine(get, url),
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
@@ -143,7 +148,7 @@ async function main(): Promise<void> {
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
   const { url, line } = await startLine(args, log);
-  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, pingEveryS: args.pingEveryS };
   // Story 8.1: the cut bot's line: a local TCP pass-through in front of the bots' URL (chained BEFORE 8.8's lag line when it is on).
   let cutLine: CutLine | null = null;
   const urlFor = async (bot: number): Promise<string> => {

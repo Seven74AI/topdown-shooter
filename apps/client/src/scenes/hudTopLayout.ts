@@ -4,7 +4,7 @@
  * event edge arrow off them and the one HUD layout test checks it. No Phaser here (tests import it).
  */
 import { waveLine } from "./hudModel";
-import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
+import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, PING_BUTTON_CSS_PX, PING_BUTTON_GAP_CSS_PX } from "../ui/sizes";
 export const HP_MARGIN = 16;
 export const HP_BAR_W = 200;
 export const HP_BAR_H = 16;
@@ -21,6 +21,10 @@ export const WAVE_TEXT_PX = 16;
  * `hudTopLayout.test` checks these are the widest strings those functions make.
  */
 export const WIDEST_WAVE_LINE = waveLine({ wave: 999, remaining: 9999, buildSecs: -1, endless: true, voting: false });
+/** Story 8.7 (decision 8.7 B3): the widest compact wave line (`waveLine(…, true)`), used where the full one would shrink under 11 px. */
+export const WIDEST_WAVE_LINE_COMPACT = waveLine({ wave: 999, remaining: 9999, buildSecs: -1, endless: true, voting: false }, true);
+/** Story 8.7: the wave line's smallest scale (11 px of 16); under it HudScene shows the compact line. */
+export const WAVE_LINE_MIN_SCALE = 11 / 16;
 export const WIDEST_HP_TEXT = hpRowText(9999, 9999, true, false);
 export const WIDEST_MONEY_TEXT = "$999999";
 /** Gear icons beside the HP text at most (one per gear item), each `GEAR_ICON_CSS_PX` + 4 px gap, after an 8 px gap. */
@@ -123,6 +127,22 @@ export function layoutHpRow(insets: HudInsets, k: number, out: HudRect): HudRect
 
 const barScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
 
+/** Story 8.7: the ping button's left edge (canvas px): `PING_BUTTON_GAP_CSS_PX` left of ☰. */
+export function pingButtonLeft(width: number, insets: Pick<HudInsets, "right">, k: number): number {
+  return width - (MENU_BUTTON_INSET_CSS_PX + insets.right + MENU_BUTTON_CSS_PX + PING_BUTTON_GAP_CSS_PX + PING_BUTTON_CSS_PX) * k;
+}
+
+/**
+ * Story 8.7 (AC 2, Q14): the ping button — 48 CSS px, top right, left of ☰ with a 12 px gap, at ☰'s height. Laid out
+ * in every mode (HudScene hides it while holding a building, reconnecting, out, in the lobby and on Results).
+ */
+export function layoutPingButton(width: number, insets: Pick<HudInsets, "right" | "top">, k: number, out: HudRect): HudRect {
+  out.x = pingButtonLeft(width, insets, k);
+  out.y = (MENU_BUTTON_INSET_CSS_PX + insets.top) * k;
+  out.w = out.h = PING_BUTTON_CSS_PX * k;
+  return out;
+}
+
 /**
  * The wave line ("Wave n · Zombies m"): centred at the top; Story 6.14 — where that would touch the
  * HP bar (568 × 320, 640 × 360, 800 × 360), its rect starts `HUD_BAND_GAP_CSS_PX` right of the bar and
@@ -133,9 +153,10 @@ export function layoutWaveLine(width: number, insets: HudInsets, k: number, out:
   const gap = HUD_BAND_GAP_CSS_PX * k;
   const bar = layoutHpBar(insets, k, barScratch);
   const left = Math.max(width / 2 - reserve / 2, bar.x + bar.w + gap);
-  const menuLeft = width - (MENU_BUTTON_INSET_CSS_PX + insets.right + MENU_BUTTON_CSS_PX) * k;
+  // Story 8.7 (AC 2, R11): it ends a band gap before the ping button (left of ☰).
+  const pingLeft = pingButtonLeft(width, insets, k);
   out.x = left;
-  out.w = Math.max(0, Math.min(reserve, menuLeft - gap - left));
+  out.w = Math.max(0, Math.min(reserve, pingLeft - gap - left));
   out.y = (WAVE_TOP_PX + insets.top) * k;
   out.h = WAVE_TEXT_PX * LINE_HEIGHT * k;
   return out;
@@ -152,6 +173,18 @@ export function placeWaveText(width: number, insets: HudInsets, k: number, textW
   out.scale = textW > r.w && textW > 0 ? r.w / textW : 1;
   const dw = textW * out.scale;
   out.x = Math.min(Math.max(width / 2, r.x + dw / 2), r.x + r.w - dw / 2);
+  return out;
+}
+
+/**
+ * Story 8.7 (decision 8.7 B3): which wave line HudScene draws — the full one (`fullW` px wide, unscaled) unless it would
+ * shrink under `WAVE_LINE_MIN_SCALE` (11 px) beside the ping button, then the compact one (`compactW`). Writes the
+ * choice, its centre x and scale into `out`.
+ */
+export function fitWaveText(width: number, insets: HudInsets, k: number, fullW: number, compactW: number, out: { x: number; scale: number; compact: boolean }): { x: number; scale: number; compact: boolean } {
+  placeWaveText(width, insets, k, fullW, out);
+  out.compact = out.scale < WAVE_LINE_MIN_SCALE && compactW < fullW;
+  if (out.compact) placeWaveText(width, insets, k, compactW, out);
   return out;
 }
 

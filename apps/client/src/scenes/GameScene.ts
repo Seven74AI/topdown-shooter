@@ -76,7 +76,7 @@ import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
-import { EventView } from "../render/EventView";
+import { EVENT_ARROW_CSS_PX, EventView } from "../render/EventView";
 import { LootBagView } from "../render/LootBagView";
 import { createLootCue, lootCue } from "../render/lootBagCue";
 import { cratePrompt, createEventCue, eventCue } from "../render/eventMarkers";
@@ -181,6 +181,9 @@ import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStre
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
+import { PingView } from "../render/PingView"; // Story 8.7
+import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
+import { eventArrowDrawnRect } from "../render/eventArrow";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -396,6 +399,8 @@ export class GameScene extends Phaser.Scene {
   private bossMusic = false;
   /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
   private eventView: EventView | null = null;
+  /** Story 8.7: everyone's pings in the world (above the darkness) and their edge arrows; online only. */
+  private pingView: PingView | null = null;
   /** Story 7.12: the loot bag (bag, ring, glint, off-screen badge) and its HUD line (BF2). */
   private lootView: LootBagView | null = null;
   private readonly lootCueOut = createLootCue();
@@ -744,6 +749,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.eventView = new EventView(this, host.world); // Story 6.8
+    this.pingView = host.pings ? new PingView(this) : null; // Story 8.7 (B8: online only)
     this.lootView = new LootBagView(this, host.world); // Story 7.12
     this.lootLine.text = ""; // Phaser reuses this scene object: no line from the last run
     this.lootLine.untilMs = 0;
@@ -936,6 +942,8 @@ export class GameScene extends Phaser.Scene {
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
       this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
+      this.pingView?.destroy(); // Story 8.7
+      this.pingView = null;
       this.eventView = null;
       this.lootView?.destroy(); // Story 7.12
       this.lootView = null;
@@ -2002,6 +2010,26 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(pixelsPerMeter(this.scale.width, this.scale.height));
   }
 
+  /** Story 8.7 (AC 6–8): the pings this frame — new ones start (with their chirp, panned by screen x), old ones expire, then the view. */
+  private readonly pingArrowRect = { x: 0, y: 0, w: 0, h: 0 };
+  private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
+    const now = performance.now(); // the model's clock (decision 8.7 B4)
+    const host = this.host;
+    const sw = this.cameras.main.width;
+    const started = pings.update(now, host?.serverTick ?? 0);
+    for (let i = 0; started !== 0 && i < 4; i++) {
+      if ((started & (1 << i)) === 0) continue;
+      const p = pings.live(i);
+      if (!p) continue;
+      const sx = vw > 0 ? ((p.x - vx) / vw) * sw : sw / 2;
+      playSfx(p.kind === 0 ? "ping_double" : "ping", pingPan(sx, sw), PING_SFX_VOLUME); // "Help!" twice (E8-P3)
+    }
+    const ev = this.eventView;
+    const arrow = ev?.edgeArrowAt() ?? null;
+    const rect = arrow ? eventArrowDrawnRect(arrow, EVENT_ARROW_CSS_PX * dpr(), this.pingArrowRect) : null;
+    this.pingView?.update(pings, now, vx, vy, vw, sw, this.cameras.main.height, dpr(), this.eventInsets, ev?.controlRects() ?? [], rect);
+  }
+
   override update(_time: number, deltaMs: number): void {
     const host = this.host;
     const router = this.router;
@@ -2021,6 +2049,11 @@ export class GameScene extends Phaser.Scene {
 
     // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
     let menuKey = router.kbm.takeMenu();
+    // Story 8.7 (AC 3): Esc closes an open ping wheel before it opens the menu.
+    if (menuKey && this.hudModel.ping.open) {
+      this.hudModel.ping.open = false;
+      menuKey = false;
+    }
     const menuTap = this.hudModel.menuPressed;
     this.hudModel.menuPressed = false;
     // Story 5.23 (AC 10, D14): Esc while holding a building puts it away first (the next Esc opens the menu).
@@ -2045,6 +2078,8 @@ export class GameScene extends Phaser.Scene {
     // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
     // everything; neutral moves keep the Predictor standing still too).
     if (standsStill(menuOpen, shopOpen, host.world.run.phase)) neutralizeInput(this.input_);
+    // Story 8.7: the ping button, F, 1–4 while the wheel is open (before the build keys take the digit), and the send.
+    pingFrame(this.hudModel, router.kbm, host, linkStore.get().status === "ok", this.running && !this.gameOver && !this.stressMode && screen.kind === "playing", menuOpen || shopOpen, this.placement.active || this.repairPanel.open, this.time.now);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
@@ -2202,6 +2237,7 @@ export class GameScene extends Phaser.Scene {
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     // Story 7.12: the bag from the World's loot record (server ticks); its badge keeps off the HUD and the event's arrow.
     if (this.eventView) this.lootView?.update(host.serverTick, ev.x, ev.y, ev.width, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets, this.eventView.controlRects(), this.eventView.edgeArrowAt());
+    if (this.pingView && host.pings && this.eventView) this.updatePings(host.pings, ev.x, ev.y, ev.width); // Story 8.7
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;

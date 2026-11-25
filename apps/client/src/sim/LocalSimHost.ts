@@ -203,6 +203,9 @@ export class LocalSimHost implements SimHost {
   /** Story 5.24: solo has no teammates (D10). */
   sendGhost(): void {}
   readonly teammateGhosts = null;
+  /** Story 8.7 (B8): solo has no teammates: no pings. */
+  sendPing(): void {}
+  readonly pings = null;
 
   takeRepairRefusal(): RepairError | null {
     const r = this.repairRefusal;

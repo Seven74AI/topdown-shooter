@@ -2,6 +2,7 @@ import type { FlameCues } from "../render/flameCues";
 import type { EvacChoice, MoveRequest, PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 import type { MoveRefusal } from "../net/session";
 import type { TeammateGhosts } from "../net/teammateGhosts";
+import type { PingModel } from "../render/pingModel";
 
 /** Story 5.22: at most this many move refusals wait for the scene (one move in flight per building; 6 buildings). */
 export const MOVE_REFUSALS_MAX = 8;
@@ -123,6 +124,13 @@ export interface SimHost {
   sendGhost(type: string, gx: number, gy: number, rot: number): void;
   /** Story 5.24: teammates' held buildings (cosmetic, outside the World: F7); null solo. */
   readonly teammateGhosts: TeammateGhosts | null;
+  /**
+   * Story 8.7: send a ping of `kind` (index into `PING_KINDS`): online `ping.send { kind }` (the server stamps where
+   * and who); nothing while the link is down. Solo has no teammates: no pings (decision 8.7 B8).
+   */
+  sendPing(kind: number): void;
+  /** Story 8.7: everyone's pings on this device (online: the inbox's model, listened since the join); solo: null. */
+  readonly pings: PingModel | null;
   /**
    * Story 5.13: buy card `card` (showing `item`) of my current offer (`slot`: which weapon a weapon
    * card replaces when both are full). Solo the shared `buyCard` runs at once; online it is sent as

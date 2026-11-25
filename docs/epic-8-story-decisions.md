@@ -8,6 +8,8 @@ Written 2026-11-25 by the story writer (`gds-create-story`, autonomous) for the 
 
 The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, accepted 2026-11-24) are **rules**. The decisions below are new: questions the story files had to answer that D1–D15 leave open. Each uses the **recommended value** (overnight style, designer: "follow the GDS recommendation"), and all are **recommended, to accept**. To change one, give its code and the alternative (e.g. "E8-J3 B").
 
+**ANSWERED 2026-11-25 (designer): all 33 decisions above are ACCEPTED as recommended** (E8-J1–J6, E8-H1–H4, E8-S1–S12, E8-R1–R5, E8-P1–P6). Build-time B-codes follow in their story's section below.
+
 ## Joining mid-run (8.2)
 
 | Code | What it changes in play | Recommended (in the story) | Alternative |
@@ -60,6 +62,26 @@ The designer's Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, acce
 | **E8-P4** | Who can ping. | Standing and **downed** players (D15), in build phases, waves and the vote. Not out (spectating) players, reconnecting seats, waiting late joiners, the lobby or Results. | B: out players can ping too (from their last position). |
 | **E8-P5** | Rate limit. | Its **own** server bucket (1 per second) so pings never use up the shop/build message budget. The button shows a 1 s ring after a send. | B: share the "other" 10/s bucket. |
 | **E8-P6** | Do pings affect the fight? | Never: not World state, not in replays or saves, zombies don't hear them. | B: "Over here" lures zombies a little (a new game rule: needs a designer pick). |
+
+### Story 8.7 build-time decisions (B-codes, auto-accepted overnight 2026-11-25, story-8-7)
+
+The designer can change any of these with its code.
+
+| Code | What it changes in play | As built (auto-accepted overnight) | Alternative |
+| --- | --- | --- | --- |
+| **8.7 B1** | The wire format of a shown ping. | `ping.shown` is an integer array `[slot, kindIdx, xDm, yDm, tick]` (position in whole decimetres): 24 B per message, ≤ 96 B/s per phone at 4 pings/s (AC 9's 120 B/s budget; msgpack floats would be 36 B → 144 B/s). | The story's object `{ slot, kind, x, y, tick }` (≈ 45 B). |
+| **8.7 B2** | Log key. | The drop counter is `pingDropped` in the `net_stats` line (the line's camelCase keys), per player since the wave started. | `ping_dropped`. |
+| **8.7 B3** | The top wave line at 568 px wide. | With the ping button left of ☰ the line has 130 px at 568 × 320; where the full line would drop under 11 px it reads **compact**: "Wave 12 · 350 left", "Endless 13 in 25 s", "Wave 10 · Vote". 640 px and wider: unchanged. | Move the ping button under ☰ (collides with the build-phase swap row at 568/640). |
+| **8.7 B4** | When a late ping is still shown. | Arrival and frame time from one monotonic clock (`performance.now()`); a ping's age = max(time waiting in the inbox, server ticks old by the host's estimate); ≥ 4 s old → never shown, younger → shown for what is left of its 4 s. | Frame clock only (a hidden tab's queued pings would all pop up on wake). |
+| **8.7 B5** | **The wheel's shape (E8-P1, flag for the designer).** | The quarter circle as written (r 76, 15°–75°) puts the chips 26 px apart (overlapping), and every radius that keeps 44 px chips apart crosses the survivor's 48 px clear zone at 568 × 320. As built: a **2 × 2 block of chips (64 × 44, icon over word) under the top band**, right-aligned with ☰, below the boss bar's row (help · here / big · ready). While it is open (≤ 3 s) the swap, quick-use and build-bar buttons under it hide; the sticks keep working. | E8-P1 B (a vertical list) or C (press-and-drag). |
+| **8.7 B6** | Where the edge arrows are drawn. | In the GameScene by `PingView` (above the darkness, the same camera maths as the 6.8 event arrow), placed by `placePingArrows` (the 6.8 rule, each arrow also 4 px off the earlier ping arrows and the event arrow, a "beside" fallback when crowded). | In HudScene. |
+| **8.7 B7** | Crowded edge arrows. | ≤ 30° bearing error for up to 3 off-screen pings (every size, measured); a 4th arrow on the same bearing at 568 × 320 (all four players' pings off screen one way — mine too) may be ≤ 45° off (measured worst 43.5°). | Shrink the arrows when 4 crowd. |
+| **8.7 B8** | Solo. | No ping button in solo practice (no teammates). | A button that only shows my own ping. |
+| **8.7 B9** | A selected building. | The ping button hides while a building is selected (the action bar) as well as while holding one. | Show it (it would need its own layout rules against the action bar). |
+| **8.7 B10** | Neighbours of the new button. | The boss bar keeps its 12 px gap to the ping button (220 px wide at 568 px, was 300); the event arrow and the loot badge keep off it (8th keep-off rect); the arrow placement's obstacle capacity 8 → 24 (an obstacle past 8 was silently dropped). | — |
+| **8.7 B11** | Dev builds only. | The ⚙ dev-cheats button (and its panel) moved left past the ping button. | — |
+| **8.7 B12** | The world icon. | 34 CSS px slot-colour disc + glyph, lifted 76 CSS px over the ping point with its word (≥ 12 px text) above it, so the sender's ring and name stay readable; pop-in 150 ms; fades out over its last 0.5 s. | Under the icon (it covered the survivor at the default zoom). |
+| **8.7 B13** | Readability sheet 130–133. | Shown with the in-play stills (stage 1 dusk). No stage 5 blackout still: online blackout can't be forced from the URL (solo only); "above the darkness" is the `ABOVE_DARK.ping` slot (11.77 > 11.7), checked by `tools/checks/pingWiring.test.ts`. | A blackout still from a stage-5 run. |
 
 ## Numbers handed out (brief 27)
 
