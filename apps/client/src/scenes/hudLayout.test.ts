@@ -7,6 +7,8 @@ import { layoutUndoChip } from "./undoChip";
 import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
 import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
+import { LOOT_FOUND_MINE } from "../render/lootBagCue";
+import { WIDEST_LOOT_LINE, layoutLootLine } from "./hudTopLayout";
 import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
@@ -272,6 +274,36 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
       expect(bossBarHidden(true, true, false)).toBe(false);
       expect(bossBarHidden(true, false, true)).toBe(false);
       expect(bossBarHidden(false, false, false)).toBe(true);
+    });
+  }
+
+  // Story 7.12 (BF2, brief 31 / R11): the "Bag found!" / "<name> found a bag!" line with its bag icon
+  // (the toast line), at its shortest, a usual name and the widest (16 × "W"), with and without the
+  // boss bar: inside the safe area, off the HP block, money line, wave line, boss bar and ☰, text ≥ 11 px.
+  for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
+    it(`Story 7.12: ${w} × ${h}: the loot line (icon + text) keeps off the top band and inside the safe area`, () => {
+      const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
+      const band: Box[] = [
+        menu(w),
+        { ...layoutHpBlock(INSET, K, r0()), id: "hp_block" },
+        { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
+        { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
+        bossBar(w),
+      ];
+      // 18 px bold system-ui: ≈ 10 px per ordinary character, 17 px per "W" (Chromium measures less)
+      const widths = [{ t: LOOT_FOUND_MINE, px: 95 }, { t: "Ana found a bag!", px: 150 }, { t: WIDEST_LOOT_LINE, px: 16 * 17 + 13 * 10 }];
+      for (const [{ t, px }, shown] of widths.flatMap((x) => [[x, false], [x, true]] as const)) {
+        const r = layoutLootLine(w, INSET, K, px * K, { x: 0, y: 0, w: 0, h: 0, scale: 1 }, shown ? band[4]! : null, h);
+        const b: Box = { id: `loot line "${t}"${shown ? " (boss bar)" : ""}`, x: r.x, y: r.y, w: r.w, h: r.h };
+        const others = shown ? band : band.slice(0, 4);
+        expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+        expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+        expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+        for (const o of others) expect(overlaps(b, o), `${w}x${h}: ${b.id} overlaps ${o.id}`).toBe(false);
+        expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${b.id}: keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+        expect(18 * r.scale, `${b.id}: text ≥ 11 px`).toBeGreaterThanOrEqual(11);
+        if (px <= 150 && !shown) expect(r.scale).toBe(1);
+      }
     });
   }
 

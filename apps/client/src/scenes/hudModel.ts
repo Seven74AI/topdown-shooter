@@ -53,6 +53,12 @@ export interface HudModel {
   menuOpen: boolean;
   /** Story 2.11: the toast line under the wave text ("Bo left"), "" when none. */
   toastText: string;
+  /**
+   * Story 7.12 (BF2): the toast line is a loot find — the bag icon shows left of it and the text takes
+   * the finder's slot colour (`toastSlot`, 0–3; −1: white). False / −1 for every other toast.
+   */
+  toastLoot: boolean;
+  toastSlot: number;
   /** Current wave number (0 before wave 1) and zombies remaining (alive + queued). */
   wave: number;
   remaining: number;
@@ -312,6 +318,8 @@ export const createHudModel = (): HudModel => ({
   menuButton: false,
   menuOpen: false,
   toastText: "",
+  toastLoot: false,
+  toastSlot: -1,
   wave: 0,
   remaining: 0,
   buildSecs: -1,

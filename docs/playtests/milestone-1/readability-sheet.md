@@ -258,3 +258,12 @@ Player:
 
 ## 96: the lights went out. Is it the same for everyone, and when does it come back? (Story 6.10: the power failure after its 2 s flicker — the moonlit 20 % blackout until the wave ends; no marker, the banner said "POWER FAILURE")
 ![96](../../art/6-9/6-9-800x360-power-failure-dark.png)
+
+## 110: what is that by the survivor? Is it cover? Who can take it, and how? (Story 7.12: the surprise loot bag — one of five real objects, LB4 hiker's backpack, LB5 go-bag, LB6 field case, LB7 trauma bag, LB8 evidence bag, each with a white rim light, a soft white ground ring and one glint; 7-UI-6. It is a pick-up, NOT cover: it stops no bullet and blocks no one)
+![110](../../art/epic-7/built/7-12-bags.png)
+
+## 111: in the dark, can you still see the bag? (Story 7.12 at 5 % blackout: the bag, its ring and its glint above the darkness, the 6.9 crate's slot; bottom row of the picture above)
+![111](../../art/epic-7/built/7-12-bags.png)
+
+## 112: what is the round white badge at the left edge, and what does the orange line mean? (Story 7.12: OA2 — the off-screen badge points to the bag, its white ring empties over the bag's 20 s; BF2 — "Ana found a bag!" with the bag icon, in the finder's slot colour)
+![112](../../art/epic-7/built/7-12-hud.png)

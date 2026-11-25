@@ -683,3 +683,6 @@ export { powerFailureWave } from "./events/powerFailure";
 export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
 export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";
+// Story 7.12: the surprise loot bag (plan, bag, dev switch)
+export { emptyLootPlan, lootKillIndex, makeLootPlan, pickLootVariant, type LootPlan } from "./loot/lootPlan";
+export { LOOT_BAG, createLootState, forceLootPlan, lootSpot, lootTaker, parseDevLoot, snapshotLoot, updateLootBag, type LootBagStateCode, type LootState } from "./loot/lootBag";

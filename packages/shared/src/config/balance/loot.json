@@ -1,0 +1,23 @@
+{
+  "runChance": 0.2,
+  "firstWave": 3,
+  "lastWave": 10,
+  "bagTicks": 400,
+  "pickRadiusM": 0.6,
+  "bagRadiusM": 0.25,
+  "spotStepM": 0.25,
+  "spotRings": 80,
+  "variants": 5,
+  "glint": {
+    "periodTicks": 40,
+    "flashTicks": 8,
+    "ringRadiusM": 0.5,
+    "ringAlpha": 0.55,
+    "rimAlpha": 0.8,
+    "bagM": 0.92
+  },
+  "cue": {
+    "toastS": 3,
+    "badgeM": 0.8
+  }
+}

@@ -96,3 +96,25 @@ Dependencies on the other writer's stories: **7.1** (storage and identity: looks
 - **Balance version bump:** 7.12's new `loot.json` balance file bumps the balance version once (open tabs see "Please refresh" after that deploy). Expected, mentioned so it isn't a surprise.
 - **Golden replay digests** change once with 7.12 (the bag is part of the World); the story says to regenerate them.
 - **`progress` columns:** 7.9 adds `look`, 7.11 adds `cosmetics` and `stats` — on top of 7.1's table. The architecture already lists them that way.
+
+## 7.12 build-time choices
+
+Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; early part T0–T4). Every line: **auto-accepted overnight (designer: follow the GDS recommendation)**.
+
+| Code | Choice | Taken | Why |
+| --- | --- | --- | --- |
+| 7.12 B1 | T0 "look pick" | No new proposal round: built straight from the designer's picks 7-UI-6 (LB4–LB8), OA2 and BF2 | The looks were already picked (7-UI-5/7-UI-6); stills of the built bags in `docs/art/epic-7/built/7-12-bags.png` + `7-12-hud.png` for the morning report |
+| 7.12 B2 | Which stream picks the look, and "never twice in a row" | The `loot` stream, as the plan's 5th draw (after `itemRoll`); the server remembers its last bag's look in memory (a restart forgets) and the next plan avoids it | One named stream (brief 5); a run has one bag, so "in a row" is across runs |
+| 7.12 B3 | The room record's shape | Flat `lootBag*` fields appended last to `RunState` (state, x, y, untilTick, **variant**), like the 6.9 crate / 6.10 NPC, not a nested schema | Smallest overlap with 7.9 / 8.1; the key lists stay automatic (devThrottle, fakeRoom); 19 B per run |
+| 7.12 B4 | `loot.dropped` | Also carries the look (`variant`) | The client draws the right object at once |
+| 7.12 B5 | The "not in a solid" spot search | The death point itself when clear, else rings every 0.25 m out to 20 m (8 directions), then `findBoxFreeSpot`, then the first standing player | `findBoxFreeSpot`'s 1.5 m rings move a bag needlessly far; fuzz-tested on every stage |
+| 7.12 B6 | A shorter run (tests' `runWaves`) | The planned wave is clamped to `waves.runWaves` | B1 "endless adds none" by construction, not by a cross-check |
+| 7.12 B7 | Practice solo (D2) | No plan (Story 7.2 is not on master yet; T5 revisits); the dev `?loot=3:0.1` forces one | D2 recommended value |
+| 7.12 B8 | BF2 "finder's name in slot colour" | The whole toast line in the finder's slot colour, the bag icon left of it; "Bag found!" in white for the finder | A Phaser text has one colour; one coloured line reads the same at a glance |
+| 7.12 B9 | The line in wave 10 | Under the boss bar while it shows; on 568 × 320 it shrinks (text ≥ 11 px) to keep the survivor's 48 px (HUD layout test) | R11 top-band rule |
+| 7.12 B10 | OA2 badge placement | The 6.10 second-arrow rule (`placeSecondEventArrow`): off the HUD blocks, inside the safe area, off the event's arrow; a 20 s white ring round it | Reuses the swept, re-reviewed arrow code. Not handled: the rare frame with the event arrow, the survivor's flag arrow AND the bag badge all off screen (the badge may touch the flag arrow) — noted |
+| 7.12 B11 | Sounds | Placeholders `loot_drop` (soft) and `loot_found` (zip + three-note rise); not panned | Placeholder sounds, like 6.9's |
+| 7.12 B12 | Bake cost | The five objects are baked once at Game scene start (≈ 0.3 s in node for all five at 128 px/m; the relief renderer copied as is) | R7: accept pending the phone; not measured on the Mi 11i |
+| 7.12 B13 | Liveness bot | A test-only `seekLoot` switch in `runHeadless` (default off): bot 0 walks to the bag | No other sim changes (R5 n/a) |
+| 7.12 B14 | Golden replay digests | No stored digest exists in the repo (the replay tests compute both sides per run); the digest now covers `world.loot`, so nothing to regenerate | Story note "regenerate once" is moot |
+| 7.12 B15 | Glint timing | One flash of 8 ticks every 40 ticks (2 s), from the drop tick; the ring breathes on the same period | `loot.json › glint` |

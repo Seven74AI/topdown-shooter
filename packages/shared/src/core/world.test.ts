@@ -26,7 +26,7 @@ describe("World", () => {
     expect(calls).toEqual([...SYSTEM_ORDER]);
     expect(SYSTEM_ORDER).toEqual([
       "input", "player", "buildings", "combat", "zombies", "boss",
-      "waves", "specialEvents", "economy", "decayTimers",
+      "waves", "specialEvents", "economy", "decayTimers", "loot",
     ]);
   });
 

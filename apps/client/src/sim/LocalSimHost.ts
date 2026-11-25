@@ -1,5 +1,6 @@
 import { FlameCues } from "../render/flameCues";
 import {
+  forceLootPlan,
   NEUTRAL_INPUT,
   TICK_DT_S,
   buyCard,
@@ -96,8 +97,11 @@ export class LocalSimHost implements SimHost {
    * Story 4.1: `map` defaults to `DOWNTOWN_MAP` (tests may pass the open `PLACEHOLDER_MAP`). Story 6.1
    * dev (`?startwave=7`): `startWave` makes the first build lead into that wave (null = wave 1).
    */
-  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null }) {
-    this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP });
+  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null; devLoot?: readonly [number, number] | null }) {
+    // Story 7.12 (D2): offline practice saves nothing (Story 7.2 not on master), so it makes no loot plan;
+    // the dev `?loot=3:0.1` forces one for browser checks.
+    this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, loot: { off: true } });
+    if (opts.devLoot) forceLootPlan(this.world, opts.devLoot[0], opts.devLoot[1]);
     if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1: before the first build start
     this.unsubscribe = this.world.events.subscribe((e) => this.events.push(e));
     // Story 3.1: solo runs the same state machine as the server: Lobby → the first build phase. The

@@ -10,7 +10,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, bossWaves: null, bossHpScale: null, events: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, stressFort: false, lowFx: false, shopAll: false, blackoutPct: null, startWave: null, devLayer: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, bossWaves: null, bossHpScale: null, events: null, loot: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, stressFort: false, lowFx: false, shopAll: false, blackoutPct: null, startWave: null, devLayer: null });
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
     expect([parseUrlOptions("?stressbuild=molotov").stressMolotovs, parseUrlOptions("?stressbuild=molotov:2").stressMolotovs, parseUrlOptions("?stressbuild=molotov:9").stressMolotovs]).toEqual([8, 2, 0]); // Story 5.12
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);

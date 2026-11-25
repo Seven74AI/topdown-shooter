@@ -1,3 +1,4 @@
+import { snapshotLoot } from "../loot/lootBag";
 import { snapshotSpecial } from "../events/eventState";
 import type { World } from "./world";
 import { snapshotShop } from "../economy/shopCards";
@@ -242,6 +243,7 @@ export function snapshotWorld(world: World) {
     // Story 6.5: the Behemoth (all of it, incl. threat, attack and history; its grid/field ride in `pathing`).
     boss: snapshotBoss(world.boss),
     special: snapshotSpecial(world.special), // Story 6.8
+    loot: snapshotLoot(world.loot), // Story 7.12 (AC 12): plan, kill count, bag
   };
 }
 

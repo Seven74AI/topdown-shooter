@@ -15,6 +15,7 @@ import gear from "../config/balance/gear.json" with { type: "json" };
 import consumables from "../config/balance/consumables.json" with { type: "json" };
 import boss from "../config/balance/boss.json" with { type: "json" };
 import eventsJson from "../config/balance/events.json" with { type: "json" };
+import lootJson from "../config/balance/loot.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, step, type World } from "../core/world";
@@ -32,7 +33,7 @@ import { snapshotWorld } from "../core/worldSnapshot";
  */
 function balanceWith(waves: Partial<typeof wavesJson> = {}, realScale = false) {
   const scale = realScale ? {} : { playerCountScale: [1, 1, 1, 1] };
-  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...scale, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson } as RawBalanceFiles);
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...scale, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson, loot: lootJson } as RawBalanceFiles);
 }
 
 /** Zombies frozen in place (tests drive kills by hand), invulnerable player; the run is in its first build phase. */

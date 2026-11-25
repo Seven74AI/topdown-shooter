@@ -1,3 +1,5 @@
+import { LOOT_ICON_CSS_PX, LOOT_ICON_GAP_CSS_PX, layoutLootLine } from "./hudTopLayout";
+import { LOOT_ATLAS, LOOT_BADGE_FRAME } from "../render/city/lootBagAtlas";
 import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, hpRowText, layoutBanner, placeWaveText, reportHudTextWidths } from "./hudTopLayout";
 import { layoutBossBar } from "./bossBar";
 import * as Phaser from "phaser";
@@ -151,6 +153,8 @@ const MENU_BG_ALPHA = 0.35;
 const MENU_RADIUS_PX = 8;
 const MENU_BAR_COLOR = 0xffffff;
 const TOAST_TEXT_PX = 18;
+/** The toast line's colour (Story 7.12: a loot find takes the finder's slot colour instead). */
+const TOAST_COLOR = "#ffffff";
 /** Story 3.1: the Ready button (dark when not Ready, green with ✓ when Ready). */
 const READY_TEXT_PX = 20;
 const READY_RADIUS_PX = 12;
@@ -313,6 +317,13 @@ export class HudScene extends Phaser.Scene {
   private shownMenuButton: boolean | null = null;
   private shownMenuOpen = false;
   private toastText!: Phaser.GameObjects.Text;
+  /** Story 7.12 (BF2): the loot line's bag icon (made on first use) and what the toast line last showed. */
+  private lootIcon: Phaser.GameObjects.Image | null = null;
+  private readonly lootLineRect = { x: 0, y: 0, w: 0, h: 0, scale: 1 };
+  private readonly lootBoss = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
+  private shownToastLoot = false;
+  private shownToastSlot = -1;
+  private shownToastBoss = false;
   private shownToast = "";
   /** Story 3.1: the Ready button (a Graphics redrawn on change only) and its label. */
   private readyBtn!: Phaser.GameObjects.Graphics;
@@ -533,6 +544,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.lootIcon = null; // Story 7.12: Phaser reuses the scene object; the last run's icon went with its display list
+    this.shownToastLoot = false;
+    this.shownToastSlot = -1;
     const r = this.stickRadiusCss * dpr();
     this.sticks.setRadius(r);
     this.moveBase = this.add
@@ -1874,11 +1888,36 @@ export class HudScene extends Phaser.Scene {
         this.taps.reset();
       }
     }
-    if (m.toastText !== this.shownToast) {
+    if (m.toastText !== this.shownToast || m.toastLoot !== this.shownToastLoot || m.toastSlot !== this.shownToastSlot || (m.toastLoot && m.bossVisible !== this.shownToastBoss)) {
+      this.shownToastBoss = m.bossVisible;
       this.shownToast = m.toastText;
+      this.shownToastLoot = m.toastLoot;
+      this.shownToastSlot = m.toastSlot;
       const y = (WAVE_TOP_PX + this.insets.top + WAVE_TEXT_PX + LINE_GAP_PX + STATUS_TEXT_PX + LINE_GAP_PX) * dpr();
-      this.toastText.setText(m.toastText).setPosition(this.scale.width / 2, y).setVisible(m.toastText !== "");
+      // Story 7.12 (BF2): a loot find in the finder's slot colour, with the bag icon left of it.
+      const colour = m.toastLoot && m.toastSlot >= 0 ? (SLOT_COLOR_CSS[m.toastSlot] ?? TOAST_COLOR) : TOAST_COLOR;
+      this.toastText.setText(m.toastText).setColor(colour).setScale(1).setPosition(this.scale.width / 2, y).setVisible(m.toastText !== "");
+      this.drawLootIcon(m.toastLoot && m.toastText !== "");
     }
+  }
+
+  /** Story 7.12 (BF2): the bag icon left of the loot line (`layoutLootLine`), made on first use. */
+  private drawLootIcon(show: boolean): void {
+    if (!show) {
+      this.lootIcon?.setVisible(false);
+      return;
+    }
+    if (!this.lootIcon) {
+      if (!this.textures.exists(LOOT_ATLAS)) return; // the Game scene makes the atlas; never a missing-texture box
+      this.lootIcon = this.add.image(0, 0, LOOT_ATLAS, LOOT_BADGE_FRAME).setOrigin(0.5, 0.5);
+    }
+    const k = dpr();
+    const boss = this.model.bossVisible ? layoutBossBar(this.scale.width, this.insets.left, this.insets.top, this.insets.right, k, this.lootBoss) : null;
+    const r = layoutLootLine(this.scale.width, this.insets, k, this.toastText.width, this.lootLineRect, boss, this.scale.height);
+    const iconPx = LOOT_ICON_CSS_PX * k * Math.min(1, r.h / (LOOT_ICON_CSS_PX * k));
+    const icon = iconPx + LOOT_ICON_GAP_CSS_PX * k * (iconPx / (LOOT_ICON_CSS_PX * k));
+    this.toastText.setScale(r.scale).setPosition(r.x + icon + (r.w - icon) / 2, r.y);
+    this.lootIcon.setDisplaySize(iconPx, iconPx).setPosition(r.x + iconPx / 2, r.y + r.h / 2).setVisible(true);
   }
 
   /**

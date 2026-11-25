@@ -175,7 +175,7 @@ development_status:
   7-9-my-look-in-the-game: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
   7-10-survivor-editor: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
   7-11-milestone-items: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
-  7-12-surprise-loot-bag: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-12-surprise-loot-bag: in-progress  # early part T0–T4 on story-7-12 (T5 waits for 7.2 + 7.11); story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience

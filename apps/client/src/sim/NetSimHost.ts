@@ -1,4 +1,4 @@
-import { mirrorSpecialEvent } from "../net/mirrorEvent";
+import { mirrorLootBag, mirrorSpecialEvent } from "../net/mirrorEvent";
 import { FlameCues } from "../render/flameCues";
 import {
   C2S,
@@ -316,7 +316,7 @@ export class NetSimHost implements SimHost {
     this.flames.predictLocal(this.localPlayerId); // Story 5.4
     this.now = opts.now ?? (() => performance.now());
     // Story 4.1: the mirror and the Predictor use the server's map (same bundled data; the join sends `mapVersion`).
-    this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS });
+    this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS, loot: { off: true } });
     this.ctx = { balance: opts.balance, tick: 0 };
     this.puddleS = acidSpitOf(opts.balance)?.puddleS ?? 0; // Story 5.6 review M1
     this.predictor = new Predictor(opts.balance, this.world.map, this.localPlayerId);
@@ -680,6 +680,9 @@ export class NetSimHost implements SimHost {
       } else if (e.type === "event.triggered" || e.type === "event.phase_changed") {
         // Story 6.8 (brief 14): its age, so a woken tab's backlog shows no late banner or sound (the marker follows the room state).
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
+      } else if (e.type === "loot.dropped" || e.type === "loot.found") {
+        // Story 7.12 (brief 14): its age, so a woken tab's backlog shows no late "Bag found!" nor drop sound (the bag follows the room record).
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "bloater.burst" || e.type === "bloater.swell_started") {
         // Story 5.8: its age: BloaterFx back-dates a burst's cloud (and drops one older than gasS: no
         // ghost cloud after a woken tab), GameScene plays no burst sound for a stale one.
@@ -802,6 +805,7 @@ export class NetSimHost implements SimHost {
     mirrorBoss(this.world, state.boss);
     if (state.boss) trackBoss(this.bossTrack, state.boss.x, state.boss.y, state.tick);
     mirrorSpecialEvent(this.world, state); // Story 6.8: the active event (EventView reads one source in solo and online)
+    mirrorLootBag(this.world, state); // Story 7.12: the bag (LootBagView reads one source in solo and online)
   }
 
   /**

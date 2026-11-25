@@ -15,6 +15,7 @@ import gear from "../config/balance/gear.json" with { type: "json" };
 import consumables from "../config/balance/consumables.json" with { type: "json" };
 import boss from "../config/balance/boss.json" with { type: "json" };
 import eventsJson from "../config/balance/events.json" with { type: "json" };
+import lootJson from "../config/balance/loot.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import { rebuildGrid } from "../core/spatialGrid";
 import type { SimEvent } from "../core/simEvents";
@@ -33,7 +34,7 @@ const O = { x: 10, y: 16 };
 function exactBalance() {
   const w = JSON.parse(JSON.stringify(weapons));
   for (const k of Object.keys(w)) if (w[k].kind === "gun") w[k].spreadDeg = 0;
-  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson } as RawBalanceFiles);
+  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson, loot: lootJson } as RawBalanceFiles);
 }
 
 function worldWith(...zs: [number, number][]) {

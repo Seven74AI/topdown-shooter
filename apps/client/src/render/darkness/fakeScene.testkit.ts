@@ -91,6 +91,19 @@ export class FakeObject {
     this.strokes++;
     return this;
   }
+  /** Story 7.12: arcs (the loot badge's ring). */
+  arcs = 0;
+  beginPath(): this {
+    return this;
+  }
+  arc(): this {
+    this.arcs++;
+    return this;
+  }
+  strokePath(): this {
+    this.strokes++;
+    return this;
+  }
   clear(): this {
     this.strokes = 0;
     return this;

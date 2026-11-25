@@ -9,6 +9,7 @@ import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } 
 import { botBuildPhase, botGearPrice, createBotShopResult } from "./botShop";
 import { readOffer } from "../economy/shopCards";
 import { zombieTypeIndex } from "../zombies/zombieTypes";
+import { LOOT_BAG } from "../loot/lootBag";
 import { castVote, type RunEnding } from "../run/runStateMachine";
 
 /**
@@ -52,6 +53,11 @@ export interface HeadlessRunOptions {
   onTick?: (world: World) => void;
   /** Story 6.5: called once with the World before the first tick (dev switches: `debug.bossWaves`, `debug.bossHpScale`). */
   setup?: (world: World) => void;
+  /**
+   * Story 7.12 (tests only, default off: no other sim changes): while the loot bag is out, bot 0
+   * walks straight to it instead of its policy's move (the liveness run: a bot really takes it).
+   */
+  seekLoot?: boolean;
 }
 
 export interface HeadlessWaveLog {
@@ -119,6 +125,18 @@ export interface HeadlessRunLog {
   brutes: { spawnedInWave: number[]; killed: number; killPay: number };
   /** Story 5.8 (liveness): Bloater swells and bursts per wave (index = wave − 1), chain links, players hit by blasts. */
   bloaters: { swellsInWave: number[]; burstsInWave: number[]; chains: number; playerHits: number };
+}
+
+/** Story 7.12 (tests): the bot's move straight at the bag. */
+function seekBag(world: World, id: string, input: PlayerInput): void {
+  const p = world.players.get(id);
+  if (!p) return;
+  const dx = world.loot.x - p.x;
+  const dy = world.loot.y - p.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6) return;
+  input.moveX = dx / d;
+  input.moveY = dy / d;
 }
 
 export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
@@ -292,6 +310,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       const input = inputs[i] as PlayerInput;
       botViewFromWorld(world, id, view);
       botInput(view, cfg, seq, input);
+      if (opts.seekLoot && i === 0 && world.loot.state === LOOT_BAG.OUT) seekBag(world, id, input); // Story 7.12 (tests)
       if (swapNext[i] && world.run.phase === "wave") {
         input.swap = true; // the first wave tick (a swap in the one-tick build would be fine too)
         swapNext[i] = false;

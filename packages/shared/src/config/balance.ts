@@ -25,6 +25,7 @@ import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
 import boss from "./balance/boss.json" with { type: "json" };
 import events from "./balance/events.json" with { type: "json" };
+import loot from "./balance/loot.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -46,7 +47,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events, loot };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {

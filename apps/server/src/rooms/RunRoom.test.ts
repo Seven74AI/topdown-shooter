@@ -336,7 +336,7 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_ready" }, "run_start_refused");
     await readyAndStart(host.room, host.client, guest.client);
     expect(host.room.state.phase).toBe("build");
-    expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), players: 2 }, "run_started");
+    expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), lootSalt: expect.any(Number), players: 2 }, "run_started"); // Story 7.12: the salt in the log line only
     await vi.waitFor(() => expect(guest.client.state.phase).toBe("build"));
   });
 

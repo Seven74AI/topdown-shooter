@@ -173,6 +173,15 @@ export interface RunStateView {
   readonly npcLeaderSlot: number;
   readonly safeX: number;
   readonly safeY: number;
+  /**
+   * Story 7.12: the loot bag — `LOOT_BAG` state, centre (m), the server tick it is gone at, its look.
+   * Set on drop / pick-up / expiry only; a late Game scene or a woken tab draws the bag from these.
+   */
+  readonly lootBagState: number;
+  readonly lootBagX: number;
+  readonly lootBagY: number;
+  readonly lootBagUntilTick: number;
+  readonly lootBagVariant: number;
 }
 
 /**
@@ -309,6 +318,11 @@ export const RUN_STATE_FIELDS = {
   npcLeaderSlot: true,
   safeX: true,
   safeY: true,
+  lootBagState: true, // Story 7.12
+  lootBagX: true,
+  lootBagY: true,
+  lootBagUntilTick: true,
+  lootBagVariant: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

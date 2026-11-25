@@ -91,6 +91,7 @@ import { parseDevEvents } from "@topdown/shared";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
+import { pickDevLoot } from "../run/devLoot";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -171,6 +172,12 @@ export const TICK_ERROR_MESSAGE = "The game hit an error, sorry";
 export function randomUint32(): number {
   return randomBytes(4).readUInt32BE(0);
 }
+
+/**
+ * Story 7.12 (7-UI-6): the look of this server's last planned loot bag, so the next one differs
+ * ("never the same twice in a row"); −1 before the first. Server memory only (a restart forgets it).
+ */
+let lastLootVariant = -1;
 
 /** Codes picked by rooms still being created (not yet visible to `getLocalRoomById`). */
 const reservedCodes = new Set<string>();
@@ -718,6 +725,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const devEvents = process.env.NODE_ENV === "production" ? null : parseDevEvents(process.env.DEV_EVENTS);
     // Story 6.1 (dev only, read per run): DEV_START_WAVE=7 starts the run at wave 7 (its decay stage applied at the first build).
     const startWavePick = pickDevStartWave(process.env, serverBalance);
+    // Story 7.12 (D3): the loot stream's secret salt (never on the room state); DEV_LOOT=3:0.1 forces a bag (dev only).
+    const lootSalt = randomUint32();
+    const lootPick = pickDevLoot(process.env);
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -732,6 +742,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       events: devEvents,
       scenario: this.scenario,
       startWave: startWavePick.wave,
+      lootSalt,
+      lootPrevVariant: lastLootVariant,
+      devLoot: lootPick.plan,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
       // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
@@ -742,6 +755,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
     });
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
+    if (controller.world.loot.plan.has) lastLootVariant = controller.world.loot.plan.variant; // Story 7.12
+    if (lootPick.plan !== null) this.log.warn({ plan: lootPick.plan }, "dev_loot");
+    else if (lootPick.ignored !== null) this.log.warn({ value: process.env.DEV_LOOT, reason: lootPick.ignored }, "dev_loot_ignored");
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
     if (bossPick.waves !== null) this.log.warn({ waves: bossPick.waves }, "dev_boss_waves");
@@ -770,7 +786,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.waveStartMs = performance.now();
     this.lastClearedWave = 0;
     this.peakZombiesAlive = 0;
-    this.log.info({ runSeed, players: players.length }, "run_started");
+    // Story 7.12 (D3): the salt is in the server's log line only (never on the room state; 8.4's snapshot later).
+    this.log.info({ runSeed, lootSalt, players: players.length }, "run_started");
     if (this.scenario) {
       this.state.scenario = this.scenario;
       this.log.info({ scenario: this.scenario, startWave: controller.world.waves.number + 1 }, "test_scenario_started");

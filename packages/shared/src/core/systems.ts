@@ -10,6 +10,7 @@ import { updateAcid, updateSpits } from "../zombies/spit";
 import { processBlasts, updateGas } from "../zombies/bloater";
 import { updateBoss } from "../boss/behemoth";
 import { updateSpecialEvents } from "../events/specialEvents";
+import { updateLootBag } from "../loot/lootBag";
 
 /**
  * Story 5.8: queued Bloater blasts run first and the gas last (`zombies/bloater.ts`).
@@ -37,6 +38,7 @@ export const SYSTEM_ORDER = [
   "specialEvents",
   "economy",
   "decayTimers",
+  "loot", // Story 7.12: last, so every kill of the tick (fire pulses too) is counted before delivery
 ] as const;
 
 export type SystemName = (typeof SYSTEM_ORDER)[number];
@@ -82,6 +84,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   specialEvents: updateSpecialEvents, // Story 6.8: the special events (server and solo; never predicted)
   economy: updateEconomy,
   decayTimers: updateFires, // Story 4.8: the car fires' damage pulse
+  loot: updateLootBag, // Story 7.12: the surprise bag (server and solo; the client draws the room's record)
 };
 
 /**
@@ -99,6 +102,7 @@ export const NO_SYSTEMS: Systems = {
   specialEvents: noop,
   economy: noop,
   decayTimers: noop,
+  loot: noop,
 };
 
 /**

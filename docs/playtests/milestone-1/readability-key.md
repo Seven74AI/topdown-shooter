@@ -78,3 +78,11 @@ Story 7.8 addition (picture: game code drawn with @napi-rs/canvas, `docs/art/7-8
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
 | 49 | `49_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |
+
+Story 7.12 addition (pictures: the game in headless Chromium, 568 × 320 at deviceScaleFactor 2, `docs/art/epic-7/built/7-12-shots.cjs`, 2026-11-25):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 110 | `../../art/epic-7/built/7-12-bags.png` (top row) | a loot bag: a real object (backpack, go-bag, field case, trauma bag or evidence bag) with a white rim, a white ground ring and a glint | **pass** (a pick-up: bullets and bodies cross it) | right if "a bag / loot / something to pick up" and "walk over it"; wrong if anyone reads cover, a healing kit (LB7's cross: it heals nothing) or a weapon crate. The first standing player within 0.6 m takes it, no button; it lies 20 s |
+| 111 | `../../art/epic-7/built/7-12-bags.png` (bottom row) | the same bags in a 5 % blackout: still visible above the darkness | **pass** | right if the bag is seen without the flashlight on it |
+| 112 | `../../art/epic-7/built/7-12-hud.png` | the white badge at the screen edge = where the bag is (its ring = time left of its 20 s); the orange line = Ana (orange slot) found the bag | n/a | right if "the bag is that way" and "Ana got it" |

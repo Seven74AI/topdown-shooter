@@ -99,6 +99,12 @@ export interface FakeState {
   npcLeaderSlot: number;
   safeX: number;
   safeY: number;
+  /** Story 7.12: the loot bag record. */
+  lootBagState: number;
+  lootBagX: number;
+  lootBagY: number;
+  lootBagUntilTick: number;
+  lootBagVariant: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -149,6 +155,11 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     npcLeaderSlot: 255,
     safeX: 0,
     safeY: 0,
+    lootBagState: 0, // Story 7.12: none
+    lootBagX: 0,
+    lootBagY: 0,
+    lootBagUntilTick: 0,
+    lootBagVariant: 0,
   };
 }
 

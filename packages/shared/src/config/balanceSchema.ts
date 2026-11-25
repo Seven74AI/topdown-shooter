@@ -1517,6 +1517,42 @@ export const eventsSchema = z
   .strict()
   .refine((e) => e.startFractionMin <= e.startFractionMax, "startFractionMin must be ≤ startFractionMax");
 
+/**
+ * Story 7.12: the surprise loot bag (`loot.json`). One plan per run from the salted `loot` stream:
+ * `runChance` of a bag, in a wave `firstWave`–`lastWave` (never endless), at a share of that wave's
+ * kills; it lies `bagTicks` and goes to the first standing player within `pickRadiusM`. `glint` and
+ * `cue` are look values (client only, but here so no number is inline).
+ */
+export const lootSchema = z
+  .object({
+    runChance: z.number().min(0).max(1),
+    firstWave: z.number().int().min(1).max(255),
+    lastWave: z.number().int().min(1).max(255),
+    bagTicks: z.number().int().min(1).max(65535),
+    pickRadiusM: z.number().positive().max(5),
+    /** The bag's footprint for the "not inside a solid" spot search (m). */
+    bagRadiusM: z.number().positive().max(2),
+    /** The spot search: rings every `spotStepM` out to `spotRings` rings, 8 directions each. */
+    spotStepM: z.number().positive().max(2),
+    spotRings: z.number().int().min(1).max(200),
+    /** How many looks the bag has (7-UI-6: LB4–LB8). */
+    variants: z.number().int().min(1).max(16),
+    glint: z.object({
+      periodTicks: z.number().int().min(2).max(400),
+      flashTicks: z.number().int().min(1).max(400),
+      ringRadiusM: z.number().positive().max(3),
+      ringAlpha: z.number().min(0).max(1),
+      rimAlpha: z.number().min(0).max(1),
+      bagM: z.number().positive().max(3),
+    }),
+    cue: z.object({
+      toastS: z.number().positive().max(30),
+      badgeM: z.number().positive().max(3),
+    }),
+  })
+  .refine((l) => l.firstWave <= l.lastWave, { message: "firstWave must be <= lastWave" })
+  .refine((l) => l.glint.flashTicks <= l.glint.periodTicks, { message: "glint.flashTicks must be <= glint.periodTicks" });
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -1534,6 +1570,7 @@ export const balanceFileSchemas = {
   consumables: consumablesSchema, // Story 5.12
   boss: bossSchema, // Story 6.5
   events: eventsSchema, // Story 6.8
+  loot: lootSchema, // Story 7.12
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -1556,4 +1593,5 @@ export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;
 export type BossStats = z.output<typeof bossSchema>;
 export type EventsStats = z.output<typeof eventsSchema>;
+export type LootStats = z.output<typeof lootSchema>;
 export type ConsumableItemStats = z.output<typeof consumableItemSchema>;
