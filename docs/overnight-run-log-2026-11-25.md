@@ -200,3 +200,6 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 21:08 Bloater escape follow-up PR #18 merged 044522bf (review M-A/M-B/L-C/L-D → round 1 M1-new/M2-new → round 2 M-A/M-B → main-session check, cap).
 - 21:20 10.10 Build button PR #20 merged 6861275e (review: stray Place tap sold through ↶ → round 1: ↶ under ⟳ → designer picked B15 one-spot → round 2: ↶ under panel cells → pick quiet gate; main-session check, cap).
 - Follow-ups: RunRoom.host.test.ts flaky under load (fails on master too); RunRoom.shop.test random-seed card collision; dev spawn cheats place bodies in solids.
+- 21:12 Master red on 044522bf (#18): RunRoom.host.test.ts:206. Not a flake: syncBuildings (server) and mirrorBuildings (client) copied a building's owner only on add, so a disown (8.3 E8-H3) never reached an entry that was already sent. 6861275e (#20) was green by timing luck.
+- 21:41 Fix PR #21 merged 9addaf02 (fresh review: 1 low (client mirror) + 1 nit (no wire-encoding check, deferred) → fixed → narrow re-review: no findings; CI green).
+- 21:51 Shop F1 offer test pinned to a run seed (no chance-equal fillers), PR #23 merged c106fd49 (test-only; CI green).

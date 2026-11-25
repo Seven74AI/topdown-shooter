@@ -45,6 +45,8 @@ afterAll(async () => {
 
 type RunSdkRoom = SdkRoom<unknown, RunStateView>;
 
+const SHOP_TEST_SEED = 1;
+
 const options = (intent: "create" | "join", name: string) => ({
   intent,
   name,
@@ -86,10 +88,11 @@ function listen(client: RunSdkRoom): Answers {
  * Story 5.13: every offer starts with `cards` (DEV_SHOP_CARDS; default SMG, Machete, Hunting Rifle,
  * Body armor I, Running shoes).
  */
-async function startTwo(cards = "smg,machete,hunting_rifle,body_armor_1,running_shoes") {
+async function startTwo(cards = "smg,machete,hunting_rifle,body_armor_1,running_shoes", devRunSeed?: number) {
   vi.stubEnv("DEV_NO_WAVES", "1");
   vi.stubEnv("DEV_SHOP_CARDS", cards);
-  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana"));
+  if (devRunSeed !== undefined) vi.stubEnv("DEV_ALLOW_RUN_SEED", "1");
+  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, { ...options("create", "Ana"), ...(devRunSeed === undefined ? {} : { devRunSeed }) });
   const hostAnswers = listen(host);
   await host.waitForInitialState();
   const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
@@ -115,7 +118,9 @@ const player = (room: RunRoom, id: string) => room.controller?.world.players.get
 
 describe("RunRoom card shop (Story 5.13; 3.3's room tests moved to cards)", () => {
   it("each client gets only its own offer at the build start (F1); the stored one, equal to the World's", async () => {
-    const { room, hostAnswers, guestAnswers } = await startTwo("smg,body_armor_1");
+    // A fixed run seed: with a random one the two 4-card fillers can come out equal by chance.
+    const { room, hostAnswers, guestAnswers } = await startTwo("smg,body_armor_1", SHOP_TEST_SEED);
+    expect(room.devRunSeed).toBe(SHOP_TEST_SEED);
     const h = last(hostAnswers);
     const g = last(guestAnswers);
     expect(h).toEqual(room.controller?.offerFor("p0"));
