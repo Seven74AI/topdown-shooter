@@ -23,3 +23,11 @@ and the asset review in `docs/art/asset-review.md`.
   - frame 2 × 1 m (footprint unchanged), shadows cast from the real silhouette, one light direction.
 - Same system for reinforced, metal and police (police corner = traffic drum): approved ("pretty cool"), with the sandbags removed from the metal barricade.
 - References: Meshy images in `docs/art/photoreal-3/refs/`.
+
+### In the game (2026-11-25, designer: "go", "use the simplest rules")
+
+- Step 1: traps, floodlights and med station relit at atlas build (`render/city/relight.ts`), animated by `render/buildingFx.ts` (lamp flicker, med cross heartbeat, mine LED blink, steel glints) in `BuildingView`.
+- Step 2: wood / reinforced / metal barricades stand (`render/city/barricadeArt.ts`, frames in `buildingsAtlas.ts`): the rotation picks the picture (rot 0 outside, rot 2 inside, rot 1 / 3 side with the braces east / west), 2 variants fixed by the spot, sorted above the bodies by height on screen (`barricadeLook.ts › standDepth`). The picture carries its own shadow (no game shadow, no top-down cracks: wear = tint + bar).
+- The relit pictures are baked progressively (`pumpBuildingsAtlas`): the plain drawings show for the first second or two, then the relit ones replace them, so the game's start isn't blocked.
+- Dev check: `?stress=5&stressbuild=fort` lays a closed fort round the player.
+- The police barricade is a street prop baked into the city's ground: it gets the standing look with the street props' rollout (Epic 9), not here.

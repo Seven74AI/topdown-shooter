@@ -3,9 +3,8 @@ import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, t
 import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
-import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, framePointToWorld, type BoxOut, type SpriteTransform } from "./barricadeLook";
-import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
-import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, ensureBuildingsAtlas, type BuildingFx } from "./city/buildingsAtlas";
+import { barricadePoolSize, barricadeTint, barricadeTransform, framePointToWorld, standDepth, type BoxOut, type SpriteTransform } from "./barricadeLook";
+import { ATLAS_BUILDINGS, ATLAS_BUILDINGS_GLOW, FRAME_WOOD, TEX_GLINT, buildingFrame, buildingFx, ensureBuildingsAtlas, isStanding, pumpBuildingsAtlas, standingFrame, wallVariant, type BuildingFx } from "./city/buildingsAtlas";
 import { glintAlpha, glowLevel } from "./buildingFx";
 import { buildingShadowHeightM } from "./mineLook";
 import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
@@ -138,6 +137,8 @@ export class BuildingView {
   /** Photoreal group 3: per laid sprite, its animation data, transform and seed; a glow image each (lazy); shared glints. */
   private readonly scene: Phaser.Scene;
   private readonly spriteFx: (BuildingFx | undefined)[] = [];
+  /** Each laid sprite's frame, so its animation data is picked up once its relit picture is ready. */
+  private readonly spriteFrame: string[] = [];
   private readonly spriteXf: SpriteTransform[] = [];
   private readonly spriteSeed: Int32Array;
   private readonly glows: (Phaser.GameObjects.Image | null)[] = [];
@@ -154,6 +155,7 @@ export class BuildingView {
     this.spriteSeed = new Int32Array(pool);
     for (let i = 0; i < pool; i++) {
       this.spriteFx.push(undefined);
+      this.spriteFrame.push("");
       this.spriteXf.push({ x: 0, y: 0, angle: 0, w: 0, h: 0 });
       this.glows.push(null);
     }
@@ -170,6 +172,7 @@ export class BuildingView {
    * clock; `popScale` the pick pop's scale for the preview (1 = none).
    */
   update(world: Readonly<World>, placement: Placement, drops: DropSource | null = null, nowMs = 0, popScale = 1): void {
+    pumpBuildingsAtlas(); // photoreal group 3: the relit pictures replace the plain drawings, a few per frame
     this.drawPlaced(world);
     if (drops) this.applyDrops(drops, nowMs);
     this.animate(nowMs);
@@ -198,7 +201,11 @@ export class BuildingView {
     const t = nowMs / 1000;
     let g = 0;
     for (let i = 0; i < this.spritesUsed; i++) {
-      const fx = this.spriteFx[i];
+      let fx = this.spriteFx[i];
+      if (!fx) {
+        fx = buildingFx(this.spriteFrame[i] as string);
+        this.spriteFx[i] = fx;
+      }
       const glow = this.glows[i];
       if (!fx) {
         if (glow?.visible) glow.setVisible(false);
@@ -214,7 +221,7 @@ export class BuildingView {
           this.glows[i] = gi;
         }
         if (gi.frame.name !== fx.glowFrame) gi.setFrame(fx.glowFrame);
-        gi.setPosition(img.x, img.y).setRotation(xf.angle).setDisplaySize(xf.w, xf.h).setDepth(img.depth + GLOW_DEPTH_UP).setAlpha(Math.min(1, glowLevel(fx.glow, t, seed))).setVisible(true);
+        gi.setOrigin(img.originX, img.originY).setPosition(img.x, img.y).setRotation(xf.angle).setDisplaySize(xf.w, xf.h).setDepth(img.depth + GLOW_DEPTH_UP).setAlpha(Math.min(1, glowLevel(fx.glow, t, seed))).setVisible(true);
       } else if (glow?.visible) glow.setVisible(false);
       const fw = img.frame.width;
       const fh = img.frame.height;
@@ -224,7 +231,8 @@ export class BuildingView {
         const sp = fx.spots[k] as readonly [number, number];
         framePointToWorld(xf, (sp[0] / fw - 0.5) * xf.w, (sp[1] / fh - 0.5) * xf.h, this.pt);
         const size = GLINT_M * (0.6 + 0.4 * a);
-        (this.glints[g++] as Phaser.GameObjects.Image).setPosition(this.pt.x, this.pt.y + (img.y - xf.y)).setDisplaySize(size, size).setAlpha(a).setVisible(true);
+        // + the drop's lift (the sprite's offset from its resting y), and above a standing picture
+        (this.glints[g++] as Phaser.GameObjects.Image).setPosition(this.pt.x, this.pt.y + (img.y - (this.spriteY[i] as number))).setDisplaySize(size, size).setAlpha(a).setDepth(Math.max(GLINT_DEPTH, img.depth + 0.002)).setVisible(true);
       }
     }
     for (let i = this.spritesUsed; i < this.glows.length; i++) {
@@ -276,7 +284,8 @@ export class BuildingView {
         const b = list[i] as Building;
         const hM = buildingShadowHeightM(buildingStats(world.balance, b.type), BARRICADE_HEIGHT_M);
         // Story 4.12: the B6 palisade's tall shadow falls from its plank row (the struts behind are low).
-        if (hM > 0) castShadow(g, b.type === "wood_barricade" ? frameBandBox(b, B6_ROW_Y0, B6_ROW_Y1, this.band) : b, hM);
+        // Photoreal group 3: a standing barricade's picture carries its own shadow, cast from its outline
+        if (hM > 0 && !isStanding(b.type)) castShadow(g, b, hM);
       }
     }
     let used = 0;
@@ -290,23 +299,44 @@ export class BuildingView {
         // Story 4.11: the B6 palisade, turned with the placement; damage = darker tint + cracks.
         // Story 5.9: every tier, the spike trap and the mine the same way (floor below the walls, no cracks).
         const img = this.sprites[used++] as Phaser.GameObjects.Image;
+        const standing = isStanding(b.type);
         if (relayout) {
-          const t = barricadeTransform(b, this.xf);
-          if (img.texture.key !== art.texture || img.frame.name !== art.frame) img.setTexture(art.texture, art.frame);
-          img.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setDepth(b.solid ? BUILDING_DEPTH : FLOOR_DEPTH).setVisible(true);
-          this.spriteId[used - 1] = b.id; // Story 5.23: the drop finds its sprite
-          this.spriteY[used - 1] = t.y;
           const xf = this.spriteXf[used - 1] as SpriteTransform;
-          xf.x = t.x;
-          xf.y = t.y;
-          xf.angle = t.angle;
-          xf.w = t.w;
-          xf.h = t.h;
-          this.spriteFx[used - 1] = buildingFx(art.frame);
+          const st = standing ? standingFrame(b.type, b.rot, wallVariant(b.minX, b.minY)) : null;
+          if (st) {
+            // Photoreal group 3: the picture for its rotation (never turned), its footprint centre on the origin,
+            // sorted by height on screen above the bodies (a wall hides whoever stands behind it)
+            const cx = (b.minX + b.maxX) / 2;
+            const cy = (b.minY + b.maxY) / 2;
+            if (img.texture.key !== st.texture || img.frame.name !== st.frame) img.setTexture(st.texture, st.frame);
+            img.setOrigin(st.originX, st.originY).setPosition(cx, cy).setRotation(0).setDisplaySize(st.wM, st.hM).setDepth(standDepth(cy)).setVisible(true);
+            this.spriteY[used - 1] = cy;
+            xf.x = cx + (0.5 - st.originX) * st.wM;
+            xf.y = cy + (0.5 - st.originY) * st.hM;
+            xf.angle = 0;
+            xf.w = st.wM;
+            xf.h = st.hM;
+            this.spriteFx[used - 1] = buildingFx(st.frame);
+            this.spriteFrame[used - 1] = st.frame;
+          } else {
+            const t = barricadeTransform(b, this.xf);
+            if (img.texture.key !== art.texture || img.frame.name !== art.frame) img.setTexture(art.texture, art.frame);
+            img.setOrigin(0.5, 0.5).setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setDepth(b.solid ? BUILDING_DEPTH : FLOOR_DEPTH).setVisible(true);
+            this.spriteY[used - 1] = t.y;
+            xf.x = t.x;
+            xf.y = t.y;
+            xf.angle = t.angle;
+            xf.w = t.w;
+            xf.h = t.h;
+            this.spriteFx[used - 1] = buildingFx(art.frame);
+            this.spriteFrame[used - 1] = art.frame;
+          }
+          this.spriteId[used - 1] = b.id; // Story 5.23: the drop finds its sprite
           this.spriteSeed[used - 1] = b.id;
         }
         img.setTint(barricadeTint(frac));
-        if (frac < 1 && b.solid) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
+        // top-down cracks don't fit a standing picture: its wear is the darker tint (and the bar)
+        if (frac < 1 && b.solid && !standing) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
       } else if (relayout) {
         g.fillStyle(darken(WOOD, (1 - frac) * DAMAGE_DARKEN), 1).fillRect(b.minX, b.minY, w, h);
         g.lineStyle(OUTLINE_M / 2, PLANK_LINE, 1);
@@ -360,7 +390,15 @@ export class BuildingView {
     const b = footprint(stats, p.gx, p.gy, p.rot, this.box);
     const color = resting ? RESTING : valid ? VALID : BLOCKED;
     const art = buildingFrame(p.type);
-    if (art) {
+    const st = standingFrame(p.type, p.rot, wallVariant(b.minX, b.minY));
+    if (st) {
+      // Photoreal group 3: the standing picture this spot and rotation will show
+      if (this.ghost.texture.key !== st.texture || this.ghost.frame.name !== st.frame) this.ghost.setTexture(st.texture, st.frame);
+      this.ghostW = st.wM;
+      this.ghostH = st.hM;
+      const sc = this.shownScale;
+      this.ghost.setOrigin(st.originX, st.originY).setPosition((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2).setRotation(0).setDisplaySize(st.wM * sc, st.hM * sc).setAlpha(resting ? RESTING_ALPHA : GHOST_ALPHA).setVisible(true);
+    } else if (art) {
       // Story 4.11: the turned art under the coloured box, so the struts' side shows before confirming.
       const r = this.ghostRot;
       r.minX = b.minX;
@@ -373,7 +411,7 @@ export class BuildingView {
       this.ghostW = t.w;
       this.ghostH = t.h;
       const sc = this.shownScale;
-      this.ghost.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w * sc, t.h * sc).setAlpha(resting ? RESTING_ALPHA : GHOST_ALPHA).setVisible(true);
+      this.ghost.setOrigin(0.5, 0.5).setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w * sc, t.h * sc).setAlpha(resting ? RESTING_ALPHA : GHOST_ALPHA).setVisible(true);
     } else if (this.ghost.visible) this.ghost.setVisible(false);
     const g = this.preview;
     g.clear().setVisible(true);

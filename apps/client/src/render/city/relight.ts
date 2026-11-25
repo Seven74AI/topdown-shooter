@@ -1,4 +1,50 @@
-import { fbm, hash2 } from "./groundDamageArt";
+import { fbm as fbmSlow, hash2 } from "./groundDamageArt";
+
+/**
+ * Fast fractal noise: the same fbm, precomputed once into tileable tables (3 octave counts) and sampled bilinearly.
+ * A per-pixel fbm call made the atlas take over a second at load; a table lookup is several times cheaper. The tile
+ * (256 cells) is far larger than any feature it textures, so its repeat never shows. `seed` picks an offset.
+ */
+const NT = 256;
+const tables = new Map<number, Float32Array>();
+function table(oct: number): Float32Array {
+  let t = tables.get(oct);
+  if (t) return t;
+  t = new Float32Array(NT * NT);
+  // periodic: blend the four wrapped copies so the tile's edges meet
+  for (let y = 0; y < NT; y++) {
+    for (let x = 0; x < NT; x++) {
+      const fx = x / NT;
+      const fy = y / NT;
+      const a = fbmSlow(x / 8, y / 8, 101, oct);
+      const b = fbmSlow((x - NT) / 8, y / 8, 101, oct);
+      const c = fbmSlow(x / 8, (y - NT) / 8, 101, oct);
+      const d = fbmSlow((x - NT) / 8, (y - NT) / 8, 101, oct);
+      t[y * NT + x] = (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+    }
+  }
+  tables.set(oct, t);
+  return t;
+}
+function fbm(x: number, y: number, seed: number, oct = 5): number {
+  const t = table(oct >= 3 ? 3 : 2);
+  // fbmSlow's lattice is 1 unit; the table's is 8 cells per unit
+  const px = x * 8 + ((seed * 37) & 255);
+  const py = y * 8 + ((seed * 91) & 255);
+  const xi = Math.floor(px);
+  const yi = Math.floor(py);
+  const fx = px - xi;
+  const fy = py - yi;
+  const x0 = xi & (NT - 1);
+  const y0 = yi & (NT - 1);
+  const x1 = (x0 + 1) & (NT - 1);
+  const y1 = (y0 + 1) & (NT - 1);
+  const a = t[y0 * NT + x0] as number;
+  const b = t[y0 * NT + x1] as number;
+  const c = t[y1 * NT + x0] as number;
+  const d = t[y1 * NT + x1] as number;
+  return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+}
 
 /**
  * Photoreal group 3 (designer 2026-11-25, `docs/art/photoreal-decisions.md`): the approved "relit" look of the things
@@ -97,7 +143,7 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
   const W = src.width;
   const H = src.height;
   const k = W / w; // source px per output px
-  const sg = src.getContext("2d") as CanvasRenderingContext2D;
+  const sg = src.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
   const d = sg.getImageData(0, 0, W, H).data;
   const n = W * H;
   const A = new Float32Array(n);
@@ -130,10 +176,16 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
     for (let x = 1; x < W - 1; x++) {
       const i = y * W + x;
       if ((A[i] as number) < 0.5) continue;
+      const r0 = d[i * 4] as number;
+      const g0 = d[i * 4 + 1] as number;
+      const b0 = d[i * 4 + 2] as number;
       let edge = 0;
-      for (const j of [i - 1, i + 1, i - W, i + W]) {
-        edge = Math.max(edge, (Math.abs((d[i * 4] as number) - (d[j * 4] as number)) + Math.abs((d[i * 4 + 1] as number) - (d[j * 4 + 1] as number)) + Math.abs((d[i * 4 + 2] as number) - (d[j * 4 + 2] as number))) / 255);
+      for (let q = 0; q < 4; q++) {
+        const j = (q === 0 ? i - 1 : q === 1 ? i + 1 : q === 2 ? i - W : i + W) * 4;
+        const e = Math.abs(r0 - (d[j] as number)) + Math.abs(g0 - (d[j + 1] as number)) + Math.abs(b0 - (d[j + 2] as number));
+        if (e > edge) edge = e;
       }
+      edge /= 255;
       E[i] = Math.min(1, Math.max((lum[i] as number) < 0.08 ? 1 : 0, edge > 0.2 ? edge * 1.2 : 0));
     }
   }
@@ -191,7 +243,7 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
       if (a <= 0.004) continue;
       const dx = ((Hf[i + 1] as number) - (Hf[i - 1] as number)) * K;
       const dy = ((Hf[i + W] as number) - (Hf[i - W] as number)) * K;
-      const nl = Math.hypot(dx, dy, 1);
+      const nl = Math.sqrt(dx * dx + dy * dy + 1);
       const nx = -dx / nl;
       const ny = -dy / nl;
       const nz = 1 / nl;
@@ -201,7 +253,11 @@ export function relight(src: HTMLCanvasElement, w: number, h: number, ss: number
       const l0 = lum[i] as number;
       const glossK = Math.min(1, m === 2 ? 0.75 : m === 3 ? 0.04 : m === 1 ? 0.1 : m === 4 ? 0.02 : (l0 < 0.18 ? 0.5 : 0) + ((sat[i] as number) > 0.55 ? 0.4 : 0) + 0.08);
       const rz = 2 * nd * nz - lz;
-      const sp = Math.pow(Math.max(0, rz), m === 2 ? 28 : 16) * glossK;
+      const rp = rz > 0 ? rz : 0;
+      const r2 = rp * rp;
+      const r4 = r2 * r2;
+      const r16 = r4 * r4 * r4 * r4;
+      const sp = (m === 2 ? r16 * r4 * r4 * r4 : r16) * glossK; // rz^28 or rz^16
       const grain = 1 + (hash2(x, y, seed) - 0.5) * 0.05 + (fbm(x / (1.2 * ss), y / (1.2 * ss), seed + 7, 2) - 0.5) * 0.14 * (1 - glossK);
       const ao = 1 - (E[i] as number) * 0.3;
       // thin parts (wire, chain, legs) keep most of their drawn colour; soft see-through parts stay as drawn

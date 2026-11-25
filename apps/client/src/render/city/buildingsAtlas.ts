@@ -1,8 +1,8 @@
 import type * as Phaser from "phaser";
 import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { addGeneratedTexture } from "./canvasTexture";
-import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "./buildingArt";
-import { drawObjectInFrame, drawWoodBarricade } from "./objectArt";
+import { drawBearTrap, drawInFrame, drawMine, drawSpikeTrap, type Ctx } from "./buildingArt";
+import { FRONT_BASE_Y, SIDE_C, drawFrontIn, drawFrontOut, drawSide, inFrameCentred, type Style } from "./barricadeArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
 import { crossGreen, lampWhite, ledRed, relight, type Emissive, type Relit } from "./relight";
 import type { GlowKind } from "../buildingFx";
@@ -17,10 +17,27 @@ export const ATLAS_BUILDINGS = "atlas_buildings";
 /** Pixels per metre of the frames (a 2 m wall = 192 px: crisp at DPR 2 on a phone). */
 export const BUILDINGS_PX_PER_M = 96;
 
-/** Story 4.12: B6, drawn in code (it replaced 4.11's loaded `building_barricade_a` sprite). */
-export const FRAME_WOOD = frameName("building", "barricade", "wood");
-export const FRAME_REINFORCED = frameName("building", "barricade", "reinforced");
-export const FRAME_METAL = frameName("building", "barricade", "metal");
+/**
+ * Photoreal group 3 (approved 2026-11-25): the barricades stand. Each type (wood, reinforced, metal) has a picture per
+ * rotation (rot 0 = front, outside: braces at the back; rot 2 = front, inside: braces and junk toward the camera;
+ * rot 1 / 3 = side, braces east / west), in `STANDING_VARIANTS` random variants, never turned. A front picture is
+ * 2 × 1 m with the footprint centre at `FRONT_BASE_Y` below its middle; a side picture is 1 × 2.8 m with the
+ * footprint centre at `SIDE_C` below its middle.
+ */
+export const STANDING_VARIANTS = 2;
+export type WallView = "out" | "in" | "sidee" | "sidew";
+const STYLE_OF: Readonly<Record<string, Style>> = { wood_barricade: "wood", reinforced_barricade: "rf", metal_barricade: "mt" };
+const STYLE_NAME: Readonly<Record<Style, string>> = { wood: "wood", rf: "reinforced", mt: "metal" };
+/** The frame name of a standing barricade's picture. */
+export function wallFrame(style: Style, view: WallView, variant: number): string {
+  return frameName("building", "wall", `${STYLE_NAME[style]}${view}${variant}`);
+}
+export const FRONT_W_M = 2;
+export const FRONT_H_M = 1;
+export const SIDE_W_M = 1;
+export const SIDE_H_M = 2.8;
+/** The wood barricade's rot-0 picture (the pooled images' first frame). */
+export const FRAME_WOOD = wallFrame("wood", "out", 0);
 export const FRAME_SPIKE_TRAP = frameName("building", "spiketrap", "a");
 export const FRAME_MINE = frameName("building", "mine", "a");
 /** Story 5.10: FL1 tripod work light (base look) and FL5 stadium lamp (upgrade/skin look, unused for now). */
@@ -40,15 +57,30 @@ interface ArtSpec {
   /** Story 4.12: the drawing's frame helper (`objectArt` keeps its own pixel size). */
   readonly inFrame?: typeof drawInFrame;
   /** Photoreal group 3: drawn with the approved relit look (volumes, materials, glow, glints). */
-  readonly relit?: { readonly dir: "x" | "y"; readonly seed: number; readonly glints: number; readonly emissive?: Emissive; readonly glow?: GlowKind };
+  readonly relit?: { readonly dir: "x" | "y"; readonly seed: number; readonly glints: number; readonly emissive?: Emissive; readonly glow?: GlowKind; readonly srcPxPerM?: number };
 }
 
-/** Frame, size (the type's footprint at rot 0) and drawing per frame. */
+/** The standing barricades' pictures (relit from a 192 px/m drawing: four times cheaper than the props, same look). */
+function wallArt(): ArtSpec[] {
+  const out: ArtSpec[] = [];
+  const glints: Readonly<Record<Style, number>> = { wood: 6, rf: 16, mt: 10 };
+  (["wood", "rf", "mt"] as const).forEach((st, si) => {
+    for (let v = 0; v < STANDING_VARIANTS; v++) {
+      const seed = 2000 + si * 100 + v * 10;
+      const relit = (n: number) => ({ dir: "x" as const, seed: seed + n, glints: glints[st], srcPxPerM: 192 });
+      out.push({ frame: wallFrame(st, "out", v), wM: FRONT_W_M, hM: FRONT_H_M, draw: (g) => drawFrontOut(g, st, 3 + v), inFrame: inFrameCentred, relit: relit(1) });
+      out.push({ frame: wallFrame(st, "in", v), wM: FRONT_W_M, hM: FRONT_H_M, draw: (g) => drawFrontIn(g, st, 1 + v), inFrame: inFrameCentred, relit: relit(2) });
+      out.push({ frame: wallFrame(st, "sidee", v), wM: SIDE_W_M, hM: SIDE_H_M, draw: (g) => drawSide(g, st, 1, 1 + v * 4), inFrame: inFrameCentred, relit: { ...relit(3), dir: "y" as const } });
+      out.push({ frame: wallFrame(st, "sidew", v), wM: SIDE_W_M, hM: SIDE_H_M, draw: (g) => drawSide(g, st, -1, 2 + v * 4), inFrame: inFrameCentred, relit: { ...relit(4), dir: "y" as const } });
+    }
+  });
+  return out;
+}
+
+/** Frame, size (the type's footprint at rot 0; a standing barricade's picture size) and drawing per frame. */
 const ART: readonly ArtSpec[] = [
-  { frame: FRAME_WOOD, wM: 2, hM: 0.5, draw: drawWoodBarricade, inFrame: drawObjectInFrame },
-  { frame: FRAME_REINFORCED, wM: 2, hM: 0.5, draw: drawReinforcedBarricade },
-  { frame: FRAME_METAL, wM: 2, hM: 0.5, draw: drawMetalBarricade },
-  { frame: FRAME_SPIKE_TRAP, wM: 2, hM: 2, draw: drawSpikeTrap, relit: { dir: "x", seed: 739, glints: 26 } },
+  ...wallArt(),
+  { frame: FRAME_SPIKE_TRAP, wM: 2, hM: 2, draw: drawSpikeTrap, relit: { dir: "x", seed: 739, glints: 26, srcPxPerM: 256 } },
   { frame: FRAME_MINE, wM: 0.5, hM: 0.5, draw: drawMine, relit: { dir: "x", seed: 752, glints: 3, emissive: ledRed, glow: "blink" } },
   { frame: FRAME_FLOODLIGHT, wM: 1, hM: 1, draw: drawFloodlightFL1, inFrame: drawPropInFrame, relit: { dir: "y", seed: 791, glints: 4, emissive: lampWhite, glow: "flicker" } },
   { frame: FRAME_FLOODLIGHT_B, wM: 1, hM: 1, draw: drawFloodlightFL5, inFrame: drawPropInFrame, relit: { dir: "x", seed: 804, glints: 4, emissive: lampWhite, glow: "flicker" } },
@@ -69,8 +101,8 @@ export interface BuildingFrame {
 }
 const FRAMES: Readonly<Record<string, BuildingFrame>> = {
   wood_barricade: { texture: ATLAS_BUILDINGS, frame: FRAME_WOOD },
-  reinforced_barricade: { texture: ATLAS_BUILDINGS, frame: FRAME_REINFORCED },
-  metal_barricade: { texture: ATLAS_BUILDINGS, frame: FRAME_METAL },
+  reinforced_barricade: { texture: ATLAS_BUILDINGS, frame: wallFrame("rf", "out", 0) },
+  metal_barricade: { texture: ATLAS_BUILDINGS, frame: wallFrame("mt", "out", 0) },
   spike_trap: { texture: ATLAS_BUILDINGS, frame: FRAME_SPIKE_TRAP },
   mine: { texture: ATLAS_BUILDINGS, frame: FRAME_MINE },
   floodlight: { texture: ATLAS_BUILDINGS, frame: FRAME_FLOODLIGHT },
@@ -117,13 +149,14 @@ function relitOf(a: ArtSpec, make: (w: number, h: number) => HTMLCanvasElement):
   const r = a.relit as NonNullable<ArtSpec["relit"]>;
   const w = Math.round(a.wM * BUILDINGS_PX_PER_M);
   const h = Math.round(a.hM * BUILDINGS_PX_PER_M);
-  const k = RELIGHT_SRC_PX_PER_M / BUILDINGS_PX_PER_M;
+  const srcPxPerM = r.srcPxPerM ?? RELIGHT_SRC_PX_PER_M;
+  const k = srcPxPerM / BUILDINGS_PX_PER_M;
   const src = make(w * k, h * k);
-  const sg = src.getContext("2d") as CanvasRenderingContext2D;
+  const sg = src.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
   // drawn at the game's 96 px per metre (its 1 px lines keep their weight), rasterised k× finer
   sg.scale(k, k);
   (a.inFrame ?? drawInFrame)(sg, 0, 0, w, h, BUILDINGS_PX_PER_M, (c) => a.draw(c, a.wM, a.hM));
-  const out = relight(src, w, h, RELIGHT_SS, { dir: r.dir, seed: r.seed, glints: r.glints, emissive: r.emissive }, make);
+  const out = relight(src, w, h, (RELIGHT_SS * srcPxPerM) / RELIGHT_SRC_PX_PER_M, { dir: r.dir, seed: r.seed, glints: r.glints, ...(r.emissive ? { emissive: r.emissive } : {}) }, make);
   relitCache.set(a.frame, out);
   FX.set(a.frame, { glow: r.glow ?? "none", glowFrame: out.bloom ? a.frame : null, glowAt: out.glowAt, spots: out.spots });
   return out;
@@ -135,6 +168,85 @@ const makeCanvas = (w: number, h: number): HTMLCanvasElement => {
   return c;
 };
 
+/** A standing barricade's picture for a placed one: frame, display size (m) and origin (its footprint centre). */
+export interface StandingFrame {
+  readonly texture: string;
+  readonly frame: string;
+  readonly wM: number;
+  readonly hM: number;
+  readonly originX: number;
+  readonly originY: number;
+}
+/** Is `type` drawn standing (one picture per rotation, never turned)? */
+export function isStanding(type: string): boolean {
+  return Object.prototype.hasOwnProperty.call(STYLE_OF, type);
+}
+/** Which variant a barricade at footprint corner (minX, minY) shows: fixed by its spot, the same on every client. */
+export function wallVariant(minX: number, minY: number): number {
+  const h = Math.imul(Math.round(minX * 4) * 73856093 ^ Math.round(minY * 4) * 19349663, 2654435761) >>> 0;
+  return (h >>> 7) % STANDING_VARIANTS;
+}
+const ROT_VIEW: readonly WallView[] = ["out", "sidee", "in", "sidew"];
+/** The picture of a standing barricade at `rot` (0–3), or null for a type that isn't drawn standing. */
+export function standingFrame(type: string, rot: number, variant: number): StandingFrame | null {
+  const st = STYLE_OF[type];
+  if (st === undefined) return null;
+  const view = ROT_VIEW[rot & 3] as WallView;
+  const side = view === "sidee" || view === "sidew";
+  const v = Math.max(0, Math.min(STANDING_VARIANTS - 1, variant | 0));
+  return side
+    ? { texture: ATLAS_BUILDINGS, frame: wallFrame(st, view, v), wM: SIDE_W_M, hM: SIDE_H_M, originX: 0.5, originY: 0.5 + SIDE_C / SIDE_H_M }
+    : { texture: ATLAS_BUILDINGS, frame: wallFrame(st, view, v), wM: FRONT_W_M, hM: FRONT_H_M, originX: 0.5, originY: 0.5 + FRONT_BASE_Y / FRONT_H_M };
+}
+
+/**
+ * The relit look costs about a second of work for the whole set (several on a phone), too long to block the game's
+ * start. So the atlas starts with the plain code drawings (instant) and `pumpBuildingsAtlas` swaps each frame for its
+ * relit picture a few at a time, frame by frame, refreshing the texture as it goes (usually done within the first
+ * second or two of the build phase). A lost graphics context repaints whatever is ready.
+ */
+interface Bake {
+  readonly queue: ArtSpec[];
+  readonly canvas: HTMLCanvasElement;
+  readonly frames: readonly PlacedFrame[];
+  tex: Phaser.Textures.CanvasTexture | null;
+  readonly glowCanvas: HTMLCanvasElement;
+  readonly glowFrames: readonly PlacedFrame[];
+  glowTex: Phaser.Textures.CanvasTexture | null;
+}
+let bake: Bake | null = null;
+
+/**
+ * Relights queued frames until `budgetMs` has passed (at least one per call) and refreshes the textures. Returns true
+ * while frames are still waiting. Call it every frame (BuildingView does); `Infinity` finishes the whole set now.
+ */
+export function pumpBuildingsAtlas(budgetMs = 6): boolean {
+  const b = bake;
+  if (!b || b.queue.length === 0) return false;
+  const t0 = performance.now();
+  let dirty = false;
+  let glowDirty = false;
+  do {
+    const a = b.queue.shift() as ArtSpec;
+    const r = relitOf(a, makeCanvas);
+    const f = b.frames.find((x) => x.name === a.frame);
+    if (f) {
+      const g = b.canvas.getContext("2d") as CanvasRenderingContext2D;
+      g.clearRect(f.x, f.y, f.w, f.h);
+      g.drawImage(r.base, f.x, f.y, f.w, f.h);
+      dirty = true;
+    }
+    const gf = r.bloom ? b.glowFrames.find((x) => x.name === a.frame) : undefined;
+    if (gf && r.bloom) {
+      (b.glowCanvas.getContext("2d") as CanvasRenderingContext2D).drawImage(r.bloom, gf.x, gf.y, gf.w, gf.h);
+      glowDirty = true;
+    }
+  } while (b.queue.length > 0 && performance.now() - t0 < budgetMs);
+  if (dirty) b.tex?.refresh();
+  if (glowDirty) b.glowTex?.refresh();
+  return b.queue.length > 0;
+}
+
 /** Draws every frame into one canvas and registers it (idempotent). */
 export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
   if (scene.textures.exists(ATLAS_BUILDINGS)) return;
@@ -143,7 +255,7 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
   canvas.width = layout.width;
   canvas.height = layout.height;
   // Story 4.13: redrawn in place after a lost graphics context (texture registry).
-  addGeneratedTexture(
+  const tex = addGeneratedTexture(
     scene,
     ATLAS_BUILDINGS,
     canvas,
@@ -178,14 +290,13 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
   const gc = document.createElement("canvas");
   gc.width = gl.width;
   gc.height = gl.height;
-  addGeneratedTexture(
+  const glowTex = addGeneratedTexture(
     scene,
     ATLAS_BUILDINGS_GLOW,
     gc,
     (g) => {
       for (const f of gl.frames) {
-        const a = ART.find((x) => x.frame === f.name);
-        const bloom = a ? relitOf(a, makeCanvas).bloom : null;
+        const bloom = relitCache.get(f.name)?.bloom;
         if (bloom) g.drawImage(bloom, f.x, f.y, f.w, f.h);
       }
     },
@@ -193,6 +304,7 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
       for (const f of gl.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
     },
   );
+  bake = { queue: ART.filter((a) => a.relit !== undefined && !relitCache.has(a.frame)), canvas, frames: layout.frames, tex, glowCanvas: gc, glowFrames: gl.frames, glowTex };
 }
 
 function drawFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
@@ -202,7 +314,8 @@ function drawFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.beginPath();
   g.rect(f.x, f.y, f.w, f.h);
   g.clip();
-  if (a.relit) g.drawImage(relitOf(a, makeCanvas).base, f.x, f.y, f.w, f.h);
+  const ready = relitCache.get(a.frame);
+  if (ready) g.drawImage(ready.base, f.x, f.y, f.w, f.h);
   else (a.inFrame ?? drawInFrame)(g, f.x, f.y, f.w, f.h, BUILDINGS_PX_PER_M, (c) => a.draw(c, a.wM, a.hM));
   g.restore();
 }

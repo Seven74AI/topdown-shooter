@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { ensureAtlases } from "../render/city/spriteAtlas";
-import { ensureBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { ensureBuildingsAtlas, pumpBuildingsAtlas } from "../render/city/buildingsAtlas";
 import { ensureBuildIcons } from "../render/city/buildIcons";
 import { ensureBlastFxAtlas } from "../render/city/blastFxAtlas";
 import { ensureBossTextures } from "../render/city/bossAtlas";
@@ -37,6 +37,7 @@ export async function collectAssets(): Promise<Asset[]> {
         try {
           ensureAtlases(this);
           ensureBuildingsAtlas(this);
+          pumpBuildingsAtlas(Infinity); // the relit pictures, all of them, before the frames are cut
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);
           ensureBossTextures(this);
