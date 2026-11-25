@@ -2,12 +2,12 @@ import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
-import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
 import { type Database, openPglite } from "../db/client";
 import { progressRepo } from "../db/progressRepo";
+import { countRunRewards } from "../db/testQueries";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
@@ -83,11 +83,7 @@ async function toWave(accounts: (string | null)[]) {
   return { clients, inbox, room, w };
 }
 const idOf = (room: RunRoom, c: RunSdkRoom): string => room.members.get(c.sessionId)?.playerId ?? "";
-async function rewardRows(accountId: string): Promise<number> {
-  const db = await database.db();
-  const r = (await db.execute(sql`select count(*)::int as n from run_rewards where account_id = ${accountId}`)) as unknown as { rows: { n: number }[] };
-  return r.rows[0]?.n ?? 0;
-}
+const rewardRows = (accountId: string): Promise<number> => countRunRewards(database, accountId);
 const supplies = async (accountId: string) => (await progressRepo(database).get(accountId))?.supplies ?? -1;
 
 describe("Story 7.2: banking in the room", () => {

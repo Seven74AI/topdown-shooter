@@ -297,11 +297,13 @@ class LobbyStore {
   leave(only?: RunConnection): boolean {
     if (only !== undefined && this.room !== only) return false;
     const room = this.room;
+    const linkDown = linkStore.get().status !== "ok"; // Story 7.2: a socket being reconnected can't carry run.leave
     this.link?.close(true); // Story 8.1: a takeover landing after this Leave is left too, never adopted
     this.detach();
     this.set(EMPTY);
     seatStore.clear(); // Story 8.1: a Leave is for good (consented): a reload must not take the seat back
-    if (room) leaveAfterRewards(room);
+    if (room && linkDown) void room.leave(true);
+    else if (room) leaveAfterRewards(room);
     return room !== null;
   }
 

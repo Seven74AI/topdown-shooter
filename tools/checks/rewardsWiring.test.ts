@@ -14,7 +14,7 @@ describe("Story 7.2 wiring", () => {
 
   it("a Leave goes through leaveAfterRewards (run.leave first, then the consented leave)", () => {
     const lobby = read("net/lobbyStore.ts");
-    expect(lobby).toMatch(/if \(room\) leaveAfterRewards\(room\);/);
+    expect(lobby).toMatch(/else if \(room\) leaveAfterRewards\(room\);/);
     expect(lobby).toMatch(/room\.send\(C2S\.RUN_LEAVE, \{\}\)/);
     expect(lobby).toMatch(/rewardsStore\.receive\(m, true\)/);
   });
