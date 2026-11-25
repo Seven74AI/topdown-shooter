@@ -1,6 +1,6 @@
 # Story 7.3: Unlock screen
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 3 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D4 (starter pool + Fire Axe + Revive kit), D5 (free order, "Good next pick", no tree), D8 (unlocks can't be turned off) are rules here. -->
 

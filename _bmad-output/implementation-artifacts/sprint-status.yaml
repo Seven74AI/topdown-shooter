@@ -166,7 +166,7 @@ development_status:
   epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
   7-1-progress-saved-on-the-server: done  # 2026-11-25: PostgreSQL/PGlite + repos, guest accounts (__Host-tdg cookie + localStorage), ticket bound to the token, account at join, deploy/backups; review 1M/6L + 1 narrow re-review, pg client crash fix
   7-2-earn-and-bank-supplies: done  # 2026-11-25: Supplies banked once per (run, account) in boundedTransaction (status always = committed), RW1 Lumen Results panel, practice earns nothing; review 1M/5L + 2 narrow re-reviews + main-session check (cap)
-  7-3-unlock-screen: review  # 2026-11-25 overnight: unlock list (14, 3,120), pool/mask/Good next pick, POST /account/unlock (one conditional update, request-id memo, 20/min/account), Progress hub PH1 Lumen LF5; review fixes F1-F11, gate green on fed5cc51 (branch story-7-3)
+  7-3-unlock-screen: done  # 2026-11-25: 14 unlocks, /account/unlock in boundedTransaction, PH1 Lumen hub; review 3M/7L + 2 narrow re-reviews; merged with 7.9 (one progress object, B17/B18)
   7-4-shop-deck-from-my-unlocks: ready-for-dev  # MERGED with 7.5 (docs/story-merges-2026-11-25.md)
   7-5-training-boosts: ready-for-dev  # MERGED into 7.4+7.5
   7-6-upgrade-to-an-account: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. 
