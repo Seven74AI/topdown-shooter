@@ -545,6 +545,7 @@ export {
   type PlaceRequest,
 } from "./buildings/buildings";
 export {
+  PUSH_ESCAPED,
   PUSH_MOVED,
   PUSH_NONE,
   PUSH_STUCK,

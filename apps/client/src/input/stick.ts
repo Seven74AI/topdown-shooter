@@ -9,6 +9,7 @@ export interface StickVector {
  * Floating-stick math (pure). The base stays where the thumb landed.
  * Below `deadZone` (fraction of the radius) → zero; from there to the rim, magnitude
  * rescales linearly from 0 to 1 (GDD: dead zone 10%, full speed at 100%). Past the rim it stays 1.
+ * `fullSpeed` (the "Always full speed" setting): past the dead zone the magnitude is always 1.
  */
 export function stickVector(
   originX: number,
@@ -18,6 +19,7 @@ export function stickVector(
   radiusPx: number,
   deadZone: number,
   out: StickVector = { x: 0, y: 0, magnitude: 0 },
+  fullSpeed = false,
 ): StickVector {
   const dx = x - originX;
   const dy = y - originY;
@@ -29,7 +31,7 @@ export function stickVector(
     out.magnitude = 0;
     return out;
   }
-  const scaled = deadZone >= 1 ? 1 : (m - deadZone) / (1 - deadZone);
+  const scaled = fullSpeed || deadZone >= 1 ? 1 : (m - deadZone) / (1 - deadZone);
   out.x = (dx / d) * scaled;
   out.y = (dy / d) * scaled;
   out.magnitude = scaled;

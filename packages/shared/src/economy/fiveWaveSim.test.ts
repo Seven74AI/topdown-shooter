@@ -47,7 +47,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
           expect(r.earned[i]).toBeGreaterThan(0);
           expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
         }
-        expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave).toBe(r.earned.reduce((a, b) => a + b, 0));
+        expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss + r.earnedBy.event).toBe(r.earned.reduce((a, b) => a + b, 0)); // 6.10's survivor "event" pay, as in tenWaveSim (it came up here once FX-B1 changed the runs)
         weapons += r.purchases.reduce((a, p) => a + p.length, 0);
         buildings += r.buildingsPlaced.reduce((a, b) => a + b, 0);
         lines.push(formatRunLine(r));

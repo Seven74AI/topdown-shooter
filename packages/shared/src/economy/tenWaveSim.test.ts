@@ -3,6 +3,7 @@ import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
 import type { World } from "../core/world";
 import { isSpawnBuried } from "../waves/spawnPick";
+import { pushEscapes } from "../buildings/collision";
 import { runSupplies, suppliesEnding, type RunRecord } from "../meta/supplies";
 import { ALL_UNLOCKED } from "../meta/pool";
 
@@ -64,6 +65,7 @@ describe("Story 6.1: ten-wave sim", () => {
       };
       let end: ReturnType<typeof recordsAtEnd> | null = null;
       let masks: number[] = [];
+      const escapes0 = pushEscapes.count;
       const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void ((god = w.debug.godMode), (end = recordsAtEnd(w)), (masks = [...w.players.values()].map((p) => p.unlocks))) });
       // Story 7.4 (T5): the sim's bots keep every unlock (so a pool change can't silently change this sim).
       expect(masks).toEqual(Array.from({ length: 4 }, () => ALL_UNLOCKED));
@@ -78,6 +80,8 @@ describe("Story 6.1: ten-wave sim", () => {
       runs.push(r);
       // Mutation check: mortal 4-bot runs often clear all 10 waves too, so prove D2's method was really used.
       expect(god, `seed ${seed}: god mode on`).toBe(true);
+      // Fix bloater-car-corner: the push-out's escape runs only on a body already in an illegal spot; a real run never makes one.
+      expect(pushEscapes.count - escapes0, `seed ${seed}: push-out escapes in a real run`).toBe(0);
       expect(r.waves.reduce((a, w) => a + w.downs, 0), `seed ${seed}: no one went down`).toBe(0);
       expect(r.timedOut, `seed ${seed}`).toBe(false); // never the tick limit
       expect(r.wavesCleared).toBe(10); // liveness: all 10 waves really played

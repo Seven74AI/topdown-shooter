@@ -1,9 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { TouchSticks } from "./TouchSticks";
+import { resetSettingsCache, saveSettings } from "../settings/settings";
 
 const W = 800;
 
 describe("TouchSticks", () => {
+  afterEach(() => resetSettingsCache());
+
+  it("Always full speed: a half drag moves at full speed once the setting is on, and back to analog when off", () => {
+    const s = new TouchSticks(100, 0.1);
+    s.pointerDown(1, 120, 300, W);
+    s.pointerMove(1, 170, 300); // 50 % of the radius
+    expect(s.moveVector().magnitude).toBeCloseTo(0.4 / 0.9, 9);
+    saveSettings({ alwaysFullSpeed: true });
+    expect(s.moveVector().magnitude).toBe(1);
+    expect(s.moveVector().x).toBe(1);
+    saveSettings({ alwaysFullSpeed: false });
+    expect(s.moveVector().magnitude).toBeCloseTo(0.4 / 0.9, 9);
+  });
+
+  it("Always full speed: a non-true stored value (hand-edited storage) counts as off", () => {
+    const s = new TouchSticks(100, 0.1);
+    s.pointerDown(1, 120, 300, W);
+    s.pointerMove(1, 170, 300);
+    saveSettings({ alwaysFullSpeed: "false" as unknown as boolean });
+    expect(s.moveVector().magnitude).toBeCloseTo(0.4 / 0.9, 9);
+  });
+
   it("spawns the move stick where a left-half touch lands and clears it on lift", () => {
     const s = new TouchSticks(100, 0.1);
     s.pointerDown(1, 120, 300, W);
