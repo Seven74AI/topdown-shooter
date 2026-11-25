@@ -18,6 +18,15 @@ export interface DevThrottleOptions {
   lagMs: number;
   /** Spread of the one-way delay (ms): ± half of it, uniform. */
   jitterMs: number;
+  /**
+   * Story 8.8 (`&loss=<pct>`): the lossy line. With probability `lossPct` / 100 per message, in each
+   * direction, that message waits an extra `stallMs` (a TCP retransmit stall); order is kept, so
+   * everything behind it waits too (head-of-line). Never a reorder, never a dropped message.
+   * 0 / absent = no extra random draw (`?lag=&jitter=` behave bit for bit as before).
+   */
+  lossPct?: number;
+  /** Story 8.8 (`&stall=<ms>`): the extra wait of a stalled message (default `DEFAULT_STALL_MS`). */
+  stallMs?: number;
   /** Tests inject these. */
   random?: () => number;
   now?: () => number;
@@ -33,6 +42,34 @@ const BUILDING_KEYS = Object.keys(BUILDING_STATE_FIELDS);
 const BOSS_KEYS = Object.keys(BOSS_STATE_FIELDS); // Story 6.5
 
 type Fields = Record<string, unknown>;
+
+/**
+ * Story 8.8 (decision 8.8 D2): one "lost packet" costs a 200 ms stall (about one 4G retransmit, the
+ * network audit's main rows, docs/perf/network-audit-2026-11.md §3.5); `&stall=400` is the worse case.
+ * Kept here, not in netConfig.ts (Story 8.9 owns that file in the same build round).
+ */
+export const DEFAULT_STALL_MS = 200;
+/** Largest `?lag` / `?jitter` accepted (ms; Story 2.6, moved here from urlOptions.ts by Story 8.8 review N2). */
+export const MAX_THROTTLE_LAG_MS = 2000;
+export const MAX_THROTTLE_JITTER_MS = 1000;
+/** Story 8.8: largest `&loss` (%) and `&stall` (ms) accepted. */
+export const MAX_THROTTLE_LOSS_PCT = 20;
+export const MAX_THROTTLE_STALL_MS = 1000;
+
+/**
+ * Story 8.8: the throttle the fight reads through, for the `?debug=1` overlay line (set by
+ * `main.ts › throttled()`, cleared when its room is left). Null when `?lag` / `&loss` is off.
+ */
+export const activeThrottle: { current: DevThrottle | null } = { current: null };
+
+/**
+ * Story 8.8 (AC 1): the overlay's ` · loss 1 % × 200 (stalls ↓3 ↑2)` suffix while the lossy line is
+ * on (↓ = server→phone, ↑ = phone→server), else "".
+ */
+export function throttleLossText(t: { readonly lossPct: number; readonly stallMs: number; readonly stallsIn: number; readonly stallsOut: number } | null): string {
+  if (!t || t.lossPct <= 0) return "";
+  return ` · loss ${t.lossPct} % × ${t.stallMs} (stalls ↓${t.stallsIn} ↑${t.stallsOut})`;
+}
 
 /** A plain copy of the room state (all view fields), reused: player objects persist per id. */
 class StateCopy {
@@ -137,6 +174,8 @@ type MessageHandler = (message: unknown) => void;
  *   handed on, so HP and positions are delayed alike), byte frames into pooled 2054-byte buffers;
  *   message objects are fresh per message from the SDK and are held by reference.
  * - Order is kept per direction (TCP never reorders): `due = max(lastDue, now + lag/2 + u)`.
+ * - Story 8.8 (`&loss=<pct>&stall=<ms>`): a message drawn as "lost" adds `stallMs` to its due; the
+ *   ordered `max(lastDue, …)` makes every message behind it wait too (the head-of-line model).
  *
  * Nothing runs on timers: `pump(nowMs)` delivers what is due, from the game loop. When a queue is
  * full (a hidden tab stops the loop), its oldest entry is delivered at once.
@@ -147,6 +186,12 @@ export class DevThrottle implements NetRoomLike {
   private readonly now: () => number;
   private readonly oneWayMs: number;
   private readonly spreadMs: number;
+  /** Story 8.8: the lossy line (0 = off). */
+  readonly lossPct: number;
+  readonly stallMs: number;
+  /** Story 8.8: stalls injected so far, per direction (overlay, tests). */
+  stallsIn = 0;
+  stallsOut = 0;
   private readonly incoming: Incoming[];
   private inHead = 0;
   private inCount = 0;
@@ -170,6 +215,8 @@ export class DevThrottle implements NetRoomLike {
   ) {
     this.oneWayMs = Math.max(0, opts.lagMs) / 2;
     this.spreadMs = Math.max(0, opts.jitterMs);
+    this.lossPct = Math.min(MAX_THROTTLE_LOSS_PCT, Math.max(0, opts.lossPct ?? 0));
+    this.stallMs = Math.min(MAX_THROTTLE_STALL_MS, Math.max(0, opts.stallMs ?? DEFAULT_STALL_MS));
     this.random = opts.random ?? Math.random;
     this.now = opts.now ?? (() => performance.now());
     this.incoming = Array.from({ length: THROTTLE_QUEUE_SIZE }, () => ({
@@ -216,10 +263,12 @@ export class DevThrottle implements NetRoomLike {
       (this.outHead + this.outCount) % THROTTLE_QUEUE_SIZE
     ] as Outgoing;
     this.outCount++;
-    e.due = this.outLastDue = Math.max(
-      this.outLastDue,
-      this.dueFrom(this.now()),
-    );
+    let due = this.dueFrom(this.now());
+    if (this.stalled()) {
+      due += this.stallMs;
+      this.stallsOut++;
+    }
+    e.due = this.outLastDue = Math.max(this.outLastDue, due);
     e.type = type;
     if (type === C2S.INPUT_SEND) {
       Object.assign(e.input, message); // NetSimHost reuses its send buffer: copy now (no allocation)
@@ -290,13 +339,23 @@ export class DevThrottle implements NetRoomLike {
     return nowMs + this.oneWayMs + (this.random() - 0.5) * this.spreadMs;
   }
 
+  /** Story 8.8: this message is "lost" and waits for its retransmit (no draw when the line is clean). */
+  private stalled(): boolean {
+    return this.lossPct > 0 && this.random() * 100 < this.lossPct;
+  }
+
   private nextIncoming(): Incoming {
     if (this.inCount === THROTTLE_QUEUE_SIZE) this.deliverIncoming();
     const e = this.incoming[
       (this.inHead + this.inCount) % THROTTLE_QUEUE_SIZE
     ] as Incoming;
     this.inCount++;
-    e.due = this.inLastDue = Math.max(this.inLastDue, this.dueFrom(this.now()));
+    let due = this.dueFrom(this.now());
+    if (this.stalled()) {
+      due += this.stallMs;
+      this.stallsIn++;
+    }
+    e.due = this.inLastDue = Math.max(this.inLastDue, due);
     return e;
   }
 
