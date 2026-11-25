@@ -1,4 +1,4 @@
-import { runRewardsSchema, type RunRewards } from "@topdown/shared";
+import { runRewardsSchema, runStartedSchema, type RunRewards } from "@topdown/shared";
 
 /**
  * Story 7.2 (AC 5, 6): this phone's `run.rewards` (server truth: the client never computes or sends an amount, S6).
@@ -30,8 +30,8 @@ const browserStorage = (): KeyValueStore | null => {
 
 export class RewardsStore {
   private latest: RunRewards | null = null;
-  /** Review L5: run ids of earlier runs in this room: a late message of one is never shown on a newer Results. */
-  private readonly stale = new Set<string>();
+  /** Re-review RR-L1 (B18 amended): the current run's id from `run.started`; only its `run.rewards` are accepted. */
+  private runId: string | null = null;
   private readonly listeners = new Set<Listener>();
 
   constructor(private readonly storage: () => KeyValueStore | null = browserStorage) {}
@@ -51,7 +51,7 @@ export class RewardsStore {
    */
   receive(raw: unknown, leave = false): RunRewards | null {
     const parsed = runRewardsSchema.safeParse(raw);
-    if (!parsed.success || this.stale.has(parsed.data.runId)) return null;
+    if (!parsed.success || parsed.data.runId !== this.runId) return null; // another run's (late) message, or before run.started
     if (leave) this.rememberLeave(parsed.data);
     this.latest = parsed.data;
     for (const l of this.listeners) l(this.latest);
@@ -59,12 +59,13 @@ export class RewardsStore {
   }
 
   /**
-   * Review L5: a new run started in this room: the previous run's rewards are forgotten (its run id marked stale), so
-   * the next Results says "Saving…" until ITS message lands, even when two runs share a seed (dev `?seed=`).
+   * Re-review RR-L1 (B18 amended): `run.started { runId }` — this run is now the only one whose rewards are accepted.
+   * A new run id forgets the previous run's rewards ("Saving…" again on its Results); the same id (a rejoin) keeps them.
    */
-  startRun(): void {
-    if (this.latest) this.stale.add(this.latest.runId);
-    if (this.stale.size > 32) this.stale.clear(); // a long session: only recent runs matter
+  setRun(raw: unknown): void {
+    const parsed = runStartedSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.runId === this.runId) return;
+    this.runId = parsed.data.runId;
     this.latest = null;
     for (const l of this.listeners) l(null);
   }

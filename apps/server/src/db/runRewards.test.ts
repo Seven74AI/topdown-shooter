@@ -8,6 +8,7 @@ import { accountsRepo } from "./accountsRepo";
 import { type Database, type Db, openPglite } from "./client";
 import { MIGRATIONS_FOLDER } from "./migrate";
 import { progressRepo } from "./progressRepo";
+import { DbUnavailableError } from "./timeout";
 
 /** Story 7.2 (AC 4, brief 18, 21): the run_rewards migration and `progressRepo.addSupplies`. */
 log.level = process.env.LOG_LEVEL ?? "silent";
@@ -93,6 +94,33 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     const r = await progressRepo(database).addSupplies(RUN_A, acct.id, pays(-50));
     expect(r.supplies).toBe(0);
     expect(r.newTotal).toBe(0);
+  });
+
+  it("re-review RR-M1: a slow connection checkout (2.5 s, past the old 2 s timer) is awaited: the result is the commit's own (banked), never 'failed'", async () => {
+    const real = fresh();
+    const acct = await account(real);
+    const slow: Database = { kind: real.kind, db: async () => { await new Promise((r) => setTimeout(r, 2500)); return real.db(); }, close: () => real.close() };
+    const t0 = performance.now();
+    const r = await progressRepo(slow).addSupplies(RUN_A, acct.id, pays(40));
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(2400);
+    expect(r).toMatchObject({ banked: true, supplies: 40, newTotal: 40 });
+    expect(await progressRepo(real).get(acct.id)).toMatchObject({ supplies: 40 });
+  }, 10_000);
+
+  it("re-review RR-M1 (PostgreSQL < 17): a transaction past its budget at COMMIT time rolls back: rejected AND nothing written", async () => {
+    const database = fresh();
+    const acct = await account(database);
+    let t = 0;
+    const clock = () => (t += 1000); // BEGIN at 1000 ms, the pre-COMMIT check at 2000 ms: 1000 ms elapsed
+    const repo = progressRepo(database, undefined, { now: clock, budgetMs: 500 });
+    await expect(repo.addSupplies(RUN_A, acct.id, pays(40))).rejects.toBeInstanceOf(DbUnavailableError);
+    expect(await progressRepo(database).get(acct.id)).toMatchObject({ supplies: 0, lifetimeSupplies: 0 });
+    const db = await database.db();
+    expect((await rows<{ n: number }>(db, sql`select count(*)::int as n from run_rewards`))[0]?.n).toBe(0);
+    // within budget the same call commits
+    let t2 = 0;
+    const ok = progressRepo(database, undefined, { now: () => (t2 += 100), budgetMs: 500 });
+    expect((await ok.addSupplies(RUN_A, acct.id, pays(40))).banked).toBe(true);
   });
 
   it("brief 21: migration 0001 runs forward on a copy of the 0000 schema with rows in it (rows kept)", async () => {

@@ -105,6 +105,7 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           const rs = await import("/src/net/rewardsStore.ts");
           const rows = k.names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: k.kills, earned: k.earned }));
           ui.uiStore.set({ kind: "results", wave: k.endless ? 47 : 10, rows, online: true, ending: k.ending, endless: k.endless, seed: 4294967295, dawnEndsAtMs: 0, mySlot: 0 });
+          rs.rewardsStore.setRun({ runId: k.endless ? "1f1e2d3c-4b5a-4968-8776-655443322111" : "0f1e2d3c-4b5a-4968-8776-655443322110" });
           rs.rewardsStore.receive({
             runId: k.endless ? "1f1e2d3c-4b5a-4968-8776-655443322111" : "0f1e2d3c-4b5a-4968-8776-655443322110",
             seed: 4294967295,

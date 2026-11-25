@@ -32,8 +32,9 @@ describe("Story 7.2 wiring", () => {
     expect(read("ui/EvacVote.tsx")).toMatch(/\{voteStakesLine\(\)\}/);
   });
 
-  it("review L5 / N1: a new run clears the rewards store; the Results get this phone's slot", () => {
-    expect(read("net/onlineFlow.ts")).toMatch(/rewardsStore\.startRun\(\);[^\n]*\n\s*session = deps\.makeSession\(\);/);
+  it("re-review RR-L1 / N1: run.started sets the store's run; the Results get this phone's slot", () => {
+    expect(read("net/session.ts")).toMatch(/onMessage\(S2C\.RUN_STARTED,[^\n]*receiveRunStarted/);
+    expect(read("net/session.ts")).toMatch(/rewardsStore\.setRun\(m\)/);
     expect(read("net/onlineFlow.ts")).toMatch(/const mySlot = deps\.mySlot\?\.\(\);/);
     expect(read("main.ts")).toMatch(/mySlot: \(\) => lobbyStore\.joinedInfo\(\)\?\.slot/);
   });

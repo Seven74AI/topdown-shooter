@@ -65,6 +65,7 @@ import {
   type PlayerLeftReason,
   type RunJoined,
   type RunRewards,
+  type RunStarted,
   type ShopBought,
   type ShopOffered,
   type ShopBoughtItem,
@@ -452,6 +453,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
+    // Story 7.2 (RR-L1): the run's id first, during a run or on its Results, so the phone accepts only this run's rewards.
+    if (this.bank && this.state.phase !== "lobby") client.send(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted);
     // Story 7.2: a seat that comes back on Results gets its run rewards again (it may have missed them while away).
     const rewards = this.state.phase === "results" ? this.bank?.resultFor(member.playerId) : undefined;
     if (rewards) client.send(S2C.RUN_REWARDS, rewards);
@@ -1086,6 +1089,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
     this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs }); // Story 7.2
+    this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that
     // are not one of the run's seats are refused in `join()` (run_started) whatever the count.

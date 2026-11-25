@@ -74,7 +74,8 @@ export function rewardsView(rewards: RunRewards | null, online: boolean, seed: n
     rookie: rewards.rookie,
     total: formatSupplies(rewards.newTotal),
     status: "",
-    note: rewards.ending === "quit" && (rewards.leftWave ?? 0) > 0 ? `Banked when you left (wave ${rewards.leftWave})` : "",
+    // Review L4 / re-review N-R2: a Leave before wave 1 started (leftWave 0) still says when it banked.
+    note: rewards.ending === "quit" ? ((rewards.leftWave ?? 0) > 0 ? `Banked when you left (wave ${rewards.leftWave})` : "Banked when you left (before wave 1)") : "",
   };
 }
 

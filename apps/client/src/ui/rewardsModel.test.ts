@@ -40,6 +40,8 @@ describe("Story 7.2: rewardsView", () => {
 
   it("review L4 (B5): a seat that banked on a Leave and came back reads 'Banked when you left (wave N)'; otherwise no note", () => {
     expect(rewardsView(msg({ ending: "quit", leftWave: 4 }), true, 2207).note).toBe("Banked when you left (wave 4)");
+    expect(rewardsView(msg({ ending: "quit", leftWave: 1 }), true, 2207).note).toBe("Banked when you left (wave 1)"); // N-R1
+    expect(rewardsView(msg({ ending: "quit", leftWave: 0 }), true, 2207).note).toBe("Banked when you left (before wave 1)"); // N-R2
     expect(rewardsView(msg({ ending: "extracted", leftWave: 0 }), true, 2207).note).toBe("");
     expect(rewardsView(msg(), true, 2207).note).toBe(""); // an older server without the fields
   });

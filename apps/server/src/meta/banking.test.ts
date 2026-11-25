@@ -100,6 +100,34 @@ describe("Story 7.2: RunBank", () => {
     }
   });
 
+  it("re-review RR-M1: no timer of its own: a slow attempt (3 s) that commits is reported saved, and a retry starts only after a failed attempt has ended", async () => {
+    vi.useFakeTimers();
+    try {
+      const log: string[] = [];
+      let n = 0;
+      const repo = {
+        addSupplies: async (_run: string, _acct: string, pay: (l: number) => RunPayout) => {
+          const k = ++n;
+          log.push(`start${k}@${Date.now()}`);
+          await new Promise((r) => setTimeout(r, 3000));
+          log.push(`end${k}@${Date.now()}`);
+          if (k === 1) throw new DbUnavailableError("progress.addSupplies", "error");
+          const p = pay(10_000);
+          return { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: p.breakdown };
+        },
+      } as unknown as ProgressRepo;
+      const t0 = Date.now();
+      const { bank } = bankWith(repo, BANK_RETRY_MS);
+      const p = bank.bank({ playerId: "p0", accountId: ACCT, record: rec(2), ending: "wiped" });
+      await vi.advanceTimersByTimeAsync(3000 + BANK_RETRY_MS + 3000);
+      const m = await p;
+      expect(m.status).toBe("saved");
+      expect(log).toEqual([`start1@${t0}`, `end1@${t0 + 3000}`, `start2@${t0 + 3000 + BANK_RETRY_MS}`, `end2@${t0 + 6000 + BANK_RETRY_MS}`]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("AC 4: two failures → logged twice, no third try, status failed (\"Couldn't save this run\")", async () => {
     const { repo, state } = fakeRepo();
     state.fail = 5;

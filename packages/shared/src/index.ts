@@ -314,6 +314,8 @@ export {
   lobbyReturnSchema,
   runLeaveSchema,
   runRewardsSchema,
+  runStartedSchema,
+  type RunStarted,
   type RunRewards,
   type RunRewardsStatus,
   buildSetReadySchema,
