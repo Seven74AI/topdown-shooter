@@ -89,3 +89,11 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Playable result:** v1, ready for weekly game nights.
 - **Out:** new content.
 - **High-level stories:** reference-phone performance pass · memory and battery pass · quality settings and gore toggle · load time and music streaming · economy and wave balance pass · home-screen install and safe areas · run stats · friend-group playtests.
+
+## Epic 12 — Controller on the phone
+- **Goal:** play a whole run on the phone with a Bluetooth Xbox or PlayStation controller, on Android and iPhone.
+- **In:** controller in the fight, menus with the controller (focus, text fields open the phone keyboard or "tap to type"), controller prompts on the HUD, build phase with the controller.
+- **Depends on:** Epic 6 and the Network pass; 12.1–12.2 come before Epic 7's screen stories.
+- **Playable result:** a full run without touching the glass, except to type.
+- **Out:** an in-game keyboard; desktop controller support.
+- **High-level stories:** controller in the fight · menus with the controller · controller prompts on the HUD · build phase with the controller.

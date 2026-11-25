@@ -160,6 +160,10 @@ FR91: Every generated city passes checks A–G (A never seals off an area at any
 FR92: Random city decays by generic rules through all 5 stages (curb cars move into the road, police lines, cars burn, manholes and windows open, rubble closes 1 of 3 candidate side streets, 2 building walls open as breaches; stage 5 power out and fog), plus each landmark recipe's own stage events (gas station: gas leak from stage 2).
 FR93: Random city spawns: stage 1 only from the city edges; from stage 2 also from generated points 15–35 m from the group, never within 6 m; fights stay as dense as Downtown's (150 alive cap unchanged).
 FR94: Results of a Random city run show a city code; the host can type it in the lobby to play the same layout again (decay picks, events and shop cards stay new); a code from an older generator is refused with "This city is from an older version".
+FR95: A Bluetooth Xbox or PlayStation controller drives the survivor on Android Chrome and iOS Safari: left stick moves, right stick aims and fires automatically; swap, consumable, ping and menu each have a button; aim assist stays on. While the controller is active, taps on UI don't switch to touch, only a touch on the game area does. If the controller disconnects mid-run, the in-run menu opens and the survivor stands still.
+FR96: Every menu screen can be used with the controller: the d-pad or left stick moves focus, A/✕ confirms, B/○ goes back. Selecting a text field focuses it: on Android the phone keyboard opens, on iPhone the field shows "tap to type". There is no in-game keyboard.
+FR97: While the controller is active, HUD buttons show that controller's prompts (Xbox A/B/X/Y or PlayStation ✕/○/□/△, from `gamepad.id`); the touch sticks hide; the cancel icon follows the controller family.
+FR98: The build phase can be played with the controller: the shoulder buttons cycle the build tiles, the ghost is carried in front of the survivor (Story 5.15), and rotate, place, pick up, undo, repair and sell are reachable.
 
 ### NonFunctional Requirements
 
@@ -320,7 +324,7 @@ FR90–FR94: Epic 11 - Random city (generator, checks, decay rules, spawns, city
 
 ## Epic List
 
-Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
+Twelve epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → **12.1–12.2 Controller base (sprint change proposal 2026-11-25 controller)** → 7 → rest of 8 → 12.3–12.4 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
@@ -365,6 +369,10 @@ Every technical target is met on the reference phones; quality settings, home-sc
 ### Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
 **FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
+
+### Epic 12: Controller on the phone
+A player can play a whole run with a Bluetooth Xbox or PlayStation controller paired to an Android phone or an iPhone, in the mobile browser: the fight, the build phase, the shop, the lobby, the vote and every menu. Typing stays on the phone keyboard. The HUD shows that controller's buttons. 12.1–12.2 are built after the Network pass, before Epic 7's screen stories; 12.3–12.4 any time after 12.1 (sprint change proposal 2026-11-25 controller).
+**FRs covered:** FR95, FR96, FR97, FR98
 
 ## Epic 1: Core combat on one phone
 
@@ -2995,7 +3003,7 @@ So that we can coordinate without voice chat.
 
 **Given** the ping button (top-right or by the minimap, clear of the build bar and hand cluster; hidden while I hold a building)
 **When** I tap it
-**Then** a small wheel offers Help! · Over here · Big one! · Ready (FR76, D15; "Big one!" covers the Brute and the Behemoth); on desktop the F key opens it; downed players can ping
+**Then** a small wheel offers Help! · Over here · Big one! · Ready (FR76, D15; "Big one!" covers the Brute and the Behemoth); on desktop the F key opens it; with a controller, the ping button (FR95) opens it and the right stick picks a ping; downed players can ping
 
 **Given** I choose a ping
 **When** it is sent (`ping.send`, max 1 per second per player)
@@ -3119,7 +3127,7 @@ So that the game feels finished.
 
 **Given** the UI art
 **When** applied
-**Then** the HUD, build bar, action bar and I1 build-bar icons (5.16/5.21/5.26/5.27), C3 shop cards, GR6 gear and CI4 consumable icons, lobby, survivor editor (7.10), evacuation vote, ping icons, unlock and training screens use code-drawn UI art, keeping the picked looks
+**Then** the HUD, build bar, action bar and I1 build-bar icons (plus the Xbox and PlayStation controller prompt icons, FR97) (5.16/5.21/5.26/5.27), C3 shop cards, GR6 gear and CI4 consumable icons, lobby, survivor editor (7.10), evacuation vote, ping icons, unlock and training screens use code-drawn UI art, keeping the picked looks
 **And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px
 
 ### Story 9.8: Ambience and audio buses
@@ -3205,6 +3213,7 @@ So that the game runs and feels right on my phone.
 **When** it is saved
 **Then** it applies immediately, is stored in localStorage (wrapped in try/catch, with defaults if storage fails), and is synced to my account when I'm logged in
 **And** account sync uses its own `settings` field in `progress`, added by this story's own migration (Story 7.1 doesn't create it)
+**And** the Settings screen can be used with the controller (FR96), and the aim assist toggle applies to controller aim too
 
 ### Story 10.2: Frame-rate pass on reference phones
 
@@ -3277,7 +3286,7 @@ So that it feels like an app.
 **Then** HUD and controls stay inside the safe areas
 
 **Given** Safari on iOS 16+, Chrome on Android 10+, and current desktop Chrome, Firefox, Safari and Edge
-**When** a smoke test (lobby, one wave, shop, build) runs on each
+**When** a smoke test (lobby, one wave, shop, build) runs on each, and once more on iOS Safari and Android Chrome with a controller only (FR95–FR98)
 **Then** it passes, and the results are recorded in `docs/qa/browsers.md` (NFR8)
 
 ### Story 10.6: Report a problem
@@ -3343,6 +3352,7 @@ So that we know it's ready for every week.
 **Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
 **And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
 **And** if the 4.10 Milestone 1 playtest never ran, its checks (`docs/playtests/milestone-1.md`) run in the first game night
+**And** at least one game night includes a player on a phone with a controller (Epic 12)
 
 **Given** every NFR
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
@@ -3534,3 +3544,88 @@ So that we can play the same streets again or send them to friends.
 **Given** a saved run (Story 8.4) and run stats (Story 10.7)
 **When** a Random city run is saved or recorded
 **Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
+
+## Epic 12: Controller on the phone
+
+A player can play a whole run with a Bluetooth Xbox or PlayStation controller paired to an Android phone or an iPhone, in the mobile browser. Source: forge session `_bmad-output/forge/controller-support/forged-idea.md`; sprint change proposal 2026-11-25 controller. Client only: the input message is unchanged (`isMouse=false`, so aim assist applies).
+
+### Story 12.1: Controller in the fight
+
+As a player with a controller paired to my phone,
+I want to move, aim, fire, swap, use consumables and open the menu with it,
+So that I can fight without touching the glass.
+
+**Acceptance Criteria:**
+
+**Given** a standard-mapping Xbox or PlayStation controller on Android Chrome or iOS Safari
+**When** I press any button or push a stick
+**Then** the controller becomes the active device (`InputSource` gains `"gamepad"`); the left stick moves (10 % dead zone), the right stick aims (30 % dead zone) and fires while aiming; Y/△ swaps, X/□ uses the consumable, Start opens the in-run menu (FR95)
+**And** `isMouse` is false, so aim assist applies; the touch sticks hide
+
+**Given** the controller is active
+**When** I tap a menu, a button or a text field
+**Then** the controller stays the active device; only a touch on the game area hands control back to touch
+
+**Given** a run, online or solo
+**When** the controller disconnects
+**Then** the in-run menu opens and my input is neutral (Story 2.11 stand-still rule): the survivor stands still until the controller reconnects or I use touch
+
+**Given** an Xbox controller and a DualSense
+**When** each is tested on an Android phone and an iPhone
+**Then** every mapping above works, and the results are recorded in `docs/qa/browsers.md`
+
+### Story 12.2: Menus with the controller
+
+As a player with a controller,
+I want to use every screen with it,
+So that I never need to touch the phone except to type.
+
+**Acceptance Criteria:**
+
+**Given** the start screen, lobby, shop, in-run menu, results and evacuation vote
+**When** a controller is active
+**Then** one element has a visible focus ring; the d-pad or left stick moves focus in a fixed order; A/✕ presses; B/○ goes back or closes, like the screen's own back or close (FR96)
+
+**Given** the name or room-code field
+**When** I press A/✕ on it
+**Then** the field gets `focus()` in the same frame the controller is read; on Android the phone keyboard opens; on iPhone the field shows "tap to type" and one tap opens the keyboard
+
+**Given** the first task of this story (spike)
+**When** `focus()` from a controller press is tried on a real Android phone and a real iPhone
+**Then** the result is recorded; if Android does not open the keyboard either, both phones use "tap to type"
+
+**And** the focus system is a new module (e.g. `ui/focusNav.ts`) that later screens join; `input/menuInput.ts` has no menu navigation (it only neutralizes input)
+
+### Story 12.3: Controller prompts on the HUD
+
+As a player,
+I want the HUD to show my controller's buttons,
+So that I press the right one in a fight.
+
+**Acceptance Criteria:**
+
+**Given** an active controller
+**When** the HUD draws the swap, consumable, ping, build, rotate, place, cancel and undo buttons
+**Then** each shows its prompt in that controller's family: Xbox A/B/X/Y or PlayStation ✕/○/□/△, detected from `gamepad.id`; an unknown controller gets Xbox prompts (FR97)
+**And** on a PlayStation controller Place is ✕ and cancel is ○, so the on-screen ✕ cancel icon changes to match
+**And** the prompts return to touch icons when touch takes over
+
+### Story 12.4: Build phase with the controller
+
+As a player with a controller,
+I want to pick, carry, rotate and place buildings with it,
+So that the build phase doesn't need the screen.
+
+**Acceptance Criteria:**
+
+**Given** a build phase with the controller active
+**When** I press the shoulder buttons
+**Then** the build bar's focus cycles through the 7 tiles and A/✕ picks one up, through the same path as the desktop digits (Story 5.23) (FR98)
+
+**Given** I hold a building
+**When** I walk
+**Then** the ghost is carried in front of my survivor (5.15); the rotate button turns it; A/✕ places it (5.18 chain kept); B/○ cancels; undo, pick up, repair and sell each have a button or a focusable action-bar entry (5.20, 5.21, 3.7)
+
+**Given** a real-phone playtest
+**When** I carry a building with the stick
+**Then** I can hit a chosen 0.5 m grid spot; if not, the right stick nudges the ghost one grid step at a time

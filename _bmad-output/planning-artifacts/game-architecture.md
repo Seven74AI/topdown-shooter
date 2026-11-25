@@ -48,7 +48,7 @@ A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4
 | Network sync of the horde to phones (~30 KB/s per client, 150 ms latency) | high | Technical Specifications |
 | Client prediction for own movement/aim + server-confirmed hits | high | Multiplayer Considerations (Fairness and feel) |
 | Rendering: 2D canvas/WebGL with 150 animated zombies, lighting, blackout, rain/fog | high | Art Style, Performance Requirements |
-| Touch twin-stick input + desktop fallback | medium | Controls and Input |
+| Touch twin-stick input + desktop fallback + controller on the phone (Gamepad API) | medium | Controls and Input |
 | Zombie AI and crowd movement (chase, flank, keep distance, attack buildings) | medium | Enemy Design and AI |
 | Wave director, spawn points, player-count scaling, events, boss | medium | Enemy Wave Design |
 | District + decay stage engine (map changes per stage, fire zones, rubble) | medium | Level Progression |
@@ -121,7 +121,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Component | Solution | Notes |
 | --- | --- | --- |
 | Rendering | Phaser WebGL renderer, sprite batching, cameras | Canvas fallback; lighting via Phaser lights/filters or render textures |
-| Input | Phaser input manager (multi-touch pointers, keyboard, mouse) | Twin-stick joysticks built on top |
+| Input | Phaser input manager (multi-touch pointers, keyboard, mouse) + browser Gamepad API read once per frame (not Phaser's gamepad plugin) | Twin-stick joysticks built on top |
 | Audio | Phaser Web Audio sound manager | Streaming music handled by the loader |
 | Scene management | Phaser Scenes (Boot, Preload, Menu/Lobby, Game, UI overlay) | |
 | Asset loading | Phaser Loader (atlases, audio, JSON) | Texture atlases to keep draw calls low |
@@ -185,7 +185,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 ### Networking
 
 - **Tick:** server simulation fixed step 50 ms (20 Hz); projectile collision uses swept segment-vs-circle tests so 60 m/s bullets cannot tunnel.
-- **Client input:** sampled and sent once per 50 ms simulation step (20/s): move vector, aim vector, fire held, swap, consumable, `isMouse` flag; each tagged with a sequence number for reconciliation. Prediction runs the same fixed step; rendering interpolates between predicted steps.
+- **Client input:** sampled and sent once per 50 ms simulation step (20/s): move vector, aim vector, fire held, swap, consumable, `isMouse` flag; each tagged with a sequence number for reconciliation. A controller sends the same message with `isMouse=false`; the wire format doesn't change (Epic 12). Prediction runs the same fixed step; rendering interpolates between predicted steps.
 - **Time and determinism:** build, vote, downed and event timers count ticks inside the World; the Colyseus clock only drives `step()`. Joins, disconnects and reconnects enter the simulation as input events.
 - **Lag compensation (built in Story 2.12):** the server keeps 300 ms of zombie position history and rewinds zombies to what the shooter saw (≤ 6 ticks / 300 ms); spread is keyed to the input seq so client and server agree. Boss hits are not rewound (Epic 6 proposal §1.5). **Network pass (2026-11-24, `docs/perf/network-audit-2026-11.md`):** Story 8.8 raises the window to 500 ms (TCP stalls on 4G push shots past 300 ms; zombies are the only rewound targets, so nobody is treated unfairly); Story 8.9 lets the render delay adapt 100–250 ms with time-stretch catch-up and a clock that never runs backwards.
 - **Horde stream:** per tick, per client, a binary message containing zombies inside that client's view plus a 4 m margin. Record: id (u16, pool slot with a generation bit), x and y (u16, 1 cm precision, map origin at 0,0, clamped), heading (u8), type+state (u8) = **8 bytes**; zombies outside the view are omitted. Worst case 150 in view × 8 B × 20 Hz ≈ **24 KB/s** + 6 B header per message. Total budget per client: horde ≤ 24 KB/s + schema patches and events ≤ 6 KB/s = 30 KB/s. **Story 8.10 (Network pass)** changes the record stream to a delta against the previous frame sent to that client (safe on ordered WebSocket: no acks), heading derived on the client, zombies > 8 m refreshed at 10 Hz, a full frame on join / after a skip / every second: ≈ 6.5–9 KB/s at ~118 in view (audit replay) instead of 18.6.
@@ -325,7 +325,7 @@ topdown-shooter/
 │   │       ├── main.ts                 # boots Phaser + Preact overlay
 │   │       ├── scenes/                 # BootScene, PreloadScene, GameScene, HudScene
 │   │       ├── net/                    # Colyseus client, horde stream decoder, interpolation, prediction
-│   │       ├── input/                  # touch twin-stick, keyboard/mouse, input sampler
+│   │       ├── input/                  # touch twin-stick, keyboard/mouse, controller, input sampler
 │   │       ├── render/                 # zombie/player/building views, lighting & blackout, decay visuals, fx
 │   │       ├── audio/                  # buses, ambience per decay stage, adaptive music
 │   │       ├── ui/                     # Preact screens: Lobby, Shop, EvacVote, Results, Unlocks, Settings
@@ -398,7 +398,7 @@ Tests live next to the code they test: `foo.ts` → `foo.test.ts`.
 | Horde stream | `packages/shared/src/net` (format) · `apps/server/src/net` (encode) · `apps/client/src/net` (decode) | Compact per-client zombie updates |
 | Prediction and interpolation | `apps/client/src/net` | Local player prediction, remote buffers |
 | Rendering, lighting, blackout | `apps/client/src/render` | Views of simulation state only |
-| Touch controls | `apps/client/src/input` | Floating twin-sticks, aim assist input |
+| Touch and controller | `apps/client/src/input` | Floating twin-sticks, controller, aim assist input |
 | Menus | `apps/client/src/ui` | Preact overlays |
 | Accounts and meta-progression | `apps/server/src/auth`, `apps/server/src/meta`, `apps/server/src/db` | PostgreSQL via Drizzle |
 | Logging, reports, health | `apps/server/src/ops`, `apps/client/src/debug` | pino, report-a-problem |

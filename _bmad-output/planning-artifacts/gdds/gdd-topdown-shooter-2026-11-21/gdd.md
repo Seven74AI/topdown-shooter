@@ -85,6 +85,7 @@ Numbers for each are in the sections below.
 - **Reload:** automatic when the magazine is empty.
 - **Open risk:** melee under twin-stick worked in browser probes but needs a playtest on real phones (Epic 1).
 - **Desktop (bonus):** WASD to move, mouse to aim, hold left click to fire, Q to swap.
+- **Controller on the phone:** a Bluetooth Xbox or PlayStation controller paired to the phone plays the whole run. Left stick moves; right stick aims and fires automatically; Y/△ swaps, X/□ uses the consumable, Start opens the menu; the shoulder buttons cycle the build bar; A/✕ places or confirms, B/○ cancels or goes back. Aim assist stays on. The HUD shows that controller's buttons. Typing is on the phone keyboard (Epic 12).
 - **Build phase:** pick a building in the build bar, carry its ghost and drag to place it ("B · Carry + drag", 0.5 m lattice); the ghost turns red at once when blocked and green only after 250 ms clear. Weapons, upgrades, gear and consumables come from the shop. Details in *Buildings and Defenses* and `docs/ideas/building-ux/ux-spec.md`.
 
 ## Shooter Specific Design
@@ -309,7 +310,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **Battery:** a 20-minute run uses under 15% battery on the reference phones.
 - **Quality settings:** rain, fog, screen shake, film grain and light glow can be lowered or turned off. **Blackout darkness is gameplay and cannot be turned off.** A gore toggle (blood only) is available.
 ### Platform-Specific Details
-- **Mobile browsers (primary):** Safari on iOS 16+, Chrome on Android 10+. Landscape only; respects notches and safe areas; can be added to the home screen.
+- **Mobile browsers (primary):** Safari on iOS 16+, Chrome on Android 10+. Landscape only; respects notches and safe areas; can be added to the home screen. Works with touch only or with a Bluetooth Xbox or PlayStation controller only.
 - **Desktop browsers (bonus):** current Chrome, Firefox, Safari, Edge with keyboard and mouse.
 - **No native app** and no app store in v1.
 ### Asset Requirements (v1)

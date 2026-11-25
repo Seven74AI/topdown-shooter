@@ -231,3 +231,12 @@ development_status:
   11-6-art-drawn-by-type: backlog
   11-7-pick-random-city-share-its-code: backlog
   epic-11-retrospective: optional
+
+  # Epic 12: Controller on the phone (sprint-change-proposal-2026-11-25-controller.md)
+  # Build order: 12.1 -> 12.2 after the Network pass, before Epic 7's screen stories (7.3, 7.6, 7.10); 12.3 || 12.4 any time after 12.1
+  epic-12: backlog
+  12-1-controller-in-the-fight: backlog
+  12-2-menus-with-the-controller: backlog
+  12-3-controller-prompts-on-the-hud: backlog
+  12-4-build-phase-with-the-controller: backlog
+  epic-12-retrospective: optional

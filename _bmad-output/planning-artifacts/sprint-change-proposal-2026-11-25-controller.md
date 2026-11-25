@@ -1,6 +1,6 @@
 # Sprint Change Proposal: controller on the phone (2026-11-25)
 
-Mode: batch. Scope: **Moderate**. It adds a new epic and changes backlog text in Epics 7, 8, 10 and in the GDD and architecture doc. No built code changes. Status: **awaiting the designer's approval**.
+Mode: batch. Scope: **Moderate**. It adds a new epic and changes backlog text in Epics 7, 8, 10 and in the GDD and architecture doc. No built code changes. Status: **approved by the designer 2026-11-25 ("Parfait"); all §4 edits applied**.
 
 Input: `_bmad-output/forge/controller-support/forged-idea.md` (forge session, hardened, 2026-11-25).
 

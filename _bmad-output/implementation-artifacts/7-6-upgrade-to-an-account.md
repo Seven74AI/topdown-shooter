@@ -53,7 +53,7 @@ so that I keep my progress on a new phone.
 
 - After 7.1: `accounts` (id, username, password_hash, recovery_code_hash, guest_token_hash, display_name, created_at), `progress` (supplies, lifetime_supplies, unlocks, training, districts); `POST /account/session` resolves the device by cookie `tdg` → `localStorage` token; session ticket in join options. 7.2 adds `run_rewards`, 7.3/7.5 the unlock/training routes with `requestId` and a per-account limiter, 7.7 writes `districts`.
 - **Today (master):** none of it exists. HTTP is Colyseus `createRouter` (`app.ts:33`, `/health` only); bodies ≤ 2 KB (`net/httpGuard.ts:4`); `SlidingWindowLimiter` + `ipKey` (`net/rateLimit.ts:10-26, 50-92`; IPv6 by /64) and `roomCreateLimiter` (`:98-103`), reset in `test/bootTestServer.ts:21-29`; client IP from `X-Real-IP` set by Caddy from `Cf-Connecting-Ip` (`deploy/Caddyfile:32-44`).
-- **Start screen** (`ui/StartScreen.tsx`): name in `localStorage` `topdown.name` (`:7-22`), Create (`:123`), Join (`:147`), Practice solo (`:161-168`); keyboard/gamepad menu navigation (`input/menuInput.ts`).
+- **Start screen** (`ui/StartScreen.tsx`): name in `localStorage` `topdown.name` (`:7-22`), Create (`:123`), Join (`:147`), Practice solo (`:161-168`). The account forms join Story 12.2's controller focus order, and the username and password fields focus the same way as the name field (FR96; `input/menuInput.ts` has no menu navigation).
 
 ### What must keep working
 

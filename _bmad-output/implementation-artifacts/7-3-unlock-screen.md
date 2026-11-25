@@ -80,7 +80,7 @@ so that my options grow over time.
 
 ### What must keep working
 
-The start screen's Create / Join / Practice flow and share-link focus (`StartScreen.tsx:56-59`); the lobby; screens hiding themselves; `menuInput` keyboard/gamepad navigation in menus (`input/menuInput.ts`) for the new buttons.
+The start screen's Create / Join / Practice flow and share-link focus (`StartScreen.tsx:56-59`); the lobby; screens hiding themselves; the new buttons join Story 12.2's controller focus order (`input/menuInput.ts` has no menu navigation: it only neutralizes input).
 
 ### Testing
 
