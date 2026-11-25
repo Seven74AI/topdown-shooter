@@ -214,6 +214,26 @@ export class HordeEncoder {
   }
 
   /**
+   * Story 8.1 hook (call it in `RunRoom.attachClient`: first join, reconnect with the same sessionId,
+   * takeover, seat restore): a fresh delta baseline for this client — nothing it held before is
+   * assumed, and its next frame is a keyframe.
+   */
+  resetHordeStream(client: object): void {
+    const st = this.stateFor(client);
+    st.hasBase = false;
+    st.needsKey = true;
+    st.inSet.fill(0);
+  }
+
+  /**
+   * Story 8.1 hook (takeover / final leave): drop this client's state. Optional — the state is held
+   * in a WeakMap keyed by the client object, so a gone client is collected anyway (no leak).
+   */
+  forgetClient(client: object): void {
+    this.clients.delete(client);
+  }
+
+  /**
    * The wanted set for a view centred on (px, py): ids + per-slot targets. Returns the count.
    */
   private collect(world: World, px: number, py: number): number {

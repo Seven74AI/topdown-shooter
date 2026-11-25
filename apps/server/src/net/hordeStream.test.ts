@@ -348,6 +348,31 @@ describe("Story 8.10: the delta horde stream", () => {
     expect((phone.frames[2] as Uint8Array)[4]).toBe(HORDE_KIND_KEY);
   });
 
+  it("Story 8.1 hooks: resetHordeStream (same client object re-attached) gives a keyframe and a fresh baseline; a reconnect's new phone decodes it with no error; forgetClient drops the state", () => {
+    const { world, enc, phone, stats } = line();
+    for (let i = 0; i < 20; i++) spawnZombie(world, "walker", 18 + i * 0.5, 14);
+    const tick = (p: Phone): void => {
+      step(world, TICK_DT_S);
+      enc.prepare(world);
+      enc.send(world, p, stats, 24, 16);
+    };
+    for (let t = 0; t < 7; t++) tick(phone);
+    expect((phone.frames.at(-1) as Uint8Array)[4]).toBe(HORDE_KIND_DELTA);
+    // mid-wave reconnect on the SAME server-side client object: the phone is new (a reload / new RunInbox)
+    const fresh = new Phone();
+    const sendBytes = fresh.sendBytes.bind(fresh);
+    (phone as unknown as { sendBytes: (t: number, b: Uint8Array) => void }).sendBytes = sendBytes;
+    enc.resetHordeStream(phone);
+    tick(phone);
+    expect((fresh.frames[0] as Uint8Array)[4]).toBe(HORDE_KIND_KEY);
+    for (let t = 0; t < 10; t++) tick(phone);
+    expect(fresh.stream.decodeErrors + fresh.stream.brokenChain).toBe(0);
+    expect(fresh.last.size).toBe(20);
+    const st = enc.stateFor(phone);
+    enc.forgetClient(phone);
+    expect(enc.stateFor(phone)).not.toBe(st); // gone: a later send would start over with a keyframe
+  });
+
   it("brief 19 fuzz: random bytes, truncated frames, bit flips and a dropped frame never throw, are counted, never apply, and the next keyframe heals within 1 s", () => {
     const { world, phone, tick } = line();
     const rng = createRng(19);
