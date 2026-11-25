@@ -343,6 +343,44 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 
 **Checks**: `npm ci`; `npm run typecheck` green; server banking/db/rewards/account/accountRoutes suites, client rewardsStore/rewardsModel/onlineFlow, tools rewardsWiring + resultsDomLayout green. Out of scope: `RunRoom.reconnect.test.ts` › "a quiet seat that then drops…" times out at 5 s here, identically on origin/master (8.1 code). Probes kept: `7-2-review-probes/rereview1-realPostgres.probe.ts.txt`, `rereview1-rewardsStore.probe.ts.txt`.
 
+### Re-review (narrow) 2 — 2026-11-25, branch `rereview2-7-2` (origin/story-7-2 d9b257c + origin/master 8248be0, clean merge)
+
+**Verdict: changes requested — 1 M, 1 L, 2 nits.** Scope: fac177d (RR-M1 `db/boundedTx.ts`, RR-L1 `run.started`, N-R1…N-R4) + d9b257c. Real PostgreSQL 16 scratch cluster (`initdb`, port 5453). RR-M1 itself holds: in every case where the connection lives, the status equals what was committed and the retry never pays twice. RR-L1 holds.
+
+**Findings**
+
+- **RR2-M1 (Medium) — a database connection lost DURING a bank transaction crashes the whole game server process.** `pg.Pool` keeps an `error` listener only on IDLE clients (`pool.on("error")` in `db/client.ts`); a checked-out client (Drizzle's `transaction()` holds one from BEGIN to COMMIT) has none, so when its socket ends pg emits `error: Connection terminated unexpectedly` on the Client → unhandled `'error'` event → Node exits (no `uncaughtException` handler in the server). Reproduced with the real `progressRepo.addSupplies` in a plain `tsx` process: bank waiting on a row lock, `pg_terminate_backend` on its backend → process exit 1 before the bank even settled (`7-2-review-probes/rereview2-crash.probe.ts.txt`). Same through a TCP cut (proxy) and during COMMIT; under Vitest the 6 occurrences show up as "Unhandled Errors". Triggers in production: a PostgreSQL restart / container restart / OOM-kill / failover while any run is banking (a bank can now sit in its transaction up to ~1.8 s + COMMIT, the widest window in the server); every live room dies with it — against P3 ("a server whose database is down still runs"). Pre-existing since 7.1 (`accountsRepo` also uses `transaction()`), but `boundedTransaction` is now the shared helper for 7.3/7.5/7.7/7.11/7.12 money transactions, and "the DB killed mid-transaction" was this re-review's question. Direction (verified in a probe: process survives, the in-flight query still rejects, the retry then runs): in `openPostgres`, `pool.on("connect", (c) => c.on("error", (e) => log.error({ op: "pg_client", err: e.message }, "db_error")))` — a permanent listener per client; plus a real-PG test that terminates the bank's backend and asserts no unhandled error.
+- **RR2-L1 (Low) — "Saving…" is unbounded on a half-open connection, and the comments/docs still overclaim.** No `keepAlive` / `query_timeout` on the pool: (E5) the COMMIT reply black-holed (connection open, no RST) → `addSupplies` never settled in 15 s (committed server-side; settled only when the socket was cut); (E5d) the connection silent mid-transaction → not settled in 12 s (PostgreSQL rolled back on its own). The bank promise, its pool slot and the player's "Saving…" hang until the OS gives up (no keepalive: indefinitely). Same-host Docker makes a silent partition unlikely (a restart gives RST/FIN), so Low. Related ambiguity (E5c): COMMIT done, reply lost, retry cannot reach the DB → **"failed" + paid** — inherent (the outcome of a COMMIT whose reply is lost is unknowable), mitigated by the retry (E5b: same scenario with the DB back → `saved`, paid once via the PK) and by the hand-grant check; but `boundedTx.ts` ("result is ALWAYS the truth"), `banking.ts` ("a failed bank never commits later") and `docs/deploy.md` ("…under the server's 2 s", now stale) state it unconditionally. Direction: `keepAlive: true` (+ a modest `keepAliveInitialDelayMillis`) on the pool, optionally a client `query_timeout` well above the PG-side budget (e.g. 5 s; a timeout then is just another ambiguous failure the retry resolves); reword the three texts to "except when the connection is lost during COMMIT: then check `run_rewards`".
+- **N-RR2-1** B19's "≈ 4 s worst case per attempt" is not a bound on COMMIT: a slow COMMIT (deferred trigger sleeping 4 s at commit) is not cut by `statement_timeout` → resolved and paid at 5.4 s (consistent, just longer). Wording only.
+- **N-RR2-2** `leaveAfterRewards` waits LEAVE_REWARDS_WAIT_MS 1500 ms, while a bank can now legitimately take 1.8 s+ (budget) — a slow-but-successful Leave bank loses the D4 start-screen line (money fine). Also, if the phone joins another room whose `run.started` arrives before the Leave answer, `receive` drops it (runId mismatch) before `rememberLeave`. Cosmetic.
+
+**Attempts (real PostgreSQL 16)**
+
+| # | Attempt | Result |
+|---|---|---|
+| 1 | shipped `realPostgres.test.ts` (`TEST_DATABASE_URL`) | 12/12 pass |
+| E1 | budget edge: lock 1.4 s + insert 0.39 / 0.41 s | resolved@1799 paid 1 / rejected@1817 paid 0 — consistent; the 1.81 s case is a "false fail" of a bank that would have committed: acceptable (rolled back, retry pays; a second over-budget attempt is an honest "Couldn't save" + unpaid) |
+| E2 | COMMIT slow 1.0 / 1.4 / 2.0 / 4.0 s (deferred trigger) after a 1.4 s body | resolved@2406/2809/3409/5408, all paid 1 — consistent (N-RR2-1) |
+| E2b | RunBank, 4 s COMMIT | saved@4014, paid 1 |
+| E3 | `pg_terminate_backend` mid-transaction (lock wait), RunBank | saved@2515 (retry), paid 1 — **but an unhandled pg `error` (RR2-M1)** |
+| E4 | terminate during COMMIT | saved (retry), paid 1 — unhandled `error` (RR2-M1) |
+| E5 | COMMIT reply black-holed, socket half-open | not settled in 15 s; committed (RR2-L1) |
+| E5b | same, then the socket cut, DB back | saved@3009, paid once (retry hit the PK) |
+| E5c | same, retry's DB unreachable (checkout 2 s) | **failed + paid** (RR2-L1, inherent ambiguity) |
+| E5d | connection silent mid-transaction | not settled in 12 s; unpaid (RR2-L1) |
+| B1/B2 | pool saturated + lock / squeezed before both attempts (shipped tests) | pass: status = money |
+| E6 | 5 hogs looping on the pool | bank got a slot (FIFO queue) saved@1309 paid 1 |
+| E7a | shutdown (`database.close` = `pool.end`) during the transaction | pool waits for it: closed@806, saved, paid 1 |
+| E7b | shutdown during the 2 s retry wait | attempt 2 on an ended pool → failed, paid 0 — consistent (the socket is gone anyway) |
+| R1 | `run.started` vs `run.rewards` on attach (Results rejoin, held seat) | `attachClient` sends `run.joined` → `run.started` → `run.rewards`; shipped tests assert the order |
+| R2 | reconnect mid-run (8.1 `onReconnect`, takeover, recovered join) | all go through `attachClient` → current runId; the client's `RunInbox` is created in `lobbyStore.attach` before the join resolves, so the Start broadcast is never missed |
+| R3 | late run-1 `run.rewards` during run 2 (same seed) | ignored (store test; mutation killed) |
+| R4 | practice solo | `rewardsView(…, online=false)` → "practice" before the store is read; unaffected |
+
+**Mutations (each new test once)**: drop the pre-COMMIT budget check → runRewards "budget at COMMIT" + realPostgres C fail (killed). Put `addSupplies` back under `withDbTimeout` → runRewards "slow checkout 2.5 s" + realPostgres B1 + B2 fail (killed; A cases pass by design — invariant tests). RunBank races an attempt against a 2 s timer → "no timer of its own" fails (killed). No `run.started` broadcast at Start → S1/S6 order test fails (killed). No `run.started` on attach → L3 + N-R3 order tests fail (killed). Store accepts while no run id is set → RR-L1 store test fails (killed). Note `> 0` → `> 1` → L4 fails (killed, N-R1 closed). Drop "before wave 1" → L4 fails (killed, N-R2). N-R3 with the RunBank per-seat dedupe removed → still passes (equivalent: the DB key (run_id, account_id) + `storedBreakdown` give the same result).
+
+**Checks**: `npm ci`; `npm run typecheck` green; server `src/db` (incl. realPostgres on PG 16), `meta/banking`, `RunRoom.rewards` 51/51; client rewardsStore/rewardsModel/onlineFlow/session 54/54; tools rewardsWiring + resultsDomLayout 14/14 (Chromium ran). Probes kept: `7-2-review-probes/rereview2-realPostgres.probe.ts.txt`, `rereview2-crash.probe.ts.txt`.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
@@ -351,3 +389,4 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 - 2026-11-25: Senior Developer Review (AI): changes requested — M1 (timed-out bank commits later), L1–L5, N1.
 - 2026-11-25: Re-review (narrow) 1: changes requested — RR-M1 (pool wait / PG<17 sum still let a timed-out bank commit), RR-L1 (late message of the previous run), 4 nits.
 - 2026-11-25: Re-review 1 findings resolved (RR-M1, RR-L1, N-R1…N-R4); B18 amended, B19.
+- 2026-11-25: Re-review (narrow) 2: changes requested — RR2-M1 (a DB connection lost mid-transaction crashes the server: no error listener on checked-out pg clients), RR2-L1 (half-open connection: Saving… unbounded; overclaiming comments), 2 nits.
