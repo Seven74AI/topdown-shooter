@@ -331,9 +331,68 @@ Real phones / 4G / iOS Safari; the two-tab smoke (brief 34); the capped-line tab
 
 B2 stays as logged (reviewer: pre-existing client behaviour). **Follow-up (for Story 8.11 or the Epic 10 polish pass):** a zombie with a pending kill (`HordeBuffer.pendingKillNetId`) could be treated as no longer hittable by the local hit prediction / hit marker (still drawn, no false hit spark), which would bring the clean-line reversed rate back toward 0.2 % without hiding zombies early.
 
+### Re-review (narrow) 1 (2026-11-25, fresh reviewer)
+
+Scope: `bbbd625` (review fixes) and `b1100d3` (8.1 hooks) only, on `story-8-10` `b53df6a` + master `ad9388f` merged (clean, no conflicts). `npm ci`; typecheck green; touched tests green (hordeStream, RunRoom, hordeGlide, hits, smooth: 65/65; eventBandwidth 8.10 row green). No full gate.
+
+**Verdict: RM1 and RM2 fixed. Approve with two lows and two nits (none blocks).**
+
+| Id | Severity | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| RR1 | low | `apps/server/src/rooms/RunRoom.ts:761` | Nothing pins the GAME room to the 20 Hz encoder. Mutation `new HordeEncoder()` → `new HordeEncoder(undefined, 8)` (far rule switched on in the room) **survives** `apps/server/src/rooms` + `tools/checks` (169 tests). The B7 test (`hordeStream.test.ts` "the game's encoder (no radius given)…") pins only the constructor's default, and `hordeGlide` uses its own encoder. So a later story's "pass the radius" edit (the far rule is kept on purpose for one) could put the stutter back in the game with every test green. | Add a wiring check in `tools/checks` that `RunRoom.ts` builds `new HordeEncoder()` with no radius (like the other wiring checks), or have `RunRoom.fight.test.ts` assert that a zombie more than 8 m from the view centre is refreshed in every frame. |
+| RR2 | low (test strength) | `tools/netsim/smooth.test.ts:105–117` | Seed judgement below: the move to 9 seeds is honest, but a ratio bound alone can now pass while pacing-ON gets worse if the pacing-OFF control drops. | Also pin the absolute value: `expect(on.starved).toBeLessThanOrEqual(300)` over seeds 1–9 (master 250, branch 277; about +20 % of master). |
+| RR3 | nit | `apps/server/src/net/hordeEncoder.ts:121,161`; `tools/netsim/hitsSim.ts:111`; `tools/netsim/smoothRun.ts:8` | The comments still describe D1 as the default ("farther than HORDE_NEAR_M … every 2nd tick", "tools pass Infinity for an all-20 Hz control", "`HORDE_NEAR_M=Infinity` in the env runs the all-20 Hz control"). Since B7, Infinity is the default and the far rule needs `8` / `HORDE_FAR_RULE_RADIUS_M`. | Reword the four comments. |
+| RR4 | nit | `packages/shared/src/net/hordeFormat.ts:83` | `HORDE_NEAR_M` and `HORDE_FAR_RULE_RADIUS_M` are both exported from `@topdown/shared`, and the names look close. Importing the wrong one turns the rule on. RR1's pin covers this. | None beyond RR1. |
+
+**Exploit RM1.**
+- A pre-8.10 tab on a deploy that also changed the balance still gets `balance_mismatch`: the version check runs first, and the test covers it (`balanceVersion: "00000000"`).
+- The old client's `joinErrors` (master) maps `balance_mismatch` to "Please refresh" with the Refresh button.
+- Version `0`, `NET_PROTOCOL_VERSION ± 1` → `update_required`.
+- Negative, string, `null`, non-integer or > 0xffff → the zod schema refuses them first as `invalid_options` (`messages.ts:173` `z.number().int().min(0).max(0xffff).optional()`). They never reach `checkNetProtocol` and nothing is decoded.
+- No Refresh loop: `deploy/Caddyfile:70` serves `index.html` with `no-cache`, so a Refresh loads the new build, and there is no service worker.
+
+**Exploit RM2.** No 10 Hz path is left in the game: `RunRoom`, the bots and netaudit all use the default encoder (`nearSq` = Infinity, so `tFar` is always 0 and `isFarRefreshTick` is never consulted). The FAR / `HORDE_CHG_FAR` flag costs no bytes because it is a bit in the existing mask byte, never set and never toggled. Keyframes are unchanged at 1/s. TINY records are still sent: they are the smallest move encoding, not a rate path. The netaudit check reads `farHeld 0`. The only accidental switch-on routes are RR1 (the room's constructor) and the `HORDE_NEAR_M` env var in the `smoothRun.ts` tool (tool only, not the server).
+
+**Measurements (same seeds, this tree):**
+
+| What | Result | AC |
+| --- | --- | --- |
+| Audit replay (`npx tsx tools/netaudit/hordeEncodings.ts 600`) | story810 **8.2 KB/s**, key 1/s, 0 errors, 0 mismatches | ≤ 10 ✓ |
+| Stampede (`eventBandwidth.test.ts` 8.10 row), worst 1 s | **13.5 KB/s** (avg 12.2), 14 keys, 180 in view | ≤ 15 ✓ |
+| Netaudit stampede variant (`ZOMBIES=180 RING=3,9`) | avg 10.8 KB/s | — |
+
+All three match the builder's figures.
+
+**Seed judgement (smooth.test "beat the rule 3"): honest seed-noise handling, not a hidden regression.** Starved ticks, pacing on/off, 150 Walkers standing, lossy 1 %, 60 s:
+
+| Tree | 1–3 | 4–6 | 7–9 | 1–9 |
+| --- | --- | --- | --- | --- |
+| master `ad9388f` (pre-8.10 harness) | 89/77 = 1.16 | 72/56 = 1.29 | 89/63 = 1.41 | 250/196 = 1.28 |
+| branch, B7 (as shipped) | 89/48 = **1.85** | 88/63 = 1.40 | 100/84 = 1.19 | 277/195 = 1.42 |
+| branch, far rule on (8 m) | 86/51 = 1.69 | 96/74 = 1.30 | 94/89 = 1.06 | 276/214 = 1.29 |
+
+- On seeds 1–3, pacing-ON reads the same on master and the branch (89 vs 89). The ratio jumps because the pacing-OFF control fell from 77 to 48.
+- The counts are small (13–41 ticks per run), and on master alone the triples already range from 1.16 to 1.41.
+- Why it moves: the harness's single `rng` drives every link message's stall and jitter, and the client's aim follows the drawn horde, so any change to the drawing reshuffles the runs chaotically.
+- Over 9 seeds, ON is +11 % against master (250 → 277; OFF unchanged at 196 → 195). That is within about 1.5 σ of the per-seed spread and well under the 8.9 B7 bound (+41–61 % accepted, ≤ 1.7×).
+- The fix does not weaken what the 8.9 B7 bound is about: it stays at 1.7, over more seeds. RR2 adds an absolute pin so a drop in the control cannot mask a worse rule.
+
+**Mutations (each new test once):**
+
+| Mutation | Result |
+| --- | --- |
+| Remove `if (version === undefined) throw refuse("balance_mismatch")` | RunRoom 8.10 F5 fails (`'update_required'` vs `'balance_mismatch'`) ✓ |
+| `HORDE_NEAR_M = 8` | hordeStream "B7 … every zombie every tick" and hordeGlide "review RM2 / B7 …" both fail ✓ |
+| `hitsSim` ignores `hordeNearM` (always the default) | both clean-line rows in hits.test fail on the RL1 liveness `r.horde.bytes > farRule.horde.bytes` ✓ |
+| smooth.test back to seeds 1–3 | fails (89 > 81.6), so the 9-seed sum is what lets it pass (as documented) ✓ |
+| RunRoom `new HordeEncoder(undefined, 8)` | **survives** → RR1 |
+
+`b1100d3` (8.1 hooks) read: `resetHordeStream` clears `hasBase` / `inSet` and forces a key, and `forgetClient` deletes from the WeakMap. The test covers a re-attach on the same object, a new phone decoding with 0 errors, and forget. No finding.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built overnight (delta horde stream v2, B1–B6 auto-accepted), status review.
 - 2026-11-25: senior developer review (AI): changes requested — RM1, RM2 (medium), RL1–RL3 (low); B2 judged pre-existing client behaviour (accept as logged); status in-progress.
 - 2026-11-25: review fixes RM1, RM2 (→ B7), RL1–RL3; master 02e7d8c merged; status review (RM1/RM2 to a narrow re-review).
+- 2026-11-25: narrow re-review 1 (fresh reviewer): RM1/RM2 fixed; RR1 low (room encoder unpinned; mutation survives), RR2 low (absolute starved pin), RR3/RR4 nits; seed change judged honest.
