@@ -39,7 +39,7 @@ describe("progression.json (Story 7.1)", () => {
 
   it("refuses duplicates, bad ids, extra keys and an empty pool", () => {
     const supplies = PROGRESSION.supplies;
-    const rest = { supplies, unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" }, training: PROGRESSION.training, districts: PROGRESSION.districts }; // + Story 7.7
+    const rest = { supplies, unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" }, training: PROGRESSION.training, account: PROGRESSION.account, districts: PROGRESSION.districts }; // + Story 7.7
     expect(() => loadProgression({ ...rest, starterPool: ["pistol", "pistol"] })).toThrow(ProgressionError);
     expect(() => loadProgression({ ...rest, starterPool: ["Pistol"] })).toThrow(ProgressionError);
     expect(() => loadProgression({ ...rest, starterPool: [] })).toThrow(ProgressionError);
@@ -50,7 +50,7 @@ describe("progression.json (Story 7.1)", () => {
   it("Story 7.2: supplies are the FR78 / D1 / D3 / D5 numbers, integers only, all present", () => {
     expect(PROGRESSION.supplies).toEqual({ perWave: 10, behemoth: 50, extract: 100, perEndlessWave: 20, endlessBehemoth: 50, rookieLift: { belowLifetime: 300, multiplier: 2 } });
     const s = PROGRESSION.supplies;
-    const r = { starterPool: ["pistol"], unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" } };
+    const r = { starterPool: ["pistol"], unlocks: PROGRESSION.unlocks, starterLines: { pistol: "x" }, training: PROGRESSION.training, account: PROGRESSION.account };
     expect(() => loadProgression(r)).toThrow(ProgressionError);
     expect(() => loadProgression({ ...r, supplies: { ...s, perWave: 10.5 } })).toThrow(ProgressionError);
     expect(() => loadProgression({ ...r, supplies: { ...s, extract: -1 } })).toThrow(ProgressionError);

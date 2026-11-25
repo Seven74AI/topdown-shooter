@@ -30,7 +30,7 @@ function fakeRepo() {
       const stats: LifetimeStatsRow = meta ? meta.statsDelta : { revives: 0, kills: 0, barricades: 0, runs: 0 };
       const g = meta?.grant(stats, mine, []);
       for (const k of g?.cosmetics ?? []) mine.add(k);
-      const r = { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: { ...p.breakdown, ...(g?.breakdown ?? {}) } };
+      const r = { banked: true, supplies: p.supplies, newTotal: p.supplies, breakdown: { ...p.breakdown, ...(g?.breakdown ?? {}) }, nudge: false };
       rows.set(key, r);
       return r;
     },

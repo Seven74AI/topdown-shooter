@@ -11,6 +11,12 @@ import {
   MAX_TRAIN_CALLS_PER_IP_PER_MIN,
   MAX_TRAINS_PER_ACCOUNT_PER_MIN,
   UNLOCK_WINDOW_MS,
+  LOGIN_WINDOW_MS,
+  MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN,
+  MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN,
+  MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN,
+  MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN,
+  MAX_NAME_CHECKS_PER_IP_PER_MIN,
 } from "./limits";
 
 /**
@@ -137,3 +143,82 @@ export const unlockAccountLimiter = new SlidingWindowLimiter(MAX_UNLOCKS_PER_ACC
 
 /** Story 7.1 review L4: a rate-limit warning is logged at most once per IP and kind per minute (a flood can't push real logs out). */
 export const rateLimitLogGate = new SlidingWindowLimiter(1, ACCOUNT_SESSION_WINDOW_MS, Date.now, (key) => key);
+
+/** Story 7.6 (AC 8, A3): ONE limiter shared by `/account/login` and `/account/recover`, every attempt counted. */
+export const loginIpLimiter = new SlidingWindowLimiter(MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+/**
+ * Story 7.6 (brief 19, B3 amended by review M1): WRONG answers per lower-cased username (from any address). Over the
+ * budget, only an address (`ipKey`) that already failed for this name in the window is refused; an address with no
+ * failure for it is still evaluated. So an attacker can't lock the owner out (the owner's address is clean), and over
+ * the budget each attacking address gets at most one evaluated guess per window. A right answer is never counted.
+ */
+export class NameFailureLimiter {
+  private readonly fails = new Map<string, { atMs: number; ip: string }[]>();
+
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number,
+    private readonly now: () => number = Date.now,
+    private readonly ipOf: (ip: string) => string = ipKey,
+    /** At most this many failures kept per name (each request is already limited per address). */
+    private readonly capPerName = 1000,
+  ) {}
+
+  /** True when `name` is over its failure budget AND this address already failed for it in the window. */
+  blocked(name: string, ip: string): boolean {
+    this.prune(this.now());
+    const f = this.fails.get(name);
+    if (!f || f.length < this.limit) return false;
+    const key = this.ipOf(ip);
+    return f.some((x) => x.ip === key);
+  }
+
+  /** Records one wrong answer for `name` from `ip`. */
+  fail(name: string, ip: string): void {
+    const now = this.now();
+    this.prune(now);
+    const f = this.fails.get(name) ?? [];
+    f.push({ atMs: now, ip: this.ipOf(ip) });
+    if (f.length > this.capPerName) f.splice(0, f.length - this.capPerName);
+    this.fails.set(name, f);
+  }
+
+  get size(): number {
+    return this.fails.size;
+  }
+
+  reset(): void {
+    this.fails.clear();
+  }
+
+  private prune(now: number): void {
+    const cutoff = now - this.windowMs;
+    for (const [name, f] of this.fails) {
+      let i = 0;
+      while (i < f.length && (f[i] as { atMs: number }).atMs <= cutoff) i++;
+      if (i === f.length) this.fails.delete(name);
+      else if (i > 0) f.splice(0, i);
+    }
+  }
+}
+
+/**
+ * Story 7.6 re-review RR1 (B3): the address key of the per-name failure budget is coarser for IPv6 — a /56 (a home or
+ * a small VPS allocation) counts as ONE failing address, so rotating through /64s inside it gives no extra guesses.
+ * IPv4 (and anything else) as `ipKey`.
+ */
+export function nameFailureIpKey(ip: string): string {
+  const k = ipKey(ip);
+  if (!k.endsWith("::/64")) return k;
+  const g = k.slice(0, -"::/64".length).split(":");
+  g[3] = (parseInt(g[3] ?? "0", 16) & 0xff00).toString(16);
+  return `${g.join(":")}::/56`;
+}
+
+export const loginNameLimiter = new NameFailureLimiter(MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN, LOGIN_WINDOW_MS, Date.now, nameFailureIpKey);
+/** Story 7.6: upgrade / logout per IP (before any work) and per account. */
+export const accountActionIpLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+export const accountActionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS_PER_ACCOUNT_PER_MIN, LOGIN_WINDOW_MS, Date.now, (key) => key);
+
+/** Story 7.6 review L6 (B18): Save's name checks per IP (the answer "That name is taken" reveals a name). */
+export const nameCheckIpLimiter = new SlidingWindowLimiter(MAX_NAME_CHECKS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);

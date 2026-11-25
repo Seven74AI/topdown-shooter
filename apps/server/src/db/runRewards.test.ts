@@ -38,9 +38,9 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     const acct = await account(database);
     const repo = progressRepo(database);
     const first = await repo.addSupplies(RUN_A, acct.id, pays(250));
-    expect(first).toEqual({ banked: true, supplies: 250, newTotal: 250, breakdown: { waves: 250 } });
+    expect(first).toEqual({ banked: true, supplies: 250, newTotal: 250, breakdown: { waves: 250 }, nudge: true }); // 7.6: a guest's first ≥ 200
     const again = await repo.addSupplies(RUN_A, acct.id, pays(999)); // a retry, a second endRun, a reconnect
-    expect(again).toEqual({ banked: false, supplies: 250, newTotal: 250, breakdown: { waves: 250 } });
+    expect(again).toEqual({ banked: false, supplies: 250, newTotal: 250, breakdown: { waves: 250 }, nudge: false });
     expect(await repo.get(acct.id)).toMatchObject({ supplies: 250, lifetimeSupplies: 250 });
     const db = await database.db();
     expect((await rows<{ n: number }>(db, sql`select count(*)::int as n from run_rewards`))[0]?.n).toBe(1);

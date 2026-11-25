@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
 import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
+import { dbErrText } from "../db/timeout";
 import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
 import { runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
 
@@ -292,9 +293,10 @@ export class RunBank {
           // 7.11 / 7.12 / 7.7 log lines (keys and ids only; no names a player typed)
           this.deps.log.info({ runId: this.runId, accountId, items: meta.newItems?.map((x) => x.key) ?? [], loot: meta.loot ? { wave: meta.loot.wave, collector: meta.loot.key === null } : null, districts: meta.newDistricts?.map((x) => x.id) ?? [] }, "meta_granted");
         }
-        return message(this.runId, this.seed, "saved", b, r.newTotal, { ...meta, ...team }, seat.lockedUsed);
+        const m = message(this.runId, this.seed, "saved", b, r.newTotal, { ...meta, ...team }, seat.lockedUsed);
+        return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
-        const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
+        const err = dbErrText(e); // review L5: never a query's parameters
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
         // COMMIT reply with the database then unreachable can mean "failed" although paid: the retry's duplicate key
         // or the hand-grant check (run_rewards first, docs/deploy.md › Database) covers it.

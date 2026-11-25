@@ -9,6 +9,7 @@ import { accountsRepo } from "./accountsRepo";
 import { type Database, openPglite } from "./client";
 import { MIGRATIONS_FOLDER } from "./migrate";
 import { progressRepo } from "./progressRepo";
+import { deviceTokensRepo } from "./deviceTokensRepo";
 import { seatMeta, type RunFacts } from "../meta/runMeta";
 import type { MetaPlayer } from "../meta/banking";
 
@@ -114,14 +115,37 @@ describe("Stories 7.7 / 7.11 / 7.12: the bank's meta writes (PGlite)", () => {
     expect((await repo.get(acct.id))?.districts).toEqual(["district_2"]);
   });
 
-  it("brief 21: migration 0003 runs forward on a copy of the 0002 schema with rows in it (defaults filled, rows kept)", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "mig3-"));
+  it("7.6 payee: a guest merged into an account banks its meta writes on the ACCOUNT's row; run_rewards keeps the seat's id", async () => {
+    const database = fresh();
+    const accounts = accountsRepo(database);
+    const full = await accounts.createGuest("a".repeat(64), "Ana");
+    expect(await accounts.setCredentials(full.id, { username: "ana_1", passwordHash: "$argon2id$p", recoveryCodeHash: "$argon2id$r" })).toBe("ok");
+    const guest = await accounts.createGuest("b".repeat(64), "");
+    const login = await deviceTokensRepo(database).logIn({ oldTokenHash: "b".repeat(64), newTokenHash: "c".repeat(64), accountId: full.id });
+    expect(login.outcome).toBe("ok");
+    const repo = progressRepo(database);
+    const run = runId();
+    const r = await repo.addSupplies(run, guest.id, pay(), seatMeta("p0", player() as never, true, facts({ lootFoundBy: "p0", lootWave: 4 })));
+    expect(r.banked).toBe(true);
+    expect(r.breakdown.newDistricts).toEqual([{ id: "district_2", name: "District 2" }]);
+    const p = await repo.get(full.id);
+    expect(p?.cosmetics).toEqual(expect.arrayContaining(["head:fire", "head:riot", lootPartKeys()[0]]));
+    expect(p?.districts).toEqual(["district_2"]);
+    expect(p?.stats).toEqual({ revives: 2, kills: 30, barricades: 3, runs: 1 });
+    expect(await repo.get(guest.id)).toBeNull();
+    const db = await database.db();
+    const keyed = (await db.execute(sql`select account_id from run_rewards where run_id = ${run}`)) as unknown as { rows: { account_id: string }[] };
+    expect(keyed.rows).toEqual([{ account_id: guest.id }]);
+  });
+
+  it("brief 21: migration 0004 runs forward on a copy of the 0003 schema (7.6) with rows in it (defaults filled, rows kept)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mig4-"));
     try {
       cpSync(MIGRATIONS_FOLDER, dir, { recursive: true });
       const journalPath = join(dir, "meta", "_journal.json");
       const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
-      expect(journal.entries.map((e) => e.tag).slice(-2)).toEqual(["0002_look", "0003_milestones_loot"]);
-      writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.filter((e) => e.tag !== "0003_milestones_loot") }));
+      expect(journal.entries.map((e) => e.tag).slice(-3)).toEqual(["0002_look", "0003_accounts_devices", "0004_milestones_loot"]); // after 7.6
+      writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.filter((e) => e.tag !== "0004_milestones_loot") }));
       const [{ PGlite }, { drizzle }, { migrate }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite"), import("drizzle-orm/pglite/migrator")]);
       const client = new PGlite();
       try {
@@ -129,9 +153,16 @@ describe("Stories 7.7 / 7.11 / 7.12: the bank's meta writes (PGlite)", () => {
         await migrate(db, { migrationsFolder: dir });
         await db.execute(sql`insert into accounts (guest_token_hash, display_name) values (${"d".repeat(64)}, 'Old')`);
         await db.execute(sql`insert into progress (account_id, supplies, look) select id, 77, 'v1' from accounts`);
+        const before = (await db.execute(sql`select count(*)::int as n from device_tokens`)) as unknown as { rows: { n: number }[] };
+        expect(before.rows[0]?.n).toBe(0); // 7.6's table is there (its data copy ran before this row)
+        await db.execute(sql`insert into device_tokens (token_hash, account_id) select ${"e".repeat(64)}, id from accounts`);
         await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+        const applied = (await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`)) as unknown as { rows: { n: number }[] };
+        expect(applied.rows[0]?.n).toBe(5); // 0004 really ran (not skipped as older)
         const r = await db.execute(sql`select supplies, look, cosmetics, stats from progress`);
         expect((r as unknown as { rows: unknown[] }).rows).toEqual([{ supplies: 77, look: "v1", cosmetics: [], stats: { revives: 0, kills: 0, barricades: 0, runs: 0 } }]);
+        const tokens = (await db.execute(sql`select count(*)::int as n from device_tokens`)) as unknown as { rows: { n: number }[] };
+        expect(tokens.rows[0]?.n).toBe(1); // 7.6's rows kept
       } finally {
         await client.close();
       }

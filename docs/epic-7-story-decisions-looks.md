@@ -154,7 +154,7 @@ Builder session, 2026-11-25 (FULL AUTONOMOUS RUN; the merged story, banking part
 | 7.12 B25 | R3 notice | A `lobby.district_reset { from }` message, shown in the lobby's 2 s notice line | Late joiners don't see a stale notice |
 | 7.12 B26 | Owned parts in the join's look check | The join stays database-free (7.1 AC 9); the room loads the account's parts right after the join and re-checks the asked look in the lobby only | A look never changes mid-run |
 | 7.12 B27 | Practice solo | Banks nothing (7.2 D1) → no milestones, no bag (7.12 D2) | 7.2's rule |
-| 7.12 B28 | 7.6 merge rules | 7.6 isn't on master: note for 7.6 (`cosmetics` union, `stats` added per key) | Whoever lands second adds them |
+| 7.12 B28 | 7.6 merge rules | 7.6 landed first, so this story added them: `cosmetics` union, `stats` added per key (`districts` union was 7.6's); the bank's meta writes go to 7.6's `payee` (a merged guest's account), `run_rewards` stays keyed by the seat's account | Whoever lands second adds them |
 | 7.12 B29 | Hub "Districts" line (7.7 D2) | Its own line under the hub's rule line (review M4: out of the tablist, wraps, 12 px, never cut): "District 2: unlocked · coming soon" / "extract from Downtown to unlock" | D2 recommended value |
 | 7.12 B30 | Progress view | The session / unlock answers also carry `districts` and `cosmetics` (optional fields) | 7.7 hub line, 7.11 T5 (editor tiles) |
 | 7.12 B31 | Revive farm (review M2) | A revive counts toward M5 only in phase `wave` and not when the reviver caused that down (friendly fire: `downedBy` on the downed player). Also review L2: a build-phase down is no M10 down | No risk-free farm in the build phase (M-F2). Auto-accepted overnight (designer: follow the GDS recommendation); the designer may override |

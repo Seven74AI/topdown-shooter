@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { guestTokenSchema } from "./messages";
 import { LOOK_CODE_MAX } from "../config/cosmetics";
+import commonPasswords from "../config/commonPasswords.json" with { type: "json" };
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -89,6 +90,93 @@ export const unlockResponseSchema = z.discriminatedUnion("ok", [
   }),
 ]);
 export type UnlockResponse = z.infer<typeof unlockResponseSchema>;
+
+/**
+ * Story 7.6 (AC 2, 4, 5, 7): turning a guest into an account, logging in, a forgotten password, logging out. The cookie
+ * names the device; bodies never carry an account id. Error answers are an HTTP status + `{ message: AccountErrorCode }`.
+ */
+export const ACCOUNT_UPGRADE_PATH = "/account/upgrade";
+export const ACCOUNT_LOGIN_PATH = "/account/login";
+export const ACCOUNT_RECOVER_PATH = "/account/recover";
+export const ACCOUNT_LOGOUT_PATH = "/account/logout";
+
+/** AC 2: 3–20 letters, digits, `_`, `-`, `.`; unique ignoring case. */
+export const USERNAME_RE = /^[A-Za-z0-9_.-]{3,20}$/;
+export const usernameSchema = z.string().regex(USERNAME_RE);
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 128;
+export const passwordSchema = z.string().min(PASSWORD_MIN).max(PASSWORD_MAX);
+
+/** Review N1: the most common passwords (`config/commonPasswords.json`), compared ignoring case. */
+const COMMON = new Set(commonPasswords.passwords.map((p) => p.toLowerCase()));
+export function isCommonPassword(password: string): boolean {
+  return COMMON.has(password.toLowerCase());
+}
+
+/** AC 2: the recovery code alphabet (Crockford base 32: no I, L, O, U), 12 characters shown `ABCD-EFGH-JKMN`. */
+export const RECOVERY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+export const RECOVERY_CODE_LENGTH = 12;
+
+/**
+ * What a person typed as a recovery code, upper-cased with dashes and spaces dropped (AC 5: case-insensitive, dashes
+ * optional), with Crockford's decoding (review L3): O reads as 0, I and L as 1 (the alphabet has 0 and 1, never O, I, L).
+ */
+export function normaliseRecoveryCode(input: string): string {
+  return input.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+}
+
+/** `ABCDEFGHJKMN` → `ABCD-EFGH-JKMN`. */
+export function formatRecoveryCode(code: string): string {
+  return code.match(/.{1,4}/g)?.join("-") ?? code;
+}
+
+/** A complete code (12 letters of the alphabet once normalised): the Forgot password Next button turns on. */
+export function isCompleteRecoveryCode(input: string): boolean {
+  const c = normaliseRecoveryCode(input);
+  return c.length === RECOVERY_CODE_LENGTH && [...c].every((ch) => RECOVERY_ALPHABET.includes(ch));
+}
+
+/** Bodies are length-checked loosely here (the HTTP guard caps them at 2 KB); the routes apply the exact rules. */
+export const upgradeRequestSchema = z.object({ username: z.string().max(64), password: z.string().max(256) }).strict();
+export const loginRequestSchema = z.object({ username: z.string().max(64), password: z.string().max(256) }).strict();
+export const recoverRequestSchema = z.object({ username: z.string().max(64), code: z.string().max(64), newPassword: z.string().max(256) }).strict();
+export const logoutRequestSchema = z.object({}).strict();
+export type UpgradeRequest = z.infer<typeof upgradeRequestSchema>;
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
+export type RecoverRequest = z.infer<typeof recoverRequestSchema>;
+
+/** AC 2: saved; the code is shown once (never stored in clear, never logged). */
+export const upgradeResponseSchema = z.object({ ok: z.literal(true), username: z.string().max(64), recoveryCode: z.string().max(32) });
+export type UpgradeResponse = z.infer<typeof upgradeResponseSchema>;
+
+/** The saved session branch: login / logout answer a whole new session (new device token, ticket, account, progress). */
+const savedSessionSchema = accountSessionResponseSchema.options[0];
+export const deviceSessionResponseSchema = savedSessionSchema;
+export type DeviceSessionResponse = z.infer<typeof deviceSessionResponseSchema>;
+/** AC 5: a reset logs the device in and shows the new code once. */
+export const recoverResponseSchema = savedSessionSchema.extend({ recoveryCode: z.string().max(32) });
+export type RecoverResponse = z.infer<typeof recoverResponseSchema>;
+
+/**
+ * Why a call was refused (the `message` of a non-200 answer). The texts never say which part of a login was wrong (A3).
+ */
+export const ACCOUNT_ERRORS = {
+  invalid_body: "Check the form and try again",
+  bad_username: "Use 3–20 letters, numbers, _ - or .",
+  bad_password: `Use ${PASSWORD_MIN}–${PASSWORD_MAX} characters`,
+  common_password: "That password is too common: pick another one",
+  name_taken: "That name is taken",
+  already_account: "This phone is already saved",
+  not_logged_in: "This phone isn't logged in",
+  wrong_login: "Wrong username or password",
+  wrong_code: "Wrong username or code",
+  rate_limited: "Too many attempts, try again in a minute",
+  in_room: "Leave the game first",
+  no_account: "Can't reach the save server, try later",
+  save_unavailable: "Can't reach the save server, try later",
+  forbidden: "Can't reach the save server, try later",
+} as const;
+export type AccountErrorCode = keyof typeof ACCOUNT_ERRORS;
 
 /** Story 7.5 (AC 3): train one boost one level with Supplies. The server sees `/account/training`. */
 export const ACCOUNT_TRAINING_PATH = "/account/training";

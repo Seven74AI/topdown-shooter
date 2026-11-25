@@ -5,6 +5,7 @@ import { ShopScreen } from "./ShopScreen";
 import { StartScreen } from "./StartScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { ProgressScreen } from "./ProgressScreen";
+import { AccountScreen } from "./AccountScreen";
 import { RotateOverlay } from "./RotateOverlay";
 import { ServerNotice } from "./ServerNotice";
 import { ConnectionOverlay } from "./ConnectionOverlay";
@@ -26,6 +27,7 @@ export function App({ joinCode = null }: AppProps) {
       <StartScreen joinCode={joinCode} />
       <LobbyScreen />
       <ProgressScreen />
+      <AccountScreen />
       <EvacVote />
       <ResultsScreen />
       <ShopScreen />

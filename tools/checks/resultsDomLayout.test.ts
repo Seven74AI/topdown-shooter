@@ -41,6 +41,7 @@ interface Measure {
   you: string;
   note: string;
   nCards: number;
+  nudge: { w: number; h: number } | null;
   trains: number;
   unlock: string;
   items: string[];
@@ -64,11 +65,14 @@ interface Case {
   readonly newTotal: number;
   readonly endless: boolean;
   readonly ending: "extracted" | "wiped" | "lost";
+  /** Story 7.6 (AC 10): the guest's one-time "Save my progress" row, last in the rewards card (brief 26 group 4). */
+  readonly nudge?: boolean;
   /** Review M5: the 7.11 / 7.12 / 7.7 rows (group 2 items, group 3 unlocks) on top of 7.4's unlock line. */
   readonly meta?: boolean;
 }
 const CASES: readonly Case[] = [
   { name: "short names", names: ["Mo", "Ana", "Kit", "Lu"], kills: 212, earned: 1840, total: 500, newTotal: 1240, endless: false, ending: "extracted" },
+  { name: "Story 7.6: a guest's first ≥ 200 bank with the Save my progress nudge", names: ["Mo", "Ana", "Kit", "Lu"], kills: 212, earned: 1840, total: 250, newTotal: 250, endless: false, ending: "extracted", nudge: true },
   { name: "worst case (16 × W names, 7-digit money and totals, endless)", names: ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénic", "QQQQQQQQQQQQQQQQ"], kills: 99999, earned: 9_999_999, total: 1_311_900, newTotal: 1_234_567, endless: true, ending: "lost" },
   // review M5: the worst meta case: two new items (the longest reasons), my find, District 2, plus the long names
   { name: "meta rows (2 new items, a find, District 2) with the worst names", names: ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénic", "QQQQQQQQQQQQQQQQ"], kills: 99999, earned: 9_999_999, total: 1_311_900, newTotal: 1_234_567, endless: false, ending: "extracted", meta: true },
@@ -112,6 +116,8 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
         const m = (await page.evaluate(`(async (k) => {
           const ui = await import("/src/ui/uiState.ts");
           const rs = await import("/src/net/rewardsStore.ts");
+          const as = await import("/src/net/accountStore.ts");
+          as.accountStore.accept(null); // a guest (Story 7.6: the nudge shows only for a guest)
           // Story 7.5 (TL3): every row has a Train cell; the worst case mixes "MAX" and "19/20".
           const T = [{ maxHp: 5, damage: 5, startMoney: 5, reload: 5 }, { maxHp: 5, damage: 5, startMoney: 5, reload: 4 }, { maxHp: 0, damage: 0, startMoney: 0, reload: 0 }, { maxHp: 3, damage: 0, startMoney: 0, reload: 0 }];
           const rows = k.names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: k.kills, earned: k.earned, training: T[i] }));
@@ -129,6 +135,7 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             newTotal: k.newTotal,
             ending: k.endless ? "quit" : "extracted",
             leftWave: k.endless ? 47 : 0,
+            ...(k.nudge ? { nudge: true } : {}),
             // Story 7.4 (K7): the unlock line in group 3 (the longest weapon name)
             lockedUsed: { unlockId: "grenade_launcher", name: "Grenade Launcher", price: 500 },
             ...(k.meta ? {
@@ -168,11 +175,13 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
             }
           }
           const unlock = document.querySelector("[data-testid=unlock-line]")?.textContent || "";
+          const nb = document.querySelector("[data-testid=rewards-nudge] button")?.getBoundingClientRect();
+          const nudge = nb ? { w: nb.width, h: nb.height } : null;
           const items = [...document.querySelectorAll("[data-testid=rewards-items] .rw-item__line")].map((e) => e.textContent);
           const districts = [...document.querySelectorAll(".rw-unlock--district")].map((e) => e.textContent);
           // review M5: no meta row's text is cut (wider than its box) unless it ends in an ellipsis
           const cut = [...document.querySelectorAll(".rw-item *, .rw-unlock *")].filter((e) => e.scrollWidth > e.clientWidth + 0.5 && getComputedStyle(e).textOverflow !== "ellipsis").map((e) => e.textContent);
-          return { items, districts, cut, out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, trains: trains.length, unlock };
+          return { items, districts, cut, out, minFont, btn: { w: btn.width, h: btn.height }, rects, you, note, nCards: cards.length, trains: trains.length, unlock, nudge };
 })(${JSON.stringify(c)})`, undefined)) as Measure;
         expect(m.nCards).toBe(2);
         expect(m.out, m.out.join("\n")).toEqual([]);
@@ -194,6 +203,9 @@ describe.skipIf(!pw)("Story 7.2 (R9 / review L2): Results in a real browser", ()
           expect(m.cut).toEqual([]);
         }
         if (c.endless) expect(m.note).toBe("Banked when you left (wave 47)"); // L4
+        // Story 7.6 (AC 10): the nudge row is drawn exactly when asked, inside the card, its button ≥ 44 px
+        if (c.nudge) expect(m.nudge && m.nudge.h >= 44 && m.nudge.w >= 44).toBe(true);
+        else expect(m.nudge).toBeNull();
       }, 30_000);
     }
   }

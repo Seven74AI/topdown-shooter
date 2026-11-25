@@ -62,7 +62,7 @@ export {
 } from "./config/cosmetics";
 export { LOOK_CODE_VERSION, catalogueParts, decodeLook, encodeLook, ownedParts, partKey, type DecodedLook } from "./cosmetics/lookCode";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
-export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, TRAINING_BOOSTS, findTrainingBoost, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Training, type TrainingBoost, type TrainingBoostId, type Unlock, type UnlockCategory } from "./config/progression";
+export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, TRAINING_BOOSTS, findTrainingBoost, findUnlock, loadProgression, trainingSpent, progressionSchema, starterPool, unlockList, type Progression, type Training, type TrainingBoost, type TrainingBoostId, type Unlock, type UnlockCategory } from "./config/progression";
 // Story 7.3: the pool, the unlock mask (7.4) and the "Good next pick".
 export { ALL_UNLOCKED, NO_UNLOCK, STARTER_ONLY, goodNextPick, inPool, inPoolOnly, itemCategories, itemNeedBits, ownedPerCategory, poolOf, unlockIndexOf, unlockMask } from "./meta/pool";
 export { NO_TRAINING, boostValue, clampLevel, damageMul, levelOf, levelsFromProgress, reloadTicksFor, trainedMaxHp, trainedReloadS, trainedStartMoney, trainingCost, type TrainingLevels } from "./meta/training";
@@ -389,6 +389,37 @@ export {
   sessionTicketSchema,
   unlockRequestSchema,
   unlockResponseSchema,
+  // Story 7.6: upgrade, log in, forgot password, log out
+  ACCOUNT_UPGRADE_PATH,
+  ACCOUNT_LOGIN_PATH,
+  ACCOUNT_RECOVER_PATH,
+  ACCOUNT_LOGOUT_PATH,
+  ACCOUNT_ERRORS,
+  USERNAME_RE,
+  PASSWORD_MIN,
+  PASSWORD_MAX,
+  RECOVERY_ALPHABET,
+  RECOVERY_CODE_LENGTH,
+  usernameSchema,
+  passwordSchema,
+  normaliseRecoveryCode,
+  isCommonPassword,
+  formatRecoveryCode,
+  isCompleteRecoveryCode,
+  upgradeRequestSchema,
+  loginRequestSchema,
+  recoverRequestSchema,
+  logoutRequestSchema,
+  upgradeResponseSchema,
+  deviceSessionResponseSchema,
+  recoverResponseSchema,
+  type AccountErrorCode,
+  type UpgradeRequest,
+  type LoginRequest,
+  type RecoverRequest,
+  type UpgradeResponse,
+  type DeviceSessionResponse,
+  type RecoverResponse,
   trainRequestSchema,
   trainResponseSchema,
   type TrainRequest,

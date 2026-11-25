@@ -37,9 +37,11 @@ const SECRET = "progress-secret-".padEnd(48, "p");
 let colyseus: ColyseusTestServer;
 let database: Database;
 
+// Story 7.6 decision B21: these tickets name accounts made with another token (no device row for the join's token);
+// the device-row re-check has its own tests in auth/accountAuth.test.ts.
 beforeAll(async () => {
   database = openPglite();
-  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET, checkTicketRows: false }));
 });
 afterEach(async () => {
   vi.restoreAllMocks();

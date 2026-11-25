@@ -27,7 +27,7 @@
 import { sql } from "drizzle-orm";
 import { log } from "../ops/logger";
 import type { Database, Db } from "./client";
-import { DbUnavailableError } from "./timeout";
+import { DbUnavailableError, dbErrText } from "./timeout";
 
 /** A lock wait or a single statement longer than this fails (and rolls the transaction back). */
 export const BANK_LOCK_TIMEOUT_MS = 1500;
@@ -91,7 +91,7 @@ export async function boundedTransaction<T>(database: Database, op: string, body
     });
   } catch (e) {
     const reason = "error";
-    log.error({ op, reason, err: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200) }, "db_error");
+    log.error({ op, reason, err: dbErrText(e) }, "db_error"); // review L5: never the query parameters
     throw e instanceof DbUnavailableError ? e : new DbUnavailableError(op, reason);
   }
 }

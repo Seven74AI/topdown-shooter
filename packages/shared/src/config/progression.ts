@@ -108,6 +108,8 @@ export const progressionSchema = z
     starterLines: z.record(itemId, line),
     /** Story 7.5: the Training boosts (gameplay numbers: part of `balanceVersion`). */
     training: trainingSchema,
+    /** Story 7.6 (AC 10, D9): a guest's first run banking at least this many Supplies shows "Save my progress" once. */
+    account: z.object({ saveNudgeSupplies: z.number().int().positive() }).strict(),
     districts: z
       .array(districtSchema)
       .min(1)
@@ -163,6 +165,7 @@ export function loadProgression(data: unknown = raw): Readonly<Progression> {
   for (const b of p.training.boosts) Object.freeze(b);
   Object.freeze(p.training.boosts);
   Object.freeze(p.training);
+  Object.freeze(p.account);
   for (const d of p.districts) {
     if (d.unlock) Object.freeze(d.unlock);
     Object.freeze(d);
@@ -182,6 +185,15 @@ export const unlockList: readonly Unlock[] = PROGRESSION.unlocks;
 /** Story 7.3: the unlock with this id, or undefined (an unknown id from a client). */
 export function findUnlock(id: string, p: Readonly<Progression> = PROGRESSION): Unlock | undefined {
   return p.unlocks.find((u) => u.id === id);
+}
+
+/**
+ * Story 7.6 (D2): the Supplies spent to reach Training `level` (levels 1..level, each `costPerLevel × L`). A level
+ * outside 0..maxLevel or not an integer counts as 0 (a stored value the server never wrote).
+ */
+export function trainingSpent(level: number, p: Readonly<Progression> = PROGRESSION): number {
+  if (!Number.isInteger(level) || level <= 0 || level > p.training.maxLevel) return 0;
+  return (p.training.costPerLevel * level * (level + 1)) / 2;
 }
 
 /** Story 7.5: the boost with this id, or undefined (an unknown id from a client). */
