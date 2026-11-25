@@ -1,0 +1,13 @@
+// TEMPORARY review harness (not committed)
+import { h, render } from "preact";
+import "./ui/overlay.css";
+import { ResultsScreen } from "./ui/ResultsScreen";
+import { uiStore } from "./ui/uiState";
+import { rewardsStore } from "./net/rewardsStore";
+const q = new URLSearchParams(location.search);
+const long = q.get("long") === "1";
+const names = q.get("real") === "1" ? ["Alexandra_Smith1", "Maximilian Roth", "Kit", "Lu"] : long ? ["WWWWWWWWWWWWWWWW", "MMMMMMMMMMMMMMMM", "Anastasia-Bérénice", "QQQQQQQQQQQQQQQQ"] : ["Mo", "Ana", "Kit", "Lu"];
+uiStore.set({ kind: "results", wave: 47, rows: names.map((n, i) => ({ slot: i, name: n.slice(0, 16), kills: long ? 99999 : 412, earned: long ? 9999999 : 23450 })), online: q.get("online") !== "0", ending: (q.get("ending") ?? "extracted") as "extracted", endless: true, seed: 4294967295, dawnEndsAtMs: 0 });
+const st = q.get("status") ?? "saved";
+if (st !== "saving") rewardsStore.receive({ runId: "0f1e2d3c-4b5a-4968-8776-655443322110", seed: 4294967295, status: st, lines: { waves: 100, boss: 50, extract: 100, endless: long ? 655350 : 740, endlessBoss: long ? 350 : 350 }, waveCount: 10, endlessWaveCount: long ? 32767 : 37, rookie: true, total: long ? 1311900 : 2680, newTotal: long ? 999999999 : Number(q.get("nt") ?? 1234567) });
+render(h(ResultsScreen, {}), document.getElementById("ui")!);

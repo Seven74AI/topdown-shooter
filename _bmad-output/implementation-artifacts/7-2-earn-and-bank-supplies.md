@@ -217,7 +217,80 @@ Claude (builder cloud session, `gds-dev-story`), branch `story-7-2`.
 - `docs/epic-7-decisions.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - Merges: `.gitignore`, `apps/client/src/scenes/hudLayout.test.ts` (conflicts between story-7-1 and master)
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer cloud session (`gds-code-review`, three layers: Blind Hunter / Edge Case Hunter / Acceptance Auditor + beat the rule), 2026-11-25. **Tree:** `review-7-2` = `origin/story-7-2` 7401f6d + `origin/master` 02e7d8c (clean merge, no conflicts). Scope: 7.2's own commits only (`origin/story-7-1..origin/story-7-2`); 7.1 / 8.1 code not reviewed.
+
+**Outcome: CHANGES REQUESTED — 1 medium, 5 low, 1 nit.** The money core is right: the counters are only ever written by server sim events, the client sends no amount, `(run_id, account_id)` makes every repeat a no-op, and **`FOR UPDATE` was checked under a real PostgreSQL 16** (installed here): it works, and taking it out really does break the rookie rule (see M-probe below). The one medium is a bank that times out but commits later.
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **M1** | Medium | `apps/server/src/db/progressRepo.ts:82-127` with `db/timeout.ts:21-36`; `apps/server/src/meta/banking.ts:173-188` | `withDbTimeout` only stops *waiting*. The transaction keeps running on its pool connection. **Reproduced on real PostgreSQL**: the progress row was locked by another session for 5.5 s. Both bank attempts timed out at 2 s each, and the player got `run.rewards {status:"failed", total:0}` ("Couldn't save this run"), plus two `supplies_bank_failed` lines carrying the full breakdown. Afterwards **both transactions committed: `run_rewards` row written, +50 Supplies paid**. So (a) the panel lies (brief 20: "honest, nothing invented later"), and (b) the log line exists *so the run can be granted by hand* (AC 4 / Beat the rule 3), so an operator following it pays the run a second time (brief 18). With a 3 s lock the retry found the late row, and the result was `saved` and correct. | Make a timed-out bank unable to commit: start the transaction with `SET LOCAL lock_timeout = '1500ms'` and `SET LOCAL statement_timeout = '1500ms'` (Postgres only; both under `DB_TIMEOUT_MS`), so Postgres rolls back before the caller gives up. **And** make `supplies_bank_failed` / the hand-grant note in `docs/deploy.md` say "check `run_rewards (run_id, account_id)` first". Test: the realPostgres probe's 5.5 s case must end with `failed` **and** supplies unchanged. |
+| L1 | Low | `apps/server/src/db/runRewards.test.ts` ("two rooms ending at once…") | The committed concurrency test runs on PGlite (one connection), so it passes without the lock. The builder flagged this. On **real PostgreSQL**, with `.for("update")` removed, two runs ending together at lifetime 250 **both got the rookie ×2: lifetime 450 instead of 400, 10 of 10 tries**. With the lock: 400 every time. Plain sums stay right either way (`supplies + n` is atomic); only the rookie read needs the lock. | Commit an opt-in real-PG test, skipped unless `TEST_DATABASE_URL` is set, so CI or the VPS can run it. A ready test is in `7-2-review-probes/realPostgres.probe.ts.txt`: rookie race, 20 runs at once, 10× double-submit of one run, new-account race, late-commit cases. |
+| L2 | Low | `apps/client/src/ui/overlay.css:431` (`.results__name`), `:1528` (`.rw-total__n`) | At 568×320, a 16-character name made of wide letters (`WWWWWWWWWWWWWWWW`, allowed by `NAME_MAX` 16) pushes Kills / Earned off the right edge of the team card (table scrollWidth 378 > card 268; also at 844×390). An account total of 7+ digits (`1,234,567`) is clipped in the rewards card (scrollWidth 132 > 123). Realistic names (`Alexandra_Smith1`) and totals up to 5 digits fit. The R9 sweep only used short names. | `.results__name` gets `min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap` with a max width; `.rw-total__n` gets `min-width:0` plus a smaller font (or ellipsis) past 6 digits. Add a 16×"W" name and a 7-digit total to the R9 layout test. |
+| L3 | Low | `rewardsModel.test.ts`, `rewardsStore.test.ts`, `RunRoom.rewards.test.ts` | Three mutations survived (list below). (a) Hiding the Waves line at 0 waves (B9 says Waves is always shown). (b) `runRewardsSchema` `.passthrough()` → `.strict()`. That is B11's forward-compatibility promise: with it broken, a tab one version behind would drop 7.4/7.11's richer message and show "Saving…" forever. (c) Removing the `run.rewards` resend in `attachClient` (a reconnect on Results). It works live (room probe P2) but no test fails without it. | One test each: a 0-wave saved view still lists "Waves 0 × 10"; the client store accepts a message with an extra unknown field; a held seat that rejoins on Results receives `run.rewards`. |
+| L4 | Low | `ResultsScreen.tsx` / `rewardsModel.ts` (B5) | Leave mid-run (banked as `quit`, e.g. 3 waves = +60), then come back through the remembered seat and play to the end. Results shows the old **+60** with no explanation (room probe P1: one row, 60). Nothing is paid twice (right per B5), but the player can't tell why a full run paid 3 waves. | Add `ending` to `run.rewards` (passthrough-safe) and, when it is `quit` on a Results the seat is present for, a status line under the Supplies, e.g. "Banked when you left (wave N)". |
+| L5 | Low | `apps/client/src/ui/rewardsModel.ts:55`, `net/rewardsStore.ts:43` | The rewards are matched to Results by **seed**, not run id. With the dev fixed seed (`DEV_ALLOW_RUN_SEED=1` + `?seed=`), Back to lobby → next run → wipe shows the **previous run's** numbers at once instead of "Saving…" until the new message lands. Production risk is 1 in 2³² per pair of runs. | Put `runId` in the Results screen (schema string or the `run.rewards` already-received id) and match on it, or clear `rewardsStore` at `RUN_STARTED` / phase "build". |
+| N1 | Nit | `ResultsScreen.tsx` vs `docs/art/epic-7/lumen/results.jpg` (RW1) | Built panel vs the picked sheet: no "YOU" marker or highlight on your own row, Earned shows `$1840` where the sheet has `$1,840`, and the wave number is not at the top right. Kicker "Run report" is an accepted B15 change, and the Training column is 7.5's TL3. Otherwise a faithful LF5 build (bevelled frames, amber accent, white numerals, rookie badge, crate + TOTAL). | Optional: own-row highlight + "YOU" (the screen knows the local slot), and `formatSupplies`-style grouping on Earned. |
+
+### Beat the rule — every attempt
+
+| # | Attempt (player / cheater / two tabs) | Result |
+| --- | --- | --- |
+| 1 | Cheater sends `run.rewards`-like or amount-carrying messages | No C2S handler for amounts. `run.leave {supplies:99999}` is refused by the strict guard (existing test) ✔ |
+| 2 | `run.leave` spam ×30 mid-wave (probe P3) | 1 row, 9 replies (message guard bucket), player still in the World. It only banks the cheater early as `quit` (self-harm only) ✔ |
+| 3 | Bank twice: same `endRun` twice; `run.leave` twice; Leave → remembered seat → rejoin in build → play to run end (B5, probe P1) | Always **one** `run_rewards` row, paid once. The rejoined seat keeps its own counters (`wavesIn` 3), same playerId ✔ (L4 = the UX) |
+| 4 | Retry after 2 s + late commit after a timeout (real PG, locked row 3 s) | Retry finds the late row → `saved`, paid once ✔ |
+| 5 | Same, but the lock lasts 5.5 s (both attempts time out) | Told **failed**, yet paid later ✘ → **M1** |
+| 6 | Concurrent double-submit of one (run, account) ×10, real PG | 1 banked, 9 duplicates, paid once ✔ |
+| 7 | Two rooms / 20 runs ending at once for one account, real PG | Sum exact ✔. Rookie race at lifetime 250: only one run doubled (400) ✔. Without `FOR UPDATE`: 450 ✘ (L1: test only) |
+| 8 | Brand-new account with no progress row, two banks at once (real PG) | Both fulfilled, 10 ✔ |
+| 9 | Drop mid-wave (held) → team wipes → reconnect by token on Results (probe P2) | No bank at the drop (brief 17) ✔. Held seat banked at run end with the run's ending, 2 waves + the D8 wipe wave = 3 → 60 (rookie) ✔. The rejoin receives `run.rewards` again ✔ |
+| 10 | Two runs in one room (Back to lobby, start again, probe P4) | Different runIds and seeds, 2 rows, 100 + 60 = 160 (the second run's rookie read sees lifetime 100) ✔ |
+| 11 | Earn while held, quiet-held, downed or out | Counted by design (S2, 8.1). A remembered seat stops counting. Code + `runRecord.test` ✔ |
+| 12 | Inflate waves / bosses | Counters come only from `wave.ended` / `team.wiped` / `boss.killed` in the server sim, capped u8/u16, and `runSupplies` clamps garbage to 0. Same-tick wipe + clear can't double count: the player system (`checkTeamWipe`) runs before the waves system, and `updateRun` returns at `teamWiped` before `endWave` ✔. Dev switches (`DEV_START_WAVE`, `DEV_BOSS_WAVES`) are refused in production ✔ |
+| 13 | Farm by Leave-and-rejoin each wave | Same room: same playerId and the DB key `(run, account)` → paid once. New room: new run from wave 1, so nothing gained ✔ |
+| 14 | Rookie ×2 crossing 300 mid-run; exactly 300 | Doubled when lifetime before < 300, read inside the locked transaction; 300 → not doubled (supplies.test) ✔ |
+| 15 | Practice solo vs online solo | Practice never talks to the server; the panel says "Practice runs don't earn rewards" (wiring + model tests) ✔. Online solo = the 4-player numbers (S7 test) ✔ |
+| 16 | Endless (B2) / D8 / B6 endings | Endless Behemoth counted only when wave > `runWaves` (not via `boss.killed.number`). Wipe after Stay keeps waves 1–10 + the wave-10 boss. Wipe in a build phase adds nothing. Abandon banks remembered seats `quit` (unit) ✔ |
+| 17 | Negative / overflow integers | DB CHECK ≥ 0, payout clamp, schema 0…1e9, u8/u16 caps match the schema ✔ |
+| 18 | Database down | No repo → `not_saved`. Repo failing → retried once → `failed`, nothing banked (room test) ✔. Slow but alive → M1 |
+| 19 | Server restart mid-bank | One transaction: all or nothing. The run itself is lost (D7, accepted) ✔ |
+| 20 | Leave while the link is reconnecting (`lobbyStore.leave`, linkDown) / deliberate tab close before the extract | The server sees a **drop**: the seat is held up to 120 s, keeps counting waves, and gets the +100 if the team extracts inside that time. That is 8.1's "a drop is not a leave" (brief 17), not a 7.2 bug. Info for the designer ⚠ |
+| 21 | Account appears mid-run (7.1 B8: unsaved seat adopts a ticket later) after an unsaved Leave-bank | The in-memory bank is keyed by playerId, so the run stays `not_saved` for that seat (nothing paid). Honest, edge case, info ⚠ |
+| 22 | Results panel at 568×320: all 7 states, long names, big numbers (real DOM via a Vite harness, Chromium) | All states inside the cards, no page scroll. Realistic names and totals fit. Worst-case glyphs overflow → L2 |
+| 23 | Row order for later stories (brief 26) | One `rw-body` column, the supplies group first; groups 2–4 go after it (comment + model `REWARD_GROUPS` test) ✔ |
+| 24 | Vote line text and place (B3) | "Extract now: +100 · Stay: +20 a wave, lost if you wipe" from `progression.json` ✔, above the buttons (button rects unchanged per `evacVoteCss` / `hudLayout`). The chips row moves up by one 16 px line: **not verified in a live vote at 568×320** |
+
+### Mutations (brief 6: each new test file mutated once)
+
+| Mutation | Tests | Result |
+| --- | --- | --- |
+| M1 a quitter also gets the extract (`supplies.ts`) | supplies + runRecord | caught (2 failed) |
+| M2 endless Behemoths never counted apart (`runRecord.ts`) | runRecord + endlessSim | caught (2) |
+| M3 no retry (`banking.ts` attempt ≤ 1) | banking + room | caught (3) |
+| M4 a repeat bank doesn't re-deliver | banking + room | caught (2) |
+| M5 no `run.rewards` resend on a Results rejoin (`RunRoom.attachClient`) | room rewards + reconnect | **survived** (the 1 failure, the 8.1 "quiet seat 120 s clock" test, also fails unmutated under load: unrelated, timing) → L3 |
+| M6 a leaver banks `extracted` instead of `quit` | room rewards | caught (2) |
+| M7 Leave never sends `run.leave` (`lobbyStore`) | lobbyStore + rewardsStore | caught (2) |
+| M8 rewards not matched by seed (`rewardsStore.forSeed`) | rewardsStore + rewardsModel | caught (1) |
+| M9 Waves line hidden at 0 (`rewardsModel`) | rewardsModel | **survived** → L3 |
+| M10 `runRewardsSchema` strict instead of passthrough | rewardsStore + rewardsModel | **survived** → L3 |
+| M11 smallest panel font 11 → 10 px (`overlay.css`) | resultsLayoutCss | caught (1) |
+| M12 drop `FOR UPDATE` (real PG probe) | review probe | caught by the probe (450 ≠ 400); the committed PGlite test survives (L1) |
+
+### Brief lines checked
+
+1 ✔ (gate line, ports, PID stop) · 2 ✔ (four counters in `PlayerState`, `addPlayer`, hold round trip, `snapshotWorld`; deliberately not in the schema, so no wire copy) · 3 ✔ S1–S7 each a named test · 4 ✔ above · 5 ✔ meta never changes the sim · 6 ✔ above · 7 ✔ every Supplies number in `progression.json` (retry/wait timings are plumbing, like `DB_TIMEOUT_MS`) · 8 ✔ ≈ 0 B/s, CSS only · 9 partly (reconnect across run end probed in a room; lag/loss/hidden tab not run, as the builder says) · 10 ✔ never awaited in the tick · 14 ✔ Notes for the merge · 15 ✔ · 17 ✔ (row 20 info) · **18 ✘ M1** (late commit) · 19 n/a · **20 ✘ M1** (panel says failed, money paid) · 21 ✔ (`db/` only, `testQueries.ts`, migration forward test on rows) · 22 ✔ D1 practice earns nothing · 24 ✔ LF5 (N1) · 26 ✔ · 28 ✔ no PII in `breakdown` · R1 ✔ (11 named tests spot-opened) · R2 ✔ `rewardsWiring` · R6 ✔ gate line present · R8 ✔ · R9 ✔ four sizes + insets in `rewardsModel.test` (L2 = name/number widths) · R10 ✔ this review.
+
+### Evidence kept
+
+`_bmad-output/implementation-artifacts/7-2-review-probes/`: `realPostgres.probe.ts.txt` (run against `postgres://…:5731`, PostgreSQL 16, as `apps/server/src/db/*.test.ts`), `roomProbes.probe.ts.txt` (P1–P4, as `apps/server/src/rooms/*.test.ts`), `resultsHarness.probe.tsx.txt` (Vite page for the panel states). Typecheck ✔ (`npm run typecheck`, exit 0). The full gate was not run (reviewer rule).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built on `story-7-2` (early start from `story-7-1`): T1–T7; build-time choices B1–B15; full gate green; status review.
+- 2026-11-25: Senior Developer Review (AI): changes requested — M1 (timed-out bank commits later), L1–L5, N1.
