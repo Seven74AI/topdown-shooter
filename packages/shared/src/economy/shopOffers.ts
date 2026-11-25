@@ -20,7 +20,21 @@ export interface ShopOffers {
   readonly cards: Uint8Array;
   /** Per player slot: bit c set = card c was bought ("Sold"; it never refills). */
   readonly sold: Uint8Array;
+  /** Story 7.4 (K2): per player slot, bit c set = card c is borrowed from a teammate's unlocks. */
+  readonly borrowed: Uint8Array;
+  /** Story 7.4: per player slot, the lender's slot of the borrowed card (`NO_LENDER` = none). */
+  readonly lender: Uint8Array;
+  /**
+   * Story 7.4 (K3): the room at the build start (`drawAllOffers`): each present slot's unlock mask and the bitmask of
+   * present slots (`world.players` + 8.1's held players). Every draw of that build (rerolls too) reads this, never the
+   * live room, so a teammate joining, leaving, buying or rerolling never changes my cards.
+   */
+  readonly teamMasks: Uint32Array;
+  present: number;
 }
+
+/** Story 7.4: no lender (u8). */
+export const NO_LENDER = 0xff;
 
 export function createShopOffers(): ShopOffers {
   return {
@@ -28,5 +42,9 @@ export function createShopOffers(): ShopOffers {
     rev: new Uint16Array(MAX_PLAYERS),
     cards: new Uint8Array(MAX_PLAYERS * MAX_CARDS).fill(NO_CARD),
     sold: new Uint8Array(MAX_PLAYERS),
+    borrowed: new Uint8Array(MAX_PLAYERS),
+    lender: new Uint8Array(MAX_PLAYERS).fill(NO_LENDER),
+    teamMasks: new Uint32Array(MAX_PLAYERS),
+    present: 0,
   };
 }

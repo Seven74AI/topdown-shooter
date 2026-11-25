@@ -1,0 +1,183 @@
+import { randomBytes, randomUUID } from "node:crypto";
+import type { Room as SdkRoom } from "@colyseus/sdk";
+import type { ColyseusTestServer } from "@colyseus/testing";
+import {
+  BYTES,
+  C2S,
+  DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
+  PROGRESSION,
+  RUN_ROOM_NAME,
+  S2C,
+  STARTER_ONLY,
+  downPlayer,
+  giveCrateWeapon,
+  runRewardsSchema,
+  unlockMask,
+  type RunRewards,
+  type RunStateView,
+  type ShopOffered,
+} from "@topdown/shared";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { signTicket } from "../auth/ticket";
+import { roomProgressRepo } from "../auth/roomAccounts";
+import { accountsRepo } from "../db/accountsRepo";
+import { type Database, openPglite } from "../db/client";
+import { progressRepo } from "../db/progressRepo";
+import { hashGuestToken } from "../run/lobby";
+import { bootTestServer } from "../test/bootTestServer";
+import { RunRoom, serverBalance } from "./RunRoom";
+
+/**
+ * Stories 7.4 (K2, K7, K8; D3, D4) and 7.5 (T2, T4, T5) in a real room on PGlite: progress is read when the host taps
+ * Start (an unlock or a Training level bought in the lobby counts, one bought mid-run doesn't), a failed read plays
+ * with the starter pool, the borrowed card names its lender, and `run.rewards` carries the supply-drop unlock line.
+ */
+const SECRET = "progress-secret-".padEnd(48, "p");
+let colyseus: ColyseusTestServer;
+let database: Database;
+
+beforeAll(async () => {
+  database = openPglite();
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await colyseus.cleanup();
+});
+afterAll(async () => {
+  await colyseus.shutdown();
+});
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const hex = (): string => randomBytes(16).toString("hex");
+const repo = () => progressRepo(database);
+
+async function newAccount(supplies = 0): Promise<string> {
+  const id = (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
+  if (supplies > 0) await repo().addSupplies(randomUUID(), id, () => ({ supplies, breakdown: {} }));
+  return id;
+}
+const options = (intent: "create" | "join", name: string, accountId: string | null, guestToken = hex()) => ({
+  intent,
+  name,
+  balanceVersion: serverBalance.version,
+  mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
+  guestToken,
+  ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
+});
+
+interface Inbox {
+  offers: ShopOffered[];
+  rewards: RunRewards[];
+}
+function listen(c: RunSdkRoom): Inbox {
+  const box: Inbox = { offers: [], rewards: [] };
+  for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.RUN_JOINED, S2C.RUN_STARTED]) c.onMessage(t, () => {});
+  c.onMessage(S2C.SHOP_OFFERED, (m: ShopOffered) => box.offers.push(m));
+  c.onMessage(S2C.RUN_REWARDS, (m: unknown) => box.rewards.push(runRewardsSchema.parse(m)));
+  return box;
+}
+
+/** Ana (host) and Mo join the lobby and tap Ready; `beforeStart` runs in the lobby (e.g. buying), then Start. */
+async function start(accounts: (string | null)[], beforeStart: (room: RunRoom) => Promise<void> = async () => {}) {
+  const names = ["Ana", "Mo"];
+  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", names[0] as string, accounts[0] ?? null));
+  const clients = [host];
+  const inbox = [listen(host)];
+  await host.waitForInitialState();
+  const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+  room.bankRetryMs = 20;
+  for (let i = 1; i < accounts.length; i++) {
+    const c = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", names[i] as string, accounts[i] ?? null));
+    inbox.push(listen(c));
+    await c.waitForInitialState();
+    clients.push(c);
+  }
+  for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+  await beforeStart(room);
+  host.send(C2S.RUN_START, {});
+  await vi.waitFor(() => expect(room.state.phase).toBe("build"), { timeout: 5000 });
+  const w = room.controller?.world;
+  if (!w) throw new Error("no run");
+  return { clients, inbox, room, w };
+}
+const pid = (room: RunRoom, c: RunSdkRoom) => room.members.get(c.sessionId)?.playerId ?? "";
+describe("review 7.4+7.5 room probes", () => {
+  it("RP1 a read that hangs → the run starts after ~2 s with starter + Training 0; a second Start during the read is ignored", async () => {
+    const ana = await newAccount(1000);
+    await repo().unlock(ana, "chainsaw", 300);
+    await repo().train(ana, "max_hp", 1, 50, 5);
+    const r = roomProgressRepo();
+    if (!r) throw new Error("no room repo");
+    const get = vi.spyOn(r, "get").mockImplementation(() => new Promise(() => {}));
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana", ana));
+    listen(host);
+    await host.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    host.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect([...room.state.players.values()][0]?.ready).toBe(true));
+    const t0 = performance.now();
+    host.send(C2S.RUN_START, {});
+    await new Promise((res) => setTimeout(res, 200));
+    host.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"), { timeout: 5000 });
+    const dt = performance.now() - t0;
+    const p = [...room.controller!.world.players.values()][0]!;
+    console.log("RP1 started after ms", Math.round(dt), "get calls", get.mock.calls.length);
+    expect([p.unlocks, p.trainHp, p.maxHp]).toEqual([STARTER_ONLY, 0, 100]);
+    expect(dt).toBeGreaterThan(1900);
+    expect(dt).toBeLessThan(3500);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("RP2 a slow (1.5 s) read is still used (within the 2 s window)", async () => {
+    const ana = await newAccount(1000);
+    await repo().unlock(ana, "chainsaw", 300);
+    const r = roomProgressRepo()!;
+    const real = r.get.bind(r);
+    vi.spyOn(r, "get").mockImplementation(async (id) => {
+      await new Promise((res) => setTimeout(res, 1500));
+      return real(id);
+    });
+    const { room, w, clients } = await start([ana]);
+    expect(w.players.get(pid(room, clients[0]!))!.unlocks).toBe(unlockMask(PROGRESSION, ["chainsaw"]));
+  });
+
+  it("RP3 the lender Ana leaves the room mid-build: Mo's reroll still shows 'Borrowed from Ana'", async () => {
+    const ana = await newAccount(100_000);
+    for (const u of PROGRESSION.unlocks) await repo().unlock(ana, u.id, u.price);
+    const { inbox, room, clients, w } = await start([ana, null]);
+    await vi.waitFor(() => expect(inbox[1]!.offers.length).toBeGreaterThan(0));
+    const o = inbox[1]!.offers.at(-1)!;
+    await clients[0]!.leave(true);
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    w.players.get(pid(room, clients[1]!))!.wallet = 10_000;
+    clients[1]!.send(C2S.SHOP_REROLL, { build: o.build, rev: o.rev });
+    await vi.waitFor(() => expect(inbox[1]!.offers.at(-1)!.rev).toBe(o.rev + 1));
+    const o2 = inbox[1]!.offers.at(-1)!;
+    expect(o2.borrowed).not.toBe(0);
+    expect(o2.lenderName).toBe("Ana");
+  });
+
+  it("RP4 a modified client: buy molotovs / place a spike trap / buy a locked card not on offer → refused, money kept", async () => {
+    const mo = await newAccount();
+    const { room, w, clients } = await start([mo]);
+    const id = pid(room, clients[0]!);
+    const p = w.players.get(id)!;
+    p.wallet = 10_000;
+    clients[0]!.send(C2S.SHOP_BUY_ITEM, { item: "molotovs" });
+    clients[0]!.send(C2S.BUILDING_PLACE, { type: "spike_trap", gx: Math.round(p.x / 0.5) + 4, gy: Math.round(p.y / 0.5), rot: 0 });
+    clients[0]!.send(C2S.SHOP_BUY, { build: 0, rev: 0, card: 0, item: "chainsaw", slot: 1 });
+    await new Promise((res) => setTimeout(res, 400));
+    expect(p.wallet).toBe(10_000);
+    expect(p.consumable).not.toBe("molotovs");
+    expect(room.controller!.world.buildings.list.length).toBe(0);
+    clients[0]!.send(C2S.BUILDING_PLACE, { type: "wood_barricade", gx: Math.round(p.x / 0.5) + 4, gy: Math.round(p.y / 0.5), rot: 0 });
+    clients[0]!.send(C2S.SHOP_BUY_ITEM, { item: "medkit" });
+    await vi.waitFor(() => expect(room.controller!.world.buildings.list.length).toBe(1));
+    await vi.waitFor(() => expect(p.consumable).toBe("medkit"));
+  });
+});

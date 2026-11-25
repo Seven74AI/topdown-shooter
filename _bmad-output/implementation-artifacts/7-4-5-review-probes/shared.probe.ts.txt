@@ -1,0 +1,172 @@
+/** Reviewer probes for Story 7.4+7.5 (not committed as tests; kept as .txt in the story's probe folder). */
+import { describe, expect, it } from "vitest";
+import { loadBalance } from "../config/balance";
+import { PROGRESSION } from "../config/progression";
+import { createWorld, type World } from "../core/world";
+import { addPlayer, type PlayerState } from "../player/player";
+import { startBuild, startWave } from "../run/runStateMachine";
+import { ALL_UNLOCKED, STARTER_ONLY, inPool, unlockMask } from "../meta/pool";
+import { buyCard, offerFor, readOffer, reroll, type ShopOfferView } from "./shopCards";
+import { setLoadout } from "../combat/loadout";
+import { buyGear } from "./gear";
+import { holdPlayer, returnPlayer } from "../player/hold";
+import { runHeadless } from "../bots/headlessRun";
+import { createInputLog, replayRun } from "../replay/inputLog";
+import { worldDigest } from "../core/worldSnapshot";
+import { effectiveMaxHp } from "./gear";
+import { playerWeaponDamage, reloadSecondsFor, weaponDamage } from "../combat/weapons";
+
+const balance = loadBalance();
+const NO_WAVES = { waves: () => {} };
+const mask = (...ids: string[]) => unlockMask(PROGRESSION, ids);
+function setup(masks: number[], seed = 7): { world: World; ps: PlayerState[] } {
+  const world = createWorld({ balance, seed, systems: NO_WAVES });
+  const ps = masks.map((m, i) => addPlayer(world, `p${i}`, 10 + i * 2, 10, { unlocks: m }));
+  startBuild(world);
+  return { world, ps };
+}
+const offer = (w: World, id = "p0") => offerFor(w, id) as ShopOfferView;
+const nBorrowed = (o: ShopOfferView) => o.cards.filter((c, j) => c !== "" && (o.borrowed & (1 << j)) !== 0).length;
+
+describe("probe: borrow", () => {
+  it("P1 30 rerolls: never more than one borrowed card per offer, always lent by someone in the snapshot, never in my pool", () => {
+    let seen = 0;
+    const ids = new Set<string>();
+    for (let seed = 1; seed <= 20; seed++) {
+      const { world, ps } = setup([STARTER_ONLY, mask("chainsaw", "flamethrower", "body_armor_2"), mask("assault_rifle")], seed);
+      (ps[0] as PlayerState).wallet = 1e6;
+      for (let k = 0; k < 30; k++) {
+        const o = readOffer(world, "p0") as ShopOfferView;
+        expect(nBorrowed(o)).toBeLessThanOrEqual(1);
+        o.cards.forEach((c, j) => {
+          if ((o.borrowed & (1 << j)) === 0) return;
+          seen++;
+          ids.add(c);
+          expect(inPool(STARTER_ONLY, c)).toBe(false);
+          expect(["chainsaw", "flamethrower", "body_armor_2", "assault_rifle"]).toContain(c);
+          expect(o.lender).toBe(c === "assault_rifle" ? 2 : 1);
+        });
+        const r = reroll(world, "p0", o.build, o.rev);
+        if (!r.ok) break;
+      }
+    }
+    expect(seen).toBeGreaterThan(100);
+    expect(ids.size).toBe(4);
+  });
+
+  it("P2 buy the borrowed card, then reroll: a SECOND borrowed item can be bought in the same build (one per offer)", () => {
+    let twice = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const { world, ps } = setup([STARTER_ONLY, mask("chainsaw", "flamethrower", "assault_rifle", "gas_torch")], seed);
+      const p0 = ps[0] as PlayerState;
+      p0.wallet = 1e6;
+      let bought = 0;
+      for (let k = 0; k < 10; k++) {
+        const o = readOffer(world, "p0") as ShopOfferView;
+        const j = o.cards.findIndex((_, i) => (o.borrowed & (1 << i)) !== 0);
+        if (j >= 0) {
+          const r = buyCard(world, "p0", o.build, o.rev, j, o.cards[j] as string, 1);
+          if (r.ok) bought++;
+        }
+        const o2 = readOffer(world, "p0") as ShopOfferView;
+        if (!reroll(world, "p0", o2.build, o2.rev).ok) break;
+      }
+      if (bought >= 2) twice++;
+    }
+    console.log("seeds where >=2 borrowed items bought in one build:", twice);
+  });
+
+  it("P3 lender held at build start, returns mid-build: my offer unchanged; the returning lender's own offer is fine", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const { world } = setup([STARTER_ONLY, ALL_UNLOCKED], seed);
+      startWave(world);
+      expect(holdPlayer(world, "p1")).toBe(true);
+      startBuild(world);
+      const before = offer(world);
+      expect(before.lender).toBe(1);
+      expect(returnPlayer(world, "p1")).toBe(true);
+      expect(offer(world)).toEqual(before);
+      expect(offer(world, "p1").borrowed).toBe(0); // all-unlocked lender borrows nothing
+    }
+  });
+
+  it("P4 I (starter) am held at build start and return mid-build: my lazily drawn offer still borrows (snapshot) — at most 1", () => {
+    let borrowed = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const { world } = setup([STARTER_ONLY, ALL_UNLOCKED], seed);
+      startWave(world);
+      holdPlayer(world, "p0");
+      startBuild(world);
+      returnPlayer(world, "p0");
+      const o = offer(world);
+      expect(nBorrowed(o)).toBeLessThanOrEqual(1);
+      borrowed += nBorrowed(o);
+    }
+    expect(borrowed).toBe(20);
+  });
+
+  it("P5 only-borrow-new path of canReroll: I own every starter card item; the only new draws are borrowed", () => {
+    const { world, ps } = setup([STARTER_ONLY, mask("chainsaw", "assault_rifle", "flamethrower", "gas_torch", "grenade_launcher", "tactical_flashlight", "body_armor_2")], 3);
+    const o = offer(world);
+    console.log("P5 offer", o.cards, "borrowed", o.borrowed, "canReroll", o.canReroll);
+    void ps;
+  });
+});
+
+describe("probe: canReroll borrow-only", () => {
+  it("P9 my pool is spent except what is on offer; only the borrow list has something new → canReroll true", () => {
+    const world = createWorld({ balance, seed: 5, systems: NO_WAVES });
+    const p0 = addPlayer(world, "p0", 10, 10, { unlocks: STARTER_ONLY });
+    addPlayer(world, "p1", 12, 10, { unlocks: mask("chainsaw", "assault_rifle") });
+    setLoadout(world.balance, p0.loadout, ["pistol", "smg"]);
+    startBuild(world);
+    p0.wallet = 1e6;
+    for (const g of ["body_armor_1", "running_shoes", "revive_kit"]) expect(buyGear(world, "p0", g).ok, g).toBe(true);
+    const o0 = readOffer(world, "p0") as ShopOfferView;
+    expect(reroll(world, "p0", o0.build, o0.rev).ok).toBe(true);
+    const o = readOffer(world, "p0") as ShopOfferView;
+    console.log("P9", o.cards, o.borrowed, o.canReroll);
+    expect(o.cards.filter((c) => c !== "").length).toBe(5);
+    expect(o.canReroll).toBe(true);
+  });
+});
+
+describe("probe: replay with inits (B10)", () => {
+  it("P6 a Training 5 + starter recording replays to the same digest with inits, and differs without", () => {
+    const T5 = { maxHp: 5, damage: 5, startMoney: 5, reload: 5 };
+    const inits = [{ unlocks: STARTER_ONLY, training: T5 }, { unlocks: ALL_UNLOCKED }];
+    const log = createInputLog(20, 2);
+    let digest = 0;
+    runHeadless({ balance, seed: 20, players: 2, record: log, inits, maxTicks: 20 * 60 * 4, onEnd: (w) => void (digest = worldDigest(w)) });
+    expect(log.inits?.length).toBe(2);
+    const w = replayRun(balance, log);
+    expect(worldDigest(w)).toBe(digest);
+    const noInits = { ...log, inits: undefined };
+    expect(worldDigest(replayRun(balance, noInits))).not.toBe(digest);
+  }, 120_000);
+});
+
+describe("probe: training balance", () => {
+  it("P7 4 players × Training max: 110 HP each (160 with Armor II), 250 money each, damage ×1.05, reload ×0.95; turret untouched", () => {
+    const world = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    const T5 = { maxHp: 5, damage: 5, startMoney: 5, reload: 5 };
+    const ps = [0, 1, 2, 3].map((i) => addPlayer(world, `p${i}`, 10 + i, 10, { training: T5 }));
+    for (const p of ps) {
+      expect(p.maxHp).toBe(110);
+      expect(p.hp).toBe(110);
+      expect(p.wallet).toBe(250);
+    }
+    expect(effectiveMaxHp(balance, 0, 5)).toBe(110);
+    expect(playerWeaponDamage(balance, ps[0] as PlayerState, "smg", 1) / weaponDamage(balance, "smg", 1)).toBeCloseTo(1.05, 10);
+    expect(reloadSecondsFor(ps[0] as PlayerState, { reloadS: 2 })).toBeCloseTo(1.9, 10);
+    // a teammate at 0 next to them is untouched
+    const p4 = addPlayer(createWorld({ balance, seed: 1, systems: NO_WAVES }), "p0", 0, 0, {});
+    expect([p4.maxHp, p4.wallet, p4.trainDmg]).toEqual([100, 200, 0]);
+  });
+
+  it("P8 level out of range in the init is clamped (a bad save never exceeds the cap)", () => {
+    const world = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    const p = addPlayer(world, "p0", 0, 0, { training: { maxHp: 99, damage: -3, startMoney: 7.9, reload: Number.NaN } });
+    expect([p.trainHp, p.trainDmg, p.trainMoney, p.trainReload, p.maxHp, p.wallet]).toEqual([5, 0, 5, 0, 110, 250]);
+  });
+});

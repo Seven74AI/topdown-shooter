@@ -10,6 +10,7 @@ import { botBuildPhase, botGearPrice, createBotShopResult } from "./botShop";
 import { readOffer } from "../economy/shopCards";
 import { zombieTypeIndex } from "../zombies/zombieTypes";
 import { castVote, type RunEnding } from "../run/runStateMachine";
+import type { PlayerInit } from "../player/player";
 
 /**
  * Story 3.10: one seeded headless run with bots (the Epic 2 retro A10 sim, grown up): the real
@@ -32,6 +33,8 @@ export interface HeadlessRunOptions {
   map?: DistrictMap;
   /** Safety stop (Story 6.1: default 40 min of game time, room for 10 waves); a run that hits it reports `timedOut`. */
   maxTicks?: number;
+  /** Stories 7.4/7.5 (T5): each slot's start data (default: every unlock, Training 0); recorded in `record.inits`. */
+  inits?: readonly PlayerInit[];
   /** Story 6.1 (D2): bots can't die (`world.debug.godMode`, as `applyTestScenario`), so the run plays every wave (the earnings check). */
   god?: boolean;
   /**
@@ -129,7 +132,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   if (rec && (rec.seed !== seed >>> 0 || rec.players !== players)) throw new Error("runHeadless: record log is for another seed or team");
   if (rec && opts.god) throw new Error("runHeadless: a god-mode run is not replayable (the input log has no god flag)");
   // Lobby → the first build phase, like the server's run start (shared with `replayRun`). Story 4.1: on Downtown by default.
-  const { world, ids } = createHeadlessWorld(balance, seed, players, opts.map);
+  const { world, ids } = createHeadlessWorld(balance, seed, players, opts.map, opts.inits);
+  if (rec && opts.inits) rec.inits = opts.inits.map((x) => ({ ...x }));
   if (opts.god) world.debug.godMode = true; // Story 6.1 (D2)
   opts.setup?.(world); // Story 6.5
   const recordBuild = rec ? (cmd: BuildCommand): void => void rec.commands.push({ ...cmd, tick: world.tick }) : undefined;

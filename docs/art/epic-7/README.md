@@ -228,3 +228,5 @@ up-left rim light + one glint. Rebuild: `node docs/art/epic-7/loot-bag-2-src/bui
 | # | Item (story) | Codes | Recommended | Why |
 | --- | --- | --- | --- | --- |
 | 10 | Surprise loot object, round 2 (7.12) | LB4 dead hiker's backpack · LB5 tactical go-bag duffel · LB6 lockable field case · LB7 trauma bag · LB8 police evidence bag (item visible) · LB9 delivery rider's thermal backpack | **LB4** (LB9 second) | The zombie's own belongings: strongest story, unique silhouette (pack + rolled mat), blue-grey apart from olive cover and the green crate. LB9 has the best night read (reflective panel). LB6 too close to the crate/cover, LB7 promises healing, LB8 spoils the surprise. |
+
+**Note on BT1 (Story 7.4, review N1):** the BT1 still (`lumen/picks/bt1.png`) shows TWO borrowed cards ("From Mo", "From Kit"); the rule is **one borrowed card of 6** per offer (designer D7). The rule wins; the built tag is `built/7-4-5-shop-borrowed.png`.

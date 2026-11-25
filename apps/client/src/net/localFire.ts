@@ -6,6 +6,7 @@ import {
   cooldownTickStart,
   isFlame,
   magazineOf,
+  reloadSecondsFor,
   ticksFor,
   usesAmmo,
   type Balance,
@@ -18,7 +19,9 @@ import {
 export type FireGateView = Pick<
   PlayerStateView,
   "status" | "active" | "swapTicks" | "ackSeq" | "weapon0" | "weapon1" | "ammo0" | "ammo1" | "reloadTicks0" | "reloadTicks1"
->;
+> &
+  /** Story 7.5: my Training reload level (the schema's; absent = 0), so the predicted reload matches the server's. */
+  Partial<Pick<PlayerStateView, "trainReload">>;
 
 /** Local shots remembered per seq for predicted ammo: 64 steps = 3.2 s (the predictor's history). */
 export const LOCAL_SHOT_HISTORY = 64;
@@ -237,7 +240,8 @@ export class LocalFireClock {
     const s = this.emptySeq[slot] as number;
     if (s > 0 && me.ackSeq < s) {
       const stats = this.balance.weapons[slot === 1 ? me.weapon1 : me.weapon0];
-      return stats && usesAmmo(stats) ? s + ticksFor(stats.reloadS) : 0;
+      // Story 7.5 (AC 4): the same helper as the server's five reload starts (no reload desync at Training 5).
+      return stats && usesAmmo(stats) ? s + ticksFor(reloadSecondsFor({ trainReload: me.trainReload ?? 0 }, stats)) : 0;
     }
     this.emptySeq[slot] = 0;
     return 0;

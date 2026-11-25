@@ -18,7 +18,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { RunRewards, RunRewardsStatus } from "@topdown/shared";
-import { runSupplies, suppliesEnding, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
+import { loadBalance, runSupplies, suppliesEnding, unlockList, type RunEnding, type RunRecord, type RunSupplies, type SuppliesEnding, type World } from "@topdown/shared";
 import type { ProgressRepo } from "../db/progressRepo";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
@@ -34,6 +34,29 @@ export interface BankSeat {
   readonly ending: SuppliesEnding;
   /** Review L4: the wave a Leave banked in (shown as "Banked when you left (wave N)" if the seat comes back). */
   readonly wave?: number;
+  /** Story 7.4 (AC 9): `PlayerState.lockedUsed` (an unlock index, 255 none). */
+  readonly lockedUsed?: number;
+}
+
+/** Story 7.4 (K7): the item names of the bundled balance (names never change in dev overrides). */
+let itemNames: Map<string, string> | null = null;
+function itemName(id: string): string {
+  if (!itemNames) {
+    const b = loadBalance();
+    itemNames = new Map();
+    for (const [k, w] of Object.entries(b.weapons)) itemNames.set(k, w.name ?? k);
+    for (const [k, g] of Object.entries(b.gear.items)) itemNames.set(k, g.name);
+    for (const [k, t] of Object.entries(b.buildings.types)) itemNames.set(k, t.name);
+    for (const [k, c] of Object.entries(b.consumables.items)) itemNames.set(k, c.name);
+  }
+  return itemNames.get(id) ?? id;
+}
+
+/** Story 7.4 (K7, AC 9): the Results line's unlock (`{ unlockId, name, price }`), or null. */
+export function lockedUsedLine(index: number | undefined): RunRewards["lockedUsed"] {
+  const u = index === undefined ? undefined : unlockList[index];
+  if (!u) return null;
+  return { unlockId: u.id, name: itemName(u.items[0] as string).slice(0, 40), price: u.price };
 }
 
 export interface RunBankDeps {
@@ -57,8 +80,9 @@ interface Breakdown extends RunSupplies {
 
 const copyRecord = (r: RunRecord): RunRecord => ({ wavesIn: r.wavesIn, endlessWavesIn: r.endlessWavesIn, bossesIn: r.bossesIn, endlessBossesIn: r.endlessBossesIn });
 
-function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number): RunRewards {
+function message(runId: string, seed: number, status: RunRewardsStatus, b: Omit<Breakdown, "record">, newTotal: number, lockedUsed?: number): RunRewards {
   return {
+    lockedUsed: lockedUsedLine(lockedUsed), // Story 7.4
     ending: b.ending,
     leftWave: b.leftWave,
     runId,
@@ -136,7 +160,7 @@ export class RunBank {
   bankRunEnd(
     world: Readonly<World>,
     members: Iterable<{ readonly playerId: string; readonly accountId: string | null }>,
-    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly player: RunRecord }>,
+    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly player: RunRecord & { readonly lockedUsed?: number } }>,
   ): Promise<RunRewards[]> {
     const ending: RunEnding = world.run.ending;
     const all: Promise<RunRewards>[] = [];
@@ -145,11 +169,11 @@ export class RunBank {
       const p = world.players.get(m.playerId) ?? world.heldPlayers.get(m.playerId)?.player;
       if (!p) continue;
       ids.push(m.playerId);
-      all.push(this.bank({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true) }));
+      all.push(this.bank({ playerId: m.playerId, accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed }));
     }
     for (const s of remembered) {
       ids.push(s.playerId);
-      all.push(this.bank({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(s.player), ending: "quit" }));
+      all.push(this.bank({ playerId: s.playerId, accountId: s.accountId, record: copyRecord(s.player), ending: "quit", ...(s.player.lockedUsed !== undefined ? { lockedUsed: s.player.lockedUsed } : {}) }));
     }
     return Promise.all(all).then((results) => {
       const supplies: Record<string, number> = {};
@@ -172,7 +196,7 @@ export class RunBank {
     const repo = this.deps.repo();
     if (seat.accountId === null || repo === null) {
       const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY); // no rookie guess: the lifetime is unknown
-      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0);
+      return message(this.runId, this.seed, "not_saved", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, seat.lockedUsed);
     }
     const accountId = seat.accountId;
     const now = this.deps.nowMs ?? (() => performance.now());
@@ -187,7 +211,7 @@ export class RunBank {
         const r = await repo.addSupplies(this.runId, accountId, pay);
         const b = storedBreakdown(r.breakdown, r.supplies);
         this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
-        return message(this.runId, this.seed, "saved", b, r.newTotal);
+        return message(this.runId, this.seed, "saved", b, r.newTotal, seat.lockedUsed);
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
         // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
@@ -198,6 +222,6 @@ export class RunBank {
       }
     }
     const est = runSupplies(record, seat.ending, Number.POSITIVE_INFINITY);
-    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0);
+    return message(this.runId, this.seed, "failed", { ...est, waveCount: record.wavesIn, endlessWaveCount: record.endlessWavesIn, ending: seat.ending, leftWave }, 0, seat.lockedUsed);
   }
 }
