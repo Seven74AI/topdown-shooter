@@ -106,3 +106,11 @@ export const UNLOCK_WINDOW_MS = 60_000;
 export const UNLOCK_REQUEST_TTL_MS = 600_000;
 /** Story 7.3: the request-id map holds at most this many answers (oldest dropped first). */
 export const UNLOCK_REQUEST_CAP = 10_000;
+
+/** Story 7.10 (AC 11): `/account/look` saves per account per minute; over it → 429 ("Too many saves, try again in a minute"). */
+export const MAX_LOOK_SAVES_PER_ACCOUNT_PER_MIN = 10;
+/** Story 7.10 (brief 15): `/account/look` calls per client IP per minute, checked before the body or the database. */
+export const MAX_LOOK_CALLS_PER_IP_PER_MIN = 60;
+export const LOOK_WINDOW_MS = 60_000;
+/** Story 7.10 (D3): `lobby.set_look` messages per client per second (inside the guard's ~10/s non-input bucket). */
+export const MAX_LOBBY_LOOKS_PER_S = 2;

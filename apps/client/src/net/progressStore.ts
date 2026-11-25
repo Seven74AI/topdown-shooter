@@ -6,6 +6,7 @@
  */
 import { progressViewSchema, type ProgressView } from "@topdown/shared";
 import { accountSession } from "./account";
+import { deviceLook, type DeviceLookStore } from "./deviceLook";
 
 export const PROGRESS_CACHE_KEY = "topdown.progress";
 
@@ -23,6 +24,8 @@ type Listener = (s: ProgressSnapshot) => void;
 export interface ProgressStoreDeps {
   session: typeof accountSession;
   storage: () => Pick<Storage, "getItem" | "setItem"> | null;
+  /** Story 7.10: the device look copy follows every server answer that carries the look (a pending Done is kept, AC 9). */
+  looks?: DeviceLookStore;
 }
 
 const localStore = (): Storage | null => {
@@ -38,7 +41,7 @@ export class ProgressStore {
   private readonly listeners = new Set<Listener>();
   private seq = 0;
 
-  constructor(private readonly deps: ProgressStoreDeps = { session: accountSession, storage: localStore }) {}
+  constructor(private readonly deps: ProgressStoreDeps = { session: accountSession, storage: localStore, looks: deviceLook }) {}
 
   get(): ProgressSnapshot {
     return this.snap;
@@ -64,6 +67,7 @@ export class ProgressStore {
   accept(progress: ProgressView): void {
     this.seq++;
     this.set({ progress, source: "server", loading: false });
+    if (progress.look !== undefined) (this.deps.looks ?? deviceLook).set(progress.look);
     try {
       this.deps.storage()?.setItem(PROGRESS_CACHE_KEY, JSON.stringify(progress));
     } catch {

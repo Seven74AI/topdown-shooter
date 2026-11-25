@@ -83,3 +83,20 @@ export const unlockResponseSchema = z.discriminatedUnion("ok", [
   }),
 ]);
 export type UnlockResponse = z.infer<typeof unlockResponseSchema>;
+
+/**
+ * Story 7.10 (AC 8, 11; E2): save my survivor look from the editor. The server sees `/account/look` (the browser calls
+ * `/api/account/look`; 7.1's route naming, POST like the other account calls). The cookie names the account (never an
+ * id in the body). The body is the look code only, ≤ 256 bytes (else 413); the server decodes it against what the
+ * account owns, stores the CANONICAL code (null = the default look) and answers it.
+ */
+export const ACCOUNT_LOOK_PATH = "/account/look";
+/** Story 7.10 (AC 11): the largest look-save body the route reads (bytes); a larger one is refused with 413. */
+export const LOOK_SAVE_MAX_BODY_BYTES = 256;
+
+export const lookSaveRequestSchema = z.object({ look: z.string().max(LOOK_SAVE_MAX_BODY_BYTES) }).strict();
+export type LookSaveRequest = z.infer<typeof lookSaveRequestSchema>;
+
+/** The answer: the code the server stored (canonical; unowned or unknown parts became the default parts), or null (the default look). */
+export const lookSaveResponseSchema = z.object({ ok: z.literal(true), look: z.string().max(LOOK_CODE_MAX).nullable() });
+export type LookSaveResponse = z.infer<typeof lookSaveResponseSchema>;

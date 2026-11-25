@@ -1,6 +1,6 @@
 # Story 7.10: Survivor editor
 
-Status: ready-for-dev
+Status: review
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47. Customization story 3 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Prototype: docs/ideas/customization/avatar-editor.html. Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.10. -->
 
@@ -40,25 +40,25 @@ so that customizing is fun, not a chore.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Look pick** (AC 2, 5) — before T3: code-drawn layout proposals for the editor (2–3 arrangements at 568 × 320 and 800 × 360, built from the real part functions, the prototype `avatar-editor.html` as a start), the locked milestone tile and the loot silhouette tile; the designer picks; record in `docs/epic-7-decisions.md` › Survivor editor (7.10).
-- [ ] **T1 Milestone text data** (AC 5) — `packages/shared/src/config/milestones.json` + `milestones.ts` (zod, strict): `m1`–`m10`, each `{ id, howTo, rule: { kind, n? } }` with the table in Dev Notes. Story 7.11 reads `rule`; this story reads `howTo`. (If 7.11 starts first it creates this file with the same table; the second story only reads it.)
-- [ ] **T2 Server route** (AC 8, 11, E2)
-  - [ ] `apps/server/src/meta/look.ts`: `saveLook(accountId, body)` → decode with `ownedParts(progress.cosmetics?)`, canonical code, null for the default, via 7.1's progress repository (`apps/server/src/db`).
-  - [ ] Route in `apps/server/src/app.ts` on 7.1's session middleware; per-account limiter (10/min, the `roomCreateLimiter` pattern); body cap 256 B.
-  - [ ] Tests (7.1's route-test pattern): canonical store, unowned → default, default → null, 401, 429, 413.
-- [ ] **T3 Editor screen** (AC 1–7, 10, E1, E3, E5)
-  - [ ] `apps/client/src/ui/SurvivorEditor.tsx` (+ `survivorEditorStore.ts`, pure state: open tab, draft look, owned set, `random(rng)`, `pick(slot, id)`, `setColour(k, hex)`) and CSS in `overlay.css`.
-  - [ ] Previews: `apps/client/src/render/editorPreview.ts` draws on DOM canvases with 7.8's `drawSurvivor` (no gun art: the plain gun bar) / 7.9's `drawSurvivorBody`; the big preview turns with one `requestAnimationFrame` loop only while the editor is open (no allocation per frame: reuse the resolved look until the draft changes), drag to turn; the game-size preview is drawn once per change (asphalt colour, ring in `SLOT_COLOR_CSS[mySlot]`, 3 walkers with `drawZombie`, 2 default survivors). Redraw both on `visibilitychange` → visible.
-  - [ ] Tiles: `partTileUrl(slot, id, colours, state)` (owned / milestone-locked / loot-silhouette), cached by key, drawn with the part function zoomed on the slot (7.8's round-2/3 64 px tile framing).
-  - [ ] Colour picker (D1): `<input type="color">` + 12 swatches (`cosmetics.json › look.swatches`, new optional key, not gameplay); "Hat & bag colour" in Head and Pack.
-  - [ ] Entry: the hub's Survivor tab (7.3's hub component — check its file name at build time) and the lobby's own card (`LobbyScreen.tsx`, 7.9's card).
-- [ ] **T4 Save, cache, sync** (AC 8, 9, E4)
-  - [ ] `apps/client/src/net/progressApi.ts` (7.1's client API module, check name at build time): `saveLook(code)`; device cache `topdown.look` with `{ code, savedAt, server: boolean }` (try/catch); on start, a cached `server: false` look is sent once.
-  - [ ] Join uses the cached/server look (7.9's `options()` source order: server copy, then cache).
-- [ ] **T5 Lobby live update (D3)** — if D3 is accepted
-  - [ ] `C2S.LOBBY_SET_LOOK` (`lobby.set_look`, `{ look: string ≤ 96 }`), `RunRoom` handler under `this.net.guard`: lobby phase only, decode with the member's owned set, set `PlayerState.look`; at most 2 per second per client (it shares the ~10/s non-input bucket). Mid-run it is ignored (the look changes from the next run).
-  - [ ] Tests: lobby → state changes; build/wave → ignored; unowned → default.
-- [ ] **T6 Gate**: tests, layout test, browser check at 568 × 320 / 800 × 360 (headless Chromium, dpr 2), full gate on the branch merged with master, "Notes for the merge", "Not verified".
+- [x] **T0 Look pick** (AC 2, 5) — before T3: code-drawn layout proposals for the editor (2–3 arrangements at 568 × 320 and 800 × 360, built from the real part functions, the prototype `avatar-editor.html` as a start), the locked milestone tile and the loot silhouette tile; the designer picks; record in `docs/epic-7-decisions.md` › Survivor editor (7.10).
+- [x] **T1 Milestone text data** (AC 5) — `packages/shared/src/config/milestones.json` + `milestones.ts` (zod, strict): `m1`–`m10`, each `{ id, howTo, rule: { kind, n? } }` with the table in Dev Notes. Story 7.11 reads `rule`; this story reads `howTo`. (If 7.11 starts first it creates this file with the same table; the second story only reads it.)
+- [x] **T2 Server route** (AC 8, 11, E2)
+  - [x] `apps/server/src/meta/look.ts`: `saveLook(accountId, body)` → decode with `ownedParts(progress.cosmetics?)`, canonical code, null for the default, via 7.1's progress repository (`apps/server/src/db`).
+  - [x] Route in `apps/server/src/app.ts` on 7.1's session middleware; per-account limiter (10/min, the `roomCreateLimiter` pattern); body cap 256 B.
+  - [x] Tests (7.1's route-test pattern): canonical store, unowned → default, default → null, 401, 429, 413.
+- [x] **T3 Editor screen** (AC 1–7, 10, E1, E3, E5)
+  - [x] `apps/client/src/ui/SurvivorEditor.tsx` (+ `survivorEditorStore.ts`, pure state: open tab, draft look, owned set, `random(rng)`, `pick(slot, id)`, `setColour(k, hex)`) and CSS in `overlay.css`.
+  - [x] Previews: `apps/client/src/render/editorPreview.ts` draws on DOM canvases with 7.8's `drawSurvivor` (no gun art: the plain gun bar) / 7.9's `drawSurvivorBody`; the big preview turns with one `requestAnimationFrame` loop only while the editor is open (no allocation per frame: reuse the resolved look until the draft changes), drag to turn; the game-size preview is drawn once per change (asphalt colour, ring in `SLOT_COLOR_CSS[mySlot]`, 3 walkers with `drawZombie`, 2 default survivors). Redraw both on `visibilitychange` → visible.
+  - [x] Tiles: `partTileUrl(slot, id, colours, state)` (owned / milestone-locked / loot-silhouette), cached by key, drawn with the part function zoomed on the slot (7.8's round-2/3 64 px tile framing).
+  - [x] Colour picker (D1): `<input type="color">` + 12 swatches (`cosmetics.json › look.swatches`, new optional key, not gameplay); "Hat & bag colour" in Head and Pack.
+  - [x] Entry: the hub's Survivor tab (7.3's hub component — check its file name at build time) and the lobby's own card (`LobbyScreen.tsx`, 7.9's card).
+- [x] **T4 Save, cache, sync** (AC 8, 9, E4)
+  - [x] `apps/client/src/net/progressApi.ts` (7.1's client API module, check name at build time): `saveLook(code)`; device cache `topdown.look` with `{ code, savedAt, server: boolean }` (try/catch); on start, a cached `server: false` look is sent once.
+  - [x] Join uses the cached/server look (7.9's `options()` source order: server copy, then cache).
+- [x] **T5 Lobby live update (D3)** — if D3 is accepted
+  - [x] `C2S.LOBBY_SET_LOOK` (`lobby.set_look`, `{ look: string ≤ 96 }`), `RunRoom` handler under `this.net.guard`: lobby phase only, decode with the member's owned set, set `PlayerState.look`; at most 2 per second per client (it shares the ~10/s non-input bucket). Mid-run it is ignored (the look changes from the next run).
+  - [x] Tests: lobby → state changes; build/wave → ignored; unowned → default.
+- [x] **T6 Gate**: tests, layout test, browser check at 568 × 320 / 800 × 360 (headless Chromium, dpr 2), full gate on the branch merged with master, "Notes for the merge", "Not verified".
 
 ## Dev Notes
 
@@ -179,10 +179,74 @@ Already decided (not asked again): any colour, no warning (O6); entry from the s
 
 ### Agent Model Used
 
+Claude (builder child session of the overnight orchestrator), skill `gds-dev-story`.
+
 ### Debug Log References
+
+- Gate: see "Gate" below (filled after the master merge).
+
+### Gate
+
+GATE_LINE_PLACEHOLDER
+
+### Task → test (R1: "file > test name")
+
+- **T0** — no test (a look pick): the designer's ED1 + LK2 + LS1 (7-UI-5) is the layout; recorded in `docs/epic-7-decisions.md` › Survivor editor (7.10). Built screens: `docs/art/epic-7/built/7-10-head-tab.png`, `7-10-locked-milestone.png`, `7-10-loot-silhouette.png`, `7-10-random-done.png` (568 × 320, dpr 2).
+- **T1** — `packages/shared/src/config/milestones.json` + `milestones.ts` + `milestones.test.ts` **copied exactly from `origin/story-7-12` (commit 84829540 / 97e016a0, the merged 7.7+7.11+7.12 builder)**, not a second copy; the index export line is the same line as 7.12's. Tests: `packages/shared/src/config/milestones.test.ts > ten milestones m1…m10, each unlocking exactly one catalogue part`; the editor reads `howTo`: `apps/client/src/ui/survivorEditorStore.test.ts > milestone tile line = milestones.json howTo for each of m1–m10; loot line = 'Found during waves'; never a price`.
+- **T2** `meta/look.ts` — `apps/server/src/meta/look.test.ts > an owned look is stored as its canonical code and answered; one look_saved log line; the next session carries it`; `> saveLook (unit) > the owned set comes from the row (7.11's cosmetics), never from the request`; `> a failing repository → 503 save_unavailable`.
+- **T2** route (limits, body cap) — `apps/server/src/meta/look.test.ts > 429 after 10 saves a minute per account (another account is not affected); no database write past the limit`; `> 413 on a body over 256 bytes (a 10 kB look, a padded body), checked before the account is looked up; nothing stored`; `> 401 without a session (no cookie, a bad cookie, an unknown token); an account id in the body is refused (400), never used`; `> 403 for a foreign Origin when origins are set (CSRF)`; wiring `tools/checks/survivorEditorWiring.test.ts > server: the look route is on the router and the lobby message under net.guard`.
+- **T2** tests (canonical, unowned → default, default → null) — `apps/server/src/meta/look.test.ts > E2: a crafted save with head:riot (milestone) and head:prop / pack:golf (loot, milestone) stores the default parts and answers what was stored`; `> the default look (or junk that decodes to it) is stored as null`; `> AC 4: the four slot colours and Runner red save unchanged`.
+- **T3** store — `apps/client/src/ui/survivorEditorStore.test.ts > each tab lists its catalogue parts: starter parts owned, milestone parts locked with their howTo, loot parts as silhouettes`; `> an owned part is worn at once; a locked one shows its line and changes nothing`; `> AC 4, E5: any colour is accepted with no warning`; `> D7: Back = the opened look is kept`; `> 500 Randoms never pick a locked part; every owned part (skin and 'none' included) comes up; colours are valid #rrggbb`; `> AC 6: owned = starter parts + the server's cosmetics (7.11)`.
+- **T3** previews — `apps/client/src/render/editorPreview.raster.test.ts > the game-size preview draws me exactly as the game's body bake (gun frame + drawSurvivorBody, stage 1) at 35 px/m × dpr` (E1); `> my slot ring is drawn around me in my slot colour`; `> setLook resolves the look once; 120 frames resolve nothing more and turn one full turn in 6 s` (no per-frame allocation, D2 night colours, D6); `> redraws when the page becomes visible again, not when it hides; unsubscribes` (brief 20); wiring `tools/checks/survivorEditorWiring.test.ts > previews: one rAF loop while open, the game-size picture per change, redraw on visibilitychange`.
+- **T3** tiles — `apps/client/src/render/editorPreview.raster.test.ts > LS1: a loot tile is a flat silhouette — every drawn pixel is the one silhouette colour, no part colour survives`; `> LK2: a milestone tile is the item darkened`; `> one cached picture per part, look and state; a loot tile ignores my colours`.
+- **T3** colour picker (D1) — `apps/client/src/ui/survivorEditorStore.test.ts > five tabs Top / Head / Hair / Pack / Skin; Hat & bag colour in Head and Pack only; Top shows the top picker` (12 swatches); layout `tools/checks/editorDomLayout.test.ts > 568×320, head tab (laurel tapped): …buttons ≥ 44 px…` (picker and swatches ≥ 44 px).
+- **T3** entry points (AC 1, O4) — `tools/checks/survivorEditorWiring.test.ts > App renders the editor; the hub's Survivor tab and MY lobby card open it (AC 1, O4)`; `apps/client/src/ui/hubModel.test.ts > U1: the header line; one tab (Unlocks) in a bar built for three` (now Unlocks + Survivor).
+- **T3** layout (R9) — `tools/checks/editorDomLayout.test.ts > {568×320, 640×360, 800×360, 844×390} × {top, head, hair, pack, skin} tab: inside the safe area, no overlaps, previews on screen, buttons ≥ 44 px, text ≥ 14 px, no prices` (20 cases, insets 44/21).
+- **T4** save + cache — `apps/client/src/net/lookSave.test.ts > AC 13: the save request body is the encoded look, POSTed to /api/account/look with the cookie`; `> stored → the server's canonical code becomes this phone's copy and the hub's progress`; `> E4: the server can't be reached → never 'saved': kept on this phone as pending, used for the next join`; `> AC 11: 429 → 'too many saves' and nothing kept`; `> storage throws (private mode) → Done still saves …; nothing throws`; `tools/checks/editorDomLayout.test.ts > E4 / AC 9: Done with the server unreachable → 'Saved on this phone…', the look kept as pending; then the editor closes by itself`.
+- **T4** retry at start + newer server look wins — `apps/client/src/net/lookSave.test.ts > a pending look is sent once when the server still has its base; then it is synced`; `> another phone saved since (server look ≠ base) → the server's newer look wins, nothing is sent`; `> a session answer while pending: kept if the server still has the base, replaced if it moved`; `> no session / a failed progress read / a failed send → stays pending for the next start`; `> the start screen retries once per page load`.
+- **T4** join uses the look — `apps/client/src/net/lookSave.test.ts > E4: …used for the next join` (joinAccount carries the pending look); 7.9's `apps/client/src/net/deviceLook.test.ts > joinAccount: the look a join carries` still green; wiring `tools/checks/survivorEditorWiring.test.ts > the start screen retries a pending look once (AC 9); the device copy follows server answers; joins use it`.
+- **T5** — `apps/server/src/rooms/RunRoom.look.test.ts > Story 7.10 D3 > in the lobby: the new look is canonical on the room state, the member and the other player's copy`; `> unowned parts become the default parts (the same rule as the join)`; `> build or wave: ignored (the run keeps the look it started with)`; `> spam: 20 looks at once → at most 2 per second applied, no kick, the client stays joined`.
+- **T6** — the Gate line above; browser check at 568 × 320 / 640 × 360 / 800 × 360 / 844 × 390 by `tools/checks/editorDomLayout.test.ts` (headless Chromium) + the four dpr-2 screenshots.
+
+Mutations (brief 9, each new test mutated once; each FAILED its test): Random from all parts; milestone parts shown owned; a locked tap wears the part; loot tile drawn in colour; resolve per frame; preview "me" drawn in another colour (E1); preview at 40 px/m; redraw when hidden; route stores the raw body; route owns riot/golf/camo; no per-account limit; no 413 check; default stored as the code (not null); "saved" on a failed save; sync ignores the base; a session answer clobbers a pending look; `lobby.set_look` allowed in a wave; no 2/s limit; unowned part kept in the lobby; editor line "Saved" on offline (DOM E4); 32 px swatches (DOM layout).
+
+Bandwidth (brief 8): `lobby.set_look` is lobby-only, ≤ 2/s, ≤ ~110 B; 0 B/s during a run. Perf: the editor's rAF loop runs only while the editor is open (no game running); per frame it draws one survivor from a look resolved once per change.
 
 ### Completion Notes List
 
 - Story context created 2026-11-25 from master 7385b47: comprehensive developer guide, status ready-for-dev.
+- Built 2026-11-25 on `story-7-10` (from master 99ac898f). Every story decision D1–D7 and build choice B1–B14 is recorded in `docs/epic-7-story-decisions-looks.md` › 7.10 build-time choices, all **auto-accepted (designer: follow the GDS recommendation)**.
+- No migration: `progress.look` (7.9's 0002) is the column written.
+- The look is validated on the server against the owned set read from the LOCKED progress row inside the save transaction (`db/boundedTx.ts` `boundedTransaction`, `progressRepo.saveLook`); the raw body never reaches the database. `ownedFor(row)` already reads 7.11's `cosmetics` field when the row carries it.
+- AC 12 (the designer's 30-second playtest): not run; a pending line is in `docs/playtests/epic-7-customization.md`.
+
+### Notes for the merge
+
+- `packages/shared/src/config/milestones.{json,ts,test.ts}`: byte-identical copies of `origin/story-7-12`'s files; the `index.ts` export is the same line as 7.12's (appended at the end of the file here, mid-file there): keep ONE line when 7.12 lands.
+- `apps/server/src/app.ts`: `accountLook` added to `createRouter` and `look: { progress, ipLimiter, accountLimiter }` to `createAccountRoutes` (next to 7.3's `unlock`). `tools/checks/progressHubWiring.test.ts` accepts the extra route.
+- `apps/server/src/auth/accountRoutes.ts`: one new endpoint after 7.3's unlock route.
+- `apps/server/src/db/progressRepo.ts`: `saveLook` added to the interface and the repo (a `boundedTransaction`). **7.11:** when `cosmetics` joins `progressColumns`/`Progress`, `meta/look.ts › ownedFor` uses it with no change; also feed the account's cosmetics into the room's join decode AND `RunRoom.onSetLook` (both use `ownedParts()` = starter only today).
+- `apps/server/src/run/lobby.ts`: `Member.look` is no longer `readonly` (D3 replaces it in the lobby).
+- `apps/server/src/rooms/RunRoom.ts`: one guarded handler `onSetLook` next to `onSetReady`, one `onMessage` line. 7.7's `lobby.district` (on story-7-12) is a neighbour: keep both.
+- `packages/shared/src/net/messages.ts`: `C2S.LOBBY_SET_LOOK` + `lobbySetLookSchema` (and `index.ts` export next to `lobbySetReadySchema`; 7.7 adds `lobbyDistrictSchema` there too).
+- `packages/shared/src/net/account.ts`: `ACCOUNT_LOOK_PATH`, `LOOK_SAVE_MAX_BODY_BYTES`, `lookSaveRequestSchema`, `lookSaveResponseSchema` appended (7.12's branch REMOVES 7.3's unlock exports from `index.ts` in its diff — that is 7.12's stale base, not a conflict with this story: keep master's exports plus these).
+- `packages/shared/src/config/cosmetics.{json,ts}`: optional `look.swatches` (12 colours); looks only, no balance version bump.
+- `apps/client/src/net/deviceLook.ts`: a synced copy is still the plain code (7.9's format); a pending Done is a small JSON object under the same key. `set()` keeps a pending copy while the server still has its base.
+- `apps/client/src/net/account.ts › joinAccount`: the join now carries `looks.get()` after the server copy is applied (a pending Done wins).
+- `apps/client/src/net/progressStore.ts`: `accept()` also updates the device look copy when the answer carries `look`.
+- `apps/client/src/ui/hubModel.ts`: `HUB_TABS` = Unlocks, Survivor (7.5 inserts Training between them: "Unlocks · Training · Survivor"); the Survivor tab opens the editor (`SURVIVOR_TAB_ID`).
+- `apps/client/src/ui/LobbyScreen.tsx`: my own card gets `role="button"` + click/Enter → editor (7.7's district picker is on the same screen, untouched).
+- `apps/client/src/render/PlayerView.ts`: the ring constants moved to `render/playerRing.ts` (same values).
+- `apps/client/src/ui/overlay.css`: `.se-*` block + `.lobby-card--edit` appended at the end.
+
+### Not verified
+
+- Real phones (Android Chrome, iOS Safari): the native `<input type="color">` picker (iOS shows its own sheet), touch drag on the big preview, the canvas redraw after a real Android background/foreground, the 30-second check (AC 12).
+- The look route behind Caddy/Cloudflare on the VPS (only the local server and PGlite here); PostgreSQL 18 runs of `saveLook` (`realPostgres.test.ts` is skipped without a database).
+- Two real phones on one account (beat the rule 4) — covered by unit tests of the base rule only.
+- The hub's Survivor tab next to 7.5's Training tab (7.5 not on master).
 
 ### File List
+
+- New: `apps/server/src/meta/look.ts`, `apps/server/src/meta/look.test.ts`, `apps/client/src/ui/SurvivorEditor.tsx`, `apps/client/src/ui/survivorEditorStore.ts`, `apps/client/src/ui/survivorEditorStore.test.ts`, `apps/client/src/render/editorPreview.ts`, `apps/client/src/render/editorPreview.raster.test.ts`, `apps/client/src/render/city/partTiles.ts`, `apps/client/src/render/playerRing.ts`, `apps/client/src/net/lookSave.ts`, `apps/client/src/net/lookSave.test.ts`, `packages/shared/src/config/milestones.json`, `packages/shared/src/config/milestones.ts`, `packages/shared/src/config/milestones.test.ts` (copied from story-7-12), `tools/checks/editorDomLayout.test.ts`, `tools/checks/survivorEditorWiring.test.ts`, `docs/playtests/epic-7-customization.md`, `docs/art/epic-7/built/7-10-head-tab.png`, `7-10-locked-milestone.png`, `7-10-loot-silhouette.png`, `7-10-random-done.png`.
+- Changed: `apps/server/src/app.ts`, `apps/server/src/auth/accountRoutes.ts`, `apps/server/src/db/progressRepo.ts`, `apps/server/src/net/limits.ts`, `apps/server/src/net/rateLimit.ts`, `apps/server/src/test/bootTestServer.ts`, `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/RunRoom.look.test.ts`, `apps/server/src/run/lobby.ts`, `apps/client/src/net/account.ts`, `apps/client/src/net/deviceLook.ts`, `apps/client/src/net/lobbyStore.ts`, `apps/client/src/net/progressStore.ts`, `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/city/palette.ts`, `apps/client/src/ui/App.tsx`, `apps/client/src/ui/LobbyScreen.tsx`, `apps/client/src/ui/ProgressScreen.tsx`, `apps/client/src/ui/StartScreen.tsx`, `apps/client/src/ui/hubModel.ts`, `apps/client/src/ui/hubModel.test.ts`, `apps/client/src/ui/uiState.ts`, `apps/client/src/ui/overlay.css`, `packages/shared/src/config/cosmetics.json`, `packages/shared/src/config/cosmetics.ts`, `packages/shared/src/index.ts`, `packages/shared/src/net/account.ts`, `packages/shared/src/net/messages.ts`, `tools/checks/progressHubWiring.test.ts`, `docs/epic-7-decisions.md`, `docs/epic-7-story-decisions-looks.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file.

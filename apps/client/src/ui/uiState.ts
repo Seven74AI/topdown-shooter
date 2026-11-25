@@ -17,6 +17,11 @@ export type UiScreen =
    */
   | { kind: "progress"; back: ProgressBack }
   /**
+   * Story 7.10 (AC 1, ED1): the survivor editor, from the hub's Survivor tab or my own lobby card. `back` is the screen
+   * Back and Done return to (the hub, or the lobby whose room stays joined; a run that starts replaces this).
+   */
+  | { kind: "survivor"; back: SurvivorBack }
+  /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
    */
@@ -32,6 +37,15 @@ export type UiScreen =
 
 /** Story 7.3: where the Progress hub can be opened from, and returns to. */
 export type ProgressBack = { kind: "start" } | { kind: "lobby"; code: string };
+
+/** Story 7.10: where the survivor editor can be opened from, and returns to. */
+export type SurvivorBack = { kind: "progress"; back: ProgressBack } | { kind: "lobby"; code: string };
+
+/** Story 7.10: the editor over `from` (a copy: the screen objects are never shared). */
+export const openSurvivor = (from: SurvivorBack): UiScreen => ({
+  kind: "survivor",
+  back: from.kind === "lobby" ? { kind: "lobby", code: from.code } : { kind: "progress", back: from.back.kind === "lobby" ? { kind: "lobby", code: from.back.code } : { kind: "start" } },
+});
 
 /** Story 7.3: the hub over `from` (the start screen's error is not kept). */
 export const openProgress = (from: ProgressBack): UiScreen => ({ kind: "progress", back: from.kind === "lobby" ? { kind: "lobby", code: from.code } : { kind: "start" } });

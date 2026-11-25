@@ -37,6 +37,7 @@ import {
   parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
+  lobbySetLookSchema,
   netPongSchema,
   parseWaveMix,
   playerInputSchema,
@@ -81,7 +82,7 @@ import {
 import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { EventInterest } from "../net/eventInterest";
-import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, RESUME_COUNT_S } from "../net/limits";
+import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, MAX_LOBBY_LOOKS_PER_S, RESUME_COUNT_S } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
@@ -361,6 +362,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input", (c, m) => this.onInputRateDropped(c, m)),
     );
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
+    this.onMessage(C2S.LOBBY_SET_LOOK, this.net.guard(lobbySetLookSchema, (c, m) => this.onSetLook(c, m.look))); // Story 7.10 (D3)
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
@@ -781,6 +783,32 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     const player = member && this.state.players.get(member.playerId);
     if (player) player.ready = ready;
+  }
+
+  /** Story 7.10 (D3): when each member last changed its look in the lobby (ms), for the 2-per-second limit. */
+  private readonly lookTimes = new WeakMap<Member, number[]>(); // per member object: gone with the member
+
+  /**
+   * `lobby.set_look` (Story 7.10, D3): my new look, shown on my lobby card for everyone before Start. Lobby phase only
+   * (a build or a wave ignores it: the run keeps the look it started with); decoded against what my account owns, the
+   * same rule as the join (7.9 L2: starter parts until 7.11 feeds the owned items); at most
+   * `MAX_LOBBY_LOOKS_PER_S` per second per member, extra ones are dropped silently (never a kick).
+   */
+  onSetLook(client: RunClient, code: string): void {
+    if (this.state.phase !== "lobby") return;
+    const member = this.members.get(client.sessionId);
+    const player = member && this.state.players.get(member.playerId);
+    if (!member || !player) return;
+    const now = Date.now();
+    const times = (this.lookTimes.get(member) ?? []).filter((t) => now - t < 1000);
+    if (times.length >= MAX_LOBBY_LOOKS_PER_S) return;
+    times.push(now);
+    this.lookTimes.set(member, times);
+    const look = decodeLook(code, ownedParts());
+    if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
+    const canonical = encodeLook(look.look);
+    member.look = canonical;
+    player.look = canonical;
   }
 
   /**

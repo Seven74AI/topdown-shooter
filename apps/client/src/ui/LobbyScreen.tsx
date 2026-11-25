@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import { openProgress, uiStore, type UiScreen } from "./uiState";
+import { openProgress, openSurvivor, uiStore, type UiScreen } from "./uiState";
+import { EDITOR_TEXT } from "./survivorEditorStore";
 import { copyLink, share, shareLink } from "./share";
 import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
@@ -121,7 +122,24 @@ export function LobbyScreen() {
           const host = p.slot === lobby.hostSlot;
           const url = survivorPortraitUrl(p.look);
           return (
-            <li key={slot} class={`lobby-card${you ? " lobby-card--you" : ""}`} style={place(c.card)}>
+            <li
+              key={slot}
+              class={`lobby-card${you ? " lobby-card--you lobby-card--edit" : ""}`}
+              style={place(c.card)}
+              // Story 7.10 (AC 1, O4): tapping MY card opens the survivor editor; other players' cards do nothing.
+              {...(you
+                ? {
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `${EDITOR_TEXT.edit}: ${p.name}`,
+                    "data-testid": "lobby-my-card",
+                    onClick: () => uiStore.set(openSurvivor({ kind: "lobby", code })),
+                    onKeyDown: (e: KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") uiStore.set(openSurvivor({ kind: "lobby", code }));
+                    },
+                  }
+                : {})}
+            >
               <span class="lobby-card__ring" style={{ ...at(c.picture), borderColor: SLOT_COLOR_CSS[slot] }} role="img" aria-label={`${SLOT_COLOR_NAMES[slot]} survivor`}>
                 {url && <img class="lobby-card__survivor" src={url} alt="" draggable={false} />}
               </span>

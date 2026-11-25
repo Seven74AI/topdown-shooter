@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
+import { LOOK_CODE_MAX } from "../config/cosmetics";
 import type { PlaceError } from "../buildings/buildings";
 import type { RepairError } from "../buildings/repair";
 import type { UpgradeError } from "../buildings/upgrade";
@@ -65,6 +66,12 @@ export const C2S = {
    * still open. Never an amount (S6); a second one, one outside a run or one with no account does nothing more.
    */
   RUN_LEAVE: "run.leave",
+  /**
+   * `{ look }` (Story 7.10, D3): my new look from the editor while waiting in the lobby, so my card changes for everyone
+   * before Start. Lobby phase only (mid-run it is ignored: the look changes from the next run); decoded against what my
+   * account owns like the join's look; at most 2 per second per client.
+   */
+  LOBBY_SET_LOOK: "lobby.set_look",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -227,6 +234,10 @@ export type ParsedJoinOptions = z.output<typeof joinOptionsSchema>;
 /** `lobby.set_ready` (Story 2.3): lobby only. */
 export const lobbySetReadySchema = z.object({ ready: z.boolean() }).strict();
 export type LobbySetReady = z.infer<typeof lobbySetReadySchema>;
+
+/** `lobby.set_look` (Story 7.10, D3): a look code (≤ 96, `LOOK_CODE_MAX`); decoded tolerant on the server. */
+export const lobbySetLookSchema = z.object({ look: z.string().max(LOOK_CODE_MAX) }).strict();
+export type LobbySetLook = z.infer<typeof lobbySetLookSchema>;
 
 /** `run.start` (Story 2.3): host only, when `canStart` (net/lobbyRules.ts) holds. */
 export const runStartSchema = z.object({}).strict();

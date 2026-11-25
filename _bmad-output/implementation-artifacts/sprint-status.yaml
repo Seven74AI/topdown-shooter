@@ -173,7 +173,7 @@ development_status:
   7-7-district-unlock-rule: ready-for-dev  # MERGED into 7.7+7.11+7.12
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: done  # 2026-11-25: look code + progress.look (0002_look), ownership-checked at join, gun under the body, per-player textures, SC3 lobby cards; review 4M/8L + 1 narrow re-review
-  7-10-survivor-editor: ready-for-dev  # story file 2026-11-25, decisions accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md + -looks.md); looks to pick before build. customization (docs/ideas/customization)
+  7-10-survivor-editor: review  # built 2026-11-25 on story-7-10 (layout ED1+LK2+LS1; D1–D7 + B1–B14 auto-accepted, docs/epic-7-story-decisions-looks.md); awaiting light review + beat-the-rule on POST /account/look
   7-11-milestone-items: ready-for-dev  # MERGED into 7.7+7.11+7.12
   7-12-surprise-loot-bag: ready-for-dev  # T0-T4 built (story-7-12); T5 in the merged 7.7+7.11+7.12
   epic-7-retrospective: optional

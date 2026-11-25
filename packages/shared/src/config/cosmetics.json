@@ -1,5 +1,6 @@
 {
-  "look": {"nightMute": {"lightness": 0.62, "saturation": 0.8}, "stageDim": [1, 0.96, 0.92, 0.88, 0.84]},
+  "look": {"nightMute": {"lightness": 0.62, "saturation": 0.8}, "stageDim": [1, 0.96, 0.92, 0.88, 0.84],
+    "swatches": ["#3c5670", "#2f6b5a", "#5f6b2e", "#7a3f7a", "#c4652a", "#e2dccf", "#1f2326", "#8b1a1a", "#d9b23a", "#4a90c8", "#6b4a32", "#9aa0a6"]},
   "defaultLook": {"top": "jacket", "head": "cap", "hair": "short", "pack": "backpack", "skin": "1", "colours": {"top": "#3c5670", "hair": "#231f1c", "accent": "#1f2326"}},
   "parts": [
     {"id": "jacket", "slot": "top", "name": "Jacket", "colour": "top", "unlock": "starter"},

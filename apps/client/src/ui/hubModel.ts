@@ -53,8 +53,16 @@ export interface HubTab {
   readonly id: string;
   readonly label: string;
 }
-/** The tabs in order. 7.5 appends `{ id: "training", label: "Training" }`, 7.10 `{ id: "survivor", label: "Survivor" }`. */
-export const HUB_TABS: readonly HubTab[] = Object.freeze([{ id: "unlocks", label: "Unlocks" }]);
+/**
+ * The tabs in order. 7.5 appends `{ id: "training", label: "Training" }`; Story 7.10 added Survivor (it opens the
+ * survivor editor, a screen of its own: the editor needs the whole phone, decision 7.10 B1).
+ */
+export const HUB_TABS: readonly HubTab[] = Object.freeze([
+  { id: "unlocks", label: "Unlocks" },
+  { id: "survivor", label: "Survivor" },
+]);
+/** Story 7.10: the tab that opens the survivor editor instead of showing a list. */
+export const SURVIVOR_TAB_ID = "survivor";
 /** The tab bar is sized for three tabs (Unlocks · Training · Survivor). */
 export const HUB_TAB_SLOTS = 3;
 

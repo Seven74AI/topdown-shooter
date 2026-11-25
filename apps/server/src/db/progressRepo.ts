@@ -20,7 +20,7 @@ export interface Progress {
   unlocks: string[];
   training: Record<string, number>;
   districts: string[];
-  /** Story 7.9: the survivor look code, or null (the default look). 7.10's editor writes it; nothing here does. */
+  /** Story 7.9: the survivor look code, or null (the default look). Written only by 7.10's `saveLook` (canonical). */
   look: string | null;
 }
 
@@ -68,6 +68,13 @@ export interface ProgressRepo {
    * the bank (7.2 M1 / RR-M1): a purchase never commits after the route answered 503.
    */
   unlock(accountId: string, unlockId: string, price: number): Promise<UnlockResult>;
+  /**
+   * Story 7.10 (AC 8, E2; brief 15, 18, 21): writes the account's look in ONE bounded transaction. The progress row is
+   * created if missing and locked, `canonical(row)` decides what to store FROM THE LOCKED ROW (the owned set is read
+   * there: 7.11's `cosmetics` joins the row), and `look` is replaced by its result (null = the default look). Returns
+   * what was stored. The raw request never reaches this method, only the decoder's output.
+   */
+  saveLook(accountId: string, canonical: (row: Progress) => string | null): Promise<string | null>;
 }
 
 const progressColumns = {
@@ -107,6 +114,22 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
         bankOptions,
       );
     },
+    // Story 7.10: the same bounded transaction as the bank and the unlock (a save never commits after the route answered 503).
+    saveLook: (accountId, canonical) =>
+      boundedTransaction(
+        database,
+        "progress.saveLook",
+        async (tx) => {
+          await tx.insert(progress).values({ accountId }).onConflictDoNothing(); // a missing row is an empty one
+          const locked = await tx.select(progressColumns).from(progress).where(eq(progress.accountId, accountId)).for("update");
+          const row = locked[0];
+          if (!row) throw new Error("progress row missing");
+          const look = canonical(row);
+          const updated = await tx.update(progress).set({ look, updatedAt: sql`now()` }).where(eq(progress.accountId, accountId)).returning({ look: progress.look });
+          return updated[0]?.look ?? null;
+        },
+        bankOptions,
+      ),
     get: (accountId) =>
       withDbTimeout(
         "progress.get",

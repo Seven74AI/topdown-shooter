@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { uiStore, type UiScreen } from "./uiState";
+import { openSurvivor, uiStore, type UiScreen } from "./uiState";
 import {
   HUB_TABS,
   HUB_TEXT,
+  SURVIVOR_TAB_ID,
   IDLE,
   answerUnlock,
   expireConfirm,
@@ -134,7 +135,15 @@ export function ProgressScreen() {
         </p>
         <div class="ph-tabs" role="tablist">
           {HUB_TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" class={`ph-tab${t.id === tab ? " ph-tab--on" : ""}`} aria-selected={t.id === tab}>
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              class={`ph-tab${t.id === tab ? " ph-tab--on" : ""}`}
+              aria-selected={t.id === tab}
+              data-tab={t.id}
+              onClick={t.id === SURVIVOR_TAB_ID ? () => uiStore.set(openSurvivor({ kind: "progress", back: screen.back })) : undefined}
+            >
               {t.label}
             </button>
           ))}

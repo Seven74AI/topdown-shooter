@@ -5,17 +5,27 @@
  * SameSite=Lax, Path=/, no Domain, 1 year). With `PUBLIC_ORIGIN` set, a foreign or missing `Origin` is refused with 403 (CSRF).
  */
 import { createEndpoint } from "@colyseus/core";
-import { ACCOUNT_SESSION_PATH, ACCOUNT_UNLOCK_PATH, GUEST_COOKIE, accountSessionRequestSchema, unlockRequestSchema } from "@topdown/shared";
+import { ACCOUNT_LOOK_PATH, ACCOUNT_SESSION_PATH, ACCOUNT_UNLOCK_PATH, GUEST_COOKIE, LOOK_SAVE_MAX_BODY_BYTES, accountSessionRequestSchema, lookSaveRequestSchema, unlockRequestSchema } from "@topdown/shared";
 import { GUEST_COOKIE_MAX_AGE_S } from "../net/limits";
 import { originAllowed } from "../net/origin";
 import { log } from "../ops/logger";
 import { resolveGuestSession, type GuestSessionDeps } from "./guestSession";
 import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
+import { lookIpAllowed, saveLook, type LookDeps } from "../meta/look";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
   /** Story 7.3: `POST /account/unlock`. */
   unlock: Omit<UnlockDeps, "accounts" | "logGate">;
+  /** Story 7.10: `POST /account/look`. */
+  look: Omit<LookDeps, "accounts" | "logGate">;
+}
+
+/** Story 7.10 (AC 11): the body's size: the declared length, else the parsed body re-serialised. */
+function bodyBytes(headers: Headers | undefined, body: unknown): number {
+  const declared = Number(headers?.get("content-length") ?? NaN);
+  const measured = body === undefined ? 0 : Buffer.byteLength(typeof body === "string" ? body : JSON.stringify(body), "utf8");
+  return Number.isFinite(declared) ? Math.max(declared, measured) : measured;
 }
 
 /** The client IP the same way Colyseus reads it for rooms (`X-Real-IP`, which Caddy sets from Cloudflare). */
@@ -77,5 +87,28 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
   });
-  return { accountSession, accountUnlock };
+
+  /**
+   * Story 7.10 (AC 8, 11; E2): `POST /account/look` `{ look }` (≤ 256 bytes). The cookie names the account; 200 answers
+   * `{ ok: true, look }` with the code the server STORED (canonical; unowned parts → default parts; null = default);
+   * 400 bad body, 401 no account, 403 foreign Origin, 413 body over 256 bytes, 429 over the limits, 503 save server down.
+   */
+  const accountLook = createEndpoint(ACCOUNT_LOOK_PATH, { method: "POST" }, async (ctx) => {
+    const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
+    const origin = headers?.get("origin");
+    if (!originAllowed(origin, deps.allowedOrigins)) {
+      log.warn({ origin: origin ?? null }, "account_origin_refused");
+      throw ctx.error(403, { message: "forbidden" });
+    }
+    ctx.setHeader("cache-control", "no-store");
+    const ip = clientIp(headers);
+    if (!lookIpAllowed(ip, { ipLimiter: deps.look.ipLimiter, logGate: deps.logGate })) throw ctx.error(429, { message: "rate_limited" });
+    if (bodyBytes(headers, ctx.body) > LOOK_SAVE_MAX_BODY_BYTES) throw ctx.error(413, { message: "too_large" });
+    const body = lookSaveRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) throw ctx.error(400, { message: "invalid_body" });
+    const out = await saveLook({ cookieToken: ctx.getCookie(GUEST_COOKIE), look: body.data.look }, { ...deps.look, accounts: deps.accounts, logGate: deps.logGate });
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    return out.body;
+  });
+  return { accountSession, accountUnlock, accountLook };
 }
