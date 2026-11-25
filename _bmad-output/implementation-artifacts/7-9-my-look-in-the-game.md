@@ -4,7 +4,7 @@ baseline_commit: 1fade84
 
 # Story 7.9: My look in the game
 
-Status: in-progress
+Status: review
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47 (Epic 6 rounds 1–2 merged, 6.8–6.12 and the Network pass still to land). Customization story 2 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.9. -->
 
@@ -232,6 +232,7 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 
 ### Gate (retro R6)
 
+- **Final (fc10619, = story-7-9 merged with origin/master 02e7d8c + origin/story-7-1 7519791): `npm run typecheck && npm run lint && npm test && npm run build` GREEN — 446 files, 4015 passed, 3 skipped, 0 failed; build OK. Load 0.4 at the start, 4.5 at the end (1-min average; only this builder in the container).** Two earlier full runs on the same merge: run 1 failed 7.1's `tools/checks/accountWiring.test.ts` (it expected `sessionTicket()` in the join paths: updated to `joinAccount()`, fix fc10619); run 2 failed 8.1's `tools/bots/cut.test.ts` once at load 4.8 (passed in run 1, alone 2/2 and in run 3: timing under load, not 7.9 code — reported for 8.1).
 - Early part (46d60e3): typecheck + lint clean; touched tests (render, sim, debug, scenes, tools/checks, shared cosmetics/config) 1360 passed / 0 failed, load 0.22. Full gate: not yet (at the end, after T2/T3/T6/T7 and a master merge).
 
 ### Completion Notes List
