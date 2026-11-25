@@ -1,7 +1,9 @@
-import { addPlayer, createWorld, loadBalance, lootPartKeys, type RunRewards, type World } from "@topdown/shared";
+import { addPlayer, createWorld, holdPlayer, loadBalance, lootPartKeys, MILESTONES, type RunRewards, type World } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { BankResult, LifetimeStatsRow, ProgressRepo, RunMetaWrites, RunPayout } from "../db/progressRepo";
 import { RunBank } from "./banking";
+import { milestonesReached } from "./milestones";
+import { runFacts, seatMeta, statsDelta } from "./runMeta";
 
 /**
  * Stories 7.7 + 7.11 + 7.12 in 7.2's RunBank (a fake repository that runs the meta writes like the SQL one does —
@@ -137,6 +139,46 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     expect(await run(4, false)).toEqual([true, true, true, true]);
     expect(await run(3, false)).toEqual([false, false, false]);
     expect((await run(4, true)).some(Boolean)).toBe(false);
+  });
+
+  it("review L6: four at the extract but one held (dropped, on hold) → no M8 for anyone", async () => {
+    const w = team(4, "extracted");
+    expect(runFacts(w, "downtown").extractedAllFour).toBe(true);
+    holdPlayer(w, "p3");
+    expect(w.heldPlayers.has("p3")).toBe(true);
+    expect(runFacts(w, "downtown").extractedAllFour).toBe(false);
+    const { repo } = fakeRepo();
+    const bank = new RunBank(1, { repo: () => repo, log: { info: vi.fn(), error: vi.fn() }, deliver: () => {}, retryMs: 1 });
+    const res = await bank.bankRunEnd(w, Array.from({ length: 4 }, (_, i) => ({ playerId: `p${i}`, accountId: ACCTS[i] as string })), []);
+    expect(res.some((r) => (r.newItems ?? []).some((i) => i.key === "head:laurel"))).toBe(false);
+  });
+
+  it("review L5: 20 runs quit in build 1 (wave 1 never ended while in) → 0 runs, no M9; 20 with wave 1 → M9", () => {
+    const w = team(1, "wiped");
+    const p = w.players.get("p0")!;
+    const total = (mask: number) => {
+      p.waveMask = mask;
+      let runs = 0;
+      for (let i = 0; i < 20; i++) runs += statsDelta(p).runs;
+      return runs;
+    };
+    expect(total(0)).toBe(0);
+    expect(milestonesReached({ waveMask: 0, bossKilledWhileIn: false, extracted: false, district: "downtown", extractedAllFour: false, downsWaves1to10: 0 }, { revives: 0, kills: 0, barricades: 0, runs: total(0) })).not.toContain("m9");
+    expect(total(0b1)).toBe(20);
+  });
+
+  it("review L7 (Beat the rule 6): the loot pick comes after this run's milestone parts (never the part just granted)", () => {
+    const w = team(1, "wiped"); // waves 1–5 → M1 (head:fire)
+    w.loot.foundBy = "p0";
+    w.loot.foundWave = 3;
+    w.loot.plan.itemRoll = 0; // the first unowned part of the list
+    const m1 = MILESTONES[0]!;
+    expect(m1.id).toBe("m1");
+    const overlap = ["head:fire", ...lootPartKeys()]; // a catalogue where M1's part could also come out of the bag
+    const g = seatMeta("p0", w.players.get("p0")!, false, runFacts(w, "downtown"), overlap).grant({ revives: 0, kills: 0, barricades: 0, runs: 1 }, new Set(), []);
+    expect(g.cosmetics[0]).toBe("head:fire");
+    expect((g.breakdown.loot as { key: string }).key).toBe(lootPartKeys()[0]);
+    expect(g.cosmetics.filter((k) => k === "head:fire")).toHaveLength(1);
   });
 
   it("7.7 R1: District 2 for the seats at the extract; a quitter (remembered seat) gets nothing", async () => {

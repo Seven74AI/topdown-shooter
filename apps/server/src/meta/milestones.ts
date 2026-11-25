@@ -48,7 +48,7 @@ function reached(m: Milestone, run: MilestoneRun, stats: LifetimeStats): boolean
     case "extracted_all_four":
       return run.extracted && run.extractedAllFour;
     case "wave10_never_downed": {
-      for (let w = 1; w <= 10; w++) if (!hadWave(run.waveMask, w)) return false;
+      for (let w = 1; w <= r.n; w++) if (!hadWave(run.waveMask, w)) return false; // review L8: from milestones.json
       return run.downsWaves1to10 === 0;
     }
   }

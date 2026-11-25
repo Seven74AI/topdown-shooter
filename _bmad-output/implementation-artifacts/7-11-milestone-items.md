@@ -54,7 +54,7 @@ so that my survivor shows what I've done.
 ## Tasks / Subtasks
 
 - [x] **T1 Data** (AC 4) — `packages/shared/src/config/milestones.json` + `milestones.ts` (zod, strict): `m1`–`m10` `{ id, howTo, resultLine, rule: { kind, n?, district? } }` (table in 7.10's Dev Notes, plus `resultLine`). Cross check at load: each `mN` has exactly one part with `unlock: milestone:mN` in `cosmetics.json`. If 7.10 created the file, add `resultLine` only.
-- [x] **T2 Migration + repository** (AC 1, 5) — Drizzle columns `cosmetics text[] not null default '{}'`, `stats jsonb not null default '{"revives":0,"kills":0,"barricades":0,"runs":0}'`; repository functions `grantCosmetics(tx, accountId, keys)` (union, returns the keys that were new), `addStats(tx, accountId, delta)` (SQL increment, returns the new totals). DB tests.
+- [x] **T2 Migration + repository** (AC 1, 5) — Drizzle columns `cosmetics text[] not null default '{}'`, `stats jsonb not null default '{"revives":0,"kills":0,"barricades":0,"runs":0}'`; repository functions `grantCosmetics(tx, accountId, keys)` (union, returns the keys that were new), `addStats(tx, accountId, delta)` (SQL increment, returns the new totals). DB tests. *As built (review L9): no separate functions — the union and the stats add are inline in `progressRepo.addSupplies` under the bank's row lock (`RunMetaWrites`, decision B18); `db/metaBank.test.ts` covers them.*
 - [x] **T3 Per-run counters** (AC 3, M-F2) — in the server's per-seat run record (7.2's, next to `RunController`'s `PlayerSlot.kills`, `RunController.ts:144`): `revives`, `downs`, `barricadesPending` (ids placed this build by this player, wood barricades only), `barricades` (moved from pending to counted for every pending id still in `world.buildings` at `wave.started`; cleared at `build.started`), `bossKilledWhileIn`, `extractedStanding`, `inWaveOneEnd`. Counted in `RunController.step`'s event loop (`:563–579`), the same place kills are counted. Held seats (8.1) keep their record.
 - [x] **T4 Milestone check** (AC 4–6, 9, 10) — `apps/server/src/meta/milestones.ts`: `milestonesReached(runRecord, statsAfter, run) → mN[]` (pure, table-driven from `milestones.json`), `milestoneParts(ids, owned) → new keys`. Called inside 7.2's banking transaction for each seat (and for a quitter at their bank point); idempotent per run id (7.2's retry key).
 - [x] **T5 Ownership** (AC 2) — `ownedParts(progress.cosmetics)` in 7.9's `checkAuth` path and 7.10's look route; the session/progress response (7.1) includes `cosmetics` so the editor shows owned items.
@@ -122,7 +122,7 @@ so that my survivor shows what I've done.
 
 ## Notes for the merge
 
-- 7.2's banking transaction: one call per seat (`milestonesReached` + `grantCosmetics` + `addStats`) inside the same transaction; its retry key covers them.
+- 7.2's banking transaction: one call per seat (`milestonesReached` + `grantCosmetics` + `addStats`) inside the same transaction; its retry key covers them. *As built (review L9): `progressRepo.addSupplies(runId, accountId, pay, meta)` does all three inline.*
 - `RunController.ts`: the counters sit in the per-seat record beside `kills`; the event loop gains three cases.
 - 7.2's Run rewards panel: one optional line per new item (7.12 adds its "Found in wave N" line next to it).
 - `milestones.json`: shared with 7.10 (same table).

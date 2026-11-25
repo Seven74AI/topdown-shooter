@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { C2S, DEFAULT_LOOK, downPlayer, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
+import { C2S, DEFAULT_LOOK, downPlayer, MILESTONE_IDS, createRngFromState, milestonePartKey, worldDigest, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -156,5 +156,51 @@ describe("Story 7.11 AC 2: owned milestone parts survive the join's look check",
     await vi.waitFor(() => expect(headOf("p0")).toBe("riot"));
     await new Promise((r) => setTimeout(r, 100));
     expect(headOf("p1")).toBe(DEFAULT_LOOK.head);
+  });
+});
+
+describe("review L9 (7.11 M-F6): milestone parts are cosmetic only", () => {
+  const saved = process.env.DEV_ALLOW_RUN_SEED;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.DEV_ALLOW_RUN_SEED;
+    else process.env.DEV_ALLOW_RUN_SEED = saved;
+  });
+
+  it("same seed, one run wearing every milestone part, one the default look → the same World digest at the same tick", async () => {
+    process.env.DEV_ALLOW_RUN_SEED = "1";
+    const parts = MILESTONE_IDS.map((id) => milestonePartKey(id));
+    const worn = encodeLook({ ...DEFAULT_LOOK, head: "laurel", top: "camo", pack: "golf" });
+    const solo = async (accountId: string, look: string) => {
+      const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, { ...options("create", "Ana", accountId, look), devRunSeed: 5150 });
+      quiet(host);
+      for (const t of [S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.SHOP_OFFERED]) host.onMessage(t, () => {});
+      host.onMessage("*", () => {});
+      await host.waitForInitialState();
+      const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+      await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b01)); // progress loaded (the look re-checked)
+      host.send(C2S.LOBBY_SET_READY, { ready: true });
+      await vi.waitFor(() => expect(room.state.players.get("p0")?.ready).toBe(true));
+      host.send(C2S.RUN_START, {});
+      await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+      (room as unknown as { onTick: () => void }).onTick = () => {}; // the test steps the World from here
+      return room;
+    };
+    const a = await solo(await newAccount([], parts), worn);
+    const b = await solo(await newAccount(), encodeLook(DEFAULT_LOOK));
+    expect(a.state.players.get("p0")?.look).toBe(worn); // liveness: the parts really are worn (owned)
+    expect(b.state.players.get("p0")?.look).not.toBe(worn);
+    const ca = a.controller!;
+    const cb = b.controller!;
+    expect(ca.world.seed).toBe(cb.world.seed);
+    // the one per-run random input besides the seed: the server-only loot salt (its stream and the plan it made) — the same for both
+    Object.assign(cb.world.loot.plan, ca.world.loot.plan);
+    Object.assign(cb.world.loot, { salt: ca.world.loot.salt, killIndex: ca.world.loot.killIndex });
+    (cb.world.streams as { loot: unknown }).loot = createRngFromState(ca.world.streams.loot.getState());
+    expect(worldDigest(ca.world)).toEqual(worldDigest(cb.world)); // tick 0: only the look differs between the rooms
+    const t = ca.world.tick + 1600; // 80 s: the build phase and into wave 1
+    while (ca.world.tick < t) ca.tick();
+    while (cb.world.tick < t) cb.tick();
+    expect(ca.world.waves.number).toBeGreaterThanOrEqual(1); // liveness: a wave was played
+    expect(worldDigest(ca.world)).toEqual(worldDigest(cb.world));
   });
 });

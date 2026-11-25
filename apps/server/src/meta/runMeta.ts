@@ -1,4 +1,4 @@
-import { MILESTONES, cosmeticPart, districtName, districtsUnlockedBy, hadWave, type CosmeticSlot, type PlayerState, type World } from "@topdown/shared";
+import { MAX_PLAYERS, MILESTONES, cosmeticPart, districtName, districtsUnlockedBy, hadWave, type CosmeticSlot, type PlayerState, type World } from "@topdown/shared";
 import type { LifetimeStatsRow, RunMetaWrites } from "../db/progressRepo";
 import { pickLootItem } from "./loot";
 import { milestonesReached, newMilestoneParts } from "./milestones";
@@ -27,7 +27,7 @@ export function runFacts(world: Readonly<World>, district: string): RunFacts {
   world.players.forEach((p) => {
     if (p.status === "alive") standing++;
   });
-  const extractedAllFour = world.run.ending === "extracted" && world.players.size === 4 && world.heldPlayers.size === 0 && standing === 4;
+  const extractedAllFour = world.run.ending === "extracted" && world.players.size === MAX_PLAYERS && world.heldPlayers.size === 0 && standing === MAX_PLAYERS; // review L8
   return { district, extractedAllFour, lootFoundBy: world.loot.foundBy, lootWave: world.loot.foundWave, lootItemRoll: world.loot.plan.itemRoll };
 }
 
@@ -60,7 +60,7 @@ export function statsDelta(p: Readonly<PlayerState>): LifetimeStatsRow {
  * The loot item is picked from the parts owned INSIDE the transaction, after this run's milestone parts (Beat the
  * rule 6: two devices can't hand out the same item twice in one account).
  */
-export function seatMeta(playerId: string, p: Readonly<PlayerState>, extracted: boolean, facts: RunFacts): RunMetaWrites {
+export function seatMeta(playerId: string, p: Readonly<PlayerState>, extracted: boolean, facts: RunFacts, lootList?: readonly string[]): RunMetaWrites {
   const run = { waveMask: p.waveMask, bossKilledWhileIn: p.bossesIn > 0, extracted, district: facts.district, extractedAllFour: facts.extractedAllFour, downsWaves1to10: p.downs10 };
   return {
     statsDelta: statsDelta(p),
@@ -73,7 +73,7 @@ export function seatMeta(playerId: string, p: Readonly<PlayerState>, extracted: 
       if (facts.lootFoundBy === playerId) {
         const after = new Set(owned);
         for (const k of cosmetics) after.add(k);
-        const key = pickLootItem(after, facts.lootItemRoll);
+        const key = pickLootItem(after, facts.lootItemRoll, lootList); // `lootList`: tests only (review L7: a catalogue where they overlap)
         loot = { wave: facts.lootWave, key, name: key === null ? "" : partName(key) };
         if (key !== null) cosmetics.push(key);
       }
