@@ -325,7 +325,9 @@ describe("Story 8.8: the 500 ms rewind window is fair", () => {
     const id = onLineThenAside(s, 2, 5, 7); // tick 12; on the line through row 5 (the sweep is tested at 4.5)
     s.fire(s.world.tick - 8); // the shooter drew tick 4
     expect(s.hits().map((h) => h.zombieId)).toEqual([id]); // the rewound zombie, damage to the present one
-    expect(mate.hp).toBe(100); // the teammate is never rewound into, and bullets never hurt players
+    // Review N1: documentation, not a guard — bullets have no player-hit path at all, so this cannot
+    // fail; it records that the rewound shot hurts no teammate standing on the old spot.
+    expect(mate.hp).toBe(100);
     expect(s.events.some((e) => e.type === "player.damaged" || e.type === "player.downed")).toBe(false);
     // Control: the same shot with no view tick hits nothing (the zombie is beside the line now).
     const c = setup("hunting_rifle");
@@ -360,7 +362,9 @@ describe("Story 8.8: the 500 ms rewind window is fair", () => {
       const s = setup("hunting_rifle");
       const id = onLineThenAside(s, 2.5, 5, 8); // tick 13: on the line through row 5 (sweep at 4.5)
       if (withBarricade) {
-        // A metal barricade across the line, between the muzzle and where the zombie was.
+        // A metal barricade across the line, between the muzzle and where the zombie was. Cover is
+        // tested as it is NOW (review R4): a barricade standing now blocks; one that broke mid-wave in
+        // the last 500 ms no longer blocks a rewound shot (decision 8.8 B1, accepted: team-only gain).
         addBuildingAt(s.world, { id: 1, type: "metal_barricade", ownerId: "p0", gx: Math.round((s.muzzleX + 1) / BUILD_GRID_M), gy: Math.round((Y - 1) / BUILD_GRID_M), rot: 1, hp: 600 });
         expect(s.world.buildings.list.length).toBe(1);
       }
