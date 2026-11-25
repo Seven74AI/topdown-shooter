@@ -388,3 +388,45 @@ Changed: see "Notes for the merge".
 | L7: `CRATE_CANCEL_UNTIL` 0.85 | eventPickups.test |
 | L10: per-player refunds not logged | tenWaveSim.test |
 | L11: first arrow not avoided | hudLayout.test (2 fail) |
+
+## Re-review 2 (AI)
+
+**Reviewer:** fresh-agent re-reviewer, 2026-11-25. **Reviewed commit:** `31b9404` (fixes after `7b1d9a6`: RR1–RR4, N1; merge of master `dfaefcb` = 6.8 context only). Diff `git diff 7b1d9a6 31b9404 -- . ':!*.md'`. Time-boxed (~10 min of attack).
+
+**Ran:** `npm run typecheck` (clean); `gasLeak.test.ts`, `schedule.test.ts`, `eventPickups.test.ts`, `hudLayout.test.ts` (pair / RR2 tests) under mutation; throw-away probes (deleted, not committed).
+
+**Outcome:** Approve — 0 high, 0 medium, 1 low, 1 nit.
+
+### Measurements (probe: NPC every 6° (3° in a first pass), flag swept ±40° at 0.01° both ways with state kept, then ±0.01 / 0.1 / 1° oscillation at every 0.1°, a noisy walk (0.02°/frame ± 0.5°), and a "NPC walks 60° away" hold test; 6 control rects, insets 44/44/0/21 landscape (47 at 844), 0/0/47/34 portrait)
+
+| Size | max flag bearing err | NPC err | overlaps / rule breaks (safe area, 6 rects, ≥ 48 px) | flips ±0.01° / ±0.1° (pair vs 6.8 solo) | stuck holds |
+|---|---|---|---|---|---|
+| 568×320 | **32.2°** (36.0° in the 3° pass) | 11.5° | 0 / 0 | 0 / 1 vs 0 / 0 | 0 |
+| 640×360 | 30.0° | 0° | 0 / 0 | 0 / 1 vs 0 / 0 | 0 |
+| 800×360 | 30.0° | 0° | 0 / 0 | 0 / 0 | 0 |
+| 844×390 | 30.0° | 0° | 0 / 0 | 0 / 0 | 0 |
+| 390×844 | 24.7° | 0° | 0 / 0 | 0 / 0 | 0 |
+
+±1° oscillation and the noisy walk move any arrow > 10 px per frame by plain geometry; there the pair flips no more than a lone 6.8 arrow (568: 2916 vs 4270 cases; noisy-walk worst 23 vs 21). No per-frame allocation in `placeSecondEventArrow` / `trySpot` / `legalAt` (module scratch only) or the EventView change.
+
+### Findings
+
+| # | Sev | Finding | Where | Evidence | Suggestion |
+|---|---|---|---|---|---|
+| RR2-1 | Low | Flag arrow can sit > 30° off its bearing at 568×320 (brief line 21 / 6.8 D10 cap) | `render/eventArrowPair.ts` best-spot loop | When no beside spot is within 30°, the loop still takes the least-bad one (`bestErr` has no cap): 32.2° (NPC 342°, flag 10.95°, held side 3), 36.0° in a coarser pass. The pair test resets state and steps 5°, so it never sees this; the dev note's "max 19.4°" isn't what continuous play gets. Only on the smallest phone, a few degrees over, never overlapping. | Cap `best` at 30° (or fall through to two-step / own spot); add a stateful 0.01° sweep to the pair test. |
+| RR2-2 | Nit | One ±0.1° jitter spot flips the flag twice at 568 and 640 (none for a lone 6.8 arrow) | same | 1 case in ~600 per size | Accept. |
+
+### Held
+
+- **RR1/RR2:** never overlaps the NPC arrow, both arrows keep every 6.8 rule at all five sizes; the hold never sticks (NPC walked 60° away → `hold.side` 0 in every case); `!f.visible` resets both states.
+- **RR4:** only player bullets (`building === 0 && owner != null`). A zombie in front of the tank is still hit (pierce 1: 6 dmg, tank not blown; pierce 5: hit, then the tank blows). Before 3 s no blocker (zombie behind hit). A turret bullet passes (zombie behind hit, no blow). Rewind (3 ticks) is the same as live. `gasTankT` is −1 unless the gas leak is in HISS and armed, so the car alarm is unaffected.
+- **N1:** the special state is mirrored from the latest patch (50 ms, `NetSimHost` → `mirrorSpecialEvent`, not render-delayed). At 11/20 ticks the step-off reaches the server ≈ RTT + patch + input tick later: 150 ± 20 ms → ~4.5 ticks, 250 + 20 ms → ~6.5 ticks, both < 8 left. The prompt is honest.
+
+### Mutations (reverted; each caught)
+
+- RR4 blocker line removed → the gasLeak RR4 Behemoth test fails (1/15).
+- `CRATE_CANCEL_UNTIL` 0.6 → 0.75 → the eventPickups G7 test fails.
+- `forceEvent` stops setting `lastEndlessEvent` → 3 schedule tests fail.
+- `PAIR_HOLD_CSS_PX` 24 → 0 → the RR2 jitter test fails at 640×360 (7 flips); **passes at 568×320** (it bites on one size only).
+- `trySpot` always illegal (no beside spot) → the pair test fails at both sizes (overlap).
+- Not mutated: `hudTopLayout.test.ts` (6.8 code from the merge, context only). Test gap (low): RR4 has no zombie-behind-the-tank case, only the Behemoth.
