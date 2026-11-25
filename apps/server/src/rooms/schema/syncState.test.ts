@@ -55,6 +55,31 @@ describe("syncState", () => {
     expect(state.aliveCount).toBe(2);
   });
 
+  it("Story 8.9: inputQueued is my queue depth when the last tick started (the drain rule's depth), on change only", () => {
+    const { controller, state, encoder } = setup();
+    for (let seq = 1; seq <= 5; seq++) controller.queueInput("p0", { ...NEUTRAL_INPUT, seq });
+    controller.tick(); // started with 5, applied 1
+    syncState(state, controller);
+    expect(controller.queued("p0")).toBe(4);
+    expect(controller.queuedAtTick("p0")).toBe(5);
+    expect(state.players.get("p0")?.inputQueued).toBe(5);
+    expect(state.players.get("p1")?.inputQueued).toBe(0);
+    controller.tick();
+    syncState(state, controller);
+    expect(state.players.get("p0")?.inputQueued).toBe(4);
+    encoder.encode();
+    encoder.discardChanges();
+    for (let i = 0; i < 6; i++) controller.tick(); // drains to 0, then starves: depth stays 0
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    expect(state.players.get("p0")?.inputQueued).toBe(0);
+    expect(idle).toBeLessThan(8); // only `tick`: an unchanged depth costs no bytes
+  });
+
   it("assigns nothing when nothing changed", () => {
     const { controller, state, encoder } = setup();
     controller.tick();

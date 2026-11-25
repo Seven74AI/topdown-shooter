@@ -113,6 +113,31 @@ describe("NetSimHost", () => {
     expect(inputs(room).length).toBeLessThanOrEqual(MAX_CATCHUP_STEPS + 1);
   });
 
+  it("Story 8.9 (D5): steps at 0.9× while the server reports my queue over its target 3 patches in a row, 1× at the target", () => {
+    const { host, room, arrive } = setup();
+    const run = (queued: number): number => {
+      const before = inputs(room).length;
+      for (let i = 0; i < 3; i++) arrive(room.state.tick + 1, (s) => Object.assign(s.players.get("p1") ?? {}, { inputQueued: queued }));
+      for (let i = 0; i < 600; i++) host.update(FRAME_60HZ); // 10 s
+      return inputs(room).length - before;
+    };
+    const slowed = run(4);
+    expect(slowed).toBeGreaterThanOrEqual(179); // 0.9 × 200 (float accumulator)
+    expect(slowed).toBeLessThanOrEqual(180);
+    expect(host.netStats.queued).toBe(4);
+    expect(run(2)).toBe(200);
+    expect(run(0)).toBe(200); // starved: never faster than 1×
+  });
+
+  it("Story 8.9: a hidden tab while slowed still never bursts (at most 5 steps, the rest dropped)", () => {
+    const { host, room, arrive } = setup();
+    for (let i = 0; i < 3; i++) arrive(i + 1, (s) => Object.assign(s.players.get("p1") ?? {}, { inputQueued: 5 }));
+    host.update(10);
+    expect(inputs(room)).toHaveLength(MAX_CATCHUP_STEPS);
+    host.update(FRAME_60HZ);
+    expect(inputs(room).length).toBeLessThanOrEqual(MAX_CATCHUP_STEPS + 1);
+  });
+
   it("keeps the last 64 unacknowledged inputs", () => {
     const { host } = setup();
     for (let i = 0; i < 100; i++) host.update(0.05);
@@ -266,6 +291,46 @@ describe("NetSimHost", () => {
       expect(host.hordeStats.decodeErrors).toBe(1);
     });
 
+    it("Story 8.9 (D7, wiring): horde frames feed the clock and the lateness too (late frames, patches on time, raise the delay)", () => {
+      const { host, room, arrive, setNow } = setup();
+      for (let t = 10; t <= 200; t++) {
+        setNow(500 + t * 50);
+        arrive(t); // patches always on time
+        setNow(500 + t * 50 + (t % 4 === 0 ? 80 : 1));
+        room.deliver(BYTES.HORDE_FRAME, frame(t, [{ netId: Z, x: 3, y: 3 }]));
+        host.update(1 / 60);
+      }
+      expect(host.netStats.lateP95Ms).toBeGreaterThanOrEqual(80);
+      expect(host.netStats.targetMs).toBeGreaterThan(125);
+    });
+
+    it("Story 8.9 (F1, wiring): an overdue horde frame slows the render clock to 0.9× at once; running past the newest frame counts one freeze", () => {
+      const { host, room, arrive, setNow } = setup();
+      let now = 0;
+      for (let t = 10; t <= 60; t++) {
+        now = 500 + t * 50;
+        setNow(now);
+        arrive(t);
+        room.deliver(BYTES.HORDE_FRAME, frame(t, [{ netId: Z, x: 3, y: 3 }]));
+        for (let f = 0; f < 3; f++) {
+          setNow(now + f * (50 / 3));
+          host.update(1 / 60);
+        }
+      }
+      expect(host.netStats.rate).toBeCloseTo(1, 2);
+      expect(host.netStats.freezes).toBe(0);
+      // The line stalls: no frame after tick 60. 40 ms later the next one is overdue.
+      let slowedAt = Number.NaN;
+      for (let ms = 50; ms <= 400; ms += 50 / 3) {
+        setNow(now + ms);
+        host.update(1 / 60);
+        if (Number.isNaN(slowedAt) && host.netStats.rate === 0.9) slowedAt = ms;
+      }
+      expect(slowedAt).toBeLessThanOrEqual(50 + 15 + 20 + 17); // the 50 ms cadence + 15 ms + the p95 bucket + one frame
+      expect(host.netStats.freezes).toBe(1); // 400 ms with no frame: ran past the newest once
+      expect(host.renderTick).toBeGreaterThan(60);
+    });
+
     it("a zombie.killed hides the zombie in the same frame its death event drains", () => {
       const { host, room, arrive, setNow } = setup();
       for (let t = 10; t <= 13; t++) {
@@ -353,18 +418,20 @@ describe("NetSimHost", () => {
       expect(host.predictor.x).toBeCloseTo(20 + 2 * STEP_M, 5);
     });
 
-    it("the render delay grows with measured jitter, within 100–150 ms", () => {
+    it("Story 8.9: the render delay covers measured lateness (patches + horde frames), within 100–250 ms", () => {
       const { host, arrive, setNow } = setup();
       expect(host.netStats.delayMs).toBe(0);
       for (let t = 1; t <= 200; t++) {
-        setNow(1000 + t * 50 + (t % 2 === 0 ? 20 : -20));
+        setNow(1000 + t * 50 + (t % 4 === 0 ? 80 : 0)); // every 4th patch 80 ms late
         arrive(t);
         for (let f = 0; f < 3; f++) host.update(1 / 60);
       }
-      expect(host.netStats.jitterMs).toBeGreaterThan(30);
-      expect(host.netStats.delayMs).toBeGreaterThan(140);
-      expect(host.netStats.delayMs).toBeLessThanOrEqual(150);
-      expect(host.renderTick).toBeLessThan(200 - RENDER_DELAY_TICKS);
+      expect(host.netStats.lateP95Ms).toBeGreaterThanOrEqual(80);
+      expect(host.netStats.targetMs).toBeCloseTo(80 + 5 + 50, 0); // p95 bucket edge + one tick
+      expect(host.netStats.delayMs).toBeGreaterThan(125);
+      expect(host.netStats.delayMs).toBeLessThanOrEqual(250);
+      expect(host.renderTick).toBeCloseTo(host.serverTick - host.netStats.delayMs / 50, 6);
+      expect(host.renderTick).toBeLessThan(host.serverTick - RENDER_DELAY_TICKS);
     });
 
     it("lobby patches (late from a throttled room) are ignored", () => {

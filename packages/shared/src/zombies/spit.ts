@@ -242,7 +242,7 @@ const acidPass = { world: null as World | null, amount: 0, pulse: 0 };
 
 const acidPlayer = (p: PlayerState): void => {
   const world = acidPass.world as World;
-  if (p.status !== "alive" || world.debug.godMode) return; // F5
+  if (p.status !== "alive" || world.debug.godMode || p.protectTicks > 0) return; // F5; Story 8.1 spawn protection
   if (!circleInAcid(world, p.x, p.y, p.radiusM)) return;
   if (++p.acidTicks < acidPass.pulse) return;
   p.acidTicks = 0;

@@ -179,30 +179,38 @@ chevron past the button edge) was fixed in the shared button code in round 2.
 ## Lumen screens: the chosen style (LF5) on the other 8 Epic 7 screens (`lumen-screens.html`, sheets in `lumen/`)
 
 The designer picked **LF5** (Lumen construction with the PI2 Field Ops palette) as the Epic 7 UI style. This page applies
-it to the eight other screens with the round-1 approved layouts and row orders, plus Results with the slot fix. Still
+it to the eight other screens with the round-1 layouts and row orders, plus Results with the slot fix. Redrawn overnight
+(2026-11-25) to the designer's 7-UI-5 picks: **BT1**, **AC1**, **SC3** (in one lobby with DP2) and **TL3**. Still
 images only; each sheet `lumen/<id>.jpg` shows that screen's frames at deviceScaleFactor 2 (568 × 320, 800 × 360 where
 the layout changes, and the states).
 
 | Sheet | Item | States shown |
 | --- | --- | --- |
 | `lumen/hub.jpg` | PH1 hub + Unlocks | Confirm (pressed, 3 s), Not enough + how many more, Unlocked / Starter, placeholder silhouette, Good next pick, Unlocking… |
-| `lumen/training.jpg` | TR1 Training (TL1 line on Results) | Train, Confirm (pressed), Maxed, 5 pips as Lumen fill bars |
-| `lumen/shop.jpg` | BT2 borrowed strip | Selected card (Buy for…), two borrowed cards (Mo, Kit) |
-| `lumen/accounts.jpg` | AC2 accounts | Start (guest), Save my progress (focus), Log in (error), Forgot password (disabled Next), recovery code, log out |
-| `lumen/lobby.jpg` | DP2 district picker | Host, teammate ("host picks"), host's sheet (selected / locked / Random city), 800 |
-| `lumen/slots.jpg` | SC1 slot card | Host, You, Ready, Not ready, Open (rows at 2×) |
+| `lumen/training.jpg` | TR1 Training (TL3 column on Results) | Train, Confirm (pressed), Maxed, 5 pips as Lumen fill bars |
+| `lumen/shop.jpg` | **BT1** borrowed tag on the tape | Selected card (Buy for…), two borrowed cards (Mo, Kit): dark-steel tape "● FROM MO" / "● FROM KIT" with the slot chip; cards at 2× |
+| `lumen/accounts.jpg` | **AC1** header button + scrolling form | Start (guest, account line top right), Save my progress (focus), Log in (error, scrolled), Forgot password (disabled Next), recovery code, logged in + log out |
+| `lumen/lobby.jpg` | DP2 district picker + **SC3** cards, one lobby | Host, teammate ("host picks"), host's sheet (selected / locked / Random city, Close), 800; Leave top right |
+| `lumen/slots.jpg` | **SC3** line-up cards | Host, You, Ready, Not ready, Open (cards at 2×), in the lobby at 568 and 800 |
 | `lumen/editor.jpg` | ED1 + LK2 + LS1 editor | Head tab with a locked milestone tapped (info row), loot silhouette "?", selected tile, colour row, Random + Done |
 | `lumen/loot.jpg` | LB2 + OA2 + BF2 (in play) | Bag in the street, off screen (OA2 with 20 s ring), blackout, finder and teammate lines (BF2) |
-| `lumen/results.jpg` | Results + Run rewards (LF5) | Extract, endless, teammate's find: with the slot chip |
+| `lumen/results.jpg` | Results + Run rewards (LF5) + **TL3** Training column | Extract, endless, teammate's find, team table at 2×: 10/20, MAX (white tag), 0/20 (grey), 3/20, 4-step bar per player |
+
+`lumen/picks/` — one PNG per picked layout at 568 × 320 (deviceScaleFactor 2, no safe-edge hatching): `bt1.png`, `ac1.png`,
+`sc3-dp2.png`, `tl3.png`. Rebuild: `node docs/art/epic-7/premium-src/build.mjs`, then `node docs/art/epic-7/premium-src/shots5.cjs`
+(all sheets + picks; pass a sheet id or `picks` for one).
 
 **Slot fix (LF5 tension):** every player is now shown with a filled **slot chip**: the slot colour, a dark keyline and
 the player number in white. It appears in Results rows, tags, item cards, lobby rows and the "Bag found!" line, so the
-orange slot (#ff8a1f) never sits orange-on-orange next to the amber-orange accent.
+orange slot (#ff8a1f) never sits orange-on-orange next to the amber-orange accent. On the SC3 cards "You" is a white tag + white
+keyline (Ana is the orange slot), the slot colour is a bar under the picture, and TL3's MAX is a white tag.
 
 **Changes to the approved layouts, and why:**
 - **Results items:** shown as rarity cards (from round 2) instead of one line per item. Each card is one tap target with "Wear it" inside.
-- **Shop (BT2):** the cards are redrawn in Lumen to show the strip in context. The shop itself is the 5.13 screen, and only the strip is Epic 7.
-- **Lobby (SC1):** "Ready" is a white check, not green. The green slot (Kit) is a player colour, so green "Ready" would read as that player.
+- **Shop (BT1, auto-accepted overnight):** the tape is 18 px on every card (card size unchanged); a borrowed card's tape turns dark steel with the slot chip and "FROM MO" in 12.5 px white caps (round 1's 11 px was under the size rule). The "#04" number gives way on borrowed cards (it does not fit at 84 px). The shop itself is the 5.13 screen; only the tape is Epic 7.
+- **Lobby (SC3 + DP2, auto-accepted overnight):** top row game code · District line · Leave; four line-up cards; bottom row Copy / Share · Not ready + Start (host) or Ready. The share link shows only at 800 × 360 (as round-1 SC3). "Ready" is a white check, not green (green is Kit's slot).
+- **Accounts (AC1, auto-accepted overnight):** Forgot password is one screen (username + recovery code + new password) with Next disabled until the code is complete; Log in is drawn scrolled so the error and the focused Password field sit at the top.
+- **Results (TL3, auto-accepted overnight):** Training = total levels of 20 plus a thin 4-step bar (one step per boost) so the column still hints which boosts; header reads "TRAIN" at 568 × 320; YOU moves under the name at 568 to make room.
 - **Accounts:** errors are red. The designer allowed red in menus, and it keeps errors distinct from the orange accent.
 - **Loot bag, arrow and line (in play):** built with Lumen plates in neutral steel and white, without the orange accent, so the in-play rule (white = pick-ups) holds.
 - **Training at 568 × 320:** the line under each boost name is shortened (11.5 px, cut with "…" where needed) so the pips and Now / Next fit, as in round 1.

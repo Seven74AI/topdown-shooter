@@ -6,7 +6,7 @@ import { randomSessionSecret } from "./auth/ticket";
 import { accountsRepo } from "./db/accountsRepo";
 import { type Database, openPglite } from "./db/client";
 import { createGuardedHttpServer } from "./net/httpGuard";
-import { MAX_CLIENT_MESSAGE_BYTES } from "./net/limits";
+import { MAX_CLIENT_MESSAGE_BYTES, TRANSPORT_PING_INTERVAL_MS, TRANSPORT_PING_MAX_RETRIES } from "./net/limits";
 import { originAllowed } from "./net/origin";
 import { newGuestLimiter } from "./net/rateLimit";
 import { health } from "./ops/health";
@@ -53,6 +53,9 @@ export function createGameServer({
     transport: new WebSocketTransport({
       server: createGuardedHttpServer(),
       maxPayload: MAX_CLIENT_MESSAGE_BYTES,
+      // Story 8.1 (AC 8, D8): ≈ 12–15 s before a silent socket is terminated (Colyseus default 2 retries ≈ 6–9 s).
+      pingInterval: TRANSPORT_PING_INTERVAL_MS,
+      pingMaxRetries: TRANSPORT_PING_MAX_RETRIES,
       beforeUpgrade: (_request, ctx) => {
         if (originAllowed(ctx.headers.get("origin"), allowedOrigins)) return;
         log.warn({ origin: ctx.headers.get("origin"), ip: ctx.ip }, "ws_origin_refused");

@@ -9,6 +9,7 @@ import { buyCard, reroll } from "../economy/shopCards";
 import { placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
+import { holdPlayer, returnPlayer } from "../player/hold";
 import { castVote, setBuildReady, startBuild, type EvacChoice } from "../run/runStateMachine";
 
 /**
@@ -30,7 +31,11 @@ export type BuildCommand =
   /** Story 5.11: a shop item (`buyItem`: gear; Story 5.12 consumables). */
   | { kind: "item"; playerId: string; item: string }
   /** Story 6.11: an evacuation vote (`castVote`). */
-  | { kind: "vote"; playerId: string; choice: EvacChoice };
+  | { kind: "vote"; playerId: string; choice: EvacChoice }
+  /** Story 8.1 (brief 5): a player went on hold (dropped or quiet) between two steps (`holdPlayer`). */
+  | { kind: "hold"; playerId: string }
+  /** Story 8.1: a held player came back (`returnPlayer`: placement and protection are the World's). */
+  | { kind: "return"; playerId: string };
 
 export type ReplayCommand = ({ kind: "input"; playerId: string; input: PlayerInput } | BuildCommand) & { tick: number };
 
@@ -91,6 +96,12 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       break;
     case "vote":
       castVote(world, cmd.playerId, cmd.choice);
+      break;
+    case "hold":
+      holdPlayer(world, cmd.playerId);
+      break;
+    case "return":
+      returnPlayer(world, cmd.playerId);
       break;
   }
 }

@@ -140,7 +140,7 @@ function damagePlayer(world: World, t: ChaseTarget, stats: Readonly<ZombieTypeSt
     return;
   }
   const p = t as PlayerState;
-  if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
+  if (p.status !== "alive" || world.debug.godMode || p.protectTicks > 0) return; // god mode: dev cheat / ?stress (Story 1.11)
   if (stats.biteSlowPct > 0) slowPlayer(p, stats.biteSlowPct, ticksFor(stats.biteSlowS));
   // Story 5.4: the one player-damage path (full damage: a zombie is no player's source). At 0 HP it
   // downs the player (Story 2.8: down, not dead; zombies then ignore them).

@@ -220,3 +220,19 @@ export function updateDowned(world: World): void {
   }
   checkTeamWipe(world);
 }
+
+/**
+ * Story 8.1 (F4): a held player coming back mid-wave appears next to the lowest-slot standing
+ * teammate, with the same spot search as the build-start return (`returnSpot`). Writes `p`'s
+ * position (and prev) and returns true; false (nothing changed) when no teammate is standing.
+ */
+export function placeNextToTeammate(world: World, p: PlayerState): boolean {
+  const t = spectateTarget(world, p.id);
+  if (!t) return false;
+  returnSpot(world, p, t.x, t.y);
+  p.x = spot.x;
+  p.y = spot.y;
+  p.prevX = spot.x;
+  p.prevY = spot.y;
+  return true;
+}
