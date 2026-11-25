@@ -47,7 +47,7 @@ export class SurvivorLayerPool {
 
   /** Gives a sprite back (hidden). */
   release(id: AnimatedLayerId, img: Phaser.GameObjects.Image): void {
-    img.setVisible(false);
+    img.setVisible(false).setAlpha(1).setTint(0xffffff); // Story 7.9 re-review RR1: no faded / tinted sprite for the next wearer
     this.free.get(id)?.push(img);
   }
 

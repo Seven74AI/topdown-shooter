@@ -63,9 +63,13 @@ export class AdaptiveDelay {
   private heldMs = 0;
   private heldAtMs = 0;
 
-  /** Story 8.1 review M3: the render clock starts again from the next estimate (with `ServerClock.rebase`; lateness kept). */
-  rebase(): void {
-    this.renderTickNow = Number.NaN;
+  /**
+   * Story 8.1 review M3: the render clock starts again from the next estimate (with `ServerClock.rebase`;
+   * lateness kept). Re-review RR1-N4: with `keepRenderTick` (a freeze ending: the render clock was held
+   * during it) the drawn tick stays where it is and moves on from there — no step back on screen.
+   */
+  rebase(keepRenderTick = false): void {
+    if (!keepRenderTick) this.renderTickNow = Number.NaN;
     this.lastNowMs = Number.NaN;
     this.rate = 1;
   }

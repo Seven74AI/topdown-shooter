@@ -273,7 +273,7 @@ export class NetSimHost implements SimHost {
   private disposed = false;
   private readonly pose: SampledPose = { x: 0, y: 0, heading: 0 };
   /** Story 2.9: reused `playerInfo` answer. */
-  private readonly info: { slot: number; name: string } = { slot: 0, name: "" };
+  private readonly info: { slot: number; name: string; look: string } = { slot: 0, name: "", look: "" };
   private latest: RunStateView | null = null;
   /**
    * Story 3.4: `building.refused` answers, until the scene takes them. Story 5.18 (AC 8): a ring in
@@ -378,11 +378,24 @@ export class NetSimHost implements SimHost {
   }
 
   /** Story 2.9: slot and name from the room's schema copy (the slot from the id until it arrives). */
+  /** Story 8.1 RR1-M1: teammates on hold, by slot (preallocated; valid until the next call). */
+  private readonly heldSlots: number[] = [];
+  private readonly collectHeld = (p: PlayerStateView, id: string): void => {
+    if (p.heldUntilTick > 0 && id !== this.localPlayerId) this.heldSlots.push(p.slot);
+  };
+  heldSeatSlots(): readonly number[] {
+    this.heldSlots.length = 0;
+    this.session.room.state?.players?.forEach(this.collectHeld);
+    return this.heldSlots;
+  }
+
   playerInfo(id: string): PlayerInfo {
     const s = this.session.room.state?.players?.get(id);
     const slot = s?.slot ?? playerSlotOf(id);
     this.info.slot = slot === NET_NONE ? 0 : slot;
     this.info.name = s?.name ?? "";
+    // Story 7.9 (L2): my own survivor too is drawn from the server's canonical code, never from my cached look.
+    this.info.look = s?.look ?? "";
     return this.info;
   }
 
@@ -453,8 +466,11 @@ export class NetSimHost implements SimHost {
     this.rebaseAfterGap(t0);
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
     // Story 8.9: both clocks are monotonic; the render clock stretches 0.9–1.1× toward its delay.
-    this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
-    this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick) : Number.NaN;
+    // Story 8.1 RR1-N4: while the World is frozen (nobody connected, the 3-2-1) both clocks hold still.
+    if (!this.wasFrozen) {
+      this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
+      this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick) : Number.NaN;
+    }
     this.countFreeze();
     // Story 2.7: the horde first, so my shots this frame assist toward and stop at what is drawn.
     this.applyHorde(this.renderTickNow);
@@ -1057,18 +1073,23 @@ export class NetSimHost implements SimHost {
   private wasLinkUp = true;
 
   /**
-   * Story 8.1 review M3: when a freeze ends (the World stood still while the phone's estimate ran on)
-   * or the same room reconnects (the link was down), the server clock and the render clock start
-   * again from the newest tick — the one step back the brief allows, taken while the paused /
-   * reconnecting overlay covers the picture. Normal play keeps 8.9's forward-only rules.
+   * Story 8.1 review M3: when a freeze ends or the same room reconnects (the link was down), the server
+   * clock starts again from the newest tick. RR1-N4: during a freeze both clocks hold still (`update`),
+   * so the render clock moves on from where it stood (nothing drawn steps back); after a reconnect —
+   * the phone may have missed a whole freeze, its estimate ran on — the render clock starts again too,
+   * while the reconnecting panel covers the picture. Normal play keeps 8.9's forward-only rules.
    */
   private rebaseAfterGap(now: number): void {
     const state = this.session.room.state;
     const frozen = state?.frozen === true;
     const up = this.linkUp();
-    if ((this.wasFrozen && !frozen) || (!this.wasLinkUp && up)) {
+    const lifted = this.wasFrozen && !frozen;
+    const back = !this.wasLinkUp && up;
+    if (lifted || back) {
       this.clock.rebase();
-      this.delay.rebase();
+      // RR1-N4: a freeze held the render clock, so it moves on from where it stands (no step back as the overlay
+      // lifts); a reconnect (the reconnecting panel covered the picture) starts it again from the newest tick.
+      this.delay.rebase(lifted && !back);
       if (state && state.tick > 0) this.sampleClock(now, state.tick);
     }
     this.wasFrozen = frozen;

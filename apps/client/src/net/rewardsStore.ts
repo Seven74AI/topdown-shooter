@@ -51,8 +51,9 @@ export class RewardsStore {
    */
   receive(raw: unknown, leave = false): RunRewards | null {
     const parsed = runRewardsSchema.safeParse(raw);
-    if (!parsed.success || parsed.data.runId !== this.runId) return null; // another run's (late) message, or before run.started
-    if (leave) this.rememberLeave(parsed.data);
+    if (!parsed.success) return null;
+    if (leave) this.rememberLeave(parsed.data); // N-RR2-2: kept for the start screen even if the phone already joined a new run
+    if (parsed.data.runId !== this.runId) return null; // another run's (late) message, or before run.started
     this.latest = parsed.data;
     for (const l of this.listeners) l(this.latest);
     return this.latest;

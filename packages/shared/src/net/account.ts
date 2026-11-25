@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { guestTokenSchema } from "./messages";
+import { LOOK_CODE_MAX } from "../config/cosmetics";
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -21,12 +22,15 @@ export const sessionTicketSchema = z.string().min(1).max(200);
 
 /**
  * Story 7.3 (AC 4, U5): the account's progress as the server has it. `unlocks` = BOUGHT unlock ids only (the starter
- * pool is `progression.json`). Not strict: 7.5 adds `training`, 7.7 `districts`, and an older tab keeps working.
+ * pool is `progression.json`); 7.9 adds `look`. Not strict: 7.5 adds `training`, 7.7 `districts`, and an older tab
+ * keeps working.
  */
 export const progressViewSchema = z.object({
   supplies: z.number().int().nonnegative(),
   lifetimeSupplies: z.number().int().nonnegative(),
   unlocks: z.array(z.string().max(32)).max(64),
+  /** Story 7.9: the survivor look code (canonical; null = the default look). Optional: unlock answers don't carry it. */
+  look: z.string().max(LOOK_CODE_MAX).nullable().optional(),
 });
 export type ProgressView = z.infer<typeof progressViewSchema>;
 
@@ -38,9 +42,10 @@ export const accountSessionResponseSchema = z.discriminatedUnion("saved", [
     // Review F10: not strict either (7.6 adds account fields): an unknown field is dropped, never a rejected reply.
     account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable() }),
     /**
-     * Story 7.3 (AC 4): null when the progress read failed (the account is still found: the ticket is good).
-     * Optional so this client still reads a 7.1-only server. The object is no longer strict (decision 7.3 B1): later
-     * stories add fields without making an open tab drop its ticket.
+     * Story 7.3 (AC 4) + 7.9: the account's progress (Supplies, bought unlocks, the canonical look code), from ONE
+     * repository read. null when that read failed (the account is still found: the ticket is good; the client keeps
+     * its device look copy); absent from a 7.1-only server. Not strict (decision 7.3 B1): later stories add fields
+     * without making an open tab drop its ticket.
      */
     progress: progressViewSchema.nullable().optional(),
   }),

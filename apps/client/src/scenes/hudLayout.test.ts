@@ -11,8 +11,8 @@ import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutB
 import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
-import { layoutEvacVote } from "../ui/voteModel";
-import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
+import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
+import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/heldChipsCss.test.ts
 import { BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**

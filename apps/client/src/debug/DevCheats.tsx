@@ -9,6 +9,7 @@ import { spawnInView, type ViewRect } from "./stressScenario";
 import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, spawnBehemothCheat, parseSeed, decayCheatAllowed, setDecayStageCheat, setForcedBlackoutCheat } from "./devCheatActions";
 import { BLACKOUT_LEVELS } from "./urlOptions";
 import { CollisionGridView } from "./collisionGridView";
+import { uiStore } from "../ui/uiState";
 import "./DevCheats.css";
 
 /**
@@ -53,6 +54,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
   const [weapon0, setWeapon0] = useState("pistol");
   const [weapon1, setWeapon1] = useState(NO_WEAPON);
   const [, setTick] = useState(0);
+  // Story 7.9 review L5: no gear on the lobby (it sat on LEAVE); cheats are for runs.
+  const [inLobby, setInLobby] = useState(uiStore.get().kind === "lobby");
+  useEffect(() => uiStore.subscribe((sc) => setInLobby(sc.kind === "lobby")), []);
   const refresh = () => setTick((t) => t + 1);
   const scene = () => game.scene.getScene("Game") as GameScene | null;
   const world = () => scene()?.debugWorld ?? null;
@@ -86,9 +90,11 @@ function DevCheats({ game }: { game: Phaser.Game }) {
 
   return (
     <>
-      <button type="button" class="dev-gear" aria-label="Dev cheats" onClick={() => setOpen((o) => !o)}>
-        ⚙
-      </button>
+      {!inLobby && (
+        <button type="button" class="dev-gear" aria-label="Dev cheats" onClick={() => setOpen((o) => !o)}>
+          ⚙
+        </button>
+      )}
       {open && (
         <div class="dev-cheats" role="dialog" aria-label="Dev cheats">
           <h2>Dev cheats</h2>

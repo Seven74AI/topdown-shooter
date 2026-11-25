@@ -16,6 +16,10 @@ describe("Story 8.1 reconnect wiring", () => {
     expect(src).toMatch(/uiStore\.handle\("startOnline", \(next\) => \{\s*if \(this\.scene\.isActive\(\)\) this\.scene\.restart\(\{ mode: "online", session: next \}/);
   });
 
+  it("RR1-M1: GameScene adds held seats to the vote panel", () => {
+    expect(client("scenes", "GameScene.ts")).toMatch(/if \(host\.heldSeatSlots\) this\.voteCount = addHeldVoters\(this\.votePlayers, this\.voteCount, host\.heldSeatSlots\(\)\);/);
+  });
+
   it("main.ts passes the takeover and the recovered room to the lobby store, resumes a saved seat, and runs the hidden-tab rescue", () => {
     const src = client("main.ts");
     expect(src).toMatch(/rejoin: \(\) => c\.rejoinGame\(room\.roomId,/);

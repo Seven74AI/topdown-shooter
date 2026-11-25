@@ -21,11 +21,45 @@ export interface Database {
   close(): Promise<void>;
 }
 
-/** PostgreSQL through a small `pg` pool. Never throws here: connection errors surface on the first query. */
-export function openPostgres(url: string): Database {
-  const pool = new pg.Pool({ connectionString: url, max: 5, connectionTimeoutMillis: 2000, idleTimeoutMillis: 30_000 });
-  // An idle client losing its connection must not crash the process (P3): log it; the pool replaces the client.
+/**
+ * Story 7.2 re-review 2 (RR2-L1): every query the game server sends gives up after this long on the CLIENT side, so a
+ * half-open connection (a black-holed COMMIT reply) settles instead of leaving "Saving…" forever. Above every
+ * PostgreSQL-side bound of a bank (`db/boundedTx.ts`: 1.5 s statements, 1.8 s budget). Migrations pass 0 (none).
+ */
+export const PG_QUERY_TIMEOUT_MS = 3000;
+
+export interface PostgresOptions {
+  /** Client-side per-query timeout (ms); 0 = none (migrations). Default PG_QUERY_TIMEOUT_MS. */
+  queryTimeoutMs?: number;
+}
+
+/**
+ * The `pg` pool, guarded so a lost database never takes the game server down (P3). pg-pool listens for `error` only
+ * on IDLE clients; a client checked out for a query or a transaction has no listener, so a backend killed mid-query
+ * (pg_terminate_backend, a cut TCP line, a restart mid-COMMIT) would emit an unhandled `error` → uncaughtException →
+ * the whole server stops. Every client gets its own listener on connect (the query itself still rejects, and the
+ * repository logs `db_error {op}` for it). `keepAlive` notices a dead line sooner. Story 7.2: `query_timeout`.
+ */
+export function createPool(url: string, opts: PostgresOptions = {}): pg.Pool {
+  const queryTimeoutMs = opts.queryTimeoutMs ?? PG_QUERY_TIMEOUT_MS;
+  const pool = new pg.Pool({
+    connectionString: url,
+    max: 5,
+    connectionTimeoutMillis: 2000,
+    idleTimeoutMillis: 30_000,
+    keepAlive: true,
+    ...(queryTimeoutMs > 0 ? { query_timeout: queryTimeoutMs } : {}),
+  });
   pool.on("error", (e) => log.error({ op: "pool", err: e.message }, "db_error"));
+  pool.on("connect", (client) => {
+    client.on("error", (e) => log.error({ op: "client", err: e.message }, "db_error"));
+  });
+  return pool;
+}
+
+/** PostgreSQL through a small `pg` pool. Never throws here: connection errors surface on the first query. */
+export function openPostgres(url: string, opts: PostgresOptions = {}): Database {
+  const pool = createPool(url, opts);
   const db = drizzlePg({ client: pool, schema }) as unknown as Db;
   return {
     kind: "postgres",
@@ -82,9 +116,9 @@ export interface DatabaseEnv {
  * The database for this process from its environment. Production without `DATABASE_URL` throws (index.ts logs
  * `database_url_missing` and exits). Dev without it: PGlite in `PGLITE_DIR` (default `apps/server/.data/pglite`).
  */
-export function databaseFromEnv(env: DatabaseEnv, defaultPgliteDir: string): Database {
+export function databaseFromEnv(env: DatabaseEnv, defaultPgliteDir: string, pgOpts: PostgresOptions = {}): Database {
   const url = env.DATABASE_URL?.trim();
-  if (url) return openPostgres(url);
+  if (url) return openPostgres(url, pgOpts);
   if (env.NODE_ENV === "production") throw new Error("DATABASE_URL is required in production");
   return openPglite(env.PGLITE_DIR?.trim() || defaultPgliteDir);
 }

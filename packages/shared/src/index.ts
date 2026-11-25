@@ -46,6 +46,7 @@ export {
   COSMETICS,
   CosmeticsError,
   DEFAULT_LOOK,
+  LOOK_CODE_MAX,
   STARTER_PARTS,
   cosmeticPart,
   layerSpinRevPerS,
@@ -59,6 +60,7 @@ export {
   type CosmeticSlot,
   type SurvivorLook,
 } from "./config/cosmetics";
+export { LOOK_CODE_VERSION, catalogueParts, decodeLook, encodeLook, ownedParts, partKey, type DecodedLook } from "./cosmetics/lookCode";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
 export { MAX_UNLOCKS, PROGRESSION, ProgressionError, UNLOCK_CATEGORIES, findUnlock, loadProgression, progressionSchema, starterPool, unlockList, type Progression, type Unlock, type UnlockCategory } from "./config/progression";
 // Story 7.3: the pool, the unlock mask (7.4) and the "Good next pick".

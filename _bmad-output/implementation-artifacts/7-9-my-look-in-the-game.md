@@ -1,6 +1,10 @@
+---
+baseline_commit: 1fade84
+---
+
 # Story 7.9: My look in the game
 
-Status: ready-for-dev
+Status: done
 
 <!-- Story file 2026-11-25 from the real code on master 7385b47 (Epic 6 rounds 1–2 merged, 6.8–6.12 and the Network pass still to land). Customization story 2 of 5 (7.8 done → 7.9 → 7.10 ∥ 7.11 → 7.12). Decisions to confirm: docs/epic-7-story-decisions-looks.md › 7.9. -->
 
@@ -43,31 +47,31 @@ so that I can find myself and they can recognise me.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Look code (shared)** (AC 2–4, L1)
-  - [ ] `packages/shared/src/cosmetics/lookCode.ts`: `encodeLook(look)`, `decodeLook(input, owned) → { look, replaced }`, `ownedParts(cosmetics?)`, `LOOK_CODE_MAX = 96` (in `config/cosmetics.ts`), `partKey(slot, id)`. Pure, no allocation concerns (runs at join / bake only). Export from `packages/shared/src/index.ts` next to the 7.8 cosmetics block.
-  - [ ] `lookCode.test.ts`: round trip for all 51 parts, random colours, longest-id bound, junk fuzz, unowned replaced, per-slot fallback, `head:none` vs `pack:none`.
-- [ ] **T2 Database and session** (AC 1) — waits for Story 7.1 on master
-  - [ ] Drizzle schema: `look` text nullable on `progress`; `npm run db:migrate` migration file; the 7.1 progress repository returns it; the 7.1 session/progress response includes `look` (null → the client uses `DEFAULT_LOOK`).
-  - [ ] Repository test (7.1's DB test pattern): null by default, a stored code reads back unchanged.
-- [ ] **T3 Join and room state** (AC 5, 6, L1, L2)
-  - [ ] `messages.ts`: `look: z.unknown().optional()` in `joinOptionsSchema` (comment: "never refuses a join: decoded in checkAuth").
-  - [ ] `RunRoom.checkAuth` (`RunRoom.ts:240`): decode with the account's `owned` (7.1 puts the account on `RunAuth`; until 7.11 `ownedParts()`), add `look` (canonical code) to `RunAuth`; `RunRoom.join` (`:327`) sets `PlayerState.look` with `name` (`:344`).
-  - [ ] Schema field + every copy (brief 2): `RunState.ts`, `stateView.ts` (`PlayerStateView.look`, `PLAYER_STATE_FIELDS.look`), `fakeRoom.ts`, `devThrottle.ts` StateCopy, `resetRunFields` keeps it (`syncState.ts:217`), the 8.1 held seat / remembered seat keep it (check at build time).
-  - [ ] Room tests: a bad look joins; an unowned part is replaced; look survives `lobby.return`; bandwidth per tick unchanged.
-- [ ] **T4 Gun under the body** (AC 7, 8) — decision 7.9 D2
-  - [ ] `spriteAtlas.ts`: gun-only frames `survivorgun_<weapon>_a` for each `WEAPON_ART` weapon (with `WEAPON_BACK_ART` drawn first for the flamethrower), `survivorgun_plain_a` (today's `CHAR.gun` bar) and `survivorgun_chainsaw_b` (running chain); `survivorGunFrameFor(weapon, running)` beside `survivorFrameFor` (`:53`). Same frame size as `survivor_body_a` and same centre, so gun and body line up with one position and rotation. Keep the existing `survivor_*` frames (7.8's digest pin); note them as unused in the game for a later cleanup.
-  - [ ] `spriteArt.ts`: a `drawSurvivorBody(c, r, look, withPack)` that draws what `drawSurvivor` draws after the gun (arms → pack → top → skin → hair → headgear, `layers = false`), with the same line-state sequence.
-  - [ ] Raster test (`@napi-rs/canvas`, 7.8 pattern): for every survivor frame, gun frame + body frame composed ≈ the 7.8 frame (AC 8).
-- [ ] **T5 Per-player textures and PlayerView** (AC 7, 9–11, L3, L4)
-  - [ ] `apps/client/src/render/SurvivorLookTextures.ts`: one canvas per player id (2 frames side by side), registered once through `addGeneratedTexture` with a paint callback that reads the player's current resolved look (so a lost context repaints the current look); `setLook(playerId, code, stage)` repaints only when the code or stage changed (`tex.refresh()`); on scene `create` remove leftover `survivorlook_*` textures and unregister them (the `DarknessView.ts:136` / `:209` pattern: Phaser keeps textures across a scene restart); `dispose` on scene shutdown.
-  - [ ] `PlayerView.ts`: a second image for the gun (depth just under the body), both turned and placed together, both tinted (downed / slowed / `BODY_TINT`), both moved by `setAboveDark`; `setBody(textureKey, withPack)` switches the body frame only when the weapon's back piece changes (a swap or a buy), never per frame. The ring keeps `SLOT_COLORS` (AC 11).
-  - [ ] `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
-  - [ ] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
-- [ ] **T6 Lobby card** (AC 12) — after the designer's pick
-  - [ ] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
-- [ ] **T7 Perf and gate** (AC 9, 14)
-  - [ ] Bake timing (4 bodies) headless with and without a 4× CPU throttle; `?stress=150` before/after with `&devlooks=4`; load recorded; `docs/perf/epic-7-looks.md`.
-  - [ ] Full gate on the branch merged with current master; "Notes for the merge"; "Not verified".
+- [x] **T1 Look code (shared)** (AC 2–4, L1)
+  - [x] `packages/shared/src/cosmetics/lookCode.ts`: `encodeLook(look)`, `decodeLook(input, owned) → { look, replaced }`, `ownedParts(cosmetics?)`, `LOOK_CODE_MAX = 96` (in `config/cosmetics.ts`), `partKey(slot, id)`. Pure, no allocation concerns (runs at join / bake only). Export from `packages/shared/src/index.ts` next to the 7.8 cosmetics block.
+  - [x] `lookCode.test.ts`: round trip for all 51 parts, random colours, longest-id bound, junk fuzz, unowned replaced, per-slot fallback, `head:none` vs `pack:none`.
+- [x] **T2 Database and session** (AC 1) — waits for Story 7.1 on master
+  - [x] Drizzle schema: `look` text nullable on `progress`; `npm run db:migrate` migration file; the 7.1 progress repository returns it; the 7.1 session/progress response includes `look` (null → the client uses `DEFAULT_LOOK`).
+  - [x] Repository test (7.1's DB test pattern): null by default, a stored code reads back unchanged.
+- [x] **T3 Join and room state** (AC 5, 6, L1, L2)
+  - [x] `messages.ts`: `look: z.unknown().optional()` in `joinOptionsSchema` (comment: "never refuses a join: decoded in checkAuth").
+  - [x] `RunRoom.checkAuth` (`RunRoom.ts:240`): decode with the account's `owned` (7.1 puts the account on `RunAuth`; until 7.11 `ownedParts()`), add `look` (canonical code) to `RunAuth`; `RunRoom.join` (`:327`) sets `PlayerState.look` with `name` (`:344`).
+  - [x] Schema field + every copy (brief 2): `RunState.ts`, `stateView.ts` (`PlayerStateView.look`, `PLAYER_STATE_FIELDS.look`), `fakeRoom.ts`, `devThrottle.ts` StateCopy, `resetRunFields` keeps it (`syncState.ts:217`), the 8.1 held seat / remembered seat keep it (check at build time).
+  - [x] Room tests: a bad look joins; an unowned part is replaced; look survives `lobby.return`; bandwidth per tick unchanged.
+- [x] **T4 Gun under the body** (AC 7, 8) — decision 7.9 D2
+  - [x] `spriteAtlas.ts`: gun-only frames `survivorgun_<weapon>_a` for each `WEAPON_ART` weapon (with `WEAPON_BACK_ART` drawn first for the flamethrower), `survivorgun_plain_a` (today's `CHAR.gun` bar) and `survivorgun_chainsaw_b` (running chain); `survivorGunFrameFor(weapon, running)` beside `survivorFrameFor` (`:53`). Same frame size as `survivor_body_a` and same centre, so gun and body line up with one position and rotation. Keep the existing `survivor_*` frames (7.8's digest pin); note them as unused in the game for a later cleanup.
+  - [x] `spriteArt.ts`: a `drawSurvivorBody(c, r, look, withPack)` that draws what `drawSurvivor` draws after the gun (arms → pack → top → skin → hair → headgear, `layers = false`), with the same line-state sequence.
+  - [x] Raster test (`@napi-rs/canvas`, 7.8 pattern): for every survivor frame, gun frame + body frame composed ≈ the 7.8 frame (AC 8).
+- [x] **T5 Per-player textures and PlayerView** (AC 7, 9–11, L3, L4)
+  - [x] `apps/client/src/render/SurvivorLookTextures.ts`: one canvas per player id (2 frames side by side), registered once through `addGeneratedTexture` with a paint callback that reads the player's current resolved look (so a lost context repaints the current look); `setLook(playerId, code, stage)` repaints only when the code or stage changed (`tex.refresh()`); on scene `create` remove leftover `survivorlook_*` textures and unregister them (the `DarknessView.ts:136` / `:209` pattern: Phaser keeps textures across a scene restart); `dispose` on scene shutdown.
+  - [x] `PlayerView.ts`: a second image for the gun (depth just under the body), both turned and placed together, both tinted (downed / slowed / `BODY_TINT`), both moved by `setAboveDark`; `setBody(textureKey, withPack)` switches the body frame only when the weapon's back piece changes (a swap or a buy), never per frame. The ring keeps `SLOT_COLORS` (AC 11).
+  - [x] `GameScene.ts` `syncPlayerView` (`:240`): on a new view, `setLook` from `host.playerInfo(id).look` and the animated layer from the look (AC 10); on `decay.stage_changed` (build start) repaint (D1). `PlayerInfo` gains `look` (`SimHost.ts:163`; `NetSimHost.playerInfo` `:343` reads `state.players.get(id).look`; `LocalSimHost.playerInfo` `:330` returns the device's look, AC 13).
+  - [x] `?devlooks=N` in `apps/client/src/debug/urlOptions.ts` (dev builds; + test) for AC 14.
+- [x] **T6 Lobby card** (AC 12) — after the designer's pick
+  - [x] `survivorPortraitUrl(code)` (cached by code, `typeof document` guard) in `render/city/` next to the part code; `lobbyStore.ts:36` rows carry `look`; `LobbyScreen.tsx` shows the portrait per the picked layout; HUD/menu layout test at 568 × 320 and 640 × 360.
+- [x] **T7 Perf and gate** (AC 9, 14)
+  - [x] Bake timing (4 bodies) headless with and without a 4× CPU throttle; `?stress=150` before/after with `&devlooks=4`; load recorded; `docs/perf/epic-7-looks.md`.
+  - [x] Full gate on the branch merged with current master; "Notes for the merge"; "Not verified".
 
 ## Dev Notes
 
@@ -122,6 +126,7 @@ The server never trusts the look beyond "these parts exist and you own them": it
 ### Files
 
 - New: `packages/shared/src/cosmetics/lookCode.ts` (+ test), `apps/client/src/render/SurvivorLookTextures.ts` (+ test), `apps/client/src/render/city/survivorPortrait.ts` (+ test), the 7.9 migration under `apps/server/src/db/` (7.1's folder), `docs/perf/epic-7-looks.md`.
+- New (R2): `apps/client/src/scenes/lookWiring.test.ts`
 - Changed: `packages/shared/src/config/cosmetics.ts` (`LOOK_CODE_MAX`), `packages/shared/src/index.ts`, `packages/shared/src/net/messages.ts`, `packages/shared/src/net/stateView.ts`, `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/schema/RunState.ts`, `apps/server/src/rooms/schema/syncState.ts` (`resetRunFields` comment/keep), 7.1's progress repository and session response, `apps/client/src/net/connection.ts`, `fakeRoom.ts`, `devThrottle.ts`, `lobbyStore.ts`, `apps/client/src/ui/LobbyScreen.tsx` (+ `overlay.css`), `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/city/spriteAtlas.ts`, `apps/client/src/render/city/spriteArt.ts`, `apps/client/src/scenes/GameScene.ts`, `apps/client/src/sim/SimHost.ts`, `NetSimHost.ts`, `LocalSimHost.ts`, `apps/client/src/debug/urlOptions.ts`, `tools/bots/botClient.ts` (no look: fine, check it still joins).
 
 ## Test plan
@@ -197,8 +202,203 @@ Already decided (not asked again): identical looks allowed (O3); any colour, no 
 
 ### Debug Log References
 
+### Implementation Plan / decisions made while building
+
+- **Early start (brief line 29):** T1, T4, T5 built before 7.1 / 8.1 reach master; **T2 (database), T3 (join and room state) and T6 (lobby card, SC3 line-up cards + DP2) are held** until the main session says 7.1 and 8.1 are on master. Until T3, `NetSimHost.playerInfo(id).look` reads `state.players.get(id).look` through a cast and finds nothing ("" = the default look); `LocalSimHost` takes the device look as a constructor option (`look`), not wired to 7.1's progress cache yet (T3).
+- **Repaint trigger (D1):** instead of listening for `decay.stage_changed`, `GameScene.syncLook` passes `world.decay.stage` to `SurvivorLookTextures.setLook` every frame; it is two compares when nothing changed and one repaint when the stage moved. Same result as the event (the stage only changes at a build start), but a tab that slept across several build starts repaints once (beat the rule 8), and a late Game scene start gets the right stage without a missed event.
+- **"No look sent"** (`undefined`, `null`, `""`) decodes to the default look with `replaced: 0` (bots and old tabs: no `look_replaced` log noise); any other bad input counts its replaced fields (a non-string / over-long / other-version input = all 8).
+- **Client decode uses every catalogue part** (`catalogueParts()`): the server already checked ownership; the client only falls back for ids its catalogue doesn't know. Practice (`LocalSimHost`) checks against `ownedParts()` like a join.
+- **`?devlooks=N`** = N survivors in all (mine + N − 1 extras, AC 14's "devlooks=4 → 3 extra"), 1–4, fixed-seed random starter looks, views only.
+- Build-time choices B1–B10 are listed (code, value, alternative) in `docs/epic-7-story-decisions-looks.md` › "7.9 build-time choices", all auto-accepted overnight (designer: follow the GDS recommendation).
+- **PlayerView** keeps the 7.8 one-piece atlas path until `setBodyTexture` is called (GameScene always calls it), so 7.8's tests and any view without a look still draw.
+
+### Tests per checked task (retro R1: file > test name)
+
+- T1 lookCode.ts → `packages/shared/src/cosmetics/lookCode.test.ts` > "round-trips every one of the 51 parts with random colours", "the longest legal look … fits in 96 characters", "refuses to write a code over the bound", "fuzz: 1,000 random strings …", "reads each slot on its own …", "each colour on its own …", "fields in any order …", "head:none and pack:none are different parts", "ownedParts() is exactly the 31 starter parts", "a part not owned is drawn as the default part …", "catalogueParts() is every one of the 51 parts …"
+- T1 lookCode.test.ts → itself (mutation pass: per-slot fallback, owned check, length cap — all killed)
+- T4 spriteAtlas.ts gun frames → `apps/client/src/render/city/survivorGunSplit.raster.test.ts` > "one gun frame per held-art weapon, the plain bar and the running chainsaw, all survivor-sized"
+- T4 spriteArt.ts `drawSurvivorBody` → same file > "the gun frame alone shows no body, and the body alone no gun (the split is real)"; 7.8's `survivorParts.raster.test.ts` > "AC 3: … is today's survivor …" (still green, the digest pin unchanged)
+- T4 raster test → same file > "%s: gun + default body = the one-piece frame" (9 frames, ≤ 2 per channel)
+- T5 SurvivorLookTextures.ts → `apps/client/src/render/SurvivorLookTextures.test.ts` > "bakes each player's body once …", "L4: the same code and stage every frame does nothing …", "D1: a new decay stage repaints once, darker …", "brief 20: a lost context repaints the CURRENT look …", "a restarted scene drops the previous run's leftover bodies first", "beat the rule 4: 50 rejoins …", "beat the rule 3: …", "L6: the same code and stage draw the same pixels on two phones"
+- T5 PlayerView.ts → same file > "body from the player's texture, gun from the shared atlas just under it …", "the flamethrower's tanks …", "downed / slowed tints, out and the blackout depth …", "L4: no frame or texture call per frame …", "L3: no look changes the ring colour …", "without a look texture (7.8 path) …", "AC 10: a look with the propeller cap …"
+- T5 GameScene hookup (R2 wiring) → `apps/client/src/scenes/lookWiring.test.ts` (each of the 5 hookup lines; deleting the leave line fails it) + `SurvivorLookTextures.test.ts` > "sets the body texture, follows the stage, and takes the layer from the look (once per code)"; LocalSimHost look → `apps/client/src/sim/LocalSimHost.look.test.ts` (3 tests); `apps/client/src/sim/playerInfo.test.ts` (look "")
+- T2 migration / repository → `apps/server/src/db/look.db.test.ts` > "the 7.9 migration adds the nullable look column to progress and nothing else", "runs forward on 7.1's schema with rows in it: the rows stay, their look is null", "the repository returns null by default and a stored code unchanged"; `db.test.ts` (repository shape incl. `look: null`)
+- T2 session response → `apps/server/src/auth/lookSession.test.ts` > "a new guest: progress.look is null", "a stored look comes back as saved; junk in the column comes back canonical", "beat the rule 5: a progress read that fails keeps the session saved with the default look"
+- T3 join option / checkAuth / state → `apps/server/src/rooms/RunRoom.look.test.ts` > "1,000 random looks … all accepted, each canonical ≤ 96 characters" (L1), "logs look_replaced with the count only …", "12 bad looks: 12 joins accepted …", "L2: an unowned part … is the default part on the room state …", "no look (bots, old tabs) joins with the default look", "kept through a run and a lobby return …", "NP 21: a takeover keeps the seat's look …", "NP 21: a remembered seat (hold ran out) comes back with its own look", "L4: 0 B/s per tick …"
+- T3 client join path → `apps/client/src/net/deviceLook.test.ts` (6 tests: server copy first and kept, null clears, save server down → device copy, blocked storage), `apps/client/src/net/connection.account.test.ts` > "Story 7.9 (AC 5, R2): every join path carries my look …"; `NetSimHost` reads `state.look` → `apps/client/src/sim/playerInfo.test.ts`; L5 → `apps/client/src/sim/LocalSimHost.look.test.ts` > "same seed and inputs → the same World digest with any look"
+- T6 lobby → `apps/client/src/ui/lobbyLayout.test.ts` (R9: 568×320, 640×360, 800×360, 844×390 × insets 44/21 and 0), `apps/client/src/render/city/survivorPortrait.test.ts` (3 tests), `apps/client/src/ui/lobbyWiring.test.ts` (R2: 4 tests), `apps/client/src/net/lobbyStore.test.ts` (rows carry `look`); screenshots at the four sizes, host and guest (Playwright, 3 real players joined through the real server)
+- T7 → `docs/perf/epic-7-looks.md`; repaint budget → `SurvivorLookTextures.test.ts` > "AC 9: a build start repaints at most one existing body per frame …", `lookWiring.test.ts` > "the per-frame repaint budget is reset once per frame …"
+- T5 `?devlooks=N` → `apps/client/src/debug/urlOptions.test.ts` > "Story 7.9: ?devlooks=N (dev builds only) …"; `SurvivorLookTextures.test.ts` > "beat the rule 4" uses `devLookCodes`
+
+### Gate (retro R6)
+
+- **Landing gate (c0d05b0 = story-7-9 + review fixes merged with origin/master c26d1bc: 8.1, 7.1, 7.2, 8.10): `npm ci && npm run typecheck && npm run lint && npm test && npm run build` GREEN on the first run — 463 files, 4188 passed, 18 skipped, 0 failed; build OK. Load 2.8 at the start, 3.2 at the end (1-min average; only this builder).** (3f7268e after it: story file only.)
+- Earlier: **Final (fc10619, = story-7-9 merged with origin/master 02e7d8c + origin/story-7-1 7519791): `npm run typecheck && npm run lint && npm test && npm run build` GREEN — 446 files, 4015 passed, 3 skipped, 0 failed; build OK. Load 0.4 at the start, 4.5 at the end (1-min average; only this builder in the container).** Two earlier full runs on the same merge: run 1 failed 7.1's `tools/checks/accountWiring.test.ts` (it expected `sessionTicket()` in the join paths: updated to `joinAccount()`, fix fc10619); run 2 failed 8.1's `tools/bots/cut.test.ts` once at load 4.8 (passed in run 1, alone 2/2 and in run 3: timing under load, not 7.9 code — reported for 8.1).
+- Early part (46d60e3): typecheck + lint clean; touched tests (render, sim, debug, scenes, tools/checks, shared cosmetics/config) 1360 passed / 0 failed, load 0.22. Full gate: not yet (at the end, after T2/T3/T6/T7 and a master merge).
+
 ### Completion Notes List
+
+- 2026-11-25 early part (T1, T4, T5): look code + 15 tests (round trip all 51 parts, 94/96-char bound, 1,000-string fuzz, per-slot / per-colour fallback, `head:none` vs `pack:none`, ownership); gun-only atlas frames `survivorgun_*` + `drawSurvivorGun` / `drawSurvivorBody` split of `drawSurvivor` (raster: gun + body composed = the one-piece frame, ≤ 2 per channel, every weapon); `SurvivorLookTextures` (bake once, repaint on look / stage change only, lost-context repaint of the current look, leftover cleanup, ≤ players on screen); PlayerView gun image under the body (shared tint / visibility / depth / rotation, nopack body for the flamethrower); animated layer from the look; `?devlooks=N`. Mutation pass: 11 mutations, all killed (the "pack always on" mutation first survived my raster test because the reference shares the body function: killed by 7.8's frozen AC 3 test, and a direct nopack pixel check was added).
 
 - Story context created 2026-11-25 from master 7385b47: comprehensive developer guide, status ready-for-dev.
 
 ### File List
+
+- New: `packages/shared/src/cosmetics/lookCode.ts`, `packages/shared/src/cosmetics/lookCode.test.ts`, `apps/client/src/render/SurvivorLookTextures.ts`, `apps/client/src/render/SurvivorLookTextures.test.ts`, `apps/client/src/render/devLooks.ts`, `apps/client/src/render/city/survivorGunSplit.raster.test.ts`, `apps/client/src/sim/LocalSimHost.look.test.ts`
+- Changed: `packages/shared/src/config/cosmetics.ts` (`LOOK_CODE_MAX`), `packages/shared/src/index.ts`, `apps/client/src/render/city/spriteArt.ts`, `apps/client/src/render/city/spriteAtlas.ts`, `apps/client/src/render/PlayerView.ts`, `apps/client/src/render/darkness/fakeScene.testkit.ts` (stroke colour, `getTextureKeys`), `apps/client/src/scenes/GameScene.ts`, `apps/client/src/sim/SimHost.ts`, `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/LocalSimHost.ts`, `apps/client/src/sim/playerInfo.test.ts`, `apps/client/src/debug/urlOptions.ts`, `apps/client/src/debug/urlOptions.test.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+### Review fixes (review-7-9 @ ddd2440, CHANGES REQUESTED)
+
+- ✅ M1 [Medium] the gun now blinks with the body in 8.1's spawn protection (`PlayerView.ts` `this.gun.setAlpha(blink)`) → `SurvivorLookTextures.test.ts` > "downed / slowed tints, out and the blackout depth apply to body and gun together" (alpha case added; mutant killed).
+- ✅ M4 [Medium] L2 + L6 online → `apps/client/src/sim/playerInfo.test.ts` > "L2: the wearer's own view and a teammate's both read the server's code", "L6: two phones in one room resolve the same look for each player" (mutant `info.look = ""` killed).
+- ✅ L1 a lobby row with a real code → `lobbyStore.test.ts` > "copies players in slot order as plain data" (mutant `look: ""` killed).
+- ✅ L2 the gun frames the game uses → `survivorGunSplit.raster.test.ts` > "atlas frame %s + default body = the one-piece frame" (painted by the atlas's `drawCharacterFrame`, now exported for tests; mutant without `WEAPON_BACK_ART` killed).
+- ✅ L3 the fuzz says what it does: > 1 KB options are refused by the options cap (asserted, counted), the rest accepted; accepted + capped = 1,000.
+- ✅ L4 bandwidth: 4 players, 200 ticks (build phase: a wave would hold 4 idle bots, 8.1), a client listener on every player's `look` sees 0 changes, bytes per tick within 5 % of the default-look run (mutant "look rewritten every 40 ticks" killed: 20 changes).
+- ✅ L5 the dev ⚙ is not drawn on the lobby (`DevCheats.tsx`) → `lobbyWiring.test.ts` > "review L5 …".
+- ✅ L6 Start's second line is a short hint ("Waiting for Ready" / "Need 1 player", `START_HINT_SHORT`, full text as label/title) → `lobbyStore.test.ts`, `lobbyWiring.test.ts` > "review L6 …"; screenshots 568×320 and 800×360: fits.
+- ✅ L7 bakes: one per frame for new bodies too (a survivor shows the default atlas picture until its turn), and online none before `decaySynced` → `SurvivorLookTextures.test.ts` > "AC 9: … all 4 are done after 4 frames" (new bodies 1/frame), `lookWiring.test.ts` > "review L7 …"; B8 text corrected in `docs/perf/epic-7-looks.md` and the decisions doc.
+- ✅ L8 deploy order: Notes for the merge + `docs/deploy.md` › Deploy ("Server first, never the client alone").
+- ✅ M2 (at landing, master c26d1bc): `netProtocolVersion: NET_PROTOCOL_VERSION` in `RunRoom.look.test.ts` `opts()` (the only 7.9 test that joins a room).
+- ✅ M3 (at landing): `0001_look` SQL + snapshot + journal entry dropped, master merged (7.2's `0001_run_rewards`), `drizzle-kit generate --name look` → `0002_look.sql` (`ALTER TABLE "progress" ADD COLUMN "look" text;`, `when` 1795599721941 > 7.2's 1795586996317, `prevId` = 7.2's snapshot `cd82bd88…`) → `look.db.test.ts` > "review M3: the look migration's journal `when` is newer than every earlier one", "runs forward on the schema before it (7.1 + 7.2 …): … the look column exists" (forward run from a DB with 0000 + 0001 applied and rows in it; mutant "old `when`" fails both).
+- Merge with master: 7.1's re-review N-R3 made seat recovery reuse a recent ticket (`recoveryTicket`); `rejoinGame` now uses `recoveryAccount()` = that ticket + this device's look copy (no session call per retry; mid-run the server keeps the seat's own look anyway), and `joinAccount()` stores its ticket for that reuse. `accountWiring.test.ts` checks both paths.
+
+### Notes for the merge (per shared file)
+
+- `packages/shared/src/net/messages.ts` `joinOptionsSchema`: one optional key `look: z.unknown()`, after 7.1's `ticket`. A NEW client against an OLD server (the schema is `.strict()`) would be `invalid_options`: **deploy the server first or together** (review L8; `docs/deploy.md` › Deploy says so). No protocol bump: old tabs on the new server are fine.
+- `packages/shared/src/net/account.ts`: the saved variant gains an OPTIONAL `progress: { look }` (strict inside); the client copes with a server that sends none.
+- `packages/shared/src/net/stateView.ts` / `apps/server/src/rooms/schema/RunState.ts` / `apps/client/src/net/fakeRoom.ts`: `look` appended LAST, after 8.1's `heldUntilTick` / `protectTicks` (8.9's `inputQueued` before them). `devThrottle.ts` copies it through `PLAYER_STATE_FIELDS` (no line there). `syncState.ts`: comment only (`resetRunFields` keeps `look` like `name`). World / mirror / Predictor / snapshotWorld / bots: untouched on purpose (L5: the World never sees the look; bots send none → the default look).
+- `apps/server/src/rooms/RunRoom.ts`: `checkAuth` decodes the look after 7.1's ticket check (M1: ticket bound to the guest token); `RunAuth.look`, `Member.look` (`run/lobby.ts`), `RememberedSeat.look` (next to 8.1's `buildIdx`); `join` / `restoreRemembered` pass it to `new PlayerState`; a takeover keeps the member's look (spread). `authLog` is now exported (tests). **7.11:** pass the account's `cosmetics` to `ownedParts()` in `checkAuth` — checkAuth is sync and DB-free, so 7.11 needs the owned items on the ticket or an async load: decide there.
+- `apps/server/src/auth/guestSession.ts` / `app.ts`: `GuestSessionDeps.progress?` (app.ts passes `progressRepo(database)`); the read runs inside 7.1's one 2 s deadline (L3).
+- `apps/server/src/db/schema.ts` + `drizzle/0002_look.sql` + `meta/0002_snapshot.json` + `_journal.json`: generated by `drizzle-kit generate --name look` on top of 7.2's `0001_run_rewards` (review M3). A later story's migration goes on top (0003_…) and must be GENERATED after merging master (Drizzle applies only a migration whose journal `when` is newer than the last applied one: a renamed old file is skipped silently).
+- `apps/client/src/net/connection.ts`: `options(intent, name, { ticket, look })` + 8.10's `netProtocolVersion`; create / join use `joinAccount()`, `rejoinGame` uses `recoveryAccount()` (7.1 N-R3's reused ticket + the device look); `sessionTicket` / `recoveryTicket` are still exported; `watchLobby` also listens to `look` (7.10 D3).
+- `apps/client/src/ui/LobbyScreen.tsx` + `overlay.css`: the lobby is rewritten (SC3); every old `.lobby*` rule is gone except `.lobby__dot` (ResultsScreen uses it). **7.7:** the district panel (`.lobby__district`, `L.district`) is the place for the picker (DP2): make it a button with the chevron and the sheet; the layout test already reserves ≥ 120 px. Lumen tokens are scoped under `.lobby` (`--lumen-*`): a later story that adds shared Lumen tokens should hoist them.
+- `apps/client/src/render/PlayerView.ts`: a gun image under the body and `setBodyTexture`; 8.1's D3 blinking: if it sets body alpha, set the gun's too.
+- `apps/client/src/render/city/spriteAtlas.ts`: 9 new `survivorgun_*` frames (the atlas still passes `atlasLayout.test.ts`); the old `survivor_*` frames stay (7.8's digest pin) but the game no longer shows them (cleanup later).
+- `apps/client/src/render/darkness/fakeScene.testkit.ts`: `strokeColor` and `getTextureKeys` added (additive).
+- `apps/client/src/scenes/GameScene.ts`: `syncLook` / `layerPoolOf` / `lookTextures` / `devLooks` fields, one line each in `syncPlayerView`, `dropPlayerView`, `syncPlayerViews`, create, shutdown, and `look: deviceLook.get()` in the solo `LocalSimHost`.
+- For **7.10**: `encodeLook` / `decodeLook` / `catalogueParts`, `survivorPortraitUrl`, `drawSurvivorBody`, `deviceLook` (write the device copy when saving) are ready; the lobby redraws on a `look` change.
+- For **7.12**: a found loot part is owned only from the next join.
+
+### Not verified
+
+- Real phones: the Xiaomi Mi 11i bake time and build-start repaint (the 4× throttled headless bake is 9.1 ms, over AC 9's ~2 ms; mitigations in `docs/perf/epic-7-looks.md`), `?stress=150&devlooks=4` on the phone, iOS Safari (the lobby's condensed font falls back to system fonts: no web font is loaded).
+- An Android app switch (canvas wipe / context loss) on a real phone: covered by the registry test only.
+- `?lag=150&jitter=20&loss=1`, a hidden tab across a build start and a reconnect on a real line: the look is set once at join and the repaint compares the stage each frame, so none of them can change it; tested in rooms (takeover, remembered seat) but not by hand under the lag switch.
+- The VPS: migration `0001_look` on the production PostgreSQL 18 (Hermes's deploy runs `db:migrate`); tested forward on PGlite with 7.1's schema and rows.
+- The lobby on a phone with a real notch (insets read from `env(safe-area-inset-*)`): tested by the layout function and desktop screenshots only.
+
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer session, 2026-11-25 (gds-code-review, three layers: blind hunter, edge-case hunter, acceptance auditor + beat-the-rule probes). **Tree:** `review-7-9` = `story-7-9` b907077 merged with `origin/master` (8.10 f67154d). Merge conflicts (resolved as the union in the merge commit, both sides kept): `packages/shared/src/net/messages.ts` (`JoinRefusal`: `seat_kept` + `update_required`), `tools/bots/run.ts` (FLAGS: cut-* + kbps), `apps/client/src/net/connection.ts` (`options()`: ticket/look + `netProtocolVersion`), `apps/client/src/sim/NetSimHost.ts` (8.10 moved `receiveHorde` into the constructor callback; 8.1's `rebaseAfterGap` kept), `sprint-status.yaml`, `docs/perf/network-pass-2026-11.md`. 7.9's own code = commits 46d60e3, eccab8a, 5b50780, 7858c23, fc10619. Checks run: typecheck (green), the 16 touched test files, 25 mutations, live join probes against a real server, Playwright lobby at 568×320 / 800×360 with 4 players, FPS row re-run. Full gate not run (rules).
+
+**Verdict: CHANGES REQUESTED** — 4 Medium (1 real bug, 1 merge break, 1 merge hazard, 1 test gap on L2/L6), 8 Low. The rule core holds: no unowned part, junk or oversized code got through; the look is set once and kept by takeover / remembered seat / lobby return; ring colour untouched; 0 B per tick.
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| M1 | Medium | `apps/client/src/render/PlayerView.ts:241-246` | 8.1's spawn-protection blink (on this branch via story-7-1) sets `body.setAlpha(blink)` and the layer's alpha, **not the new gun image**. After every mid-wave return the body fades to 0.37 while the gun stays solid and shows through the translucent body. Probe: `protectTicks: 30`, t = 100 ms → body alpha 0.367, gun alpha 1. Breaks AC 7 "tints … and visibility apply to body and gun together". | `this.gun.setAlpha(blink);` next to the body; add the alpha case to "downed / slowed tints, out and the blackout depth apply to body and gun together". |
+| M2 | Medium (merge) | `apps/server/src/rooms/RunRoom.look.test.ts:31-38` | On master (8.10: join options need `netProtocolVersion`) the test's `opts()` has none → **9/9 tests fail** with `balance_mismatch`. Adding `netProtocolVersion: NET_PROTOCOL_VERSION` makes all 9 pass (checked). The gate line (fc10619, master 02e7d8c) predates 8.10. Same break, not 7.9's code, for whoever merges them: 7.1's `RunRoom.account.test.ts`, 8.1's `RunRoom.reconnect.test.ts`, `auth/accountRoutes.test.ts` (35 failures together on this merge). | Add the field to `opts()`; re-gate on current master. |
+| M3 | Medium (merge hazard) | `apps/server/drizzle/0001_look.sql`, `meta/0001_snapshot.json`, `meta/_journal.json` | `story-7-2` also has `0001_run_rewards` (idx 1, same `0001_snapshot.json` name, both `prevId` 067eb126…). Drizzle 0.45.4 applies a migration only if its journal `when` is **newer than the last applied** (`node_modules/drizzle-orm/pg-core/dialect.js:62`). 7.9's `when` 1795586686338 < 7.2's 1795586996317: if 7.2 lands/deploys first and 7.9 is just renamed `0002_look` keeping its `when`, production **silently skips it** → no `progress.look` column → `progressRepo.get` (selects `look`) fails on every read. | Whichever merges second: drop its own 0001 SQL + snapshot + journal entry, merge the other, re-run `npm run db:generate` (→ `0002_*`, fresh `when`, `prevId` = the other's 0001 snapshot id, snapshot with both tables); point `look.db.test.ts` at 0002 and add a forward run on a DB that already applied the other 0001. |
+| M4 | Medium (test gap) | `apps/client/src/sim/NetSimHost.ts:387`, `apps/client/src/sim/playerInfo.test.ts` | L2's "the wearer's own view uses `state.look`" and L6's "two `NetSimHost`s on one fake room" are untested: mutant `this.info.look = ""` (every player drawn default online) **survives** all tests. L6 is only "same code + stage → same pixels". | `fakePlayer(slot, { look: X })` → `playerInfo(id).look === X` for the local player and a teammate; two hosts on one fake room → equal `resolveLook` per player. |
+| L1 | Low | `apps/client/src/net/lobbyStore.test.ts` | Story claims "rows carry `look`" but every row uses `look: ""`; mutant `look: ''` in `lobbyStore.ts:` row builder survives. | One row with a real code. |
+| L2 | Low | `apps/client/src/render/city/spriteAtlas.ts:245-252`, `survivorGunSplit.raster.test.ts` | The raster test draws its own gun frames, not the atlas's: mutant dropping `WEAPON_BACK_ART[weapon]` from the atlas gun frame (flamethrower tanks gone in game) survives. | Draw the gun frames through `characterSpecs()` + the atlas frame painter (or assert tank pixels in the atlas's flamethrower gun frame). |
+| L3 | Low | `RunRoom.look.test.ts:50-74` | "1,000 random looks (10 kB …) are all accepted": the > 1 KB cases are skipped (`continue`). Live: a 900-char look → `invalid_options`, 10 kB → `Payload Too Large`. Harmless (real clients cap at 96 via `deviceLook` and the session schema) but AC 5 / L1 "never refused" isn't literal. | Rename the test / say in AC 5 that the 1 KB options cap applies; count skipped cases. |
+| L4 | Low | `RunRoom.look.test.ts:178-198` | L4 measures 2 players, ~20 ticks, 15 % tolerance (spec: 4 looks, 200 ticks). A look rewritten every few ticks could hide in 15 %. (Full-string per-tick rewrite was killed.) | 4 players, 200 ticks, or assert no `look` change in the per-tick patches. |
+| L5 | Low (dev only) | `apps/client/src/debug/DevCheats.css:2-7` vs `lobbyLayout.ts:74` | The dev ⚙ (fixed, right 68 px, top 14 px) sits on LEAVE: 800×360 gear 688–732 × 14–58 over leave 700–792 × 8–56; same at 568×320 (screenshots). Taps on LEAVE's left part open cheats. | Hide the gear while the lobby shows, or keep `leave` clear of it. |
+| L6 | Low | `LobbyScreen.tsx` (B9 hint) | The host's hint inside Start is cut: "Waiting for everyon…" at 568×320, "Waiting for everyone to be Rea…" at 800×360. | Shorter text ("Waiting for Ready") or allow 2 lines. |
+| L7 | Low | `SurvivorLookTextures.ts:61-100`, `docs/perf/epic-7-looks.md` (B8) | The doc says the first bake is "in the Game scene's start … before the first frame of play"; the code bakes in the first `update()` (via `syncPlayerView`). A reload / new scene mid-wave (8.1 return) bakes 4 bodies in one frame mid-wave, and online may bake at stage 1 then repaint at the real stage when the first decay patch lands (4 more, 1/frame). | Skip `setLook` until `decaySynced` (or pre-bake in `create` from the host's players); correct the doc sentence. |
+| L8 | Low (deploy) | `packages/shared/src/net/messages.ts` (`look`) | New client + old server: the strict schema refuses `look` → `invalid_options`, not "Please reload" (brief 16). The change is additive (old tabs on the new server are fine). | Deploy the VPS server before (or with) the client; note it in the merge notes. No protocol bump needed. |
+
+**B8 (bake 9.1 ms at 4× vs AC 9's ~2 ms):** the mitigation is acceptable. Steady state costs nothing (no texture call per frame, mutation-checked), a build start costs ≤ ~2.3 ms per frame for 4 frames (4× throttle), and the phone itself is unmeasured. Keep the lazy `nopack` bake as the next cut. AC 9 stays partly met (designer-accepted B8), plus L7's mid-wave case.
+
+**R1 / R6:** R1 ok (tests per task, file > test name). R6: the gate line is real but stale after 8.10 (M2).
+
+### Beat the rule (attempts and results)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Live join, `head:riot` (milestone) + `pack:golf` (loot) | Joined; `state.look` = `head:cap`, `pack:backpack`, rest kept ✔ |
+| 2 | Unicode (`cаp` Cyrillic a, 😀 hair, `ÉÉÉÉÉÉ` colour) | Joined; those fields default ✔ |
+| 3 | `__proto__:x`, `constructor:y`, `head:constructor`, `top:__proto__` | Joined, full default look; no prototype access (keys checked against the slot list, ids against the owned set) ✔ |
+| 4 | Duplicate `head:cap|head:riot` | First wins (`cap`) ✔ |
+| 5 | Object `{head:"riot"}`, array, `null`, number | Joined, default look ✔ |
+| 6 | 900-char / 10 kB look | Refused by the 1 KB options cap (`invalid_options` / 413) — L3 |
+| 7 | Hide who I am: colours = a teammate's / slot colours | Allowed (O3); ring, name, edge arrows stay the slot colour (L3 test, screenshot card 3) ✔. No alpha in colours; `none` parts are starter parts. Very dark colours in the blackout: the ring and name sit above the dark ✔ |
+| 8 | Change look mid-run by takeover (8.1) / remembered seat | Seat's look kept, new connection's ignored (tests; mutants M3/M4 killed) ✔ |
+| 9 | Change look by a lobby rejoin | New look taken (lobby only; intended) ✔ |
+| 10 | Guest / unsaved seat | Device copy sent, checked against starter parts ✔ |
+| 11 | DB down (B5) | `checkAuth` needs no DB (starter set); session read failure keeps the session saved, default look (test, M5 killed) ✔. For 7.11: fail closed to starter parts |
+| 12 | Tampered session response (Playwright route sets `progress.look` with unowned parts) | Lobby and game show the server-stripped look, own card too ✔ |
+| 13 | Texture spam: 50 rejoins, scene restart, 4 players | ≤ players on screen; leftovers dropped at create; disposed at shutdown ✔ (headless: 4 `survivorlook_` with devlooks=4, 1 without) |
+| 14 | Android context loss | Registry repaints the CURRENT look/stage (M8 killed); lobby portrait is a data URL (unaffected) ✔ |
+| 15 | Gun under body vs aim / reload / melee / flamer / downed / blackout | Same position + rotation every frame; frames by weapon + chainsaw running; nopack for back pieces; tint / visibility / depth shared ✔ — **but not the 8.1 blink alpha (M1)** |
+| 16 | Propeller layer | Set only when the code changes; pooled; no per-frame allocation in `syncViewLook` / `DevLooks.update` ✔ |
+| 17 | Stage dim (B1) | Decay stage changes only in `decayMutate` (build start); 2 compares per frame; 1 repaint per frame budget ✔ (L7 for the first-patch case) |
+| 18 | FPS `?stress=150&devlooks=4` re-run (844×390 DPR 2, 12 s, load 0.7–1.2) | stress=150: 18.6 / 18.3; devlooks=4: 18.3 / 19.0 → mean 18.45 vs 18.65 (−0.2), within 2 FPS ✔ |
+| 19 | SC3 lobby 568×320, 4 players, 16-char W/M names, unicode name, ⚙ | Matches SC3/DP2 (cards, rings, white "You" tag ✔, Host tag); names ellipsised; ⚙ over LEAVE (L5); Start hint cut (L6). Screenshots: `review-7-9/lobby-568-host.png`, `lobby-568-guest.png`, `lobby-800-host.png` |
+| 20 | Migration on 7.1's schema with rows | Forward test green (PGlite); collision with 7.2 → M3 |
+| 21 | New client vs old server | `invalid_options` (L8) |
+
+### Mutations (25; one source change each, matching test run, reverted)
+
+Killed (22): lookCode owned check dropped; checkAuth accepts riot/golf; takeover uses the new connection's look; remembered seat drops look; session read failure throws; session look not canonicalised; repaint budget not spent; lost context repaints the first look; `remove` keeps the texture; gun above body; gun tint not shared; layer ignores look; solo look ignores ownership; server copy not kept on device; device look length cap off; lobby return wipes look; look rewritten every tick; lobby card overlaps buttons; portrait cache keyed wrong; "You" tag accent; migration `NOT NULL DEFAULT ''`; joins send only the ticket (accountWiring + connection.account).
+**Survived (3):** NetSimHost `info.look = ""` (M4); lobby rows `look: ''` (L1); atlas gun frame without the back piece (L2).
+
+### Re-review (narrow) 1
+
+Scope: only the fix commit 64e57a0 (`b907077..origin/story-7-9`). The merge items M2 (netProtocolVersion) and M3 (migration renumber) are left for landing and not reported. Typecheck passes; the 7 touched test files pass (75 tests).
+
+**Verdict: APPROVE with 1 Low and 1 nit** (no Medium or higher left). The fixes are correct; the Low is a pooled-sprite leak in the same blink path as M1.
+
+**Findings**
+
+- **[Low] RR1: the pooled propeller keeps a faded alpha (M1 not quite finished).** `PlayerView.update` sets the layer's alpha only when `protectBlinkAlpha` changes. `SurvivorLayerPool.release` only hides the sprite (`setVisible(false)`); it does not reset its alpha. Repro, a scratch test using the fakeScene testkit:
+  1. View A wears the propeller and blinks (`protectTicks: 30`, layer alpha 0.367).
+  2. A is destroyed (the player leaves while protected).
+  3. View B gets the same pooled sprite. B is unprotected, so `shownBlink` stays 1 and the alpha is never written.
+  4. Result: B's propeller stays at alpha 0.367 while its body is at 1.
+
+  Fix idea: reset alpha (and tint) in `release`/`acquire`, or apply `shownBlink` in `setAnimatedLayer`. The other paths are fine:
+  - The downed/slowed tint and visibility go to body, gun and layer together (a new body texture resets `shownStatus`).
+  - Out hides all three.
+  - The blackout depth moves all three.
+  - The gun's alpha is set even while hidden (atlas fallback), so it is right when it shows.
+  - PlayerView has no other alpha or tint path, such as a hit flash.
+- **[nit] RR2: the L6 test counts characters, not pixels.** `lobbyStore.test` checks `length ≤ 17`. Measured in Chromium at `500 11px system-ui`: "Waiting for Ready" is 93.0 px and "Need 1 player" is 71.0 px. The Start button is ≥ 112 px (`mainW` floor) minus its 4 px border, so the text fits at 568 and 800, even with notch insets. The check is right in practice, but a pixel check would be safer.
+
+**What I tried to break (L7, one bake per frame)**
+
+- **4 players join at once:** bodies bake on frames 1–4, in the Map's insertion order. Until then each shows the default atlas frame with the gun hidden, and the layer waits with the body.
+- **Build start in the same frame:** a build start's repaints share the budget, so the worst case is 8 frames.
+- **Wrong person's look:** not possible. Entries are keyed by playerId, a queued body has no entry, and `syncViewLook` returns before `setBodyTexture`.
+- **Flicker:** none. Once a view has its key it keeps it, and a spent budget on an existing entry returns the old key.
+- **Leaving while queued:** no entry and no texture, so `remove` is a no-op and nothing leaks.
+- **Context loss while queued:** only registered (baked) bodies are repainted; queued ones register later at their current look.
+- **Allocation:** the null path allocates nothing.
+- **`decaySynced` never arriving:** this gate is only for `NetSimHost`. Practice solo and `?solo` (LocalSimHost, starter look) bake at once. Online, a stage change makes `decaySynced` false for a tick, which only delays a bake: the old texture stays.
+- **L5:** the ⚙ comes back after leaving the lobby. The `uiStore.subscribe` sets `inLobby` from `sc.kind` each time the screen changes.
+
+**Mutations: 10, all caught**
+
+| Mutation | Caught by |
+|---|---|
+| M1: remove `gun.setAlpha(blink)` | SurvivorLookTextures.test |
+| L7: remove `return null` on a spent budget | SurvivorLookTextures.test |
+| L7: remove the `decaySynced` gate | lookWiring.test |
+| L5: `!inLobby` → `true` | lobbyWiring.test |
+| L6: the button shows `startHint` | lobbyWiring.test |
+| L6: longer short-hint text | lobbyStore.test |
+| L2: atlas plain gun painted at 0.9 r | raster test |
+| L1: snapshot drops `look` | lobbyStore.test |
+| M4: NetSimHost `info.look = ""` | playerInfo.test, 2 tests |
+| L4: server toggles `player.look` every tick | RunRoom.look.test, 2 tests |
+
+The L3 fuzz was not mutated: it is a rename plus count assertions.
+
+**Fixes after re-review 1 (no further re-review, main session):**
+
+- ✅ RR1 [Low] `SurvivorLayerPool.release` resets alpha 1 and tint white; `PlayerView.setAnimatedLayer` applies the current blink alpha and re-tints at the next update → `SurvivorLookTextures.test.ts` > "re-review RR1: a propeller handed back by a blinking (or downed) wearer is clean for the next one" (both mutants killed: no reset in the pool; no blink alpha on acquire).
+- ✅ RR2 [nit] the short Start hints are measured in px at the hint font (`@napi-rs/canvas`, 500 11 px): "Waiting for Ready" 87 px ≤ 100 → `lobbyStore.test.ts`.
