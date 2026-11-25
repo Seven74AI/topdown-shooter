@@ -306,6 +306,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   readonly rememberedSeats = new Map<string, RememberedSeat>();
   /** Stories 7.7 / 7.11: each member's saved districts and owned parts, loaded at join (absent: none / not loaded). */
   private readonly memberProgress = new Map<string, { readonly districts: readonly string[]; readonly cosmetics: readonly string[] }>();
+  /** Review M3: the run end's banks (settled), so the lobby reloads progress after this run's grants are written. */
+  private runBanked: Promise<unknown> = Promise.resolve();
   /** Story 8.1: the hold length in seconds (HOLD_S; tests may shorten it on a live room, like `allowSoloStart`). */
   holdS = HOLD_S;
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
@@ -746,10 +748,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.holds.delete(playerId);
     this.members.delete(member.sessionId); // frees the slot
     this.state.players.delete(playerId);
-    if (this.state.phase === "lobby") {
-      this.memberProgress.delete(playerId);
-      this.recomputeDistricts(); // Story 7.7 R3: the pick can't strand anyone
-    }
+    this.memberProgress.delete(playerId); // review M3: on every final leave (a leaver mid-run no longer opens a district)
+    if (this.state.phase === "lobby") this.recomputeDistricts(); // Story 7.7 R3: the pick can't strand anyone
     const controller = this.controller;
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
@@ -776,7 +776,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out): the run is lost (Story 8.4 saves build phases).
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase }, "run_abandoned");
-      void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: every remembered seat banks `quit`
+      this.runBanked = this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()) ?? this.runBanked; // Story 7.2: every remembered seat banks `quit`
     }
     this.updateFreeze();
   }
@@ -808,8 +808,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * Stories 7.7 (AC 3) + 7.11 (AC 2): a member's saved progress, loaded once at join (2 s timeout; nothing on failure or
    * without an account): its districts open the lobby's picker (R2), its owned parts re-check the look it asked for —
    * in the lobby only (a look never changes mid-run). Fire and forget: the join never waits for the database.
+   * Review M3: also after `lobby.return` (`relook` false: the look stays), so this run's new parts and districts count.
    */
-  private async loadMemberProgress(member: Member, rawLook: unknown): Promise<void> {
+  private async loadMemberProgress(member: Member, rawLook: unknown, relook = true): Promise<void> {
     const repo = roomProgressRepo();
     if (!repo || member.accountId === null) return;
     let row: Awaited<ReturnType<typeof repo.get>>;
@@ -822,7 +823,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!row || this.members.get(member.sessionId) !== member) return; // left meanwhile
     this.memberProgress.set(member.playerId, { districts: row.districts, cosmetics: row.cosmetics });
     if (this.state.phase === "lobby") {
-      const look = encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
+      const look = !relook ? member.look : encodeLook(decodeLook(rawLook, ownedParts(row.cosmetics)).look);
       if (look !== member.look) {
         member.look = look;
         const player = this.state.players.get(member.playerId);
@@ -1354,7 +1355,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
     this.log.info({ runSeed: this.runSeed, runId: this.bank?.runId, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
-    void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: one call (never awaited by the tick)
+    this.runBanked = this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()) ?? this.runBanked; // Story 7.2: one call (never awaited by the tick)
   }
 
   /**
@@ -1379,6 +1380,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     resetRunFields(this.state);
     this.state.phase = "lobby";
     this.log.info({ playerId: member.playerId }, "lobby_returned");
+    // Review M3 (Story 7.7 R3 across runs): leavers' districts are gone now; once this run's banks settle, every
+    // member's progress is read again (new districts open, new parts are owned).
+    this.recomputeDistricts();
+    const members = [...this.members.values()];
+    void this.runBanked.catch(() => undefined).then(() => Promise.all(members.map((m) => this.loadMemberProgress(m, undefined, false))));
   }
 
   /** Colyseus's patch interval: encode + send the state patch, timed like a tick (`slow_patch`). */

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { C2S, DEFAULT_LOOK, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
+import { C2S, DEFAULT_LOOK, downPlayer, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, encodeLook, catalogueParts, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { signTicket } from "../auth/ticket";
 import { accountsRepo } from "../db/accountsRepo";
@@ -107,6 +107,38 @@ describe("Story 7.7: the lobby district picker (server)", () => {
     await new Promise((r) => setTimeout(r, 100));
     expect(info).not.toHaveBeenCalledWith(expect.anything(), "district_pick_refused"); // ignored outside the lobby
     expect(room.state.district).toBe("downtown");
+  });
+
+  it("review M3: a holder who leaves mid-run no longer opens the district; after lobby.return the members' progress is read again", async () => {
+    const hostAcct = await newAccount();
+    const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Host", hostAcct));
+    const resets = quiet(host);
+    await host.waitForInitialState();
+    const vet = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Vet", await newAccount(["district_2"])));
+    quiet(vet);
+    await vet.waitForInitialState();
+    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
+    room.state.district = "district_2"; // as a playable progression's pick would set it
+    for (const c of [host, vet]) c.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    host.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const w = room.controller!.world;
+    await vet.leave(); // mid-run: R3 must still hold when the room is back in the lobby
+    await vi.waitFor(() => expect(room.members.size).toBe(1));
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    host.send(C2S.LOBBY_RETURN, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("lobby"));
+    await vi.waitFor(() => expect(resets).toEqual(["district_2"]));
+    expect(room.state.district).toBe("downtown");
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b01));
+    // this run's grant (written by the bank) shows in the next lobby: the host now has District 2
+    await setProgressListsForTest(database, hostAcct, ["district_2"], []);
+    room.state.phase = "results";
+    host.send(C2S.LOBBY_RETURN, {});
+    await vi.waitFor(() => expect(room.state.districtsOpen).toBe(0b11));
   });
 });
 
