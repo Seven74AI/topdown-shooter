@@ -16,6 +16,7 @@ import { drawBloater } from "../../../../apps/client/src/render/city/bloaterArt"
 import { drawSurvivor, drawZombie } from "../../../../apps/client/src/render/city/spriteArt";
 import { WEAPON_ART, WEAPON_BACK_ART, drawChainsawRunning } from "../../../../apps/client/src/render/city/weaponArt";
 import { asphalt, canvas, ctx, fbm, hash2, night, type G } from "../../asset-fixes-1/src/lib";
+import { drawCrawler2, drawRunner2, drawWalker2 } from "./commonz";
 
 const R = 68; // px per body radius (2× the game's)
 
@@ -202,6 +203,8 @@ interface Anim {
   shake?: number;
   /** Flicker (pilot flames). */
   flicker?: boolean;
+  /** Bloaters: the swell (0–1) and the look, for the veins and the acid sacs. */
+  bloater?: { s: number; look: number };
 }
 
 const ZOMBIE: Anim = { breathe: 0.012, rate: 0.35, sway: 0.025, glowBase: 0.6, glowSwing: 0.4, glowRate: 1.2 };
@@ -213,7 +216,12 @@ interface Row {
   zoom: number;
   draw: (g: G, r: number) => void;
   anim: Anim;
+  /** New animated design (walkers, runners, crawlers): the drawing at phase `ph`; one loop lasts `loopS` seconds. */
+  frames?: { draw: (g: G, r: number, ph: number) => void; loopS: number };
 }
+
+/** Phases per animation loop (crossfaded, so 10 drawings read as smooth motion). */
+const LOOP_FRAMES = 10;
 
 const held = (w: string) => (c: G, r: number): void => WEAPON_ART[w]?.(c, "held", r);
 const SURV: Anim = { breathe: 0.008, rate: 0.28, sway: 0.012, glowBase: 0.7, glowSwing: 0.3, glowRate: 6, flicker: true };
@@ -221,16 +229,240 @@ const ROWS: Row[] = [
   { group: "Survivor", name: "Pistol (also SMG, hunting rifle, machete)", extent: 2.7, zoom: 1.5, draw: (g, r) => drawSurvivor(g, r), anim: SURV },
   ...["shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch"].map((w) => ({ group: "Survivor", name: w.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), extent: 2.7, zoom: 1.2, draw: (g: G, r: number) => drawSurvivor(g, r, held(w), WEAPON_BACK_ART[w]), anim: SURV })),
   { group: "Survivor", name: "Chainsaw running", extent: 2.7, zoom: 1.2, draw: (g, r) => drawSurvivor(g, r, (c, rr) => drawChainsawRunning(c, "held", rr)), anim: { ...SURV, shake: 1.2 } },
-  ...[0, 1, 2, 3].map((v) => ({ group: "Walkers", name: `Walker ${"ABCD"[v]}`, extent: 1.55, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "walker", r, v), anim: { ...ZOMBIE, sway: 0.05 } })),
-  ...[0, 1].map((v) => ({ group: "Runners and crawlers", name: `Runner ${"AB"[v]}`, extent: 1.5, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "runner", r, v), anim: { ...ZOMBIE, rate: 0.9, breathe: 0.018 } })),
-  ...[0, 1].map((v) => ({ group: "Runners and crawlers", name: `Crawler ${"AB"[v]}`, extent: 1.75, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "crawler", r, v), anim: { ...ZOMBIE, sway: 0.04 } })),
+  ...[0, 1, 2, 3].map((v) => ({ group: "Walkers", name: `Walker ${"ABCD"[v]} (new design)`, extent: 1.55, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "walker", r, v), anim: { ...ZOMBIE, sway: 0.02 }, frames: { draw: (g: G, r: number, ph: number) => drawWalker2(g, r, v, ph), loopS: 1.6 + v * 0.15 } })),
+  ...[0, 1].map((v) => ({ group: "Runners and crawlers", name: `Runner ${"AB"[v]} (new design)`, extent: 1.5, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "runner", r, v), anim: { ...ZOMBIE, rate: 0.9, breathe: 0.012, sway: 0 }, frames: { draw: (g: G, r: number, ph: number) => drawRunner2(g, r, v, ph), loopS: 0.55 } })),
+  ...[0, 1].map((v) => ({ group: "Runners and crawlers", name: `Crawler ${"AB"[v]} (new design)`, extent: 1.75, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "crawler", r, v), anim: { ...ZOMBIE, sway: 0.015 }, frames: { draw: (g: G, r: number, ph: number) => drawCrawler2(g, r, v, ph), loopS: 1.9 } })),
   ...[0, 1].flatMap((v) => [false, true].map((wu) => ({ group: "Spitters", name: `Spitter ${"AB"[v]}${wu ? " (windup)" : ""}`, extent: 2.35, zoom: 0.95, draw: (g: G, r: number) => drawZombie(g, "spitter", r, v, wu), anim: { ...ZOMBIE, glowBase: wu ? 0.9 : 0.6, glowSwing: wu ? 0.6 : 0.4, glowRate: wu ? 4 : 1.4, drip: [wu ? 0.85 : 1.15, 0] as [number, number] } }))),
   ...[0, 1, 2, 3, 4].flatMap((v) => [false, true].map((wu) => ({ group: "Brutes", name: `BR${v + 1} ${["riot cop", "construction worker", "butcher", "bodybuilder", "prisoner"][v]}${wu ? " (windup)" : ""}`, extent: 1.5, zoom: 0.9, draw: (g: G, r: number) => drawZombie(g, "brute", r, v, wu), anim: { ...ZOMBIE, breathe: wu ? 0.035 : 0.022, rate: wu ? 1.2 : 0.3, sway: 0.02 } }))),
-  ...[0, 1, 2, 3, 4].flatMap((v) => [0, 1, 2, 3].map((st) => ({ group: "Bloaters", name: `BL${v + 1} ${["office worker", "hazmat", "sewer worker", "tourist", "gas sacs"][v]}${st ? ` (swell ${st})` : ""}`, extent: 1.8, zoom: 0.9, draw: (g: G, r: number) => drawBloater(g, r, v, st / 3), anim: { ...ZOMBIE, breathe: 0.02 + st * 0.012, rate: 0.35 + st * 0.6, sway: 0.01, glowBase: 0.5 + st * 0.15, glowSwing: 0.3 + st * 0.2, glowRate: 1 + st * 1.5 } }))),
+  ...[0, 1, 2, 3, 4].flatMap((v) => [0, 1, 2, 3].map((st) => ({ group: "Bloaters", name: `BL${v + 1} ${["office worker", "hazmat", "sewer worker", "tourist", "gas sacs"][v]}${st ? ` (swell ${st})` : ""}`, extent: 1.8, zoom: 0.9, draw: (g: G, r: number) => drawBloater(g, r, v, st / 3), anim: { ...ZOMBIE, breathe: 0.02 + st * 0.012, rate: 0.35 + st * 0.6, sway: 0.01, glowBase: 0.5 + st * 0.15, glowSwing: 0.3 + st * 0.2, glowRate: 1 + st * 1.5, bloater: { s: st / 3, look: v } } }))),
 ];
 
+// ─────────────────────────────── Bloaters: glowing veins and acid sacs ───────────────────────────────
+
+interface Vein {
+  /** Points along the vein (frame px), and the distance from its root at each point. */
+  pts: number[];
+  dist: number[];
+  width: number;
+}
+interface Sac {
+  x: number;
+  y: number;
+  r: number;
+  seed: number;
+}
+interface BloaterFx {
+  veins: Vein[];
+  sacs: Sac[];
+  /** The veins drawn dark into the skin (static, under the glow). */
+  veinBase: HTMLCanvasElement;
+  s: number;
+  /** How much shows through clothes (1 bare skin … 0.45 through a suit). */
+  through: number;
+}
+
+/**
+ * The Bloater's veins and sacs, prepared once per frame picture: veins branch out from the belly across the body
+ * (kept on the figure's opaque pixels), and the acid sacs are found from the drawing's glowing blobs.
+ */
+function prepareBloater(lit: Lit, b: { s: number; look: number }, seed: number): BloaterFx {
+  const N = lit.base.width;
+  const a = ctx(lit.base).getImageData(0, 0, N, N).data;
+  const headX = N / 2 + 0.45 * R * (1 + 0.35 * b.s); // veins stay off the head (it sits at the front, +x)
+  const inside = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < N && y < N && x < headX && (a[(Math.floor(y) * N + Math.floor(x)) * 4 + 3] as number) > 230;
+  const rnd = ((): (() => number) => {
+    let q = seed;
+    return () => {
+      q = (q * 16807) % 2147483647;
+      return q / 2147483647;
+    };
+  })();
+  const cx = N / 2 - 0.08 * R;
+  const body = R * (1.0 + 0.35 * b.s) * 0.95;
+  const veins: Vein[] = [];
+  const grow = (x: number, y: number, ang: number, len: number, w: number, d0: number, depth: number): void => {
+    const pts = [x, y];
+    const dist = [d0];
+    let d = d0;
+    for (let t = 0; t < len; t += 3) {
+      ang += (rnd() - 0.5) * 0.55;
+      const nx = x + Math.cos(ang) * 3;
+      const ny = y + Math.sin(ang) * 3;
+      if (!inside(nx, ny)) break;
+      x = nx;
+      y = ny;
+      d += 3;
+      pts.push(x, y);
+      dist.push(d);
+      if (depth < 2 && rnd() < 0.06) grow(x, y, ang + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.5), len * 0.45, w * 0.6, d, depth + 1);
+    }
+    if (pts.length > 6) veins.push({ pts, dist, width: w });
+  };
+  const roots = 7 + Math.round(b.s * 4);
+  for (let i = 0; i < roots; i++) {
+    const ang = (i / roots) * Math.PI * 2 + rnd() * 0.5;
+    const r0 = body * (0.12 + rnd() * 0.15);
+    grow(cx + Math.cos(ang) * r0, N / 2 + Math.sin(ang) * r0, ang, body * (0.6 + rnd() * 0.35), 1.2 + rnd() * 0.7, 0, 0);
+  }
+  // acid sacs: blobs of glowing pixels in the drawing (a coarse grid flood fill)
+  const g = ctx(lit.glow).getImageData(0, 0, N, N).data;
+  const cell = 3;
+  const gw = Math.ceil(N / cell);
+  const on = new Uint8Array(gw * gw);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = (y * N + x) * 4;
+      const r0 = a[i] as number;
+      const g0 = a[i + 1] as number;
+      const b0 = a[i + 2] as number;
+      const mx = Math.max(r0, g0, b0);
+      const sat = mx ? (mx - Math.min(r0, g0, b0)) / mx : 0;
+      const h = hue(r0, g0, b0);
+      const pale = b.look === 4 && (a[i + 3] as number) > 200 && h > 55 && h < 110 && sat > 0.38 && mx > 120; // BL5's pale gas sacs
+      if ((g[i + 3] as number) > 100 || pale) on[Math.floor(y / cell) * gw + Math.floor(x / cell)] = 1;
+    }
+  }
+  const seen = new Uint8Array(gw * gw);
+  const sacs: Sac[] = [];
+  for (let i = 0; i < on.length; i++) {
+    if (!on[i] || seen[i]) continue;
+    const stack = [i];
+    seen[i] = 1;
+    let sx = 0;
+    let sy = 0;
+    let count = 0;
+    while (stack.length) {
+      const j = stack.pop() as number;
+      const x = j % gw;
+      const y = (j / gw) | 0;
+      sx += x;
+      sy += y;
+      count++;
+      for (const k of [j - 1, j + 1, j - gw, j + gw]) if (k >= 0 && k < on.length && on[k] && !seen[k]) {
+        seen[k] = 1;
+        stack.push(k);
+      }
+    }
+    if (count < 3 || count > 400) continue;
+    sacs.push({ x: ((sx / count) + 0.5) * cell, y: ((sy / count) + 0.5) * cell, r: Math.max(4, Math.sqrt(count / Math.PI) * cell * 1.15), seed: sacs.length + seed });
+  }
+  // BL5 is all gas sacs; add a few where its drawing has them dim, and one or two on every look
+  const extra = b.look === 4 ? 4 : 1;
+  for (let i = 0; i < extra; i++) {
+    for (let tries = 0; tries < 20; tries++) {
+      const ang = rnd() * Math.PI * 2;
+      const rr = body * (0.25 + rnd() * 0.5);
+      const x = cx + Math.cos(ang) * rr;
+      const y = N / 2 + Math.sin(ang) * rr;
+      if (inside(x, y) && sacs.every((q) => Math.hypot(q.x - x, q.y - y) > q.r + 10)) {
+        sacs.push({ x, y, r: 5 + rnd() * 5 * (1 + b.s), seed: seed + 100 + i });
+        break;
+      }
+    }
+  }
+  const through = b.look === 1 ? 0.45 : b.look === 2 ? 0.7 : 1;
+  // the veins' dark trace in the skin
+  const veinBase = canvas(N, N);
+  const vg = ctx(veinBase);
+  vg.lineCap = "round";
+  vg.lineJoin = "round";
+  for (const v of veins) {
+    vg.strokeStyle = `rgba(30,50,40,${0.35 * through})`;
+    vg.lineWidth = v.width + 1;
+    vg.beginPath();
+    for (let k = 0; k < v.pts.length; k += 2) (k ? vg.lineTo : vg.moveTo).call(vg, v.pts[k] as number, v.pts[k + 1] as number);
+    vg.stroke();
+  }
+  vg.globalCompositeOperation = "destination-in";
+  vg.drawImage(lit.base, 0, 0);
+  return { veins, sacs, veinBase, s: b.s, through };
+}
+
+/** Draws the Bloater's veins (pulses travelling out from the belly) and its sacs, around the frame centre. */
+function drawBloaterFx(g: G, fx: BloaterFx, t: number, N: number): void {
+  const off = -N / 2;
+  g.drawImage(fx.veinBase, off, off);
+  // glowing veins: a faint steady glow plus bright pulses running outward, faster and brighter as it swells
+  const speed = 40 + fx.s * 90;
+  const spacing = 70 - fx.s * 25;
+  const steady = (0.06 + fx.s * 0.2) * fx.through;
+  g.save();
+  g.globalCompositeOperation = "lighter";
+  g.lineCap = "round";
+  for (const v of fx.veins) {
+    for (let k = 2; k < v.pts.length; k += 2) {
+      const d = v.dist[k / 2] as number;
+      const wave = Math.pow(Math.max(0, Math.cos(((d - t * speed) / spacing) * Math.PI * 2)), 6);
+      const a = Math.min(0.85, steady + wave * (0.3 + fx.s * 0.35) * fx.through);
+      if (a < 0.03) continue;
+      const x0 = off + (v.pts[k - 2] as number);
+      const y0 = off + (v.pts[k - 1] as number);
+      const x1 = off + (v.pts[k] as number);
+      const y1 = off + (v.pts[k + 1] as number);
+      g.strokeStyle = `rgba(140,255,70,${a * 0.3})`;
+      g.lineWidth = v.width * 2.6;
+      g.beginPath();
+      g.moveTo(x0, y0);
+      g.lineTo(x1, y1);
+      g.stroke();
+      g.strokeStyle = `rgba(200,255,140,${a})`;
+      g.lineWidth = v.width;
+      g.stroke();
+    }
+  }
+  g.restore();
+  // acid sacs: translucent glossy blisters with a glowing core, a lit rim, a wet highlight, bubbles rising inside
+  for (const sc of fx.sacs) {
+    const th = 1 + 0.08 * Math.sin(t * (2 + fx.s * 4) + sc.seed);
+    const r = sc.r * th * (1 + fx.s * 0.25);
+    const x = off + sc.x;
+    const y = off + sc.y;
+    g.save();
+    const body = g.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.1, x, y, r);
+    body.addColorStop(0, "rgba(230,255,150,0.95)");
+    body.addColorStop(0.45, "rgba(150,220,50,0.9)");
+    body.addColorStop(0.85, "rgba(60,110,20,0.92)");
+    body.addColorStop(1, "rgba(30,50,10,0.9)");
+    g.fillStyle = body;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+    // bubbles rising inside
+    g.clip();
+    for (let k = 0; k < 4; k++) {
+      const ph = (t * (0.5 + 0.2 * k) + sc.seed * 0.37 + k * 0.25) % 1;
+      const bx = x + Math.sin(sc.seed + k * 2.1) * r * 0.45;
+      const by = y + r * 0.8 - ph * r * 1.6;
+      g.fillStyle = `rgba(240,255,200,${0.55 * Math.sin(ph * Math.PI)})`;
+      g.beginPath();
+      g.arc(bx, by, Math.max(0.8, r * 0.12), 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+    // rim and wet highlight
+    g.strokeStyle = "rgba(20,40,10,0.7)";
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.75)";
+    g.beginPath();
+    g.ellipse(x - r * 0.35, y - r * 0.4, r * 0.28, r * 0.16, -0.6, 0, Math.PI * 2);
+    g.fill();
+    // its glow on the skin around it
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    const halo = g.createRadialGradient(x, y, r * 0.6, x, y, r * 1.8);
+    halo.addColorStop(0, `rgba(150,255,60,${0.1 + fx.s * 0.12})`);
+    halo.addColorStop(1, "rgba(150,255,60,0)");
+    g.fillStyle = halo;
+    g.fillRect(x - r * 1.8, y - r * 1.8, r * 3.6, r * 3.6);
+    g.restore();
+  }
+}
+
 /** One animated card canvas: the street, the cast shadow, the figure with its layers. */
-function animated(lit: Lit, anim: Anim, zoom: number, size: number, phase: number): { c: HTMLCanvasElement; frame: (t: number) => void } {
+function animated(lit: Lit, anim: Anim, zoom: number, size: number, phase: number, bfx?: BloaterFx, loop?: { lits: Lit[]; loopS: number }): { c: HTMLCanvasElement; frame: (t: number) => void } {
   const c = canvas(size, size);
   const g = ctx(c);
   const bg = canvas(size, size);
@@ -256,7 +488,17 @@ function animated(lit: Lit, anim: Anim, zoom: number, size: number, phase: numbe
     g.filter = "blur(4px) brightness(0)";
     g.drawImage(lit.base, -N / 2 + 8 / s, -N / 2 + 12 / s);
     g.restore();
-    g.drawImage(lit.base, -N / 2, -N / 2);
+    if (loop) {
+      // the animation loop: two neighbouring drawings crossfaded
+      const f = ((t / loop.loopS) % 1) * loop.lits.length;
+      const i0 = Math.floor(f) % loop.lits.length;
+      const i1 = (i0 + 1) % loop.lits.length;
+      g.drawImage((loop.lits[i0] as Lit).base, -N / 2, -N / 2);
+      g.globalAlpha = f - Math.floor(f);
+      g.drawImage((loop.lits[i1] as Lit).base, -N / 2, -N / 2);
+      g.globalAlpha = 1;
+    } else g.drawImage(lit.base, -N / 2, -N / 2);
+    if (bfx) drawBloaterFx(g, bfx, t, N);
     // the street light's sheen drifting over the glossy parts
     const sx = Math.sin(t * 0.4) * N * 0.35;
     const sheen = canvas(N, N);
@@ -359,7 +601,10 @@ async function main(): Promise<void> {
     const figs = card.querySelectorAll("figure");
     (figs[0] as HTMLElement).prepend(staticNow(row, 220));
     const lit = relight4(row.draw, row.extent, 900 + i * 7);
-    const a = animated(lit, row.anim, row.zoom, 220, i * 0.37);
+    const bfx = row.anim.bloater ? prepareBloater(lit, row.anim.bloater, 1300 + i * 17) : undefined;
+    const fr = row.frames;
+    const loop = fr ? { lits: Array.from({ length: LOOP_FRAMES }, (_, k) => relight4((g, r) => fr.draw(g, r, k / LOOP_FRAMES), row.extent, 900 + i * 7)), loopS: fr.loopS } : undefined;
+    const a = animated(loop ? (loop.lits[0] as Lit) : lit, row.anim, row.zoom, 220, i * 0.37, bfx, loop);
     a.frame(0);
     (figs[1] as HTMLElement).prepend(a.c);
     grid?.append(card);
