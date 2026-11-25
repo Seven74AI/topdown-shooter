@@ -779,3 +779,28 @@ export { addBuildTime } from "./run/runStateMachine";
 export { disownBuildings } from "./buildings/buildings";
 export { hostRemoveSchema, type HostRemove, type PlayerRemoved } from "./net/messages";
 export { CLOSE_REMOVED } from "./net/reconnect";
+
+// ── Stories 8.4–8.6 (save and resume) ──
+export { buildEndsThisTick } from "./run/runStateMachine";
+export { CLOSE_RUN_SAVED } from "./net/reconnect";
+export { toPlain, hydrate, clonePlain, type Plain } from "./save/plain";
+export {
+  DIGEST_EXCLUDED_KEYS,
+  PLAYER_SAVE_PLAN,
+  SAVE_MAX_BYTES,
+  SAVE_SCHEMA_VERSION,
+  SaveBlockedError,
+  WORLD_SAVE_PLAN,
+  captureRunSave,
+  saveBlocker,
+  saveDigest,
+  type RunSave,
+  type SaveMeta,
+  type SavePhase,
+  type SavedBan,
+  type SavedSeat,
+  type SavedWorld,
+  type SeatMeta,
+} from "./save/runSave";
+export { SaveRestoreError, restoreRunSave, resumeSavedRun, type RestoreOptions, type Restored, type RestoredSeat } from "./save/restore";
+export { SAVE_MIGRATIONS, migrateRunSave, type MigrateResult, type SaveMigration } from "./save/migrations";
