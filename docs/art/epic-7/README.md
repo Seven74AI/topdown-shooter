@@ -46,3 +46,41 @@ Rebuild after editing `src/`, then refresh the screenshots:
   Results "Save my progress" nudge only inside the rewards panel (item 1); "Leave the game first" refusal not drawn;
   District 2 thumbnail is a darkened mirror of Downtown (no District 2 map exists); SC1 portraits are about 1× game
   size (40 px box) and SC3's about 2.4× — a full 3× close-up (7.9 D3) does not fit four one-line slot rows at 568 × 320.
+
+## Premium round 1 (Results + "Run rewards", 2026-11-25)
+
+Designer: "layout and ordering of things is OK, but the DESIGN is not — too simple. I want something that feels like a
+premium AAA game." Same RW1 layout and row order; three premium renderings. The picked one becomes the style for the
+other Epic 7 screens.
+
+`premium-rewards.html` is self-contained (~0.9 MB, Oswald 500/600/700 embedded). Everything is Canvas 2D: the dawn
+backdrop is the real Downtown bake graded to DW1 sunrise / DW2 blue hour; items are the real `drawSurvivor` parts relit
+(key light upper-left, rim, glint, cast shadow down-right); the launcher is the real weapon icon. Each direction shows the
+full Extract screen (568 × 320 with safe edges hatched, 800 × 360), the item reveal (8.4 s loop + four key frames), the
+status states (Saving…, Couldn't save, Not saved, Practice, teammate's find, Collector) and its reusable pieces.
+`?static` / reduced motion stops all motion; the panel scrolls with wheel or drag.
+
+| Code | Direction | What's different | Captures |
+| --- | --- | --- | --- |
+| **PR1** (recommended) | Tactical HUD · steel + amber | P1's language (approved boss warning) on real material: smoked gunmetal-glass plates (brushed, scratched, bevelled), neon line frames with bloom, corner brackets, hazard stripes, triangle field; items land in reticle boxes (silhouette → lit, sweep, flash, glow pulse, flicker-in tag). | `premium/pr1-*.jpg`, `premium/pr1-reveal.webm` |
+| PR2 | Field case · machined metal | Heavy and physical: brushed gunmetal frames with hex screws, chipped enamel, recessed faces; players on stamped steel dog tags with slot-colour enamel; Supplies on a mechanical odometer; items revealed by an iris shutter in a machined well with an amber enamel ring. | `premium/pr2-*.jpg`, `premium/pr2-reveal.webm` |
+| PR3 | Cinematic glass · dawn light | Frosted glass over the blurred dawn (depth of field) with sun rays, light-catching edges, drifting sheen, gold bloom; items rise on a lit glass pedestal under a light shaft with a flare streak and motes. | `premium/pr3-*.jpg`, `premium/pr3-reveal.webm` |
+
+**Why PR1:** it is the look already approved (P1), carried to the whole UI with material depth; thin lines on dark
+plates stay readable at 568 × 320; cheapest at runtime. It could borrow PR2's odometer and PR3's light sweep.
+
+Reusable kit (`premium-src/kit.js`, shared by all three): tileable fbm / brushed / grain / scratch textures rendered
+once; `chamfer`, `brackets`, `hazard`, `triField`; `neon` (additive bloom + crisp line), `castShadow`, `bevel`,
+`innerShade`, `keyWash`, `bloom`, `sweep`; Oswald `text` with glow / emboss / engrave and gold / steel fills; the
+Supplies `crate`, bag and status glyphs; `itemArt` (any 7.8 part relit, plus its silhouette for reveals); `dawn`
+backdrops. `content.js` holds the layout, the fixed row order and the reveal timeline; `pr1.js`–`pr3.js` are the themes.
+
+Rebuild and recapture (Chromium and ffmpeg preinstalled):
+
+    node docs/art/epic-7/premium-src/build.mjs
+    node docs/art/epic-7/premium-src/shots.cjs --frames=<scratch dir>   # JPEGs + reveal WebMs (frames at exact times)
+
+Performance note (Mi 11i): plates, textures, backdrops and item close-ups are baked once; per frame only digits, one
+sweep band, a few glow strokes and the scroll offset change (~60 fps with several animated frames on this page).
+Not drawn: "Lost in the city" (DW2 behind the card) uses the same screen with the blue-hour backdrop shown on the
+800 × 360 frame; District 2 thumbnail is a cooled crop of Downtown (no District 2 map yet).
