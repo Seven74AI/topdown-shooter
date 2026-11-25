@@ -20,7 +20,7 @@ import { drawCrawler2, drawRunner2, drawWalker2 } from "./commonz";
 
 const R = 68; // px per body radius (2× the game's)
 
-interface Lit {
+export interface Lit {
   base: HTMLCanvasElement;
   /** Glowing pixels only (additive), and their bloom. */
   glow: HTMLCanvasElement;
@@ -187,7 +187,7 @@ export function relight4(draw: (g: G, r: number) => void, extent: number, seed: 
 
 // ─────────────────────────────── animation ───────────────────────────────
 
-interface Anim {
+export interface Anim {
   /** Breathing strength (body swell amplitude) and rate (breaths per second). */
   breathe: number;
   rate: number;
@@ -224,7 +224,7 @@ interface Row {
 const LOOP_FRAMES = 10;
 
 const held = (w: string) => (c: G, r: number): void => WEAPON_ART[w]?.(c, "held", r);
-const SURV: Anim = { breathe: 0.008, rate: 0.28, sway: 0.012, glowBase: 0.7, glowSwing: 0.3, glowRate: 6, flicker: true };
+export const SURV: Anim = { breathe: 0.008, rate: 0.28, sway: 0.012, glowBase: 0.7, glowSwing: 0.3, glowRate: 6, flicker: true };
 const ROWS: Row[] = [
   { group: "Survivor", name: "Pistol (also SMG, hunting rifle, machete)", extent: 2.7, zoom: 1.5, draw: (g, r) => drawSurvivor(g, r), anim: SURV },
   ...["shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch"].map((w) => ({ group: "Survivor", name: w.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), extent: 2.7, zoom: 1.2, draw: (g: G, r: number) => drawSurvivor(g, r, held(w), WEAPON_BACK_ART[w]), anim: SURV })),
@@ -462,7 +462,7 @@ function drawBloaterFx(g: G, fx: BloaterFx, t: number, N: number): void {
 }
 
 /** One animated card canvas: the street, the cast shadow, the figure with its layers. */
-function animated(lit: Lit, anim: Anim, zoom: number, size: number, phase: number, bfx?: BloaterFx, loop?: { lits: Lit[]; loopS: number }): { c: HTMLCanvasElement; frame: (t: number) => void } {
+export function animated(lit: Lit, anim: Anim, zoom: number, size: number, phase: number, bfx?: BloaterFx, loop?: { lits: Lit[]; loopS: number }): { c: HTMLCanvasElement; frame: (t: number) => void } {
   const c = canvas(size, size);
   const g = ctx(c);
   const bg = canvas(size, size);
@@ -568,6 +568,7 @@ function staticNow(row: Row, size: number): HTMLCanvasElement {
 }
 
 async function main(): Promise<void> {
+  if (!document.getElementById("groups")) return; // imported by another page (outline test)
   const host = document.getElementById("groups") as HTMLElement;
   const nav = document.getElementById("nav") as HTMLElement;
   const status = document.getElementById("loading") as HTMLElement;
