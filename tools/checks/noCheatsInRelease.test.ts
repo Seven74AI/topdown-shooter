@@ -6,9 +6,9 @@ import { describe, expect, it } from "vitest";
  * Story 1.11 (architecture boundary 7): dev cheats are compiled out of the release build. Scans the
  * built client (`apps/client/dist`) for strings that only the cheat UI and dev hooks contain.
  *
- * `npm test` runs before the build, so locally and in the first CI test step this suite skips when
- * there is no dist. CI runs it again after `npm run build` with REQUIRE_DIST=1, where a missing dist
- * fails instead of skipping.
+ * Plain `npm test` (and the CI test shards) skip it. `npm run release:check` (in `npm run gate`, and the CI
+ * `release` job) runs it right after `npm run build` with REQUIRE_DIST=1, where a missing dist fails instead
+ * of skipping.
  */
 /** `CHEAT_SCAN_DIR` overrides the folder (used once to prove the check fails on a doctored bundle). */
 const DIST = process.env.CHEAT_SCAN_DIR ?? join(process.cwd(), "apps/client/dist");
