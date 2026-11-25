@@ -7,7 +7,7 @@ const D = "docs/art/epic-7/premium-src/";
 const r = await build({ entryPoints: ["docs/art/epic-7/src/gameEntry.ts"], bundle: true, format: "iife", minify: true, platform: "browser", target: "es2022", write: false, legalComments: "none" });
 const esc = (s) => s.replace(/<\/script/gi, "<\\/script");
 const font = (w) => `@font-face{font-family:'Oswald';font-style:normal;font-weight:${w};font-display:block;src:url(data:font/woff2;base64,${readFileSync(D + `fonts/oswald-latin-${w}-normal.woff2`).toString("base64")}) format('woff2')}`;
-const js = ["kit.js", "content.js", "pr1.js", "pr2.js", "pr3.js", "page.js"].map((f) => readFileSync(D + f, "utf8")).join("\n");
+const js = ["kit.js", "content.js", "pr1.js", "pr2.js", "pr3.js", "pr4.js", "pr5.js", "pr6.js", "page.js"].map((f) => readFileSync(D + f, "utf8")).join("\n");
 const page = readFileSync(D + "page.html", "utf8")
   .replace("/*@FONTS@*/", () => [500, 600, 700].map(font).join("\n"))
   .replace("/*@GAME@*/", () => esc(r.outputFiles[0].text))

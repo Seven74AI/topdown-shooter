@@ -1,9 +1,12 @@
 /* The proposal page: sections per direction, phone frames (canvas), the reveal loop, picks, capture hooks. */
-const THEMES = [PR1, PR2, PR3].filter(Boolean);
+const THEMES = [PR1, PR2, PR3, typeof PR4 !== 'undefined' && PR4, typeof PR5 !== 'undefined' && PR5, typeof PR6 !== 'undefined' && PR6].filter(Boolean);
 const INFO = {
   PR1: { name: 'Tactical HUD · steel + amber', rec: true, diff: 'P1\'s language (the boss warning display you called "just perfect") recoloured to steel + amber and given material: smoked gunmetal-glass plates (brushed, scratched, bevelled), neon line frames with bloom, corner brackets, hazard stripes, the triangle field; items land like a boss signal in reverse: a tick ring lights clockwise with a white-hot head and sparks drift in, ending exactly on the landing flash; then a light sweep and a glow pulse; marching chevrons in the header.' },
   PR2: { name: 'Field case · machined metal', diff: 'Heavy, physical: brushed gunmetal plates with bevels, hex screws, engraved seams and chipped enamel; players on stamped steel dog tags with slot-colour enamel; Supplies on a brass plate with a mechanical odometer counter; each new item is revealed by an iris shutter opening in a machined well.' },
   PR3: { name: 'Cinematic glass · dawn light', diff: 'Light and depth: frosted glass panes over the blurred dawn (depth of field), light-catching edges and a drifting sheen, soft gold bloom on the numbers; items rise on a lit glass pedestal under a light shaft with a lens-flare streak and drifting motes.' },
+  PR4: { name: 'Evac cockpit · MFD + HUD', round: 2, diff: 'Diegetic: you read the results inside the evac helicopter at dawn. The team is on the cockpit\'s multi-function display (bezel, push buttons, black glass, sun glare); the rewards are projected on the see-through HUD combiner, so the city keeps falling away and banking behind them. Supplies fill a segmented gauge; each item is locked on by a target-designator box and painted in by a scan line ("LOCK").' },
+  PR5: { name: 'Case closed · evidence board', round: 2, diff: 'Tactile and analog under a desk lamp: a cork board with the team on a typed index card, Supplies inked by a numbering stamp on a manila tag, items as polaroids that develop in front of you and get pinned with a brass thumbtack, linked by twine; "EXTRACTED" lands as a rubber stamp.' },
+  PR6: { name: 'After-action report · war-news broadcast', round: 2, diff: 'A fictional in-world news channel covers your extraction: a live drone feed of the dawn city (slow pan, scan lines, LIVE and channel bugs), glossy gold-and-steel lower-third bars that slide in, a scrolling ticker ("BEHEMOTH DOWN · DISTRICT 2 UNLOCKED"), and each new item shown as an "exclusive" picture-in-picture card that flips in with a glint.' },
 };
 const MAIN = document.getElementById('main');
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
@@ -18,7 +21,7 @@ function insetsOverlay(box, L) {
 }
 /** A phone frame (full screen) or a panel crop. mode: 'still' (idle motion) | 'reveal' (the timeline loops). */
 function frame(parent, T, w, h, state, mode, label, note, crop = false) {
-  const L = layout(w, h);
+  const L = lay(T, w, h);
   const cw = crop ? L.right.w + 16 : w, ch = crop ? L.right.h + 16 : h;
   const wrap = el('div', 'ph' + (crop ? ' crop' : '')), box = el('div', 'ph-box');
   const [cv, g] = mk(cw, ch); cv.style.aspectRatio = `${cw}/${ch}`;
@@ -57,7 +60,7 @@ function draw(f, t, still) {
 /** Static key frames of the reveal (shown always, so the sequence reads without motion). */
 function keyframes(parent, T, state) {
   const row = el('div', 'strip'); parent.appendChild(row);
-  const L = layout(568, 320), s = 0.5;
+  const L = lay(T, 568, 320), s = 0.5;
   for (const [t, cap] of [[0.9, '0.9 s · ledger ticks'], [1.62, '1.6 s · Rookie ×2 stamp'], [2.95, '2.9 s · item lands (sweep, flash)'], [5.3, '5.3 s · auto-scrolled, lines in']]) {
     const kf = el('div', 'kf');
     const cw = L.right.w + 16, ch = L.right.h + 16;
@@ -69,10 +72,11 @@ function keyframes(parent, T, state) {
 }
 /** The reusable kit, as specimens: buttons, tags, an item well, a ledger line. */
 function kitStrip(parent, T) {
-  const L = layout(800, 360);
+  const L = lay(T, 800, 360);
   const [cv, g] = mk(860, 92); cv.style.width = '860px';
   g.drawImage(T.bg(800, 360, 'full'), 0, 120 * DPR, 800 * DPR, 92 * DPR, 0, 0, 860, 92);
   g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, 860, 92);
+  if (T.kitPaper) { g.fillStyle = T.kitPaper; g.fillRect(430, 6, 280, 80); }
   T.btn(g, 14, 24, 150, 44, 'Back to lobby', 'primary', 0, L);
   T.btn(g, 178, 24, 84, 44, 'Wear it', 'amber', 0.6, L);
   T.btn(g, 276, 24, 150, 44, 'Save my progress', 'steel', 0, L);
@@ -92,8 +96,10 @@ function setPick(v) { PICK.v = PICK.v === v ? null : v; try { localStorage.setIt
 function buildPage() {
   const toc = document.getElementById('toc');
   document.getElementById('rec').innerHTML = '<b>Recommended: PR1.</b> It is P1 — the look you already approved — carried from the boss warning to the whole UI: the same frames, brackets, stripes and type, now on real material (gunmetal glass, bevels, scratches) with bloom and motion. It stays readable at 568 × 320 (thin lines, dark plates, high contrast), and it is the cheapest to run. From PR2 it could borrow the odometer counter; from PR3 the light sweep on items.';
+  let round2 = false;
   for (const T of THEMES) {
     const I = INFO[T.code];
+    if (I.round === 2 && !round2) { round2 = true; const h = el('section', null, '<h2 style="font-size:34px">Round 1b · three more, outside the box</h2><p class="diff">The designer asked for three bolder concepts. Same content and row order, same colour rule; the screen becomes something in the world. <b style="color:var(--amber)">My favourite: PR4</b> — the results live inside the evac helicopter, the city really falls away behind the HUD glass, and it keeps the amber HUD language of PR1 / P1, so the two can merge.</p>'); h.id = 's-round2'; MAIN.appendChild(h); toc.appendChild(el('a', null, 'Round 1b')).href = '#s-round2'; }
     const s = el('section'); s.id = 's-' + T.code; MAIN.appendChild(s);
     s.appendChild(el('h2', null, `<span class="code">${T.code}</span>${I.name}${I.rec ? '<span class="tag">recommended</span>' : ''}`));
     s.appendChild(el('p', 'diff', I.diff));

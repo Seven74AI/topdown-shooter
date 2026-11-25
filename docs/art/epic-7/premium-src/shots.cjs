@@ -26,8 +26,8 @@ const OUT = "docs/art/epic-7/premium/";
     if (only && code !== only) continue;
     const boxes = await page.$$(`#s-${code} .ph`);
     const names = ["extract-568", "endless-800", "reveal-568-at-2.9s"];
-    for (let i = 0; i < 3; i++) { if (i === 2) await page.evaluate((c) => window.PREMIUM.revealAt(c, 2.95), code); await boxes[i].screenshot({ path: `${OUT}${code.toLowerCase()}-${names[i]}.jpg`, type: "jpeg", quality: 86 }); }
-    await (await page.$(`#s-${code}`)).screenshot({ path: `${OUT}${code.toLowerCase()}-section.jpg`, type: "jpeg", quality: 70 });
+    for (let i = 0; i < 3; i++) { if (i === 2) await page.evaluate((c) => window.PREMIUM.revealAt(c, 2.95), code); await boxes[i].screenshot({ path: `${OUT}${code.toLowerCase()}-${names[i]}.jpg`, type: "jpeg", quality: 80 }); }
+    await (await page.$(`#s-${code}`)).screenshot({ path: `${OUT}${code.toLowerCase()}-section.jpg`, type: "jpeg", quality: 52 });
     console.log("shot", code);
     if (scratch) {
       const dir = path.join(scratch, `frames-${code}-${Date.now()}`);

@@ -287,7 +287,13 @@ function dawn(w, h, look = 'dw1', { dim = 0.45, blur = 0 } = {}) {
     const city = cached(`city-${w}-${h}`, () => G7.render({ stage: 5, ppm: 34 * DPR, x0: 15, y0: 11, w: w / 34, h: h / 34, power: 'off', noLight: true }));
     const [c, g] = mk(w, h);
     g.save(); if (blur) g.filter = `blur(${blur}px)`; g.drawImage(city, -blur * 2, -blur * 2, w + blur * 4, h + blur * 4); g.restore();
-    // grade
+    grade(g, w, h, look, dim);
+    return c;
+  });
+}
+/** The dawn grade (DW1 warm sunrise / DW2 blue hour) over whatever is on g. */
+function grade(g, w, h, look, dim) {
+  {
     g.globalCompositeOperation = 'multiply';
     let gr = g.createLinearGradient(0, 0, w, h);
     if (look === 'dw1') { gr.addColorStop(0, '#ffd2a0'); gr.addColorStop(0.5, '#c88a72'); gr.addColorStop(1, '#4b3a52'); }
@@ -306,6 +312,5 @@ function dawn(w, h, look = 'dw1', { dim = 0.45, blur = 0 } = {}) {
     gr = g.createRadialGradient(w * 0.45, h * 0.45, h * 0.2, w * 0.5, h * 0.5, w * 0.75); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.6)');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
     texture(g, TEX.grain, 0, 0, w, h, { op: 'overlay', a: 0.5, scale: 0.5 });
-    return c;
-  });
+  }
 }

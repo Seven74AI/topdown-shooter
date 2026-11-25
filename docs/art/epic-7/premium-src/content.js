@@ -26,6 +26,9 @@ function layout(w, h) {
   return { w, h, small, ins, left, right, hdr, view, title: small ? 26 : 32, rowH: small ? 34 : 40 };
 }
 
+/** The layout a theme uses (themes may move or shrink the panels). */
+function lay(T, w, h) { const L = layout(w, h); return T.adjust ? T.adjust(L) : L; }
+
 // ---------- the panel rows ----------
 /** Rows of the rewards panel for a state, in the fixed order: Supplies · items · unlock lines · nudge. */
 function rowsFor(state, L) {
@@ -103,7 +106,8 @@ function scrollAt(rows, L, t) {
 function baseLayer(T, L, state) {
   return cached(`base-${T.code}-${L.w}-${state}`, () => {
     const [c, g] = mk(L.w, L.h);
-    g.drawImage(T.bg(L.w, L.h, state), 0, 0, L.w, L.h);
+    const bg = T.bg(L.w, L.h, state);
+    if (!T.live) g.drawImage(bg, 0, 0, L.w, L.h);
     T.shell(g, L.left, 'left', L);
     T.shell(g, L.right, 'right', L);
     leftColumn(g, T, L, state);
@@ -112,7 +116,7 @@ function baseLayer(T, L, state) {
   });
 }
 function leftColumn(g, T, L, state) {
-  const { x, y, w, h } = L.left, S = L.small, px = S ? 10 : 14;
+  const { x, y, w, h } = L.left, S = L.small, px = L.lpad != null ? L.lpad : S ? 10 : 14;
   const lost = state === 'lost';
   T.title(g, x + px, y + (S ? 32 : 40), w - px * 2, lost ? 'Lost in the city' : 'Extracted', state === 'endless' ? 'Wave 14' : 'Wave 10', L);
   const cols = { name: x + px + 14, kills: x + w - (S ? 66 : 110), earned: x + w - px };
@@ -122,7 +126,7 @@ function leftColumn(g, T, L, state) {
   TEAM.forEach((p, i) => { T.player(g, x + px, yy, w - px * 2, L.rowH, p, i, cols, L); yy += L.rowH + (S ? 2 : 4); });
   const bh = 44, by = y + h - bh - (S ? 6 : 10);
   T.btn(g, x + px, by, S ? 148 : 170, bh, 'Back to lobby', 'primary', 0, L);
-  if (!S) text(g, 'Run seed 2207', x + w - px, by + bh / 2 + 5, { px: 14, wt: 500, col: T.col.mute, align: 'right' });
+  if (!S) text(g, 'Run seed 2207', x + w - px, by + bh / 2 + 5, { px: 14, wt: 500, col: T.col.mute, shadow: T.shadow !== false, align: 'right' });
 }
 
 /** Draws one screen at time t. opt.reveal = play the timeline; otherwise everything has landed (idle effects only). */
@@ -130,6 +134,7 @@ function renderScreen(g, T, L, state, t, opt = {}) {
   const reveal = !!opt.reveal;
   const rows = cached(`rows-${L.w}-${state}`, () => timeline(rowsFor(state, L)));
   const tt = reveal ? t : 99; // timeline time (99 = everything landed)
+  if (T.live) T.live(g, L, state, reveal ? t : opt.idle || 0, !reveal && opt.idle == null);
   g.drawImage(baseLayer(T, L, state), 0, 0, L.w, L.h);
   const V = L.view;
   const scroll = opt.scroll != null ? opt.scroll : reveal ? scrollAt(rows, L, tt) : 0;
@@ -162,7 +167,7 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       crate(g, x + 1, y + 4, cs, { glow: true });
       const nx = x + cs + 8;
       const nw = T.number(g, nx, y + (S ? 34 : 36), v, S ? 34 : 38, tt, still, L);
-      text(g, 'Supplies', nx + nw + 6, y + (S ? 32 : 34), { px: S ? 16 : 18, wt: 600, col: A.accentText, ls: 1 });
+      text(g, 'Supplies', nx + nw + 6, y + (S ? 32 : 34), { px: S ? 16 : 18, wt: 600, col: A.accentText, shadow: T.shadow !== false, ls: 1 });
       let ly = y + 44;
       const lh = S ? 16 : 18;
       r.ledger.forEach(([lab, val], i) => {
@@ -197,14 +202,14 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       g.save(); g.globalAlpha *= ta; g.translate(slide * 0 + (1 - ta) * 12, 0);
       if (r.type === 'mate') {
         T.tag(g, tx, y + 8, `${r.who} found`, 'slot', a, L, r.whoSlot);
-        text(g, r.name, tx, y + 42, { px: 17, wt: 600, col: A.name });
+        text(g, r.name, tx, y + 42, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false });
       } else if (r.type === 'collector') {
         T.tag(g, tx, y + 6, 'Collector', 'white', a, L);
-        wrap(g, 'You have every surprise item', tWide + btnW, 15, 500).slice(0, 2).forEach((ln, i) => text(g, ln, tx, y + 38 + i * 17, { px: 15, wt: 500, col: A.name }));
+        wrap(g, 'You have every surprise item', tWide + btnW, 15, 500).slice(0, 2).forEach((ln, i) => text(g, ln, tx, y + 38 + i * 17, { px: 15, wt: 500, col: A.name, shadow: T.shadow !== false }));
       } else {
         T.tag(g, tx, y + 4, r.tag, r.tag === 'New item' ? 'amber' : 'white', a, L);
-        text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, maxW: tWide });
-        text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, maxW: tWide });
+        text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, maxW: tWide });
+        text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false, maxW: tWide });
       }
       g.restore();
       if (r.wear) { const ba = ease((lt - 0.6) / 0.3); if (ba > 0) { g.save(); g.globalAlpha *= ba; T.btn(g, x + w - btnW, y + (r.h - 44) / 2, btnW, 44, 'Wear it', 'amber', a.pulse, L); g.restore(); } }
@@ -218,14 +223,14 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       if (r.icon === 'd2') district2(g, x + 2, iy + 2, iw - 4, ih - 4);
       const tx = x + iw + 10;
       T.tag(g, tx, y + 4, r.tag, r.tag === 'Unlocked' ? 'white' : 'steel', null, L);
-      text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, maxW: w - iw - 14 });
+      text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, maxW: w - iw - 14 });
       if (r.price) {
         const pre = 'Unlock it for ';
-        text(g, pre, tx, y + 53, { px: 14, wt: 500, col: A.sub });
+        text(g, pre, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false });
         const pw = tw(g, pre, 14, 500);
         crate(g, tx + pw, y + 41, 14);
-        text(g, fmt(r.price), tx + pw + 16, y + 53, { px: 14, wt: 600, col: A.accentText });
-      } else text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub });
+        text(g, fmt(r.price), tx + pw + 16, y + 53, { px: 14, wt: 600, col: A.accentText, shadow: T.shadow !== false });
+      } else text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false });
       break;
     }
     case 'nudge': {
@@ -234,7 +239,7 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       const bw = S ? 118 : 160, tx = x + 10;
       const lines = wrap(g, 'Keep your Supplies and items on any phone.', w - bw - 26, 14, 500);
       const ly = y + r.h / 2 - (lines.length * 16) / 2 + 12;
-      lines.forEach((ln, i) => text(g, ln, tx, ly + i * 16, { px: 14, wt: 500, col: A.name }));
+      lines.forEach((ln, i) => text(g, ln, tx, ly + i * 16, { px: 14, wt: 500, col: A.name, shadow: T.shadow !== false }));
       T.btn(g, x + w - bw - 8, y + (r.h - 44) / 2, bw, 44, 'Save my progress', 'steel', 0, L);
       break;
     }

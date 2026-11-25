@@ -84,3 +84,17 @@ Performance note (Mi 11i): plates, textures, backdrops and item close-ups are ba
 sweep band, a few glow strokes and the scroll offset change (~60 fps with several animated frames on this page).
 Not drawn: "Lost in the city" (DW2 behind the card) uses the same screen with the blue-hour backdrop shown on the
 800 × 360 frame; District 2 thumbnail is a cooled crop of Downtown (no District 2 map yet).
+
+### Round 1b: three more, outside the box (same page, same captures layout)
+
+The designer asked for three bolder, genuinely different concepts. Same content and row order, same colour rule.
+
+| Code | Concept | Reveal moment | Captures |
+| --- | --- | --- | --- |
+| **PR4** (favourite) | Evac cockpit: team on the helicopter's MFD (bezel, push buttons, black glass, sun glare), rewards on the see-through HUD combiner with the dawn city falling away and banking behind it | Supplies ledger fills segmented gauges; each item is locked on by a closing target-designator box ("LOCK") and painted in by a scan line | `premium/pr4-*.jpg`, `premium/pr4-reveal.webm` |
+| PR5 | Case closed: cork evidence board raked by dawn light through blinds; typed index card with slot-colour map pins; "EXTRACTED" rubber stamp | Supplies inked by a numbering stamp, Rookie ×2 stamped; items are polaroids that develop and get pinned with a brass thumbtack | `premium/pr5-*.jpg`, `premium/pr5-reveal.webm` |
+| PR6 | After-action report: fictional war-news broadcast over a live drone feed; glossy gold / navy lower-third bars, LIVE + channel bugs, scrolling ticker | 3D gold numerals with a glint, Rookie bar wipes in, each item flips in as a picture-in-picture card | `premium/pr6-*.jpg`, `premium/pr6-reveal.webm` |
+
+Hooks added for these (`content.js`): `T.adjust(L)` lets a theme move/shrink the panels (bezels, ticker); `T.live(...)`
+draws a moving backdrop under a transparent base layer (PR4's city, PR6's drone feed); `T.shadow: false` for dark ink on paper.
+Image captures total 6.8 MB for six directions (section shots at JPEG 52); each reveal WebM ≤ 1.8 MB.
