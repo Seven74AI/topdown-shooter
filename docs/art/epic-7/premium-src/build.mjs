@@ -19,5 +19,12 @@ const page2 = readFileSync(D + "page2.html", "utf8")
   .replace("/*@FONTS@*/", () => [500, 600, 700].map(font).join("\n"))
   .replace("/*@GAME@*/", () => esc(r.outputFiles[0].text))
   .replace("/*@MAIN@*/", () => esc(js2));
-writeFileSync("docs/art/epic-7/premium-rewards-2.html", page2);
-console.log("premium-rewards-2.html", (page2.length / 1024).toFixed(0), "KB");
+writeFileSync("docs/art/epic-7/premium-rewards-cockpit.html", page2);
+console.log("premium-rewards-cockpit.html", (page2.length / 1024).toFixed(0), "KB");
+const js3 = ["kit.js", "content.js", "pi.js", "page3.js"].map((f) => readFileSync(D + f, "utf8")).join("\n");
+const page3 = readFileSync(D + "page3.html", "utf8")
+  .replace("/*@FONTS@*/", () => [500, 600, 700].map(font).join("\n"))
+  .replace("/*@GAME@*/", () => esc(r.outputFiles[0].text))
+  .replace("/*@MAIN@*/", () => esc(js3));
+writeFileSync("docs/art/epic-7/premium-rewards-2.html", page3);
+console.log("premium-rewards-2.html", (page3.length / 1024).toFixed(0), "KB");

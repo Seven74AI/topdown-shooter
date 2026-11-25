@@ -7,13 +7,14 @@ const { chromium } = require("playwright");
 const path = require("node:path");
 const fs = require("node:fs");
 const { execFileSync } = require("node:child_process");
-const OUT = "docs/art/epic-7/premium/";
+let OUT = "docs/art/epic-7/premium/";
 (async () => {
   const framesArg = process.argv.find((a) => a.startsWith("--frames="));
   const scratch = framesArg ? framesArg.slice(9) : null;
-  const only = process.argv.find((a) => /^P[RC]\d$/.test(a));
+  const only = process.argv.find((a) => /^P[RCI]\d$/.test(a));
   const pageArg = process.argv.find((a) => a.startsWith("--page="));
   const pageFile = pageArg ? pageArg.slice(7) : "premium-rewards.html";
+  const outArg = process.argv.find((a) => a.startsWith("--out=")); if (outArg) OUT = outArg.slice(6);
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1340, height: 900 }, deviceScaleFactor: 2 });

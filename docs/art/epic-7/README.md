@@ -99,7 +99,7 @@ Hooks added for these (`content.js`): `T.adjust(L)` lets a theme move/shrink the
 draws a moving backdrop under a transparent base layer (PR4's city, PR6's drone feed); `T.shadow: false` for dark ink on paper.
 Image captures total 6.8 MB for six directions (section shots at JPEG 52); each reveal WebM ≤ 1.8 MB.
 
-## Premium round 2: the evac cockpit, pushed further (`premium-rewards-2.html`)
+## Premium round 2a: the evac cockpit (`premium-rewards-cockpit.html`, optional backdrop study)
 
 Designer on round 1b: "The cockpit idea is good, but we don't really see it… all the elements inside the box, and even
 the box, are still very simple." Round 2 develops only the evac cockpit, in three lights. Layout and row order stay as
@@ -129,4 +129,30 @@ What changed vs PR4:
 
 Hero captures are the phone frames at deviceScaleFactor 2 without the safe-edge hatching; the page also shows the
 568 × 320 frame at 2× (rendered at 2× resolution). Rebuild: `node docs/art/epic-7/premium-src/build.mjs` (writes both
-pages); captures: `node docs/art/epic-7/premium-src/shots.cjs PC1 --page=premium-rewards-2.html --frames=<scratch>`.
+pages); captures: `node docs/art/epic-7/premium-src/shots.cjs PC1 --page=premium-rewards-cockpit.html --frames=<scratch>`.
+
+The designer then corrected the goal ("find the design for the interface… make a new version of the whole interface,
+not just the cockpit"), so the cockpit stays only as an optional backdrop study; round 2 proper is below.
+
+## Premium round 2: the interface design language (`premium-rewards-2.html`, captures in `premium-2/`)
+
+The designer: the boxes and every element in them are "still very simple, not premium AAA"; the goal is the design of
+the **interface** that every Epic 7 screen reuses. Three new directions, each shown as a component sheet (at 2×) and
+composed into Results + Run rewards (same content and row order; items now land as rarity cards, each card one tap
+target with "Wear it" inside), with a calm, blurred dawn backdrop.
+
+| Code | Direction | AAA reference | What makes it premium | Captures |
+| --- | --- | --- | --- | --- |
+| **PI1** (favourite) | Lumen | Destiny 2 + Halo Infinite post-game: thin precise frames, one gold accent, rarity cards with a header band and the item lit on a gradient | Glass faces in bevelled steel frames, gold diamond inlays and end caps, light gold display numerals, white-hot rarity edges; restraint | `premium-2/pi1-components.jpg`, `-results-568.jpg`, `-results-800.jpg`, `-reveal-at-2.9s.jpg`, `-section.jpg`, `-reveal.webm` |
+| PI2 | Field Ops | The Division 2 + CoD MW debrief: matte charcoal, amber-orange signal colour, cut corners, segmented bars, dense micro-typography | A quiet technical layer on every surface (grid, circuit traces, rivets, serials), segmented fills, bracketed actions, hazard micro-stripes | `premium-2/pi2-*` |
+| PI3 | Arena | Apex Legends + Halo Infinite reward screen: chunky skewed shapes, thick metal frames, italic gold numerals, bold rarity cards | Brushed frames with bright bevels, rivets and an accent stripe, 3D buttons with a lip that presses, skewed metallic badge, biggest glow | `premium-2/pi3-*` |
+
+Component set (one system, three skins, `premium-src/pi.js`):
+- **Panel:** contact shadow, outer frame, edge highlight, inner bevel, recessed face with texture, header band (caption, title, serial), divider with end caps, inlays.
+- **Buttons:** primary / secondary / tertiary, each normal / pressed / disabled.
+- **List rows:** normal / hover / selected ("YOU").
+- **Item card:** rarity framing (gold = new item, white = found, steel = collector, slot colour = a teammate's find), the item relit at 50–84 px on a lit floor, sweep, burst with sparks, pulse.
+- **Small pieces:** tags; the Rookie ×2 badge; counters with tabular display numerals; fill bars with a white-hot head; scroll indicator; modal frame.
+
+Reveal: the bars fill one by one, the counter ticks, the badge stamps on, then the cards land one by one with a sweep, a white-hot edge burst and sparks, and the panel auto-scrolls.
+Captures: `node docs/art/epic-7/premium-src/shots.cjs PI1 --page=premium-rewards-2.html --out=docs/art/epic-7/premium-2/ --frames=<scratch>`.
