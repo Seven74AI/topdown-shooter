@@ -113,8 +113,9 @@ describe("Story 7.6: Save my progress (POST /account/upgrade)", () => {
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: "short" }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "bad_password" } });
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: "x".repeat(129) }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "bad_password" } });
     // review N1: the most common passwords are refused (any case), on Save and on a reset
+    const g2 = await guest(); // its own per-account action budget
     for (const common of ["12345678", "Password1", "QWERTYUIOP"]) {
-      expect(await post("/account/upgrade", { username: "mo.4-2_", password: common }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "common_password" } });
+      expect(await post("/account/upgrade", { username: "mo.4-2_", password: common }, { cookie: g2.token })).toMatchObject({ status: 400, body: { message: "common_password" } });
     }
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: PASSWORD })).toMatchObject({ status: 401, body: { message: "no_account" } });
     expect(await post("/account/upgrade", { username: "mo.4-2_", password: PASSWORD, accountId: a.id }, { cookie: g.token })).toMatchObject({ status: 400, body: { message: "invalid_body" } });
