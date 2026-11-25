@@ -1,0 +1,40 @@
+<title>Bodies Behind Walls</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one card per option, each an animated street patch at the game's size; dark by design (the night street). */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); margin: 0; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+header, #list, #loading, section { max-width: 1240px; margin-inline: auto; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; }
+h1 span { color: var(--accent); }
+p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0 0 10px; }
+#list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 580px), 1fr)); gap: 14px; margin-top: 18px; }
+.pair { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.pair h3 { margin: 0 0 8px; font: 600 16px var(--font-body); }
+.pair canvas { width: 100%; height: auto; display: block; border-radius: 4px; image-rendering: auto; }
+.pair p { margin: 8px 0 0; font-size: 14px; }
+.pick { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin-top: 30px; }
+.pick p { margin: 0; color: var(--fg); }
+#loading { color: var(--muted); margin-top: 16px; }
+</style>
+<header>
+  <h1>Bodies behind walls <span>pick one</span></h1>
+  <p>The standing barricades draw over whoever stands behind them, so a zombie just north of a wall can be fully hidden. Six options, all live game code at the game's size: a Walker paces behind a wood and a metal wall, a survivor stands behind the metal one, and a Runner passes in front (never affected). Red means zombie, blue means survivor.</p>
+</header>
+<p id="loading">Drawing…</p>
+<div id="list"></div>
+<section><div class="pick"><p>Tell Claude which one (A–F), or a mix (for example "C for zombies, E for survivors").</p></div></section>
+<script>
+/*@JS@*/
+</script>
