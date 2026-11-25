@@ -1,4 +1,7 @@
 /* global require, process, console, window, setTimeout */
+// HISTORICAL (Story 10.10 review): this script drives the 5.16 4 × 2 grid (`tile0…7`, `hud.barTiles` as a grid),
+// which Story 10.10 replaced. It only runs against the commit the BU-1 options were made from:
+//   git worktree add /tmp/bu1 a06c9cf   (then run it from there). Today's build stills: docs/art/10-10/stills.cjs.
 // Build-button proposals: crop the REAL 5.16 build-bar tiles (5.26/5.27 icons + price) from the game, so the
 // mockups reuse today's tile look. Solo practice, dev build: ?solo=1&unlocks=all&shopall=1&wallet=200 at 844 × 390, dpr 2.
 // Writes tile-<id>.png (112 × 112 px = 56 CSS px) for every building type, tile-shop.png and tile-more.png.

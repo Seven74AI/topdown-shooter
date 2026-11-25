@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, rectCentreGap, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
-import { layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
+import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, rectCentreGap, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
+import { layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
 import { BUILD_COUNT_TEXT_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 const base: ConsumableButtonInput = { item: "grenades", count: 3, kind: "grenade", alive: true, running: true, placement: false, shopOpen: false, menuOpen: false, phase: "wave", hp: 100, maxHp: 100 };
@@ -49,7 +49,7 @@ const ms_ = (w: number, k: number) => {
   return { s, x: w - MENU_BUTTON_INSET_CSS_PX * k - 2 * s - MENU_BUTTON_INSET_CSS_PX * k, y: MENU_BUTTON_INSET_CSS_PX * k };
 };
 
-describe("swap + consumable above the build bar (Story 5.12, main-session decision; 5.16 D3)", () => {
+describe("swap + consumable above the build bar (Story 5.12, main-session decision; 5.16 D3; Story 10.10: above the Build cluster)", () => {
   type Rect = { name: string; x: number; y: number; w: number; h: number };
   const gapOf = (a: Rect, b: Rect): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
   for (const [W, H] of [
@@ -58,22 +58,25 @@ describe("swap + consumable above the build bar (Story 5.12, main-session decisi
     [1024, 768],
   ] as const) {
     for (const k of [1, 2]) {
-      it(`${W}×${H} at dpr ${k}: on screen, ≥ 12 px from the tiles, the count line, Ready, ☰ and each other`, () => {
+      it(`${W}×${H} at dpr ${k}: on screen, ≥ 12 px from the Build cluster (Story 10.10: quick tile, Build, Shop chip, count badge), Ready, ☰ and each other`, () => {
         const w = W * k;
         const h = H * k;
-        const bar = layoutBuildBar(w, h, 0, 0, k, newBuildBarLayout());
-        const l = layoutRightButtons(w, h, 0, 0, k, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);
+        const c = layoutBuildCluster(w, h, 0, 0, k, newBuildClusterLayout());
+        const l = layoutRowAboveCluster(w, h, 0, 0, k, c.top, c.right, newRightButtonsLayout());
         const cons: Rect = { name: "consumable", x: l.consX, y: l.consY, w: l.size, h: l.size };
         const swap: Rect = { name: "swap", x: l.swapX, y: l.swapY, w: l.size, h: l.size };
-        const others: Rect[] = [];
-        for (let s = 0; s < bar.x.length; s++) others.push({ name: `tile ${s}`, x: bar.x[s] as number, y: bar.y[s] as number, w: bar.tile, h: bar.tile });
+        const others: Rect[] = [
+          { name: "quick", x: c.quickX, y: c.quickY, w: c.tile, h: c.tile },
+          { name: "build", x: c.buildX, y: c.buildY, w: c.tile, h: c.tile },
+          { name: "shop chip", x: c.chipX, y: c.chipY, w: c.chip, h: c.chip },
+        ];
         const countH = BUILD_COUNT_TEXT_CSS_PX * k * 1.3;
-        others.push({ name: "count", x: bar.countX - 48 * k, y: bar.countY - countH, w: 48 * k, h: countH }); // "10/12" right-aligned
+        others.push({ name: "count badge", x: c.badgeX - 48 * k, y: c.badgeY, w: 48 * k, h: countH }); // "10/12" right-aligned
         const set = ms_(w, k);
         others.push({ name: "settings", x: set.x, y: set.y, w: set.s, h: set.s });
         const rw = READY_BUTTON_W_CSS_PX * k;
         const rh = READY_BUTTON_H_CSS_PX * k;
-        others.push({ name: "ready", x: readyLeftX(w, rw, bar.left, k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
+        others.push({ name: "ready", x: readyLeftX(w, rw, readyClearLeft(layoutBuildPanel(w, h, 0, 0, k, newBuildPanelLayout())), k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
         const ms = MENU_BUTTON_CSS_PX * k;
         others.push({ name: "menu", x: w - MENU_BUTTON_INSET_CSS_PX * k - ms, y: MENU_BUTTON_INSET_CSS_PX * k, w: ms, h: ms });
         for (const b of [cons, swap]) {
