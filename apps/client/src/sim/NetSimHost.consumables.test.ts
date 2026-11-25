@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { C2S, INPUT_STICK_STEPS, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type PlayerInput, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
+import { INPUT_STICK_STEPS, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type PlayerInput, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";

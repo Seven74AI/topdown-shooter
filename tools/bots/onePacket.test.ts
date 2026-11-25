@@ -70,10 +70,10 @@ describe("Story 8.11 one packet per tick (bots on a real server)", () => {
         const now = b.wireMeter.snapshot();
         const mark = marks[i] as typeof now;
         const patches = now.patches - mark.patches;
-        const hist = now.ticksPerPatch.map((v, k) => v - (mark.ticksPerPatch[k] as number));
+        const [h0, h1, h2, h3] = now.ticksPerPatch.map((v, k) => v - (mark.ticksPerPatch[k] as number)) as [number, number, number, number];
         expect(patches).toBeGreaterThan(40); // liveness
-        expect(hist[1]).toBeGreaterThan(40);
-        expect(hist[0] + hist[2] + hist[3], `ticks per patch ${JSON.stringify(hist)}`).toBe(0); // F3: never 0 or 2+
+        expect(h1).toBeGreaterThan(40);
+        expect(h0 + h2 + h3, `ticks per patch ${h0}/${h1}/${h2}/${h3}`).toBe(0); // F3: never 0 or 2+
         expect(Math.abs(patches / s - ticksPerS) / ticksPerS).toBeLessThan(0.1); // patches/s = ticks/s (window edges)
         const inputs = now.inputMsgs - mark.inputMsgs;
         expect(inputs).toBeGreaterThan(40); // liveness

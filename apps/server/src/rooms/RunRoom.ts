@@ -2610,9 +2610,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.log.info("room_disposed");
   }
 
-  /** `input.send` (already validated and rate-limited): queued for the World (lobby: ignored). */
+  /** The input (Story 8.11: `BYTES.INPUT`, already decoded, validated and rate-limited): queued for the World (lobby: ignored). */
   /**
-   * Story 2.12 re-review M-B: an `input.send` the rate bucket dropped (an honest burst after a stall).
+   * Story 2.12 re-review M-B: an input the rate bucket dropped (an honest burst after a stall).
    * Only seq and edge flags are read; the controller counts the seq as received and carries the edges.
    */
   onInputRateDropped(client: RunClient, message: unknown): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { C2S, NEUTRAL_INPUT, loadBalance } from "@topdown/shared";
+import { NEUTRAL_INPUT, loadBalance } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { DevThrottle } from "../net/devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";

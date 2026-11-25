@@ -10,7 +10,7 @@ import { TokenBucket } from "./tokenBucket";
 export type DropReason = "invalid" | "unknown_type" | "rate" | "too_large";
 const DROP_REASONS: readonly DropReason[] = ["invalid", "unknown_type", "rate", "too_large"];
 
-/** `input.send` has its own bucket, Story 5.24's `building.ghost` and Story 8.7's `ping.send` too; every other type shares one. */
+/** The input (`BYTES.INPUT`, Story 8.11) has its own bucket, Story 5.24's `building.ghost` and Story 8.7's `ping.send` too; every other type shares one. */
 export type MessageBucket = "input" | "other" | "ghost" | "ping";
 
 /** The part of a zod schema the guard uses (zod's `safeParse` result fits it). */

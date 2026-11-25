@@ -167,7 +167,7 @@ export interface NetSimHostOptions {
  *   render tick as players, written into `world.zombies` by `mirrorZombies`. A `zombie.killed`
  *   hides its net id when the render tick reaches it (the death FX plays in the same frame).
  *
- * Inputs: one `input.send` per 50 ms step with seq + 1, edge flags latched until a step takes
+ * Inputs: one binary input (`BYTES.INPUT`, Story 8.11) per 50 ms step with seq + 1, edge flags latched until a step takes
  * them, at most 5 steps per frame (the backlog after a hidden tab is dropped, never burst).
  * Events (`drainEvents`, Story 2.7 routing): 1. my local cosmetic events (shots, swings);
  * 2. my own server weapon-state events (reload, swap) on arrival, so my reload sound isn't late;

@@ -546,7 +546,7 @@ export class RunController {
   }
 
   /**
-   * Story 2.12 re-review M-B: an `input.send` the message rate bucket dropped (an honest burst after a
+   * Story 2.12 re-review M-B: an input the message rate bucket dropped (an honest burst after a
    * stall can exceed MAX_INPUTS_PER_S), unvalidated. Only its seq and edge flags are read (no full
    * validation: the bucket exists to spare that work). If it is the next seq, the seq counts as
    * received (no gap, so the following inputs are not refused) and its swap/consumable move to the

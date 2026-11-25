@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { C2S, NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
+import { NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
 import { holdBuildingInput, neutralizeInput } from "./menuInput";
 import { InputRouter } from "./InputRouter";
 import { TouchSticks } from "./TouchSticks";

@@ -177,7 +177,13 @@ describe("Story 8.8: lossy line (1 % / 2 % × 200 ms head-of-line stalls)", () =
       // HordeBuffer, which keeps a killed zombie drawn until the render tick reaches its kill (Story 2.5):
       // 20 Runners kiting 1/446 → 4/439 (0.9 %) with or without 8.10's 10 Hz far rule (comparison below).
       // B7: the game runs every zombie at 20 Hz; the far rule (8 m, D1) is run explicitly here.
-      expect(pct(r)).toBeLessThanOrEqual(1);
+      // Story 8.11 (decision 8.11 B3): the harness sends the phone's 1/127-step input now; on these 3 seeds the
+      // Runners row reads 5/436 (1.1 %) against 4/439 with the float input: one shot of seed noise (30 seeds:
+      // 35/4266 = 0.82 % quantised vs 41/4268 = 0.96 % float). The bound is the paired control + 1 shot, and ≤ 1.2 %.
+      const float = runSeeds(`8.11 float input (control) clean ${c.name}`, { ...LINE, ...c.o, quantizeInput: false }, SEEDS_88);
+      expect(r.reversed).toBeLessThanOrEqual(float.reversed + 1);
+      expect(pct(r)).toBeLessThanOrEqual(1.2);
+      expect(pct(float)).toBeLessThanOrEqual(1);
       const farRule = runSeeds(`8.10 far rule on (8 m) clean ${c.name}`, { ...LINE, ...c.o, hordeNearM: HORDE_FAR_RULE_RADIUS_M }, SEEDS_88);
       expect(farRule.reversed).toBeLessThanOrEqual(r.reversed + 1); // the far rule costs no reversed hits
       expect(r.horde.bytes).toBeGreaterThan(farRule.horde.bytes); // review RL1: the two runs really differ (liveness)
