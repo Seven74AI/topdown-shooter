@@ -170,3 +170,55 @@ Mutation re-run (`wideBodyStall` + fuzz + config tests, each mutation once):
 - Survived: L1 open-way exit removed (see above).
 
 Bit-identical (AC 4): the code before the net fires is unchanged by these fixes. They change only the stuck branch, the pick and the clear check, and the new arrays stay zero for a body that never fires. The 16-run digest was not re-run after the fixes.
+
+## Re-review (AI)
+
+Reviewer: fresh agent, 2026-11-25. Narrow re-review of the review fixes: commit `20d551c` (diff `ba99f0a..20d551c`, code only; the master merge is docs only). No code changed: all probes and mutations were local and reverted.
+
+**Outcome: Approve.** No medium or high findings. H1 is fixed: across every legal layout I tried, the stuck target is always a building the body can touch. L1 doesn't flicker, and AC 4 still holds after the fixes. What's left is low: test gaps on the defensive give-up and one dead exit rule.
+
+### Checks I ran myself
+
+- `npm run typecheck`: clean. `wideBodyStall.test.ts` and `wideBody.fuzz.test.ts`: 17/17 pass.
+- **AC 4 digest (re-run after the fixes).** The same 16 headless runs as the review: seeds 1–3 × 1/4 bots × god/mortal, plus seeds 1–4 × 4 god bots with `strafeFlipSeqs` 10000. I hashed `snapshotWorld` without `progressHash` and `balanceVersion` at `20d551c`, then again with `zombieAi.ts`, `flowField.ts`, `balanceSchema.ts` and `zombies.json` checked out from `62dd2ef` (before the story). **All 16 digests match.** The net fired 0 times in every run.
+- **Allocation and snapshot (code read).** `wideStall`, `pickStuckBuilding` and `resetWideStall` create no objects or arrays. `stuckOpen`, `stuckSkip` and `stuckDist` are created in `createProgress` and all three are in `progressHash`: mutating either hash term out fails the determinism test. `stuckDist` is not cleared by `resetWideStall`, but every pick sets it before it is read, so the stale value is harmless and deterministic.
+
+### Attack results
+
+| Attempt | Result |
+| --- | --- |
+| One inner solid (floodlight, med station or auto turret) on every **legal** cell (`footprintBlocked`) within ±3 m of the camper, in all 3 layouts, Brute and Bloater: 692 runs, plus 1,104 more counting give-ups | **Not beaten.** Every run reaches a player or attacks a building within 45 s and is never still > 4 s. The give-up fired **0 times**: nearest the body always picks a wall it can touch. |
+| Two inner buildings (floodlight + med station), every legal non-overlapping pair within ±3 m: 1,269 runs | Not beaten (0 failures). |
+| Two inner buildings, **overlapping** (only possible through `addBuildingAt`, which skips the placement check) | Beaten: the target cycles A → B → A forever (`stuckSkip` holds only the last building given up) and the body stands still 35 s. Not reachable through `placeBuilding`, so this is L-a below. |
+| Campers leave after the net fired: the player is moved to every free spot 2.6–11 m away (536 spots) and held there for 10 s | No flicker: the net re-fires at most once in 10 s. In the re-fires (layout 2485) the target-moved exit ends the state, the body counts 2 s and fires again with a new anchor. It then breaks the walls on the wide field's way to the player's new spot (that spot is shut out too). No hammering after the campers have a way out. |
+| Metal and reinforced barricades (attacks lasting several seconds), all 3 layouts, Brute and Bloater | No exit while attacking. No give-up. `stuckOpen` never went above 0. |
+| Camper fidgets (circles 0.15–0.6 m around their spot) | Layout 128 (1 m rubble mouth), RUSH Bloater: with a 0.3–0.6 m wiggle it reaches the player or building only after **51–87 s**, past the fuzz's 45 s bound. It keeps moving (never still > 4 s) and the net never fires. The results are **identical at `ba99f0a`**, so the review fixes didn't cause this. It comes from the original net, which counts only still bodies. Recorded as L-d. |
+| Mines and bear traps | Not solid, so never candidates (`!b.solid`). |
+
+### Mutations (each once, `wideBodyStall` + fuzz)
+
+| Mutation | Result |
+| --- | --- |
+| Target-moved exit removed | Killed |
+| Give-up returns without re-picking | Killed |
+| `stuckOpen` / `stuckDist` dropped from `progressHash` | Killed / Killed |
+| **Open-way exit removed** (`open >= limit`) | Survived. In every probe above, `stuckOpen` never counted past 0 while stuck. A wall falling clears the line first, or the stuck wall itself breaks. **It is dead in practice** (L-b). |
+| **`stuckSkip` ignored in the pick** | Survived (L-c). The give-up test forces the floodlight as the target, but then the nearest-body pick returns the barricade anyway, so the exclusion is never exercised. |
+| **Touch ignored in the give-up** (only "closer" resets the clock) | Survived (L-c). With this change a body would give up a wall it is hitting after 2 s, but every test ends at the first hit. |
+| "closer" ignored | Survived. Harmless: 2.5 m of walking takes less than `wideStuckS`. |
+
+### Findings
+
+| # | Severity | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- |
+| L-a | low | `zombieAi.ts › wideStall` give-up / `resetWideStall` | `stuckSkip` holds one building and `resetWideStall` clears it before the new one is set. So two unreachable buildings both nearer the body than any reachable wall would cycle A → B → A forever. I could only build this with overlapping buildings; legal placement never produced it (1,269 pairs). | Optional: keep the skip until the record really exits (don't clear it on a give-up), or keep two slots. |
+| L-b | low | `zombieAi.ts:631-636` (`stuckOpen`) | The open-way exit never triggers: in all probes `stuckOpen` stays at 0 while stuck. | Delete it (with `stuckOpen` and its hash term), or keep it and mark it as defensive only. Its only risk would be leaving the state mid-attack on an ordinary cell, which I never saw. |
+| L-c | low (tests) | `wideBodyStall.test.ts` | Mutations of the skip and the touch reset survive. | Make the give-up test really exercise the exclusion: force a target nearer the body than the barricade, or set `stuckDist` and move the barricades. Add a metal-barricade Brute run that asserts `stuckBuilding` is unchanged across ≥ 3 hits. |
+| L-d | low (pre-existing in this story, not caused by the fixes) | net trigger (`wideStuckProgressM`) | A camper fidgeting 0.3–0.6 m in the 1 m rubble-mouth box (layout 128) keeps the RUSH Bloater wandering round the box for 51–87 s before it arrives. The 4 s rule holds, but the 45 s bound doesn't. | Follow-up: run the fuzz with moving campers. The trigger could count no progress towards the target, not standing still. |
+| nit | — | `balanceSchema.ts:329` | The doc comment still says the target is "nearest its target". | Change it to "nearest its body". |
+
+### Brief lines
+
+- 7 (fuzz): OK. One inner building is now in the fuzz. Moving campers are not covered (L-d).
+- 8 (determinism): OK. The digest was re-run and all 16 match, and the new arrays are hashed.
+- 10 (no per-tick allocation): OK (code read).
