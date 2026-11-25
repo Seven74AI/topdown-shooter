@@ -876,6 +876,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
   }
 
+  /** Review M3: after `lobby.return`, once this run's banks settled, every member's progress again (the look stays). */
+  private async reloadProgress(members: readonly Member[]): Promise<void> {
+    try {
+      await this.runBanked;
+    } catch {
+      // a failed bank still settles: the progress read below shows what is saved
+    }
+    await Promise.all(members.map((m) => this.loadMemberProgress(m, undefined, false)));
+  }
+
   /** Story 7.7 (R2, R3): the open mask from the members' districts; a pick nobody here has goes back to Downtown. */
   private recomputeDistricts(): void {
     const lists: (readonly string[])[] = [];
@@ -1427,7 +1437,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // member's progress is read again (new districts open, new parts are owned).
     this.recomputeDistricts();
     const members = [...this.members.values()];
-    void this.runBanked.catch(() => undefined).then(() => Promise.all(members.map((m) => this.loadMemberProgress(m, undefined, false))));
+    void this.reloadProgress(members);
   }
 
   /** Colyseus's patch interval: encode + send the state patch, timed like a tick (`slow_patch`). */

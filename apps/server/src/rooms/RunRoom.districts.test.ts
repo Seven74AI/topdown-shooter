@@ -22,7 +22,7 @@ let colyseus: ColyseusTestServer;
 let database: Database;
 beforeAll(async () => {
   database = openPglite();
-  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET, checkTicketRows: false })); // 7.6 B21: made-up accounts (no device rows)
 });
 afterEach(async () => {
   vi.restoreAllMocks();

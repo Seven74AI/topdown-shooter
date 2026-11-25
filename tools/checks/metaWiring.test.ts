@@ -24,7 +24,8 @@ describe("Stories 7.7 / 7.11 / 7.12 are wired in", () => {
     expect(room).toContain("district: this.state.district");
     expect(room).toContain("void this.loadMemberProgress(member, auth.rawLook);");
     expect(room).toContain("this.onMessage(C2S.LOBBY_DISTRICT, this.net.guard(lobbyDistrictSchema");
-    expect(room).toMatch(/this\.memberProgress\.delete\(playerId\);\s*\n\s*this\.recomputeDistricts\(\);/);
+    expect(room).toMatch(/this\.memberProgress\.delete\(playerId\);[^\n]*\n\s*if \(this\.state\.phase === "lobby"\) this\.recomputeDistricts\(\);/); // review M3: on every final leave
+    expect(room).toContain("void this.reloadProgress(members);"); // review M3: after lobby.return
     expect(room).toContain("const map = DISTRICT_MAPS[this.state.district] ?? DOWNTOWN_MAP;");
     expect(read("apps", "server", "src", "db", "progressRepo.ts")).toContain("const grant = meta && statsAfter ? meta.grant(statsAfter, owned, districtsBefore) : null;");
   });
