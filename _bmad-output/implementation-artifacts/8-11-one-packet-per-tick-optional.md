@@ -4,7 +4,7 @@ baseline_commit: c9726a53
 
 # Story 8.11: One packet per tick (optional)
 
-Status: review
+Status: done
 
 <!-- Network pass story 5 of 5, optional (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). -->
 
