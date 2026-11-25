@@ -135,7 +135,7 @@ Claude (builder cloud session, gds-dev-story), 2026-11-25 overnight autonomous r
 
 ### Gate
 
-**Gate:** GATE_LINE_PLACEHOLDER
+**Gate:** commit `b9511c0b` on `story-7-3` = story-7-1 `e1f97a39` (with 8.1) + story-7-2 `9b9cb3ef` (review fixes) + master `8248be06` merged; `npm run typecheck && npm run lint && npm test && npm run build` green — **457 test files passed (2 skipped: realPostgres without TEST_DATABASE_URL, noCheatsInRelease before dist), 4,125 tests passed (13 skipped)**, build OK; 7 min 47 s; load 0.8 at start, 4.7 at the end (4 cores). Includes the real-browser hub test (12 cases) and 7.2's.
 
 Earlier gate (superseded): `fcaad5a0` (story-7-2 at `7401f6dc`), 455 files / 4,098 tests green, 7 min 26 s, load 1.6 → 4.8.
 
