@@ -18,6 +18,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPVqsFQcix6hLu748Sj | Review asset-session art | review-asset-art |
 | session_01CgLgPXg8R2HjRX5uJVEZTR | Re-review 8.9 | rereview-8-9 |
 | session_01CgLgPWCdv2qWvJYtk8xk4F | Builder 8.10 | story-8-10 |
+| session_01CgLgPVuhvoUCGWv6MWJvbS | Re-review asset art | rereview-asset-art |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -59,3 +60,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 05:14 Main gate on 8.9 merged (72b2bbb): 403 files / 3719 tests green, load 3.49. Re-review 8.9 (8e4ce5b): fixes hold (0 back steps in 13 probe families; rate ∈ [0.9,1.1]; no overshoot; B8 rewind edge fair); RM1 F1 not met on Walkers-standing 1 % row (1.2) → B9; RL1/RL2 claims of killed mutants were equivalent → text fixes + remove dead max().
 - 05:24 8.9 re-review text fixes (60049b7) merged; main gate 403 files / 3720 tests green (load 4.06) → 8.9 DONE on master.
 - 05:25 dispatched 8.10 (after 8.9's hordeBuffer); told 8.1 to merge master (8.9) and to reset the per-client horde stream on reconnect.
+- 05:26 Asset session fixes (60ec1f4; gate 405 files / 3714 tests): M1 resumable bake ≤ 20000 units + 6 ms guard (long tasks 70–180 → 50–85 ms headless); M2 banner keeps 48 px (overBar / shrink); M3 relit cache re-bake after loss; L1, L4, L5, L6. Narrow re-review dispatched.
