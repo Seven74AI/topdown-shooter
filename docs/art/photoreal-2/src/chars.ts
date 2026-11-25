@@ -11,6 +11,7 @@ import { drawSurvivor, drawZombie } from "../../../../apps/client/src/render/cit
 import { WEAPON_ART } from "../../../../apps/client/src/render/city/weaponArt";
 import { asphalt, canvas, ctx, fbm, hash2, night, rng, type G } from "../../asset-fixes-1/src/lib";
 import { cl, mix, render, type Rgb } from "../../photoreal-1/src/relief";
+import { relight } from "./relight";
 
 declare const CURRENT: Record<string, string>; // today's frames (data URLs), injected by build.mjs
 
@@ -456,16 +457,23 @@ function nowFigure(extent: number, draw: (g: G, r: number) => void): HTMLCanvasE
   return c;
 }
 
-const ITEMS: Item[] = [
-  { id: "survivor_body_a", name: "Survivor (pistol)", extent: 2.7, make: () => survivor("pistol"), now: () => nowFigure(2.7, (g, r) => drawSurvivor(g, r)) },
-  { id: "survivor_shotgun_a", name: "Survivor (shotgun)", extent: 2.7, make: () => survivor("shotgun"), now: () => nowFigure(2.7, (g, r) => drawSurvivor(g, r, (c, rr) => WEAPON_ART.shotgun?.(c, "held", rr))) },
-  { id: "zombie_walker_a", name: "Walker", extent: 1.55, make: walker, now: () => nowFigure(1.55, (g, r) => drawZombie(g, "walker", r, 0)) },
-  { id: "zombie_runner_a", name: "Runner", extent: 1.5, make: runner, now: () => nowFigure(1.5, (g, r) => drawZombie(g, "runner", r, 0)) },
-  { id: "zombie_crawler_a", name: "Crawler", extent: 1.75, make: crawler, now: () => nowFigure(1.75, (g, r) => drawZombie(g, "crawler", r, 0)) },
-  { id: "zombie_spitter_a", name: "Spitter", extent: 2.35, make: spitter, now: () => nowFigure(2.35, (g, r) => drawZombie(g, "spitter", r, 0)) },
-  { id: "zombie_brute_a", name: "Brute", extent: 1.5, make: brute, now: () => nowFigure(1.5, (g, r) => drawZombie(g, "brute", r, 0)) },
-  { id: "zombie_bloater_a", name: "Bloater", extent: 1.8, make: bloater, now: () => nowFigure(1.8, (g, r) => drawZombie(g, "bloater", r, 0)) },
+/** Today's drawings (the game's own code), the source for take 2. */
+const DRAWS: { id: string; name: string; extent: number; draw: (g: G, r: number) => void }[] = [
+  { id: "survivor_body_a", name: "Survivor (pistol)", extent: 2.7, draw: (g, r) => drawSurvivor(g, r) },
+  { id: "survivor_shotgun_a", name: "Survivor (shotgun)", extent: 2.7, draw: (g, r) => drawSurvivor(g, r, (c, rr) => WEAPON_ART.shotgun?.(c, "held", rr)) },
+  { id: "zombie_walker_a", name: "Walker", extent: 1.55, draw: (g, r) => drawZombie(g, "walker", r, 0) },
+  { id: "zombie_runner_a", name: "Runner", extent: 1.5, draw: (g, r) => drawZombie(g, "runner", r, 0) },
+  { id: "zombie_crawler_a", name: "Crawler", extent: 1.75, draw: (g, r) => drawZombie(g, "crawler", r, 0) },
+  { id: "zombie_spitter_a", name: "Spitter", extent: 2.35, draw: (g, r) => drawZombie(g, "spitter", r, 0) },
+  { id: "zombie_brute_a", name: "Brute", extent: 1.5, draw: (g, r) => drawZombie(g, "brute", r, 0) },
+  { id: "zombie_bloater_a", name: "Bloater", extent: 1.8, draw: (g, r) => drawZombie(g, "bloater", r, 0) },
 ];
+
+/** Take 1 (rebuilt from body parts) is kept above for reference; the page now shows take 2 (today's drawing, relit). */
+const TAKE1: Record<string, () => HTMLCanvasElement> = { walker, runner, crawler, spitter, brute, bloater, survivorP: () => survivor("pistol"), survivorS: () => survivor("shotgun") };
+void TAKE1;
+
+const ITEMS: Item[] = DRAWS.map((d, i) => ({ id: d.id, name: d.name, extent: d.extent, make: () => relight(d.draw, d.extent, R, 200 + i * 7), now: () => nowFigure(d.extent, d.draw) }));
 
 /** A figure on a patch of night street, scaled to `size` px. */
 function onStreet(obj: HTMLCanvasElement, size: number): HTMLCanvasElement {
@@ -520,7 +528,7 @@ async function main(): Promise<void> {
     after.push(a);
     const row = document.createElement("article");
     row.className = "pair";
-    row.innerHTML = `<h3>${it.name}</h3><div class="sides"><figure><figcaption>Now</figcaption></figure><figure><figcaption>Photoreal</figcaption></figure></div>`;
+    row.innerHTML = `<h3>${it.name}</h3><div class="sides"><figure><figcaption>Now</figcaption></figure><figure><figcaption>Take 2</figcaption></figure></div>`;
     const figs = row.querySelectorAll("figure");
     (figs[0] as HTMLElement).prepend(onStreet(b, 260));
     (figs[1] as HTMLElement).prepend(onStreet(a, 260));
