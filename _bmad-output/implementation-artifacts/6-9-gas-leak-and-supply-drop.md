@@ -255,3 +255,57 @@ Changed: see "Notes for the merge".
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-25: built as the merged story 6.9 + 6.10 (decision 6.10 B1 applied); status review.
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh-agent reviewer (own cloud session), 2026-11-25. **Reviewed commit:** `fb1d6f1` (story-6-9 = story-6-8 `9bb6e65` + master + 6.9/6.10); diff `git diff 9bb6e65...fb1d6f1` (Epic 7 docs/art ignored). **Method:** gds-code-review (Blind Hunter, Edge Case Hunter, Acceptance Auditor) against the EPIC 6 BRIEF, 6.9 D1–D12, 6.10 D1–D10 + B1, 6.12 D6/D8.
+
+**Ran:** `npm run typecheck` (clean); `npx vitest run packages/shared/src/events packages/shared/src/economy/tenWaveSim.test.ts apps/client/src/render/eventPickups.test.ts apps/client/src/render/fog/fogWiring.test.ts tools/checks/fogWiring.test.ts apps/server/src/rooms/schema/syncState.test.ts apps/client/src/net/localFire.test.ts` → 19 files, 163 tests passed. Full gate not run (designer speed-up). Throw-away probe tests (deleted before commit) for the beat-the-rule attempts below.
+
+**Outcome:** Changes requested — 0 high, 2 medium, 11 low.
+
+### Findings
+
+| # | Sev | Title | Where | Scenario | Fix |
+|---|---|---|---|---|---|
+| M1 | Medium | "First on it keeps the claim" is broken at the landing: the claim goes to the **lowest player slot**, not the first player on the crate | `events/supplyDrop.ts:100-118` (`updateClaim`; claims only start in LANDED, then slot order) | Probe: p1 stood on the crate for the whole 5 s flare; p0 stepped on 2 ticks before it landed → **p0 took it**. Slot 0 (usually the host) wins every landing race. | Remember who stood on it first during FLARE (per-slot "on since" tick, kept while standing within 0.8 m); at landing give the claim to the earliest arrival (ties: slot). Test: slot 1 waits the flare, slot 0 arrives late → slot 1 takes it. |
+| M2 | Medium (design) | B1 does not make the survivor saveable | Dev Agent Record probe; `events.json › survivor.waitIgnoreM` | Builder's own probe after B1: **0 saved / 16** in waves 6+8 (dies in 1.3–4.5 s to zombies passing within 5 m of its street spot), 1 / 8 in wave 3. The decision's purpose (a rescue players can actually do) isn't met. Bots aren't difficulty evidence, but 0/16 is a signal. | Back to the designer with the numbers (e.g. B1 alternatives: spawn only with no zombie within 8 m, ignore radius 2–3 m while waiting, 150 HP). Not a code defect. |
+| L1 | Low | Spitters vs the survivor untested | `zombies/spit.ts:57-58,72,222,288-293` | Mutation: removing the survivor from the Spitters' list → `survivor.test.ts` + `eventsRunSim.test.ts` stay green (T3 claims a "Spitter acid" test). B1's 5 m rule for Spitters and the NPC's acid clock have no test either. | Test: Spitter at 4.5 m spits at a waiting NPC, at 6 m doesn't, at 10 m does once it's led; an acid puddle hurts it on its own clock. |
+| L2 | Low | Power failure's "never in a full-blackout wave" guard untested | `events/powerFailure.ts:23` | Mutation `wavePct(...) <= 0` → `true` survives `powerFailure.test.ts` (waves 6–8 are never 0 % in the shipped table). | Test with a balance override that makes wave 7 a 0 % blackout wave → `fits` false. |
+| L3 | Low | Car fires never hurt the survivor (D3 / S4 say they do) | `events/survivor.ts` (`damageSurvivor` doc lists "fire"); no caller in `decay/` | Spec item 5 planned a `decay/fire.ts` pulse "kept for safety"; it isn't there. Hard to reach (it stops at fire edges; no mid-wave car fire with a survivor active), but the AC text and the code disagree. | Add the per-body fire pulse (4.8 clock) or amend S4/D3 notes to "fires block it". |
+| L4 | Low | The gas blast one-shots the Behemoth | `combat/explosion.ts:214` (boss pass gets `zombieDamage` = `killDamage` 10,000) | Unreachable in normal play (events never on boss waves, endless boss waves excluded), reachable with force-event + spawn-Behemoth dev switches, and by any future schedule change. D3 only speaks about Brutes. | A `gasLeak.bossDamage` in `events.json` (or skip the boss for `kind "gas_leak"`), and a test. |
+| L5 | Low | Known gap: the bullet that blows the tank flies on | `combat/firing.ts:369` / `events/gasLeak.ts:85-90` | A piercing round keeps going after the boom and can hit zombies beyond 6 m on later ticks; zombies past the tank in the same step are hit before the blast (harmless: inside 6 m). | Accept as noted, or return the tank's `t` and stop the projectile there (`stoppedAt = t`). |
+| L6 | Low | Known gap: the crate is drawn over the player standing on it | `render/EventPickupsView.ts` (crate at `ABOVE_DARK.pickup`) | For the 1 s take, the local survivor is hidden under the crate exactly when the player needs to see they're on it (readability, brief 13/24). | Draw the crate body under player depth; keep only the fill ring + pin above the darkness. |
+| L7 | Low | "Step off to cancel" under lag | `render/eventMarkers.ts:281-302` (prompt uses the predicted position); claim is server-side | At ?lag=150&jitter=20 the server keeps counting ~3–4 ticks after a step-off: stepping off at ≥ ~0.83 s on screen still replaces the weapon. Server truth is right; the promise is slightly off. | Accept and note, or say "step off" with the server fill ring only (already drawn) and stop the prompt once fill > 0.8. |
+| L8 | Low | The "Replaces your …" prompt shows when a teammate holds the claim | `render/eventMarkers.ts:281-302` | Standing on a crate a teammate is taking: you're told what you'll lose though you can't take it. | Show it only when `claimSlot` is mine or −1. |
+| L9 | Low | Per-frame allocation in the fog wiring | `render/fog/fogWiring.ts:21` (`for (const v of [a, b, c])`) | Called every frame from `updateScreenFog` → one 3-element array per frame (brief 10). | Three `if` blocks, or a reused array. |
+| L10 | Low | Ten-wave money check weakened to the team sum | `economy/tenWaveSim.test.ts:62-66` | Legit reason (6.2 refunds go to wallets but are logged per team, and the new `event` pay is in `earned`), but a per-player money bug (pay to the wrong player) now passes. Not masking a regression I could find: the team sum balances on every seed. | Log refunds per player in `headlessRun` and restore the per-player check. |
+| L11 | Low | Survivor + flag edge arrows not in the one HUD layout test | `scenes/hudLayout.test.ts:207+`; `render/eventMarkers.ts:195` | The survivor shows two arrows at once (NPC + flag); they use the tested `edgeArrow` placement but may overlap each other at close bearings; brief 31 says every arrow joins the one test. | Add the flag arrow (and "both at once" no-overlap) to `hudLayout.test.ts`. |
+
+### Beat the rule (attempts → result)
+
+- **Gas: shoot at 2.95 s / 3.0 s** → passes / blows, credited to the shooter (tested). **Turret, melee, flame, grenade, ownerless** → never (hook is player projectiles only). **Two shooters on one tick** → one blast, first credit. **Shoot through the pumps** → pumps stop the round (map cover). **Hide behind pumps/kiosk** → shielded (normal blast LOS). **Downed in the ring** → unharmed (Bloater rule). **All 4 in ring when one shoots** → 60 each, no FF share. **Brutes** → die. **Survivor in the blast** → not hurt (S4). **Behemoth in the blast** → dies (L4, dev-only today). **Hold the wave forever by never shooting** → no: the timer blows at 10 s, `holdsWave` false after.
+- **Crate: camp during the flare** → no claim until landing; **then the lowest slot wins** (M1). **Two racing after landing** → first keeps it (tested). **Downed mid-take** → reset (tested). **Already at II** → can't block a teammate (tested). **Swap during the take** → the active slot is replaced and the swap cancelled; the player stays on the new weapon (consistent with the warning shown). **Reload during the take** → fresh slot, full mag, reload cancelled. **Firing during the take** → fire clock follows the new weapon (localFire test, ±1 shot at lag 6). **Step off at 0.95 s under lag** → may still be taken (L7). **Crate at the wave end** → lost, never holds the wave (tested). No new edge input (proximity only), so brief 30 has nothing to latch.
+- **Survivor: Walker at 4.9 m vs 5.1 m while it waits** → goes for it / ignores it (B1 holds). **Brute beside a waiting NPC** → windup kills it in ~3 s. **Bloater blast far from players** → hurts it waiting or led (S4). **Spitters** → code targets it with the 5 m rule, untested (L1). **Car fire** → never hurts it (L3). **Players' weapons** → never (tested). **Downed player leads** → never; **downed gets +100** → yes. **Lead, then run > 6 m** → it crouches and zombies lose interest beyond 5 m (B1 as decided). **ChaseTarget list without a survivor** → identical to before (no push, `p === npc` never true, `standingWithin` uses the player count): bit-for-bit by inspection. **Flow-field seed** → only while led (tested; mutation caught).
+- **Power failure:** banner + sound + 2 s flicker from the server's phase tick, then `blackoutPct` 20 % via `refreshBlackout` (synced, in the snapshot: brief 26); cleared at the wave end; even endless waves qualify (tested). No map marker (designer: no art) — the banner + flicker is the announcement.
+- **Determinism / bandwidth:** `gasLeak`, `supplyDrop`, `survivor` and `lights.powerFailure` are in `snapshotWorld`; same-seed digest test through all four events. 11 RunState fields, on change only (≈ 120 B/s while the NPC walks; crate ≤ 20 one-byte changes); npcX/Y in cm as uint16 fits the map.
+
+### Mutations (one per new test file; reverted)
+
+| Mutation | Test | Result |
+|---|---|---|
+| gas arm `>=` → `>` | gasLeak.test | caught |
+| gas `friendlyFire` false → true | gasLeak.test | caught |
+| crate claim without the standing check | supplyDrop.test | caught |
+| crate "replace" → always slot 1 | supplyDrop.test | caught |
+| `survivorWanted` always true | survivor.test | caught |
+| flow-field survivor seed removed | survivor.test | caught |
+| Bloater-blast survivor pass removed | survivor.test | caught |
+| survivor removed from the Spitters' list | survivor.test + eventsRunSim.test | **survived** (L1) |
+| power-failure full-blackout guard removed | powerFailure.test | **survived** (L2) |
+| survivor reward 0 | eventsRunSim.test | caught |
+| `npcHp` not synced | syncState.test | caught |
+| "already have" prompt → "" | eventPickups/eventMarkers tests | caught |
+| fog wiring drops the acid view | fogWiring.test (client) | caught |
+| GameScene's per-frame `wireFog` removed | tools/checks/fogWiring.test | caught |
+| crate's fresh slot with 0 ammo | localFire.test | caught |
