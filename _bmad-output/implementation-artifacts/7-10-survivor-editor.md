@@ -189,6 +189,8 @@ Claude (builder child session of the overnight orchestrator), skill `gds-dev-sto
 
 Gate (2026-11-25): branch story-7-10 at merge commit b79f6083 (origin/master db0beb7f merged in, no conflicts): typecheck ✓, lint ✓, test ✓ (479 files passed / 3 skipped; 4355 tests passed / 23 skipped), build ✓; load average during the test run ≈ 2.8–3.0 (1-min 2.97 at the end, 0.20 before).
 
+- Gate after the review fixes (2026-11-25): story-7-10 at f3e3bb45 (fix round, on the landing merge b2ff3330 with origin/master 7fdf9b86): typecheck ✓, lint ✓, test ✓ (490 files passed / 3 skipped; 4450 tests passed / 23 skipped), build ✓; load ≈ 2.9–3.6 during the tests.
+
 ### Task → test (R1: "file > test name")
 
 - **T0** — no test (a look pick): the designer's ED1 + LK2 + LS1 (7-UI-5) is the layout; recorded in `docs/epic-7-decisions.md` › Survivor editor (7.10). Built screens: `docs/art/epic-7/built/7-10-head-tab.png`, `7-10-locked-milestone.png`, `7-10-loot-silhouette.png`, `7-10-random-done.png` (568 × 320, dpr 2).
