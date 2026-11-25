@@ -35,3 +35,10 @@ const page4 = readFileSync(D + "page4.html", "utf8")
   .replace("/*@MAIN@*/", () => esc(js4));
 writeFileSync("docs/art/epic-7/premium-rewards-3.html", page4);
 console.log("premium-rewards-3.html", (page4.length / 1024).toFixed(0), "KB");
+const js5 = ["kit.js", "content.js", "pi.js", "screens.js", "page5.js"].map((f) => readFileSync(D + f, "utf8")).join("\n");
+const page5 = readFileSync(D + "page5.html", "utf8")
+  .replace("/*@FONTS@*/", () => [500, 600, 700].map(font).join("\n"))
+  .replace("/*@GAME@*/", () => esc(r.outputFiles[0].text))
+  .replace("/*@MAIN@*/", () => esc(js5));
+writeFileSync("docs/art/epic-7/lumen-screens.html", page5);
+console.log("lumen-screens.html", (page5.length / 1024).toFixed(0), "KB");

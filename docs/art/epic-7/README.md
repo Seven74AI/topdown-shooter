@@ -175,3 +175,34 @@ construction, components, layout and motion are identical; only the palette chan
 Files per theme: `premium-3/<code>-components.jpg` (sheet at 2×), `-results-568.jpg`, `-results-800.jpg`,
 `-reveal-at-2.9s.jpg`, `-section.jpg` (half size), `-reveal.webm` (about 1.5 MB). The PI3 label overflow (the
 chevron past the button edge) was fixed in the shared button code in round 2.
+
+## Lumen screens: the chosen style (LF5) on the other 8 Epic 7 screens (`lumen-screens.html`, sheets in `lumen/`)
+
+The designer picked **LF5** (Lumen construction with the PI2 Field Ops palette) as the Epic 7 UI style. This page applies
+it to the eight other screens with the round-1 approved layouts and row orders, plus Results with the slot fix. Still
+images only; each sheet `lumen/<id>.jpg` shows that screen's frames at deviceScaleFactor 2 (568 × 320, 800 × 360 where
+the layout changes, and the states).
+
+| Sheet | Item | States shown |
+| --- | --- | --- |
+| `lumen/hub.jpg` | PH1 hub + Unlocks | Confirm (pressed, 3 s), Not enough + how many more, Unlocked / Starter, placeholder silhouette, Good next pick, Unlocking… |
+| `lumen/training.jpg` | TR1 Training (TL1 line on Results) | Train, Confirm (pressed), Maxed, 5 pips as Lumen fill bars |
+| `lumen/shop.jpg` | BT2 borrowed strip | Selected card (Buy for…), two borrowed cards (Mo, Kit) |
+| `lumen/accounts.jpg` | AC2 accounts | Start (guest), Save my progress (focus), Log in (error), Forgot password (disabled Next), recovery code, log out |
+| `lumen/lobby.jpg` | DP2 district picker | Host, teammate ("host picks"), host's sheet (selected / locked / Random city), 800 |
+| `lumen/slots.jpg` | SC1 slot card | Host, You, Ready, Not ready, Open (rows at 2×) |
+| `lumen/editor.jpg` | ED1 + LK2 + LS1 editor | Head tab with a locked milestone tapped (info row), loot silhouette "?", selected tile, colour row, Random + Done |
+| `lumen/loot.jpg` | LB2 + OA2 + BF2 (in play) | Bag in the street, off screen (OA2 with 20 s ring), blackout, finder and teammate lines (BF2) |
+| `lumen/results.jpg` | Results + Run rewards (LF5) | Extract, endless, teammate's find: with the slot chip |
+
+**Slot fix (LF5 tension):** every player is now shown with a filled **slot chip**: the slot colour, a dark keyline and
+the player number in white. It appears in Results rows, tags, item cards, lobby rows and the "Bag found!" line, so the
+orange slot (#ff8a1f) never sits orange-on-orange next to the amber-orange accent.
+
+**Changes to the approved layouts, and why:**
+- **Results items:** shown as rarity cards (from round 2) instead of one line per item. Each card is one tap target with "Wear it" inside.
+- **Shop (BT2):** the cards are redrawn in Lumen to show the strip in context. The shop itself is the 5.13 screen, and only the strip is Epic 7.
+- **Lobby (SC1):** "Ready" is a white check, not green. The green slot (Kit) is a player colour, so green "Ready" would read as that player.
+- **Accounts:** errors are red. The designer allowed red in menus, and it keeps errors distinct from the orange accent.
+- **Loot bag, arrow and line (in play):** built with Lumen plates in neutral steel and white, without the orange accent, so the in-play rule (white = pick-ups) holds.
+- **Training at 568 × 320:** the line under each boost name is shortened (11.5 px, cut with "…" where needed) so the pips and Now / Next fit, as in round 1.
