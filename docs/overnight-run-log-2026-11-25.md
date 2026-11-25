@@ -22,6 +22,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPV9Purq8QkvbmAAZbE | Review 8.1 | review-8-1 |
 | session_01CgLgPV7qu43H4ppJzsJrHo | Re-review 2 asset art | rereview2-asset-art |
 | session_01CgLgPWLddQgeqCSrK8Zq8e | Review 7.1 | review-7-1 |
+| session_01CgLgPUZDbx9SZ3xwBucRfg | Builder 7.2 | story-7-2 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
