@@ -7,6 +7,7 @@ import { z } from "zod";
 import { guestTokenSchema } from "./messages";
 import { LOOK_CODE_MAX } from "../config/cosmetics";
 import commonPasswords from "../config/commonPasswords.json" with { type: "json" };
+import { incomingSettingsSchema, playerSettingsSchema } from "../config/playerSettings";
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -38,6 +39,11 @@ export const progressViewSchema = z.object({
   districts: z.array(z.string().max(32)).max(8).optional(),
   /** Story 7.11 (T5): the owned milestone / loot part keys (7.10's editor tiles). */
   cosmetics: z.array(z.string().max(32)).max(64).optional(),
+  /**
+   * Story 10.1 (AC 6): the account's synced settings (only the changed fields; null = none synced yet). Optional: unlock
+   * answers and older servers don't carry it.
+   */
+  settings: z.union([z.null(), incomingSettingsSchema]).optional(),
 });
 export type ProgressView = z.infer<typeof progressViewSchema>;
 
@@ -170,6 +176,8 @@ export const ACCOUNT_ERRORS = {
   not_logged_in: "This phone isn't logged in",
   wrong_login: "Wrong username or password",
   wrong_code: "Wrong username or code",
+  /** Story 10.1 (AC 9): Delete my progress on an account needs its password. */
+  wrong_password: "Wrong password",
   rate_limited: "Too many attempts, try again in a minute",
   in_room: "Leave the game first",
   no_account: "Can't reach the save server, try later",
@@ -226,3 +234,25 @@ export type LookSaveRequest = z.infer<typeof lookSaveRequestSchema>;
 /** The answer: the code the server stored (canonical; unowned or unknown parts became the default parts), or null (the default look). */
 export const lookSaveResponseSchema = z.object({ ok: z.literal(true), look: z.string().max(LOOK_CODE_MAX).nullable(), stale: z.boolean().optional() });
 export type LookSaveResponse = z.infer<typeof lookSaveResponseSchema>;
+
+/**
+ * Story 10.1 (AC 6; decision 10.1-B10): sync my settings to my account. The server sees `/account/settings`. The cookie
+ * names the account; the body is the changed fields only (≤ `SETTINGS_MAX_BODY_BYTES`, else 413). The answer is what the
+ * server STORED (schema-parsed: unknown keys dropped).
+ */
+export const ACCOUNT_SETTINGS_PATH = "/account/settings";
+export const settingsSaveRequestSchema = z.object({ settings: playerSettingsSchema }).strict();
+export type SettingsSaveRequest = z.infer<typeof settingsSaveRequestSchema>;
+export const settingsSaveResponseSchema = z.object({ ok: z.literal(true), settings: incomingSettingsSchema });
+export type SettingsSaveResponse = z.infer<typeof settingsSaveResponseSchema>;
+
+/**
+ * Story 10.1 (AC 7–10, retro E7-A8; decisions 10.1-B11…B15): Delete my progress. The server sees `/account/delete`. A
+ * guest needs only its cookie; an account also sends its password. Refused while any device of the account is in a
+ * room (409 `in_room`). The answer clears the cookie; the client then clears the rest and reloads.
+ */
+export const ACCOUNT_DELETE_PATH = "/account/delete";
+export const deleteRequestSchema = z.object({ password: z.string().max(256).optional() }).strict();
+export type DeleteRequest = z.infer<typeof deleteRequestSchema>;
+export const deleteResponseSchema = z.object({ ok: z.literal(true), kind: z.enum(["guest", "account"]) });
+export type DeleteResponse = z.infer<typeof deleteResponseSchema>;

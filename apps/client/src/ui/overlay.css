@@ -3446,3 +3446,178 @@ button.lobby__district {
     align-items: start;
   }
 }
+
+/*
+ * Story 10.1 (AC 1, 11; B16, B17): Settings, Lumen LF5. The start screen's screen is the hub's frame (`.menu.ph` +
+ * `.ph-head`) with one scrolling body; the ☰ in-run view shows the same groups and scrolls. Rows: the LF5 switch, a
+ * segmented row of 44 px buttons, a 44 px range. Text 14–16 px.
+ */
+.menu.ph.st .ph-frame {
+  max-width: 640px;
+}
+.st-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 2px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.st-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(640px, 100%);
+  margin: 0 auto;
+}
+.st-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border-left: 3px solid #f59a2c;
+  background: rgba(40, 44, 50, 0.92);
+  text-align: left;
+}
+.st-group__title {
+  margin: 0 0 2px;
+  color: #ffd9a3;
+  font: 700 14px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.st-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.in-run-menu__switch.st-switch {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  font-size: 16px;
+}
+.st-hint {
+  margin: 0 0 2px 2px;
+  color: #b9bec6;
+  font: 400 14px/1.25 system-ui, sans-serif;
+}
+.st-label {
+  color: #fff;
+  font: 600 16px/1.2 system-ui, sans-serif;
+}
+.st-choice,
+.st-volume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-height: 48px;
+  padding: 2px 4px 2px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.st-seg {
+  display: inline-flex;
+  gap: 4px;
+}
+.st-seg__btn {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid #3b4048;
+  border-radius: 6px;
+  background: #262a30;
+  color: #f4f1ea;
+  font: 600 15px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+.st-seg__btn[aria-pressed="true"] {
+  border-color: #f59a2c;
+  background: rgba(245, 154, 44, 0.22);
+  color: #ffc46b;
+}
+.st-range {
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 260px;
+  height: 44px;
+  margin: 0;
+  accent-color: #f59a2c;
+  cursor: pointer;
+}
+.st-volume__n {
+  min-width: 2.5em;
+  color: #ffc46b;
+  font: 700 15px/1 system-ui, sans-serif;
+  text-align: right;
+}
+.btn.st-delete-open {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.in-run-menu--settings {
+  justify-content: flex-start;
+  overflow-y: auto;
+  /* a control scrolled into view (focus, keyboard) stops above the home bar / side insets, like the padding */
+  scroll-padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px)
+    calc(env(safe-area-inset-left) + 16px);
+  background: rgba(0, 0, 0, 0.72);
+}
+.in-run-menu--settings .in-run-menu__items {
+  display: flex;
+}
+.st-delete__list {
+  margin: 0;
+  padding-left: 20px;
+  color: #f4f1ea;
+  font: 500 15px/1.4 system-ui, sans-serif;
+  text-align: left;
+}
+.st-delete__footer {
+  margin: 0;
+  color: #ffd9a3;
+  font: 600 14px/1.3 system-ui, sans-serif;
+}
+.st-delete__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.menu__input.st-delete__input {
+  width: min(240px, 100%);
+}
+.st-delete__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* The delete confirm: top-aligned so a tall card scrolls instead of being cut (the card's auto margin still centres it). */
+.menu.ph.ac--modal.st-modal {
+  justify-content: flex-start;
+  scroll-padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+@media (max-height: 420px) {
+  .st-delete__list {
+    columns: 2;
+    column-gap: 24px;
+  }
+  .ac-card.st-delete {
+    gap: 6px;
+  }
+}
+/* Review nit: the greyed Delete button keeps readable text (not a 40 % fade of red on dark). */
+.st-delete .btn--danger:disabled {
+  opacity: 1;
+  background: #4a2a2a;
+  color: #d9c3c3;
+}
