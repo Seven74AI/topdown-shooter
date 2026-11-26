@@ -67,6 +67,11 @@ export const progress = pgTable("progress", {
   cosmetics: text("cosmetics").array().notNull().default(sql`'{}'::text[]`),
   /** Story 7.11 (AC 1, 5): lifetime counters for the lifetime milestones, added under the row lock at each bank. */
   stats: jsonb("stats").$type<LifetimeStatsRow>().notNull().default(sql`'{"revives":0,"kills":0,"barricades":0,"runs":0}'::jsonb`),
+  /**
+   * Story 10.1 (AC 6): the player's synced settings (only the fields they changed: `playerSettingsSchema`); null = none
+   * synced yet. Written only by `progressRepo.saveSettings` (schema-parsed); read back with `parseStoredSettings`.
+   */
+  settings: jsonb("settings").$type<Record<string, unknown>>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Brief 18: a balance can never go below 0, whatever a later story's bank or purchase code does.

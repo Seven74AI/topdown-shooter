@@ -40,6 +40,8 @@ import { serverUrl } from "./serverUrl";
 import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 import { accountStore } from "./accountStore";
 import { progressStore } from "./progressStore";
+import { acceptSessionSettings } from "./settingsSync";
+import { ACCOUNT_DELETE_PATH, deleteResponseSchema, type DeleteResponse } from "@topdown/shared";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -77,6 +79,8 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
     if (parsed.data.saved) {
       accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
       if (parsed.data.progress) progressStore.accept(parsed.data.progress); // review L7: the Log in merge warning knows the guest's progress
+      // Story 10.1 (B9): a failed progress read (null) says nothing about the settings: leave them.
+      if (parsed.data.progress) acceptSessionSettings(parsed.data.account.username, parsed.data.progress.settings);
     }
     return parsed.data;
   } catch {
@@ -270,6 +274,7 @@ function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
     progressStore.accept(s.progress);
     // Story 7.9 + 7.10: this phone's look copy follows the account it now is; a look pending for the OLD account is dropped
     deviceLook.markSynced(s.progress.look ?? null);
+    acceptSessionSettings(s.account.username, s.progress.settings); // Story 10.1 (B9): a login on a new phone gets the account's settings
   }
 }
 
@@ -325,4 +330,12 @@ export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Story 10.1 (AC 7, 10; B15): Delete my progress. `password` for a full account (a guest sends none). On success the
+ * server has cleared the cookie; the caller resets this phone (`resetPhoneAfterDelete`) and reloads.
+ */
+export async function deleteMyProgress(password: string | undefined, over: Partial<AccountDeps> = {}): Promise<AccountCall<DeleteResponse>> {
+  return action(ACCOUNT_DELETE_PATH, password === undefined ? {} : { password }, (raw) => deleteResponseSchema.safeParse(raw).data ?? null, over);
 }

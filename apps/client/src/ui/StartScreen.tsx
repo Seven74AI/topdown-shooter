@@ -265,6 +265,10 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
         <button type="button" class="btn btn--secondary" disabled={busy !== ""} onClick={() => uiStore.set(openProgress({ kind: "start" }))}>
           Progress
         </button>
+        {/* Story 10.1 (AC 1, B16): Settings (and Delete my progress), beside Progress. */}
+        <button type="button" class="btn btn--secondary" disabled={busy !== ""} data-testid="start-settings" onClick={() => uiStore.set({ kind: "settings", view: "main" })}>
+          Settings
+        </button>
       </div>
     </div>
   );

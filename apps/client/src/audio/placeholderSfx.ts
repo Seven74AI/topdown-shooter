@@ -1,3 +1,4 @@
+import { getSettings, subscribeSettings } from "../settings/settings";
 /**
  * Placeholder sounds synthesized with the Web Audio API (no files yet). Names follow the asset rule
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
@@ -80,6 +81,10 @@ export type SfxName =
   | "loot_found";
 
 const MASTER_GAIN = 0.25;
+/** Story 10.1 (B8): the SFX master for an Effects volume setting of 0–100. */
+export function sfxMasterGain(volume: number): number {
+  return (MASTER_GAIN * Math.max(0, Math.min(100, volume))) / 100;
+}
 const HIT_MIN_INTERVAL_S = 0.03;
 /** Story 5.9: mines going off in the same instant make one blast sound. */
 const BLAST_MIN_INTERVAL_S = 0.08;
@@ -104,8 +109,12 @@ function context(): AudioContext | null {
   if (!Ctor) return null;
   ctx = new Ctor();
   master = ctx.createGain();
-  master.gain.value = MASTER_GAIN;
+  master.gain.value = sfxMasterGain(getSettings().sfxVolume);
   master.connect(ctx.destination);
+  // Story 10.1 (B8): the Effects volume applies at once (the boss loop rides this master too until 9.8's music bus).
+  subscribeSettings((s) => {
+    if (master) master.gain.value = sfxMasterGain(s.sfxVolume);
+  });
   noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate);
   const data = noise.getChannelData(0);
   let seed = 1; // tiny LCG: deterministic noise, no Math.random needed

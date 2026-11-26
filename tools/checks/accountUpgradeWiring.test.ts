@@ -48,7 +48,7 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
 
   it("the server registers the four routes with their limiters and the device repository; rooms register their devices", () => {
     const app = read(`${SRV}app.ts`);
-    expect(app).toMatch(/createRouter\(\{ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout(, accountLook)?(, savedRuns)? \}\)/); // Story 8.6: + savedRuns
+    expect(app).toMatch(/createRouter\(\{ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout(, accountLook)?(, accountSettings, accountDelete)?(, savedRuns)? \}\)/); // Story 8.6: + savedRuns; 10.1: + settings, delete
     expect(app).toMatch(/auth: \{ devices: deviceTokensRepo\(database\), loginIpLimiter, loginNameLimiter, actionIpLimiter: accountActionIpLimiter, actionLimiter: accountActionLimiter, nameCheckIpLimiter \}/);
     const r = read(`${SRV}auth/accountRoutes.ts`);
     expect(r).toMatch(/if \(!loginIpAllowed\(ip, authDeps\)\) throw ctx\.error\(429[\s\S]*?const body = loginRequestSchema/);
@@ -73,5 +73,21 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
     expect(p).toMatch(/const payee = acc\[0\]\?\.mergedInto \?\? accountId;/);
     expect(p).toMatch(/\.for\("no key update"\)/);
     expect(read(`${SRV}db/deviceTokensRepo.ts`)).toMatch(/const \{ row, refunds \} = mergeProgress\(a as unknown as MergeRow, g as unknown as MergeRow\);/);
+  });
+});
+
+describe("Story 10.1 wiring (settings sync, Delete my progress)", () => {
+  it("the server registers both routes with their limiters; the client syncs on every session answer and the screens are mounted", () => {
+    const app = read("apps/server/src/app.ts");
+    expect(app).toMatch(/settings: \{ progress, ipLimiter: settingsIpLimiter, accountLimiter: settingsAccountLimiter \}/);
+    expect(app).toMatch(/remove: \{ ipLimiter: deleteIpLimiter, nameLimiter: loginNameLimiter \}/);
+    const acc = read("apps/client/src/net/account.ts");
+    expect(acc).toMatch(/if \(parsed\.data\.progress\) acceptSessionSettings\(parsed\.data\.account\.username, parsed\.data\.progress\.settings\);/);
+    expect(acc).toMatch(/acceptSessionSettings\(s\.account\.username, s\.progress\.settings\);/);
+    expect(read("apps/client/src/ui/App.tsx")).toMatch(/<SettingsScreen \/>/);
+    expect(read("apps/client/src/ui/StartScreen.tsx")).toMatch(/uiStore\.set\(\{ kind: "settings", view: "main" \}\)/);
+    expect(read("apps/client/src/ui/InRunMenu.tsx")).toMatch(/<SettingsPanel idPrefix="irm" \/>/);
+    expect(read("apps/client/src/ui/SettingsScreen.tsx")).toMatch(/if \(r\.kind === "ok"\) return resetPhoneAfterDelete\(\);/);
+    expect(read("apps/client/src/debug/perfProbe.ts")).toMatch(/bindShowPerformance\(perf\);/);
   });
 });

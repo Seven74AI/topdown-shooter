@@ -16,6 +16,7 @@
  *   account is untouched.
  */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { parseStoredSettings } from "@topdown/shared";
 import { mergeProgress, type MergeRefunds, type MergeRow } from "../meta/merge";
 import type { Account } from "./accountsRepo";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
@@ -59,7 +60,7 @@ export interface DeviceTokensRepo {
 }
 
 const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
-const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats">): Progress => ({
+const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats" | "settings">): Progress => ({
   accountId: r.accountId,
   supplies: r.supplies,
   lifetimeSupplies: r.lifetimeSupplies,
@@ -69,6 +70,7 @@ const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplie
   look: r.look, // Story 7.9
   cosmetics: r.cosmetics, // Stories 7.11 / 7.12
   stats: readStats(r.stats),
+  settings: r.settings === null ? null : parseStoredSettings(r.settings), // Story 10.1: a login on a new phone gets them
 });
 
 /** The account row is already locked by the caller (device → account → guest: review L4); the guest is locked here. */

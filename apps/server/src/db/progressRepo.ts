@@ -5,7 +5,7 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Database } from "./client";
 import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema";
-import { PROGRESSION } from "@topdown/shared";
+import { PROGRESSION, parseStoredSettings, type StoredPlayerSettings } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
@@ -30,6 +30,8 @@ export interface Progress {
   cosmetics: string[];
   /** Story 7.11: lifetime counters. */
   stats: LifetimeStatsRow;
+  /** Story 10.1 (AC 6): the synced settings (changed fields only), null = none; only `get` and a login read it. */
+  settings?: StoredPlayerSettings | null;
 }
 
 export type { LifetimeStatsRow } from "./schema";
@@ -165,6 +167,11 @@ export interface ProgressRepo {
    * transaction to say why. In 7.2's `boundedTransaction`, like the unlock.
    */
   train(accountId: string, boost: string, level: number, cost: number, maxLevel: number): Promise<TrainResult>;
+  /**
+   * Story 10.1 (AC 6; B10): replaces the account's synced settings (already schema-parsed by the route) in one bounded
+   * transaction (a missing progress row is made empty first). Returns what was stored.
+   */
+  saveSettings(accountId: string, settings: StoredPlayerSettings): Promise<StoredPlayerSettings>;
 }
 
 const progressColumns = {
@@ -261,6 +268,18 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
         },
         bankOptions,
       ),
+    saveSettings: (accountId, settings) =>
+      boundedTransaction(
+        database,
+        "progress.saveSettings",
+        async (tx) => {
+          await tx.insert(progress).values({ accountId }).onConflictDoNothing(); // a missing row is an empty one
+          const clean = parseStoredSettings(settings);
+          const updated = await tx.update(progress).set({ settings: clean, updatedAt: sql`now()` }).where(eq(progress.accountId, accountId)).returning({ settings: progress.settings });
+          return parseStoredSettings(updated[0]?.settings ?? clean);
+        },
+        bankOptions,
+      ),
     get: (accountId) =>
       withDbTimeout(
         "progress.get",
@@ -277,12 +296,13 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               look: progress.look,
               cosmetics: progress.cosmetics,
               stats: progress.stats,
+              settings: progress.settings, // Story 10.1
             })
             .from(progress)
             .where(eq(progress.accountId, accountId))
             .limit(1);
           const r = rows[0];
-          return r ? { ...r, stats: readStats(r.stats) } : null;
+          return r ? { ...r, stats: readStats(r.stats), settings: r.settings === null ? null : parseStoredSettings(r.settings) } : null;
         },
         timeoutMs,
       ),

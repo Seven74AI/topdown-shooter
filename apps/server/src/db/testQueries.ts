@@ -18,3 +18,22 @@ export async function setProgressListsForTest(database: Database, accountId: str
   const db = await database.db();
   await db.update(progress).set({ districts, cosmetics }).where(eq(progress.accountId, accountId));
 }
+
+/**
+ * Story 10.1 (tests only): how many rows each account-keyed table holds for these account ids, and whether these saved
+ * runs still exist (Delete my progress must leave 0 of each, B12).
+ */
+export async function accountFootprintForTest(database: Database, accountIds: readonly string[], savedRunIds: readonly string[] = []): Promise<Record<string, number>> {
+  const db = await database.db();
+  const ids = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
+  const runIds = savedRunIds.length > 0 ? sql.join(savedRunIds.map((id) => sql`${id}::uuid`), sql`, `) : sql`NULL::uuid`;
+  const one = async (q: ReturnType<typeof sql>): Promise<number> => ((await db.execute(q)) as unknown as { rows: { n: number }[] }).rows[0]?.n ?? 0;
+  return {
+    accounts: await one(sql`select count(*)::int as n from accounts where id in (${ids}) or merged_into in (${ids})`),
+    progress: await one(sql`select count(*)::int as n from progress where account_id in (${ids})`),
+    runRewards: await one(sql`select count(*)::int as n from run_rewards where account_id in (${ids})`),
+    deviceTokens: await one(sql`select count(*)::int as n from device_tokens where account_id in (${ids})`),
+    savedRunPlayers: await one(sql`select count(*)::int as n from saved_run_players where account_id in (${ids})`),
+    savedRuns: await one(sql`select count(*)::int as n from saved_runs where id in (${runIds})`),
+  };
+}

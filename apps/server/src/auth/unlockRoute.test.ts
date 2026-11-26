@@ -102,7 +102,7 @@ describe("POST /account/unlock (Story 7.3 AC 5; U2, U3, U5)", () => {
       body: "{}",
     });
     const s = accountSessionResponseSchema.parse(await res.json());
-    expect(s.saved && s.progress).toEqual({ supplies: 50, lifetimeSupplies: 150, unlocks: ["spike_trap"], training: T0, look: null, districts: [], cosmetics: [] }); // + 7.5's training, 7.9's look
+    expect(s.saved && s.progress).toEqual({ supplies: 50, lifetimeSupplies: 150, unlocks: ["spike_trap"], training: T0, look: null, districts: [], cosmetics: [], settings: null }); // + 7.5's training, 7.9's look, 10.1's settings
   });
 
   it("U3: not enough → not_enough with `need`, the row unchanged", async () => {

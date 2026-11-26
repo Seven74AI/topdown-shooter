@@ -21,6 +21,9 @@ import {
   MAX_LOGIN_ATTEMPTS_PER_IP_PER_MIN,
   MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN,
   MAX_NAME_CHECKS_PER_IP_PER_MIN,
+  MAX_SETTINGS_CALLS_PER_IP_PER_MIN,
+  MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN,
+  MAX_DELETE_CALLS_PER_IP_PER_MIN,
 } from "./limits";
 
 /**
@@ -235,3 +238,9 @@ export const accountActionLimiter = new SlidingWindowLimiter(MAX_ACCOUNT_ACTIONS
 
 /** Story 7.6 review L6 (B18): Save's name checks per IP (the answer "That name is taken" reveals a name). */
 export const nameCheckIpLimiter = new SlidingWindowLimiter(MAX_NAME_CHECKS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+
+/** Story 10.1 (B10): settings sync, per IP (before any work) and per account. */
+export const settingsIpLimiter = new SlidingWindowLimiter(MAX_SETTINGS_CALLS_PER_IP_PER_MIN, LOOK_WINDOW_MS, Date.now, ipKey);
+export const settingsAccountLimiter = new SlidingWindowLimiter(MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN, LOOK_WINDOW_MS, Date.now, (key) => key);
+/** Story 10.1 (AC 9, B11): Delete my progress, per IP, before the body is read. */
+export const deleteIpLimiter = new SlidingWindowLimiter(MAX_DELETE_CALLS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);

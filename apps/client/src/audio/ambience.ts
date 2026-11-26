@@ -18,6 +18,7 @@
  * start. It starts only once the shared AudioContext runs (after a user gesture: mobile autoplay).
  */
 import { audioContextIfRunning } from "./placeholderSfx";
+import { getSettings, subscribeSettings } from "../settings/settings";
 
 /** Story 6.2 adds `ruins` (stage 4); Story 6.4 adds `collapse` and its ash-style twin without the rain bed (stage 5). Append-only. */
 export const AMBIENCE_LOOPS = ["evening", "panic", "ruins", "collapse", "collapse_ash"] as const;
@@ -25,8 +26,12 @@ export type AmbienceLoopId = (typeof AMBIENCE_LOOPS)[number];
 
 /** Story 4.7: seconds for one loop to hand over to the next on a stage change (or to fade in). */
 export const AMBIENCE_CROSSFADE_S = 3;
-/** Bus level (the SFX master is 0.25; ambience sits under it). No player setting exists yet (Story 10.1). */
+/** Bus level (the SFX master is 0.25; ambience sits under it). Story 10.1: the player's Ambience volume scales it (a gain after the bus). */
 export const AMBIENCE_GAIN = 0.16;
+/** Story 10.1 (B8): the Ambience volume setting (0–100) as a gain after the bus. */
+export function ambienceVolumeGain(volume: number): number {
+  return Math.max(0, Math.min(100, volume)) / 100;
+}
 /** Seconds to duck the bus when the tab is hidden / back on wake. */
 export const AMBIENCE_HIDE_FADE_S = 0.25;
 /** Length of each placeholder loop and the rate it is synthesized at (WebAudio resamples). */
@@ -341,6 +346,9 @@ export class AmbiencePlayer {
   private readonly state = createAmbienceState();
   private ctx: AmbienceContext | null = null;
   private bus: GainNode | null = null;
+  /** Story 10.1 (B8): the player's Ambience volume, after the bus (the bus keeps its own hide / show ramps). */
+  private vol: GainNode | null = null;
+  private unsubVolume: (() => void) | null = null;
   private readonly voices = new Map<AmbienceLoopId, Voice>();
   private lastStage = 1;
   private lastStyle = -1;
@@ -392,7 +400,14 @@ export class AmbiencePlayer {
     this.ctx = c;
     const bus = c.createGain();
     bus.gain.value = AMBIENCE_GAIN;
-    bus.connect(c.destination);
+    const vol = c.createGain();
+    vol.gain.value = ambienceVolumeGain(getSettings().ambienceVolume);
+    bus.connect(vol);
+    vol.connect(c.destination);
+    this.vol = vol;
+    this.unsubVolume = subscribeSettings((s) => {
+      if (this.vol) this.vol.gain.value = ambienceVolumeGain(s.ambienceVolume);
+    });
     this.bus = bus;
     this.nodesCreated++;
     for (const id of AMBIENCE_LOOPS) {
@@ -420,6 +435,10 @@ export class AmbiencePlayer {
       v.gain.disconnect();
     }
     this.bus?.disconnect();
+    this.vol?.disconnect();
+    this.unsubVolume?.();
+    this.unsubVolume = null;
+    this.vol = null;
     this.voices.clear();
     this.ctx = null;
     this.bus = null;

@@ -1,7 +1,12 @@
 import * as Phaser from "phaser";
 import { collapseStyleAt, isBlackout, isPowerOut, ruinsLookAt, type DistrictMap, type FireRecord, type World } from "@topdown/shared";
 import { lampOutAt } from "./lampFlicker";
-import { rainAlphaFor } from "./rainLook";
+import { rainAlphaFor, weatherDropCount } from "./rainLook";
+import { GLOW_LEVEL_K, RAIN_LEVEL_K } from "@topdown/shared";
+import { getSettings } from "../../settings/settings";
+
+/** Story 10.1 (B5): the Light glow level's part of the static key (a change re-bakes once). */
+const GLOW_KEY = { full: 0, low: 1, off: 2 } as const;
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, policePieces, releaseShadowStamps, resetPatternTiles, type CityScene } from "./drawCity";
@@ -306,7 +311,7 @@ export class CityView {
       g.setTransform(ls, 0, 0, ls, 0, 0);
       draw(g, cs);
     }
-    this.shownBaseKey = bakeTiles(this.tiles, cs, this.bakePxPerM, this.shownBaseKey, this.light, this.glow).baseKey;
+    this.shownBaseKey = bakeTiles(this.tiles, cs, this.bakePxPerM, this.shownBaseKey, this.light, this.glow, undefined, GLOW_LEVEL_K[getSettings().glow]).baseKey;
     for (const t of this.tiles) t.tex.refresh();
     const spots = blinkerSpots(cs);
     this.placeBlinkers(this.busBlink, spots.bus);
@@ -377,7 +382,9 @@ export class CityView {
     // instead of baking stage 1 and baking again a moment later.
     if (!synced && this.shownKey < 0) return;
     const o = world.obstacles;
-    const key = staticKey(o.stage, o.version, world.decay.fires.length, lookKey(ruinsLookAt(world), collapseStyleAt(world)));
+    // Story 10.1 (B5): the Light glow setting re-bakes the overlay once on change (the cached tile base is kept).
+    const fx = getSettings();
+    const key = staticKey(o.stage, o.version, world.decay.fires.length, lookKey(ruinsLookAt(world), collapseStyleAt(world))) * 4 + GLOW_KEY[fx.glow];
     if (key !== this.shownKey) {
       this.shownKey = key;
       this.showStage(world);
@@ -392,14 +399,15 @@ export class CityView {
       this.flickerCore.setVisible(lampsOn);
     }
     const pf = this.powerFlicker;
-    this.flickerPool.setAlpha(pf === 1 ? 0.02 : pf === 0 ? 0.18 : on ? 0.18 : 0.02);
-    this.flickerCore.setAlpha(pf === 1 ? 0.04 : pf === 0 ? 0.5 : on ? 0.5 : 0.04);
+    const gk = GLOW_LEVEL_K[fx.glow]; // Story 10.1 (B5): the additive lamp and blinker glows
+    this.flickerPool.setAlpha(gk * (pf === 1 ? 0.02 : pf === 0 ? 0.18 : on ? 0.18 : 0.02));
+    this.flickerCore.setAlpha(gk * (pf === 1 ? 0.04 : pf === 0 ? 0.5 : on ? 0.5 : 0.04));
     this.updateLampFlicker(world);
-    const bus = Math.sin(t * 2 * Math.PI * BLINK_BUS_HZ) > 0 ? 0.55 : 0;
+    const bus = gk * (Math.sin(t * 2 * Math.PI * BLINK_BUS_HZ) > 0 ? 0.55 : 0);
     for (const b of this.busBlink) b.setAlpha(bus);
     const bar = Math.sin(t * 4 + 1) > 0 ? 0.45 : 0.1;
     // Each barrier's two lamps alternate (spots come in pairs per barrier).
-    for (let i = 0; i < this.barrierBlink.length; i++) (this.barrierBlink[i] as Phaser.GameObjects.Image).setAlpha(i % 2 === 0 ? bar : 0.55 - bar);
+    for (let i = 0; i < this.barrierBlink.length; i++) (this.barrierBlink[i] as Phaser.GameObjects.Image).setAlpha(gk * (i % 2 === 0 ? bar : 0.55 - bar));
     this.updateFireRing(t, world.balance.decay.fire.pulseS);
     this.fireView.update(dtS, t, viewX, viewY, viewW, viewH);
 
@@ -407,14 +415,13 @@ export class CityView {
     // CO4 flood rains harder. Other stages and styles: the stage's rain.
     const ash = this.stage >= 5 && this.collapseStyle === STYLE_ASH;
     if (ash !== this.ashing) this.setAsh(ash);
+    const rk = RAIN_LEVEL_K[fx.rain]; // Story 10.1 (B3): rain, splashes and ash flakes × 1 / 0.5 / 0
     const level = ash ? 0 : nightAt(this.stage).rain * (this.stage >= 5 && this.collapseStyle === STYLE_FLOOD ? FLOOD_RAIN_K : 1);
     const rainA = ash ? ASH_ALPHA : rainAlphaFor(world, RAIN_ALPHA); // Story 6.3 (D7): dimmed in a blackout; one compare per frame
     const spanY = viewH + 2 * RAIN_MARGIN_M;
     const spanX = viewW + 2 * RAIN_MARGIN_M;
     const ashCap = Math.min(RAIN_POOL, world.balance.decay.collapse.maxAshFlakes);
-    const n = ash
-      ? Math.round((this.lowFx ? 0.5 : 1) * Math.min(ashCap, viewW * viewH * RAIN_PER_M2 * 0.5))
-      : Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));
+    const n = weatherDropCount(ash, level, rk, viewW, viewH, RAIN_PER_M2, RAIN_POOL, ashCap, this.lowFx); // positional: no allocation per frame
     const speedK = ash ? ASH_SPEED_K : 1;
     for (let i = 0; i < RAIN_POOL; i++) {
       const img = this.rain[i] as Phaser.GameObjects.Image;
@@ -428,7 +435,7 @@ export class CityView {
       img.setPosition(viewX - RAIN_MARGIN_M + xOff, viewY - RAIN_MARGIN_M + yOff).setAlpha(rainA);
       if (!img.visible) img.setVisible(true);
     }
-    const splashes = ash ? 0 : Math.round(SPLASH_POOL * Math.min(1, level));
+    const splashes = ash ? 0 : Math.round(SPLASH_POOL * Math.min(1, level * rk));
     for (let i = 0; i < SPLASH_POOL; i++) {
       const img = this.splash[i] as Phaser.GameObjects.Image;
       if (i >= splashes) {
