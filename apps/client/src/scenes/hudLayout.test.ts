@@ -521,7 +521,9 @@ describe("Story 6.10 review L11 / re-review RR1–RR2: the survivor's two edge a
       (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: max flag bearing error ${((worst * 180) / Math.PI).toFixed(1)}°`);
     });
 
-    it(`${w} × ${h}: story 6.14 (6.9 RR2-1) — NPC every 6°, the flag swept ±40° past it at 0.01° both ways with state kept: never > 30° off its bearing, never overlapping, every rule kept`, () => {
+    describe(`${w} × ${h}: story 6.14 (6.9 RR2-1) — NPC every 6°, the flag swept ±40° past it at 0.01° both ways with state kept: never > 30° off its bearing, never overlapping, every rule kept`, () => {
+      // E8-A8 (no test over 30 s; was 25 s in CI): one test per quarter of the NPC bearings (each bearing starts its own
+      // hold, so the quarters are independent), then the totals over all of them: the same frames and checks.
       const avoid = waveControlRects(w, h, INSET, K, newWaveControlRects());
       const wave = modes(w, h).wave!.filter((b) => b.id !== "boss_bar");
       const keepOff: Box[] = [
@@ -540,37 +542,46 @@ describe("Story 6.10 review L11 / re-review RR1–RR2: the survivor's two edge a
         bad++;
         if (!firstBad) firstBad = m;
       };
-      for (let da = 0; da < 360; da += 6) {
-        const npc = { x: 0, y: 0, angle: 0, side: 0 };
-        const flag = { x: 0, y: 0, angle: 0, side: 0 };
-        const hold = createPairHold();
-        const a = (da * Math.PI) / 180;
-        placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
-        eventArrowDrawnRect(npc, size, rn);
-        for (const dir of [1, -1]) {
-          for (let i = 0; i <= 8000; i++) {
-            const db = da + dir * (-40 + i / 100);
-            const b = (db * Math.PI) / 180;
-            placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
-            placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag, hold);
-            frames++;
-            eventArrowDrawnRect(npc, size, rn);
-            eventArrowDrawnRect(flag, size, rf);
-            const tag = `npc@${da} flag@${db.toFixed(2)}`;
-            const e = bearingErr(flag, w, h);
-            worst = Math.max(worst, e);
-            if (e > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-6) fail(`${tag}: ${((e * 180) / Math.PI).toFixed(2)}° off`);
-            if (overlaps({ id: "n", ...rn }, { id: "f", ...rf })) fail(`${tag}: overlap`);
-            if (rf.x < INSET.left * K - 1e-6 || rf.x + rf.w > w - INSET.right * K + 1e-6 || rf.y < INSET.top * K - 1e-6 || rf.y + rf.h > h - INSET.bottom * K + 1e-6) fail(`${tag}: outside the safe area`);
-            for (const c of [...wave, ...keepOff]) if (overlaps({ id: "f", ...rf }, c)) fail(`${tag}: overlaps ${c.id}`);
-            if (rectCentreGap(rf.x, rf.y, rf.w, rf.h, w / 2, h / 2) < CENTRE_CLEAR_CSS_PX * K - 1e-6) fail(`${tag}: within 48 px`);
+      let quarters = 0;
+      it.each([0, 90, 180, 270])("NPC bearings %i° … +84°", (from) => {
+        for (let da = from; da < from + 90; da += 6) {
+          const npc = { x: 0, y: 0, angle: 0, side: 0 };
+          const flag = { x: 0, y: 0, angle: 0, side: 0 };
+          const hold = createPairHold();
+          const a = (da * Math.PI) / 180;
+          placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
+          eventArrowDrawnRect(npc, size, rn);
+          for (const dir of [1, -1]) {
+            for (let i = 0; i <= 8000; i++) {
+              const db = da + dir * (-40 + i / 100);
+              const b = (db * Math.PI) / 180;
+              placeEventArrow(w / 2 + Math.cos(a) * 5000, h / 2 + Math.sin(a) * 5000, w, h, INSET, K, size, avoid, npc);
+              placeSecondEventArrow(w / 2 + Math.cos(b) * 5000, h / 2 + Math.sin(b) * 5000, w, h, INSET, K, size, avoid, npc, flag, hold);
+              frames++;
+              eventArrowDrawnRect(npc, size, rn);
+              eventArrowDrawnRect(flag, size, rf);
+              const tag = `npc@${da} flag@${db.toFixed(2)}`;
+              const e = bearingErr(flag, w, h);
+              worst = Math.max(worst, e);
+              if (e > EVENT_ARROW_MAX_BEARING_ERR_RAD + 1e-6) fail(`${tag}: ${((e * 180) / Math.PI).toFixed(2)}° off`);
+              if (overlaps({ id: "n", ...rn }, { id: "f", ...rf })) fail(`${tag}: overlap`);
+              if (rf.x < INSET.left * K - 1e-6 || rf.x + rf.w > w - INSET.right * K + 1e-6 || rf.y < INSET.top * K - 1e-6 || rf.y + rf.h > h - INSET.bottom * K + 1e-6) fail(`${tag}: outside the safe area`);
+              for (const c of [...wave, ...keepOff]) if (overlaps({ id: "f", ...rf }, c)) fail(`${tag}: overlaps ${c.id}`);
+              if (rectCentreGap(rf.x, rf.y, rf.w, rf.h, w / 2, h / 2) < CENTRE_CLEAR_CSS_PX * K - 1e-6) fail(`${tag}: within 48 px`);
+            }
           }
         }
-      }
-      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: stateful 0.01° sweep, ${frames} frames, max flag bearing error ${((worst * 180) / Math.PI).toFixed(2)}°`);
-      expect(frames).toBe(60 * 2 * 8001);
-      expect(bad, firstBad).toBe(0);
-    }, 60_000);
+        quarters++;
+        expect(bad, firstBad).toBe(0);
+      }, 60_000);
+
+      it("the four quarters together: every frame swept", () => {
+        expect(quarters, "every quarter above ran and passed").toBe(4);
+        (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[pair arrows] ${w}×${h}: stateful 0.01° sweep, ${frames} frames, max flag bearing error ${((worst * 180) / Math.PI).toFixed(2)}°`);
+        expect(frames).toBe(60 * 2 * 8001);
+        expect(bad, firstBad).toBe(0);
+      });
+    });
 
     // Story 6.14 review M1 / L4: the fan fallback, forced. A 2 × 2 px keep-off dot on each of the 8
     // beside spots makes every one illegal, so a flag that clashes with the NPC arrow must use its fan.

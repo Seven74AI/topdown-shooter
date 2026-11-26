@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
@@ -584,7 +584,10 @@ function run(seed: number) {
 }
 
 describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cover + 4.5 stage changes, brief line 3)", () => {
-  it(`${LAYOUTS} layouts: no body inside a box, no stall, every zombie reaches a player`, () => {
+  describe(`${LAYOUTS} layouts: no body inside a box, no stall, every zombie reaches a player`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
     let buildings = 0;
     let reached = 0;
     let breaking = 0;
@@ -604,8 +607,10 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     const failures: string[] = [];
     const spits = { spits: 0, puddles: 0, hits: 0, layouts: 0 };
     const med = { heals: 0, healLayouts: 0, lightChecks: 0, floodlights: 0, stations: 0 };
-    const coverStops0 = spitStats.coverStops;
-    for (let seed = 1; seed <= LAYOUTS; seed++) {
+    let coverStops0 = 0;
+    beforeAll(() => void (coverStops0 = spitStats.coverStops));
+    let casesRun = 0;
+    it.each(Array.from({ length: LAYOUTS }, (_, i) => i + 1))(`layout %i of ${LAYOUTS}`, (seed) => {
       const r = run(4100 + seed);
       buildings += r.buildings;
       med.heals += r.med.heals;
@@ -654,49 +659,54 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
         const z = r.world.zombies;
         failures.push(`seed ${4100 + seed}: ${r.missing.length} zombies never reached a player after the stage change, in ${LIMIT_S} s: ${r.missing.map((id) => `${id}@(${(z.x[id] as number).toFixed(2)}, ${(z.y[id] as number).toFixed(2)})`).join(" ")}`);
       }
-    }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.ignitionDestroyed} buildings destroyed + refunded at ignition, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries, re-review H1: ${fires.returned} returns at the stage-3 build start (${fires.returnedByFire} to a teammate in a new fire)`);
-    const spitCoverStops = spitStats.coverStops - coverStops0;
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.6: ${spitCoverStops} spits stopped on cover, ${spits.layouts} layouts with spits, ${spits.spits} spits, ${spits.puddles} puddles, ${spits.hits} spit hits; none crossed a car, the bus or a map box`);
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.10: ${med.floodlights} floodlights and ${med.stations} med stations standing at the end, ${med.heals} heal ticks in ${med.healLayouts} layouts, ${med.lightChecks} light-list checks`);
-    expect(failures).toEqual([]);
-    // Story 5.10 liveness: the new footprints were really in the layouts, heals really happened, every tick's light list checked.
-    expect(med.floodlights).toBeGreaterThan(LAYOUTS / 2);
-    expect(med.stations).toBeGreaterThan(LAYOUTS / 2);
-    expect(med.heals).toBeGreaterThan(LAYOUTS);
-    expect(med.healLayouts).toBeGreaterThan(LAYOUTS / 8);
-    expect(med.lightChecks).toBeGreaterThan(LAYOUTS * 100);
-    expect(spits.hits).toBeGreaterThan(LAYOUTS); // Story 5.6: Spitters really hit the god-mode players
-    expect(spits.layouts).toBeGreaterThan(LAYOUTS * 0.9);
-    expect(spitCoverStops).toBeGreaterThan(LAYOUTS); // the stray globs really met cars, the bus and map boxes
-    // Liveness (brief line 9): the layouts were real and the zombies really came.
-    expect(buildings).toBeGreaterThan(LAYOUTS * 3);
-    expect(bare).toBe(LAYOUTS / 4);
-    expect(pressed).toBeGreaterThan(LAYOUTS * 20); // the players really walked into walls
-    expect(reached).toBeGreaterThan(spawnedTotal / 2); // Story 4.5: every zombie alive after the change reached a player (failures above)
-    // Story 4.3: stage-2/3 layouts really used their extra spawns; no building ever closed one (review M).
-    expect(spawnedTotal).toBeGreaterThan(LAYOUTS * (9 + EXTRA_ZOMBIES));
-    expect(blocked).toBe(0);
-    expect(breaking).toBeGreaterThan(0);
-    // Story 4.2 liveness: every stage ran and shots really stopped at cover.
-    expect([...stages].sort()).toEqual([1, 2, 3]);
-    expect(coverStops).toBeGreaterThan(LAYOUTS / 2); // Story 4.3 merge: was > LAYOUTS; the spawn set (and so the layouts) changed, 31 seen
-    // Story 4.5 liveness: the changes really destroyed and refunded buildings, pushed bodies out, and
-    // both candidates of the stage-2 car were used across the seeds.
-    expect(decayDestroyed).toBeGreaterThan(LAYOUTS / 2);
-    expect(decayRefunded).toBe(decayDestroyed);
-    expect(pushedOut).toBe(LAYOUTS);
-    expect(variantsSeen.size).toBeGreaterThan(1);
-    // Story 4.7: every combination of moved cars ran (and so every moved car landed on a layout).
-    expect([...variantsSeen].sort((a, b) => a - b)).toEqual(MASKS);
-    expect(movedOnto).toBeGreaterThan(LAYOUTS / 4); // barricades placed where a moved car / police line lands
-    // Story 4.8 liveness: stage-3 layouts really burned, hurt zombies and buildings, and went out —
-    // and every zombie still reached a player (failures above).
-    expect(fires.layouts).toBeGreaterThan(LAYOUTS / 4);
-    expect(fires.wentOut).toBe(fires.layouts);
-    expect(fires.zombieHits).toBeGreaterThan(0);
-    expect(fires.returned).toBeGreaterThan(4); // re-review H1 liveness: returns at a stage-3 build start really happened
-    expect(fires.returnedByFire).toBeGreaterThan(5);
-    expect(fires.ignitionDestroyed).toBeGreaterThan(0); // review M2: buildings under a new fire went (refunded), none burns on from the ignition
-  }, 240_000);
+      casesRun++;
+    }, 120_000);
+
+    it(`the ${LAYOUTS} layouts together: liveness (stages, cover, stage changes, variant masks, fires, spits, heals)`, () => {
+      expect(casesRun, "every case above ran and passed").toBe(LAYOUTS);
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.ignitionDestroyed} buildings destroyed + refunded at ignition, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries, re-review H1: ${fires.returned} returns at the stage-3 build start (${fires.returnedByFire} to a teammate in a new fire)`);
+      const spitCoverStops = spitStats.coverStops - coverStops0;
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.6: ${spitCoverStops} spits stopped on cover, ${spits.layouts} layouts with spits, ${spits.spits} spits, ${spits.puddles} puddles, ${spits.hits} spit hits; none crossed a car, the bus or a map box`);
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.10: ${med.floodlights} floodlights and ${med.stations} med stations standing at the end, ${med.heals} heal ticks in ${med.healLayouts} layouts, ${med.lightChecks} light-list checks`);
+      expect(failures).toEqual([]);
+      // Story 5.10 liveness: the new footprints were really in the layouts, heals really happened, every tick's light list checked.
+      expect(med.floodlights).toBeGreaterThan(LAYOUTS / 2);
+      expect(med.stations).toBeGreaterThan(LAYOUTS / 2);
+      expect(med.heals).toBeGreaterThan(LAYOUTS);
+      expect(med.healLayouts).toBeGreaterThan(LAYOUTS / 8);
+      expect(med.lightChecks).toBeGreaterThan(LAYOUTS * 100);
+      expect(spits.hits).toBeGreaterThan(LAYOUTS); // Story 5.6: Spitters really hit the god-mode players
+      expect(spits.layouts).toBeGreaterThan(LAYOUTS * 0.9);
+      expect(spitCoverStops).toBeGreaterThan(LAYOUTS); // the stray globs really met cars, the bus and map boxes
+      // Liveness (brief line 9): the layouts were real and the zombies really came.
+      expect(buildings).toBeGreaterThan(LAYOUTS * 3);
+      expect(bare).toBe(LAYOUTS / 4);
+      expect(pressed).toBeGreaterThan(LAYOUTS * 20); // the players really walked into walls
+      expect(reached).toBeGreaterThan(spawnedTotal / 2); // Story 4.5: every zombie alive after the change reached a player (failures above)
+      // Story 4.3: stage-2/3 layouts really used their extra spawns; no building ever closed one (review M).
+      expect(spawnedTotal).toBeGreaterThan(LAYOUTS * (9 + EXTRA_ZOMBIES));
+      expect(blocked).toBe(0);
+      expect(breaking).toBeGreaterThan(0);
+      // Story 4.2 liveness: every stage ran and shots really stopped at cover.
+      expect([...stages].sort()).toEqual([1, 2, 3]);
+      expect(coverStops).toBeGreaterThan(LAYOUTS / 2); // Story 4.3 merge: was > LAYOUTS; the spawn set (and so the layouts) changed, 31 seen
+      // Story 4.5 liveness: the changes really destroyed and refunded buildings, pushed bodies out, and
+      // both candidates of the stage-2 car were used across the seeds.
+      expect(decayDestroyed).toBeGreaterThan(LAYOUTS / 2);
+      expect(decayRefunded).toBe(decayDestroyed);
+      expect(pushedOut).toBe(LAYOUTS);
+      expect(variantsSeen.size).toBeGreaterThan(1);
+      // Story 4.7: every combination of moved cars ran (and so every moved car landed on a layout).
+      expect([...variantsSeen].sort((a, b) => a - b)).toEqual(MASKS);
+      expect(movedOnto).toBeGreaterThan(LAYOUTS / 4); // barricades placed where a moved car / police line lands
+      // Story 4.8 liveness: stage-3 layouts really burned, hurt zombies and buildings, and went out —
+      // and every zombie still reached a player (failures above).
+      expect(fires.layouts).toBeGreaterThan(LAYOUTS / 4);
+      expect(fires.wentOut).toBe(fires.layouts);
+      expect(fires.zombieHits).toBeGreaterThan(0);
+      expect(fires.returned).toBeGreaterThan(4); // re-review H1 liveness: returns at a stage-3 build start really happened
+      expect(fires.returnedByFire).toBeGreaterThan(5);
+      expect(fires.ignitionDestroyed).toBeGreaterThan(0); // review M2: buildings under a new fire went (refunded), none burns on from the ignition
+    });
+  });
 });

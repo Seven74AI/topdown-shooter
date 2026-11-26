@@ -18,7 +18,7 @@ import { captureRunSave, loadBalance, playToBuild, DOWNTOWN_MAP, type RunSave } 
  */
 /**
  * Review nit (Stories 8.4–8.6): the real-PostgreSQL files share one scratch database and each migrates it; run them
- * one file at a time: `TEST_DATABASE_URL=… npx vitest run realPostgres --no-file-parallelism` (CI skips them).
+ * one file at a time: `TEST_DATABASE_URL=… npx vitest run realPostgres --no-file-parallelism` (CI: the `postgres` job, E7-A1).
  */
 const URL = process.env.TEST_DATABASE_URL;
 log.level = process.env.LOG_LEVEL ?? "silent";

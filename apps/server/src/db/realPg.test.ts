@@ -7,7 +7,7 @@ import { migrateDb } from "./migrate";
 /**
  * Opt-in (`TEST_DATABASE_URL=postgres://… npx vitest run apps/server/src/db/realPg.test.ts`): a real PostgreSQL backend
  * killed in the middle of a transaction rejects that transaction, logs `db_error`, and the process keeps serving
- * (the next query works). Skipped without the variable (no PostgreSQL in CI or the builder containers).
+ * (the next query works). Skipped without the variable; CI runs it in the `postgres` job (E7-A1).
  */
 const url = process.env.TEST_DATABASE_URL;
 

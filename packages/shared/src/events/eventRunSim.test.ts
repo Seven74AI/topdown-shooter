@@ -11,9 +11,12 @@ import { EVENT_KINDS } from "./eventState";
  * Results with all 10 waves cleared (an event never makes a wave endless).
  */
 describe("Story 6.8: events in the 10-wave run", () => {
-  it("8 seeds × 2 bots: 2 events each, both kinds seen, all 10 waves cleared", () => {
+  describe("8 seeds × 2 bots: 2 events each, both kinds seen, all 10 waves cleared", () => {
+    // E8-A8 (no test over 30 s): one test per seed, then the totals. Same runs, order and assertions as the old single
+    // test (53 s in CI); the totals need every seed test above to have run (a -t filter on one seed fails them).
     const kinds = new Set<string>();
-    for (let seed = 1; seed <= 8; seed++) {
+    let casesRun = 0;
+    it.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i: 2 events, all 10 waves cleared", (seed) => {
       const trig: { kind: string; wave: number }[] = [];
       let skipped = 0;
       let world: World | null = null;
@@ -44,8 +47,13 @@ describe("Story 6.8: events in the 10-wave run", () => {
         kinds.add(t.kind);
       }
       expect((world as World | null)?.special.log.triggered).toBe(2);
-    }
-    // Stories 6.9 + 6.10: all six kinds are in the draw now, and 8 seeds × 2 events see every one.
-    expect([...kinds].sort()).toEqual([...EVENT_KINDS].sort());
-  }, 300_000);
+      casesRun++;
+    }, 120_000);
+
+    it("the 8 seeds together: every event kind seen", () => {
+      expect(casesRun, "every case above ran and passed").toBe(8);
+      // Stories 6.9 + 6.10: all six kinds are in the draw now, and 8 seeds × 2 events see every one.
+      expect([...kinds].sort()).toEqual([...EVENT_KINDS].sort());
+    });
+  });
 });

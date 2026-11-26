@@ -33,11 +33,13 @@ const info = (msg: string): void => (globalThis as unknown as { console: { info(
 const gapPct = (v: number): number => (v < GDD_MIN ? ((v - GDD_MIN) / GDD_MIN) * 100 : v > GDD_MAX ? ((v - GDD_MAX) / GDD_MAX) * 100 : 0);
 
 describe("Story 6.1: ten-wave sim", () => {
-  it("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and extracted; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
-    expect(balance.waves.runWaves).toBe(10);
+  describe("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and extracted; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
+    // E8-A8 (no test over 30 s): one test per seed, then the totals. Same runs, order and assertions as the old single
+    // test (51 s in CI); the totals need every seed test above to have run (a -t filter on one seed fails them).
     const lines: string[] = [];
     const runs: HeadlessRunLog[] = [];
-    for (const seed of SEEDS) {
+    let casesRun = 0;
+    it.each(SEEDS)("seed %i", (seed) => {
       let god = false;
       // Story 6.2 review M3: from wave 7 (stage 4) the run's collapsed alley buries one mouth, and the
       // wave director really picks the breaches. Story 6.14 (6.2 R2): the picks of each tick are counted
@@ -100,27 +102,36 @@ describe("Story 6.1: ten-wave sim", () => {
       for (let w = 5; w <= 10; w++) expect(r.brutes.spawnedInWave.filter((n) => n === w).length, `seed ${seed} wave ${w}`).toBe(w >= 7 ? 2 : 1);
       expect(r.bloaters.burstsInWave[9] ?? 0, `seed ${seed}: Bloater bursts in wave 10`).toBeGreaterThanOrEqual(1);
       lines.push(`${formatRunLine(r)} | ticks ${r.ticks} | kills by weapon ${JSON.stringify(r.killsByWeapon)} | buildings ${r.buildingsPlaced.join("/")} (cap ${balance.buildings.maxPerPlayer})`);
-    }
-    const earned = runs.flatMap((r) => r.earned);
-    const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
-    const min = Math.min(...earned);
-    const max = Math.max(...earned);
-    info(
-      `[ten-wave sim (a)] 4 god-mode bots, seeds ${SEEDS.join(",")}; GDD target ${GDD_MIN}–${GDD_MAX} per player\n${lines.join("\n")}\n` +
-        `earned per player: mean ${mean} (gap ${gapPct(mean).toFixed(1)} %), range ${min}–${max} (gaps ${gapPct(min).toFixed(1)} % / ${gapPct(max).toFixed(1)} %)`,
-    );
-    expect(mean).toBeGreaterThan(0);
-  }, 180_000);
+      casesRun++;
+    }, 120_000);
 
-  it("(b) mortal bots, 1–4 players × seeds 1–3: every run ends on Results (never the tick limit); survival by wave logged", () => {
+    it(`seeds ${SEEDS.join(", ")} together: earnings vs the GDD`, () => {
+      expect(casesRun, "every case above ran and passed").toBe(SEEDS.length);
+      expect(balance.waves.runWaves).toBe(10);
+      const earned = runs.flatMap((r) => r.earned);
+      const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
+      const min = Math.min(...earned);
+      const max = Math.max(...earned);
+      info(
+        `[ten-wave sim (a)] 4 god-mode bots, seeds ${SEEDS.join(",")}; GDD target ${GDD_MIN}–${GDD_MAX} per player\n${lines.join("\n")}\n` +
+          `earned per player: mean ${mean} (gap ${gapPct(mean).toFixed(1)} %), range ${min}–${max} (gaps ${gapPct(min).toFixed(1)} % / ${gapPct(max).toFixed(1)} %)`,
+      );
+      expect(mean).toBeGreaterThan(0);
+    });
+  });
+
+  describe("(b) mortal bots, 1–4 players × seeds 1–3: every run ends on Results (never the tick limit); survival by wave logged", () => {
+    // E8-A8 (no test over 30 s): one test per run (team size × seed), then the totals. Same runs, order and assertions
+    // as the old single test (51 s in CI); the totals need every run test above to have run (a -t filter fails them).
     const lines: string[] = [];
-    const summary: string[] = [];
     let reachedLate = 0;
     let wipes7_2 = 0;
     let extracts7_2 = 0;
-    for (const players of [1, 2, 3, 4]) {
-      const rs: HeadlessRunLog[] = [];
-      for (const seed of SEEDS) {
+    const PLAYERS = [1, 2, 3, 4];
+    const rsBy = new Map<number, HeadlessRunLog[]>(PLAYERS.map((n) => [n, []]));
+    it.each(PLAYERS.flatMap((players) => SEEDS.map((seed) => [players, seed] as const)))("%i bots, seed %i", (players, seed) => {
+      {
+        const rs = rsBy.get(players) as HeadlessRunLog[];
         let end: ReturnType<typeof recordsAtEnd> | null = null;
         const r = runHeadless({ balance, seed, players, onEnd: (w) => void (end = recordsAtEnd(w)) });
         rs.push(r);
@@ -143,14 +154,22 @@ describe("Story 6.1: ten-wave sim", () => {
         if (r.reached >= 7) reachedLate++;
         lines.push(formatRunLine(r));
       }
-      const byWave = Array.from({ length: 10 }, (_, i) => rs.filter((r) => r.wavesCleared >= i + 1).length);
-      const earned = rs.flatMap((r) => r.earned);
-      summary.push(`${players}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
-    }
-    info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
-    expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10
-    expect(wipes7_2, "Story 7.2: at least one run wiped (its Supplies checked)").toBeGreaterThan(0);
-    // The extracting runs with checked Supplies are (a)'s god-mode runs (mortal bots rarely extract: not difficulty evidence).
-    info(`[ten-wave sim (b)] Story 7.2: Supplies checked on ${wipes7_2} wiped and ${extracts7_2} extracted runs`);
-  }, 180_000);
+    }, 120_000);
+
+    it("the 12 runs together: some reach waves 7–10, at least one wiped; survival by wave logged", () => {
+      expect(lines.length, "every run test above ran and passed").toBe(PLAYERS.length * SEEDS.length);
+      const summary: string[] = [];
+      for (const players of PLAYERS) {
+        const rs = rsBy.get(players) as HeadlessRunLog[];
+        const byWave = Array.from({ length: 10 }, (_, i) => rs.filter((r) => r.wavesCleared >= i + 1).length);
+        const earned = rs.flatMap((r) => r.earned);
+        summary.push(`${players}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
+      }
+      info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
+      expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10
+      expect(wipes7_2, "Story 7.2: at least one run wiped (its Supplies checked)").toBeGreaterThan(0);
+      // The extracting runs with checked Supplies are (a)'s god-mode runs (mortal bots rarely extract: not difficulty evidence).
+      info(`[ten-wave sim (b)] Story 7.2: Supplies checked on ${wipes7_2} wiped and ${extracts7_2} extracted runs`);
+    });
+  });
 });
