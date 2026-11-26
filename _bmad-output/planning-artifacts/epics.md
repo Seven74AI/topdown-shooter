@@ -386,7 +386,47 @@ So that I read every attack earlier and see at a glance when it is enraged, help
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
 **FRs covered:** FR87, FR88 · NFR1, NFR2, NFR3, NFR6, NFR7, NFR8, NFR9
 
-### Epic 11: Random city (post-v1)
+#### Story 10.11: Admin players
+
+(Added 2026-11-26, designer: "add Admin players. That would get the dev btn so he can do whatever we can do in dev mode but in production". Decisions AD-1…AD-4 all as recommended (designer "Ok with all your recommendation", 2026-11-26); story file `10-11-admin-players.md`. Online cheats are Story 10.12.)
+
+As an admin (a registered account the operator marked as admin),
+I want the dev ⚙ cheat panel and the dev link switches in the production game,
+So that I can test any wave, weapon or event on a real phone without a dev build.
+
+**Acceptance Criteria:**
+
+**Given** an operator command on the VPS (`admin add|remove|list <username>`)
+**When** it marks a registered account (never a guest) as admin
+**Then** that account's session tells the client it is an admin, and no other account learns of it (AD-1 A)
+
+**Given** an admin in a production build
+**When** they start Practice solo
+**Then** the ⚙ button and the full dev panel work as in a dev build, and the dev link switches (`?startwave`, `?shopall`, `?bosswave`, …) are honoured for that solo run (AD-2 A, AD-4 A); Practice still earns no rewards
+
+**Given** an admin in an online game
+**When** they open ⚙
+**Then** only the view tools (perf overlay, collision / grid view) work; every other control is greyed with "Practice only" (AD-2 A; online cheats = Story 10.12)
+
+**Given** a non-admin (or a logged-out guest) in a production build
+**When** the game loads
+**Then** nothing changes: no ⚙, the cheat code is never downloaded (the main bundle stays free of cheat strings), and the dev link switches stay ignored
+
+### Story 10.12: Admin cheats online
+
+(Added 2026-11-26 with 10.11; backlog. AD-3 A: when an admin uses a cheat online, nobody in that room earns rewards for the run and Results says "Admin cheats used".)
+
+As an admin in an online game,
+I want the cheat panel to work through the server,
+So that I can test co-op situations in production.
+
+**Acceptance Criteria:**
+
+**Given** an admin (checked by the server, never trusted from the client) in an online room
+**When** they use a cheat
+**Then** the server applies it, the run is marked cheated, nobody in the room earns Supplies, loot or milestones for it, and Results says "Admin cheats used" (AD-3 A)
+
+## Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
 
 ### Epic 12: Extraction cinematic
@@ -3729,7 +3769,7 @@ The host can pick **Random city**: a new 70 × 70 m city generated from rules on
 
 Source: forge session `_bmad-output/forge/random-map-generator/` (`forged-idea.md`, HARDENED) and `sprint-change-proposal-2026-11-24-random-city.md` (designer 2026-11-24: Q1 generic rules for stages 4–5 and the Epic 6 anchors, Q2 post-v1, Q3 the city code brings back the layout only). **Built after Epic 10.** Depends on: Epic 6 (rubble, events layer, boss entries, evac pad), Story 7.7 (lobby picker), Story 8.4 (saved runs), Story 10.7 (run stats). Build order: 11.1 → 11.2 → (11.3 ∥ 11.4) → 11.5 → (11.6 ∥ 11.7). First version: generated streets, plain buildings, cars, barriers, generic decay and one landmark recipe (the gas station); more recipes later.
 
-*(Readiness check 2026-11-26, dependencies the ACs don't name yet: (a) saved runs must store `citySeed` + `generatorVersion`. This is a save format change: bump `SAVE_SCHEMA_VERSION` (1 today, `packages/shared/src/save/runSave.ts`) with a migration step. Restore refuses a save whose `mapVersion` differs (`save/restore.ts`). (b) The new join fields need a `NET_PROTOCOL_VERSION` bump (3 today). (c) The join check is Downtown-only today: the client sends `DOWNTOWN_MAP.version` and the server maps only `downtown` (`RunRoom.ts` `DISTRICT_MAPS`). 11.7's generator-version + digest check replaces it. (d) Since 6.2, `legalDecayMasks` includes look bits, so 11.2's check A should use `gameplayDecayMasks`. (e) 11.6 predates the 9.14 pre-rendered street-props atlas: see the readiness report's needs-designer question.)*
+*(Readiness check 2026-11-26, dependencies the ACs don't name yet: (a) saved runs must store `citySeed` + `generatorVersion`. This is a save format change: bump `SAVE_SCHEMA_VERSION` (1 today, `packages/shared/src/save/runSave.ts`) with a migration step. Restore refuses a save whose `mapVersion` differs (`save/restore.ts`). (b) The new join fields need a `NET_PROTOCOL_VERSION` bump (4 since Story 8.13). (c) The join check is Downtown-only today: the client sends `DOWNTOWN_MAP.version` and the server maps only `downtown` (`RunRoom.ts` `DISTRICT_MAPS`). 11.7's generator-version + digest check replaces it. (d) Since 6.2, `legalDecayMasks` includes look bits, so 11.2's check A should use `gameplayDecayMasks`. (e) 11.6 predates the 9.14 pre-rendered street-props atlas: see the readiness report's needs-designer question.)*
 
 ### Story 11.1: A new city from a seed
 
@@ -3979,7 +4019,7 @@ So that the end of a won run feels like an ending, not a cut to a menu.
 **When** a 0.5 s beat has passed
 **Then** `run.lifted` is emitted, the sim keeps stepping for `evac.flyOutS` (8 s) while an extraction horde (`evac.flyOutHorde.count`, `.perS`; not a wave, no bounty, no stats) runs at the pad and the helicopter flies to the east edge (`heliPose`, from `liftedAtTick`), then `endRun` (extracted) banks rewards and Results show
 **And** joiners are not admitted and nothing is saved during `extract`; solo runs the same phase; `run.phase`, `boarded` and `liftedAtTick` go through the full copy chain; replay digest and bots handle the phase
-**And** `NET_PROTOCOL_VERSION` is bumped for the new phase and fields (an old tab gets "please reload"); whichever of 12.2, 8.13 and Epic 11 lands first takes 4, the next takes 5 (X6)
+**And** `NET_PROTOCOL_VERSION` is bumped for the new phase and fields (an old tab gets "please reload"); 8.13 took protocol 4; the next of 12.2 or Epic 11 takes 5 (X6)
 **And** when the story lands, FR67 is reworded to "Extract wins the run: the survivors walk to the helicopter and fly out (≤ 20 s), then Results" and Story 6.11 gets an as-built note (X6)
 **And** `runSave.coverage.test.ts` excludes `boarded` and `liftedAtTick` with the reason "phase extract is never saved"; a save taken in the vote and resumed still runs the extraction; the three synced fields get E8-A2 "sent, changed, synced" copy-chain tests (X7)
 **And** a test shows milestone counters do not move during `extract` (X8; 10.7 does not count those kills either)

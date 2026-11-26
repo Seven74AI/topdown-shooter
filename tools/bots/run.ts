@@ -27,6 +27,8 @@
  *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
+ *                         Story 8.13: BOTS_NO_ACK=1 in the environment: the bots send no tick ack (no slow-line
+ *                         horde skip on the server: the control row; the default acks like the phone).
  *   --ping-every <S>      Story 8.7: each bot pings every S seconds (a random kind from its own seeded stream);
  *                         under 1 s the server's 1/s bucket drops the extra ones (`pingDropped` in net_stats)
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways

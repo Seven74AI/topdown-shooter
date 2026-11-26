@@ -128,11 +128,11 @@ describe("HordeEncoder", () => {
     expect(enc.send(world, client, stats, 24, 16)).toBe(0);
     expect(enc.send(world, client, stats, 24, 16)).toBe(0);
     expect(client.frames).toHaveLength(0);
-    expect(stats).toEqual({ framesSent: 0, framesSkipped: 2, bytesSent: 0, keyframes: 0 });
+    expect(stats).toEqual({ framesSent: 0, framesSkipped: 2, bytesSent: 0, keyframes: 0, lineSkipped: 0, maxLineWaitMs: 0, lineCapKeys: 0 }); // Story 8.13: no ack, no line skip
     client.ref.bufferedAmount = 0;
     expect(enc.send(world, client, stats, 24, 16)).toBe(15);
     expect(client.frames).toHaveLength(1);
-    expect(stats).toEqual({ framesSent: 1, framesSkipped: 2, bytesSent: 15 + COLYSEUS_BYTES_HEADER, keyframes: 1 });
+    expect(stats).toEqual({ framesSent: 1, framesSkipped: 2, bytesSent: 15 + COLYSEUS_BYTES_HEADER, keyframes: 1, lineSkipped: 0, maxLineWaitMs: 0, lineCapKeys: 0 });
   });
 
   it("skips frames for a client that isn't JOINED (Colyseus would queue them)", () => {
