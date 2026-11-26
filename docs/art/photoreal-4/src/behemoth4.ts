@@ -103,11 +103,17 @@ let DETAIL = false;
 export function setDetail(on: boolean): void {
   DETAIL = on;
 }
-/** Take B's first veins (zigzag strokes, static red when enraged); off for take B2, whose organic pulsing veins are grown on the relit picture (`boss4.ts › growVeins`). */
-let OLD_VEINS = true;
-export function setOldVeins(on: boolean): void {
-  OLD_VEINS = on;
+/**
+ * Take B's zigzag veins: "static" (take B: a steady red core when enraged), "marker" (V2: the enraged core is drawn in
+ * pure magenta so `boss4.ts › markerPulse` can find the visible vein pixels and make them pulse), "off" (V3 and the
+ * mix: organic veins are grown on the relit picture instead, `boss4.ts › growVeins`).
+ */
+export type VeinMode = "static" | "marker" | "off";
+let VEIN_MODE: VeinMode = "static";
+export function setVeinMode(m: VeinMode): void {
+  VEIN_MODE = m;
 }
+const veinCore = (): string => (VEIN_MODE === "marker" ? "#ff00ff" : "#ff5a32");
 /** A soft-edged lump that reads as a muscle under the skin (a colour step the relight turns into a volume). */
 function muscle(c: G, x: number, y: number, rx: number, ry: number, rot: number, col: string, seed: number): void {
   void seed;
@@ -165,7 +171,7 @@ function striations(c: G, x: number, y: number, rx: number, ry: number, rot: num
 }
 /** A branching vein (dark, raised; red and glowing when enraged). */
 function vein(c: G, x0: number, y0: number, ang: number, len: number, seed: number, enr: boolean, w = 0.05): void {
-  if (!OLD_VEINS) return;
+  if (VEIN_MODE === "off") return;
   const rnd = mulberry(seed);
   const pts: number[] = [x0, y0];
   let x = x0;
@@ -187,7 +193,7 @@ function vein(c: G, x0: number, y0: number, ang: number, len: number, seed: numb
   strokeP(c, path, enr ? "rgba(255,120,80,0.5)" : "rgba(170,182,150,0.55)", w * 0.7);
   c.translate(w * 0.35, w * 0.35);
   strokeP(c, path, enr ? "#5a120a" : "rgba(28,34,24,0.75)", w);
-  if (enr) strokeP(c, path, "#ff5a32", w * 0.55);
+  if (enr) strokeP(c, path, veinCore(), w * 0.55);
   // one side branch
   const bi = 2 + Math.floor(rnd() * 3) * 2;
   const bx = pts[bi] as number;
@@ -198,7 +204,7 @@ function vein(c: G, x0: number, y0: number, ang: number, len: number, seed: numb
     q.lineTo(bx + Math.cos(ba) * len * 0.3, by + Math.sin(ba) * len * 0.3);
   };
   strokeP(c, br, enr ? "#5a120a" : "rgba(28,34,24,0.7)", w * 0.7);
-  if (enr) strokeP(c, br, "#ff5a32", w * 0.4);
+  if (enr) strokeP(c, br, veinCore(), w * 0.4);
   c.restore();
 }
 /** A long scar closed with staples. */

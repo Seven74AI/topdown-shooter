@@ -28,13 +28,13 @@ p b { color: var(--fg); font-weight: 600; }
 .take p { font-size: 14px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
 .card h3 { margin: 0 0 8px; font: 600 15px var(--font-body); }
-.sides { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 900px) { .sides { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 480px) { .sides { grid-template-columns: 1fr; } }
 figure { margin: 0; min-width: 0; }
 figure canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
 figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
-figure.a figcaption, figure.b figcaption, figure.b2 figcaption { color: var(--accent); }
+figure:not(.now) figcaption { color: var(--accent); }
 .poses { overflow-x: auto; }
 .poses table { border-collapse: collapse; }
 .poses th { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px 4px 0; white-space: nowrap; }
@@ -54,7 +54,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   <section class="takes">
     <div class="take"><h3><small>Take A</small>Relit</h3><p>Today's drawing, exactly, through the relight the zombies use in the game since Story 9.13: rounded volumes, the cool street key light, skin mottle, cloth weave and gloss. Matches the zombies around it.</p></div>
     <div class="take"><h3><small>Take B</small>Relit, with new detail</h3><p>Take A plus a heavier body: muscle masses on the shoulders and arms, raised veins, concrete grown into the hide, stapled scars, blood where the rebar goes in, a heavy brow and bared teeth. Enraged, the veins glow red.</p></div>
-    <div class="take"><h3><small>Take B2 · new</small>Take B with organic veins (V2 + V3)</h3><p>Take B with its veins redrawn the way the Bloaters' are drawn: thin, wiggly, branching out from the chest over the shoulders, arms and back. Calm, they are dark traces in the skin. <b>Press “Show enraged”:</b> they glow red, a steady ember plus one bright beat running out from the chest every 1.2 s, like a heartbeat (the Bloaters' green veins pulse faster).</p></div>
+    <div class="take"><h3><small>V2</small>Take B, veins pulsing</h3><p>Take B's veins as they are (sharp zigzags, like the chest cracks), with a heartbeat: enraged, a bright beat runs out from the chest every 1.2 s over a dim ember glow.</p></div>
+    <div class="take"><h3><small>V3</small>Take B, organic veins</h3><p>Take B with its veins redrawn the way the Bloaters' are drawn: thin, wiggly, branching out from the chest over the shoulders, arms and back. Calm, dark traces; enraged, a steady red glow (no pulse).</p></div>
+    <div class="take"><h3><small>V2/V3 mix · my pick</small>Organic veins, pulsing</h3><p>V3's organic veins with V2's heartbeat. <b>My recommendation:</b> the organic lines read as veins, not cracks, and the beat makes the enraged boss feel alive like the zombies around it, while red keeps it apart from the Bloaters' green. Of the two pure options, V2.</p></div>
   </section>
   <div class="controls" role="group" aria-label="Animation">
     <button id="anim" aria-pressed="true">Animation on</button>

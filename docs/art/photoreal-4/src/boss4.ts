@@ -6,7 +6,7 @@
  */
 import { drawBehemoth as drawToday } from "../../../../apps/client/src/render/city/behemothArt";
 import { relightCharSteps, sheenStep, sheenStrip, sheenSide } from "../../../../apps/client/src/render/city/charRelight";
-import { drawBehemoth, setDetail, setOldVeins, BEHEMOTH_LOOK_IDS, BH_R_M, type BehemothPose } from "./behemoth4";
+import { drawBehemoth, setDetail, setVeinMode, BEHEMOTH_LOOK_IDS, BH_R_M, type BehemothPose } from "./behemoth4";
 
 const N = 336; // frame px (7 m)
 const PXM = N / 7;
@@ -34,13 +34,86 @@ interface Pic {
   /** Take B2, enraged: the vein pulse strip (VEIN_STEPS pictures of N px side by side, for ADD). */
   veins?: HTMLCanvasElement | null;
 }
-type Take = "now" | "a" | "b" | "b2";
+type Take = "now" | "a" | "b" | "v2" | "v3" | "mix";
 
-/* ---- Take B2 (designer 2026-11-26, "V2 + V3"): organic veins like the Bloaters', red, pulsing outward from the chest ---- */
+/*
+ * ---- Vein options (designer 2026-11-26: "create both [V2 and V3] … not mixed … you can add a v2/v3 mix too") ----
+ * V2: take B's zigzag veins, pulsing (a beat running outward from the chest every 1.2 s).
+ * V3: organic veins grown like the Bloaters', a steady red glow (no pulse).
+ * Mix: the organic veins of V3 with the pulse of V2.
+ */
 /** Pulse pictures per period (crossfaded). */
 const VEIN_STEPS = 8;
 /** One pulse every 1.2 s: a heartbeat, slower and heavier than the Bloaters'. */
 const VEIN_PERIOD_S = 1.2;
+/** V3's steady glow (no pulse): about take B's static red. */
+const STEADY_GLOW = 0.6;
+/** The pulse's wave front: a bright beat at radius (or path length) d at time t. */
+const beat = (d: number, t: number, spacing: number): number => Math.pow(Math.max(0, Math.cos(((d - t * (spacing / VEIN_PERIOD_S)) / spacing) * Math.PI * 2)), 6);
+/**
+ * V2: finds take B's enraged vein cores (drawn magenta in "marker" mode, so only the parts not covered by the shirt or
+ * vest show), paints them dark red in the source before the relight, and returns their pulse strip: each vein pixel
+ * lights with a beat running outward from the chest (by radius).
+ */
+function markerPulse(src: HTMLCanvasElement): HTMLCanvasElement {
+  const W = src.width;
+  const sg = src.getContext("2d", { willReadFrequently: true })!;
+  const img = sg.getImageData(0, 0, W, W);
+  const d = img.data;
+  const mask = new Float32Array(N * N);
+  for (let i = 0; i < W * W; i++) {
+    const r = d[i * 4] as number;
+    const g = d[i * 4 + 1] as number;
+    const b = d[i * 4 + 2] as number;
+    const m = Math.max(0, Math.min(1, ((Math.min(r, b) - g) / 255 - 0.25) * 2));
+    if (m <= 0) continue;
+    // dark red where the core was (the relight then lights it like skin)
+    d[i * 4] = r + (90 - r) * m;
+    d[i * 4 + 1] = g + (18 - g) * m;
+    d[i * 4 + 2] = b + (10 - b) * m;
+    const x = Math.floor((i % W) / SS);
+    const y = Math.floor(Math.floor(i / W) / SS);
+    mask[y * N + x] = (mask[y * N + x] as number) + m / (SS * SS);
+  }
+  sg.putImageData(img, 0, 0);
+  const R = BH_R_M * PXM;
+  const cx = N / 2 - 0.1 * R;
+  const cy = N / 2;
+  const spacing = 1.9 * R;
+  const strip = make(N * VEIN_STEPS, N);
+  const g = strip.getContext("2d")!;
+  const one = make(N, N);
+  const og = one.getContext("2d")!;
+  for (let f = 0; f < VEIN_STEPS; f++) {
+    const t = (f / VEIN_STEPS) * VEIN_PERIOD_S;
+    const fr = og.createImageData(N, N);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const m = mask[y * N + x] as number;
+        if (m <= 0.02) continue;
+        const al = Math.min(0.95, 0.18 + beat(Math.hypot(x - cx, y - cy), t, spacing) * 0.8) * Math.min(1, m * 1.6);
+        const j = (y * N + x) * 4;
+        fr.data[j] = 255;
+        fr.data[j + 1] = 120;
+        fr.data[j + 2] = 80;
+        fr.data[j + 3] = Math.round(255 * al);
+      }
+    }
+    og.clearRect(0, 0, N, N);
+    og.putImageData(fr, 0, 0);
+    g.save();
+    g.translate(f * N, 0);
+    g.globalCompositeOperation = "lighter";
+    g.filter = "blur(2.5px)"; // the halo
+    g.globalAlpha = 0.8;
+    g.drawImage(one, 0, 0);
+    g.filter = "none";
+    g.globalAlpha = 1;
+    g.drawImage(one, 0, 0);
+    g.restore();
+  }
+  return strip;
+}
 interface VeinLine {
   pts: number[];
   dist: number[];
@@ -51,7 +124,7 @@ interface VeinLine {
  * chest, kept on the figure's opaque pixels and off the head. Draws the dark trace into `base` (calm and enraged);
  * returns the red pulse strip when enraged.
  */
-function growVeins(base: HTMLCanvasElement, seed: number, enr: boolean): HTMLCanvasElement | null {
+function growVeins(base: HTMLCanvasElement, seed: number, enr: boolean, pulse: boolean): HTMLCanvasElement | null {
   const bg = base.getContext("2d", { willReadFrequently: true })!;
   const a = bg.getImageData(0, 0, N, N).data;
   const R = BH_R_M * PXM;
@@ -130,8 +203,8 @@ function growVeins(base: HTMLCanvasElement, seed: number, enr: boolean): HTMLCan
     for (const v of lines) {
       for (let m = 2; m < v.pts.length; m += 2) {
         const d = v.dist[m / 2] as number;
-        const wave = Math.pow(Math.max(0, Math.cos(((d - t * speed) / spacing) * Math.PI * 2)), 6);
-        const al = Math.min(0.9, steady + wave * 0.7);
+        const wave = pulse ? Math.pow(Math.max(0, Math.cos(((d - t * speed) / spacing) * Math.PI * 2)), 6) : 0;
+        const al = pulse ? Math.min(0.9, steady + wave * 0.7) : STEADY_GLOW;
         sg.beginPath();
         sg.moveTo(v.pts[m - 2] as number, v.pts[m - 1] as number);
         sg.lineTo(v.pts[m] as number, v.pts[m + 1] as number);
@@ -154,18 +227,19 @@ function today(v: number, pose: BehemothPose, k: number, enr: boolean, ph: numbe
   drawToday(g, PXM, v, pose, k, enr, ph);
   return { base: c, glow: null, sheen: null };
 }
-function relit(v: number, pose: BehemothPose, k: number, enr: boolean, ph: number, detail: boolean, newVeins = false): Pic {
-  setDetail(detail);
-  setOldVeins(!newVeins);
+function relit(v: number, pose: BehemothPose, k: number, enr: boolean, ph: number, t: Take): Pic {
+  setDetail(t !== "a");
+  setVeinMode(t === "v2" ? "marker" : t === "v3" || t === "mix" ? "off" : "static");
   const src = make(N * SS, N * SS);
   const s = src.getContext("2d", { willReadFrequently: true })!;
   s.translate(N, N);
   drawBehemoth(s, PXM * SS, v, pose, k, enr, ph);
+  const pulseV2 = t === "v2" && enr && pose !== "dead" ? markerPulse(src) : null;
   const L = run(relightCharSteps(src, N, SS, PXM * SS * RF, 901 + v * 7, make));
-  const veins = newVeins && pose !== "dead" ? growVeins(L.base, 977 + v * 13, enr) : null;
+  const veins = pulseV2 ?? ((t === "v3" || t === "mix") && pose !== "dead" ? growVeins(L.base, 977 + v * 13, enr, t === "mix") : null);
   return { base: L.base, glow: L.glow, sheen: sheenStrip(L.gloss, N, make), veins };
 }
-const pic = (t: Take, v: number, pose: BehemothPose, k: number, enr: boolean, ph = 0): Pic => (t === "now" ? today(v, pose, k, enr, ph) : relit(v, pose, k, enr, ph, t !== "a", t === "b2"));
+const pic = (t: Take, v: number, pose: BehemothPose, k: number, enr: boolean, ph = 0): Pic => (t === "now" ? today(v, pose, k, enr, ph) : relit(v, pose, k, enr, ph, t));
 
 /** The night street under the boss (asphalt with a little grain). */
 const street = ((): HTMLCanvasElement => {
@@ -267,7 +341,8 @@ function frame(ms: number): void {
 }
 
 const LOOK_NAMES = ["BH1, the prototype", "BH2, the site worker", "BH3, the overgrowth", "BH4, the riot cop"];
-const CAPTION: Record<Take, string> = { now: "Now", a: "Take A: relit", b: "Take B: new detail", b2: "Take B2: new veins" };
+const CAPTION: Record<Take, string> = { now: "Now", a: "Take A: relit", b: "Take B: new detail", v2: "B + V2: pulse", v3: "B + V3: organic", mix: "B + V2/V3 mix" };
+const TAKES: Take[] = ["now", "a", "b", "v2", "v3", "mix"];
 
 async function main(): Promise<void> {
   const host = document.getElementById("looks")!;
@@ -277,7 +352,7 @@ async function main(): Promise<void> {
     card.innerHTML = `<h3>${LOOK_NAMES[v]}</h3><div class="sides"></div>`;
     host.append(card);
     const sides = card.querySelector(".sides")!;
-    for (const t of ["now", "a", "b", "b2"] as Take[]) {
+    for (const t of TAKES) {
       const fig = document.createElement("figure");
       fig.className = t;
       const c = make(N, N);
@@ -317,8 +392,10 @@ async function main(): Promise<void> {
     ["now", false, CAPTION.now],
     ["a", false, CAPTION.a],
     ["b", false, CAPTION.b],
-    ["b2", false, CAPTION.b2],
-    ["b2", true, "Take B2, enraged"],
+    ["v2", true, "B + V2, enraged"],
+    ["v3", true, "B + V3, enraged"],
+    ["mix", false, CAPTION.mix],
+    ["mix", true, "Mix, enraged"],
   ];
   for (const [t, enr, label] of ROWS) {
     const tr = document.createElement("tr");
