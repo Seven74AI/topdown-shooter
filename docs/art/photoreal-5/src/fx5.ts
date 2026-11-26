@@ -227,7 +227,7 @@ function diff(a: HTMLCanvasElement, b: HTMLCanvasElement): { pic: HTMLCanvasElem
   const da = a.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, w, h).data;
   const db = b.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, w, h).data;
   const c = make(w, h);
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
   g.globalAlpha = 0.35;
   g.drawImage(b, 0, 0);
   g.globalAlpha = 1;
@@ -290,6 +290,7 @@ async function decompose(card: FxCard, host: HTMLElement): Promise<void> {
       let prev: HTMLCanvasElement | null = null;
       for (const f of look.frames) {
         const c = make(200, Math.round(200 * (card.aspect ?? 0.75)));
+        c.getContext("2d", { willReadFrequently: true }); // read back by diff()
         paint(c, card, look, f.t, c.width / card.viewM, 0);
         fr.append(thumb(c, `${f.label} · ${f.t.toFixed(2)} s · ${f.when}`));
         if (prev) {
