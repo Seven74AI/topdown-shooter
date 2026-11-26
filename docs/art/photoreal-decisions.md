@@ -38,3 +38,18 @@ and the asset review in `docs/art/asset-review.md`.
 - Designer pick **C, silhouette** (of six options on `docs/art/occlusion/compare.html`): the hidden part of a body behind a standing wall shows through it as a soft shape, red for zombies, blue for survivors, alpha 0.5 ± 0.08 pulsing. In the game: `render/wallSilhouette.ts` (pure: who is behind which wall) and `render/WallSilhouetteView.ts` (pooled fill-tinted copies of the body sprites on a layer just above the walls, masked by copies of the wall pictures, so it only shows where a wall covers; hidden and unmasked when nobody is behind a wall).
 - Readability sheet updated: pictures 9, 18–21, 37–40 retaken; new 63 (a closed fort).
 - Zombie silhouette colour: **red** stays (designer 2026-11-25, after `docs/art/occlusion/colours.html`): "red shouldn't be only for bosses: it's the colour usually used to show danger, so it works for zombie silhouettes". Rule update: red = danger in play (boss danger and zombies), not boss-only. Survivors keep their slot colours.
+
+## FX (photoreal group 5), 2026-11-26
+
+- Group pick: **A, FX** (designer 2026-11-26, picked "A: FX (Recommended)" over B, icons). Covers muzzle flashes,
+  hits, blood, melee arcs and sparks, building feedback rings, explosions, fire, the flamethrower, the Molotov, the
+  Bloater burst, acid, gas, event smoke, dust, rain. Size from the code: about 55 baked FX pictures (atlas_fx,
+  atlas_blastfx, atlas_firefx, atlas_throwfx, event smoke / vapour / dust) plus about 10 effects drawn as flat shapes
+  in `FxView.ts` (muzzle flash, hit flash, blood splat, death puff, debris puff, swing arc, shotgun cone, chainsaw
+  sparks, repair / upgrade / sell / snap rings).
+- **The Behemoth's warning art is IN group 5** (designer 2026-11-26: "In. I'm curious to see how they would look
+  like. So add them too."): slam countdown disc, throw ring, charge lane, CRASH mark, P1 warning display, ground damage.
+  Every take keeps what each warning tells, its size and its timing.
+- Proposal page: `docs/art/photoreal-5/compare.html` (source `src/`, build `node docs/art/photoreal-5/src/build.mjs`).
+  **Waiting for the designer's codes.**
+
