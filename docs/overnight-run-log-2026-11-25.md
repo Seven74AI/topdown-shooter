@@ -206,3 +206,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 00:19 (11-26) 9.14 photoreal street props PR #22 merged 1fbf310e (art orchestrator: fresh review H1/M1–M3/L1–L8 → re-review 1 NEW-1..3 → re-review 2 (cap) → B26 "never wait for the image"; main-session check of 5f64477: atlas swap only at run start via the city view, old display list gone on restart, a late image still lands after Boot shuts down; CI green).
   - Nit (logged, not fixed): a download that FAILS after Boot has shut down never settles (Phaser removes the loader's listeners on shutdown). State stays "loading", so every run draws the code props (the B8 fallback) and the warning never prints.
   - Not verified: real devices (iOS Safari WebP, Android context loss) and a real network.
+- 00:32 (11-26) Master CI green on 1fbf310e (#22, 9.14) and ad25fca5 (#24, asset review page: gallery manifest + text, CI green). The art orchestrator's stories 9.13 + 9.14 are complete.

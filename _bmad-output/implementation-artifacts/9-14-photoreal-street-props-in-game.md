@@ -148,6 +148,12 @@ Claude (builder session for Story 9.14, gds-dev-story flow).
   - `render/city/streetPropsAtlas.test.ts` (B26): run 1 builds the code atlas; a mid-run caller doesn't swap; run 2 rebuilds once from the image, with no duplicate texture, the loader texture removed and the code canvas released; run 3 does nothing.
   - leaveRun / backToLobby: Boot never handled them; with no wait, Game starts at once and registers its own handlers in its `create`, as on master.
 
+### Follow-ups (open)
+
+- FU1 (main session's merge check, 2026-11-26, low): a download that fails after Boot has shut down never settles, because Phaser's `LoaderPlugin.shutdown` calls `removeAllListeners`. The state stays "loading", every run uses the code props (B8), and the warning never prints. Fix: hear failure on the game's TextureManager or on the XHR itself, not on the scene loader.
+- FU2: the drift hash also covers character art the atlas never draws, so an unrelated character change forces a re-render (fails safe).
+- Not verified on real devices: iOS Safari WebP decode, Android canvas loss, a real slow network.
+
 ### Debug Log References
 
 - `npm run art:street-props`: "rendered in 3.7 s (Chromium 158.0.8127.36); atlas 2032 × 536: PNG 892 KB, WebP lossless 531 KB, WebP q90 129 KB; 26 frames".
