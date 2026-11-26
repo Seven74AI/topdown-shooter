@@ -26,7 +26,18 @@
   "fixed": [{}, {}, {}, {}, { "brute": 1 }, { "brute": 1 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }],
   "fixedAtFraction": 0.25,
   "fixedAtFractions": [0.25, 0.65],
-  "evac": { "voteS": 15, "allVotedHoldS": 1, "dawnS": 4, "everyWaves": 5, "padRadiusM": 3 },
+  "evac": {
+    "voteS": 15,
+    "allVotedHoldS": 1,
+    "dawnS": 4,
+    "everyWaves": 5,
+    "padRadiusM": 3,
+    "descendS": 2,
+    "walkTimeoutS": 8,
+    "liftBeatS": 0.5,
+    "flyOutS": 8,
+    "flyOutHorde": { "count": 40, "perS": 8, "type": "walker" }
+  },
   "endless": {
     "maxZombiesPerWave": 600,
     "hpGrowthFromWave": 15,

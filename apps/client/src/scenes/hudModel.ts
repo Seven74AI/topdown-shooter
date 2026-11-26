@@ -80,8 +80,10 @@ export interface HudModel {
   buildSecs: number;
   /** Story 6.12 (AC 12): the team chose Stay: the top line reads "Wave 13 · Endless". */
   endless: boolean;
-  /** Story 6.11: the evacuation vote is on (the sticks hide; the top line says so). */
+  /** Story 6.11: the evacuation vote is on (the sticks hide; the top line says so). Story 12.2: the extraction too (no controls). */
   voting: boolean;
+  /** Story 12.2: the extraction (walk and fly-out; `voting` is true too: every action control hides): the top line says so. */
+  extracting: boolean;
   /** Story 8.2 (J4, AC 4): I am a waiting late joiner: no controls but ☰ (sticks, weapon panel, quick-use, Ready, build bar hidden). */
   watching: boolean;
   /** Story 3.1: the Ready button is shown (a build phase, a run on screen, menu closed). */
@@ -355,6 +357,7 @@ export const createHudModel = (): HudModel => ({
   buildSecs: -1,
   endless: false,
   voting: false,
+  extracting: false, // Story 12.2
   watching: false,
   readyButton: false,
   readyOn: false,
@@ -489,7 +492,8 @@ export function fuelPercent(fuelTicks: number, stats: { readonly fuelS: number }
  * "Wave 4 in 22 s", "Wave 3   ·   Zombies 47", "Wave 13 · Endless · Zombies 300",
  * "Wave 14 · Endless · 22 s", "Wave 10 · Evac vote", "Get ready".
  */
-export function waveLine(m: { wave: number; remaining: number; buildSecs: number; endless: boolean; voting: boolean }, compact = false): string {
+export function waveLine(m: { wave: number; remaining: number; buildSecs: number; endless: boolean; voting: boolean; extracting?: boolean }, compact = false): string {
+  if (m.extracting === true) return compact ? "Extraction" : `Wave ${m.wave} · Extraction`; // Story 12.2
   // Story 6.11 / 6.12: the vote and endless lines use single-spaced dots so they fit beside the HP bar at 568 px.
   // Story 8.7 (decision 8.7 B3): `compact` — where the ping button leaves the full line under 11 px (568 px wide):
   // "Wave 12 · 350 left" (an endless wave too: its build line says "Endless"), "Endless 13 in 25 s", "Wave 10 · Vote".

@@ -37,7 +37,7 @@ export const SAVE_QUIT_TIMEOUT_MS = 8000;
 /** Consented leave (4000) and server shutdown (4001): never a drop. */
 const CONSENTED = 4000;
 const SERVER_SHUTDOWN = 4001;
-const inRunPhase = (phase: RunPhase | undefined): boolean => phase === "build" || phase === "wave" || phase === "vote";
+const inRunPhase = (phase: RunPhase | undefined): boolean => phase === "build" || phase === "wave" || phase === "vote" || phase === "extract"; // Story 12.2
 /** Story 8.1: how often the link monitor's watchdog is checked (ms). */
 const LINK_TICK_MS = 250;
 

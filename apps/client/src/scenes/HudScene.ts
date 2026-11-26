@@ -400,6 +400,7 @@ export class HudScene extends Phaser.Scene {
   private shownBuildSecs = -2;
   private shownEndless = false; // Story 6.12
   private shownVoting = false; // Story 6.11
+  private shownExtracting = false; // Story 12.2
   private buttons = new HudButtons();
   /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line; Story 5.15: the hand cluster, the 🔒 badge. */
   private readonly placeBtns: Phaser.GameObjects.Graphics[] = [];
@@ -2286,12 +2287,13 @@ export class HudScene extends Phaser.Scene {
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
   private drawWave(): void {
     const m = this.model;
-    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs || m.endless !== this.shownEndless || m.voting !== this.shownVoting) {
+    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs || m.endless !== this.shownEndless || m.voting !== this.shownVoting || m.extracting !== this.shownExtracting) {
       this.shownWave = m.wave;
       this.shownRemaining = m.remaining;
       this.shownBuildSecs = m.buildSecs;
       this.shownEndless = m.endless; // Story 6.12
       this.shownVoting = m.voting; // Story 6.11
+      this.shownExtracting = m.extracting; // Story 12.2
       // Story 3.1: during a build the top line counts down to the next wave.
       // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit). Story 8.7 (B3): beside
       // the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").

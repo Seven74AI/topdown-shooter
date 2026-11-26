@@ -185,6 +185,7 @@ export const WORLD_SAVE_PLAN = {
   boss: "saved",
   special: "saved",
   loot: "saved",
+  extract: "excluded: phase extract is never saved (Story 12.2; a save in the vote resumes with the helicopter landed)",
 } as const satisfies Record<keyof World, string>;
 
 /** Brief 2: PlayerState is saved whole (every field). */

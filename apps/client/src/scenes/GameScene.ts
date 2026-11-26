@@ -146,6 +146,7 @@ import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState
 import { CLOSED_VOTE, VoteRequest, VoteSender, addHeldVoters, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
+import { syncHeliToRun } from "../render/heliSync";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
@@ -275,6 +276,7 @@ export class GameScene extends Phaser.Scene {
   private readonly fireCue = new FireCue();
   private playerRadiusM = 0;
   private readonly syncPlayerView = (p: PlayerState, id: string): void => {
+    if (this.host?.world.extract.boarded.has(id)) return; // Story 12.2: in the helicopter: no body drawn
     let view = this.playerViews.get(id);
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
@@ -282,6 +284,7 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
+    view.noBlink = this.host?.world.run.phase === "extract"; // Story 12.2: protected, but no blink
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     view.setAboveDark(this.blackoutNow); // Story 6.3 (F5): one depth change when a blackout starts or ends
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
@@ -335,6 +338,7 @@ export class GameScene extends Phaser.Scene {
     const host = this.host;
     const m = this.hudModel;
     if (!host || id === host.localPlayerId || m.teammateCount >= m.teammateSlot.length) return;
+    if (host.world.extract.boarded.has(id)) return; // Story 12.2: aboard: no name, no edge arrow
     const info = host.playerInfo(id);
     const i = m.teammateCount++;
     const view = this.playerViews.get(id);
@@ -346,7 +350,7 @@ export class GameScene extends Phaser.Scene {
     if (m.teammateNames[info.slot] !== info.name) m.teammateNames[info.slot] = info.name;
   };
   private readonly dropPlayerView = (view: PlayerView, id: string): void => {
-    if (this.host?.world.players.has(id)) return;
+    if (this.host?.world.players.has(id) && !this.host.world.extract.boarded.has(id)) return; // Story 12.2: a boarded body goes too
     view.destroy();
     this.playerViews.delete(id);
     this.lookTextures?.remove(id); // Story 7.9: a player who left takes their body texture along
@@ -1161,7 +1165,9 @@ export class GameScene extends Phaser.Scene {
     m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
     m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
-    m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
+    // Story 6.11: the sticks hide in the vote; Story 12.2: every action control hides during the extraction too.
+    m.extracting = host.world.run.phase === "extract" && !this.gameOver;
+    m.voting = (host.world.run.phase === "vote" || m.extracting) && !this.gameOver;
     m.watching = host instanceof NetSimHost && host.waiting; // Story 8.2 (J4): a waiting late joiner has only ☰
     m.remaining = host.world.waves.remaining;
   }
@@ -1197,7 +1203,9 @@ export class GameScene extends Phaser.Scene {
       const total = ticksFor(host.world.balance.waves.evac.voteS);
       this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
     }
-    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
+    // Story 12.2: a build clears it (a skipped lift-off, review L4: one already flown off); the extraction's fly-out.
+    const ex = host.world.extract;
+    if (this.heliView) syncHeliToRun(this.heliView, run.phase, ex.started, ex.liftedAtTick, host.world.tick, nowS, host.world.balance.waves.evac.flyOutS);
     this.heliView?.update(nowS);
     if (!open) {
       if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);
@@ -2206,8 +2214,8 @@ export class GameScene extends Phaser.Scene {
         this.acidCue.clear();
       }
       if (e.type === "run.vote_opened") this.heliView?.opened(this.time.now / 1000);
-      else if (e.type === "run.vote_resolved") this.heliView?.left(this.time.now / 1000, e.choice === "extract");
-      if ((e.type === "team.wiped" || e.type === "run.extracted") && !host.online && !this.gameOver) {
+      else if (e.type === "run.vote_resolved" && e.choice === "stay") this.heliView?.left(this.time.now / 1000, false); // Story 12.2: an Extract waits for the lift-off
+      if ((e.type === "team.wiped" || e.type === "run.extract_done") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave);
       } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
         // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
@@ -2369,10 +2377,12 @@ export class GameScene extends Phaser.Scene {
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
     this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)
-    if (player && playerView) {
+    // Story 12.2: aboard, my body isn't drawn: the camera stays on it at the pad (12.3 takes the camera over).
+    const aboard = player !== undefined && host.world.extract.boarded.has(localId);
+    if (player && (playerView || aboard)) {
       // Out (Story 2.8): the camera spectates the lowest-slot standing teammate (the server streams that view).
-      const target = player.status === "out" ? spectateTarget(host.world, localId) : null;
-      const viewOf = (target && this.playerViews.get(target.id)) ?? playerView;
+      const target = player.status === "out" && !aboard ? spectateTarget(host.world, localId) : null;
+      const viewOf = (target && this.playerViews.get(target.id)) ?? playerView ?? player;
       this.cameras.main.centerOn(viewOf.x, viewOf.y);
       this.updateRushMarkers(host.alpha, viewOf.x, viewOf.y);
       this.updateDownedHud(host.world, player);

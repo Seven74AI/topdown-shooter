@@ -200,6 +200,22 @@ export function snapshotWorld(world: World) {
           },
         ] as const,
     ),
+    // Story 12.2: the extraction, once it began (so every run without one keeps its digest).
+    ...(world.extract.started
+      ? {
+          extract: {
+            landTicksLeft: world.extract.landTicksLeft,
+            ticks: world.extract.ticks,
+            startTick: world.extract.startTick,
+            boarded: [...world.extract.boarded].sort(),
+            beatTicksLeft: world.extract.beatTicksLeft,
+            liftedAtTick: world.extract.liftedAtTick,
+            hordeSpawned: world.extract.hordeSpawned,
+            cut: world.extract.cut,
+            allFourAtStart: world.extract.allFourAtStart,
+          },
+        }
+      : {}),
     // Story 8.1: players on hold (same fields as `players`) and when each hold began. Only when someone is held, so
     // a run without holds keeps its digest.
     ...(world.heldPlayers.size > 0

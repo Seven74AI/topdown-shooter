@@ -52,8 +52,10 @@ describe("Story 6.1 DEV_START_WAVE / ?startwave= (D4)", () => {
     skipWave(w);
     expect(w.run.phase).toBe("vote");
     for (let i = 0; i < 301; i++) dev.tick();
-    expect(w.run.phase).toBe("results");
+    expect(w.run.phase).toBe("extract"); // Story 12.2: the extraction, then Results
     expect(w.run.ending).toBe("extracted");
+    for (let i = 0; i < 600 && w.run.phase === "extract"; i++) dev.tick();
+    expect(w.run.phase).toBe("results");
   });
 
   it("applyStartWave refuses after the first build start, or a wave outside 1 … runWaves", () => {

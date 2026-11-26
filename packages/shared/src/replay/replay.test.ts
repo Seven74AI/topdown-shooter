@@ -210,3 +210,29 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
     expect(worldDigest(w)).not.toBe(digest);
   });
 });
+
+describe("Story 12.2: a replay through the extraction", () => {
+  it("a short run (runWaves 2) recorded to Results 'extracted' replays to the same digest (no new command kind)", () => {
+    const short = { ...balance, waves: { ...balance.waves, runWaves: 2 } };
+    const log = createInputLog(5, 2);
+    let digest = 0;
+    let lifted = 0;
+    const run = runHeadless({
+      balance: short,
+      seed: 5,
+      players: 2,
+      record: log,
+      onTick: (w) => void (lifted = Math.max(lifted, w.extract.liftedAtTick)),
+      onEnd: (w) => void (digest = worldDigest(w)),
+    });
+    expect(run.ending).toBe("extracted");
+    expect(run.timedOut).toBe(false);
+    expect(lifted).toBeGreaterThan(0); // the extraction really ran (the lift-off happened)
+    expect(new Set(log.commands.map((c) => c.kind))).not.toContain("extract");
+    const w = replayRun(short, log);
+    expect(w.run.phase).toBe("results");
+    expect(w.extract.liftedAtTick).toBe(lifted);
+    expect(worldDigest(w)).toBe(digest);
+    expect(JSON.stringify(snapshotWorld(w))).toContain('"liftedAtTick"');
+  });
+});

@@ -301,6 +301,7 @@ export {
   setBuildReady,
   skipWave,
   startBuild,
+  startExtract,
   startWave,
   updateRun,
   VOTE_EXTRACT,
@@ -311,6 +312,7 @@ export {
   type RunEnding,
   type RunState,
 } from "./run/runStateMachine";
+export { EXTRACT_PROTECT_TICKS, evacPadPoint, extractTestHooks, type ExtractState } from "./run/extract";
 export { endlessEventCandidates, isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./run/endlessEvents";
 export {
   BYTES,

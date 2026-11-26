@@ -669,3 +669,15 @@ describe("Story 6.11/6.12 review L5", () => {
     expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
   });
 });
+
+describe("waves.json › evac (Story 12.2 review L2)", () => {
+  it("walkTimeoutS must be greater than descendS (the cut never comes before the landing)", () => {
+    expect(loadBalance(raw()).waves.evac).toMatchObject({ descendS: 2, walkTimeoutS: 8 });
+    const bad = raw();
+    (bad.waves as { evac: Record<string, unknown> }).evac.walkTimeoutS = 2;
+    expect(() => loadBalance(bad)).toThrow(/walkTimeoutS must be greater than evac\.descendS/);
+    const horde = raw();
+    ((horde.waves as { evac: { flyOutHorde: Record<string, unknown> } }).evac.flyOutHorde).type = "bloater";
+    expect(() => loadBalance(horde)).toThrow();
+  });
+});

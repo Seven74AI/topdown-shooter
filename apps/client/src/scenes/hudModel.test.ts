@@ -18,6 +18,8 @@ describe("waveLine (Stories 3.1, 6.11, 6.12)", () => {
     expect(waveLine({ ...m, wave: 13, endless: true })).toBe("Wave 13 · Endless · Zombies 47");
     expect(waveLine({ ...m, wave: 13, endless: true, buildSecs: 9 })).toBe("Wave 14 · Endless · 9 s");
     expect(waveLine({ ...m, wave: 10, voting: true })).toBe("Wave 10 · Evac vote");
+    expect(waveLine({ ...m, wave: 10, voting: true, extracting: true })).toBe("Wave 10 · Extraction"); // Story 12.2
+    expect(waveLine({ ...m, wave: 10, voting: true, extracting: true }, true)).toBe("Extraction");
     expect(waveLine({ ...m, wave: 0 })).toBe("Get ready");
   });
 });

@@ -58,6 +58,10 @@ const EVENTS: SimEvent[] = [
   { type: "run.vote_resolved", choice: "extract", extract: 0, stay: 2, silent: 2 },
   { type: "run.extracted", wave: 15, endless: true },
   { type: "run.extracted", wave: 10, endless: false },
+  { type: "player.boarded", playerId: "p2" }, // Story 12.2
+  { type: "run.extract_cut" },
+  { type: "run.lifted", tick: 123456 },
+  { type: "run.extract_done", wave: 15 },
   { type: "decay.stage_changed", stage: 2, from: 1 }, // Story 4.5
   { type: "money.earned", playerId: "p1", amount: 12, reason: "refund" }, // Story 4.5
   { type: "money.earned", playerId: "p3", amount: 150, reason: "boss" }, // Story 6.7

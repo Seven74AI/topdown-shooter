@@ -120,7 +120,7 @@ FR65: Each run has a seed that drives its random choices (which cars burn, which
 **Win, evacuation and endless**
 
 FR66: After the Behemoth dies, the team votes for 15 s: a majority of the connected, standing players wins; a tie or no counted votes means extract (Story 8.12: disconnected, downed and dead players don't count).
-FR67: Extract wins the run and keeps all rewards (the helicopter lifts off into 4 s of dawn, then Results); Stay starts endless waves in the collapsed city.
+FR67: Extract wins the run and keeps all rewards: the survivors walk to the helicopter and fly out (≤ 20 s), then Results (Story 12.2, 2026-11-26; was "the helicopter lifts off into 4 s of dawn"); Stay starts endless waves in the collapsed city.
 FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave before each evacuation vote (15, 20, 25…) with +25% HP each time; one event on each even endless wave without a Behemoth; a wipe before extracting loses rewards earned after wave 10.
 
 **Multiplayer**
@@ -2426,7 +2426,7 @@ So that we choose together how much to risk.
 
 **Given** Extract
 **When** chosen
-**Then** the helicopter lifts off, the first light of dawn rises over the district for 4 s (designer, 2026-11-22), then the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
+**Then** the helicopter lifts off, the first light of dawn rises over the district for 4 s (designer, 2026-11-22), then the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67) *(as built by Story 12.2: Extract starts the extraction phase first — the survivors walk to the helicopter, board, it lifts off and flies out over the horde (≤ 20 s), then the dawn and Results)*
 
 **Given** Stay
 **When** chosen

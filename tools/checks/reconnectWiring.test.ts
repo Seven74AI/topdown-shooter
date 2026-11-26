@@ -36,7 +36,7 @@ describe("Story 8.1 reconnect wiring", () => {
 
   it("the overlay is mounted, and the player view blinks protection", () => {
     expect(client("ui", "App.tsx")).toMatch(/<ConnectionOverlay \/>/);
-    expect(client("render", "PlayerView.ts")).toMatch(/protectBlinkAlpha\(p\.protectTicks, timeMs\)/);
+    expect(client("render", "PlayerView.ts")).toMatch(/protectBlinkAlpha\(this\.noBlink \? 0 : p\.protectTicks, timeMs\)/); // Story 12.2: no blink while extracting
     expect(client("sim", "NetSimHost.ts")).toMatch(/p\.protectTicks = s\.protectTicks;/);
   });
 
