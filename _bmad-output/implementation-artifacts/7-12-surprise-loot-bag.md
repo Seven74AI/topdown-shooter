@@ -257,6 +257,8 @@ Early part only (no full gate yet, per dispatch), on `story-7-12` from master f6
 - 2026-11-25: early part T0–T4 built (stream, plan, bag in the World, network record + events, client view, badge, line, sounds, art); T5 held.
 - 2026-11-25: review round 1 fixed (M1–M6, L1–L9); 7.6 merged (migration → 0004, payee, MERGE_RULES); full gate green on 72fd4da.
 - 2026-11-25: scope change — the merged story 7.7 + 7.11 + 7.12; built after 7.2 / 7.9 / 7.3 landed: milestone counters, migration 0003, meta writes in 7.2's bank, loot item + Collector, districts (data, lobby pick, R3, Start), Results rows, hub line. Status → review.
+- 2026-11-25: B33 designer override + re-review round 1 lows L1–L3, N1; 7.10 merged; full gate green on c0b71d9 (518 files / 4,685 tests).
+- 2026-11-25: re-review round 2 (last, cap) on 421c0dd: APPROVED, 2 L + 2 nits, all optional → follow-ups. Landed on master → Epic 7 complete (run log :176; back-filled 2026-11-26, Epic 7 retro E7-A4).
 
 ## Senior Developer Review (AI)
 
@@ -403,3 +405,17 @@ Changes M1's fallback; listed separately from the round 1 fixes.
 ### Gate (7.10 merge + B33 override + re-review round 1 lows)
 
 **Full gate, commit c0b71d9 on `story-7-12` merged with master 5da82f9 (7.10 landed; 7.6 before): typecheck ✔, lint ✔, test ✔ — 518 files passed, 4 skipped; 4,685 tests passed, 31 skipped — build ✔. Load ≈ 2.5 (4 cores).** c1173e6 after it changes the decisions file only (B31: designer, 2026-11-25).
+
+## Re-review round 2 (APPROVED; back-filled 2026-11-26)
+
+Back-filled from the run log (Epic 7 retro E7-A4); the round-2 reviewer's own notes were not copied into this file at the time.
+
+- **Hand-back for the round:** `421c0dd` (gate line on `c0b71d9` = story-7-12 + master `5da82f9`; 518 files / 4,685 tests): the B33 override, round 1 L1–L3, N1 (`inWave` on revive/down events) and the 7.10 cosmetics wiring (B34). Before dispatching, the main session checked the 7.10 wiring itself: `ownedFor` / `onSetLook` / the progress-load relook read `row.cosmetics`, and the Start guard is kept → OK (`docs/overnight-run-log-2026-11-25.md:175`).
+- **Reviewer:** narrow re-review round 2, the last one under the 2-round cap (session `session_01CgLgPVCG4EB3XwagQCrGYH` per log :175).
+- **Verdict: APPROVED** on `421c0dd` with 2 lows + 2 nits, all optional (log :176):
+  - L: a generation counter for the restore-time progress load;
+  - L: a test that a retry that succeeds logs no `loot_bank_failed`;
+  - nit: the Collector wording when the bank failed;
+  - nit: the `teamLootOf` docstring.
+- **Not fixed before landing** (all optional, per the cap). They stay as follow-ups in the run log (:176) and the Epic 7 retro (§7).
+- **Landed:** master `5da82f9` + story-7-12 gated 518 files / 4,685 tests → 7.7 + 7.11 + 7.12 done on master, Epic 7 complete (migration `0004_milestones_loot`; log :176).
