@@ -111,6 +111,13 @@ export function clearStageSeals(world: World): number {
   return n;
 }
 
+/** Story 12.1 H1: a wall building stands (the stage re-check has something to do). */
+function hasWall(world: Readonly<World>): boolean {
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) return true;
+  return false;
+}
+
 /** Story 12.1 H1: walls the stage re-check cleared (process-global diagnostic for sims and tests; not simulation state). */
 export const stageSealsCleared = { count: 0 };
 
@@ -296,13 +303,16 @@ export function decayMutate(world: World, stage: number): boolean {
   const coming = world.waves.number + 1;
   solidsBefore.length = 0;
   for (let i = 0; i < world.obstacles.solids.length; i++) solidsBefore.push(world.obstacles.solids[i] as MapBox); // Story 12.1 (AC 6)
-  captureStageRegion(world); // Story 12.1 H1: the main region before the mutations
+  // Story 12.1 H1: the main region before the mutations — only when a wall stands (without one nothing can seal,
+  // and most build starts of tests and runs have none: no flood then).
+  const walls = hasWall(world);
+  if (walls) captureStageRegion(world);
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave
   lightNewFires(world, world.decay.stage, coming);
   if (!changed) return false;
   destroyBlockedBuildings(world, lit, solidsBefore);
-  clearStageSeals(world);
+  if (walls) clearStageSeals(world);
   relocateBodies(world);
   moveOutOfNewFires(world, lit);
   return true;
