@@ -42,79 +42,9 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 - **Epic 5 (arsenal and bestiary):** 11 weapons (Pistol, SMG, Hunting Rifle, Machete, Shotgun, Assault Rifle, Fire Axe, Chainsaw, Flamethrower (fuel jet 6 m × 20°), Gas torch (3 m × 60°), Grenade Launcher) with upgrades I–IV (damage only; U1 marks; second looks at III–IV); melee can't hit through barricades/walls; Spitters (acid puddles, blocked by walls), the Brute (one in waves 5–6, wind-up, knockback, 1.8 m reach into narrow gaps, five looks), Bloaters (swell 20 ticks, 30 full-damage blast, chains, gas; five looks); metal barricade ladder (wood → reinforced → metal), spike trap, mine; friendly fire 50 % (Bloater blast full); one `explode(world, spec)` for every blast; the run is **6 waves** until Epic 6. All art is drawn in game code; every generated texture goes through `addGeneratedTexture` (Android redraw, Story 4.13). Dev/test: `?loadout=a:3,b:4` (release-safe, levels), `?wallet=5000` (release: solo only), `?wavemix=spitter|bloater`, `?fx=low`.
 
-## 3. How we work (keep doing this)
+## 3. How we work
 
-**Standing rules from the Epic 8 retro (2026-11-26, `epic-8-retro-2026-11-26.md` §8):**
-- **E8-A1:** a red test gets a deterministic repro (force the tick order, pin the seed, run under load) before anyone may call it flaky, and every "flaky" label goes into `_bmad-output/implementation-artifacts/deferred-work.md` with an owner.
-- **E8-A3:** reviewers check every "now copies/does X" claim in a task line or "Notes for the merge" against the diff (a diff citation or a probe per claim, listed in the review).
-
-**Session 9 lessons (keep):**
-1. Starting stories by real file overlap (not by round) and 3–4 builders at once cut Epic 6 round 2–3 from ~8 h planned to ~6 h actual; the fix stage (review → fix → re-review) is now the longest block.
-2. Re-reviews keep finding NEW issues created by fixes (6.11 vote taps: 3 rounds; 6.8 event arrow: 4 rounds; 6.9 pair arrow: 2). Rule kept: every behaviour-changing fix gets a narrow re-review. Tell builders: keep a fix minimal; measure with stateful sweeps (0.01°) and oscillation, not whole-degree samples.
-3. Crossed messages: an agent may finish before your correction arrives — always ask it to ack corrections, and say "this overrides my previous message".
-4. Don't infer designer picks: "OK with the layout ordering" was NOT a pick of the recommended variants (session 9 mistake). Ask for codes.
-5. A BMAD bug: `bmad-build` / `bmad-build-auto` stop with "ambiguous config value implementation_artifacts" (bmm + gds both define it; `_bmad/scripts/render_skill.py` treats identical duplicates as ambiguous; still present in BMAD 6.12.4 and main). Use the gds skills (`gds-dev-story`, `gds-code-review`, `gds-create-story`, `gds-retrospective`, `gds-correct-course`) instead.
-6. Designer: "no videos" for look proposals (stills only); red IS allowed in menu screens (in-play signals keep red = boss danger).
-
-**Re-review cap (designer 2026-11-25, "Let's cap re review"):** at most **two narrow re-review rounds per story**. After the second round, remaining fixes (lows, one-line or test-only fixes, and mirrors of an already re-reviewed fix) are checked by the main session: read the diff, run the touched tests, then log the check in the story file and the run log, and land. Exception: a new **high** finding still gets a fresh re-review. The full fresh review per story is unchanged, and so is one gate per builder plus the main session's gate before master.
-
-**Consolidation batches (designer 2026-11-25, "You can do it from now on. And no need for a PR"):** when two or more APPROVED stories are waiting on each other, the main session makes one integration branch from master, merges each story in landing order (one merge commit per story, so one can be reverted alone), opens ONE PR for the combined tree (superseded 2026-11-25: was "one local full gate, then push straight to master"; code now reaches master only through a PR and its CI `gate`). Only trivial conflicts are resolved in the batch (imports, sprint-status, keep-both lists); a real code conflict goes back to the story's builder. A story that adds a Drizzle migration regenerates it on top of master first (never rename: Drizzle skips an older journal `when`). If the gate fails, drop the last story and re-gate to find the culprit.
-
-**PRs and the CI gate (designer 2026-11-25, "switch to PRs and apply that CI change"; replaces "no need for a PR" above and the main session's local landing gate):**
-- Code reaches master only through a PR. The PR's GitHub Actions run is the gate: it tests the PR merged with current master, including the docker stack smoke test, which the local gate never runs (the release no-cheats scan is in `npm run gate` since the CI speed-up).
-- The builder runs its own full local gate as before, pushes its branch, opens a PR against master (title `Story X.Y: …`) and sends the PR link in its hand-back. Reviewers review that branch.
-- The main session merges with a merge commit once CI is green and the review is clean (re-review cap unchanged). It then sets sprint-status and the story's `Status: done` in a docs-only commit pushed straight to master.
-- A consolidation batch becomes one integration PR.
-- If master moved after a PR's last run and the stories overlap, rerun CI first. Non-overlapping stories merge on a green run.
-- **Docs / BMAD-only changes** (`docs/**`, `_bmad/**`, `_bmad-output/**`, `.claude/**`, `*.md`) skip CI and go straight to master with no PR. Nothing there is linted, typechecked or tested. A change that also touches code is not docs-only.
-- CI push runs happen on master only. A new PR push cancels the older PR run, and master runs are never cancelled (`.github/workflows/ci.yml`).
-- Branch protection (designer, 2026-11-25): ruleset `master gate` on the default branch requires the `gate` check, blocks force pushes and restricts deletion. Repository admins bypass it, which keeps docs-only direct pushes working; every session pushes as the owner, so the merge discipline above still applies.
-- Lesson (2026-11-25): master was red from 09:28 to 13:10 because the local gate skipped two CI-only steps and nobody looked at Actions. Check the master run after every merge.
-- **CI jobs (CI speed-up, designer 2026-11-25; `docs/ci.md`):** `static` (typecheck + lint), `release` (build + cheat scan), `test` (4 timing-balanced shards; shard 1 also runs the browser DOM checks) and `docker` run in parallel. The **`gate` job is the one check to require**: it fails unless all four succeeded. Refresh `tools/ci/timings.json` from the shards' `test-report-*` artifacts when shards drift (`docs/ci.md`).
-- **Fast local loop, CI is the full gate (designer 2026-11-25):** builders run `npm run test:fast` / `npm run gate:fast` (typecheck + lint + the vitest `unit` project in parallel, then `release:check` = build + cheat scan; about 3.5 min) while working AND at hand-back, plus `npm run test:slow` / `npm run test:changed` for the slow areas they touch (sims, fuzz, bots, DOM checks). They do NOT run the full `npm run gate` locally: the PR's CI runs the full suite on 4 shards (about 3.5 min), and a green `gate` check on the PR's head replaces the local gate numbers in the hand-back. The hand-back gives the head commit, the gate:fast result and the PR's CI result; if CI is still running, the builder waits for it, fixes red, then hands back. Vitest uses 4 workers by default (`VITEST_MAX_WORKERS` overrides it; use 2–3 on a shared box).
-
-**Session 9 speed-up (designer 2026-11-24, "ok for all, now"):**
-1. Start a story as soon as its real file overlap allows, not by round: check the Notes for the merge of the stories it waits for (6.8 started before 6.6+6.7 landed because 6.6 left zombieAi.ts/flowField.ts untouched; 6.11+6.12 branched from story-6-6). Give each parallel builder its own netEvents kind range and readability-sheet number range up front.
-2. Up to 3–4 builders at once (each in its own cloud session).
-3. ~~One full gate per story by the builder + the main session's gate before every push to master.~~ **Superseded 2026-11-25:** builders run `gate:fast` (+ `test:changed` / `test:slow` for touched slow areas); the PR's CI `gate` is the full gate. Reviewers run typecheck + the tests they probe/mutate.
-4. Re-reviews are narrow: only the fix commits, "try to exploit this", no fresh full gate.
-5. Light review (one checker, not the three-layer gds-code-review) for mostly visual stories; full fresh review for boss, events, vote and other game rules.
-Still required: every medium/high fix and every behaviour-changing fix gets a re-review; no code merge to master without a clean review and a green CI `gate` on the PR.
-
-**Session 8 lessons (keep):**
-1. Re-review fixes for real: in 6.5 a low fix (stop pinning a player inside the boss) created a new medium (one survivor could body-block the boss); the re-review caught it. Behaviour-changing fixes, even for lows, go to the re-reviewer with "try to exploit this".
-2. When master moves while a builder finishes, tell it to merge master and re-gate, and start the reviewer in parallel on the same merge (point it at the builder's merge commit once pushed).
-3. `archive_session` can be refused by the auto-mode classifier on the first try; retry later, it went through.
-4. Merging the 10-wave run (6.1) made wave 10 really spawn the boss: whole-run bot sims stalled until bots could fight it. Expect whole-run sims to break when a new mechanic lands in the run's ending.
-
-**Session 7 lessons (keep):**
-1. **Every builder and reviewer runs in its own cloud session** (`create_session`, branch `story-x-y`, prompt = story file + `docs/epic-6-brief.md` + `docs/epic-6-decisions.md`). **Tell each to `send_message` to `@parent` when done** — their final chat text does NOT reach this session. Also set a ~15 min `send_later` fallback check; read `list_events` if silent.
-2. **Fresh-agent review in a separate cloud session** on the merged tree (story branch merged with current master); every medium/high fix gets a re-review.
-3. ~~Run the full gate before EVERY push to master, docs-only merges included.~~ **Superseded 2026-11-25:** code goes through a PR and its CI `gate`; docs-only changes (docs/**, _bmad/**, _bmad-output/**, .claude/**, *.md) go straight to master with no gate (`docs/art/**` is ignored by eslint, so docs can't break lint).
-4. Archive finished child sessions right away (the designer notices open ones).
-5. Merging small neighbouring stories into one builder saved time (5.21+22, 5.23+25); Epic 6 is pre-merged.
-6. Retro actions A1–A10 (`epic-5-retro-2026-11-24.md`) apply to Epic 6 builders.
-
-**Session 6 rules (designer, 2026-11-23) — the default from now on:**
-1. **Builders run in their own CLOUD SESSIONS** (`create_session` tool, one container each; same repo, branch `story-x-y`; give each the story file, the EPIC 5 BRIEF and docs/epic-5-decisions.md). The main session creates them, waits for their pushed branches, merges, runs the gate, dispatches the fresh-agent review (in a local review worktree or another cloud session) and pushes to `master`. Session 6 ran 3–5 agents in ONE 4-core container: load 8–16, everything 2–3× slower, tests timed out. At most **2 heavy jobs** (builder/reviewer running tests or a browser) in the main container.
-2. **Run in parallel only stories that touch different code** (round C's 5.4/5.5/5.8 all hit `explode()`/damage and had to merge one after another). Next good pair: round D + building UX 5.15–5.19 (client-only).
-3. **Cheaper checks per story:** while building, run only the tests of touched areas; at the end `gate:fast` locally and the full gate in the PR's CI (superseded the old "ONE full gate at the end + main session's gate", 2026-11-25); browser checks only for visual stories; a re-review looks only at the fix.
-4. **Each story goes to `master` as soon as its review (and re-review of medium/high fixes) is clean** — don't wait for the round.
-5. Keep: every medium/high fix gets a fresh-agent re-review; designer picks every new look from code-drawn proposals before the build (art method: game code, `docs/epic-5-decisions.md`).
-
-- **BMAD loop per story:** `gds-create-story` (rich story file from the real code) → build → **independent review by a fresh agent** → fix every finding → mark done → push to `master`. Review findings and fixes are recorded in each story file ("Senior Developer Review (AI)").
-- **Parallel agents** (superseded by the Session 6 rules above: cloud sessions, ≤ 2 heavy jobs here): builders run in their own git worktrees (`isolation: "worktree"`) on branches `story-x-y`, push, and the main session merges into the work branch, resolves conflicts, runs `npm run typecheck && npm run lint && npm test && npm run build`, browser-checks with Playwright, dispatches a reviewer, fixes, then pushes to `master`. Pick parallel work by file overlap (stories touching different files run together; dependent stories wait).
-- **Pushing:** the designer allowed pushing to `master` ("you can push"). Work happens on the session's `claude/...` branch; reviewed work is fast-forwarded to `master`.
-- `.claude/worktrees/` is gitignored (agent worktrees live there).
-- Verify in a real browser (Playwright + preinstalled Chromium) for anything visual; say plainly what wasn't verified.
-
-**Session 3 notes:** the Agent tool's `isolation: "worktree"` is denied here, so create worktrees by hand (`git worktree add -b story-x-y .claude/worktrees/story-x-y claude/epic-2-continue`) and tell each builder its path; give each agent its own server/Vite ports (temporary Vite config merging `apps/client/vite.config.ts` with a `/api` proxy). Check `git status` before committing a merge (an unstaged fix slipped out once). Python Playwright + Chromium are preinstalled; `window.__game.loop.sleep()/wake()` simulates a hidden tab.
-
-**Session 4 notes:** every builder and reviewer prompt starts with the **EPIC 4 BRIEF** (§11 of `epic-3-retro-2026-11-22.md`). Re-review every fix of a high or medium finding (Epic 3: 3.5 and 2.12 re-reviews each found new bugs). Run at most ~3 builders at once and record machine load with every speed number (timing tests flake on a busy box; tick asserts are behind `PERF_ASSERT=1`). Every sim/replay test must assert that something actually happened (a money sim once ran zero waves unnoticed).
-
-**Session 4 extra notes:** the session server restarted twice; stopped agents resume from their transcripts (SendMessage to the agent id, or automatically). Keep timing asserts behind `PERF_ASSERT=1`. **The per-client message guard allows ~10 non-input messages per second (bucket of 10); a burst beyond it is dropped silently** (that was the `RunRoom.buildings` flake). Builders that touch rendering must read `render/city/*` (StreetView/CoverView/DecayView no longer exist).
-
-**Lessons the reviews keep finding (tell builders up front):** every texture drawn in code goes through `addGeneratedTexture` (Story 4.13: Android Chrome wipes canvases in the background; unregistered textures vanish after an app switch); simulation timers count ticks (no float seconds); fire cooldown rule in `combat/firing.ts`; no per-frame / per-tick allocation; edge flags (swap/consumable) fire once per input seq and `LocalSimHost` latches them; Phaser 4 ≠ Phaser 3 (verify in `node_modules/phaser/types`; e.g. `setTint` + `setTintMode`); Phaser reuses scene objects on restart (reset state in `create`, pass restart data); tests of one mechanic pass `systems: { waves: () => {} }`; Colyseus: never pass zod to `onMessage` (use `this.net.guard`), join refusals are `ServerError(526, reason)`, use `bootTestServer()`; exact version pins (`.npmrc save-exact`); no gameplay numbers inline (balance JSON).
+Moved to **`AGENTS.md`** (2026-11-26): designer preferences, getting changes onto master (PRs, CI gate, docs-only straight to master), the story loop and reviews, parallel builders, code rules and environment gotchas. Claude Code loads it through `CLAUDE.md`.
 
 ## 4. Key decisions (details in the docs and decision logs)
 
@@ -161,28 +91,14 @@ The overnight run (HANDOFF §7 of 2026-11-25: Epic 6 retro → Network pass → 
 1. ✅ Readiness + drift check: `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-26.md`.
 2. Retros for Epic 7 and Epic 8 (`gds-retrospective`, in their own session).
 3. Refine what is left, with the designer: `gds-correct-course` for Epic 9 (readiness Q1, blocker), then the readiness questions Q2–Q9 (10.1 first, 10.5 / 10.8 wording, folding 1.11 / 1.12 / 4.10 into 10.2 / 10.9, 8.10 B6 owner), then story files (`gds-create-story`) and builds in file-overlap rounds.
-4. Process (§3): PRs with the GitHub Actions `gate` as the merge gate; docs-only changes go straight to master; builders run `gate:fast`; check master's CI after every merge.
+4. Process (`AGENTS.md` §2): PRs with the GitHub Actions `gate` as the merge gate; docs-only changes go straight to master; builders run `gate:fast`; check master's CI after every merge.
 
-**Session 5 notes:** the Agent tool's `isolation: "worktree"` was not used; worktrees made by hand under `.claude/worktrees/`. **Don't symlink the whole `node_modules`:** its `@topdown/*` entries are relative links, so a worktree would test against the MAIN checkout's packages (false greens). Make `node_modules` a real directory linking every entry of the main one except `@topdown`, plus absolute `@topdown/{client,server,shared}` links into the worktree, and its own real `.vitest-cache`, `.vite` and `.vite-temp` directories (shared caches give stale modules) (`node_modules` is excluded via `.git/info/exclude`). The main checkout's gate after each merge is the real check. Reviewers can run read-only in the main checkout (they mutate and revert files; don't commit while one runs: check `git status`).
+## 8–9. Designer preferences and environment gotchas
 
-**Session 6 notes:** a helper script made correct worktrees (real `node_modules` dir linking the main one except `@topdown`, absolute `@topdown/*` links, own caches); recreate it if needed (see Session 5 notes). Never use `npm run dev` in a builder (fixed ports 5173/2567 clash); give each agent its own client/server ports and stop processes by PID only (one builder's `pkill` killed others' servers). `vitest.config.ts` has `testTimeout: 30_000` (sims/replays timed out at 5 s under load). `tools/checks/noUnregisteredTextures.test.ts` fails if client code creates a texture outside `addGeneratedTexture`. Meshy (api.meshy.ai) is connected but credits are low (~180 at last check): art is game code; Meshy only for references, if at all.
-
-## 8. How the designer likes to work
-
-- Plain English, short messages. They often answer "ok", "C" or a letter. Treat a bare "ok" as acceptance of all proposals in the previous message, and say so.
-- **Facilitative mode:** propose concrete designs **with numbers** and a recommendation; they keep or change.
-- They love **playable visual prototypes** over text descriptions.
-- Not deeply technical: explain technical choices by their effect on the game.
-- They want progress, not ceremony; keep BMAD steps moving; parallelize with agents.
-
-## 9. Environment gotchas
-
-- BMAD v6.12.4 (modules bmm + gds v0.7.2) is installed in the repo (`_bmad/`, `.claude/skills/`). The skills load only when the repo is the working directory.
-- The cloud container intercepts TLS: Docker image builds that run `npm ci` fail locally (environment limit; CI builds them fine).
-- Visual references (style labs, decay prototype) are linked in the brief folder; `style-lab-r3.html` has canvas code for the Dead City look.
+Moved to `AGENTS.md` §1 and §6.
 
 ---
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it, using the gds-* skills (never bmad-build). The overnight run is done; next steps are in HANDOFF §7. Work with PRs and the CI `gate` (docs-only changes go straight to master). Builders and reviewers run in their own cloud sessions and message back with send_message to @parent; fresh-agent review per story, narrow re-reviews of medium/high fixes (at most 2 rounds). Ask me where a decision is mine.
+> I'm continuing my game project topdown-shooter. Read `AGENTS.md` (how we work) and `HANDOFF.md` (where we are) at the repo root and follow them, using the gds-* skills (never bmad-build). The overnight run is done; next steps are in HANDOFF §7. Work with PRs and the CI `gate` (docs-only changes go straight to master). Builders and reviewers run in their own cloud sessions and message back with send_message to @parent; fresh-agent review per story, narrow re-reviews of medium/high fixes (at most 2 rounds). Ask me where a decision is mine.
