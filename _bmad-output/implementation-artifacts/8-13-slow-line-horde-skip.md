@@ -122,7 +122,13 @@ Builder session (cloud), 2026-11-26.
 
 ### Completion Notes List
 
-COMPLETION_PLACEHOLDER
+- Decisions D1–D4 auto-accepted (designer 2026-11-26: follow recommendations); logged in `docs/network-pass-decisions.md`.
+- **`NET_PROTOCOL_VERSION` 3 → 4** (the input gained bytes: an old tab is refused at join with "A new version is out. Please reload."). This story took 4: 12.2 / Epic 11 take 5 if they need one.
+- The first build (no trend, no confirm) failed its own model test: a stall's single late ack skipped 8 frames at 128 kbit/s (→ the confirm rule, plus the gap rule for overlapping up + down stalls), and on a filling line the reading lagged by its own wait + the round trip (→ the trend). Both are pinned by mutations (Measurements › Model test).
+- Existing tests changed only where the wire format or the stats object changed, not in what they check: `input.test.ts` (16 bytes, flag bit 4 is now the ack; fuzz re-encodes with the ack), `RunRoom.test.ts` (the "unknown flag bit" sample is 0x20, since 0x10 is the ack), `hordeEncoder.test.ts` (the 64 KB skip test's `toEqual` lists the two new stats fields at 0), `tools/bots/onePacket.test.ts` (title / comment: 18 B per input; it already used `INPUT_BYTES`). `smooth.test.ts`, the hits harness and the 8.10 fuzz decode are unchanged.
+- Not verified: real phones, real 4G, iOS (parked); a browser tab on the capped line (the phone's ack is one line in `NetSimHost`, pinned by `tools/checks/hordeLineAckWiring.test.ts` and the client unit tests; the bots exercise the server end to end). The cap is the `lagLine.ts` model of a slow line; a real bottleneck's buffer may be larger or smaller (it does not matter to this rule: it reads the wait, not the socket).
+- Gate: `npm run gate:fast` green (typecheck, lint, 4,912 unit tests, release check); `npm run test:slow` green (73 files, 740 tests: netsim, bots, fuzz, DOM).
+- Bot horde KB/s move with what the bots see (± 30 % run to run, 8.11 B8); the encoder replay is the deterministic check (unchanged).
 
 ### File List
 
