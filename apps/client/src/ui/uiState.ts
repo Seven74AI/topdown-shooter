@@ -28,6 +28,11 @@ export type UiScreen =
    */
   | { kind: "survivor"; back: SurvivorBack }
   /**
+   * Story 10.1 (AC 1, 7; B16): the start screen's Settings screen (`main`) or its Delete my progress confirm
+   * (`delete`). Back returns to the start screen (from the confirm: to `main`). Never in a run.
+   */
+  | { kind: "settings"; view: "main" | "delete" }
+  /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
    */
@@ -69,7 +74,7 @@ export const openProgress = (from: ProgressBack): UiScreen => ({ kind: "progress
 /**
  * The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. Story 8.3 (H2): the
  * host's `players` list (Remove per seat) and `confirmRemove` ("Remove <name> from this run? They can't come back.").
- * `settings`: the Settings view (Always full speed; Story 10.1 adds the rest).
+ * `settings`: the Settings view (Story 10.1: the whole `SettingsPanel`; Delete my progress stays on the start screen).
  */
 export type MenuState = "closed" | "open" | "confirmLeave" | "players" | "confirmRemove" | "confirmSave" | "settings";
 

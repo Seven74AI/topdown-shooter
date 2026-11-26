@@ -94,6 +94,7 @@ export function saveHints(f: AccountFields): { username: string | null; password
 export function inRoom(back: UiScreen): boolean {
   switch (back.kind) {
     case "start":
+    case "settings": // Story 10.1: the start screen's Settings (never in a room)
       return false;
     case "progress":
       return back.back.kind === "lobby";

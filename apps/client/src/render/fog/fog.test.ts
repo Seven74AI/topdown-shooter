@@ -148,3 +148,24 @@ describe("Story 6.4 FogView: the fog look rides in the darkness; no full-screen 
     for (let d = 8; d <= 11; d += 0.25) expect(a.visibility(20 + d, 16)).toBe(b.visibility(20 + d, 16));
   });
 });
+
+describe("Story 10.1 review L7 (AC 2): Fog detail never changes what the fog hides", () => {
+  it("ScreenFog radii and visibility() are identical at Fog detail Full and Plain (a sweep of 0–12 m round the viewer)", async () => {
+    const { resetSettingsCache, saveSettings } = await import("../../settings/settings");
+    const sample = (): { radii: string; vis: number[] } => {
+      const fog = new ScreenFog();
+      fog.update(world(5), 20, 16, () => undefined);
+      const vis: number[] = [];
+      for (let d = 0; d <= 12; d += 0.25) for (let a = 0; a < 8; a++) vis.push(fog.visibility(20 + Math.cos(a) * d, 16 + Math.sin(a) * d));
+      return { radii: JSON.stringify(fog.radii), vis };
+    };
+    resetSettingsCache();
+    saveSettings({ fog: "full" });
+    const full = sample();
+    saveSettings({ fog: "plain" });
+    const plain = sample();
+    resetSettingsCache();
+    expect(full.vis.some((v) => v === 0) && full.vis.some((v) => v === 1)).toBe(true); // liveness: the fog is really on
+    expect(plain).toEqual(full);
+  });
+});

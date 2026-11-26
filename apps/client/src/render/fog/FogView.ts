@@ -5,6 +5,15 @@ import { STAMP_CONE, type DarknessPlan } from "../darkness/darknessPlan";
 import { STAMP_PX, coneStampFor, lightStamps, type LightStampSet } from "../darkness/lightStamps";
 import { DARKNESS_DEPTH } from "../darkness/aboveDark";
 import type { ScreenFog } from "./screenFog";
+import { getSettings } from "../../settings/settings";
+
+/**
+ * Story 10.1 (B4, AC 2): the drifting fog texture is drawn at Fog detail "full" (and not with `?fx=low`). This is the
+ * ONLY thing the setting changes: the ring, the radius and what the fog hides (`ScreenFog`) never read it.
+ */
+export function fogNoiseOn(lowFx: boolean, fog: "full" | "plain"): boolean {
+  return !lowFx && fog === "full";
+}
 
 /**
  * Story 6.4 (AC 6; D7, D8): the Collapse fog's LOOK (the hiding rule is `ScreenFog` / the shared
@@ -212,7 +221,7 @@ export class FogView {
     f.fillRect(0, cy - R, Math.max(0, cx - R), 2 * R);
     f.fillRect(cx + R, cy - R, Math.max(0, w - cx - R), 2 * R);
     // CO2: two drifting noise layers thin the mask (`?fx=low`: plain haze).
-    if (look.noise && !this.lowFx) {
+    if (look.noise && fogNoiseOn(this.lowFx, getSettings().fog)) {
       if (!this.noisePattern) this.noisePattern = f.createPattern(this.noise, "repeat");
       const pat = this.noisePattern;
       if (pat) {

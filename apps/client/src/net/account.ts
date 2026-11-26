@@ -8,6 +8,7 @@
  * without a ticket (P3: unsaved play, never a refused join).
  */
 import {
+  ACCOUNT_DELETE_PATH, // Story 10.1
   ACCOUNT_ERRORS,
   ACCOUNT_LOGIN_PATH,
   ACCOUNT_LOGOUT_PATH,
@@ -33,6 +34,8 @@ import {
   type TrainResponse,
   type TrainingBoostId,
   type UnlockResponse,
+  deleteResponseSchema,
+  type DeleteResponse,
 } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
 import { deviceLook, type DeviceLookStore } from "./deviceLook";
@@ -40,6 +43,8 @@ import { serverUrl } from "./serverUrl";
 import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 import { accountStore } from "./accountStore";
 import { progressStore } from "./progressStore";
+import { acceptSessionSettings, pushSettings } from "./settingsSync";
+import { setSettingsPending, settingsPendingFor } from "../settings/settings";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -77,6 +82,8 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
     if (parsed.data.saved) {
       accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
       if (parsed.data.progress) progressStore.accept(parsed.data.progress); // review L7: the Log in merge warning knows the guest's progress
+      // Story 10.1 (B9): a failed progress read (null) says nothing about the settings: leave them.
+      if (parsed.data.progress) acceptSessionSettings(parsed.data.account.username, parsed.data.progress.settings);
     }
     return parsed.data;
   } catch {
@@ -228,7 +235,14 @@ export type AccountCall<T> = { kind: "ok"; body: T } | { kind: "error"; code: Ac
 /** Argon2 on the server + one transaction: a little longer than the session call. */
 export const ACCOUNT_ACTION_TIMEOUT_MS = 8000;
 
-const errorOf = (code: AccountErrorCode): { kind: "error"; code: AccountErrorCode; text: string } => ({ kind: "error", code, text: ACCOUNT_ERRORS[code] });
+/** Story 10.1 review L9: a logged-in phone whose cookie names no account any more: deleted or logged out elsewhere. */
+export const ACCOUNT_GONE_TEXT = "This account was deleted or logged out on another phone. You're playing as a guest now.";
+
+const errorOf = (code: AccountErrorCode): { kind: "error"; code: AccountErrorCode; text: string } => ({
+  kind: "error",
+  code,
+  text: code === "no_account" && accountStore.get().username !== null ? ACCOUNT_GONE_TEXT : ACCOUNT_ERRORS[code],
+});
 
 async function action<T>(path: string, body: unknown, parse: (raw: unknown) => T | null, over: Partial<AccountDeps>): Promise<AccountCall<T>> {
   const deps = { ...defaults(), url: () => `${serverUrl()}${path}`, timeoutMs: ACCOUNT_ACTION_TIMEOUT_MS, ...over };
@@ -270,6 +284,7 @@ function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
     progressStore.accept(s.progress);
     // Story 7.9 + 7.10: this phone's look copy follows the account it now is; a look pending for the OLD account is dropped
     deviceLook.markSynced(s.progress.look ?? null);
+    acceptSessionSettings(s.account.username, s.progress.settings); // Story 10.1 (B9): a login on a new phone gets the account's settings
   }
 }
 
@@ -292,6 +307,11 @@ export async function recoverAccount(username: string, code: string, newPassword
 }
 
 export async function logOutAccount(over: Partial<AccountDeps> = {}): Promise<AccountCall<DeviceSessionResponse>> {
+  accountStore.expectGuest(); // Story 10.1 review L9: my own log-out is not "the account went away"
+  // Story 10.1 re-review (M1 nit): a change still pending for this account is sent first, then the mark is dropped, so
+  // nothing changed later as a guest can reach the account at its next login.
+  if (settingsPendingFor() !== null) await pushSettings();
+  setSettingsPending(null);
   const r = await action(ACCOUNT_LOGOUT_PATH, {}, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
   if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
   return r;
@@ -325,4 +345,12 @@ export async function saveLookCall(code: string, over: Partial<AccountDeps> = {}
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Story 10.1 (AC 7, 10; B15): Delete my progress. `password` for a full account (a guest sends none). On success the
+ * server has cleared the cookie; the caller resets this phone (`resetPhoneAfterDelete`) and reloads.
+ */
+export async function deleteMyProgress(password: string | undefined, over: Partial<AccountDeps> = {}): Promise<AccountCall<DeleteResponse>> {
+  return action(ACCOUNT_DELETE_PATH, password === undefined ? {} : { password }, (raw) => deleteResponseSchema.safeParse(raw).data ?? null, over);
 }

@@ -156,3 +156,10 @@ export const MAX_LOBBY_LOOKS_PER_S = 2;
 
 /** Story 8.6: `POST /saved-runs` calls per client IP per minute (the start screen loads it once, Retry on failure). */
 export const MAX_SAVED_RUNS_CALLS_PER_IP_PER_MIN = 30;
+
+/** Story 10.1 (B10): `/account/settings` calls per client IP per minute, checked before the body or the database. */
+export const MAX_SETTINGS_CALLS_PER_IP_PER_MIN = 20;
+/** Story 10.1 (B10): `/account/settings` saves per account per minute (the client debounces 1 s). */
+export const MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN = 20;
+/** Story 10.1 (AC 9, B11): `/account/delete` calls per client IP per minute, checked before the body (each may pay an Argon2 verify). */
+export const MAX_DELETE_CALLS_PER_IP_PER_MIN = 5;

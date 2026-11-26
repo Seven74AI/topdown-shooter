@@ -215,3 +215,5 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 08:40 PR #26 copy-chain audit (E8-A2) merged 4421603f: no gap left besides #21's owner; review clean (6/6 mutants killed); master CI green.
 - 09:28 8.12 disconnected players don't vote, PR #29 merged a1763cb8 (fresh 3-layer review: lows only → fixed → main-session check; CI green).
 - 09:36 Master CI green on a1763cb8 (#29).
+- 10:44 10.1 Settings + account deletion, PR #30 merged c5273e15 (fresh 3-layer review → 2 narrow re-reviews → main-session check of the lock-order fixes; real-PG races 0 errors; CI green).
+- 10:53 Master CI green on c5273e15 (#30).

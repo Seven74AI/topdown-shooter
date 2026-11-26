@@ -43,6 +43,13 @@
       "when": 1795626334253,
       "tag": "0005_saved_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795685398855,
+      "tag": "0006_progress_settings",
+      "breakpoints": true
     }
   ]
 }

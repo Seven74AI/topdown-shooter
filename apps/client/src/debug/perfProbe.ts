@@ -1,3 +1,4 @@
+import { getSettings, subscribeSettings } from "../settings/settings";
 import * as Phaser from "phaser";
 import type { ZombiePool } from "@topdown/shared";
 import { MultiTapDetector } from "./multiTap";
@@ -12,7 +13,10 @@ import type { SimStepStats } from "../sim/LocalSimHost";
  * for the three-finger tap that toggles the overlay. Installed once per page; works in release.
  */
 export function installPerfProbe(game: Phaser.Game, overlayOnAtStart: boolean): void {
+  // Story 10.1 (B7): "Show performance" turns the overlay on at start and follows the setting; `?debug=1` and the
+  // three-finger tap still toggle it for this page.
   perf.overlayOn = perf.overlayOn || overlayOnAtStart;
+  bindShowPerformance(perf);
   let frameStart = Number.NaN;
   let frameMs = 0;
   let updateStart = 0;
@@ -74,4 +78,17 @@ export function recordSimFrame(
   if (perf.overlayOn || perf.summary) {
     perf.inView = countInView(zombies.x, zombies.y, zombies.aliveIds, zombies.aliveCount, viewX, viewY, viewW, viewH);
   }
+}
+
+/**
+ * Story 10.1 (B7): "Show performance" turns the overlay on at start and each change of the setting sets it; between
+ * changes `?debug=1`, the three-finger tap and the dev cheat still toggle it freely. Returns the unsubscribe.
+ */
+export function bindShowPerformance(target: { overlayOn: boolean }): () => void {
+  let shown = getSettings().showPerformance;
+  if (shown) target.overlayOn = true;
+  return subscribeSettings((s) => {
+    if (s.showPerformance !== shown) target.overlayOn = s.showPerformance;
+    shown = s.showPerformance;
+  });
 }

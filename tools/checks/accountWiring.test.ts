@@ -13,7 +13,7 @@ const UI = join(__dirname, "..", "..", "apps", "client", "src", "ui");
 describe("account wiring (Story 7.1 T7)", () => {
   it("the start screen asks for the account on start-up and prefills the name through prefillName (AC 7)", () => {
     const src = readFileSync(join(UI, "StartScreen.tsx"), "utf8");
-    expect(src).toMatch(/import \{ accountSession, prefillName \} from "\.\.\/net\/account";/);
+    expect(src).toMatch(/import \{ (ACCOUNT_GONE_TEXT, )?accountSession, prefillName \} from "\.\.\/net\/account";/); // 10.1 review L9: + the gone text
     expect(src).toMatch(/void accountSession\(\)\.then\(\(session\) => \{\s*if \(live\) setName\(\(current\) => prefillName\(current, session\)\);/);
   });
 

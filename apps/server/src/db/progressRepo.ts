@@ -4,9 +4,10 @@
  */
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Database } from "./client";
-import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema";
-import { PROGRESSION } from "@topdown/shared";
+import { accounts, paidBags, progress, runRewards, type LifetimeStatsRow } from "./schema";
+import { PROGRESSION, parseStoredSettings, type StoredPlayerSettings } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
+import { log } from "../ops/logger";
 
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 
@@ -30,6 +31,8 @@ export interface Progress {
   cosmetics: string[];
   /** Story 7.11: lifetime counters. */
   stats: LifetimeStatsRow;
+  /** Story 10.1 (AC 6): the synced settings (changed fields only), null = none; only `get` and a login read it. */
+  settings?: StoredPlayerSettings | null;
 }
 
 export type { LifetimeStatsRow } from "./schema";
@@ -64,7 +67,9 @@ async function oneBagPerRun(tx: Tx, runId: string, accountId: string, grant: Gra
     .from(runRewards)
     .where(and(eq(runRewards.runId, runId), sql`${runRewards.accountId} <> ${accountId}`, sql`jsonb_exists(${runRewards.breakdown}, 'loot')`))
     .limit(1);
-  if (other.length === 0) return grant;
+  // Story 10.1 review L6: a deleted account's bag row is gone, but its marker stays (`paid_bags`): never a second bag.
+  const deletedFinder = other.length > 0 ? [] : await tx.select({ x: sql`1` }).from(paidBags).where(eq(paidBags.runId, runId)).limit(1);
+  if (other.length === 0 && deletedFinder.length === 0) return grant;
   const { loot: _paid, ...rest } = grant.breakdown;
   void _paid;
   return { ...grant, cosmetics: grant.cosmetics.filter((k) => k !== loot.key), breakdown: rest };
@@ -105,6 +110,8 @@ export interface BankResult {
   breakdown: Record<string, unknown>;
   /** Story 7.6 (AC 10, D9): this bank is a guest's first of ≥ `account.saveNudgeSupplies`: show "Save my progress" once. */
   nudge: boolean;
+  /** Story 10.1 re-review M3-log: the seat's account no longer exists (deleted): nothing paid, not "already banked". */
+  noAccount?: true;
 }
 
 /**
@@ -165,6 +172,11 @@ export interface ProgressRepo {
    * transaction to say why. In 7.2's `boundedTransaction`, like the unlock.
    */
   train(accountId: string, boost: string, level: number, cost: number, maxLevel: number): Promise<TrainResult>;
+  /**
+   * Story 10.1 (AC 6; B10): replaces the account's synced settings (already schema-parsed by the route) in one bounded
+   * transaction (a missing progress row is made empty first). Returns what was stored.
+   */
+  saveSettings(accountId: string, settings: StoredPlayerSettings): Promise<StoredPlayerSettings>;
 }
 
 const progressColumns = {
@@ -261,6 +273,18 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
         },
         bankOptions,
       ),
+    saveSettings: (accountId, settings) =>
+      boundedTransaction(
+        database,
+        "progress.saveSettings",
+        async (tx) => {
+          await tx.insert(progress).values({ accountId }).onConflictDoNothing(); // a missing row is an empty one
+          const clean = parseStoredSettings(settings);
+          const updated = await tx.update(progress).set({ settings: clean, updatedAt: sql`now()` }).where(eq(progress.accountId, accountId)).returning({ settings: progress.settings });
+          return parseStoredSettings(updated[0]?.settings ?? clean);
+        },
+        bankOptions,
+      ),
     get: (accountId) =>
       withDbTimeout(
         "progress.get",
@@ -277,12 +301,13 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
               look: progress.look,
               cosmetics: progress.cosmetics,
               stats: progress.stats,
+              settings: progress.settings, // Story 10.1
             })
             .from(progress)
             .where(eq(progress.accountId, accountId))
             .limit(1);
           const r = rows[0];
-          return r ? { ...r, stats: readStats(r.stats) } : null;
+          return r ? { ...r, stats: readStats(r.stats), settings: r.settings === null ? null : parseStoredSettings(r.settings) } : null;
         },
         timeoutMs,
       ),
@@ -305,12 +330,28 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           // Story 7.6: the seat's account row first (FOR NO KEY UPDATE: a login merge holds FOR UPDATE, so a bank and a
           // merge of one guest run one after the other). A guest merged into an account pays that account (its
           // `run_rewards` row keeps the seat's id: the (run, seat account) guard is unchanged).
+          // Story 10.1 re-review round 2 (LOCK ORDER in `accountsRepo.ts`: the account before its merged guests): a merged
+          // guest's seat locks its payee account row FIRST (read unlocked, then re-checked under the seat row's lock), so a
+          // bank never holds the guest row while a delete of the account (which holds the account and deletes its guests)
+          // waits on it.
+          const seen = await tx.select({ mergedInto: accounts.mergedInto }).from(accounts).where(eq(accounts.id, accountId));
+          if (seen[0]?.mergedInto) await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, seen[0].mergedInto)).for("no key update");
           const acc = await tx
             .select({ mergedInto: accounts.mergedInto, username: accounts.username, saveNudged: accounts.saveNudged })
             .from(accounts)
             .where(eq(accounts.id, accountId))
             .for("no key update");
-          const payee = acc[0]?.mergedInto ?? accountId;
+          // Story 10.1 review M3: the seat's account was deleted (Delete my progress) while its run went on: nobody to pay.
+          // A quiet no-op (never an FK error, a `supplies_bank_failed` line or a hand-grant request on every retry).
+          // Re-review M3-log: one line per bank attempt, so a made-up id is not silent and ops can tell it from "already banked".
+          if (acc[0] === undefined) {
+            log.warn({ runId }, "supplies_bank_no_account");
+            return { banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false, noAccount: true };
+          }
+          const payee = acc[0].mergedInto ?? accountId;
+          // A merge landed between the unlocked read and the lock (the payee was not locked first): lock it now. Rare; the
+          // merge holds the guest row until it commits, so this guest is merged and stays merged from here on.
+          if (acc[0].mergedInto && acc[0].mergedInto !== seen[0]?.mergedInto) await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, acc[0].mergedInto)).for("no key update");
           await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx
             .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies, cosmetics: progress.cosmetics, stats: progress.stats, districts: progress.districts })
