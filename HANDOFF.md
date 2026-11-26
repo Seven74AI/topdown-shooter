@@ -54,7 +54,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 **Re-review cap (designer 2026-11-25, "Let's cap re review"):** at most **two narrow re-review rounds per story**. After the second round, remaining fixes (lows, one-line or test-only fixes, and mirrors of an already re-reviewed fix) are checked by the main session: read the diff, run the touched tests, then log the check in the story file and the run log, and land. Exception: a new **high** finding still gets a fresh re-review. The full fresh review per story is unchanged, and so is one gate per builder plus the main session's gate before master.
 
-**Consolidation batches (designer 2026-11-25, "You can do it from now on. And no need for a PR"):** when two or more APPROVED stories are waiting on each other, the main session makes one integration branch from master, merges each story in landing order (one merge commit per story, so one can be reverted alone), runs ONE full gate on the combined tree and pushes it straight to master (no PR). Only trivial conflicts are resolved in the batch (imports, sprint-status, keep-both lists); a real code conflict goes back to the story's builder. A story that adds a Drizzle migration regenerates it on top of master first (never rename: Drizzle skips an older journal `when`). If the gate fails, drop the last story and re-gate to find the culprit.
+**Consolidation batches (designer 2026-11-25, "You can do it from now on. And no need for a PR"):** when two or more APPROVED stories are waiting on each other, the main session makes one integration branch from master, merges each story in landing order (one merge commit per story, so one can be reverted alone), opens ONE PR for the combined tree (superseded 2026-11-25: was "one local full gate, then push straight to master"; code now reaches master only through a PR and its CI `gate`). Only trivial conflicts are resolved in the batch (imports, sprint-status, keep-both lists); a real code conflict goes back to the story's builder. A story that adds a Drizzle migration regenerates it on top of master first (never rename: Drizzle skips an older journal `when`). If the gate fails, drop the last story and re-gate to find the culprit.
 
 **PRs and the CI gate (designer 2026-11-25, "switch to PRs and apply that CI change"; replaces "no need for a PR" above and the main session's local landing gate):**
 - Code reaches master only through a PR. The PR's GitHub Actions run is the gate: it tests the PR merged with current master, including the docker stack smoke test, which the local gate never runs (the release no-cheats scan is in `npm run gate` since the CI speed-up).
@@ -72,10 +72,10 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 **Session 9 speed-up (designer 2026-11-24, "ok for all, now"):**
 1. Start a story as soon as its real file overlap allows, not by round: check the Notes for the merge of the stories it waits for (6.8 started before 6.6+6.7 landed because 6.6 left zombieAi.ts/flowField.ts untouched; 6.11+6.12 branched from story-6-6). Give each parallel builder its own netEvents kind range and readability-sheet number range up front.
 2. Up to 3–4 builders at once (each in its own cloud session).
-3. One full gate per story by the builder + the main session's gate before every push to master. Reviewers do NOT run the full gate: typecheck + the tests they probe/mutate.
+3. ~~One full gate per story by the builder + the main session's gate before every push to master.~~ **Superseded 2026-11-25:** builders run `gate:fast` (+ `test:changed` / `test:slow` for touched slow areas); the PR's CI `gate` is the full gate. Reviewers run typecheck + the tests they probe/mutate.
 4. Re-reviews are narrow: only the fix commits, "try to exploit this", no fresh full gate.
 5. Light review (one checker, not the three-layer gds-code-review) for mostly visual stories; full fresh review for boss, events, vote and other game rules.
-Still required: every medium/high fix and every behaviour-changing fix gets a re-review; no push to master without a clean review and a green gate.
+Still required: every medium/high fix and every behaviour-changing fix gets a re-review; no code merge to master without a clean review and a green CI `gate` on the PR.
 
 **Session 8 lessons (keep):**
 1. Re-review fixes for real: in 6.5 a low fix (stop pinning a player inside the boss) created a new medium (one survivor could body-block the boss); the re-review caught it. Behaviour-changing fixes, even for lows, go to the re-reviewer with "try to exploit this".
@@ -86,7 +86,7 @@ Still required: every medium/high fix and every behaviour-changing fix gets a re
 **Session 7 lessons (keep):**
 1. **Every builder and reviewer runs in its own cloud session** (`create_session`, branch `story-x-y`, prompt = story file + `docs/epic-6-brief.md` + `docs/epic-6-decisions.md`). **Tell each to `send_message` to `@parent` when done** — their final chat text does NOT reach this session. Also set a ~15 min `send_later` fallback check; read `list_events` if silent.
 2. **Fresh-agent review in a separate cloud session** on the merged tree (story branch merged with current master); every medium/high fix gets a re-review.
-3. **Run the full gate before EVERY push to master, docs-only merges included** (a docs merge broke lint once; `docs/art/**` is now ignored by eslint).
+3. ~~Run the full gate before EVERY push to master, docs-only merges included.~~ **Superseded 2026-11-25:** code goes through a PR and its CI `gate`; docs-only changes (docs/**, _bmad/**, _bmad-output/**, .claude/**, *.md) go straight to master with no gate (`docs/art/**` is ignored by eslint, so docs can't break lint).
 4. Archive finished child sessions right away (the designer notices open ones).
 5. Merging small neighbouring stories into one builder saved time (5.21+22, 5.23+25); Epic 6 is pre-merged.
 6. Retro actions A1–A10 (`epic-5-retro-2026-11-24.md`) apply to Epic 6 builders.
@@ -94,7 +94,7 @@ Still required: every medium/high fix and every behaviour-changing fix gets a re
 **Session 6 rules (designer, 2026-11-23) — the default from now on:**
 1. **Builders run in their own CLOUD SESSIONS** (`create_session` tool, one container each; same repo, branch `story-x-y`; give each the story file, the EPIC 5 BRIEF and docs/epic-5-decisions.md). The main session creates them, waits for their pushed branches, merges, runs the gate, dispatches the fresh-agent review (in a local review worktree or another cloud session) and pushes to `master`. Session 6 ran 3–5 agents in ONE 4-core container: load 8–16, everything 2–3× slower, tests timed out. At most **2 heavy jobs** (builder/reviewer running tests or a browser) in the main container.
 2. **Run in parallel only stories that touch different code** (round C's 5.4/5.5/5.8 all hit `explode()`/damage and had to merge one after another). Next good pair: round D + building UX 5.15–5.19 (client-only).
-3. **Cheaper checks per story:** while building, run only the tests of touched areas; ONE full gate at the end (and the main session's gate after the merge); browser checks only for visual stories; a re-review looks only at the fix.
+3. **Cheaper checks per story:** while building, run only the tests of touched areas; at the end `gate:fast` locally and the full gate in the PR's CI (superseded the old "ONE full gate at the end + main session's gate", 2026-11-25); browser checks only for visual stories; a re-review looks only at the fix.
 4. **Each story goes to `master` as soon as its review (and re-review of medium/high fixes) is clean** — don't wait for the round.
 5. Keep: every medium/high fix gets a fresh-agent re-review; designer picks every new look from code-drawn proposals before the build (art method: game code, `docs/epic-5-decisions.md`).
 
