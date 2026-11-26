@@ -15,6 +15,7 @@ import { fakeScene, frameCanvas } from "./textureShim";
 import { ensureAtlases, ATLAS_FX, FX_ACID_PUDDLES, FX_GLOW, FX_SPIT_GLOB, FX_GAS_CLOUDS, FX_DUST, FX_GRIT, FX_ASH, FX_RAIN, FX_SPLASH } from "../../../../apps/client/src/render/city/spriteAtlas";
 import { ensureEventTextures, EVENT_ATLAS, EVENT_FRAMES, EVENT_SMOKE_RGB } from "../../../../apps/client/src/render/city/eventArt";
 import { ensureBossTextures, BOSS_ATLAS } from "../../../../apps/client/src/render/city/bossAtlas";
+import { acG, gaG, evG, rdG, pdG, rnG, bdG, AC_G_END, GA_G_END, RD_G_END } from "./matter-g";
 import { litPuff, tinted, silhouette, gritChip, ashFlake, glowTex, acidGlob, wetHighlight, acidPool, acidBubble, rainStreak, rainSplash, wetPatch, flareStick } from "./matter-tex";
 
 /* ---------------- shared ---------------- */
@@ -858,19 +859,22 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p><b>Acid is the one matter that glows</b> (yellow-green = acid). The glob is heavy and viscous: a drop with strings behind it, the street light on it upper-left (its own sprite, so it stays upper-left while the glob turns), its shadow on the street moving away with the lob. It lands with a splat (matter flies), then becomes <b>the mark</b>: a pool with a deep olive centre, see-through thin edges and a bright meniscus, eating into the asphalt under it, bubbling, giving off thin fumes. <b>The ring stays exactly where it is</b>: its outer edge is the damage edge (4.8 D16: touch the ring = you are in acid).</p>`,
     game: `<ul><li><code>render/AcidView.ts</code>: glob <code>fx_spit_glob_01</code> 0.45 m (× 1.7 at the top of the lob, lifted 0.35 m up the screen), shadow <code>fx_glow</code> tinted black 0.28 m at 0.35; puddle <code>fx_acid_puddle_01/02</code> 2 m (2 × puddleRadiusM 1.0), turned id × 1.3, fade in 0.12 s, alpha min(1, (3 − age) / 0.6 + 0.35).</li><li><code>acidFx.ts</code>: pools ≤ maxLiveSpits 24 / maxLivePuddles 32 (zombies.json › spitCaps); speed 9 m/s, puddle 3 s.</li><li>Blackout: a ghost copy above the darkness (hazard, 6.3 B3).</li></ul>`,
-    perf: `<p>AC-A: 13 textures, ≈ 190 KB (the two pools are 144² for 2 m: 72 px/m = 36 px/m × dpr 2). Per puddle 1 pool + 1 halo (ADD, cropped to the pool) + ≤ 6 bubbles + ≤ 4 fumes = 12 sprites (today 1), so 32 puddles = 384 sprites at the cap: <b>cap the bubbles and fumes to the 8 nearest puddles</b> (like maxSpitterDrips 8) and halve with <code>?fx=low</code> (done here: 3 bubbles, 2 fumes). AC-B drops the two additive textures (no ADD fill on the CPU rasterizer).</p>`,
+    perf: `<p>AC-A: 13 textures, ≈ 190 KB (the two pools are 144² for 2 m: 72 px/m = 36 px/m × dpr 2). Per puddle 1 pool + 1 halo (ADD, cropped to the pool) + ≤ 6 bubbles + ≤ 4 fumes = 12 sprites (today 1), so 32 puddles = 384 sprites at the cap: <b>cap the bubbles and fumes to the 8 nearest puddles</b> (like maxSpitterDrips 8) and halve with <code>?fx=low</code> (done here: 3 bubbles, 2 fumes). AC-B drops the two additive textures (no ADD fill on the CPU rasterizer). <b>AC-G</b>: 15 textures, ≈ 620 KB as baked here (2 splats + 2 etches + the zone light at 144², the edge at 192²; in the atlas the two variants could share one etch). Peak 11 sprites per puddle (2 ADD: the zone light and the edge, both exactly the 2 m circle, so nothing outside the zone is filled), 9 with <code>?fx=low</code>; bubbles and fumes on the 8 nearest puddles as for A.</p>`,
     findings: [
+      "<b>AC-G finding:</b> there is no puddle-wide damage tick: the acid clock is per body (<code>spit.ts › acidTicks</code>, 2 HP per 0.4 s spent inside, kept while outside). A pulse on the ring (like FI-B's fire, which does tick for the zone) would show ticks that are nobody's, so AC-G's ring is steady.",
+      "<b>AC-G finding:</b> today and AC-A fade the pool while it still hurts (today to 0.35, A to 0 over the last 0.6 s). AC-G keeps the zone full to 3 s and turns it off in 0.08 s; only the dark mark fades after (0.6 s).",
+      "AC-A's splash drops (up to 0.95 m + their size) crossed the 1 m edge with bright acid; AC-G keeps every bright part inside.",
       "<b>Bug (pop):</b> the puddle never fades to 0: alpha = min(1, (3 − age) / 0.6 + 0.35) is still 0.35 at its last frame, then it vanishes (<code>AcidView.ts</code> line ~99). Both takes fade to 0 over the last 0.6 s; the sim's damage ends at 3 s either way.",
       "The glob is rotated to its flight direction with a highlight baked in, so the highlight turns with it (lit from the right when spat to the left). The takes keep the highlight as its own unrotated sprite.",
       "The glob's shadow does not move with the lob (fixed size and alpha); the takes push it down-right and soften it at the top of the arc.",
       "Checked and fine: the ring's outer edge sits at the frame's half side (the damage edge) in both variants; kept in the takes at the same place and width ratio.",
     ],
-    lengthS: AC_FLIGHT_S + AC_PUDDLE_S + 0.25,
+    lengthS: AC_G_END,
     gapS: 0.4,
     keyT: [AC_FLIGHT_S * 0.5, AC_FLIGHT_S + 0.08, AC_FLIGHT_S + 1.2, AC_FLIGHT_S + 2.8],
     viewM: 7,
     aspect: 0.6,
-    looks: [acNow, acTake("AC-A"), acTake("AC-B")],
+    looks: [acNow, acTake("AC-A"), acTake("AC-B"), acG],
     plan: {
       goal: "See it coming, then know exactly where not to stand for 3 s.",
       timing: `Flight 5 m at 9 m/s = 0.56 s here (≤ 6 m range: 0.67 s); puddle 3 s from the splash (zombies.json › spitter.spit). The Spitter's 0.6 s windup (its rear-back pose) comes before.`,
@@ -904,18 +908,20 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Gas is <b>matter, not light</b>: heavy yellow-green fumes (gas / infection colour) that <b>roll out</b> from the burst, denser in the middle, lit on top-left and shadowed down-right, thinning into curling wisps at the rim. It does not glow. The two layers still turn against each other (today's motion, kept). <b>The edge ring stays</b>: it is the slow zone's edge (30 % slow inside).</p>`,
     game: `<ul><li><code>render/BloaterView.ts</code>: per cloud two discs <code>fx_gascloud_a/b</code> 5 m (2 × gasRadiusM 2.5), alpha 0.42 / 0.22, turning +0.05 / −0.08 rad/s; edge ring 0.045 m, cde178 at 0.45; ghosts above the darkness in a blackout.</li><li><code>bloaterFx.ts</code>: fade in 0.25 s, out over the last 1 s; gasS 4.0; maxGasClouds 24 (zombies.json › blasts).</li><li>The burst (flash, shock ring, drops, scraps, bile) is the fire family's card <b>BX</b>.</li></ul>`,
-    perf: `<p>GA-A: 3 textures, 300 KB (two 192² layers: the cloud is 5 m, 38 px/m; the game shows it at 36 px/m × dpr). Per cloud 2 layers + 8 wisps + the ring = 11 sprites (today 3); 24 clouds = 264 at the cap: wisps only on the 6 nearest clouds (maxBloaterFx 6), 4 with <code>?fx=low</code>. The layers are normal blend, large: the same fill cost as today's two discs.</p>`,
+    perf: `<p>GA-A: 3 textures, 300 KB (two 192² layers: the cloud is 5 m, 38 px/m; the game shows it at 36 px/m × dpr). Per cloud 2 layers + 8 wisps + the ring = 11 sprites (today 3); 24 clouds = 264 at the cap: wisps only on the 6 nearest clouds (maxBloaterFx 6), 4 with <code>?fx=low</code>. The layers are normal blend, large: the same fill cost as today's two discs. <b>GA-G</b>: 3 textures, ≈ 400 KB (one 256² rim and one 192² inner layer, each drawn twice at different turns; 5 m at 51 / 38 px/m). Per cloud 4 sprites during its life (2 rims + 2 inner layers, no ring Graphics; today 3); the 8 break-up wisps only in the 0.5 s after the end (peak 10; 4 wisps with <code>?fx=low</code>). Normal blend only.</p>`,
     findings: [
+      "<b>GA-G finding:</b> GA-A's rim wisps (at 0.82–0.92 R, 1.1 m wide) spill ≈ 0.3 m past the slow edge, so the cloud looks bigger than the zone; today's and A's 1 s fade dims a zone that still slows. GA-G: the gas front is the edge, held to 4 s, broken after.",
+      "GA-G drops the stroked ring: the blackout ghost (above the darkness) would be the rim texture instead (question for the designer).",
       "Checked and fine: alpha in / out and the turning speeds match <code>bloaterFx.ts</code> / <code>BloaterView.ts</code>.",
       "Today's gas texture is flat (no light direction): the take lights it from the upper left like every other matter.",
       "The cloud is full size at once (the sim slows inside 2.5 m from the first tick); GA-A rolls the look out from 70 % to 100 % in 0.35 s, but the edge ring is drawn at full radius from the start so the slow zone reads exactly.",
     ],
-    lengthS: GAS_S,
+    lengthS: GA_G_END,
     gapS: 0.5,
     keyT: [0.15, 1.2, 3.5],
     viewM: 7,
     aspect: 0.8,
-    looks: [gaNow, gaA],
+    looks: [gaNow, gaA, gaG],
     plan: {
       goal: "A zone you don't want to walk through: you see its edge at once, and it hangs there for 4 s.",
       timing: "gasS 4.0, fade in 0.25 s, out over the last 1 s (bloaterFx.ts); radius 2.5 m.",
@@ -942,8 +948,10 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Three emitters from the events, kept at their rates and colours because each colour means something: the <b>gas leak's yellow-green vapour</b> (gas: get out of the ring), the supply drop's <b>green signal smoke</b> (SD2, approved: where the crate lands; a signal colour, not acid) and the stampede's <b>warm dust</b>. All three become lit billows (matter): the gas jet leaves fast and hangs, the smoke rises off the flare then bends with the wind, the dust kicks up grit (secondary follows). The flare is <b>light</b>: a white-hot green head on a dark stick, with a small pool of green light.</p>`,
     game: `<ul><li><code>render/EventPickupsView.ts</code>: vapour <code>event_vapour_a</code> 22/s, life 2.2 s × 0.7–1.2, 1.4 m × (0.5 + 1.3 u), alpha 0.7 (1 − u); flare <code>event_flare_a</code> 0.6 × 0.3 m; smoke <code>event_smoke_a</code> 16/s, life 3 s, 1.68 m, alpha 0.75, drift (0.35, −0.3) m/s.</li><li><code>render/EventView.ts</code>: stampede dust <code>event_dust_a–c</code> 24/s, life 1.6 s, 2.2 m × (0.6 + 0.8 u), alpha 0.7 (1 − u).</li><li>Caps: events.json › fx 48 vapour, 48 smoke, 64 dust; all above the darkness.</li></ul>`,
-    perf: `<p>EV-A: 12 textures, ≈ 160 KB (64–72 px puffs for 1.4–2.2 m). Same particle counts as today (one sprite each) plus ≤ 24 grit chips on the stampede and 3 sprites for the burning flare (2 additive, cropped). <code>?fx=low</code> halves all emitters (today it doesn't touch the event particles: see findings).</p>`,
+    perf: `<p>EV-A: 12 textures, ≈ 160 KB (64–72 px puffs for 1.4–2.2 m). Same particle counts as today (one sprite each) plus ≤ 24 grit chips on the stampede and 3 sprites for the burning flare (2 additive, cropped). <code>?fx=low</code> halves all emitters (today it doesn't touch the event particles: see findings). <b>EV-G</b>: 14 textures, ≈ 200 KB. Peak 124 sprites for the three events at once on this page (77 with <code>?fx=low</code>); in play only one event runs at a time, under the same caps (48 / 48 / 64) + 1 jet sprite + 8 hop chips + 3 flare sprites (2 ADD, cropped: 64² pool, 32² head).</p>`,
     findings: [
+      "<b>EV-G finding:</b> two winds on one street: the flare smoke drifts up-right (0.35, −0.3) m/s while fire smoke and embers go down-right (fireParticles.ts WIND 0.55, 0.32). EV-G (and RD-G, AC-G's fumes) use the fire's wind.",
+      "The vapour flies 0.6–1.6 m/s for up to 2.6 s today: it reaches 3–4 m from the tank, half-way to the 6 m danger ring, and reads as a smaller zone. EV-G keeps it within ≈ 2.5 m.",
       "<code>?fx=low</code> does not reduce the event vapour, flare smoke or stampede dust today (EventPickupsView / EventView ignore it). Proposed: halve them like the other particles (shown with the ?fx=low button).",
       "The flare is drawn as a 32 × 16 px bar and a dot, stretched to 0.6 × 0.3 m: it reads as a domino. EV-A draws a stick with a burning head.",
       "The gas leak vapour lives here (EV) rather than in GA (GA = the Bloater's cloud), as listed in the brief.",
@@ -954,7 +962,7 @@ export const cards: FxCard[] = [
     keyT: [0.6, 1.8, 3.0],
     viewM: 12,
     aspect: 0.5,
-    looks: [evNow, evA],
+    looks: [evNow, evA, evG],
     plan: {
       goal: "From across the map: where the gas is, where the crate lands, where the stampede comes from.",
       timing: "Continuous while the event's phase lasts (gas leak HISS, supply FLARE, stampede warning): rates 22 / 16 / 24 per second (EventPickupsView / EventView).",
@@ -977,19 +985,21 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Stage 4 (Ruins): bits of the buildings keep coming down. The dust is <b>matter lit from the upper left</b>: billows with a lit side and a shadowed side, coloured by the Ruins material (the game's tint, kept). The grit is <b>chips of concrete</b> with their own soft shadow down-right, that fall, bounce once and rest before they fade (secondary follows the puff). Stage 5 CO3 ash: <b>flakes that tumble</b> (face, edge) and drift, each with a faint shadow. <b>RD-A redraws <code>fx_dust_a</code></b>, which the Behemoth's dust (BD) and the place dust (PD-A) share.</p>`,
     game: `<ul><li><code>render/city/DustView.ts</code>: per puff 3 smoke <code>fx_dust_a</code> 0.8 m × (1 + 1.4 u), life 1.8 s, alpha 0.5 sin(π min(1, 1.4 u)) (1 − u), drift down 0.15 m/s; 8 grit <code>fx_grit_a</code> 0.06 m, life 1.1 s, falling 0.6 m, spin 6 rad/s; tint = the material's dust (concrete 184,176,160).</li><li>decay.json › ruins: a puff every 0.6–1.6 s at rubble in view, collapse burst 2 s; caps 40 smoke / 60 grit, halved by <code>?fx=low</code>.</li><li><code>render/city/CityView.ts</code>: CO3 ash in the rain pool, <code>fx_ash_a</code> 0.07 × 0.045 m, alpha 0.55, tint b8b2a8.</li></ul>`,
-    perf: `<p>RD-A: 9 textures, ≈ 80 KB (three 80² dust billows replace one 64²; three 20² chips; ash 16 × 12 ×3). Same counts as today (3 smoke + 8 grit per puff; caps 40 / 60, halved with <code>?fx=low</code>). Ash: +1 shadow sprite per flake (≤ 128 at the cap; drop the shadows with <code>?fx=low</code>).</p>`,
+    perf: `<p>RD-A: 9 textures, ≈ 80 KB (three 80² dust billows replace one 64²; three 20² chips; ash 16 × 12 ×3). Same counts as today (3 smoke + 8 grit per puff; caps 40 / 60, halved with <code>?fx=low</code>). Ash: +1 shadow sprite per flake (≤ 128 at the cap; drop the shadows with <code>?fx=low</code>). <b>RD-G</b>: 10 textures, ≈ 85 KB (the shared -G dust ×3 80², A's chips, one chip shadow, A's ash). Per fall 3 smoke + 8 chips + 8 chip shadows (shadows off with <code>?fx=low</code> in the build); page peak 43 with the ash, 23 with <code>?fx=low</code>.</p>`,
     findings: [
+      "<b>RD-G finding:</b> today and RD-A start the dust with the grit, so dust appears before anything has landed; RD-G starts each puff on a big chip's landing. The sound (debris_fall) plays on the spawn today: on the landing would match.",
+      "RD-A turns each lit puff by a seeded angle, which turns its baked light away from the upper left (same in BD-A and PD-A). The -G takes never turn lit matter; they stretch it instead.",
       "<code>fx_grit_a</code> is a hard white quad (8 px) shown at 0.06 m (2 px): it reads as a white speck. RD-A: lit chips with a soft edge and a shadow (skill § 4: no hard specks).",
       "Today's grit 'falls' with an ease-out from its highest point (fastest at the start): it floats down. RD-A accelerates it and adds one small bounce.",
       "Overlap (9.15): <code>fx_dust_a</code> is shared with the Behemoth's dust (<code>bossDust.ts</code>, tint b8ada0). Redrawing it here restyles the boss dust too, keeping 9.15's timing (see BD).",
       "Checked and fine: <code>?fx=low</code> halves the dust pools; the material tint follows the Ruins look.",
     ],
-    lengthS: 1.8,
+    lengthS: RD_G_END,
     gapS: 0.4,
     keyT: [0.2, 0.55, 1.2],
     viewM: 4,
     aspect: 0.75,
-    looks: [rdNow, rdA],
+    looks: [rdNow, rdA, rdG],
     plan: {
       goal: "The ruins are still falling apart around you (ambience: it must never look like an attack).",
       timing: "One puff per 0.6–1.6 s (decay.json › ruins); smoke 1.8 s, grit 1.1 s (DustView.ts). Ash: continuous in CO3.",
@@ -1013,8 +1023,9 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>A piece hits the ground: dust is pushed out from under its edge. Dust is matter, so it <b>billows and grows while it thins</b> (today's dots shrink as they fly, which reads like sparks). Same 8 puffs, same edge points, same 0.4 s; the shared lit dust picture, plus two chips knocked out where it lands.</p>`,
     game: `<ul><li><code>render/PlaceFxView.ts</code>: one Graphics, a fillCircle per particle, colour a89c88.</li><li><code>placeFxPools.ts › DustPool</code> + <code>placeFeel.ts</code>: 8 per puff from the footprint's edge, 0.7 m/s slowing to 0, radius 0.12 → 0.05 m, alpha 0.7 (1 − t), life 0.4 s; cap controls.json › fx.maxPlaceDust 64.</li><li>Shown on a 2 × 1 m wood barricade footprint (dashed).</li></ul>`,
-    perf: `<p>PD-A: reuses the shared dust textures (tinted copies in the game: no new texture if the tint is applied by Phaser) + one chip; 8 sprites + 2 chips per placement instead of one redrawn Graphics; ≤ 64 at the cap. Chips off with <code>?fx=low</code>.</p>`,
+    perf: `<p>PD-A: reuses the shared dust textures (tinted copies in the game: no new texture if the tint is applied by Phaser) + one chip; 8 sprites + 2 chips per placement instead of one redrawn Graphics; ≤ 64 at the cap. Chips off with <code>?fx=low</code>. <b>PD-G</b>: shares the -G dust; + one chip and a 100 × 60 contact shadow. 8 puffs + 1 shadow + 2 chips = 11 sprites per placement (5 with <code>?fx=low</code>: 4 puffs, the shadow, no chips).</p>`,
     findings: [
+      "<b>PD-G finding:</b> today's 8 puffs leave at even angles from the centre: on a 2 × 1 m footprint that puts 2 on each short side (1 m) and 2 on each long side (2 m): per metre the short sides get twice the dust, and the pattern reads as a ring. PD-G: 3 per long side, 1 per short side, along each edge's normal.",
       "Today the dust shrinks (radius 0.12 → 0.05 m) as it spreads: physically backwards for dust. PD-A grows it 0.3 → 0.65 m while it fades.",
       "<code>?fx=low</code> doesn't halve the place dust today (cap 64 either way); a small effect, but the rule says halve.",
       "Checked and fine: 8 puffs on the footprint's edge, the seeded spin, 0.4 s.",
@@ -1025,7 +1036,7 @@ export const cards: FxCard[] = [
     viewM: 4,
     aspect: 0.6,
     under: footprint,
-    looks: [pdNow, pdA],
+    looks: [pdNow, pdA, pdG],
     plan: {
       goal: "Thud: it's down, and it's solid.",
       timing: "0.4 s from building.placed (placeFeel.ts); with the drop and the sound.",
@@ -1044,8 +1055,10 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Rain is matter falling through the street light: thin motion-blurred streaks with a brighter head, slanted as today. Each splash is a <b>crown</b>: beads thrown up and out, then the ring spreading, then a last ripple. <b>RN-B</b> adds <b>the mark</b>: the street is wet, darker and glossy, with the lamp's streak in it (a real choice: it costs two textures and changes the look of the whole street in the rainy stages).</p>`,
     game: `<ul><li><code>render/city/CityView.ts</code>: pool 128 drops, 0.4 / m² × the stage's rain level (CO4 flood × 1.3), <code>fx_rain_a</code> 0.035 × 0.45 m slanted 0.22, 12–18 m/s, alpha 0.28; splashes 16 × level, <code>fx_splash_a</code> ellipse to 0.45 m, alpha (1 − phase) 0.5, 1.6 per second each.</li><li><code>render/city/rainLook.ts</code>: × 0.35 in a blackout; Rain setting × 1 / 0.5 / 0 (Story 10.1).</li><li>Shown at level 1 (stage 3).</li></ul>`,
-    perf: `<p>RN-A: 5 textures, ≈ 40 KB (the 4 splash frames 64 × 36). Same counts (≤ 128 drops, ≤ 16 splashes, halved with <code>?fx=low</code> and the Rain setting). RN-B: + 2 wet patches (192 × 112, 168 KB) as 2 large normal-blend sprites per screen.</p>`,
+    perf: `<p>RN-A: 5 textures, ≈ 40 KB (the 4 splash frames 64 × 36). Same counts (≤ 128 drops, ≤ 16 splashes, halved with <code>?fx=low</code> and the Rain setting). RN-B: + 2 wet patches (192 × 112, 168 KB) as 2 large normal-blend sprites per screen. <b>RN-G</b>: 5 textures, ≈ 175 KB (RN-B's two wet patches are 168 KB of it). Same drop and hit counts (≤ 128 + 16, halved with <code>?fx=low</code>); page peak 47; two large normal-blend wet sprites per screen.</p>`,
     findings: [
+      "<b>RN-G finding:</b> the game draws rain at depth 11.8 (<code>CityView.ts › RAIN_DEPTH</code>), above the acid puddles (1.55), the gas (6.6) and the Spitter's glob (11.5): drops draw over every hazard. Proposed: rain under the hazards.",
+      "The splash ellipse (today) and the crown (RN-A) are rings: 16 of them blinking compete with the game's rings. RN-G hits are a dark dot and beads.",
       "<code>fx_floodpool_a</code> (in the FX atlas) is not water: it is the floodlights' light pool (FloodlightView, ADD). It belongs with the light textures (9.6 lists 'floodlight light textures'), not with rain: not redrawn here.",
       "Checked and fine: drop count, slant, speeds and the splash cycle match CityView; the blackout dimming and the Rain setting stay as they are.",
     ],
@@ -1054,7 +1067,7 @@ export const cards: FxCard[] = [
     keyT: [0.1, 0.35, 0.6],
     viewM: 5,
     aspect: 0.7,
-    looks: [rnNow, rnTake("RN-A"), rnTake("RN-B")],
+    looks: [rnNow, rnTake("RN-A"), rnTake("RN-B"), rnG],
     plan: {
       goal: "It's pouring (stage 3), without hiding anything that matters.",
       timing: "Continuous; each splash cycle 0.625 s (1.6 / s), drops 12–18 m/s (CityView.ts).",
@@ -1080,8 +1093,9 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>The dust is <b>secondary: it follows its cause</b> (the group 4 plan's R5) and its timing is already approved and built in Story 9.15 (in review, PR #34). So <b>only the picture changes</b>: the same pooled puffs, bursts, sizes, alphas and tint, drawn with the new lit <code>fx_dust_a</code> from RD-A. Recommended: pick BD together with RD (one texture, one look for all dust).</p>`,
     game: `<ul><li>Branch story-9-15: <code>render/bossDust.ts</code> (pool 48, ?fx=low 24; slam: 9 per fist, 6 grit per shoulder; rush trail, crash 16, throw crumbs 8 + landing 12, roar 22, death 24), <code>BossView.ts</code> draws each with one <code>ATLAS_FX › FX_DUST</code> image tinted b8ada0; peak alpha 0.5, radius × (1 + 1.6 t).</li><li>Shown: the slam hit on BH1's slam-hit frame (today's game drawing, not the relit one).</li></ul>`,
-    perf: `<p>No change to counts (pool 48 / 24). Texture: the shared dust grows from one 64² to three 80² (≈ 75 KB).</p>`,
+    perf: `<p>No change to counts (pool 48 / 24). Texture: the shared dust grows from one 64² to three 80² (≈ 75 KB). <b>BD-G</b>: the same pool, counts and timing (peak 28 here, 23 with <code>?fx=low</code>); textures = the shared -G dust (3 × 80², 75 KB). Its geometry (directions, speed cap) is computed once at the burst: no per-frame cost.</p>`,
     findings: [
+      "<b>BD-G finding:</b> 9.15's burst throws dust in every direction from each fist (<code>bossDust.ts › burst</code>: angle = hash × 2π), so about half of it flies back over the boss's own body and its tell. BD-G: the half away from the body. Two lines in 9.15's code: the angle, and a speed cap that keeps the visible dust inside 4.2 m (9.15's fastest forward puffs reach ≈ 4.3 m from the boss while still at alpha > 0.15, next to the 4.5 m slam edge).",
       "Overlap with 9.15: <code>bossDust.ts</code> uses <code>FX_DUST</code>; when group 5's dust texture lands, the boss picks it up with no change to 9.15's code or timing. If three variants are picked, 9.15's one-image-per-slot can take the variant by slot index (one line).",
       "Checked and fine: the burst numbers here are copied from <code>BOSS_DUST</code> on story-9-15.",
     ],
@@ -1092,7 +1106,7 @@ export const cards: FxCard[] = [
     aspect: 0.75,
     origin: [0.4, 0.5],
     under: bossUnder,
-    looks: [bdNow, bdA],
+    looks: [bdNow, bdA, bdG],
     plan: {
       goal: "The slam lands with weight: the ground gives off dust from under the fists.",
       timing: "From the slam hit (boss.json slam: telegraph 1.2 s, then the hit); bursts start within 0.08 s, puffs live 0.35–0.6 s (bossDust.ts).",
