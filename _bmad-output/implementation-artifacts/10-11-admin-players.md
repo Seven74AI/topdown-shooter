@@ -4,7 +4,7 @@ baseline_commit: d8ffaee
 
 # Story 10.11: Admin players
 
-Status: review
+Status: done
 
 (Added 2026-11-26. Designer: "I'd like to add Admin players. That would get the dev btn so he can do whatever we can do in dev mode but in production." The four decisions AD-1…AD-4 were proposed with a recommendation and the designer answered "Ok with all your recommendation" (2026-11-26), so every one is **A**. Online cheats are a separate story, **10.12** (backlog). Written with `gds-create-story` from the real code at `d8ffaee`.)
 
@@ -183,3 +183,8 @@ Claude (builder session, `gds-dev-story`), 2026-11-26.
 3. **[nit] `ADMIN_CHUNK` exempts any `assets/admin-tools-*` path at any depth** (`tools/checks/noCheatsInRelease.test.ts:42`, `(^|[\\/])assets[\\/]`). Today only the root `assets/` holds such files. If you want it tighter, anchor it to `join(DIST, "assets")`. Optional.
 
 No other issue found. AC 1–9 are met (AC 7's browser part rests on the builder's Playwright run plus the static check above).
+
+### Main session close-out (2026-11-26)
+
+- Review fixes L1, L2, N1 (test-only, commit 0f37f3d) checked by the main session per the re-review cap: diff read (mount option `practiceOnlyOnline`, new `adminPanelDomLayout` DOM test, real-PG case via `runAdminCommand` with an upper-case name, exemption anchored to `DIST/assets`); PR #35 CI run 45849077456 all green. Merged with a merge commit: 78433ca.
+- Operator follow-up (Hermes): after the deploy runs migration 0007, mark admins with the command in `docs/deploy.md` › Database › Admins.
