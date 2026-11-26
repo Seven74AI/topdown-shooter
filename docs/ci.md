@@ -48,12 +48,15 @@ Every test shard (and the `postgres` job) runs `node tools/ci/slowest.mjs <its r
 20 s, so a test is split before it reaches the limit). Split such a test per case, the way the fuzzes and sims were
 split in the E8-A8 PR: an `it.each` per seed / layout / run, the shared counters in the `describe`, then one totals test
 that first checks every case ran (`expect(casesRun).toBe(n)`) and then makes the old cross-case assertions. Real-time
-bot tests are split into their steps on one room (`tools/bots/cut.test.ts`, `lateJoin.test.ts`).
+bot tests are split into their steps on one room (`tools/bots/cut.test.ts`, `lateJoin.test.ts`). A single long
+run (one fuzz layout, a trial loop) becomes a generator that yields at fixed points, and each part resumes it
+(`flame.fuzz`, `wideBody.fuzz`, `bearTrap.fuzz`, Brute reachability): the same code and checks, the last part asserts.
+Aim at ≤ ~8 s per test when run alone: a loaded CI shard ran single tests up to 6× slower than that.
 
 Why a check over the CI report, not a lower per-test timeout: `testTimeout` (30 s) is a default that the slow tests
 raise on purpose, because a timeout also fires on the builders' loaded shared boxes (load 8–16), where it would flake.
 The report check runs only on the CI runners (one machine type), reads the time vitest measured, and names every
-offender at once. The splits aim at ≤ ~15 s per test in CI, so a runner twice as slow still passes. Locally:
+offender at once. The splits aim at ≤ ~8 s per test alone (≤ ~15 s on a CI shard). Locally:
 `node tools/ci/slowest.mjs reports/` over downloaded `test-report-*` artifacts, or over a local `--reporter=json` file.
 
 ### Refreshing the shard timings
