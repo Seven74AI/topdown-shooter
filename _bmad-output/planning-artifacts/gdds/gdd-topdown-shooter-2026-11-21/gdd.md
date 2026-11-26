@@ -320,7 +320,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **UI:** HUD, shop cards, lobby, evacuation vote, pings, unlock screen.
 - **Audio:** ~30 weapon sounds, ~20 zombie sounds, 5 ambience loops (one per decay stage), 3 music tracks (wave, build, boss).
 - **Budget:** total download for first play under 15 MB; music streams after the game starts.
-**Production:** all art is drawn in game code (Canvas 2D, baked into atlases with `category_name_variant` frames, each texture registered through `addGeneratedTexture`); AI and vector images are references only. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is a polish pass of the code-drawn art and of the audio, done without a hired artist or sound designer. *(Photoreal pass, designer 2026-11-24/25, `docs/art/photoreal-decisions.md`: the things you build (9.11) and the characters (9.13) are the code drawings, relit at load in a Web Worker. The street props and vehicles (9.14) are rendered offline from the approved code into one pre-made image atlas, with the code drawings as the fallback. Red marks danger in play: the boss and zombie silhouettes behind walls (9.12).)*
+**Production (photoreal, designer 2026-11-26):** the art is photoreal. Each art group is shown on a before/after proposal page and the designer picks; the approved look goes into the game in one of two ways: today's code drawing relit at load in a Web Worker (for animated or per-player art), or an atlas pre-rendered offline from the approved code (for static art). Either way the code drawing (Canvas 2D, `category_name_variant` frames, each texture through `addGeneratedTexture`) is the fallback. AI and vector images are references only. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is the photoreal pass of the art and the audio pass, done without a hired artist or sound designer (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`). *(Photoreal pass, designer 2026-11-24/25, `docs/art/photoreal-decisions.md`: the things you build (9.11) and the characters (9.13) are the code drawings, relit at load in a Web Worker. The street props and vehicles (9.14) are rendered offline from the approved code into one pre-made image atlas, with the code drawings as the fallback. Red marks danger in play: the boss and zombie silhouettes behind walls (9.12).)*
 
 ## Development Epics
 ### Epic Structure
@@ -336,7 +336,7 @@ Detailed breakdown in [epics.md](epics.md). Every epic ends in something playabl
 | 6 | The full run | Evening to the Behemoth, extract or endless |
 | 7 | Accounts and meta-progression | Unlocks carry between runs |
 | 8 | Real-life resilience | Join mid-run, reconnect, save and resume |
-| 9 | Dead City art and audio | Polished code-drawn look and sound (no hiring) |
+| 9 | Dead City art and audio | Photoreal look and polished sound (no hiring) |
 | 10 | Performance and polish | v1 for weekly game nights |
 | 11 | Random city (post-v1) | A new generated city every run, next to Downtown |
 
@@ -360,7 +360,7 @@ This is a game for a group of friends, so success is simple and honest.
 ## Assumptions and Dependencies
 - **A game server is required** (real-time co-op, saved runs, accounts); hosting has an ongoing cost [ASSUMPTION: acceptable given the budget].
 - Mobile browsers on the reference phones can run 150 animated zombies with lighting at the target frame rate; the first milestone must prove it.
-- No artist or sound designer is hired. Art is drawn in game code and sound comes from code/procedural generation or licensed/free libraries; Epic 9 polishes both. (Since 9.14 the street props are a pre-rendered image made from the approved code; see *Production* above.)
+- No artist or sound designer is hired. Art is photoreal, made from the game's own code drawings (relit in a worker or pre-rendered from the approved code; see *Production* above), and sound comes from code/procedural generation or licensed/free libraries.
 - Development is done by the designer with AI assistance through BMAD.
 
 ## Open Items Index

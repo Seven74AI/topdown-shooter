@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-26-2026 (Epic 7 + Epic 8 retros done)
+# last_updated: 11-26-2026 (correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed, 8.13 added)
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,9 +39,12 @@
 # - Recommended epic order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 8 → 10; Epic 9 alongside from Epic 4.
 #   Epic 8 needs Story 7.1 (accounts).
 # - Stories marked "human" are playtests or specs run by the designer; mark them done by hand.
-# - Epic 9 is a polish pass of the code-drawn art and audio; nobody is hired (GDD, designer 2026-11-23).
-#   Since the photoreal pass (9.11–9.14, 2026-11-25) art is relit code drawings baked in a worker, plus one
-#   pre-rendered street-props atlas (9.14 B1): docs/art/photoreal-decisions.md. 9.1–9.10 predate it (readiness 2026-11-26).
+# - Epic 9 is PHOTOREAL (designer 2026-11-26, sprint-change-proposal-2026-11-26-epic-9-photoreal.md): 9.1–9.10 are re-based on the
+#   9.11–9.14 pipeline (proposal-page pick → worker relight or pre-rendered atlas, code fallback): docs/art/photoreal-decisions.md.
+#   Nobody is hired. 9.5, 9.6 and 9.8 depend on 10.1 (settings).
+# - Epic 10 order: 10.1 first (9.5, 9.6, 9.8, 10.2 depend on it), then 10.2–10.7 → 10.8 → 10.9.
+# - Folded 2026-11-26: 1.11 AC 3 → 10.2; 1.12 and 4.10 → 10.9 game nights. Epics 1 and 4 closed. 2.10 stays parked.
+# - 8.13 Slow-line horde skip (8.10 B6) added under Epic 8, before the 2.10 phone test (named 8.12 by the designer; 8.12 was taken).
 
 generated: 11-21-2026 18:20
 last_updated: 2026-11-26
@@ -52,7 +55,7 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Core combat on one phone
-  epic-1: in-progress
+  epic-1: done  # closed 2026-11-26 (correct-course): 1.11 AC 3 folded into 10.2, 1.12 into 10.9
   1-1-project-scaffold-with-a-playable-link: done
   1-2-shared-simulation-core: done
   1-3-move-with-a-floating-stick: done
@@ -63,8 +66,8 @@ development_status:
   1-8-two-weapon-slots-smg-and-hunting-rifle: done
   1-9-machete-melee: done
   1-10-keyboard-and-mouse-on-desktop: done
-  1-11-performance-overlay-and-150-walker-stress-test: review  # human: only AC 3's reference-phone rows are open (docs/perf/epic-1-stress.md); 10.2 covers the same phones
-  1-12-melee-and-controls-playtest-on-real-phones: review  # human: playtest/spec, not a dev-agent story
+  1-11-performance-overlay-and-150-walker-stress-test: done  # folded into 10.2 (correct-course 2026-11-26): AC 3's reference-phone rows are measured by 10.2
+  1-12-melee-and-controls-playtest-on-real-phones: done  # folded into 10.9 (correct-course 2026-11-26): controls feedback + melee decision in the first game night
   epic-1-retrospective: optional
 
   # Epic 2: Online co-op foundation
@@ -78,7 +81,7 @@ development_status:
   2-7-server-confirmed-hits: done
   2-8-downed-revive-and-team-wipe: done
   2-9-player-rings-and-teammate-arrows: done
-  2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story
+  2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story. PARKED (designer); 8.13 lands before it
   2-11-in-run-menu: done
   2-12-rewound-hit-testing: done  # 2.10 AC 3 follow-up: netsim 5.3 % reversed kiting Walkers, 28.9 % kiting Runners (3.8) at 150 ms: build now (decision 2026-11-22)
   epic-2-retrospective: done
@@ -98,7 +101,7 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 4: Downtown and city decay (Milestone 1)
-  epic-4: in-progress
+  epic-4: done  # closed 2026-11-26 (correct-course): 4.10 folded into 10.9
   4-1-downtown-map: done
   4-2-cover-and-bullet-rules: done
   4-3-spawn-points: done
@@ -108,7 +111,7 @@ development_status:
   4-7-panic: done
   4-8-breakdown-and-car-fires: done
   4-9-placeholder-dead-city-look: done
-  4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story. DEFERRED (designer 2026-11-23: 'way, way later'); no longer blocks Epic 5. Plan ready: docs/playtests/milestone-1.md
+  4-10-milestone-1-playtest: done  # folded into 10.9 (correct-course 2026-11-26): its checks run in the first 10.9 game night (milestone-1.md refreshed to 10 waves first)
   4-11-stage-object-readability-pass: done  # designer 2026-11-23: redraw sandbags, wood barricade, fire ring + burning-player effects (prototype: claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ)
   4-12-stage-objects-in-game-code: done  # designer 2026-11-23: 4.11 objects in game code; fire = fire-lab D
   4-13-survive-losing-the-graphics: done  # bug 2026-11-23: objects vanish after an app switch; reload didn't help
@@ -181,7 +184,7 @@ development_status:
   epic-7-retrospective: done  # 2026-11-26, headless; epic-7-retro-2026-11-26.md, actions E7-A1–A8
 
   # Epic 8: Real-life resilience
-  epic-8: done  # Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
+  epic-8: in-progress  # reopened 2026-11-26 for 8.12 (evac-vote quick story) and 8.13 (correct-course). Earlier: Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
   # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
   # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
   8-8-my-shots-count-on-a-bad-4g-line: done  # 2026-11-25 overnight: 500 ms rewind (8.9 raises to 600) + lossy line; review 2M+4L fixed, narrow re-review 3L test gaps fixed
@@ -196,18 +199,20 @@ development_status:
   8-5-save-and-quit: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
+  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
+  8-13-slow-line-horde-skip: backlog  # added 2026-11-26 (correct-course; 8.10 B6 / E8-A4; designer named it 8.12, renumbered because master's 8.12 is the evac-vote quick story): RTT-based horde skip + keyframe at 64 kbit/s; ready before the 2.10 phone test
   epic-8-retrospective: done  # 2026-11-26, headless; epic-8-retro-2026-11-26.md, actions E8-A1–A10
 
   # Epic 9: Dead City art and audio
-  epic-9: in-progress  # 2026-11-25: photoreal pass (9.11–9.14), see docs/art/photoreal-decisions.md
-  9-1-art-and-audio-asset-spec: backlog  # human: playtest/spec, not a dev-agent story
-  9-2-downtown-in-five-decay-states: backlog
-  9-3-survivor-animations: backlog
-  9-4-zombie-and-behemoth-animations: backlog
-  9-5-gore-and-dismemberment: backlog
-  9-6-effects: backlog
-  9-7-ui-art: backlog
-  9-8-ambience-and-audio-buses: backlog
+  epic-9: in-progress  # PHOTOREAL (correct-course 2026-11-26): 9.1–9.10 re-based on the 9.11–9.14 pipeline; docs/art/photoreal-decisions.md
+  9-1-art-and-audio-asset-spec: backlog  # spec: look ids kept + pipeline per group + budgets
+  9-2-downtown-in-five-decay-states: backlog  # buildings, ground, decay props only (cars/barriers/sandbags done in 9.14); proposal pick first
+  9-3-survivor-animations: backlog  # weapon-family, reload, downed poses on the 9.13 bodies; proposal pick first
+  9-4-zombie-and-behemoth-animations: backlog  # attack + death animations, photoreal Behemoth; proposal pick first
+  9-5-gore-and-dismemberment: backlog  # photoreal via proposal pick; depends on 10.1 (gore setting)
+  9-6-effects: backlog  # photoreal via proposal pick; depends on 10.1 (quality settings)
+  9-7-ui-art: backlog  # photoreal via proposal pick, from Lumen LF5
+  9-8-ambience-and-audio-buses: backlog  # shrunk (readiness Q2): 3 buses, Breakdown loop, rain beds, 10.1 volumes; depends on 10.1
   9-9-adaptive-music: backlog
   9-10-weapon-and-zombie-sounds: backlog
   9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
@@ -218,15 +223,15 @@ development_status:
 
   # Epic 10: Performance and polish
   epic-10: backlog
-  10-1-settings-screen: backlog
-  10-2-frame-rate-pass-on-reference-phones: backlog
+  10-1-settings-screen: backlog  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
+  10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; absorbs 1.11 AC 3 (phone FPS rows)
   10-3-memory-and-battery-pass: backlog
   10-4-fast-loading: backlog
   10-5-home-screen-install-and-every-supported-browser: backlog
   10-6-report-a-problem: backlog
   10-7-run-stats: backlog
   10-8-balance-pass: backlog
-  10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story
+  10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night)
   10-10-build-button: done  # PR #20 merged 2026-11-25 (6861275e) after review (1 important) + 2 narrow re-reviews + main-session check; layout B; added 2026-11-25 (designer: hybrid Build button); BU-1 = B (designer 2026-11-25); built on branch story-10-10 (PR), B-codes 10.10-B1…B12 in the story file
   epic-10-retrospective: optional
 
@@ -241,3 +246,12 @@ development_status:
   11-6-art-drawn-by-type: backlog
   11-7-pick-random-city-share-its-code: backlog
   epic-11-retrospective: optional
+
+  # Epic 12: Extraction cinematic (party-mode session 2026-11-25, designer decisions; quick stories)
+  # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
+  epic-12: in-progress
+  12-1-buildings-never-close-a-path: ready-for-dev  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
+  12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
+  12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
+  12-4-no-refund-for-decay-losses: ready-for-dev  # designer 2026-11-25 "bad luck": buildings lost to decay (stage cover, fire, 12.1 margin) give no money back; FR58 changed
+  epic-12-retrospective: optional
