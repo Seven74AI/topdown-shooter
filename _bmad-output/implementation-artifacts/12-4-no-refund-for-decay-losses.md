@@ -39,7 +39,7 @@ so that building next to crumbling parts of the city is a real gamble.
 - [ ] Client toast (AC 5).
 - [ ] Tests and sims (AC 6, 7).
 - [ ] `epics.md` FR58 (AC 8).
-- [ ] Story 12.1 AC 6: remove its "Refund" bullet if 12.1 lands after this story (or this story removes it).
+- [x] Story 12.1 AC 6 already says "no refund" (updated with this story).
 
 ## Dev Notes
 
