@@ -80,7 +80,7 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 
 <header class="intro">
   <h1>Dead City <span>asset review</span></h1>
-  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; street props and vehicles show their accepted photoreal looks, which are not in the game yet; survivors and zombies show the relit pictures the game now draws.</p>
+  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; survivors, zombies, street props, vehicles and the things you build show the photoreal pictures the game now draws (Stories 9.11, 9.13 and 9.14).</p>
   <p class="notice" id="notice" hidden></p>
 </header>
 
@@ -114,11 +114,19 @@ const GROUPS = {
   boss_tele_disc: ["Boss slam warning", "The glowing disc under the countdown: the ticks light up in turn and sparks drift in while the slam winds up."],
   boss_tele_ring: ["Boss throw warning", "The hatched ring where a thrown chunk will land."],
   boss_tele_lane: ["Boss charge warning", "The hatched lane the Behemoth will charge down."],
-  atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers (sawhorses and concrete with tape), dumpster, sandbags."],
+  atlas_downtown: ["Street props and vehicles", "In the game (Story 9.14): the photoreal set from the pre-rendered image. Cars (normal and burnt), the bus, dumpster, pump, rubble block, sandbags, the concrete barrier, and the standing police sawhorse pieces and traffic drums."],
   approved_buildables: ["Things you build", "The accepted look (not in the game yet). Traps, floodlights and med station relit and animated; the barricades standing, with four pictures each (front inside / outside, two sides) and a corner piece, built from random scavenged parts."],
   approved_photoreal_props: ["Street props and vehicles", "The accepted look: photoreal (not in the game yet). Cars on a real sedan body, burnt cars, the bus, dumpster, pump, rubble, sandbags and both barriers."],
+  event_atlas: ["Special events", "Supply drop (parachute, crate, flare, smoke), survivors to rescue (standing and crouching), the gas tank, dust and vapour, and the screen-edge arrows and map pins that point to each event."],
+  atlas_lootbag: ["Loot bag", "The surprise loot bag in its looks, with its glint, pickup ring and badge."],
+  fx_glint: ["Steel glint", "The sparkle on the steel of traps and barricades."],
+  atlas_ping: ["Pings", "Team pings (Story 8.7): the ping button, the marker disc, ring and edge pointer, and the HERE / HELP / BIG ONE / READY icons and words."],
   atlas_heli: ["Helicopter", "The helicopter's frames."],
-  atlas_buildings: ["Things you build", "Barricades by tier, spike trap, mine, bear trap, turret and more, as placed on the street."],
+  atlas_buildings: ["Things you build", "In the game (Story 9.11): bear trap (open and closed), mine, spike trap, both floodlights and the med station, relit. In the game they animate: lamp flicker, the med cross heartbeat, the mine LED, steel glints."],
+  atlas_buildings_glow: ["Things you build: glow layers", "The light drawn over the mine, the floodlights and the med station; it pulses and flickers in the game."],
+  atlas_buildings_wood: ["Wood barricade", "In the game (Story 9.11), standing: front outside and inside (2 variants each, picked by the spot), the sides with the braces east and west, and the four corner pieces that close a corner where two lines meet."],
+  atlas_buildings_reinforced: ["Reinforced barricade", "In the game (Story 9.11), standing: front outside and inside (2 variants each), both sides and the four corner pieces."],
+  atlas_buildings_metal: ["Metal barricade", "In the game (Story 9.11), standing: front outside and inside (2 variants each), both sides and the four corner pieces."],
   atlas_fx: ["Effects", "Acid, bile, gas, rain, splashes, glows, eyes, vignette. White or grey ones are tinted in the game."],
   atlas_blastfx: ["Explosions", "Flame puffs, flash, glow and smoke for grenades, mines and Bloaters. White ones are tinted in the game."],
   atlas_firefx: ["Fire", "Flames and embers for burning cars, the flamethrower, the gas torch and burning zombies."],
@@ -134,7 +142,7 @@ const GROUPS = {
 };
 const ORDER = Object.keys(GROUPS);
 /** Groups replaced by an accepted new look (designer: "keep only the accepted version on the page"). */
-const SUPERSEDED = new Set(["atlas_characters", "atlas_downtown", "atlas_buildings", "atlas_buildings_wood", "atlas_buildings_reinforced", "atlas_buildings_metal", "atlas_buildings_glow"]);
+const SUPERSEDED = new Set(["atlas_characters", "approved_buildables"]);
 const $ = (id) => document.getElementById(id);
 const docId = (id) => id.replace(/[^A-Za-z0-9_-]/g, "__");
 

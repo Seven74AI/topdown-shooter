@@ -258,6 +258,23 @@ Claude (Claude Code, cloud session), gds-dev-story, autonomous overnight build.
 - **L3** a removed finder's `foundBy` is kept (the noted seat + `oneBagPerRun` decide); teammates' Results keep the "found" line with the finder's seat id (test).
 - **L4** the boot sweep's expiry is `SAVE_KEEP_MS` after the row's last write (D13: 7 days in the story; the review note said 14, the story's 7 kept), never a claim's old expiry (test).
 
+### Review round 3 = final narrow re-review (of a273db4; back-filled 2026-11-26)
+
+Back-filled from the run log (Epic 8 retro E8-A10); the reviewer's own notes were not copied into this file at the time. Naming in this file: "Review round 1" is the full review; "Review round 2" is the first narrow re-review; this is the second narrow re-review, so the story reached the 2-round cap (HANDOFF §3).
+
+- **Scope:** the round 2 fixes in `a273db4` (H merged guest paid once; L2 Start restore `codeVersion`; L3 keep `foundBy`; L4 boot expiry from the last write).
+- **Verdict: APPROVED** (`docs/overnight-run-log-2026-11-25.md:193`), with:
+  - **L (not fixed, under-pay only, rare):** one person holding two seats of one run that was not resumed keeps the first bank. Owner and target: `deferred-work.md` (Epic 8 retro E8-A6).
+  - **nit:** the `releaseOpenOnBoot` parameter is dead. Also in `deferred-work.md`.
+- **Review history:** 1 H / 6 M / ~12 L → round 2: 1 H (merged guest paid twice) + 3 L → round 3: clean apart from the low and the nit above (log :193).
+- **Landed:** CI green → PR #14 merged as `3335e0d8`; `Status: done` in `e2b3fc6` (log :193).
+
 ### Change Log
 
+- 2026-11-26: back-filled the final re-review round (APPROVED on a273db4, log :193) and this Change Log (Epic 8 retro E8-A10).
+- 2026-11-25: final narrow re-review of a273db4: APPROVED (1 L two-seat under-pay, 1 nit dead `releaseOpenOnBoot` parameter; both → deferred-work.md). CI green → PR #14 merged 3335e0d8; Status → done (e2b3fc6).
+- 2026-11-25: review round 2 fixes (a273db4): merged guest paid once on resume (H), Start restore passes `codeVersion` (L2), a removed finder's `foundBy` kept (L3), boot-sweep expiry `SAVE_KEEP_MS` after the last write, 7 days kept (L4).
+- 2026-11-25: narrow re-review of 6b38bad: 1 H (merged guest paid twice) + 3 L.
+- 2026-11-25: review round 1 fixes (6b38bad): H1 one bag pays once, M1–M6, lows, nits (with tests).
+- 2026-11-25: full review of 4dd949e (story-8-4-5-6 merged with master after 8.7, PR #8): CHANGES REQUESTED, 1 H / 6 M / ~12 L.
 - 2026-11-25: Stories 8.4+8.5+8.6 implemented (save format, saved_runs, autosave, Save and quit, resume, Saved games, bots, docs) + PR #9 review L1.

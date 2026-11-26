@@ -10,7 +10,7 @@ describe("voteView", () => {
     expect(voteView(false, 100, 300, 20, [P(0, 1)], 0, false).open).toBe(false);
   });
 
-  it("chips by slot, downed dimmed but voting; the ring from the server's ticks (F4)", () => {
+  it("chips by slot, downed dimmed (Story 8.12: not voting); the ring from the server's ticks (F4)", () => {
     const v = voteView(true, 150, 300, 20, [P(2, 0, false), P(0, 2, true, true), P(1, 1)], 2, false);
     expect(v.chips.map((c) => [c.slot, c.vote, c.dimmed, c.mine])).toEqual([
       [0, 2, false, true],
@@ -19,7 +19,7 @@ describe("voteView", () => {
     ]);
     expect(v.ringFrac).toBe(0.5);
     expect(v.secondsLeft).toBe(8); // ceil(150 / 20)
-    expect(v.result).toBe(""); // not everyone voted
+    expect(v.result).toBe("EXTRACT · 1 – 1"); // Story 8.12: the downed slot 2 doesn't count, everyone else voted
   });
 
   it("everyone in: the result line (silent counts as Extract; Stay needs more than half)", () => {

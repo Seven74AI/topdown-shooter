@@ -3,7 +3,7 @@ baseline_commit: d41add544890af0caad56a6ad0217eab6255ee83
 ---
 # Story 6.2: Ruins
 
-Status: review
+Status: done
 
 ## Story
 

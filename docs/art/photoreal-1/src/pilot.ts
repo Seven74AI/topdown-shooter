@@ -1044,13 +1044,13 @@ function barrierSawhorse(): HTMLCanvasElement {
 
 // ─────────────────────────────── page ───────────────────────────────
 
-interface Item {
+export interface Item {
   readonly id: string; // the asset id in the gallery
   readonly name: string;
   make(): HTMLCanvasElement;
 }
 
-const ITEMS: Item[] = [
+export const ITEMS: Item[] = [
   ...CAR_COLORS.map((_, i) => ({ id: `atlas_downtown/vehicle_car_${"abcde"[i]}`, name: `Car ${"ABCDE"[i]}${CAR_WRECK[i] ? " (wrecked)" : ""}`, make: () => car(i) })),
   ...CAR_COLORS.map((_, i) => ({ id: `atlas_downtown/vehicle_carburnt_${"abcde"[i]}`, name: `Burnt car ${"ABCDE"[i]}`, make: () => burntCar(i) })),
   { id: "atlas_downtown/vehicle_bus_a", name: "Bus", make: bus },
@@ -1166,4 +1166,5 @@ async function main(): Promise<void> {
   document.getElementById("loading")?.remove();
 }
 
-void main();
+// Story 9.14: the atlas tool (`atlas.ts`) imports ITEMS on a blank page: run the compare page only on itself.
+if (typeof document !== "undefined" && document.getElementById("list")) void main();

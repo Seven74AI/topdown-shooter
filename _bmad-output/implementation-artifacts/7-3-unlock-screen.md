@@ -359,6 +359,15 @@ Typecheck + lint + touched tests (no full gate, as asked); tree = fed5cc51 + the
 | RR-L1 | `unlockItem` gets its own client timeout `UNLOCK_TIMEOUT_MS` = 7 s (`net/unlockTiming.ts`; the session call keeps 3 s); after a failed unlock the hub refreshes only once 7 s have passed since the send (`refreshAfterFailureMs`), so it never reads the pre-commit row | `apps/client/src/net/progressStore.test.ts` > "UNLOCK_TIMEOUT_MS ≥ 7 s, the session stays 3 s", "a slow answer at 6.5 s is still taken (it would have been dropped at 3 s); the call gives up only at 7 s"; `apps/client/src/ui/hubModel.test.ts` > "never sooner than UNLOCK_TIMEOUT_MS after the send (1 ms sweep), at once after it"; `tools/checks/progressHubWiring.test.ts` (sentAt + delayed refresh) | timeout 3000 → 3 tests fail |
 | RR-N1 | `hubDomLayout` measures the text (ink): an element whose `scrollWidth > clientWidth` must have `overflow: hidden` + `text-overflow: ellipsis`, else its ink right (left + scrollWidth) must stay inside the column | `tools/checks/hubDomLayout.test.ts` > "568×320, review F8: a 42-char name…" | dropping only `overflow`/`text-overflow` from `.ph-name__text` → fails |
 
+### Re-review (narrow) 2 (AI, 2026-11-25; back-filled 2026-11-26)
+
+Back-filled from the run log (Epic 7 retro E7-A4); the reviewer's own notes were not copied into this file at the time.
+
+- **Scope:** the re-review 1 fixes `18a328ad` (RR-L1 unlock client timeout 7 s with the delayed refresh; RR-N1 text-width layout check). A light round, dispatched because the timeout change alters behaviour (`docs/overnight-run-log-2026-11-25.md:139`).
+- **Verdict: CLEAN** on `25410024`: 2 nits, both self-healing, no fix needed (log :141). The run log does not record the nit text.
+- **RR-M1** (the `pg` client crash) was not in this round: it was fixed once in 7.1's `db/client.ts` (`5819a641`, client error listener + keepAlive; OR-23), and 7.3 inherits it (log :138–:139).
+- **Result:** 7.3 READY (log :141). This was the second narrow round, so the story reached the 2-round cap (HANDOFF §3). Landed alone in batch 2: master + 7.3 `4c193df9` (merged with 7.9: one `progress` object, B17/B18), gate 470 files / 4,274 tests (log :157).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
@@ -369,3 +378,5 @@ Typecheck + lint + touched tests (no full gate, as asked); tree = fed5cc51 + the
 - 2026-11-25: batch landing came back with real conflicts against 7.9: merged master 1da29b92; one `progress` object (Supplies, unlocks, look) from one read (B17); lobby Progress button in 7.9's SC3 header (B18); 7.9's look tests updated to the merged reply; gate green on 38e7c834.
 - 2026-11-25: re-review 1 fixes RR-L1 (unlock client timeout 7 s, delayed refresh) and RR-N1 (text-width check).
 - 2026-11-25 (earlier): merged story-7-2's review fixes (8c702472); B15 real-browser hub layout test (tag wraps under long names), B16 purchase bounded like the bank (7.2 M1) + real-PostgreSQL unlock tests; re-gated.
+- 2026-11-25: narrow re-review 2 on 25410024: CLEAN (2 self-healing nits); READY (back-filled 2026-11-26 from run log :141, Epic 7 retro E7-A4).
+- 2026-11-25: landed on master in consolidation batch 2 (4c193df9; gate 470 files / 4,274 tests; run log :157).

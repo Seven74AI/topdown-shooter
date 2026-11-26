@@ -20,7 +20,7 @@
 - 2026-11-21 — Drafted remaining sections (multiplayer, art, audio, technical specs, assets, success metrics, out of scope, assumptions) and 10 development epics (epics.md). Pending user review of epics + open items (art production method, gore level, host-required-to-resume assumption).
 - 2026-11-21 — Art/audio production: option D — placeholder or AI-assisted art for prototypes (Epics 1–8), then a hired artist (and sound designer) for the final Dead City look (Epic 9). *Superseded 2026-11-23: all art is drawn in game code (`docs/epic-5-decisions.md` › Art method) and nobody is hired; Epic 9 polishes the code-drawn art and the audio (code/procedural or licensed/free libraries).*
 - 2026-11-21 — Gore: blood + dismemberment.
-- 2026-11-21 — Resume rule confirmed: the host must be present to resume a saved run (assumption removed).
+- 2026-11-21 — Resume rule confirmed: the host must be present to resume a saved run (assumption removed). *Superseded 2026-11-24 (Epic 8 D11, `docs/ideas/epic-8/decisions.md`): any account that was in the run can resume it, and whoever taps Resume hosts (E8-R1).*
 - 2026-11-21 — Finalize step 2 (input reconciliation): applied all 14 findings — Hunting Rifle added to Epic 1 (one weapon per range in Milestone 1); 'what players walk away with' restored; melee playtest risk; ~30 KB/s bandwidth target; wave-modifier candidates; CCTV intro + Blood Moon district as future content; resume wording fixed; Epic 8 depends on Epic 3; player-count scaling moved to Epic 3; grain + gore toggle in settings, blackout not optional; decay and zombie intent details; placeholders replaced; missing epic coverage added.
 - 2026-11-21 — Finalize step 3 (discipline pass, validator): no blockers. Auto-fixed: economy target 2,500–3,000 at any player count with wave-clear bonus 10 × wave (was 20) and building kills paying 50% (turret payout otherwise broke pillar 2); Behemoth HP 6,000 (2,000 died in ~12 s); Pistol upgrades 60/level; run length 20–25 min; "150 alive" wording + worst-case perf test; Training costs 50 × level; balance-intent wording (crowd DPS, rifle range intended, breakpoints); endless scaling (+40/wave, +1 Brute/wave, Behemoth every 5th wave); shop card floor (≥1 weapon, ≥1 gear); latency-feel rule; loss rule covers 'out' players; unlocked-only shop items; Molotovs as consumable unlock; Power failure turns current wave dark; wave bonus to all players; memory ceiling 300 MB; music streaming; epics 5–10 got Out + stories; roguelike card shop moved to Epic 5; Open Items Index added.
 - 2026-11-21 — Finalize steps 4–8: no phase-blocking open items (working title, district order, solo scaling and hosting cost are non-blocking, listed in Open Items Index). No narrative flag (shooter guide). No doc standards or external handoffs configured. GDD v1.0 status final. Next: gds-game-architecture.
@@ -33,3 +33,33 @@
 - Deploy: Docker Compose on the existing VPS (Docker is installed). HTTPS/WSS via the existing Cloudflare Tunnel (edge certificates, no open ports); Caddy serves plain HTTP on 127.0.0.1:8080 behind it.
 - Downed: the 20 s countdown pauses while a teammate is reviving (GDD said "20 s without revive").
 - In-run menu: pauses the game in solo practice; online the run keeps going and your survivor stands still.
+
+## 2026-11-24/25 — Photoreal pass (designer; copied here by the readiness check 2026-11-26)
+
+- Art method updated: the approved photoreal looks go into the game as relit code drawings, baked at load in a Web Worker: the things you build (9.11) and the characters, take 4 with the grey outline (9.13). The street props and vehicles are pre-rendered offline from the approved code into one image atlas (9.14 B1). The code drawings are the fallback. Details: `docs/art/photoreal-decisions.md`.
+- Bodies behind standing walls show as a pulsing silhouette, pick C (9.12). Red now marks danger in play (the boss and zombies), not only the boss.
+- Build-phase UI: a hybrid Build button plus a quick tile for the last-placed building (Story 10.10, BU-1 = B, 2026-11-25).
+
+## 2026-11-26 — Epic 9 photoreal, Epic 10 order (designer; correct-course `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`)
+
+- Epic 9 is photoreal: 9.1–9.10 are re-based on the 9.11–9.14 pipeline (proposal-page pick, worker relight or pre-rendered atlas, code drawing as fallback). FR82 now reads "photoreal looks … relit at load in a Web Worker or pre-rendered offline from the approved code". Supersedes the 2026-11-23 "polish pass of the code-drawn art" wording.
+- Epic 10 starts with 10.1 (settings), which 9.5, 9.6, 9.8 and 10.2 need; 10.1 also gets account and progress deletion (retro E7-A8).
+- Story 1.11's phone FPS check goes into 10.2; 1.12 and 4.10 go into the 10.9 game nights. Epics 1 and 4 are closed. 2.10 stays parked.
+- All real-phone testing stays parked (designer 2026-11-25, HANDOFF §5.2): phone ACs are kept but marked parked; no story waits on a phone night; headless measures are the buildable part.
+- Story 8.12 and Epic 12 (party-mode session 2026-11-25) are copied into epics.md as written.
+- 8.10 B6 becomes Story 8.13 "Slow-line horde skip" (named 8.12 by the designer; renumbered because 8.12 is the evac-vote quick story), a small story in the normal build order, before any real-device network test; Epic 8 is open again for it.
+
+## 2026-11-26 — Open questions and Epic 12 clashes (designer "ok" to every recommendation; `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6)
+
+- **Q4:** Story 10.5's safe-area AC is narrowed to `hudLayout.test.ts` top-inset cases (≥ 47 px at 568 × 320 and 844 × 390) plus one Playwright run with iPhone and Pixel emulation; the real notched-phone check stays parked.
+- **Q5:** `docs/balance/changelog.md` exists from 2026-11-26 (back-filled with Epic 5 B1–B12 and 9.13 B28); every balance change adds a line. 10.8 "re-checks" 15 × N, `loot.runChance` 0.2 and the cap of 6 and changes them only with a changelog reason.
+- **Q8:** Random-city art (11.6) reuses the 9.14 photo-atlas frames by kind, without stretching; size variants come from `npm run art:street-props`; generated buildings and ground stay code drawings until 9.2's atlas, which follows 9.2's pick.
+- **E8-A9:** the overnight Epic 8 rule changes (8.9 B7/B9, 8.1 B15/B16/B19, 8.3-B14) are confirmed as built; 8.10 B7 (far rule off) is re-checked on Story 8.13's capped-line netsim.
+- **E7-A6:** 7.3 F12 kept as built; 7.4 B11 dropped; 7.6 B18/B19 and 7.11 D8 "Wear it" become **Story 7.13 Epic 7 leftovers**; 7.10 AC 12 (30-second editor check) runs in 10.9's first game night.
+- **X1:** Story 8.12 stands (only connected, standing players vote; reverses 8.1 M2). When it lands, FR66 reads "a majority of the connected, standing players; a tie or no counted votes means Extract", and 6.11 gets an as-built note.
+- **X2:** 12.4 updates every place the 50 % decay refund is written (FR58, 4.5, 6.2, architecture, HANDOFF), lands before 10.8 and logs the money change in the balance changelog. *Supersedes the 2026-11-21 architecture rule "destroyed with a 50% refund" once 12.4 lands.*
+- **X3–X5:** 12.1 shares one rasteriser with the escape fill, keeps the sealed-fort escape tests, measures bot-sim wall damage before and after, adds a Brute forced-gap test, and keeps the debug fort.
+- **X6–X8:** 12.2 bumps `NET_PROTOCOL_VERSION` (whichever of 12.2, 8.13 and Epic 11 lands first takes 4); FR67 is reworded when it lands; save coverage and copy-chain tests for the new fields; fly-out kills count in neither milestones nor 10.7's run stats.
+- **X9:** 12.3 uses code-drawn placeholders for the crew and the helicopter; they join 9.1's inventory as a photoreal group; 9.2's proposal page checks looks at the 0.6× zoom-out.
+- **X10:** 12.1's and 12.3's reference-phone performance ACs are measured headless at 4× CPU (phones parked).
+- **X11:** order 8.12 → 12.1 (+ 12.4) → 12.2 → 12.3, after or alongside 10.1 and before 10.2, 10.8 and 10.9; Epic 11 runs 12.1's check on generated maps, with the `evac_pad` in the main walkable region.

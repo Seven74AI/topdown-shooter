@@ -18,7 +18,7 @@ Push runs on `master` only; every pull request runs; changes only under `docs/**
 | `gate` | `needs` all four, `if: always()`; fails unless every one of them is `success` | seconds |
 
 **`gate` is the single check to require** in branch protection. A PR that only touches the paths-ignore paths gets no CI run and so no `gate`
-check; that is fine while docs / BMAD-only changes go straight to master (HANDOFF §3), but such a PR would wait forever
+check; that is fine while docs / BMAD-only changes go straight to master (`AGENTS.md` §2), but such a PR would wait forever
 on a required `gate`.
 
 ### Shards (`tools/ci/shard.mjs`)

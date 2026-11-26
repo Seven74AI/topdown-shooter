@@ -20,6 +20,7 @@ import {
   ZOMBIE_POOL_CAPACITY,
   activeSlot,
   addPlayer,
+  countsInVote,
   buildingStats,
   isFlame,
   hasMagazine,
@@ -276,7 +277,7 @@ export class GameScene extends Phaser.Scene {
     let view = this.playerViews.get(id);
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
-      view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
+      view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot (E8-A2: set once: a player id's slot never changes, `p${slot}`)
       this.playerViews.set(id, view);
     }
     this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
@@ -356,7 +357,9 @@ export class GameScene extends Phaser.Scene {
     const sv = this.wallSilhouettes;
     const bv = this.buildingView;
     if (!sv || !bv) return;
-    const walls = bv.standingSprites();
+    // Story 9.14 (AC 4): the standing police lines hide bodies too (joined into a reused list: no allocation per frame)
+    const police = this.cityView?.policeLines.sprites();
+    const walls = police && police.length > 0 ? this.joinWalls(bv.standingSprites(), police) : bv.standingSprites();
     let n = 0;
     if (walls.length > 0) {
       const zn = this.zombieView?.shownImages(this.silZombieImgs) ?? 0;
@@ -364,6 +367,13 @@ export class GameScene extends Phaser.Scene {
       for (const [id, v] of this.playerViews) n = this.putSilBody(n, v.bodyImage, SLOT_COLORS[(this.host?.playerInfo(id).slot ?? 0) % SLOT_COLORS.length] as number);
     }
     sv.update(walls, this.silBodies, n, this.time.now, darknessAlpha(world as World) > 0);
+  }
+  private joinWalls(a: readonly Phaser.GameObjects.Image[], b: readonly Phaser.GameObjects.Image[]): readonly Phaser.GameObjects.Image[] {
+    const out = this.silWalls;
+    out.length = 0;
+    for (const w of a) out.push(w);
+    for (const w of b) out.push(w);
+    return out;
   }
   private putSilBody(n: number, img: Phaser.GameObjects.Image, color: number): number {
     let e = this.silBodies[n];
@@ -382,6 +392,8 @@ export class GameScene extends Phaser.Scene {
   private wallSilhouettes: WallSilhouetteView | null = null;
   private readonly silBodies: SilhouetteBody[] = [];
   private readonly silZombieImgs: Phaser.GameObjects.Image[] = [];
+  /** Story 9.14: the standing walls plus the police lines, for the silhouettes (reused). */
+  private readonly silWalls: Phaser.GameObjects.Image[] = [];
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
@@ -399,7 +411,7 @@ export class GameScene extends Phaser.Scene {
     const o = this.votePlayers[this.voteCount++] as VotePlayerIn;
     o.slot = h.playerInfo(id).slot;
     o.vote = p.vote;
-    o.standing = p.status === "alive";
+    o.standing = countsInVote(p); // Story 8.12: downed and out players don't vote
     o.mine = id === h.localPlayerId;
   };
   private bossMusic = false;
@@ -777,6 +789,8 @@ export class GameScene extends Phaser.Scene {
       // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
       const h = this.host;
       if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
+      const me = h.world.players.get(h.localPlayerId);
+      if (!me || !countsInVote(me)) return; // Story 8.12 (AC 6): downed / out — the buttons are disabled
       this.voteSend.want(this.voteReq.tap(choice, this.time.now)); // review M1: paced in updateVote
     });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
@@ -1187,7 +1201,7 @@ export class GameScene extends Phaser.Scene {
     this.voteCollectHost = host;
     host.world.players.forEach(this.collectVoter);
     this.voteCollectHost = null;
-    // Story 8.1 RR1-M1: held seats are silent chips, as the server counts them (no false result line, no false urgency).
+    // Story 8.1 RR1-M1 / 8.12: held seats are dimmed "not voting" chips, left out of the count as the server does.
     if (host.heldSeatSlots) this.voteCount = addHeldVoters(this.votePlayers, this.voteCount, host.heldSeatSlots());
     // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
     // a change of mind goes out at once even with the bucket empty.

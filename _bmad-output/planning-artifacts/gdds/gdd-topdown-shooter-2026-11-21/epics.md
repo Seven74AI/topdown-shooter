@@ -64,7 +64,7 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epic 6.
 - **Playable result:** a player unlocks a weapon after a run and sees it appear in their next shop.
 - **Out:** cosmetics, district 2 content.
-- **High-level stories:** guest-to-account upgrade · Supplies earning and banking · unlock screen · shop deck from unlocked pool · Training boosts and costs · district unlock rule.
+- **High-level stories:** guest-to-account upgrade · Supplies earning and banking · unlock screen · shop deck from unlocked pool · Training boosts and costs · district unlock rule · (2026-11-26, retro E7-A6) Epic 7 leftovers: account-screen lines (7.6 B18/B19) and "Wear it" on Results (7.13).
 
 ## Epic 8 — Real-life resilience
 - **Goal:** real life doesn't break a run.
@@ -72,15 +72,16 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epic 3 (wallets for catch-up currency); can run in parallel with Epics 5–7.
 - **Playable result:** a player's phone dies mid-run, they rejoin with their gear; a run is saved and resumed the next day.
 - **Out:** matchmaking, voice chat.
-- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume with host · ping button and markers.
+- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume by any account from the run (Epic 8 D11; "with host" superseded) · ping button and markers · (2026-11-25/26) only connected, standing players vote (8.12) · slow-line horde skip (8.13).
 
 ## Epic 9 — Dead City art and audio
-- **Goal:** a polish pass of the code-drawn art and of the audio, made without hiring anybody (designer, 2026-11-23).
-- **In:** polish of the code-drawn district art in 5 decay states (one night, dawn only on Extract), character and zombie animations (keeping the picked looks), dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds. Art stays drawn in game code (baked atlases, `addGeneratedTexture`); sound comes from code/procedural generation or licensed/free libraries.
+- **Goal:** a photoreal pass of the art and a polish pass of the audio, made without hiring anybody (designer, 2026-11-23; photoreal direction 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`).
+- **In:** photoreal district art in 5 decay states (buildings, ground and decay props; one night, dawn only on Extract), survivor poses per weapon family with reload and downed, zombie attack and death animations, a photoreal Behemoth, dismemberment, effects, UI art, ambience per decay stage with three audio buses, adaptive music, weapon and zombie sounds. Each art group is picked by the designer on a proposal page, then built the 9.11–9.14 way: code drawings relit in a worker, or an atlas pre-rendered from the approved code, with the code drawing as fallback (`docs/art/photoreal-decisions.md`); fixed budgets (first load < 15 MB, `?stress=150` within 2 FPS of master). Sound comes from code/procedural generation or licensed/free libraries.
 - **Depends on:** Epic 4 for structure; runs in parallel from there.
 - **Playable result:** the game looks and sounds like Dead City.
 - **Out:** new districts' art; hiring an artist or sound designer.
-- **High-level stories:** art and audio inventory (every generator, atlas, frame and picked look) · district art × 5 decay states · survivor and zombie animation sets · dismemberment · effects · UI art · ambience per stage · adaptive music · weapon and zombie sounds.
+- **High-level stories:** art and audio spec (every generator, atlas, frame, picked look, pipeline and budget) · buildings, ground and decay props × 5 decay states · survivor weapon, reload and downed poses · zombie attack and death animations and a photoreal Behemoth · dismemberment · effects · UI art · audio buses and the Breakdown loop · adaptive music · weapon and zombie sounds · (done) photoreal buildables, wall silhouettes, characters, street props.
+- **Depends on:** Story 10.1 (settings) for dismemberment (gore toggle), effects (quality settings) and the audio buses (volumes).
 
 ## Epic 10 — Performance and polish
 - **Goal:** meet every technical target on the reference phones.
@@ -88,4 +89,17 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epics 6–9.
 - **Playable result:** v1, ready for weekly game nights.
 - **Out:** new content.
-- **High-level stories:** reference-phone performance pass · memory and battery pass · quality settings and gore toggle · load time and music streaming · economy and wave balance pass · home-screen install and safe areas · run stats · friend-group playtests.
+- **Order:** settings (10.1) first, because Epic 9's gore, effects and audio buses and the frame-rate pass read it; the frame-rate pass takes over Epic 1's open phone FPS check, and the game nights take over Epic 1's controls playtest and Epic 4's Milestone 1 playtest (Epics 1 and 4 closed 2026-11-26).
+- **High-level stories:** quality settings, gore toggle and progress deletion · reference-phone performance pass · memory and battery pass · load time and music streaming · economy and wave balance re-check (logged in `docs/balance/changelog.md`) · home-screen install and safe areas (safe-area check: top-inset layout tests and device emulation) · run stats (fly-out kills not counted) · friend-group playtests (the first night also runs the 7.10 30-second editor check).
+
+## Epic 11 — Random city (post-v1)
+- **Goal:** the host can pick Random city: a new 70 × 70 m city generated from rules on every run, shareable by its city code (designer 2026-11-24, `sprint-change-proposal-2026-11-24-random-city.md`).
+- **Depends on:** Epic 6, Story 7.7, Story 8.4, Story 10.7; built after Epic 10.
+- **High-level stories:** 11.1–11.7 in `_bmad-output/planning-artifacts/epics.md` › Epic 11 (added to this summary by the readiness check 2026-11-26). Art by kind reuses the 9.14 photo-atlas frames (Q8, 2026-11-26); generated maps pass Story 12.1's no-sealed-pocket check (X11).
+
+## Epic 12 — Extraction cinematic
+- **Goal:** a won run ends like a film (party-mode session 2026-11-25, designer decisions; added to this summary by the correct-course 2026-11-26).
+- **In:** no building can seal a pocket of the map (12.1), no refund for decay losses (12.4), an extraction phase where survivors walk to the helicopter, board and fly out over a horde (12.2), a cinematic camera with letterbox, zoom-out, dawn sweep and fade (12.3). With Story 8.12: only connected, standing players vote.
+- **Depends on:** Epic 6 (vote, pad, helicopter), Story 8.12; lands before the Epic 10 frame-rate pass, balance pass and playtests.
+- **High-level stories:** 12.1–12.4 in `_bmad-output/planning-artifacts/epics.md` › Epic 12.
+- **Clashes resolved (designer "ok" 2026-11-26, X1–X11):** FR66 / FR67 reworded when 8.12 / 12.2 land; 12.4 updates every 50 % refund mention and lands before the balance pass; 12.1 shares the escape rasteriser; 12.2 takes the next `NET_PROTOCOL_VERSION`; the crew and helicopter join Epic 9's photoreal inventory; performance measured headless at 4× CPU.
