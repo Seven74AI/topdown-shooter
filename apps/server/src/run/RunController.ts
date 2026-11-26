@@ -828,6 +828,8 @@ export class RunController {
       }
       // Skipped inputs (overflow, drain): their weapon tick, a dry one (Story 2.7 review).
       const sp = s.skippedCount > 0 ? this.world.players.get(s.playerId) : undefined;
+      // Story 12.2 review nit: no dry weapon tick for an input skipped during the extraction (no input counts then).
+      if (this.world.run.phase === "extract") s.skippedCount = 0;
       for (let k = 0; k < s.skippedCount; k++) {
         skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
         if (sp) {

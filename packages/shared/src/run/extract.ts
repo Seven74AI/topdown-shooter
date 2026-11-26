@@ -4,11 +4,11 @@ import type { DistrictMap } from "../map/districtMap";
 import type { PlayerInput } from "../net/input";
 import type { PlayerState } from "../player/player";
 import { TICK_RATE_HZ } from "../config/constants";
+import { MAX_PLAYERS } from "../net/messages";
 import { walkDistanceFrom, walkLattice } from "../buildings/pathOpen";
 import { spawnZombie } from "../zombies/zombiePool";
 import { currentDecayStage } from "../map/decayStage";
 import { isSpawnBuried } from "../waves/spawnPick";
-import type { ZombieTypeId } from "../zombies/zombieTypes";
 
 /**
  * Story 12.2: the extraction (run phase `extract`, between the Extract vote and Results).
@@ -37,6 +37,8 @@ export interface ExtractState {
   landTicksLeft: number;
   /** Ticks since the extraction began. */
   ticks: number;
+  /** The server tick the extraction began at (−1 = never). On the wire (`extractStartTick`): the client's `ticks`. */
+  startTick: number;
   /** The players aboard (ids). */
   readonly boarded: Set<string>;
   /** −1 until everyone is aboard; then the lift-off beat's ticks left. */
@@ -47,8 +49,11 @@ export interface ExtractState {
   hordeSpawned: number;
   /** The walk timed out (`run.extract_cut` was emitted). */
   cut: boolean;
-  /** Standing (`alive`) players when the extraction began, before the downed stood up (7.11's "all four" milestone keeps the vote's truth). */
-  standingAtStart: number;
+  /**
+   * 7.11's "extracted all four" as it stood when the extraction began (review M1): exactly `MAX_PLAYERS` in the World,
+   * none held, all standing — before the downed stand up, and unaffected by a hold or a Leave during the walk.
+   */
+  allFourAtStart: boolean;
   /** The pad centre (`evacPadPoint`). */
   padX: number;
   padY: number;
@@ -61,7 +66,7 @@ export interface ExtractState {
 }
 
 export function createExtractState(): ExtractState {
-  return { started: false, landTicksLeft: 0, ticks: 0, boarded: new Set(), beatTicksLeft: -1, liftedAtTick: -1, hordeSpawned: 0, cut: false, standingAtStart: 0, padX: 0, padY: 0, dist: new Int32Array(0), cols: 0, rows: 0, inputs: new Map() };
+  return { started: false, landTicksLeft: 0, ticks: 0, startTick: -1, boarded: new Set(), beatTicksLeft: -1, liftedAtTick: -1, hordeSpawned: 0, cut: false, allFourAtStart: false, padX: 0, padY: 0, dist: new Int32Array(0), cols: 0, rows: 0, inputs: new Map() };
 }
 
 /** Tests only (AC 16): players the autopilot leaves standing (a body stuck on a corner), to reach the timeout. */
@@ -129,6 +134,7 @@ export function beginExtract(world: World): void {
   const e = world.extract;
   e.started = true;
   e.ticks = 0;
+  e.startTick = world.tick;
   e.boarded.clear();
   e.beatTicksLeft = -1;
   e.liftedAtTick = -1;
@@ -140,8 +146,9 @@ export function beginExtract(world: World): void {
   e.dist = walkDistanceFrom(world, e.padX, e.padY, e.dist);
   e.cols = walkLattice.cols;
   e.rows = walkLattice.rows;
-  e.standingAtStart = 0;
-  for (const p of world.players.values()) if (p.status === "alive") e.standingAtStart++;
+  let standing = 0;
+  for (const p of world.players.values()) if (p.status === "alive") standing++;
+  e.allFourAtStart = world.players.size === MAX_PLAYERS && world.heldPlayers.size === 0 && standing === MAX_PLAYERS;
   world.pendingInputs.clear(); // AC 3: no player input from here on
   world.inputs.clear();
   for (const p of world.players.values()) {
@@ -207,38 +214,68 @@ function steerPoint(e: ExtractState, x: number, y: number): void {
 
 const NO_INPUT = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false, viewTick: -1 };
 
+/** Module-level pass state and callbacks (review L5: no closure, no iterator per tick). */
+const pass = { world: null as World | null, r2: 0, ringOpen: false, left: 0 };
+
+const steerOne = (p: PlayerState): void => {
+  const world = pass.world as World;
+  const e = world.extract;
+  if (e.boarded.has(p.id) || p.status !== "alive" || extractTestHooks.stalled.has(p.id)) return;
+  let input = e.inputs.get(p.id);
+  if (!input) {
+    input = { ...NO_INPUT }; // once per player per run
+    e.inputs.set(p.id, input);
+  }
+  steerPoint(e, p.x, p.y);
+  let dx = steer.x - p.x;
+  let dy = steer.y - p.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1e-6) {
+    dx = 0;
+    dy = 0;
+  } else {
+    dx /= len;
+    dy /= len;
+  }
+  input.moveX = dx;
+  input.moveY = dy;
+  world.inputs.set(p.id, input);
+};
+
 /**
  * AC 5: the autopilot, in place of the input system during `extract`: every standing player not yet aboard gets a
  * unit move toward the steer point (normal walk speed: `movePlayers` applies the speed); nobody else has an input.
  * Only + − × ÷ and sqrt. No allocation after a player's first tick.
  */
 export function extractInputs(world: World): void {
-  const e = world.extract;
   world.inputs.clear();
-  if (e.liftedAtTick >= 0) return;
-  for (const p of world.players.values()) {
-    if (e.boarded.has(p.id) || p.status !== "alive" || extractTestHooks.stalled.has(p.id)) continue;
-    let input = e.inputs.get(p.id);
-    if (!input) {
-      input = { ...NO_INPUT };
-      e.inputs.set(p.id, input);
-    }
-    steerPoint(e, p.x, p.y);
-    let dx = steer.x - p.x;
-    let dy = steer.y - p.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (len < 1e-6) {
-      dx = 0;
-      dy = 0;
-    } else {
-      dx /= len;
-      dy /= len;
-    }
-    input.moveX = dx;
-    input.moveY = dy;
-    world.inputs.set(p.id, input);
-  }
+  if (world.extract.liftedAtTick >= 0) return;
+  pass.world = world;
+  world.players.forEach(steerOne);
+  pass.world = null;
 }
+
+/** One player's tick: protected (AC 4), boarded inside the ring once landed, counted when still on the ground. */
+const tickOne = (p: PlayerState): void => {
+  const world = pass.world as World;
+  const e = world.extract;
+  calm(p); // AC 4: nobody can be hurt (refreshed: never runs out)
+  if (e.liftedAtTick >= 0 || e.boarded.has(p.id)) return;
+  if (pass.ringOpen) {
+    const dx = p.x - e.padX;
+    const dy = p.y - e.padY;
+    if (dx * dx + dy * dy <= pass.r2) {
+      board(world, p);
+      return;
+    }
+  }
+  pass.left++;
+};
+const tickHeld = (h: { readonly player: PlayerState }): void => {
+  calm(h.player);
+  board(pass.world as World, h.player); // a seat that dropped mid-walk boards on its own (CN-4)
+};
+const boardOne = (p: PlayerState): void => board(pass.world as World, p);
 
 /** The extraction's tick (the run slot, `updateRun`). True when the fly-out is over (the caller ends the run). */
 export function updateExtract(world: World): boolean {
@@ -246,34 +283,22 @@ export function updateExtract(world: World): boolean {
   const ev = world.balance.waves.evac;
   e.ticks++;
   if (e.landTicksLeft > 0) e.landTicksLeft--;
-  for (const p of world.players.values()) calm(p); // AC 4: nobody can be hurt (refreshed: never runs out)
-  for (const h of world.heldPlayers.values()) {
-    calm(h.player);
-    board(world, h.player); // a seat that dropped mid-walk boards on its own (CN-4)
+  pass.world = world;
+  pass.r2 = ev.padRadiusM * ev.padRadiusM;
+  pass.ringOpen = e.landTicksLeft === 0;
+  pass.left = 0;
+  world.players.forEach(tickOne);
+  world.heldPlayers.forEach(tickHeld);
+  if (e.liftedAtTick < 0 && pass.left > 0 && !e.cut && e.ticks >= ticksFor(ev.walkTimeoutS)) {
+    e.cut = true;
+    world.events.emit({ type: "run.extract_cut" });
+    world.players.forEach(boardOne);
+    pass.left = 0;
   }
+  pass.world = null;
   if (e.liftedAtTick < 0) {
-    if (e.landTicksLeft === 0) {
-      const r2 = ev.padRadiusM * ev.padRadiusM;
-      for (const p of world.players.values()) {
-        if (e.boarded.has(p.id)) continue;
-        const dx = p.x - e.padX;
-        const dy = p.y - e.padY;
-        if (dx * dx + dy * dy <= r2) board(world, p);
-      }
-    }
-    if (e.ticks >= ticksFor(ev.walkTimeoutS) && !e.cut) {
-      let left = false;
-      for (const p of world.players.values()) if (!e.boarded.has(p.id)) left = true;
-      if (left) {
-        e.cut = true;
-        world.events.emit({ type: "run.extract_cut" });
-        for (const p of world.players.values()) board(world, p);
-      }
-    }
     if (e.beatTicksLeft < 0) {
-      let allAboard = true;
-      for (const p of world.players.values()) if (!e.boarded.has(p.id)) allAboard = false;
-      if (allAboard) e.beatTicksLeft = ticksFor(ev.liftBeatS);
+      if (pass.left === 0) e.beatTicksLeft = ticksFor(ev.liftBeatS);
       return false;
     }
     e.beatTicksLeft--;
@@ -310,7 +335,7 @@ function spawnHorde(world: World, elapsed: number): void {
       guard++;
       continue;
     }
-    if (spawnZombie(world, h.type as ZombieTypeId, sp.x, sp.y, false) < 0) return; // the pool is full: no more
+    if (spawnZombie(world, h.type, sp.x, sp.y, false) < 0) return; // the pool is full: no more
     e.hordeSpawned++;
   }
 }

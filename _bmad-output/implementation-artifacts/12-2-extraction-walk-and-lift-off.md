@@ -169,3 +169,25 @@ test, and updates to the vote / state machine / net events / room / carCorner / 
 - HUD: `hudModel.extracting` is true for the whole phase (the director can hide the rest of the HUD from it).
 - Out players / held seats are boarded at tick 0 of the phase (the crew "pull-in" visual is 12.3's).
 - Net kinds used: 68–71. NET_PROTOCOL_VERSION = 5 (Epic 11 takes 6).
+
+## Senior Developer Review (AI)
+
+**Review 1** (fresh full three-layer review, 2026-11-26, on `b0ede6e1`; reviewer session `session_01CgLgPXDq7yDzkuhpu4JMQB`).
+Rule for the fixes: minimal; each with a test that fails on `b0ede6e1` (test-only items excepted). A narrow re-review follows
+for H1 and M1. Timings, who boards and the horde size are with the designer: unchanged.
+
+| # | Sev | Finding | Fix | Test (fails on b0ede6e1) |
+|---|-----|---------|-----|--------------------------|
+| H1 | high | Everyone gone during `extract` → the World froze (`updateFreeze`, `inRun()` includes extract), holds expired, the run banked "quit" and the save was dropped "lost". | `RunRoom.updateFreeze`: never frozen in phase `extract` (no 3-2-1): the extraction runs to Results with nobody connected and banks "extracted"; `dropSave("ended")`. | `RunRoom.reconnect.test.ts` › "review H1: … votes Extract then drops" (stays `extract` forever on b0ede6e1). |
+| M1 | medium | "Extracted all four" still read `players.size === 4` / `heldPlayers.size === 0` at Results: a hold or a Leave during the walk changed the answer. | `extract.allFourAtStart` (4 players, 0 held, all standing) stored by `beginExtract`; `runFacts` uses it once `extract.started`. Replaces `standingAtStart`. | `bankingMeta.test.ts` › "review M1": a hold one tick in → M8; a Leave mid-walk → same answer for the leaver and the stayers; one downed at the vote → none. |
+| L1 | low | The fly-out horde damaged buildings. | `zombieAi`: no building hit in phase `extract`. | `extract.test.ts` › "review L1" (a barricade is destroyed on b0ede6e1). |
+| L2 | low | `walkTimeoutS ≤ descendS` could cut before the landing; `Math.round` instead of `ticksFor`. | Balance refine `walkTimeoutS > descendS`; `openEvacVote` uses `ticksFor`. | `balance.test.ts` › "waves.json › evac (Story 12.2 review L2)". |
+| L3 | low | Bot client ignored `extract` for reconnect, watchdog and pings. | `botInRun(phase)` (with `extract`) used at the three places; bots send no input in `extract`. | `tools/bots/botInRun.test.ts`. |
+| L4 | low | A phone waking straight into a later endless extraction after a Stay lift-off saw no fly-out (`hasLeft` stuck). | `render/heliSync.ts › syncHeliToRun` (pure; GameScene calls it): a build clears a flown-off helicopter (a Stay lift-off still in the air plays out). | `heliSync.test.ts`. |
+| L5 | low | `for…of` iterators per tick in `updateExtract` / `extractInputs`. | One pass with module-level `forEach` callbacks. | `tools/checks/extractNoAlloc.test.ts` (source check). |
+| L6 | low | 12.3 needs `padX/padY`, `cut`, `ticks` online. | Synced `extractStartTick` (int32, −1) and `extractCut`; NetSimHost mirrors `startTick`, `ticks` (= tick − start), `cut`, and the pad (`evacPadPoint`, map data). | `syncState.extract.test.ts` › "review L6" (sent → changed → synced, reset); `NetSimHost.extract.test.ts` › "review L6". |
+| L7 | low (tests) | AC 4 test didn't have fire/acid present at the start; AC 3 ping not through the room; two evacVote asserts loosened; no endless extraction test. | AC 4: a molotov fire and an acid puddle at the body during the vote are gone at the extract's start; ping sent through a real room reaches the teammate; `runVote` stops at the resolution so both asserts are exactly `"extract"` again; AC 2 test: Stay at 10, Extract at 15. | test-only. The room ping test fails with `pingRefusal` refusing `extract` (checked). |
+| L8 | low | Online, prediction resumed on Results: a thumb on the stick walked my survivor (and the camera) away from the pad. | `NetSimHost`: no prediction in `extract` nor on Results after it (`liftedAtTick ≥ 0`). | `NetSimHost.extract.test.ts` › "review L8" (5 m off the pad on b0ede6e1). |
+| nit | — | `flyOutHorde.type` any zombie; dry weapon ticks for skipped inputs in `extract`; test hooks; PlayerView field placement. | Schema `type: z.enum(["walker"])`; `RunController` drops skipped inputs in `extract`; hooks cleared in `afterEach` / `finally`; `noBlink` moved to the fields. | — |
+
+Left for 12.3 (noted): the flashlight cone of a body walking to (or waiting at) the pad.

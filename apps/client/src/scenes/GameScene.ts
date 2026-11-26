@@ -146,7 +146,7 @@ import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState
 import { CLOSED_VOTE, VoteRequest, VoteSender, addHeldVoters, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
-import { DESCEND_S } from "../render/heliPose";
+import { syncHeliToRun } from "../render/heliSync";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
@@ -1203,14 +1203,9 @@ export class GameScene extends Phaser.Scene {
       const total = ticksFor(host.world.balance.waves.evac.voteS);
       this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
     }
-    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
-    // Story 12.2: the helicopter waits on the pad through the walk, then flies out from the server's lift-off tick
-    // (a phone that wakes late jumps to the right moment of the fly-out, or sees it gone).
+    // Story 12.2: a build clears it (a skipped lift-off, review L4: one already flown off); the extraction's fly-out.
     const ex = host.world.extract;
-    if (this.heliView && (run.phase === "extract" || ex.started) && !this.heliView.hasLeft) {
-      if (this.heliView.phase === "gone") this.heliView.opened(nowS, DESCEND_S);
-      if (ex.liftedAtTick >= 0) this.heliView.left(nowS - Math.max(0, host.world.tick - ex.liftedAtTick) / TICK_RATE_HZ, true, host.world.balance.waves.evac.flyOutS);
-    }
+    if (this.heliView) syncHeliToRun(this.heliView, run.phase, ex.started, ex.liftedAtTick, host.world.tick, nowS, host.world.balance.waves.evac.flyOutS);
     this.heliView?.update(nowS);
     if (!open) {
       if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);

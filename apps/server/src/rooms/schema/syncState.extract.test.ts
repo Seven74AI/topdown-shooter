@@ -91,6 +91,32 @@ describe("E8-A2 syncState: the extraction's fields reach the wire", () => {
     expect(state.liftedAtTick).toBe(-1);
   });
 
+  it("review L6: extractStartTick and extractCut — sent (−1 / false), changed, synced; reset by Back to lobby", async () => {
+    const { extractTestHooks } = await import("@topdown/shared");
+    const { controller, w, state, client, tick } = setup();
+    expect([client.extractStartTick, client.extractCut]).toEqual([-1, false]);
+    extractTestHooks.stalled.add("p1"); // held up: the walk's timeout cut comes
+    try {
+      w.players.get("p1")!.x = 6;
+      w.players.get("p1")!.y = 4;
+      controller.castVote("p0", "extract");
+      controller.castVote("p1", "extract");
+      for (let n = 0; n < 400 && w.run.phase === "vote"; n++) tick();
+      expect(w.run.phase).toBe("extract");
+      expect(client.extractStartTick).toBe(w.extract.startTick);
+      expect(w.extract.startTick).toBeGreaterThan(0);
+      for (let n = 0; n < 400 && !w.extract.cut; n++) {
+        tick();
+        expect(client.extractCut).toBe(w.extract.cut);
+      }
+      expect(client.extractCut).toBe(true);
+    } finally {
+      extractTestHooks.stalled.clear();
+    }
+    resetRunFields(state);
+    expect([state.extractStartTick, state.extractCut]).toEqual([-1, false]);
+  });
+
   it("AC 3: inputs queued during the extract never reach the World", () => {
     const { controller, w, tick } = setup();
     controller.castVote("p0", "extract");

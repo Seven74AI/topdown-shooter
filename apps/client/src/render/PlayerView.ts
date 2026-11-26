@@ -232,9 +232,6 @@ export class PlayerView {
   }
 
   /** Reads the player (never writes it) and draws it at the interpolated position; `timeMs` drives the downed pulse. */
-  /** Story 12.2: the extraction protects everyone the whole phase: no spawn-protection blink then. */
-  noBlink = false;
-
   update(p: PlayerState, alpha: number, timeMs: number, sawRunning = false): void {
     this.x = lerp(p.prevX, p.x, alpha);
     this.y = lerp(p.prevY, p.y, alpha);
@@ -345,6 +342,8 @@ export class PlayerView {
 
   /** Story 8.1: the body alpha last set by the protection blink (1 = none). */
   private shownBlink = 1;
+  /** Story 12.2: the extraction protects everyone the whole phase: no spawn-protection blink then (set by GameScene). */
+  noBlink = false;
 
   destroy(): void {
     this.ring.destroy();

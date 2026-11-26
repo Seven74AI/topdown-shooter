@@ -1,4 +1,4 @@
-import { addPlayer, createWorld, holdPlayer, loadBalance, lootPartKeys, MILESTONES, type RunRewards, type World } from "@topdown/shared";
+import { addPlayer, castVote, createWorld, downPlayer, holdPlayer, loadBalance, lootPartKeys, MILESTONES, removePlayer, skipWave, startBuild, startWave, step, TICK_DT_S, type RunRewards, type World } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { BankResult, LifetimeStatsRow, ProgressRepo, RunMetaWrites, RunPayout } from "../db/progressRepo";
 import { RunBank } from "./banking";
@@ -234,5 +234,49 @@ describe("Stories 7.7 / 7.11 / 7.12 in RunBank", () => {
     const [a, q] = await bank.bankRunEnd(w, [{ playerId: "p0", accountId: ACCTS[0] as string }], [{ playerId: "p3", accountId: ACCTS[3] as string, player: gone }]);
     expect(a?.newDistricts).toEqual([{ id: "district_2", name: "District 2" }]);
     expect(q?.newDistricts).toBeUndefined();
+  });
+});
+
+describe("Story 12.2 review M1: 'extracted all four' is judged when the extraction began", () => {
+  /** Four players through the real vote into the extraction's first tick (`downed`: p1 down when the vote resolves). */
+  function intoExtract(downed = false): World {
+    const w = team(4, "wiped");
+    w.run.ending = "none";
+    w.debug.bossWaves = [];
+    startBuild(w);
+    while (w.run.phase === "build" || w.run.phase === "wave") {
+      if (w.run.phase === "build") startWave(w);
+      skipWave(w);
+    }
+    if (downed) downPlayer(w, w.players.get("p1")!);
+    for (const id of w.players.keys()) castVote(w, id, "extract");
+    for (let t = 0; t < 400 && w.run.phase === "vote"; t++) step(w, TICK_DT_S);
+    expect(w.run.phase).toBe("extract");
+    return w;
+  }
+
+  it("a hold one tick into the extraction → M8 for all four (the seat was there at the start)", () => {
+    const w = intoExtract();
+    step(w, TICK_DT_S);
+    holdPlayer(w, "p3");
+    expect(w.heldPlayers.has("p3")).toBe(true);
+    expect(runFacts(w, "downtown").extractedAllFour).toBe(true);
+  });
+
+  it("a consented Leave during the extraction: the leaver (banked at the Leave) and the stayers (at Results) get the same answer", () => {
+    const w = intoExtract();
+    const atLeave = runFacts(w, "downtown").extractedAllFour; // bankLeaver: before the state leaves the World
+    removePlayer(w, "p3");
+    for (let t = 0; t < 600 && w.run.phase === "extract"; t++) step(w, TICK_DT_S);
+    expect(w.run.phase).toBe("results");
+    expect(atLeave).toBe(true);
+    expect(runFacts(w, "downtown").extractedAllFour).toBe(atLeave);
+  });
+
+  it("one downed at the vote → no M8, though everyone stood up for the walk (CN-3)", () => {
+    const w = intoExtract(true);
+    expect(w.players.get("p1")!.status).toBe("alive");
+    for (let t = 0; t < 600 && w.run.phase === "extract"; t++) step(w, TICK_DT_S);
+    expect(runFacts(w, "downtown").extractedAllFour).toBe(false);
   });
 });

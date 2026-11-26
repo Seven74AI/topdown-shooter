@@ -223,6 +223,9 @@ export interface RunStateView {
   readonly resumeWave?: number;
   /** Story 12.2: the extraction's lift-off server tick (−1 = on the pad / not extracting; absent = −1). */
   readonly liftedAtTick?: number;
+  /** Story 12.2 review L6: the server tick the extraction began (−1 / absent = none) and whether the walk timed out. */
+  readonly extractStartTick?: number;
+  readonly extractCut?: boolean;
 }
 
 /**
@@ -382,6 +385,8 @@ export const RUN_STATE_FIELDS = {
   leftSeats: true, // Story 8.3
   resumeWave: true, // Story 8.6
   liftedAtTick: true, // Story 12.2
+  extractStartTick: true,
+  extractCut: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

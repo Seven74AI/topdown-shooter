@@ -18,7 +18,6 @@ import { endSpecialEvent, eventHoldsWave } from "../events/specialEvents";
 import { scheduleEndlessEvent } from "./endlessEvents";
 import { armEndlessEvent } from "../events/schedule";
 import { beginExtract, updateExtract } from "./extract";
-import { TICK_RATE_HZ } from "../config/constants";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -229,7 +228,7 @@ export function openEvacVote(world: World): void {
   run.phase = "vote";
   run.buildTicksLeft = 0;
   run.voteTicksLeft = ticksFor(world.balance.waves.evac.voteS);
-  world.extract.landTicksLeft = Math.round(world.balance.waves.evac.descendS * TICK_RATE_HZ); // Story 12.2: the helicopter descends (0 s: on the pad)
+  world.extract.landTicksLeft = ticksFor(world.balance.waves.evac.descendS); // Story 12.2: the helicopter descends (review L2: ticksFor)
   world.players.forEach(clearVote);
   clearAcid(world);
   clearGrenades(world.grenades);

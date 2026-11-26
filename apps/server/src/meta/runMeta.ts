@@ -27,9 +27,10 @@ export function runFacts(world: Readonly<World>, district: string): RunFacts {
   world.players.forEach((p) => {
     if (p.status === "alive") standing++;
   });
-  // Story 12.2: the downed stand up for the walk (CN-3): "standing" is who stood when the extraction began.
-  if (world.extract.started) standing = world.extract.standingAtStart;
-  const extractedAllFour = world.run.ending === "extracted" && world.players.size === MAX_PLAYERS && world.heldPlayers.size === 0 && standing === MAX_PLAYERS; // review L8
+  // Story 12.2 (review M1): an extraction judges "all four" as it stood when it began (the downed stand up for the walk,
+  // and a hold or a Leave during it changes nothing): the same answer for a leaver mid-walk and for the stayers.
+  const allFour = world.extract.started ? world.extract.allFourAtStart : world.players.size === MAX_PLAYERS && world.heldPlayers.size === 0 && standing === MAX_PLAYERS; // review L8
+  const extractedAllFour = world.run.ending === "extracted" && allFour;
   return { district, extractedAllFour, lootFoundBy: world.loot.foundBy, lootWave: world.loot.foundWave, lootItemRoll: world.loot.plan.itemRoll };
 }
 

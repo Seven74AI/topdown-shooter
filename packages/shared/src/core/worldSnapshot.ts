@@ -206,12 +206,13 @@ export function snapshotWorld(world: World) {
           extract: {
             landTicksLeft: world.extract.landTicksLeft,
             ticks: world.extract.ticks,
+            startTick: world.extract.startTick,
             boarded: [...world.extract.boarded].sort(),
             beatTicksLeft: world.extract.beatTicksLeft,
             liftedAtTick: world.extract.liftedAtTick,
             hordeSpawned: world.extract.hordeSpawned,
             cut: world.extract.cut,
-            standingAtStart: world.extract.standingAtStart,
+            allFourAtStart: world.extract.allFourAtStart,
           },
         }
       : {}),

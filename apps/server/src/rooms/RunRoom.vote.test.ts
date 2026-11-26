@@ -155,11 +155,14 @@ describe("RunRoom extraction (Story 12.2)", () => {
     expect([...room.members.values()].some((m) => m.waiting === true)).toBe(false);
   });
 
-  it("AC 3: pings still go through while extracting", async () => {
-    const { host, room } = await toExtract();
+  it("AC 3: a ping sent during the extraction reaches the teammate (through the room)", async () => {
+    const { host, guest, room } = await toExtract();
+    const shown: unknown[] = [];
+    host.onMessage(S2C.PING_SHOWN, (m: unknown) => shown.push(m));
+    await new Promise((r) => setTimeout(r, 1100)); // the two votes used the guard bucket: let it refill
     expect(room.state.phase).toBe("extract");
-    const { pingRefusal } = await import("./RunRoom");
-    expect(pingRefusal("extract", false, false, "alive")).toBeNull();
-    expect(host.state.phase).toBe("extract");
+    guest.send(C2S.PING_SEND, { kind: "help" });
+    await vi.waitFor(() => expect(shown.length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(room.state.phase).toBe("extract");
   });
 });

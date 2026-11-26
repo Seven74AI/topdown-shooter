@@ -37,6 +37,8 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.voteTicksLeft !== world.run.voteTicksLeft) state.voteTicksLeft = world.run.voteTicksLeft; // Story 6.11
   if (state.endless !== world.run.endless) state.endless = world.run.endless; // Story 6.12
   if (state.liftedAtTick !== world.extract.liftedAtTick) state.liftedAtTick = world.extract.liftedAtTick; // Story 12.2
+  if (state.extractStartTick !== world.extract.startTick) state.extractStartTick = world.extract.startTick; // review L6
+  if (state.extractCut !== world.extract.cut) state.extractCut = world.extract.cut;
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
   syncSpecialEvent(state, world); // Story 6.8
@@ -304,6 +306,8 @@ export function resetRunFields(state: RunState): void {
   state.resultWave = 0;
   state.resultEnding = ""; // Story 6.11
   state.liftedAtTick = -1; // Story 12.2
+  state.extractStartTick = -1;
+  state.extractCut = false;
   state.voteTicksLeft = 0;
   state.endless = false; // Story 6.12
   state.frozen = false; // Story 8.1

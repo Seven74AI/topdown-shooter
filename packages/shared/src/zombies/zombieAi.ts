@@ -503,7 +503,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
       if (b && pool.state[id] !== ZOMBIE_STATE.SWELL && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) startSwell(world, id, ex);
     } else if (bid !== 0 && pool.attackCooldownTicks[id] === 0 && !(stats.windupS > 0 && isWindupState(pool.state[id] as number))) {
       const b = buildingById(world, bid);
-      if (b && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
+      // Story 12.2 review L1: the fly-out horde hurts nothing — no building hit during the extraction.
+      if (b && world.run.phase !== "extract" && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
         // Story 5.7 (F5): Brutes hit buildings 3× (no windup on buildings).
         damageBuilding(world, b, stats.damage * stats.buildingDamageMult);

@@ -125,6 +125,8 @@ export interface FakeState {
   districtsOpen: number;
   /** Story 12.2: the extraction's lift-off tick (−1 = none). */
   liftedAtTick: number;
+  extractStartTick: number;
+  extractCut: boolean;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -186,6 +188,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     districtsOpen: 1,
     leftSeats: "", // Story 8.3
     liftedAtTick: -1, // Story 12.2
+    extractStartTick: -1,
+    extractCut: false,
   };
 }
 

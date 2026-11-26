@@ -13,8 +13,11 @@ import { addPlayer, type PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "../zombies/zombiePool";
 import { AREA_KIND, spawnArea } from "../hazards/areaPool";
+import { igniteMolotov } from "../hazards/molotov";
+import { consumableIndex } from "../economy/consumables";
 import { bodyFitsInMap, circleOverlapsBox } from "../buildings/collision";
 import { castVote, skipWave, startBuild, startWave } from "./runStateMachine";
+import { placeBuilding } from "../buildings/buildings";
 import { EXTRACT_PROTECT_TICKS, evacPadPoint, extractTestHooks } from "./extract";
 
 /** Story 12.2: the extraction — walk to the helicopter, board, lift off, fly out, then Results. */
@@ -26,8 +29,8 @@ const FLY_OUT = ticksFor(ev.flyOutS);
 
 afterEach(() => extractTestHooks.stalled.clear());
 
-function setup(n = 4, seed = 11) {
-  const world = createWorld({ balance, seed, map: DOWNTOWN_MAP });
+function setup(n = 4, seed = 11, b = balance) {
+  const world = createWorld({ balance: b, seed, map: DOWNTOWN_MAP });
   world.debug.bossWaves = []; // the extraction alone (the boss has its own tests)
   const at = { x: 0, y: 0 };
   const players: PlayerState[] = [];
@@ -90,6 +93,29 @@ describe("Story 12.2: Vote → Extract → Results", () => {
     expect(world.tick - 1 - liftTick).toBe(FLY_OUT); // the fly-out's full length, then Results the same tick
     // FR67 reworded: the survivors walk and fly out in ≤ 20 s, then Results.
     expect((world.tick - startTick) / TICK_RATE_HZ).toBeLessThanOrEqual(20);
+  });
+
+  it("AC 2: after an endless evacuation wave (Stay at 10, Extract at 15) the extraction plays the same, ending extracted", () => {
+    const { world, events } = setup(2);
+    toVote(world);
+    for (const id of world.players.keys()) castVote(world, id, "stay");
+    runUntil(world, (w) => w.run.phase !== "vote");
+    expect(world.run.phase).toBe("build");
+    expect(world.run.endless).toBe(true);
+    while (world.run.phase === "build" || world.run.phase === "wave") {
+      if (world.run.phase === "build") startWave(world);
+      skipWave(world);
+    }
+    expect(world.run.phase).toBe("vote");
+    expect(world.waves.number).toBe(15);
+    voteExtract(world);
+    runUntil(world, (w) => w.run.phase !== "vote");
+    expect(world.run.phase).toBe("extract");
+    runUntil(world, (w) => w.run.phase === "results");
+    expect(world.run.ending).toBe("extracted");
+    expect(ofType(events, "run.extracted").at(-1)).toEqual({ type: "run.extracted", wave: 15, endless: true });
+    expect(ofType(events, "run.lifted")).toHaveLength(1);
+    expect(ofType(events, "run.extract_done")).toEqual([{ type: "run.extract_done", wave: 15 }]);
   });
 
   it("boarding waits for the landing: a vote resolved before descendS boards nobody until the helicopter is down", () => {
@@ -213,12 +239,19 @@ describe("Story 12.2: nothing hurts, nothing counts", () => {
     expect(b.events.filter((e) => e.type.startsWith("weapon.") || e.type === "consumable.used")).toHaveLength(a.events.filter((e) => e.type.startsWith("weapon.") || e.type === "consumable.used").length);
   });
 
-  it("AC 4: no damage — zombies at the body, an acid puddle and a fire under it, the whole phase", () => {
+  it("AC 4: the fire and acid present when the phase starts are cleared; then no damage the whole phase (zombies at the body, a puddle under it)", () => {
     const { world, players, events } = setup(2);
     toVote(world);
+    const p = players[0]!;
+    // Present at the vote's resolution: a molotov fire and an acid puddle at the body (the vote freezes them).
+    expect(igniteMolotov(world, consumableIndex(balance, "molotovs"), p.x, p.y, "p0")).toBeGreaterThanOrEqual(0);
+    spawnArea(world.areas, 8, AREA_KIND.ACID, 1, p.x, p.y, 3, 400, world.tick);
+    expect(world.molotovs.areas.count).toBeGreaterThan(0);
+    expect(world.areas.count).toBeGreaterThan(0);
     voteExtract(world);
     runUntil(world, (w) => w.run.phase === "extract");
-        const p = players[0]!;
+    expect(world.molotovs.areas.count).toBe(0); // cleared by startExtract
+    expect(world.areas.count).toBe(0);
     for (let k = 0; k < 6; k++) spawnZombie(world, "walker", p.x + 0.6, p.y, false);
     spawnArea(world.areas, 8, AREA_KIND.ACID, 1, p.x, p.y, 3, 400, world.tick);
     const hp = players.map((q) => q.hp);
@@ -246,6 +279,46 @@ describe("Story 12.2: nothing hurts, nothing counts", () => {
     expect(after.filter((e) => e.type === "zombie.killed" || e.type === "money.earned" || e.type.startsWith("wave."))).toHaveLength(0);
     expect(world.waves.number).toBe(wave);
     expect(players.map((p) => ({ kills: p.kills, earned: p.earned, wallet: p.wallet, revives: p.revives, downs10: p.downs10, barricades: p.barricades, waveMask: p.waveMask, wavesIn: p.wavesIn }))).toEqual(before);
+  });
+
+  it("review L1: the fly-out horde never damages a building (barricades round the pad keep their HP)", () => {
+    const { world, events } = setup(1, 11, { ...balance, buildings: { ...balance.buildings, maxPerPlayer: 400 } });
+    startBuild(world);
+    const p = world.players.get("p0")!;
+    p.wallet = 100_000;
+    // As closed a ring as 12.1 allows (it keeps one body-wide way in): the horde would rather smash through.
+    for (const r of [4.5, 6]) {
+      for (let a = 0; a < 48; a++) {
+        const ang = (a / 48) * Math.PI * 2;
+        const gx = Math.round((PAD.x + Math.cos(ang) * r) * 2);
+        const gy = Math.round((PAD.y + Math.sin(ang) * r) * 2);
+        for (const rot of [0, 1]) placeBuilding(world, "p0", { type: "wood_barricade", gx, gy, rot });
+      }
+    }
+    expect(world.buildings.list.length).toBeGreaterThan(4);
+    while (world.run.phase === "build" || world.run.phase === "wave") {
+      if (world.run.phase === "build") startWave(world);
+      skipWave(world);
+    }
+    const hp = world.buildings.list.map((b) => b.hp); // after the decay stages' losses (12.4)
+    const from = events.length;
+    voteExtract(world);
+    runUntil(world, (w) => w.extract.liftedAtTick >= 0);
+    // Walkers right outside the ring (the edge spawns are too far to arrive within the 8 s fly-out).
+    for (let a = 0; a < 24; a++) spawnZombie(world, "walker", PAD.x + Math.cos((a / 24) * Math.PI * 2) * 7.5, PAD.y + Math.sin((a / 24) * Math.PI * 2) * 7.5, false);
+    let touched = false;
+    const z = world.zombies;
+    runUntil(world, (w) => {
+      for (let i = 0; i < z.aliveCount; i++) {
+        const id = z.aliveIds[i]!;
+        for (const b of w.buildings.list) if (Math.max(b.minX - (z.x[id] as number), (z.x[id] as number) - b.maxX, b.minY - (z.y[id] as number), (z.y[id] as number) - b.maxY) < 0.6) touched = true;
+      }
+      return w.run.phase === "results";
+    });
+    expect(touched).toBe(true); // the horde really reached the barricades
+    expect(world.buildings.list.map((b) => b.hp)).toEqual(hp);
+    // (decay losses queued between steps flush on the next step: they carry a cause; a zombie hit carries none)
+    expect(events.slice(from).filter((e) => e.type === "building.destroyed" && e.cause === undefined)).toHaveLength(0);
   });
 
   it("the horde heads for the pad (the boarded bodies wait there)", () => {
@@ -277,3 +350,4 @@ describe("Story 12.2: determinism", () => {
     expect(a).toContain('"extract"');
   });
 });
+

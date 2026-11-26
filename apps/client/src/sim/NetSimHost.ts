@@ -55,6 +55,7 @@ import {
   type WeaponSlot,
   type World,
   type EvacChoice,
+  evacPadPoint,
 } from "@topdown/shared";
 import { viewTickOf } from "../net/viewTick";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
@@ -190,6 +191,8 @@ export class NetSimHost implements SimHost {
   /** Positions are written already interpolated: alpha never matters. */
   readonly alpha = 0;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
+  /** Story 12.2 review L6: scratch for the pad point (no allocation per patch). */
+  private readonly padAt = { x: 0, y: 0 };
   /** The local survivor's prediction (Story 2.6); it keeps the sent inputs for replay. */
   readonly predictor: Predictor;
   /** Story 6.5: the boss's last two server positions (`bossRenderPos` draws it at the render tick). */
@@ -894,6 +897,16 @@ export class NetSimHost implements SimHost {
     // Story 12.2: the extraction's lift-off (the helicopter's fly-out is a pure function of it).
     this.world.extract.liftedAtTick = state.liftedAtTick ?? -1;
     this.world.extract.started = state.phase === "extract" || (state.phase === "results" && this.world.extract.liftedAtTick >= 0);
+    // Review L6: the rest of 12.3's timeline online (the pad is map data, the same point the server walks to).
+    const ex = this.world.extract;
+    ex.startTick = state.extractStartTick ?? -1;
+    ex.ticks = ex.startTick >= 0 ? Math.max(0, state.tick - ex.startTick) : 0;
+    ex.cut = state.extractCut === true;
+    if (ex.started) {
+      evacPadPoint(this.world.map, this.padAt);
+      ex.padX = this.padAt.x;
+      ex.padY = this.padAt.y;
+    }
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
@@ -1041,8 +1054,11 @@ export class NetSimHost implements SimHost {
   private applyPlayer(p: PlayerState): void {
     const s = this.session.room.state.players.get(p.id);
     if (!s) return;
-    // Story 12.2: the server walks my survivor during the extraction (no input is sent): drawn like the others.
-    if (p.id === this.localPlayerId && this.predictor.ready && this.session.room.state.phase !== "extract") this.writePredicted(p);
+    // Story 12.2: the server walks my survivor during the extraction (no input is sent): drawn like the others, and
+    // still on Results after it (review L8: the predictor still holds where the walk began; the camera stays at the pad).
+    const phase = this.session.room.state.phase;
+    const extracted = phase === "extract" || (phase === "results" && (this.session.room.state.liftedAtTick ?? -1) >= 0);
+    if (p.id === this.localPlayerId && this.predictor.ready && !extracted) this.writePredicted(p);
     else this.writeInterpolated(p, s);
     if (s.boarded === true) this.world.extract.boarded.add(p.id); // Story 12.2: aboard (not drawn)
     else this.world.extract.boarded.delete(p.id);

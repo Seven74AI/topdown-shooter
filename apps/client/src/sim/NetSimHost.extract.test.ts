@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "@topdown/shared";
+import { NEUTRAL_INPUT, loadBalance } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost } from "./NetSimHost";
@@ -43,6 +43,48 @@ describe("NetSimHost extraction mirror (Story 12.2)", () => {
     host.update(1 / 60);
     expect(host.world.extract.started).toBe(true);
     expect(host.world.extract.liftedAtTick).toBe(345);
+  });
+
+  it("review L8: on Results after the extraction my survivor stays where the server put it (the pad), not where the walk began", () => {
+    const { host, room } = setup();
+    room.state.phase = "vote";
+    for (let i = 0; i < 6; i++) host.update(1 / 20); // the predictor is ready, holding x = 14
+    const me = room.state.players.get("p1")!;
+    room.state.phase = "extract";
+    for (let i = 0; i < 40; i++) {
+      me.x = 14 + i * 0.25;
+      room.state.tick += 1;
+      room.patch();
+      host.update(1 / 20);
+    }
+    me.boarded = true;
+    room.state.liftedAtTick = room.state.tick;
+    room.state.phase = "results";
+    room.state.resultEnding = "extracted";
+    host.setLocalInput({ ...NEUTRAL_INPUT, moveX: -1 }); // a thumb on the stick under the dawn (the server no longer steps)
+    for (let i = 0; i < 40; i++) {
+      room.state.tick += 1;
+      room.patch();
+      host.update(1 / 20);
+    }
+    expect(host.world.players.get("p1")!.x).toBeCloseTo(23.75, 1); // the server's spot (the pad), never a predicted walk away from it
+  });
+
+  it("review L6: the extraction's start (ticks), cut and pad are mirrored for 12.3's timeline", () => {
+    const { host, room } = setup();
+    room.state.phase = "vote";
+    host.update(1 / 60);
+    expect([host.world.extract.startTick, host.world.extract.cut]).toEqual([-1, false]);
+    room.state.phase = "extract";
+    room.state.extractStartTick = 500;
+    room.state.tick = 540;
+    host.update(1 / 60);
+    expect(host.world.extract.startTick).toBe(500);
+    expect(host.world.extract.ticks).toBe(40);
+    expect([host.world.extract.padX, host.world.extract.padY]).toEqual([24, 15.9]); // Downtown's evac_pad
+    room.state.extractCut = true;
+    host.update(1 / 60);
+    expect(host.world.extract.cut).toBe(true);
   });
 
   it("AC 3: no input is sent while extracting (and inputs flow again in a later phase)", () => {

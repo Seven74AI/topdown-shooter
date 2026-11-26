@@ -999,6 +999,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private updateFreeze(): void {
     const controller = this.controller;
     if (!controller || !this.inRun()) return;
+    if (this.state.phase === "extract") {
+      // Story 12.2 review H1: nothing can hurt anyone and the extraction ends in ≤ 18 s: it runs to Results (and banks
+      // "extracted") even with nobody connected; never frozen, no 3-2-1.
+      this.resumeTimer?.clear();
+      this.resumeTimer = null;
+      this.state.resumeIn = 0;
+      this.state.frozen = false;
+      return;
+    }
     if (controller.activeCount() === 0) {
       this.resumeTimer?.clear();
       this.resumeTimer = null;

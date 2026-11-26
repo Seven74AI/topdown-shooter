@@ -242,6 +242,9 @@ const runFields = {
   resumeWave: t.uint16().default(0),
   // Story 12.2: the extraction's lift-off tick (−1 = still on the pad); the client's fly-out is a pure function of it. On change only.
   liftedAtTick: t.int32().default(-1),
+  // Story 12.2 review L6: the extraction's start tick (−1 none) and its timeout cut (12.3's timeline online). On change only.
+  extractStartTick: t.int32().default(-1),
+  extractCut: t.boolean().default(false),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

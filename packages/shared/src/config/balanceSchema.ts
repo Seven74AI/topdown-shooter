@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TICK_RATE_HZ } from "./constants";
-import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 
 /** Balance ids are lowercase snake case (architecture › Naming Conventions). */
 const balanceId = z.string().regex(/^[a-z][a-z0-9_]*$/, "balance ids are lowercase snake_case");
@@ -473,12 +472,14 @@ export const wavesSchema = z
           .object({
             count: z.number().int().min(0).max(200).default(40),
             perS: z.number().positive().max(100).default(8),
-            type: z.enum(ZOMBIE_TYPES).default("walker"),
+            type: z.enum(["walker"]).default("walker"), // review nit: walkers only (no Bloater swell, no Spitter acid in a phase where nothing hurts)
           })
           .strict()
           .default({ count: 40, perS: 8, type: "walker" }),
       })
       .strict()
+      // Story 12.2 review L2: the walk's timeout cut must come after the landing (no boarding, beat or cut before it).
+      .refine((e) => e.walkTimeoutS > e.descendS, "evac.walkTimeoutS must be greater than evac.descendS")
       .default({ voteS: 15, allVotedHoldS: 1, dawnS: 4, everyWaves: 5, padRadiusM: 3, descendS: 2, walkTimeoutS: 8, liftBeatS: 0.5, flyOutS: 8, flyOutHorde: { count: 40, perS: 8, type: "walker" } }),
     /**
      * Story 6.12: endless waves (past `runWaves`, after Stay). Size `min(N × zombiesPerWave,
