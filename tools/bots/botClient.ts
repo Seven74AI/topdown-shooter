@@ -139,6 +139,12 @@ export interface BotWaveStats {
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 const INPUT_INTERVAL_MS = TICK_DT_S * 1000;
 
+/**
+ * Story 8.13: `BOTS_NO_ACK=1` in the environment makes the bots send no tick ack (the 8.10 server's view: no
+ * slow-line skip), the control row of the 8.13 table. The default acks like the phone.
+ */
+const SEND_ACK = process.env.BOTS_NO_ACK !== "1";
+
 /** The newest horde frame, decoded into preallocated arrays. */
 class HordeView implements HordeSink {
   readonly xs = new Float32Array(HORDE_MAX_RECORDS);
@@ -146,8 +152,11 @@ class HordeView implements HordeSink {
   count = 0;
   frames = 0;
   recordsSum = 0;
-  begin(_tick: number, count: number): void {
+  /** Story 8.13: the newest frame's tick (−1: none yet). */
+  tick = -1;
+  begin(tick: number, count: number): void {
     this.count = count;
+    this.tick = tick; // in order (TCP; the decoder refuses an older one); a new run starts again from 0
   }
   record(i: number, _netId: number, x: number, y: number): void {
     this.xs[i] = x;
@@ -638,7 +647,8 @@ export class BotClient {
     }
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
     if (this.link !== "ok") return; // Story 8.1 (F7): nothing sent while the link is down (and nothing late)
-    encodeInput(this.input, this.inputBytes); // Story 8.11 (brief 20): the phone's binary input
+    // Story 8.11 (brief 20): the phone's binary input; Story 8.13: with the newest server tick received, like the phone.
+    encodeInput(this.input, this.inputBytes, SEND_ACK ? Math.max(state.tick, this.horde.tick) : -1, performance.now());
     this.room.sendBytes(BYTES.INPUT, this.inputBytes);
   }
 
