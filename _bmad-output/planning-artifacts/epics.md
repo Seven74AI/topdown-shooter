@@ -362,7 +362,47 @@ The game looks and sounds like Dead City: a photoreal pass of the art (district 
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
 **FRs covered:** FR87, FR88 · NFR1, NFR2, NFR3, NFR6, NFR7, NFR8, NFR9
 
-### Epic 11: Random city (post-v1)
+#### Story 10.11: Admin players
+
+(Added 2026-11-26, designer: "add Admin players. That would get the dev btn so he can do whatever we can do in dev mode but in production". Decisions AD-1…AD-4 all as recommended (designer "Ok with all your recommendation", 2026-11-26); story file `10-11-admin-players.md`. Online cheats are Story 10.12.)
+
+As an admin (a registered account the operator marked as admin),
+I want the dev ⚙ cheat panel and the dev link switches in the production game,
+So that I can test any wave, weapon or event on a real phone without a dev build.
+
+**Acceptance Criteria:**
+
+**Given** an operator command on the VPS (`admin add|remove|list <username>`)
+**When** it marks a registered account (never a guest) as admin
+**Then** that account's session tells the client it is an admin, and no other account learns of it (AD-1 A)
+
+**Given** an admin in a production build
+**When** they start Practice solo
+**Then** the ⚙ button and the full dev panel work as in a dev build, and the dev link switches (`?startwave`, `?shopall`, `?bosswave`, …) are honoured for that solo run (AD-2 A, AD-4 A); Practice still earns no rewards
+
+**Given** an admin in an online game
+**When** they open ⚙
+**Then** only the view tools (perf overlay, collision / grid view) work; every other control is greyed with "Practice only" (AD-2 A; online cheats = Story 10.12)
+
+**Given** a non-admin (or a logged-out guest) in a production build
+**When** the game loads
+**Then** nothing changes: no ⚙, the cheat code is never downloaded (the main bundle stays free of cheat strings), and the dev link switches stay ignored
+
+### Story 10.12: Admin cheats online
+
+(Added 2026-11-26 with 10.11; backlog. AD-3 A: when an admin uses a cheat online, nobody in that room earns rewards for the run and Results says "Admin cheats used".)
+
+As an admin in an online game,
+I want the cheat panel to work through the server,
+So that I can test co-op situations in production.
+
+**Acceptance Criteria:**
+
+**Given** an admin (checked by the server, never trusted from the client) in an online room
+**When** they use a cheat
+**Then** the server applies it, the run is marked cheated, nobody in the room earns Supplies, loot or milestones for it, and Results says "Admin cheats used" (AD-3 A)
+
+## Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
 
 ### Epic 12: Extraction cinematic
