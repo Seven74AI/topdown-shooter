@@ -1,6 +1,6 @@
 # Story 8.13: Slow-line horde skip
 
-Status: review
+Status: done
 
 <!-- Created with gds-create-story (builder session, 2026-11-26) from epics.md Story 8.13, the 8.10 story file (B6, B7, T8 table), docs/network-pass-decisions.md, docs/epic-8-story-decisions.md (E8-A9), docs/perf/epic-2-network.md and the real code. Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -207,3 +207,9 @@ Re-review round 2 (the last): no high, no medium. One low, fixed here and checke
 - 2026-11-26: review fixes M1 (upload wait taken off; 1 s freeze cap), L1–L3, N1; bot rows re-measured; status review (M1 to a narrow re-review).
 - 2026-11-26: re-review round 1: M1b-R1 fixed (the phone's send time in the input, 18 B; the upload timed from it); bot rows re-measured; status review (round 2 is the last re-review).
 - 2026-11-26: re-review round 2: no high/medium; R2-L1 (clock-jump unwrap) fixed, main-session check.
+
+## Main session close-out (2026-11-26)
+- Review: fresh 3-layer review (M1 upload-only lag; L1–L3, N1) → re-review round 1 (M1b-R1: seq pacing hid downstream queues → send time in the input) → round 2 (L1: fixed-reference unwrap) → main-session check of db59fc7.
+- db59fc7 checked: step-wise unwrap against the previous input; a clock jump over 5 s restarts the upload base. CI green on 78ad87e. Merged as 572c3fd9 (PR #32).
+- Accepted residual: an upload-only stall over 5 s reads as a clock jump and can start a skip. The 1 s keyframe cap bounds any freeze.
+- Protocol 4 is now on master. The next of 12.2 or Epic 11 takes 5.

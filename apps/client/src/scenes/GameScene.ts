@@ -773,7 +773,7 @@ export class GameScene extends Phaser.Scene {
     this.ambience?.dispose(); // Phaser reuses this scene object: never two players
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
-    this.bossView = new BossView(this, host.world); // Story 6.5
+    this.bossView = new BossView(this, host.world, () => this.runSeed); // Story 6.5 (9.15: the run seed predicts the next look to bake)
     this.eventView = new EventView(this, host.world); // Story 6.8
     this.pingView = host.pings ? new PingView(this) : null; // Story 8.7 (B8: online only)
     this.lootView = new LootBagView(this, host.world); // Story 7.12

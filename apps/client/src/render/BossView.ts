@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { BOSS_ATTACK, BOSS_STATE, zombieUnderBoss, type World } from "@topdown/shared";
+import { BOSS_ATTACK, BOSS_STATE, TICK_DT_S, behemothLookIndex, zombieUnderBoss, type World } from "@topdown/shared";
 import {
   BOSS_ATLAS,
   BOSS_CHUNK_M,
@@ -10,8 +10,13 @@ import {
   BOSS_FRAME_PX,
   BOSS_FX,
   BOSS_FX_FRAMES,
+  BOSS_EYES,
+  BOSS_EYE_FRAMES,
+  BOSS_EYE_M,
   BOSS_LANE,
   BOSS_LANE_PX_PER_M,
+  BOSS_OUTLINE,
+  BOSS_OUTLINE_FRAMES,
   BOSS_PX_PER_M,
   BOSS_RING,
   BOSS_TELE,
@@ -22,6 +27,15 @@ import {
   ensureBossTextures,
 } from "./city/bossAtlas";
 import { ABOVE_DARK, aboveDarkness } from "./darkness/aboveDark";
+import { BH_EYE_AHEAD_R, BH_EYE_SIDE_R, BH_R_M, behemothHeadM, type BhPoint } from "./city/behemothArt";
+import { BOSS_POSES, bossHasEnraged, bossHasSheen, relitBodyName, relitSheenName, relitSheenStrip, relitVeinName } from "./city/bossFrames";
+import { bossRelitCrop, bossRelitKey, bossRelitLook, bossRelitReady, ensureBossRelit, pumpBossRelit, requestBossLook } from "./city/bossRelit";
+import { SHEEN_STEPS, sheenStep } from "./city/charRelight";
+import { charBakeProgress } from "./city/charactersAtlas";
+import { ATLAS_FX, FX_DUST } from "./city/spriteAtlas";
+import { BOSS_ANIM, BossAnim, type BossAnimInput } from "./bossAnim";
+import { BOSS_DUST, BossDust } from "./bossDust";
+import { urlOptions } from "../debug/urlOptions";
 import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize } from "./city/hudWarnArt";
 import {
   chargeLaneLook,
@@ -31,6 +45,8 @@ import {
   slamFrameIndex,
   telegraphProgress,
   throwChunkAt,
+  throwLiftProgress,
+  warningPoseIndex,
   throwInnerRadius,
   type ChunkLook,
   type LaneLook,
@@ -102,6 +118,17 @@ const DEAD_TINT = 0x8a8a8a;
 export const BOSS_DIM_ALPHA = 0.55;
 /** Review L-b: seconds the body takes to dim or come back (no flicker as a zombie crosses its rim). */
 export const BOSS_DIM_FADE_S = 0.25;
+/** Story 9.15 (B1): the relit bake of the next Behemoth's look waits for the characters' bake, at most this long. */
+const BOSS_BAKE_WAIT_S = 25;
+/** Story 9.15: the layers' depth offsets above the body (roar crossfade, veins, sheen, eyes) and the dust's. */
+const LAYER_DZ = 0.0004;
+const DUST_DZ = 0.01;
+
+/** Story 9.15: relit frame names, built once (the view never builds strings per frame). */
+const RELIT_BODY: readonly (readonly [string, string])[] = BOSS_POSES.map((_, i) => [relitBodyName(i, false), bossHasEnraged(i) ? relitBodyName(i, true) : relitBodyName(i, false)] as const);
+const RELIT_VEIN: readonly (string | null)[] = BOSS_POSES.map((_, i) => (bossHasEnraged(i) || i === BOSS_FRAME.deadA ? relitVeinName(i) : null));
+const RELIT_SHEEN_STRIP: readonly (readonly [string, string] | null)[] = BOSS_POSES.map((_, i) => (bossHasSheen(i) ? ([relitSheenStrip(i, false), relitSheenStrip(i, true)] as const) : null));
+const RELIT_SHEEN: readonly (readonly (readonly string[])[] | null)[] = BOSS_POSES.map((_, i) => (bossHasSheen(i) ? [false, true].map((e) => Array.from({ length: SHEEN_STEPS }, (_, k) => relitSheenName(i, e, k))) : null));
 
 /**
  * Review L-b: the body's next opacity — toward `BOSS_DIM_ALPHA` while a DRAWN zombie stands under it,
@@ -196,17 +223,60 @@ export class BossView {
   /** Seconds since the view started (drives the sparks; never the gameplay). */
   private clockS = 0;
   private readonly at = { x: 0, y: 0 };
+  /** Story 9.15: the roar's enraged picture over the calm one; the vein + split glow, the sheen, the eyes (all ADD but the first). */
+  private readonly body2: Phaser.GameObjects.Image;
+  private readonly vein: Phaser.GameObjects.Image;
+  private readonly sheen: Phaser.GameObjects.Image;
+  private readonly eyes: Phaser.GameObjects.Image[] = [];
+  private readonly dustImgs: Phaser.GameObjects.Image[] = [];
+  private readonly dust: BossDust;
+  private readonly anim: BossAnim;
+  private readonly animIn: BossAnimInput = { state: 0, attackKind: 0, progress: 0, enraged: false, step: 0, stepPhase: 0, released: false, slammed: false, crashed: false };
+  private readonly head: BhPoint = { x: 0, y: 0 };
+  private slammedNow = false;
+  private crashedNow = false;
+  private rushAcc = 0;
+  private crumbAcc = 0;
+  private crumbs = 0;
+  private roarDust = false;
+  private deathDust = false;
+  private layerDepth = BODY_DEPTH;
+  /** The picture `pick` chose (texture key, frame, whether it is the enraged one). */
+  private pickKey = BOSS_ATLAS;
+  private pickName = "";
+  private pickEnr = false;
+  /** Story 9.15 (B1): the look the relit bake is asked for, predicted for the next Behemoth from the run seed. */
+  private predSeed = Number.NaN;
+  private predNumber = -1;
+  private predPrev = -1;
+  private predLook = 0;
+  private bakeAllowed = false;
+  private frameNo = 0;
+  /** `?fx=low`: no sheen, half the dust (as the characters' caps halve). */
+  private readonly lowFx = urlOptions().lowFx;
+  private lastDt = 0;
 
   constructor(
     scene: Phaser.Scene,
     private readonly world: Readonly<World>,
+    private readonly runSeed: () => number = () => world.seed,
   ) {
     const b = world.balance.boss;
     ensureBossTextures(scene, b.radiusM / b.slam.radiusM);
+    ensureBossRelit(scene);
     const side = BOSS_FRAME_PX / BOSS_PX_PER_M; // 7 m: the frame's metres
     this.body = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(BODY_DEPTH).setVisible(false);
     this.bodyTop = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(ABOVE_DARK.telegraph + 0.002).setVisible(false);
-    this.outline = aboveDarkness(scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[BOSS_FRAME.outline]).setDisplaySize(side, side).setVisible(false), "boss");
+    this.outline = aboveDarkness(scene.add.image(0, 0, BOSS_OUTLINE, BOSS_OUTLINE_FRAMES[0]?.[0]).setDisplaySize(side, side).setVisible(false), "boss");
+    // Story 9.15: the layers (pooled once; additive ones are never tinted by the hit flash)
+    this.body2 = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(BODY_DEPTH + LAYER_DZ).setVisible(false);
+    this.vein = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 2 * LAYER_DZ).setVisible(false);
+    this.sheen = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 3 * LAYER_DZ).setVisible(false);
+    for (let i = 0; i < 2; i++) this.eyes.push(scene.add.image(0, 0, BOSS_EYES, BOSS_EYE_FRAMES[0]).setDisplaySize(BOSS_EYE_M, BOSS_EYE_M).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 4 * LAYER_DZ).setVisible(false));
+    const nDust = this.lowFx ? Math.floor(BOSS_DUST.pool / 2) : BOSS_DUST.pool;
+    this.dust = new BossDust(nDust);
+    for (let i = 0; i < nDust; i++) this.dustImgs.push(scene.add.image(0, 0, ATLAS_FX, FX_DUST).setTint(PUFF_COLOR).setDepth(BODY_DEPTH + DUST_DZ).setVisible(false));
+    this.anim = new BossAnim({ slamRecoverS: b.slam.recoverS, roarS: b.enrage.roarS, stepS: WALK_STEP_M / b.speedMps, stepEnragedS: WALK_STEP_M / (b.speedMps * b.enrage.speedMult) });
     ensureHudWarnTextures(scene);
     const tagSize = hudFrameCssSize("tag");
     this.tag = aboveDarkness(scene.add.image(0, 0, BOSS_HUD, HUD_FRAMES.tag).setDisplaySize(tagSize.w / LOCK_CSS_PER_M, tagSize.h / LOCK_CSS_PER_M).setVisible(false), "marker");
@@ -282,6 +352,7 @@ export class BossView {
 
   /** Story 6.6 `boss.crashed`: a dust ring round its body. */
   onCrashed(x: number, y: number): void {
+    this.crashedNow = true; // Story 9.15: the crash burst and the release peak (next update)
     this.ring(x, y, this.world.balance.boss.radiusM, this.world.balance.boss.radiusM + 1.5, 0.5, PUFF_COLOR);
   }
 
@@ -291,6 +362,7 @@ export class BossView {
     this.nextDecal = (this.nextDecal + 1) % this.decals.length;
     d.setFrame(BOSS_FX_FRAMES.crater).setDisplaySize(BOSS_CRATER_M, BOSS_CRATER_M).setPosition(x, y).setRotation(rot).setVisible(true);
     this.ring(x, y, 0.5, this.world.balance.boss.throw.radiusM, 0.4, PUFF_COLOR);
+    this.dust.burst(BOSS_DUST.throwLanding, x, y); // Story 9.15: the landing puff
     this.ringSlot.chunk.setVisible(false);
   }
 
@@ -311,6 +383,7 @@ export class BossView {
     const side = (2 * 256) / (2 * BOSS_CRACK_PX_PER_M);
     d.setFrame(BOSS_FX_FRAMES.crack).setDisplaySize(side, side).setPosition(x, y).setRotation(rot).setVisible(true);
     this.slamHitS = SLAM_HIT_S;
+    this.slammedNow = true; // Story 9.15: everything peaks on the hit, dust from the fists (next update)
   }
 
   /** A build start: no cracks carried into the next wave. */
@@ -402,6 +475,7 @@ export class BossView {
   }
 
   update(dtS: number, serverTick: number, drawX: number, drawY: number, targetAt: { x: number; y: number } | undefined, zombieDrawn?: (id: number) => boolean): void {
+    this.lastDt = dtS;
     const b = this.world.boss;
     const on = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
     // A late Game scene / a reconnect mid-telegraph: the state carries the attack (6.6: a rush, a chunk in flight too).
@@ -410,15 +484,19 @@ export class BossView {
       this.onTelegraph(a.id, a.kind, a.startTick, a.hitTick, a.cx, a.cy, a.radiusM, a.cx + a.dirX * a.lenM, a.cy + a.dirY * a.lenM, a.crash, a.src);
     }
     this.clockS += dtS;
+    this.bakeLook(on || b.state === BOSS_STATE.DEAD);
     this.drawTelegraphs(serverTick);
     this.drawLane(serverTick);
     this.drawRing(serverTick, b.state === BOSS_STATE.DEAD || b.state === BOSS_STATE.NONE);
     this.drawFx(dtS);
+    this.dust.step(dtS);
     if (b.state === BOSS_STATE.DEAD) {
       this.drawDead(dtS, drawX, drawY);
+      this.drawDust();
       return;
     }
     this.deadS = 0;
+    this.deathDust = false;
     if (!on) {
       if (this.bodyTop.visible) this.bodyTop.setVisible(false);
       if (this.body.visible) {
@@ -426,7 +504,16 @@ export class BossView {
         this.outline.setVisible(false);
         this.tag.setVisible(false);
         this.lock.setVisible(false);
+        this.hideLayers();
       }
+      if (b.state === BOSS_STATE.NONE || b.state === BOSS_STATE.WARNING) {
+        // review N3: a new Behemoth starts clean even when its warning follows the last one's death without a NONE
+        this.anim.reset();
+        this.dust.clear();
+      }
+      this.slammedNow = false;
+      this.crashedNow = false;
+      this.drawDust();
       this.lastX = Number.NaN;
       return;
     }
@@ -437,18 +524,46 @@ export class BossView {
     this.lastY = drawY;
     this.slamHitS = Math.max(0, this.slamHitS - dtS);
     this.flashS = Math.max(0, this.flashS - dtS);
-    const frames = BOSS_FRAMES[b.look % BOSS_FRAMES.length] as readonly string[];
-    let f: number = Math.floor(this.walked / WALK_STEP_M) % 2 === 0 ? BOSS_FRAME.walkA : BOSS_FRAME.walkB;
-    if (b.state === BOSS_STATE.TELEGRAPH && b.attack.kind === BOSS_ATTACK.SLAM) {
-      telegraphProgress(serverTick, b.attack.startTick, b.attack.hitTick, this.look);
-      f = BOSS_FRAME.slamA + slamFrameIndex(this.look.progress);
+    const look = b.look % BOSS_FRAMES.length;
+    const frames = BOSS_FRAMES[look] as readonly string[];
+    const stepF = this.walked / WALK_STEP_M;
+    const step = Math.floor(stepF);
+    let f: number = step % 2 === 0 ? BOSS_FRAME.walkA : BOSS_FRAME.walkB;
+    let progress = 0;
+    const telegraph = b.state === BOSS_STATE.TELEGRAPH;
+    if (telegraph && b.attack.kind === BOSS_ATTACK.SLAM) {
+      progress = telegraphProgress(serverTick, b.attack.startTick, b.attack.hitTick, this.look).progress;
+      f = BOSS_FRAME.slamA + slamFrameIndex(progress);
+    } else if (telegraph && b.attack.kind === BOSS_ATTACK.CHARGE) {
+      // Story 9.15 (G2 A): the charge pose by progress (half-way, then head down)
+      progress = telegraphProgress(serverTick, b.attack.startTick, b.attack.hitTick, this.look).progress;
+      f = warningPoseIndex(progress) === 0 ? BOSS_FRAME.chargeB : BOSS_FRAME.charge;
+    } else if (telegraph && b.attack.kind === BOSS_ATTACK.THROW) {
+      // Story 9.15 (G2 A): the throw pose by the lift's progress (lifting, then the chunk overhead)
+      progress = throwLiftProgress(serverTick, b.attack.startTick, this.releaseTickOf(b.attack.hitTick));
+      f = warningPoseIndex(progress) === 0 ? BOSS_FRAME.throwB : BOSS_FRAME.throw;
     } else if (b.state === BOSS_STATE.RECOVER && this.slamHitS > 0) f = BOSS_FRAME.slamHit;
     else if (b.state === BOSS_STATE.STUN) f = BOSS_FRAME.stun;
     else if (b.state === BOSS_STATE.ROAR) f = BOSS_FRAME.roar;
     else if (b.state === BOSS_STATE.RUSH) f = BOSS_FRAME.rush;
-    const name = frames[f] as string;
-    if (this.body.frame.name !== name) this.body.setFrame(name);
-    this.body.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
+    // the action plan (Story 9.15): breath, heartbeat, glow, eyes
+    const ai = this.animIn;
+    ai.state = b.state;
+    ai.attackKind = b.attack.kind;
+    ai.progress = progress;
+    ai.enraged = b.enraged;
+    ai.step = step;
+    ai.stepPhase = stepF - step;
+    ai.released = b.attack.kind === BOSS_ATTACK.THROW && Number.isFinite(serverTick) && serverTick >= this.releaseTickOf(b.attack.hitTick) && serverTick <= b.attack.hitTick;
+    ai.slammed = this.slammedNow;
+    ai.crashed = this.crashedNow;
+    const an = this.anim.update(dtS, ai);
+    // the picture: relit once landed (enraged when it is), else the plain atlas frame (never a blank one)
+    const enr = an.enragedMix >= 1 && bossHasEnraged(f);
+    this.pick(f, enr, frames);
+    const side = (BOSS_FRAME_PX / BOSS_PX_PER_M) * an.breath;
+    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) BossView.setPicture(this.body, this.pickKey, this.pickName);
+    this.body.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     if (this.flashS > 0) this.body.setTint(HIT_TINT);
     else this.body.clearTint();
     // Review M2 / L-b: a zombie under it stays readable — the body fades down while one the player
@@ -459,13 +574,18 @@ export class BossView {
     // readable on top of it in the light (in the dark the outline + eyes frame is already above).
     const over = !this.dark && (this.laneSlot.strip.visible || (this.ringSlot.disc.visible && Math.hypot(this.ringSlot.cx - drawX, this.ringSlot.cy - drawY) < this.ringSlot.r + this.world.balance.boss.radiusM));
     if (over) {
-      if (this.bodyTop.frame.name !== name) this.bodyTop.setFrame(name);
-      this.bodyTop.setPosition(drawX, drawY).setRotation(b.facing).setAlpha(alpha).setVisible(true);
+      if (this.bodyTop.texture.key !== this.pickKey || this.bodyTop.frame.name !== this.pickName) BossView.setPicture(this.bodyTop, this.pickKey, this.pickName);
+      this.bodyTop.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setAlpha(alpha).setVisible(true);
       if (this.flashS > 0) this.bodyTop.setTint(HIT_TINT);
       else this.bodyTop.clearTint();
     } else if (this.bodyTop.visible) this.bodyTop.setVisible(false);
+    this.drawLayers(f, an.enragedMix, an.glow, an.eyes, an.eyesRed, an.eyeScale, an.breath, alpha, drawX, drawY, b.facing, over);
+    this.emitDust(f, progress, drawX, drawY, b.facing);
+    this.slammedNow = false;
+    this.crashedNow = false;
+    this.drawDust();
     if (this.dark) {
-      const o = frames[b.enraged ? BOSS_FRAME.outlineEnraged : BOSS_FRAME.outline] as string;
+      const o = (BOSS_OUTLINE_FRAMES[look] as readonly [string, string])[b.enraged ? 1 : 0];
       if (this.outline.frame.name !== o) this.outline.setFrame(o);
       this.outline.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     } else if (this.outline.visible) this.outline.setVisible(false);
@@ -476,19 +596,260 @@ export class BossView {
     }
   }
 
+  /** The throw's release tick (the impact minus the flight), as `onRing`. */
+  private releaseTickOf(hitTick: number): number {
+    return hitTick - Math.round(this.world.balance.boss.throw.flightS / TICK_DT_S);
+  }
+
+  /** The picture for body frame `f`: relit (enraged if asked and landed), else relit calm, else the plain frame. */
+  private pick(f: number, enr: boolean, frames: readonly string[]): void {
+    const names = RELIT_BODY[f] as readonly [string, string];
+    if (enr && bossRelitReady(names[1])) {
+      this.pickName = names[1];
+      this.pickEnr = true;
+    } else if (bossRelitReady(names[0])) {
+      this.pickName = names[0];
+      this.pickEnr = false;
+    } else {
+      this.pickKey = BOSS_ATLAS;
+      this.pickName = frames[f] as string;
+      this.pickEnr = false;
+      return;
+    }
+    this.pickKey = bossRelitKey(this.pickName);
+  }
+
+  /** Puts `img` on relit frame `name` (its own sheet), cropped to the picture's opaque box (B8). */
+  private static setRelit(img: Phaser.GameObjects.Image, name: string): void {
+    const key = bossRelitKey(name);
+    if (img.texture.key !== key || img.frame.name !== name) BossView.setPicture(img, key, name);
+  }
+
+  /**
+   * Story 9.15 (B8): `img` shows frame `name` of texture `key`; a relit picture is cropped to its opaque box (the 7 m
+   * frame is mostly empty: no fill for the margins, which counted in the software renderer), a plain one is not.
+   */
+  private static setPicture(img: Phaser.GameObjects.Image, key: string, name: string): void {
+    img.setTexture(key, name);
+    const c = key === BOSS_ATLAS ? undefined : bossRelitCrop(name);
+    if (c) img.setCrop(c[0], c[1], c[2], c[3]);
+    else img.setCrop();
+  }
+
+  private setLayerDepth(over: boolean): void {
+    const d = over ? ABOVE_DARK.telegraph + 0.002 : BODY_DEPTH;
+    if (d === this.layerDepth) return;
+    this.layerDepth = d;
+    this.body2.setDepth(d + LAYER_DZ);
+    this.vein.setDepth(d + 2 * LAYER_DZ);
+    this.sheen.setDepth(d + 3 * LAYER_DZ);
+    for (const e of this.eyes) e.setDepth(d + 4 * LAYER_DZ);
+  }
+
+  /**
+   * Story 9.15 (G3 E2, G4 A, B3): the roar's enraged picture over the calm one, the vein + split glow (whole layer on
+   * the beat), the sheen (walk frames), the two eyes at the pose's eye points; all with the body's breath, rotation and
+   * dim (`alpha`), above the lane with `bodyTop` (`over`). The additive ones never take the hit flash.
+   */
+  private drawLayers(f: number, mix: number, glow: number, eyes: number, red: boolean, eyeScale: number, breath: number, alpha: number, x: number, y: number, rot: number, over: boolean): void {
+    this.setLayerDepth(over);
+    const side = (BOSS_FRAME_PX / BOSS_PX_PER_M) * breath;
+    // the roar: the enraged picture fading in over the calm one
+    const crossfade = mix > 0 && mix < 1 && bossHasEnraged(f) && bossRelitReady((RELIT_BODY[f] as readonly [string, string])[1]) && !this.pickEnr;
+    if (crossfade) {
+      BossView.setRelit(this.body2, (RELIT_BODY[f] as readonly [string, string])[1]);
+      this.body2.setDisplaySize(side, side).setPosition(x, y).setRotation(rot).setAlpha(alpha * mix).setVisible(true);
+      if (this.flashS > 0) this.body2.setTint(HIT_TINT);
+      else this.body2.clearTint();
+    } else if (this.body2.visible) this.body2.setVisible(false);
+    // the veins and splits: only over an enraged picture (or the roar's)
+    const vName = RELIT_VEIN[f];
+    const vOn = vName !== null && vName !== undefined && glow > 0.004 && (this.pickEnr || crossfade) && bossRelitReady(vName);
+    if (vOn) {
+      BossView.setRelit(this.vein, vName);
+      this.vein.setDisplaySize(side, side).setPosition(x, y).setRotation(rot).setAlpha(alpha * glow * (crossfade ? mix : 1)).setVisible(true);
+    } else if (this.vein.visible) this.vein.setVisible(false);
+    // the sheen drifting over the glossy parts (the walk, the picture shown)
+    const strips = RELIT_SHEEN_STRIP[f];
+    const sOn = !this.lowFx && strips !== null && strips !== undefined && this.pickKey !== BOSS_ATLAS && bossRelitReady(strips[this.pickEnr ? 1 : 0]);
+    if (sOn) {
+      const name = ((RELIT_SHEEN[f] as readonly (readonly string[])[])[this.pickEnr ? 1 : 0] as readonly string[])[sheenStep(this.clockS)] as string;
+      BossView.setRelit(this.sheen, name);
+      this.sheen.setDisplaySize(side, side).setPosition(x, y).setRotation(rot).setAlpha(alpha).setVisible(true);
+    } else if (this.sheen.visible) this.sheen.setVisible(false);
+    // the eyes
+    const p = BOSS_POSES[f] as (typeof BOSS_POSES)[number];
+    if (eyes > 0.004 && p.pose !== "dead") {
+      behemothHeadM(p.pose, p.k, this.head);
+      const c = Math.cos(rot);
+      const sn = Math.sin(rot);
+      const fx = (this.head.x + BH_EYE_AHEAD_R * BH_R_M) * breath;
+      const frame = BOSS_EYE_FRAMES[red ? 1 : 0];
+      const size = BOSS_EYE_M * eyeScale * breath;
+      for (let i = 0; i < 2; i++) {
+        const fy = (this.head.y + (i === 0 ? -1 : 1) * BH_EYE_SIDE_R * BH_R_M) * breath;
+        const e = this.eyes[i] as Phaser.GameObjects.Image;
+        if (e.frame.name !== frame) e.setFrame(frame);
+        e.setPosition(x + c * fx - sn * fy, y + sn * fx + c * fy).setDisplaySize(size, size).setAlpha(alpha * Math.min(1, eyes)).setVisible(true);
+      }
+    } else for (const e of this.eyes) if (e.visible) e.setVisible(false);
+  }
+
+  private hideLayers(): void {
+    if (this.body2.visible) this.body2.setVisible(false);
+    if (this.vein.visible) this.vein.setVisible(false);
+    if (this.sheen.visible) this.sheen.setVisible(false);
+    for (const e of this.eyes) if (e.visible) e.setVisible(false);
+  }
+
+  /** Body-local (m, facing +x) → world, into `this.head` (reused). */
+  private toWorld(x: number, y: number, rot: number, lx: number, ly: number): BhPoint {
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    this.head.x = x + c * lx - s * ly;
+    this.head.y = y + s * lx + c * ly;
+    return this.head;
+  }
+
+  /** Story 9.15 (the plan's dust lane, `puffsFor`; R5: after its cause). Body-local metres turned to the world. */
+  private emitDust(f: number, progress: number, x: number, y: number, rot: number): void {
+    const D = BOSS_DUST;
+    const r = BH_R_M;
+    const b = this.world.boss;
+    const dtS = this.lastDt;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const d = this.dust;
+    if (this.slammedNow) {
+      for (let sd = -1; sd <= 1; sd += 2) {
+        const p = this.toWorld(x, y, rot, D.fistAhead * r, sd * D.fistSide * r); // the fists hit the ground
+        d.burst(D.slamFists, p.x, p.y);
+        const G = D.slamGrit; // grit falls off the shoulders, one after another
+        for (let k = 0; k < G.n; k++) {
+          const lx = G.ahead * r + (d.next(1) - 0.5) * 0.4;
+          const ly = sd * G.side * r;
+          const vx = (d.next(2) - 0.5) * 0.4;
+          const vy = sd * (G.outMin + (G.outMax - G.outMin) * d.next(3));
+          const q = this.toWorld(x, y, rot, lx, ly);
+          d.emit(q.x, q.y, c * vx - s * vy, s * vx + c * vy, G.r, G.lifeS, G.delayS + k * G.everyS);
+        }
+      }
+    }
+    if (this.crashedNow) {
+      const p = this.toWorld(x, y, rot, D.crashAhead * r, 0);
+      d.burst(D.crash, p.x, p.y);
+    }
+    if (b.state === BOSS_STATE.RUSH) {
+      const T = D.rushTrail; // the trail kicked up behind it
+      this.rushAcc += dtS;
+      while (this.rushAcc >= T.everyS) {
+        this.rushAcc -= T.everyS;
+        const p = this.toWorld(x, y, rot, -T.behind * r, (d.next(1) - 0.5) * T.across * r);
+        const vx = -(T.backMin + (T.backMax - T.backMin) * d.next(2));
+        const vy = (d.next(3) - 0.5) * 0.6;
+        d.emit(p.x, p.y, c * vx - s * vy, s * vx + c * vy, T.r0 + T.rSpread * d.next(4), T.lifeS, 0);
+      }
+    } else this.rushAcc = 0;
+    if (f === BOSS_FRAME.throwB || f === BOSS_FRAME.throw) {
+      const C = D.throwCrumbs; // crumbs fall from the chunk overhead
+      if (progress >= C.fromP && this.crumbs < C.n) {
+        this.crumbAcc += dtS;
+        while (this.crumbAcc >= C.everyS && this.crumbs < C.n) {
+          this.crumbAcc -= C.everyS;
+          this.crumbs++;
+          const p = this.toWorld(x, y, rot, (d.next(1) - 0.4) * 0.6, (d.next(2) - 0.5) * 0.6);
+          d.emit(p.x, p.y, (d.next(3) - 0.5) * 0.3, (d.next(4) - 0.5) * 0.3, C.r, C.lifeS, 0);
+        }
+      }
+    } else {
+      this.crumbAcc = 0;
+      this.crumbs = 0;
+    }
+    if (b.state === BOSS_STATE.ROAR) {
+      if (!this.roarDust && this.anim.stateTime >= BOSS_ANIM.eyes.roarSnapS) {
+        this.roarDust = true;
+        d.burst(D.roar, x, y); // blown off as the roar comes out, with the shock ring
+      }
+    } else this.roarDust = false;
+  }
+
+  private drawDust(): void {
+    const d = this.dust;
+    for (let i = 0; i < d.n; i++) {
+      const img = this.dustImgs[i] as Phaser.GameObjects.Image;
+      if (!d.live(i)) {
+        if (img.visible) img.setVisible(false);
+        continue;
+      }
+      const sz = d.size(i);
+      img.setPosition(d.x[i] as number, d.y[i] as number).setDisplaySize(sz, sz).setAlpha(d.alpha(i)).setVisible(true);
+    }
+  }
+
+  /**
+   * Story 9.15 (B1): the relit bake of the look in play (on the street) or of the next Behemoth (predicted from the run
+   * seed, after the characters' bake), pumped once a frame.
+   */
+  private bakeLook(present: boolean): void {
+    const b = this.world.boss;
+    let want = b.look;
+    if (!present) {
+      const seed = this.runSeed();
+      if (seed !== this.predSeed || b.number !== this.predNumber || b.look !== this.predPrev) {
+        this.predSeed = seed;
+        this.predNumber = b.number;
+        this.predPrev = b.look;
+        this.predLook = behemothLookIndex(seed, b.number + 1, b.number >= 1 ? b.look : -1);
+      }
+      want = this.predLook;
+      if (!this.bakeAllowed && (b.state === BOSS_STATE.WARNING || this.clockS > BOSS_BAKE_WAIT_S || (this.frameNo % 30 === 0 && charDone()))) this.bakeAllowed = true;
+      if (!this.bakeAllowed) {
+        this.frameNo++;
+        return;
+      }
+    }
+    if (want !== bossRelitLook()) requestBossLook(want);
+    pumpBossRelit(this.frameNo++);
+  }
+
   /** Story 6.7 (D6): the collapse, then the dark body on the street (not solid) until the build start. */
   private drawDead(dtS: number, drawX: number, drawY: number): void {
     const b = this.world.boss;
+    const collapseS = this.world.balance.boss.death.collapseS;
     this.deadS += dtS;
     const frames = BOSS_FRAMES[b.look % BOSS_FRAMES.length] as readonly string[];
-    const name = frames[BOSS_FRAME.deadA + deathFrameIndex(this.deadS, this.world.balance.boss.death.collapseS)] as string;
-    if (this.body.frame.name !== name) this.body.setFrame(name);
-    this.body.setPosition(drawX, drawY).setRotation(b.facing).setTint(DEAD_TINT).setAlpha(1).setVisible(true);
+    const f = BOSS_FRAME.deadA + deathFrameIndex(this.deadS, collapseS);
+    this.pick(f, false, frames);
+    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) BossView.setPicture(this.body, this.pickKey, this.pickName);
+    const side = BOSS_FRAME_PX / BOSS_PX_PER_M;
+    this.body.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setTint(DEAD_TINT).setAlpha(1).setVisible(true);
     if (this.bodyTop.visible) this.bodyTop.setVisible(false);
     if (this.outline.visible) this.outline.setVisible(false); // no eyes above the dark: it is no danger now
     if (this.tag.visible) {
       this.tag.setVisible(false); // no target lock once it is dead
       this.lock.clear().setVisible(false);
+    }
+    // Story 9.15 (R4): the heart stops first — the last weak beat on dead_a, out by 0.4 s; no eyes, no sheen
+    const ai = this.animIn;
+    ai.state = b.state;
+    ai.enraged = b.enraged;
+    ai.slammed = false;
+    ai.crashed = false;
+    const an = this.anim.update(dtS, ai);
+    this.setLayerDepth(false);
+    if (this.body2.visible) this.body2.setVisible(false);
+    if (this.sheen.visible) this.sheen.setVisible(false);
+    for (const e of this.eyes) if (e.visible) e.setVisible(false);
+    const vName = RELIT_VEIN[BOSS_FRAME.deadA] as string;
+    if (f === BOSS_FRAME.deadA && an.deathGlow > 0.004 && bossRelitReady(vName)) {
+      BossView.setRelit(this.vein, vName);
+      this.vein.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setAlpha(an.deathGlow).setVisible(true);
+    } else if (this.vein.visible) this.vein.setVisible(false);
+    // the big dust puff as it hits the ground (R5)
+    if (!this.deathDust && this.deadS >= collapseS * BOSS_DUST.death.atShare) {
+      this.deathDust = true;
+      const p = this.toWorld(drawX, drawY, b.facing, -0.2, 0.3);
+      this.dust.burst(BOSS_DUST.death, p.x, p.y);
     }
   }
 
@@ -707,6 +1068,12 @@ export class BossView {
       g.fillCircle(s.cx + Math.cos(a) * d, s.cy + Math.sin(a) * d, (1 + sparkHash(i, 6) * 1.6) * k);
     }
   }
+}
+
+/** Story 9.15 (B1): the characters' bake is done (the boss bake starts after it). */
+function charDone(): boolean {
+  const p = charBakeProgress();
+  return p.total > 0 && p.landed >= p.total;
 }
 
 /** A stable 0–1 value per spark and channel (no allocation, no Math.random: every client draws the same sparks). */

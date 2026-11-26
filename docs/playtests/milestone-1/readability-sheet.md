@@ -335,3 +335,27 @@ Player:
 ## 146: what blocks the street now? (Story 9.14: stage 4, a rubble pile next to the photoreal cars)
 ![146](../../art/9-14/stage4-rubble-phone.png)
 ![146 small phone](../../art/9-14/stage4-rubble-small.png)
+
+## 147: what is this, and is it angry yet? (Story 9.15: the photoreal Behemoth walking, calm)
+![147](../../art/9-15/readability/147-calm-phone.png)
+![147 small phone](../../art/9-15/readability/147-calm-small.png)
+
+## 148: what changed about it? (Story 9.15: the Behemoth enraged: the veins and splits glow on its heartbeat, red eyes)
+![148](../../art/9-15/readability/148-enraged-phone.png)
+![148 small phone](../../art/9-15/readability/148-enraged-small.png)
+
+## 149: what is it about to do, and where should you not stand? (Story 9.15: the charge warning, head down in the pose)
+![149](../../art/9-15/readability/149-charge-phone.png)
+![149 small phone](../../art/9-15/readability/149-charge-small.png)
+
+## 150: what is it lifting, and where will it land? (Story 9.15: the throw's lift shown in the pose)
+![150](../../art/9-15/readability/150-throw-phone.png)
+![150 small phone](../../art/9-15/readability/150-throw-small.png)
+
+## 151: is this your chance? (Story 9.15: stunned after the crash: the glow off, the eyes dim)
+![151](../../art/9-15/readability/151-stun-phone.png)
+![151 small phone](../../art/9-15/readability/151-stun-small.png)
+
+## 152: is it still a danger? (Story 9.15: the dead Behemoth on the street)
+![152](../../art/9-15/readability/152-dead-phone.png)
+![152 small phone](../../art/9-15/readability/152-dead-small.png)
