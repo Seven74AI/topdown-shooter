@@ -1,40 +1,45 @@
 /**
- * Story 9.15 (AC 6, the action plan's "dust, debris" lane): the Behemoth's dust and grit, as a fixed pool of particles
- * (pure state here; `BossView` draws each slot with one pooled image of `ATLAS_FX › FX_DUST` / `FX_GRIT`, the Ruins
- * dust's code textures). Deterministic (a hash of an emission counter, no `Math.random`), nothing allocated after the
- * constructor. R5 "secondary follows": every burst starts on (or after) its cause, grit with a delay.
+ * Story 9.15 (AC 6, the action plan's "dust, debris" lane): the Behemoth's dust, as a fixed pool of puffs (pure state
+ * here; `BossView` draws each slot with one pooled image of `ATLAS_FX › FX_DUST`, the Ruins dust's soft code texture).
+ * The spec is the approved page's `boss4.ts › puffsFor`: soft grey discs that start at radius r, grow to 2.6 r and fade
+ * linearly over their life, moving at a constant speed. Deterministic (a hash of an emission counter, no
+ * `Math.random`); nothing allocated after the constructor. R5 "secondary follows": every burst starts on its cause.
  */
-export const DUST_PUFF = 0;
-export const DUST_GRIT = 1;
 
-/** The bursts (B5 visual config): count, life (s), start / end size (m), alpha, speed (m/s), delay spread (s). */
-export const BOSS_DUST = {
-  /** The slam hit: a puff from each fist, then grit falling off the shoulders. */
-  slamPuff: { n: 5, lifeS: 0.55, s0: 0.5, s1: 1.6, alpha: 0.55, speed: 1.6, delayS: 0 },
-  slamGrit: { n: 8, lifeS: 0.5, s0: 0.07, s1: 0.05, alpha: 0.9, speed: 0.9, delayS: 0.55 },
-  /** The rush: a puff kicked up behind it every `everyS`. */
-  rushTrail: { n: 1, lifeS: 0.6, s0: 0.7, s1: 1.8, alpha: 0.35, speed: 0.6, delayS: 0, everyS: 0.08 },
-  /** The crash: a burst round the front. */
-  crash: { n: 10, lifeS: 0.6, s0: 0.6, s1: 2.0, alpha: 0.55, speed: 2.4, delayS: 0.05 },
-  /** The throw's lift: crumbs falling from the chunk (from `fromP` of the lift on), one every `everyS`. */
-  throwCrumbs: { n: 1, lifeS: 0.45, s0: 0.08, s1: 0.06, alpha: 0.9, speed: 0.5, delayS: 0, everyS: 0.1, fromP: 0.3 },
-  /** The roar: dust blown off round the body (at `enrage` 0.3 s). */
-  roar: { n: 12, lifeS: 0.5, s0: 0.5, s1: 1.4, alpha: 0.4, speed: 4, delayS: 0.1 },
-  /** Death: the big puff as it hits the ground (at `atShare` of the collapse). */
-  death: { n: 10, lifeS: 0.9, s0: 0.8, s1: 2.4, alpha: 0.35, speed: 1.4, delayS: 0.15, atShare: 2 / 3 },
-  /** Pool size (`?fx=low`: half). */
-  pool: 40,
-} as const;
-
+/** A burst (B5 visual config, from `puffsFor`): count, speed (m/s), start radius (m), life (s). */
 export interface DustBurst {
   readonly n: number;
-  readonly lifeS: number;
-  readonly s0: number;
-  readonly s1: number;
-  readonly alpha: number;
   readonly speed: number;
-  readonly delayS: number;
+  readonly r: number;
+  readonly lifeS: number;
 }
+export const BOSS_DUST = {
+  /** The slam hit: a burst from each fist (`fistAhead` × r ahead of the centre, ± `fistSide` × r). */
+  slamFists: { n: 9, speed: 2.2, r: 0.35, lifeS: 0.5 },
+  fistAhead: 1.12,
+  fistSide: 0.5,
+  /** Grit off the shoulders after the hit: `n` per shoulder, one every `everyS` from `delayS`, drifting outward. */
+  slamGrit: { n: 6, everyS: 0.07, delayS: 0.05, r: 0.08, lifeS: 0.5, outMin: 0.6, outMax: 1.1, ahead: 0.2, side: 0.72 },
+  /** The rush: a puff kicked up behind it every `everyS` (26 over the 1 s rush), backward at `backMin…backMax`. */
+  rushTrail: { everyS: 1 / 26, behind: 1.1, across: 1.4, r0: 0.3, rSpread: 0.25, lifeS: 0.6, backMin: 1.5, backMax: 2.5 },
+  /** The crash: a burst at its front (`crashAhead` × r). */
+  crash: { n: 16, speed: 3, r: 0.4, lifeS: 0.6 },
+  crashAhead: 1.3,
+  /** The throw's lift: `n` crumbs from the chunk, one every `everyS` from `fromP` of the lift. */
+  throwCrumbs: { n: 8, everyS: 0.08, fromP: 0.3, r: 0.07, lifeS: 0.4 },
+  /** The chunk's landing. */
+  throwLanding: { n: 12, speed: 2, r: 0.4, lifeS: 0.5 },
+  /** The roar: dust blown off (at the roar's 0.3 s). */
+  roar: { n: 22, speed: 4.5, r: 0.3, lifeS: 0.5 },
+  /** Death: it hits the ground (at `atShare` of the collapse). */
+  death: { n: 24, speed: 2.2, r: 0.55, lifeS: 0.7, atShare: 2 / 3 },
+  /** A puff's peak alpha, its growth (radius × 1 → 1 + `grow`), the spread of a burst's start (s). */
+  alpha: 0.5,
+  grow: 1.6,
+  jitterS: 0.08,
+  /** Pool size (the charge's trail + crash is 42; `?fx=low`: half). */
+  pool: 48,
+} as const;
 
 /** A stable 0–1 value per emission and channel. */
 export function dustHash(i: number, ch: number): number {
@@ -45,18 +50,15 @@ export function dustHash(i: number, ch: number): number {
 
 export class BossDust {
   readonly n: number;
-  /** Age (s); < 0 waiting for its delay; ≥ life: free. */
+  /** Age (s); < 0 waiting for its start; ≥ life: free. */
   readonly age: Float32Array;
   readonly life: Float32Array;
   readonly x: Float32Array;
   readonly y: Float32Array;
   readonly vx: Float32Array;
   readonly vy: Float32Array;
-  readonly s0: Float32Array;
-  readonly s1: Float32Array;
-  readonly a0: Float32Array;
-  readonly kind: Uint8Array;
-  /** Particles emitted (the hash's counter; tests). */
+  readonly r: Float32Array;
+  /** Puffs emitted (the hash's counter; tests). */
   emitted = 0;
 
   constructor(n: number) {
@@ -67,10 +69,7 @@ export class BossDust {
     this.y = new Float32Array(n);
     this.vx = new Float32Array(n);
     this.vy = new Float32Array(n);
-    this.s0 = new Float32Array(n);
-    this.s1 = new Float32Array(n);
-    this.a0 = new Float32Array(n);
-    this.kind = new Uint8Array(n);
+    this.r = new Float32Array(n);
   }
 
   /** A free slot, else the one nearest its end. */
@@ -81,43 +80,45 @@ export class BossDust {
       const a = this.age[i] as number;
       const l = this.life[i] as number;
       if (a >= l) return i;
-      const left = l - a;
-      if (left < bestLeft) {
-        bestLeft = left;
+      if (l - a < bestLeft) {
+        bestLeft = l - a;
         best = i;
       }
     }
     return best;
   }
 
-  /**
-   * `b.n` particles of `kind` round (x, y): each starts within `spread` m, moving away from (x, y) along `angle` ±
-   * `cone` (radians; π = all round) at about `b.speed`, after up to `b.delayS`.
-   */
-  burst(kind: number, b: DustBurst, x: number, y: number, angle: number, cone: number, spread: number): void {
+  /** One puff at (x, y) moving (vx, vy), start radius r, life (s), starting `delayS` from now. */
+  emit(x: number, y: number, vx: number, vy: number, r: number, lifeS: number, delayS: number): void {
     if (this.n === 0) return;
+    this.emitted++;
+    const i = this.slot();
+    this.x[i] = x;
+    this.y[i] = y;
+    this.vx[i] = vx;
+    this.vy[i] = vy;
+    this.r[i] = r;
+    this.life[i] = lifeS;
+    this.age[i] = -delayS;
+  }
+
+  /** `puffsFor`'s burst: `b.n` puffs round (x, y), every direction, speed × 0.4–1, radius × 0.6–1.2, life × 0.7–1.2, start within 0.08 s. */
+  burst(b: DustBurst, x: number, y: number): void {
     for (let k = 0; k < b.n; k++) {
-      const e = this.emitted++;
-      const i = this.slot();
-      const a = angle + (dustHash(e, 1) * 2 - 1) * cone;
-      const d = dustHash(e, 2) * spread;
-      const v = b.speed * (0.6 + 0.8 * dustHash(e, 3));
-      this.kind[i] = kind;
-      this.x[i] = x + Math.cos(a) * d;
-      this.y[i] = y + Math.sin(a) * d;
-      this.vx[i] = Math.cos(a) * v;
-      this.vy[i] = Math.sin(a) * v;
-      this.life[i] = b.lifeS * (0.8 + 0.4 * dustHash(e, 4));
-      this.age[i] = -b.delayS * dustHash(e, 5);
-      this.s0[i] = b.s0;
-      this.s1[i] = b.s1;
-      this.a0[i] = b.alpha;
+      const e = this.emitted;
+      const a = dustHash(e, 1) * Math.PI * 2;
+      const s = b.speed * (0.4 + 0.6 * dustHash(e, 2));
+      this.emit(x, y, Math.cos(a) * s, Math.sin(a) * s, b.r * (0.6 + 0.6 * dustHash(e, 3)), b.lifeS * (0.7 + 0.5 * dustHash(e, 4)), BOSS_DUST.jitterS * dustHash(e, 5));
     }
   }
 
-  /** Ages and moves every live particle (slowing down: dust drags in the air). */
+  /** A 0–1 hash for the next emission (emitters that place their own puffs). */
+  next(ch: number): number {
+    return dustHash(this.emitted, ch);
+  }
+
+  /** Ages and moves every live puff (constant speed, as the page). */
   step(dtS: number): void {
-    const drag = Math.max(0, 1 - 2.5 * dtS);
     for (let i = 0; i < this.n; i++) {
       const a = this.age[i] as number;
       if (a >= (this.life[i] as number)) continue;
@@ -125,12 +126,10 @@ export class BossDust {
       if (a < 0) continue;
       this.x[i] = (this.x[i] as number) + (this.vx[i] as number) * dtS;
       this.y[i] = (this.y[i] as number) + (this.vy[i] as number) * dtS;
-      this.vx[i] = (this.vx[i] as number) * drag;
-      this.vy[i] = (this.vy[i] as number) * drag;
     }
   }
 
-  /** Particle `i` is drawn now. */
+  /** Puff `i` is drawn now. */
   live(i: number): boolean {
     const a = this.age[i] as number;
     return a >= 0 && a < (this.life[i] as number);
@@ -139,15 +138,13 @@ export class BossDust {
   t(i: number): number {
     return Math.min(1, Math.max(0, (this.age[i] as number) / Math.max(1e-6, this.life[i] as number)));
   }
-  /** Size (m) and alpha now: puffs grow and fade, grit fades at the end. */
+  /** Diameter (m) now: radius r × (1 + grow × t). */
   size(i: number): number {
-    const t = this.t(i);
-    return (this.s0[i] as number) + ((this.s1[i] as number) - (this.s0[i] as number)) * (1 - (1 - t) * (1 - t));
+    return 2 * (this.r[i] as number) * (1 + BOSS_DUST.grow * this.t(i));
   }
+  /** Alpha now: fading linearly. */
   alpha(i: number): number {
-    const t = this.t(i);
-    const a = this.a0[i] as number;
-    return this.kind[i] === DUST_PUFF ? a * (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85) : a * (t < 0.7 ? 1 : (1 - t) / 0.3);
+    return BOSS_DUST.alpha * (1 - this.t(i));
   }
   /** Nothing alive or waiting. */
   idle(): boolean {

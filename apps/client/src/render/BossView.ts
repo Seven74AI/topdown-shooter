@@ -32,9 +32,9 @@ import { BOSS_POSES, bossHasEnraged, bossHasSheen, relitBodyName, relitSheenName
 import { bossRelitCrop, bossRelitKey, bossRelitLook, bossRelitReady, ensureBossRelit, pumpBossRelit, requestBossLook } from "./city/bossRelit";
 import { SHEEN_STEPS, sheenStep } from "./city/charRelight";
 import { charBakeProgress } from "./city/charactersAtlas";
-import { ATLAS_FX, FX_DUST, FX_GRIT } from "./city/spriteAtlas";
-import { BossAnim, type BossAnimInput } from "./bossAnim";
-import { BOSS_DUST, BossDust, DUST_GRIT, DUST_PUFF } from "./bossDust";
+import { ATLAS_FX, FX_DUST } from "./city/spriteAtlas";
+import { BOSS_ANIM, BossAnim, type BossAnimInput } from "./bossAnim";
+import { BOSS_DUST, BossDust } from "./bossDust";
 import { urlOptions } from "../debug/urlOptions";
 import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize } from "./city/hudWarnArt";
 import {
@@ -237,6 +237,7 @@ export class BossView {
   private crashedNow = false;
   private rushAcc = 0;
   private crumbAcc = 0;
+  private crumbs = 0;
   private roarDust = false;
   private deathDust = false;
   private layerDepth = BODY_DEPTH;
@@ -275,7 +276,7 @@ export class BossView {
     const nDust = this.lowFx ? Math.floor(BOSS_DUST.pool / 2) : BOSS_DUST.pool;
     this.dust = new BossDust(nDust);
     for (let i = 0; i < nDust; i++) this.dustImgs.push(scene.add.image(0, 0, ATLAS_FX, FX_DUST).setTint(PUFF_COLOR).setDepth(BODY_DEPTH + DUST_DZ).setVisible(false));
-    this.anim = new BossAnim({ slamRecoverS: b.slam.recoverS, roarS: b.enrage.roarS });
+    this.anim = new BossAnim({ slamRecoverS: b.slam.recoverS, roarS: b.enrage.roarS, stepS: WALK_STEP_M / b.speedMps, stepEnragedS: WALK_STEP_M / (b.speedMps * b.enrage.speedMult) });
     ensureHudWarnTextures(scene);
     const tagSize = hudFrameCssSize("tag");
     this.tag = aboveDarkness(scene.add.image(0, 0, BOSS_HUD, HUD_FRAMES.tag).setDisplaySize(tagSize.w / LOCK_CSS_PER_M, tagSize.h / LOCK_CSS_PER_M).setVisible(false), "marker");
@@ -361,6 +362,7 @@ export class BossView {
     this.nextDecal = (this.nextDecal + 1) % this.decals.length;
     d.setFrame(BOSS_FX_FRAMES.crater).setDisplaySize(BOSS_CRATER_M, BOSS_CRATER_M).setPosition(x, y).setRotation(rot).setVisible(true);
     this.ring(x, y, 0.5, this.world.balance.boss.throw.radiusM, 0.4, PUFF_COLOR);
+    this.dust.burst(BOSS_DUST.throwLanding, x, y); // Story 9.15: the landing puff
     this.ringSlot.chunk.setVisible(false);
   }
 
@@ -708,46 +710,64 @@ export class BossView {
     return this.head;
   }
 
-  /** Story 9.15 (the plan's dust lane; R5: after its cause). */
+  /** Story 9.15 (the plan's dust lane, `puffsFor`; R5: after its cause). Body-local metres turned to the world. */
   private emitDust(f: number, progress: number, x: number, y: number, rot: number): void {
     const D = BOSS_DUST;
     const r = BH_R_M;
     const b = this.world.boss;
     const dtS = this.lastDt;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const d = this.dust;
     if (this.slammedNow) {
-      for (const sd of [-1, 1]) {
-        const p = this.toWorld(x, y, rot, 1.12 * r, sd * 0.5 * r); // the fists (slamHit pose)
-        this.dust.burst(DUST_PUFF, D.slamPuff, p.x, p.y, rot, Math.PI, 0.3);
-        const q = this.toWorld(x, y, rot, 0.14 * r, sd * 0.62 * r); // the shoulders shed their grit
-        this.dust.burst(DUST_GRIT, D.slamGrit, q.x, q.y, rot + sd * Math.PI * 0.5, Math.PI * 0.6, 0.4);
+      for (let sd = -1; sd <= 1; sd += 2) {
+        const p = this.toWorld(x, y, rot, D.fistAhead * r, sd * D.fistSide * r); // the fists hit the ground
+        d.burst(D.slamFists, p.x, p.y);
+        const G = D.slamGrit; // grit falls off the shoulders, one after another
+        for (let k = 0; k < G.n; k++) {
+          const lx = G.ahead * r + (d.next(1) - 0.5) * 0.4;
+          const ly = sd * G.side * r;
+          const vx = (d.next(2) - 0.5) * 0.4;
+          const vy = sd * (G.outMin + (G.outMax - G.outMin) * d.next(3));
+          const q = this.toWorld(x, y, rot, lx, ly);
+          d.emit(q.x, q.y, c * vx - s * vy, s * vx + c * vy, G.r, G.lifeS, G.delayS + k * G.everyS);
+        }
       }
     }
     if (this.crashedNow) {
-      const p = this.toWorld(x, y, rot, r, 0);
-      this.dust.burst(DUST_PUFF, D.crash, p.x, p.y, rot, Math.PI * 0.7, 0.6);
+      const p = this.toWorld(x, y, rot, D.crashAhead * r, 0);
+      d.burst(D.crash, p.x, p.y);
     }
     if (b.state === BOSS_STATE.RUSH) {
+      const T = D.rushTrail; // the trail kicked up behind it
       this.rushAcc += dtS;
-      while (this.rushAcc >= D.rushTrail.everyS) {
-        this.rushAcc -= D.rushTrail.everyS;
-        const p = this.toWorld(x, y, rot, -0.8 * r, 0);
-        this.dust.burst(DUST_PUFF, D.rushTrail, p.x, p.y, rot + Math.PI, 0.6, 0.6);
+      while (this.rushAcc >= T.everyS) {
+        this.rushAcc -= T.everyS;
+        const p = this.toWorld(x, y, rot, -T.behind * r, (d.next(1) - 0.5) * T.across * r);
+        const vx = -(T.backMin + (T.backMax - T.backMin) * d.next(2));
+        const vy = (d.next(3) - 0.5) * 0.6;
+        d.emit(p.x, p.y, c * vx - s * vy, s * vx + c * vy, T.r0 + T.rSpread * d.next(4), T.lifeS, 0);
       }
     } else this.rushAcc = 0;
     if (f === BOSS_FRAME.throwB || f === BOSS_FRAME.throw) {
-      if (progress >= D.throwCrumbs.fromP) {
+      const C = D.throwCrumbs; // crumbs fall from the chunk overhead
+      if (progress >= C.fromP && this.crumbs < C.n) {
         this.crumbAcc += dtS;
-        while (this.crumbAcc >= D.throwCrumbs.everyS) {
-          this.crumbAcc -= D.throwCrumbs.everyS;
-          const p = this.toWorld(x, y, rot, -0.05 * r, 0.05 * r); // the chunk overhead
-          this.dust.burst(DUST_GRIT, D.throwCrumbs, p.x, p.y, rot, Math.PI, 0.5);
+        while (this.crumbAcc >= C.everyS && this.crumbs < C.n) {
+          this.crumbAcc -= C.everyS;
+          this.crumbs++;
+          const p = this.toWorld(x, y, rot, (d.next(1) - 0.4) * 0.6, (d.next(2) - 0.5) * 0.6);
+          d.emit(p.x, p.y, (d.next(3) - 0.5) * 0.3, (d.next(4) - 0.5) * 0.3, C.r, C.lifeS, 0);
         }
       }
-    } else this.crumbAcc = 0;
+    } else {
+      this.crumbAcc = 0;
+      this.crumbs = 0;
+    }
     if (b.state === BOSS_STATE.ROAR) {
-      if (!this.roarDust && this.anim.stateTime >= 0.3) {
+      if (!this.roarDust && this.anim.stateTime >= BOSS_ANIM.eyes.roarSnapS) {
         this.roarDust = true;
-        this.dust.burst(DUST_PUFF, D.roar, x, y, 0, Math.PI, r);
+        d.burst(D.roar, x, y); // blown off as the roar comes out
       }
     } else this.roarDust = false;
   }
@@ -760,8 +780,6 @@ export class BossView {
         if (img.visible) img.setVisible(false);
         continue;
       }
-      const frame = d.kind[i] === DUST_GRIT ? FX_GRIT : FX_DUST;
-      if (img.frame.name !== frame) img.setFrame(frame);
       const sz = d.size(i);
       img.setPosition(d.x[i] as number, d.y[i] as number).setDisplaySize(sz, sz).setAlpha(d.alpha(i)).setVisible(true);
     }
@@ -829,7 +847,8 @@ export class BossView {
     // the big dust puff as it hits the ground (R5)
     if (!this.deathDust && this.deadS >= collapseS * BOSS_DUST.death.atShare) {
       this.deathDust = true;
-      this.dust.burst(DUST_PUFF, BOSS_DUST.death, drawX, drawY, 0, Math.PI, BH_R_M);
+      const p = this.toWorld(drawX, drawY, b.facing, -0.2, 0.3);
+      this.dust.burst(BOSS_DUST.death, p.x, p.y);
     }
   }
 

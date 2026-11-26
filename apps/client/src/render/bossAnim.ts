@@ -1,59 +1,61 @@
 import { BOSS_ATTACK, BOSS_STATE } from "@topdown/shared";
 
 /**
- * Story 9.15 (AC 6, 7; B5): the Behemoth's action plan (`docs/art/photoreal-4/src/boss4.ts › PLAN` + `RULES`, designer
- * "ok" 2026-11-26) as one clock: the breath (body scale), the heartbeat, the vein + split glow level, the eye level and
- * colour, the roar's calm → enraged crossfade and the death glow. Pure view state (never the simulation), no
- * allocation per frame; action durations come from the balance (`boss.json`, passed in `BossAnimTimes`), every visual
- * number from `BOSS_ANIM` below (not the balance JSON: these never touch play, and a balance change would move
- * `balance.version`).
+ * Story 9.15 (AC 6, 7; B5): the Behemoth's action plan in the game, one clock for the breath (body scale), the
+ * heartbeat, the vein + split glow level, the eye level and colour, the roar's calm → enraged crossfade and the death's
+ * last beat. The spec is the approved page's action player (`docs/art/photoreal-4/src/boss4.ts › planAt`, the designer's
+ * "ok" to the action plan, 2026-11-26): its numbers are `BOSS_ANIM` below, its times are shares of the game's own
+ * durations (balance `boss.json`, through `BossAnimTimes` and the telegraph progress). Pure view state, never the
+ * simulation; no allocation per frame. Visual numbers live here, not in the balance JSON (they never touch play, and a
+ * balance change would move `balance.version`).
  *
- * Rules (the plan's): R1 tells first (during a warning glow and eyes only build toward the hit), R2 one clock (the breath
- * rides the steps; enraged, the beat lands on every 3rd footfall), R3 release together (hit / crash / throw / roar peak
- * in the same ~0.15 s), R4 weak = dim (stun: glow off, eyes 30 %; death puts them out first), R5 secondary follows
- * (dust after its cause: `bossDust.ts`).
+ * The page draws the vein glow as a travelling strip (4 steps of 0.15 s after a beat); the game pulses the whole layer
+ * (B4): ember + (1 − ember) × the beat's fall over the same 0.6 s.
  */
 export const BOSS_ANIM = {
   breath: {
-    /** Walk: the body dips this much at each footfall (over the first `dipFrac` of the step), rising through the rest. */
+    /** Walk: a dip of `walkDip` at each footfall, back over `dipS`, and a small rise of `walkRise` riding the step. */
     walkDip: 0.01,
-    dipFrac: 0.16,
-    /** Standing (no step for `standS`): a slow idle breath. */
+    dipS: 0.12,
+    walkRise: 0.004,
+    /** Standing (no step for a step + `standS`): a slow idle breath. */
     standS: 0.4,
     idlePeriodS: 2.6,
-    idleAmp: 0.008,
+    idleAmp: 0.004,
+    /** The slam's exhale (from this much over 1, over `slam.recoverS`). */
+    slamExhale: 0.01,
+    /** The throw swells this much with the lift and lets it out over `throwExhaleS`. */
+    throwSwell: 0.012,
+    throwExhaleS: 0.4,
     /** Stunned: slow, heavy, dazed breaths. */
-    stunPeriodS: 1.6,
-    stunAmp: 0.02,
-    /** Roar: the big inhale over the first `roarInhaleS`, held after. */
+    stunAmp: 0.006,
+    stunPeriodS: 1.0,
+    /** The roar: an inhale of `roarInhale` over the first `roarInhaleS`, held after. */
+    roarInhale: 0.02,
     roarInhaleS: 0.3,
-    roarInhale: 0.03,
-    /** After the slam hit (and the throw, which swells this much with the lift): the breath let out over the recovery. */
-    exhale: 0.03,
   },
   beat: {
-    /** Standing still the enraged heart keeps this clock (s); walking, the beat lands on every `everySteps` footfall. */
+    /** Enraged, standing still: the heart's clock (s); walking, the beat lands on every `everySteps` footfall. */
     periodS: 1.2,
     everySteps: 3,
-    /** The beat's envelope: up in `attackS`, down with a `decayS` time constant. */
-    attackS: 0.06,
-    decayS: 0.18,
-    /** A racing heart through a slam / charge warning: beats at these shares of the warning (0, 0.55, 0.9, 1.1 s of 1.2 s). */
-    racing: [0, 0.55 / 1.2, 0.9 / 1.2, 1.1 / 1.2] as readonly number[],
+    /** After a beat: the eyes fall back to their floor over `eyeFallS`, the veins over `veinFallS` (4 steps × 0.15 s). */
+    eyeFallS: 0.25,
+    veinFallS: 0.6,
+    /** The racing heart through a warning, as shares of it: slam 0 / 0.55 / 0.9 / 1.1 s of 1.2 s; charge 0 / 0.4 / 0.7 / 0.9 s of 1 s. */
+    slamRacing: [0, 0.55 / 1.2, 0.9 / 1.2, 1.1 / 1.2] as readonly number[],
+    chargeRacing: [0, 0.4, 0.7, 0.9] as readonly number[],
   },
   glow: {
-    /** Enraged, between beats. */
-    floor: 0.25,
-    /** Through a slam / charge warning the floor builds from `warnFrom` to `warnTo` (the plan's moments 0.4 → 0.8). */
-    warnFrom: 0.4,
-    warnTo: 0.8,
+    /** Enraged, between beats (the ember). */
+    ember: 0.25,
     /** The rush: steady adrenaline. */
     rush: 0.6,
-    /** Every release peaks this long (s): the slam hit, the throw's release, the crash. */
-    releaseS: 0.15,
-    /** Death: a last weak beat (peak, length), out by `deathOutS`. */
-    deathPeak: 0.5,
-    deathBeatS: 0.15,
+    /** The slam hit: everything lit for this long (s). */
+    flashS: 0.15,
+    /** The roar: the slow wave adds up to this over the ember as the rage comes in. */
+    roarWave: 0.6,
+    /** Death: the last weak beat starts at `deathPeak` and is out by `deathOutS`. */
+    deathPeak: 0.4,
     deathOutS: 0.4,
   },
   eyes: {
@@ -61,28 +63,25 @@ export const BOSS_ANIM = {
     enragedFloor: 0.75,
     calm: 1,
     stun: 0.3,
-    /** The roar: the eyes snap red at this time (s). */
+    /** The roar: the eyes snap red at this time (s); the rage comes in from then to the roar's end. */
     roarSnapS: 0.3,
-    /** The slam hit: the eyes flash this much bigger for `glow.releaseS`. */
-    flashScale: 1.35,
-  },
-  roar: {
-    /** The veins light and the skin crossfades calm → enraged from this time (s) to the roar's end (`enrage.roarS`). */
-    fromS: 0.3,
   },
 } as const;
 
-/** The action durations the plan follows (from `world.balance.boss`). */
+/** The action durations the plan follows (from `world.balance.boss` and the walk speeds). */
 export interface BossAnimTimes {
   readonly slamRecoverS: number;
   readonly roarS: number;
+  /** Seconds per walk step, calm and enraged (step length / speed). */
+  readonly stepS: number;
+  readonly stepEnragedS: number;
 }
 
 /** What the view knows this frame (one object the view refills: no allocation). */
 export interface BossAnimInput {
   state: number;
   attackKind: number;
-  /** Telegraph progress 0–1 (slam, charge, throw). */
+  /** Telegraph progress 0–1 (slam, charge; the throw's lift). */
   progress: number;
   enraged: boolean;
   /** Walk step index (floor of distance / step length) and the step's phase 0–1. */
@@ -99,34 +98,25 @@ export interface BossAnimInput {
 export interface BossAnimOut {
   /** Body scale (breath). */
   breath: number;
-  /** Vein + split glow 0–1 (enraged frames only). */
+  /** Vein + split glow 0–1 (enraged pictures only). */
   glow: number;
-  /** Eye layer 0–1, colour (enraged = red) and scale. */
+  /** Eye layer 0–1 and colour (enraged = red). */
   eyes: number;
   eyesRed: boolean;
+  /** Eye sprite scale (1: the page has no eye flash). */
   eyeScale: number;
-  /** Roar: the enraged body frame's weight over the calm one (1 = enraged). */
+  /** The enraged picture's weight over the calm one (the roar crossfades; 1 = enraged). */
   enragedMix: number;
-  /** Death: the last beat on the dead_a glow (0–1). */
+  /** Death: the last weak beat on the dead_a glow (0–1). */
   deathGlow: number;
 }
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-/** The beat's envelope `t` s after it (0 before; 1 at `attackS`). */
-export function beatEnvelope(t: number): number {
-  const B = BOSS_ANIM.beat;
-  if (t < 0) return 0;
-  if (t < B.attackS) return t / B.attackS;
-  return Math.exp(-(t - B.attackS) / B.decayS);
-}
-
-/** The walk's footfall dip: 1 − `walkDip` × a fast dip then a slow rise through the step (phase 0–1). */
-export function stepBreath(phase: number): number {
+/** The walk's breath `sinceStepS` after a footfall of a `stepS` step (the page's dip and rise). */
+export function stepBreath(sinceStepS: number, stepS: number): number {
   const b = BOSS_ANIM.breath;
-  const d = phase < b.dipFrac ? phase / b.dipFrac : 1 - (phase - b.dipFrac) / (1 - b.dipFrac);
-  return 1 - b.walkDip * d;
+  return 1 - b.walkDip * Math.max(0, 1 - sinceStepS / b.dipS) + b.walkRise * Math.sin((Math.min(sinceStepS, stepS) / stepS) * Math.PI);
 }
 
 /** The plan, one per Behemoth view (state kept between frames; `reset` on a new Behemoth). */
@@ -143,7 +133,8 @@ export class BossAnim {
   private stateS = 0;
   private lastProgress = -1;
   private wasReleased = false;
-  /** Seconds since the last release peak (slam hit, crash, throw release). */
+  /** Seconds since the slam hit (the flash, the exhale) and since the throw's release (its exhale). */
+  private hitAgeS = 99;
   private releaseAgeS = 99;
   private clockS = 0;
   /** It was enraged when it died (the last weak beat). */
@@ -166,9 +157,19 @@ export class BossAnim {
     this.stateS = 0;
     this.lastProgress = -1;
     this.wasReleased = false;
+    this.hitAgeS = 99;
     this.releaseAgeS = 99;
     this.diedEnraged = false;
     this.wasEnraged = false;
+  }
+
+  /** The breath let out after the slam hit and the throw's release. */
+  private exhale(): number {
+    const B = BOSS_ANIM.breath;
+    let s = 1;
+    if (this.hitAgeS < this.times.slamRecoverS) s = 1 + B.slamExhale * (1 - this.hitAgeS / this.times.slamRecoverS);
+    if (this.releaseAgeS < B.throwExhaleS) s = Math.max(s, 1 + B.throwSwell * (1 - this.releaseAgeS / B.throwExhaleS));
+    return s;
   }
 
   private beat(): void {
@@ -189,10 +190,12 @@ export class BossAnim {
     this.wasEnraged = i.enraged;
     this.beatAgeS += dtS;
     this.sinceStepS += dtS;
+    this.hitAgeS += dtS;
     this.releaseAgeS += dtS;
     const telegraph = i.state === BOSS_STATE.TELEGRAPH;
-    const racing = telegraph && (i.attackKind === BOSS_ATTACK.SLAM || i.attackKind === BOSS_ATTACK.CHARGE);
-    // the heart (R2: one clock with the steps; R1: races through a warning; R3: peaks on a release)
+    const racing = telegraph && i.attackKind === BOSS_ATTACK.SLAM ? A.beat.slamRacing : telegraph && i.attackKind === BOSS_ATTACK.CHARGE ? A.beat.chargeRacing : null;
+    // the heart: on every 3rd footfall walking, racing through a warning, on the hit and the throw's release, the clock
+    // standing (not in the rush or the stun: adrenaline, then helpless)
     if (i.state === BOSS_STATE.WALK && i.step !== this.lastStep) {
       if (!Number.isNaN(this.lastStep)) {
         this.sinceStepS = 0;
@@ -202,74 +205,73 @@ export class BossAnim {
       this.lastStep = i.step;
     }
     if (racing) {
-      for (const f of A.beat.racing) if (this.lastProgress < f && i.progress >= f) this.beat();
+      for (const f of racing) if (this.lastProgress < f && i.progress >= f) this.beat();
       this.lastProgress = i.progress;
-    } else if (this.sinceStepS > A.beat.periodS && this.beatAgeS >= A.beat.periodS) this.beat(); // standing: the clock
-    if (i.slammed || i.crashed || (i.released && !this.wasReleased)) {
+    } else if (this.sinceStepS > A.beat.periodS && this.beatAgeS >= A.beat.periodS && i.state !== BOSS_STATE.RUSH && i.state !== BOSS_STATE.STUN) this.beat();
+    if (i.slammed) {
+      this.hitAgeS = 0;
+      this.beat();
+    }
+    if (i.released && !this.wasReleased) {
       this.releaseAgeS = 0;
       this.beat();
     }
     this.wasReleased = i.released;
-    const env = beatEnvelope(this.beatAgeS);
-    const release = this.releaseAgeS < A.glow.releaseS;
+    const eyeBeat = Math.max(0, 1 - this.beatAgeS / A.beat.eyeFallS);
+    const veinBeat = Math.max(0, 1 - this.beatAgeS / A.beat.veinFallS);
     // breath
     const B = A.breath;
+    const stepS = i.enraged ? this.times.stepEnragedS : this.times.stepS;
     let breath = 1;
-    if (i.state === BOSS_STATE.WALK) breath = this.sinceStepS < B.standS ? stepBreath(i.stepPhase) : 1 + B.idleAmp * Math.sin((this.clockS / B.idlePeriodS) * Math.PI * 2);
-    else if (telegraph && i.attackKind === BOSS_ATTACK.THROW) breath = 1 + B.exhale * clamp01(i.progress); // swells with the lift
-    else if (i.state === BOSS_STATE.RECOVER) breath = 1 + B.exhale * (1 - clamp01(this.stateS / this.times.slamRecoverS));
+    if (i.state === BOSS_STATE.WALK) {
+      breath = this.sinceStepS < stepS + B.standS ? stepBreath(this.sinceStepS, stepS) : 1 + B.idleAmp * Math.sin((this.clockS / B.idlePeriodS) * Math.PI * 2);
+      breath = Math.max(breath, this.exhale());
+    } else if (telegraph && i.attackKind === BOSS_ATTACK.THROW) breath = 1 + B.throwSwell * clamp01(i.progress);
+    else if (i.state === BOSS_STATE.RECOVER) breath = this.exhale();
     else if (i.state === BOSS_STATE.STUN) breath = 1 + B.stunAmp * Math.sin((this.stateS / B.stunPeriodS) * Math.PI * 2);
     else if (i.state === BOSS_STATE.ROAR) breath = 1 + B.roarInhale * clamp01(this.stateS / B.roarInhaleS);
     // slam / charge warning, rush: breath held (1); dead: none
     o.breath = breath;
-    // glow, eyes
     const G = A.glow;
     const E = A.eyes;
-    o.enragedMix = i.enraged ? 1 : 0;
-    o.eyesRed = i.enraged;
     o.eyeScale = 1;
     o.deathGlow = 0;
+    o.enragedMix = i.enraged ? 1 : 0;
+    o.eyesRed = i.enraged;
     if (i.state === BOSS_STATE.DEAD) {
+      // R4: the eyes go out at once; the heart's last weak beat is out by `deathOutS`
       o.glow = 0;
       o.eyes = 0;
       o.enragedMix = 0;
-      const t = this.stateS;
-      // R4: the heart stops first — a last weak beat (up over `deathBeatS`), out by `deathOutS`
-      if (this.diedEnraged) o.deathGlow = G.deathPeak * (t < G.deathBeatS ? t / G.deathBeatS : clamp01(1 - (t - G.deathBeatS) / (G.deathOutS - G.deathBeatS)));
+      if (this.diedEnraged) o.deathGlow = G.deathPeak * clamp01(1 - this.stateS / G.deathOutS);
       return o;
     }
     if (i.state === BOSS_STATE.ROAR) {
-      const k = clamp01((this.stateS - A.roar.fromS) / Math.max(1e-6, this.times.roarS - A.roar.fromS));
-      o.enragedMix = i.enraged ? 1 : k;
-      o.glow = i.enraged ? 1 : k;
+      const rage = i.enraged ? 1 : clamp01((this.stateS - E.roarSnapS) / Math.max(1e-6, this.times.roarS - E.roarSnapS));
+      o.enragedMix = rage;
+      o.glow = rage * (G.ember + G.roarWave);
       o.eyes = 1;
       o.eyesRed = i.enraged || this.stateS >= E.roarSnapS;
       return o;
     }
     if (i.state === BOSS_STATE.STUN) {
-      o.glow = 0;
+      o.glow = 0; // helpless: the glow goes out
       o.eyes = E.stun;
       return o;
     }
+    // the eyes: calm steady; enraged on the beat over their floor; locked on through the charge, the rush and the lift;
+    // the slam warning builds them 75 → 100 % and they hold 100 % through the flash
+    let eyes: number = i.enraged ? E.enragedFloor + (1 - E.enragedFloor) * eyeBeat : E.calm;
+    if (telegraph && i.attackKind === BOSS_ATTACK.SLAM) eyes = Math.max(i.enraged ? eyes : 0, E.enragedFloor + (1 - E.enragedFloor) * clamp01(i.progress)); // calm too (the page)
+    else if (telegraph || i.state === BOSS_STATE.RUSH) eyes = 1;
+    const flash = this.hitAgeS < G.flashS;
+    if (flash) eyes = 1;
+    o.eyes = eyes;
     if (!i.enraged) {
       o.glow = 0;
-      o.eyes = E.calm;
-      if (release && (i.state === BOSS_STATE.RECOVER || i.slammed)) o.eyeScale = E.flashScale; // R3: the hit
       return o;
     }
-    let floor: number = G.floor;
-    let eyes = lerp(E.enragedFloor, 1, env);
-    if (racing) {
-      floor = lerp(G.warnFrom, G.warnTo, clamp01(i.progress));
-      eyes = Math.max(eyes, i.attackKind === BOSS_ATTACK.CHARGE ? 1 : lerp(E.enragedFloor, 1, clamp01(i.progress)));
-    } else if (telegraph || i.state === BOSS_STATE.RUSH) eyes = 1; // throw lift, the rush: locked on
-    o.glow = i.state === BOSS_STATE.RUSH ? Math.max(G.rush, floor + (1 - floor) * env * 0.5) : floor + (1 - floor) * env;
-    if (release) {
-      o.glow = 1;
-      eyes = 1;
-      if (i.state === BOSS_STATE.RECOVER || i.slammed) o.eyeScale = E.flashScale;
-    }
-    o.eyes = eyes;
+    o.glow = i.state === BOSS_STATE.RUSH ? G.rush : flash ? 1 : G.ember + (1 - G.ember) * veinBeat;
     return o;
   }
 }

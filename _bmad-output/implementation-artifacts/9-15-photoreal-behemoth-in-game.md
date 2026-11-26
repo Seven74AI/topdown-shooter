@@ -31,6 +31,23 @@ and "ok" to the whole **action plan** (`docs/art/photoreal-4/src/boss4.ts › PL
   → 0.25 / 0.75; death frames' `shade(skin, -0.3k)` returns `rgb()` which `shade()` can't read → black head and spine
   (take C converts to hex with `hexOf`).
 
+## Covers from 9.4
+
+The 2026-11-26 correct-course (`_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26-epic-9-photoreal.md`)
+put "a photoreal Behemoth (all its poses and telegraphs)" into Story 9.4. 9.15 takes over:
+
+- **The photoreal look**: take C, relit like 9.13 (worker bake, plain drawing as fallback), all four looks BH1–BH4.
+- **Every pose**: walk (two frames, fixed), slam (3 frames), slam hit, charge (+ the new `charge_b`), rush, throw (+ the
+  new `throw_b`), stun, roar, the three death frames; calm and enraged (every pose but death); the outline + eyes frames
+  (drawing unchanged, own texture).
+- **The warning poses** (G2 A): charge and throw show their pose by progress during their warnings.
+- **The animation**: breathing, sheen, the heartbeat glow, eyes, the roar's change, the death's last beat, and the
+  action-plan dust (slam, rush, crash, throw crumbs and landing, roar, death).
+
+Stays as it is (not redrawn by 9.15; 9.4 or a later story if the designer wants it): the telegraph art itself (the slam's
+glowing countdown disc, the throw ring and charge lane hatching, the CRASH mark, the P1 warning display, the ground
+damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and death animations.
+
 ## Acceptance Criteria
 
 1. **Take C in the game.** `render/city/behemothArt.ts` draws `behemoth5.ts`'s model (the page-only `setHighlight`
@@ -145,10 +162,20 @@ and "ok" to the whole **action plan** (`docs/art/photoreal-4/src/boss4.ts › PL
   being "ready" (the plain atlas shows) and are baked again. Saves ~11 MB of CPU copies.
 - **B8 Crop.** Every relit picture is drawn cropped to its opaque box (`setCrop`): the 7 m frame is mostly empty and the
   full-quad additive layers cost −2.2 FPS in the headless software renderer; −0.8 after the crop.
-- **B9 Half-way warning frames.** `charge_b` is baked at the charge's k 0.25 and `throw_b` at the throw's k 0.28, not a
-  literal k 0.5: the pose drawing reaches its full charge at k 0.5 (`e = min(1, 2k)`) and nearly its full lift (0.9) at
-  k 0.5 (`e = min(1, 1.8k)`), so k 0.5 would have been the same picture as `charge_a` (the identical-frame bug the
-  decomposition warned about). These are the pictures half-way into each pose (e = 0.5); a test diffs them.
+- **B9 Warning frames at k 0.5** (the page's action player, `boss4.ts › EXTRA_FRAMES`, the parent's spec 2026-11-26):
+  `charge_b` = charge k 0.5, `throw_b` = throw k 0.5. The charge drawing is at its full crouch by k 0.5
+  (`e = min(1, 2k)`), so `charge_b` is the same picture as `charge_a` (as on the page; a test pins it); `throw_b` is the
+  lift at 90 %. A real half-way charge picture would be k 0.25 (e = 0.5), if the designer wants one.
+- **B12 The action player is the spec** (parent, 2026-11-26): `bossAnim.ts` follows `planAt` (walk dip 1 % back over
+  0.12 s + a 0.4 % rise per step; ember 0.25; racing beats slam 0 / 0.55 / 0.9 / 1.1 s, charge 0 / 0.4 / 0.7 / 0.9 s;
+  slam flash 0.15 s and a 1 % exhale; throw swell 1.2 % and out over 0.4 s; stun 0.6 % breaths a second; roar inhale
+  2 %, rage over 0.3 s → the roar's end; death's last beat 0.4 → 0 by 0.4 s; eyes fall back over 0.25 s) and
+  `bossDust.ts` follows `puffsFor` (counts, speeds, radii, lives; discs growing to 2.6 r, fading linearly). The vein
+  glow pulses as a whole layer (the page's strip steps over 0.6 s become one fall over 0.6 s, B4).
+- **B13 Endless**: once a Behemoth's body is cleared (build start), the next Behemoth's look is predicted from the run
+  seed (`behemoth number + 1`, the previous look; both replicated online) and baked during the build phase and waves; a
+  wrong prediction re-bakes at arrival (plain frames meanwhile). The sheets hold one look, so the next look is not baked
+  during the fight itself (that would replace the frames in use).
 - **B10 Roar shock ring at 0 s.** The plan's dope sheet put the 5 m shock ring at 0.3 s with the eye snap; the sim pushes
   players at the roar's first tick, so the ring stays on the push (readability of the push). Eyes snap, veins light and
   the roar dust start at 0.3 s as planned.

@@ -5,12 +5,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { BOSS_ATTACK, BOSS_STATE } from "@topdown/shared";
-import { BOSS_ANIM, BossAnim, beatEnvelope, stepBreath, type BossAnimInput } from "./bossAnim";
-import { BOSS_DUST, BossDust, DUST_PUFF, dustHash } from "./bossDust";
+import { BOSS_ANIM, BossAnim, stepBreath, type BossAnimInput } from "./bossAnim";
+import { BOSS_DUST, BossDust, dustHash } from "./bossDust";
 import { throwLiftProgress, warningPoseIndex } from "./bossTelegraph";
 
 const DT = 1 / 60;
-const times = { slamRecoverS: 0.8, roarS: 1.5 };
+const times = { slamRecoverS: 0.8, roarS: 1.5, stepS: 0.5, stepEnragedS: 0.65 / (1.3 * 1.3) };
 const input = (): BossAnimInput => ({ state: BOSS_STATE.WALK, attackKind: BOSS_ATTACK.NONE, progress: 0, enraged: false, step: 0, stepPhase: 0, released: false, slammed: false, crashed: false });
 
 /** Runs `a` for `s` seconds with `set(i, t)` filling the input each frame; returns the last output's copy. */
@@ -29,10 +29,10 @@ function play(a: BossAnim, i: BossAnimInput, s: number, set?: (i: BossAnimInput,
 }
 
 describe("Story 9.15: the action plan", () => {
-  it("walk: the breath dips ~1 % at each footfall and rises through the step", () => {
-    expect(stepBreath(0)).toBe(1);
-    expect(stepBreath(BOSS_ANIM.breath.dipFrac)).toBeCloseTo(1 - BOSS_ANIM.breath.walkDip, 6);
-    expect(stepBreath(0.99)).toBeGreaterThan(0.999);
+  it("walk: the breath dips 1 % on each footfall (back over 0.12 s) and rises a little through the step (planAt)", () => {
+    expect(stepBreath(0, 0.5)).toBeCloseTo(1 - BOSS_ANIM.breath.walkDip, 6);
+    expect(stepBreath(0.12, 0.5)).toBeGreaterThan(1);
+    expect(stepBreath(0.25, 0.5)).toBeCloseTo(1 + BOSS_ANIM.breath.walkRise, 6);
   });
 
   it("walk, enraged: the beat lands on every 3rd footfall (≈ 1.15 s at the enraged pace), eyes 75 % → 100 %", () => {
@@ -67,8 +67,8 @@ describe("Story 9.15: the action plan", () => {
     const i = input();
     i.enraged = true;
     const o = play(a, i, 1.2 * 3 + 0.9);
-    expect(o.glow).toBeCloseTo(BOSS_ANIM.glow.floor, 1);
-    expect(beatEnvelope(BOSS_ANIM.beat.attackS)).toBe(1);
+    expect(o.glow).toBeCloseTo(BOSS_ANIM.glow.ember, 2);
+    expect(o.eyes).toBeCloseTo(BOSS_ANIM.eyes.enragedFloor, 2);
   });
 
   it("calm: no glow, steady eyes at 100 %, yellow", () => {
@@ -97,29 +97,35 @@ describe("Story 9.15: the action plan", () => {
       prev = a.out.glow;
     }
     expect(peaks.map((p) => Math.round(p * 20) / 20)).toEqual([0, 0.55, 0.9, 1.1].map((p) => expect.closeTo(p, 1)));
-    // 0.2 s → glow ≥ 0.4, 0.9 s → ≥ 0.8 (the plan's moments), eyes build to 100 %
-    expect(a.out.eyes).toBeGreaterThan(0.95);
+    expect(a.out.eyes).toBeGreaterThan(0.95); // eyes build 75 → 100 %
     i.state = BOSS_STATE.RECOVER;
     i.slammed = true;
     a.update(DT, i);
     expect(a.out.glow).toBe(1);
     expect(a.out.eyes).toBe(1);
-    expect(a.out.eyeScale).toBe(BOSS_ANIM.eyes.flashScale);
-    expect(a.out.breath).toBeGreaterThan(1.02);
+    expect(a.out.breath).toBeCloseTo(1 + BOSS_ANIM.breath.slamExhale, 3);
+    const lit = play(a, i, 0.1);
+    expect(lit.glow).toBe(1); // all lit for 0.15 s
     const o = play(a, i, 0.7);
-    expect(o.breath).toBeLessThan(1.005); // exhaled
+    expect(o.breath).toBeLessThan(1.001); // exhaled
     expect(o.glow).toBeLessThan(0.6);
   });
 
-  it("charge: eyes 100 % and the heart racing, steady 60 % through the rush; the stun turns the glow off and the eyes to 30 %", () => {
+  it("charge: eyes 100 % and the heart racing (beats at 0, 0.4, 0.7, 0.9 s), steady 60 % through the rush; the stun turns the glow off and the eyes to 30 %", () => {
     const a = new BossAnim(times);
     const i = input();
     i.enraged = true;
     i.state = BOSS_STATE.TELEGRAPH;
     i.attackKind = BOSS_ATTACK.CHARGE;
-    const w = play(a, i, 1, (x, t) => (x.progress = t));
-    expect(w.eyes).toBe(1);
-    expect(w.glow).toBeGreaterThanOrEqual(BOSS_ANIM.glow.warnFrom);
+    const beats: number[] = [];
+    let prev = 0;
+    play(a, i, 1, (x, t) => {
+      x.progress = t;
+      if (a.out.glow > prev + 0.04) beats.push(Math.round(t * 10) / 10);
+      prev = a.out.glow;
+    });
+    expect(beats).toEqual([0, 0.4, 0.7, 0.9].map((b) => expect.closeTo(b, 1)));
+    expect(a.out.eyes).toBe(1);
     i.state = BOSS_STATE.RUSH;
     const r = play(a, i, 0.5);
     expect(r.glow).toBeGreaterThanOrEqual(BOSS_ANIM.glow.rush);
@@ -157,7 +163,7 @@ describe("Story 9.15: the action plan", () => {
     expect(t2.mix).toBeLessThan(0.6);
     const t3 = play(a, i, 0.7); // 1.5 s
     expect(t3.mix).toBeCloseTo(1, 1);
-    expect(t3.glow).toBeCloseTo(1, 1);
+    expect(t3.glow).toBeCloseTo(BOSS_ANIM.glow.ember + BOSS_ANIM.glow.roarWave, 1);
   });
 
   it("death: eyes out at once, a last weak beat, the glow out by 0.4 s (only if it died enraged)", () => {
@@ -168,7 +174,7 @@ describe("Story 9.15: the action plan", () => {
     i.state = BOSS_STATE.DEAD;
     const d1 = play(a, i, 0.15);
     expect(d1.eyes).toBe(0);
-    expect(d1.death).toBeGreaterThan(0.3);
+    expect(d1.death).toBeGreaterThan(0.2); // 0.4 at the death, falling
     expect(d1.death).toBeLessThanOrEqual(BOSS_ANIM.glow.deathPeak);
     const d2 = play(a, i, 0.3);
     expect(d2.death).toBe(0);
@@ -185,27 +191,33 @@ describe("Story 9.15: the dust pool", () => {
   it("is deterministic, stays in its pool, and every burst dies out", () => {
     const run = (): number[] => {
       const d = new BossDust(BOSS_DUST.pool);
-      d.burst(DUST_PUFF, BOSS_DUST.slamPuff, 10, 10, 0, Math.PI, 0.3);
-      d.burst(DUST_PUFF, BOSS_DUST.death, 10, 10, 0, Math.PI, 2);
+      d.burst(BOSS_DUST.slamFists, 10, 10);
+      d.burst(BOSS_DUST.death, 10, 10);
       for (let k = 0; k < 20; k++) d.step(DT);
       return Array.from(d.x).concat(Array.from(d.y));
     };
     expect(run()).toEqual(run());
     const d = new BossDust(8);
-    for (let k = 0; k < 5; k++) d.burst(DUST_PUFF, BOSS_DUST.crash, 0, 0, 0, Math.PI, 1); // 50 into 8 slots
-    expect(d.emitted).toBe(50);
+    for (let k = 0; k < 5; k++) d.burst(BOSS_DUST.crash, 0, 0); // 80 into 8 slots
+    expect(d.emitted).toBe(80);
     for (let k = 0; k < 120; k++) d.step(DT);
     expect(d.idle()).toBe(true);
     expect(dustHash(3, 1)).toBeGreaterThanOrEqual(0);
     expect(dustHash(3, 1)).toBeLessThan(1);
   });
 
-  it("grit waits for its delay (secondary follows)", () => {
-    const d = new BossDust(16);
-    d.burst(1, BOSS_DUST.slamGrit, 0, 0, 0, Math.PI, 0.4);
-    let waiting = 0;
-    for (let i = 0; i < d.n; i++) if ((d.age[i] as number) < 0) waiting++;
-    expect(waiting).toBeGreaterThan(0);
+  it("a puff grows from r to 2.6 r and fades linearly (puffsFor); a delayed one waits", () => {
+    const d = new BossDust(4);
+    d.emit(0, 0, 1, 0, 0.5, 1, 0.2);
+    expect(d.live(0)).toBe(false); // waiting for its start
+    for (let k = 0; k < Math.round(0.2 / DT) + 1; k++) d.step(DT);
+    expect(d.live(0)).toBe(true);
+    expect(d.size(0)).toBeCloseTo(1, 1);
+    expect(d.alpha(0)).toBeCloseTo(BOSS_DUST.alpha, 1);
+    for (let k = 0; k < 30; k++) d.step(DT);
+    expect(d.size(0)).toBeCloseTo(2 * 0.5 * (1 + BOSS_DUST.grow * 0.5), 1);
+    expect(d.alpha(0)).toBeCloseTo(BOSS_DUST.alpha * 0.5, 1);
+    expect(d.x[0]).toBeCloseTo(0.5, 1); // constant speed
   });
 });
 
