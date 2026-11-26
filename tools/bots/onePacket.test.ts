@@ -27,7 +27,7 @@ afterAll(async () => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 describe("Story 8.11 one packet per tick (bots on a real server)", () => {
-  it("mid-wave: ≤ 25 down writes per phone per s, one tick per patch, 16 B per input", async () => {
+  it("mid-wave: ≤ 25 down writes per phone per s, one tick per patch, 20 B per input (Story 8.13: 18 + the 2-byte header)", async () => {
     const url = `http://127.0.0.1:${port}`;
     const log = (): void => {};
     const host = await BotClient.connect({ url, name: "Bot 1", log, scenario: "net150" });
@@ -77,7 +77,7 @@ describe("Story 8.11 one packet per tick (bots on a real server)", () => {
         expect(Math.abs(patches / s - ticksPerS) / ticksPerS).toBeLessThan(0.1); // patches/s = ticks/s (window edges)
         const inputs = now.inputMsgs - mark.inputMsgs;
         expect(inputs).toBeGreaterThan(40); // liveness
-        expect((now.inputBytes - mark.inputBytes) / inputs).toBe(INPUT_BYTES + 2); // [17][2] + 14 B
+        expect((now.inputBytes - mark.inputBytes) / inputs).toBe(INPUT_BYTES + 2); // [17][2] + 18 B (Story 8.13: with the tick ack and the send time)
         expect((now.inputBytes - mark.inputBytes) / 1024 / s).toBeLessThanOrEqual(0.6); // AC 4
       });
     } finally {

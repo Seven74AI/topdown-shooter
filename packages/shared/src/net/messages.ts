@@ -169,7 +169,9 @@ export type S2CType = (typeof S2C)[keyof typeof S2C];
  * stream). Sent in the join options; a client with another (or none: a tab from before 8.10) is
  * refused at join as `update_required` ("A new version is out. Please reload.").
  */
-export const NET_PROTOCOL_VERSION = 3; // Story 8.11: 3 = the binary input (`BYTES.INPUT`, net/input.ts)
+// Story 8.11: 3 = the binary input (`BYTES.INPUT`, net/input.ts); Story 8.13: 4 = its tick ack. 8.13 took protocol 4;
+// the next of 12.2 or Epic 11 takes 5.
+export const NET_PROTOCOL_VERSION = 4;
 
 /**
  * Binary messages use numeric types (1 byte on the wire instead of a string). Story 2.5: `HORDE_FRAME` (server →
