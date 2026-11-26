@@ -141,7 +141,7 @@ describe("floor buildings (Story 5.9 F1)", () => {
     expect(placementError(world, "p0", { type: "spike_trap", gx: 16 / BUILD_GRID_M, gy: 15 / BUILD_GRID_M, rot: 0 })).toBeNull(); // adjacent
   });
 
-  it("a decay solid on a trap destroys it with the 50 % refund", () => {
+  it("a decay solid on a trap destroys it (Story 12.4: no refund)", () => {
     const { world, events, place } = setup();
     const t = place(14, 15, "spike_trap");
     const p = world.players.get("p0");
@@ -150,7 +150,7 @@ describe("floor buildings (Story 5.9 F1)", () => {
     (world.obstacles.solids as MapBox[]).push({ name: "test_box", minX: 15, minY: 15.5, maxX: 16, maxY: 16.5 } as MapBox);
     expect(destroyBlockedBuildings(world)).toBe(1);
     expect(buildingById(world, t.id)).toBeUndefined();
-    expect(p.wallet - wallet).toBe(Math.floor(80 * balance.decay.buildingRefundShare));
+    expect(p.wallet - wallet).toBe(0); // Story 12.4: the 50 % refund is gone
     world.events.flush();
     expect(events.some((e) => e.type === "building.destroyed" && e.buildingId === t.id)).toBe(true);
   });

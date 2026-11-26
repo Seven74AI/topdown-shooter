@@ -91,12 +91,12 @@ describe("barricade upgrade (Story 5.9)", () => {
     expect([b.type, p0.wallet]).toEqual(["reinforced_barricade", 10]);
   });
 
-  it("repair cost after upgrade 45 / 80; decay refund 45 / 80 (F9: the tier's total price)", () => {
+  it("repair cost after upgrade 45 / 80; an upgraded barricade lost to decay gives nothing back (Story 12.4; was 45 / 80)", () => {
     expect(repairCost(balance, "reinforced_barricade")).toBe(45);
     expect(repairCost(balance, "metal_barricade")).toBe(80);
     for (const [steps, refund] of [
-      [1, 45],
-      [2, 80],
+      [1, 0],
+      [2, 0],
     ] as const) {
       const { world, b, p0 } = setup();
       for (let i = 0; i < steps; i++) upgradeBuilding(world, "p0", b.id);

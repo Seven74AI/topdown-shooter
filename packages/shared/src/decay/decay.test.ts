@@ -99,14 +99,19 @@ describe("Story 4.5 timeline (decay.json)", () => {
     expect(stageForWave(balance, 1, [2, 3])).toBe(2);
     expect(stageForWave(balance, 9, [2, 3])).toBe(3);
     expect(balance.decay.stageNames[1]).toBe("Panic");
-    expect(balance.decay.buildingRefundShare).toBe(0.5);
+    expect("buildingRefundShare" in balance.decay).toBe(false); // Story 12.4 (CN-6): the key is gone
   });
 
-  it("refuses a table that goes back, a sixth stage name, a refund share above 1", () => {
+  it("refuses a table that goes back, a sixth stage name, and (Story 12.4) any refund share at all, even 0", () => {
     const bad = (path: string, value: number) => () => loadBalance(withOverrides(bundledBalanceFiles(), [["decay", path, value]]));
     expect(bad("stageByWave.3", 1)).toThrow(BalanceError);
     expect(bad("stageByWave.0", 6)).toThrow(BalanceError);
-    expect(bad("buildingRefundShare", 1.5)).toThrow(BalanceError);
+    // An old file or override that still sets the key can't turn the refund back on (`withOverrides` only sets existing keys, so set it by hand).
+    for (const share of [0.5, 0]) {
+      const raw = JSON.parse(JSON.stringify(bundledBalanceFiles())) as Record<string, Record<string, unknown>>;
+      (raw.decay as Record<string, unknown>).buildingRefundShare = share;
+      expect(() => loadBalance(raw as unknown as ReturnType<typeof bundledBalanceFiles>), `share ${share}`).toThrow(BalanceError);
+    }
   });
 });
 
@@ -354,7 +359,7 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     ]);
   });
 
-  it("buildings on newly blocked cells are destroyed and their owners refunded 50 % (wallet only, not earned); others stay", () => {
+  it("buildings on newly blocked cells are destroyed (cause collapse) and, since Story 12.4, nothing is refunded; others stay", () => {
     const w = downtownRun();
     const wood = buildingStats(balance, "wood_barricade") as { price: number };
     const turret = buildingStats(balance, "auto_turret") as { price: number };
@@ -373,19 +378,20 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     const off = w.events.subscribe((e) => seen.push(e));
     startWave(w);
     skipWave(w); // → endWave → startBuild (wave 3: stage 2)
-    // The refund is paid in the build start itself (before the next tick's wave bonus).
-    expect(p0.wallet - before.w0).toBe(Math.floor(wood.price * 0.5));
-    expect(p1.wallet - before.w1).toBe(Math.floor(turret.price * 0.5));
+    // Story 12.4: no refund (the wallets are unchanged by the build start itself, before the next tick's wave bonus).
+    expect(p0.wallet - before.w0).toBe(0);
+    expect(p1.wallet - before.w1).toBe(0);
     expect([p0.earned, p1.earned]).toEqual([before.e0, before.e1]);
+    void wood;
+    void turret;
     step(w, TICK_DT_S);
     off();
     expect(w.decay.stage).toBe(2);
     expect(w.buildings.list.map((b) => b.id)).toEqual([safe.ok ? safe.value.id : -1]);
-    const destroyed = seen.filter((e) => e.type === "building.destroyed").map((e) => (e as { buildingType: string }).buildingType);
-    expect(destroyed.sort()).toEqual(["auto_turret", "wood_barricade"]);
-    const refunds = seen.filter((e) => e.type === "money.earned" && e.reason === "refund").map((e) => (e as { playerId: string; amount: number }));
-    expect(refunds.map((r) => `${r.playerId}:${r.amount}`).sort()).toEqual([`p0:${Math.floor(wood.price / 2)}`, `p1:${Math.floor(turret.price / 2)}`]);
-    // Order: refunds and destruction before the stage event, the stage event before build.started.
+    const destroyed = seen.filter((e) => e.type === "building.destroyed").map((e) => `${(e as { buildingType: string }).buildingType}:${(e as { cause?: string }).cause}`);
+    expect(destroyed.sort()).toEqual(["auto_turret:collapse", "wood_barricade:collapse"]);
+    expect(seen.filter((e) => e.type === "money.earned" && e.reason === "refund")).toEqual([]); // Story 12.4
+    // Order: destruction before the stage event, the stage event before build.started.
     const order = seen.map((e) => e.type).filter((t) => t === "building.destroyed" || t === "decay.stage_changed" || t === "build.started");
     expect(order).toEqual(["building.destroyed", "building.destroyed", "decay.stage_changed", "build.started"]);
   });
@@ -461,9 +467,9 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
 });
 
 describe("Story 4.5 review fixes", () => {
-  it("review L2: a barricade flush against a new solid survives with no refund; one overlapping it by 1 cm is destroyed and refunded", () => {
-    // Hand-made buildings (the lattice can't express 1 cm): flush = edge on the dumpster's face; overlap = 0.01 m into it.
-    for (const overlapM of [0, 0.01]) {
+  it("review L2, as changed by Stories 12.1 (AC 6) and 12.4: a barricade 0.8 m from a new solid survives; one flush with it is cleared; one overlapping it by 1 cm is destroyed; none refunded", () => {
+    // Hand-made buildings (the lattice can't express 1 cm): flush = edge on the dumpster's face; overlap = 0.01 m into it; −0.8 = one player body clear of it.
+    for (const overlapM of [-0.8, 0, 0.01]) {
       const w = downtownRun(13, 1);
       const p0 = w.players.get("p0") as { wallet: number };
       const wood = buildingStats(balance, "wood_barricade") as { price: number; hp: number };
@@ -476,14 +482,17 @@ describe("Story 4.5 review fixes", () => {
       b.maxY = DUMPSTER.minY + overlapM;
       b.minY = b.maxY - 0.5;
       const before = p0.wallet;
+      const causes: string[] = [];
+      w.events.subscribe((e) => e.type === "building.destroyed" && causes.push(e.cause ?? ""));
       expect(changeDecayStage(w, 2)).toBe(true);
-      if (overlapM === 0) {
+      w.events.flush();
+      if (overlapM < 0) {
         expect(w.buildings.list.map((x) => x.id)).toEqual([50]);
-        expect(p0.wallet).toBe(before);
       } else {
         expect(w.buildings.list).toEqual([]);
-        expect(p0.wallet - before).toBe(Math.floor(wood.price * 0.5));
+        expect(causes).toEqual([overlapM === 0 ? "cleared" : "collapse"]);
       }
+      expect(p0.wallet).toBe(before); // Story 12.4: never a refund
     }
   });
 

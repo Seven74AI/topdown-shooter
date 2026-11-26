@@ -10,9 +10,9 @@ const balance = loadBalance();
 
 /**
  * Story 4.5 (brief line 14): what a decay stage change costs on the wire. 4 players, each owning a
- * barricade on a cell the stage blocks (worst case: every one is destroyed and refunded), then a
+ * barricade on a cell the stage blocks (worst case: every one is destroyed; Story 12.4: no refund), then a
  * real build start into stage 2. Decay goes out on change only: the stage field in the patch and the
- * events of that one tick (`decay.stage_changed`, `building.destroyed`, the refunds). A 5-wave run
+ * events of that one tick (`decay.stage_changed`, `building.destroyed`; refunds until 12.4). A 5-wave run
  * has 2 such ticks.
  */
 describe("Story 4.5 decay bandwidth", () => {
@@ -53,17 +53,17 @@ describe("Story 4.5 decay bandwidth", () => {
     syncState(state, c);
     const idle = encoder.encode().length;
     encoder.discardChanges();
-    // Liveness: the stage really changed and every barricade on blocked cells went, with its refund.
+    // Liveness: the stage really changed and every barricade on blocked cells went (Story 12.4: no refund events).
     expect(world.decay.stage).toBe(2);
     expect(state.decayStage).toBe(2);
     const destroyed = decayTuples.filter((t) => t[0] === NET_EVENT_KIND.BUILDING_DESTROYED).length;
     expect(destroyed).toBeGreaterThan(0);
-    expect(decayTuples.filter((t) => t[0] === NET_EVENT_KIND.MONEY_EARNED).length).toBe(destroyed);
+    expect(decayTuples.filter((t) => t[0] === NET_EVENT_KIND.MONEY_EARNED).length).toBe(0);
     expect(decayTuples.filter((t) => t[0] === NET_EVENT_KIND.DECAY_STAGE_CHANGED)).toEqual([[NET_EVENT_KIND.DECAY_STAGE_CHANGED, 2, 1]]);
     expect(decayEventBytes).toBeLessThan(200);
     expect(idle).toBeLessThan(12);
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
-      `[bandwidth] decay change tick: ${decayEventBytes} B of decay events (stage event ${pack([NET_EVENT_KIND.DECAY_STAGE_CHANGED, 2, 1]).length} B, ${destroyed}/${placed} barricades destroyed + refunds), whole patch ${patch} B (stage field +2 B; rest = phase/wave/wallets/removed buildings), next idle patch ${idle} B; 2 changes per 5-wave run ≈ 0 B/s`,
+      `[bandwidth] decay change tick: ${decayEventBytes} B of decay events (stage event ${pack([NET_EVENT_KIND.DECAY_STAGE_CHANGED, 2, 1]).length} B, ${destroyed}/${placed} barricades destroyed, no refunds since 12.4), whole patch ${patch} B (stage field +2 B; rest = phase/wave/wallets/removed buildings), next idle patch ${idle} B; 2 changes per 5-wave run ≈ 0 B/s`,
     );
   });
 

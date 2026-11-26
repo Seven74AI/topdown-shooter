@@ -458,7 +458,7 @@ These patterns ensure consistent implementation across all AI agents.
 
 **Data flow:** wave ends → Build phase starts → `DecaySystem.apply(stage)` mutates World → event → server forwards → client swaps visuals and audio.
 
-**Rules:** decay changes happen only at Build phase start (never mid-wave), so players see the new map before fighting in it. Buildings overlapping a newly blocked cell are destroyed and refunded 50%. On resume, stages 1…N are re-applied to the map **without side effects** (no building destruction, no refunds, no events), then the snapshot's buildings are restored.
+**Rules:** decay changes happen only at Build phase start (never mid-wave), so players see the new map before fighting in it. Buildings overlapping a newly blocked cell are destroyed, with no refund (Story 12.4, 2026-11-26; was "refunded 50%"), and so is every wall within one player body (0.8 m) of new cover (Story 12.1 AC 6). Story 12.1: a wall placement or move that would seal a pocket of the walkable map is refused (`buildings/pathOpen.ts`). On resume, stages 1…N are re-applied to the map **without side effects** (no building destruction, no refunds, no events), then the snapshot's buildings are restored.
 
 ```ts
 // packages/shared/src/decay/decaySystem.ts

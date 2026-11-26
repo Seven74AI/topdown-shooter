@@ -24,7 +24,7 @@ import type { SimEvent } from "../core/simEvents";
  * ticks with Walkers, Runners and Brutes from every open spawn, the two breaches always included.
  * Asserts: no body inside a box (rubble included), no stall (every zombie reaches a player), zombies
  * from BOTH breaches reach a player, the walls change only at the build start (obstacle version),
- * buildings under the new rubble are destroyed and refunded once. Liveness counters are asserted.
+ * buildings under the new rubble are destroyed (Story 12.4: nothing refunded). Liveness counters are asserted.
  */
 const balance = loadBalance();
 const DT = DOWNTOWN_MAP;
@@ -141,7 +141,7 @@ function layout(seed: number): LayoutResult {
 }
 
 describe("Story 6.2 / 6.4 Ruins fuzz: random masks × buildings × stages 4–5 × 3,000 ticks (brief line 7)", () => {
-  it(`${LAYOUTS} layouts: no body inside a box, no stall, both breaches reach a player, rubble destroys + refunds, walls only at the build start`, () => {
+  it(`${LAYOUTS} layouts: no body inside a box, no stall, both breaches reach a player, rubble destroys (Story 12.4: no refund), walls only at the build start`, () => {
     const failures: string[] = [];
     const total = { movedOff: 0, spawned: 0, reached: 0, destroyed: 0, refunds: 0, breach: [0, 0] as [number, number], stages: new Set<number>(), alleys: new Set<number>() };
     for (let seed = 1; seed <= LAYOUTS; seed++) {
@@ -149,7 +149,7 @@ describe("Story 6.2 / 6.4 Ruins fuzz: random masks × buildings × stages 4–5 
       if (r.violation) failures.push(r.violation);
       if (r.missing.length > 0) failures.push(`seed ${6200 + seed}: ${r.missing.length} zombies never reached a player: ${r.missing.join(" ")}`);
       if (r.versionChanged) failures.push(`seed ${6200 + seed}: the walls changed mid-wave`);
-      if (r.refunds !== r.destroyed) failures.push(`seed ${6200 + seed}: ${r.destroyed} destroyed, ${r.refunds} refunds`);
+      if (r.refunds !== 0) failures.push(`seed ${6200 + seed}: ${r.destroyed} destroyed, ${r.refunds} refunds (Story 12.4: decay never refunds)`);
       total.spawned += r.spawned;
       total.movedOff += r.movedOff;
       total.reached += r.reached;

@@ -2,7 +2,7 @@ import type { EventKind, EventOutcome } from "../events/eventState";
 
 /**
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
- * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
+ * Story 4.5 appends "refund" (then a building a decay stage destroyed: 50 % back; Story 12.4: decay never refunds, so today only selling and take-back, 5.20, pay it).
  */
 export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss", "event"] as const; // Story 6.7: + "boss"; 6.10: + "event" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];

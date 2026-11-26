@@ -1,8 +1,7 @@
 import type { World } from "../core/world";
 import type { MapBox } from "../map/districtMap";
-import { buildingStats, removeBuilding, type Building } from "../buildings/buildings";
+import { removeBuilding, type Building } from "../buildings/buildings";
 import { PUSH_STUCK, circleHitsBuilding, pushOutOfBuildings, pushed } from "../buildings/collision";
-import { refundMoney } from "../economy/economy";
 import { boxBlocked, boxOrFireBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import type { PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
@@ -21,10 +20,10 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
  *
  *   1. the mutations (`applyDecayStage`: obstacle lists, nav walls, fires); Story 4.8: fires whose
  *      `durationWaves` are over go out here too (`fireExpiry`), and newly lit ones get their end wave;
- *   2. every building that overlaps a solid is destroyed (`building.destroyed`) and its owner gets
- *      `floor(paid × decay.buildingRefundShare)` back (`money.earned`, reason `refund`; Story 6.2
- *      review L4: `paid` = the price plus every upgrade step, 5.20's bookkeeping);
- *      (Story 4.8 review M2: also every building a fire lit now overlaps, same refund);
+ *   2. every building that overlaps a solid is destroyed (`building.destroyed`); Story 12.4 (designer
+ *      2026-11-25, "bad luck"): no money goes back (FR58 had a 50 % refund until then);
+ *      (Story 4.8 review M2: also every building a fire lit now overlaps; Story 12.1 AC 6: every wall
+ *      within one player body of new cover);
  *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`); Story 4.8
  *      review M1: then every standing player inside a fire lit now is moved just outside it
  *      (`moveOutOfNewFires`);
@@ -65,20 +64,20 @@ function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
 }
 
 /**
- * Step 2: buildings on newly blocked cells are destroyed and refunded (FR58). Story 4.8 review M2:
+ * Step 2: buildings on newly blocked cells are destroyed (FR58; Story 12.4: no refund, the building is
+ * simply lost: no `money.earned`, every cause below). Story 4.8 review M2:
  * so are buildings a fire lit at this build start overlaps (`newFires`; a building placed into a
  * fire later burns instead, D6). Story 12.1 (AC 6): with `before` (the solids active before this
  * build start), so is every WALL whose box comes closer than one player body (2 × `player.radiusM`)
  * to a solid that is new (not in `before`), even if it would not seal a path: a building never
  * squeezes a gap below player width against new cover. Floor types never block, so only overlap
- * removes them. No refund for that one (Story 12.4). The event carries the cause (`collapse`: under
+ * removes them. The event carries the cause (`collapse`: under
  * new cover, `fire`, `cleared`: the margin) for the owner's toast. Same order (id, descending walk
  * of the id-sorted list) on every copy. Returns how many.
  */
 export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = [], before: readonly MapBox[] | null = null): number {
   const list = world.buildings.list;
   const solids = world.obstacles.solids;
-  const share = world.balance.decay.buildingRefundShare;
   const margin = 2 * world.balance.player.radiusM;
   let n = 0;
   for (let i = list.length - 1; i >= 0; i--) {
@@ -88,11 +87,7 @@ export function destroyBlockedBuildings(world: World, newFires: readonly FireRec
     if (!removeBuilding(world, b.id)) continue;
     n++;
     world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause });
-    if (cause === "cleared") continue; // Story 12.1 (AC 6): no refund
-    // Story 6.2 review L4 (designer intent "50 % back"): half of what the player PAID for it — its
-    // price and every upgrade step (5.20 bookkeeping, `paid`) — not the base price.
-    const paid = Number.isFinite(b.paid) && b.paid > 0 ? b.paid : (buildingStats(world.balance, b.type)?.price ?? 0);
-    refundMoney(world, b.ownerId, Math.floor(paid * share));
+    // Story 12.4 (CN-6): no refund for any decay loss (Story 6.2 review L4's "50 % of what was paid" is gone).
   }
   return n;
 }

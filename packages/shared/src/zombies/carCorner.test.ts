@@ -251,5 +251,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
  * `worldDigest` of the determinism scenario above (Node / V8; a change here is a behaviour change: say why).
  * Story 9.13: re-pinned (was 1728716985) only because the digest includes `balance.version`, which the four new
  * client-only `controls.fx` caps change (B28); the simulation is unchanged.
+ * Story 12.4: re-pinned (was 3587910981) only because removing `decay.buildingRefundShare` changes
+ * `balance.version`; this scenario has no buildings and no decay change (it passed unchanged on 12.1's commit).
  */
-const GOLDEN_DIGEST = 3587910981;
+const GOLDEN_DIGEST = 2551157819;

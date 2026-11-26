@@ -321,8 +321,7 @@ function changeStageAtBuild(w: World): void {
 }
 
 describe("Story 4.7 build-start order where a car moves (brief line 5)", () => {
-  it("for every mover: a barricade where the car lands is destroyed and refunded 50 %; a survivor standing there is moved out; nobody is left inside", () => {
-    const wood = buildingStats(balance, "wood_barricade") as { price: number };
+  it("for every mover: a barricade where the car lands is destroyed (Story 12.4: no refund, was 50 %); a survivor standing there is moved out; nobody is left inside", () => {
     let destroyedTotal = 0;
     for (const v of MOVERS) {
       const bit = moverBit(v.name);
@@ -358,11 +357,10 @@ describe("Story 4.7 build-start order where a car moves (brief line 5)", () => {
       expect(names(w.obstacles.solids)).toContain(car.name);
       expect(w.buildings.list.filter((b) => overlaps(b as unknown as MapBox, car)), v.name).toEqual([]);
       expect(seen.filter((e) => e.type === "building.destroyed").length, v.name).toBeGreaterThanOrEqual(1);
-      // The refund (wallet only, not earned: 4.5 D5); the two cleared waves' bonuses come on top.
-      const refunds = seen.filter((e) => e.type === "money.earned" && e.reason === "refund") as Extract<SimEvent, { type: "money.earned" }>[];
-      expect(refunds.map((e) => `${e.playerId}:${e.amount}`), v.name).toEqual([`p0:${Math.floor(wood.price * balance.decay.buildingRefundShare)}`]);
-      const bonuses = seen.filter((e) => e.type === "money.earned" && e.reason !== "refund" && e.playerId === "p0").reduce((a, e) => a + (e as { amount: number }).amount, 0);
-      expect(p0.wallet - before.wallet, v.name).toBe(bonuses + Math.floor(wood.price * balance.decay.buildingRefundShare));
+      // Story 12.4: no refund; only the two cleared waves' bonuses change the wallet.
+      expect(seen.filter((e) => e.type === "money.earned" && e.reason === "refund"), v.name).toEqual([]);
+      const bonuses = seen.filter((e) => e.type === "money.earned" && e.playerId === "p0").reduce((a, e) => a + (e as { amount: number }).amount, 0);
+      expect(p0.wallet - before.wallet, v.name).toBe(bonuses);
       expect(p0.earned - before.earned).toBe(bonuses);
       expect(relocated.players, v.name).toBeGreaterThanOrEqual(1);
       for (const p of w.players.values()) for (const s of w.obstacles.solids) expect(circleOverlapsBox(p.x, p.y, p.radiusM - 1e-6, s.minX, s.minY, s.maxX, s.maxY), `${v.name}: ${p.id} in ${s.name}`).toBe(false);
