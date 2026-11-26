@@ -40,3 +40,9 @@
 - Bodies behind standing walls show as a pulsing silhouette, pick C (9.12). Red now marks danger in play (the boss and zombies), not only the boss.
 - Build-phase UI: a hybrid Build button plus a quick tile for the last-placed building (Story 10.10, BU-1 = B, 2026-11-25).
 
+## 2026-11-26 — Epic 9 photoreal, Epic 10 order (designer; correct-course `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`)
+
+- Epic 9 is photoreal: 9.1–9.10 are re-based on the 9.11–9.14 pipeline (proposal-page pick, worker relight or pre-rendered atlas, code drawing as fallback). FR82 now reads "photoreal looks … relit at load in a Web Worker or pre-rendered offline from the approved code". Supersedes the 2026-11-23 "polish pass of the code-drawn art" wording.
+- Epic 10 starts with 10.1 (settings), which 9.5, 9.6, 9.8 and 10.2 need; 10.1 also gets account and progress deletion (retro E7-A8).
+- Story 1.11's phone FPS check goes into 10.2; 1.12 and 4.10 go into the 10.9 game nights. Epics 1 and 4 are closed. 2.10 stays parked.
+- 8.10 B6 becomes Story 8.12 "Slow-line horde skip", before the 2.10 phone test; Epic 8 is open again for it.

@@ -4,7 +4,9 @@ baseline_commit: 4bf25f670c972bf9928565a6d007f3850e0c56d1
 
 # Story 1.11: Performance overlay and 150-Walker stress test
 
-Status: review
+Status: done
+
+> Folded into 10.2 (correct-course 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): AC 1 and 2 are built; AC 3's reference-phone rows (iPhone 12 class, Pixel 5 class) in `docs/perf/epic-1-stress.md` are measured by Story 10.2 on the same phones.
 
 ## Story
 
