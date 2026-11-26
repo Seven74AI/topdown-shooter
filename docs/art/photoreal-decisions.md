@@ -86,11 +86,11 @@ and the asset review in `docs/art/asset-review.md`.
   - CRASH: amber for the whole 2 s stun, drawn above the body;
   - TH-B: the chunk's shadow as the clock;
   - HT-A: a direction on `zombie.hit`.
-- **Picks (designer 2026-11-26): "All A version. Blood A too."** Take A for every element:
-  - MZ-A, SG-A, TR-A, HT-A, BL-A, BT-A, ML-A, BF-A;
-  - EX1-A, EX2-A, GR-A, MO-A, FS-A, BX-A;
-  - AC-A, GA-A, EV-A, RD-A, PD-A, RN-A, BD-A;
-  - the warnings SD-A, TH-A, CL-A, CR-A, P1-A, GD-A.
+- **Picks (designer 2026-11-26): "All A version. Blood A too."** This covers the cards up to the car fire only.
+  The designer later said: "I didn't validate model after the car fire".
+  - Picked: MZ-A, SG-A, TR-A, HT-A, BL-A, BT-A, ML-A, CS-A (with more blood), BF-A, EX1-A, EX2-A, GR-A, MO-A.
+  - **Not reviewed yet (no pick):** FS, BX; the whole acid / gas / dust / rain family (AC, GA, EV, RD, PD, RN, BD);
+    the Behemoth's warnings (SD, TH, CL, CR, P1, GD).
 
   Two changes:
   - **CS-A with more blood** ("CSA: id like more blood"). Now 6 heavy drops per cut (3 with `?fx=low`), crossing

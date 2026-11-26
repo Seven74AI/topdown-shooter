@@ -9,7 +9,8 @@ own file so it merges cleanly with Story 9.15's `SKILL.md` (PR #34). Everything 
 - Group 5 = **FX** (picked "A: FX (Recommended)" over icons).
 - **The Behemoth's warning art is in group 5** ("In. I'm curious to see how they would look like. So add them
   too."): slam countdown disc, throw ring, charge lane, CRASH mark, P1 warning display, ground damage.
-- Picks: **take A for every element** ("All A version. Blood A too."), with two changes:
+- Picks: **take A for the cards up to the car fire** ("All A version. Blood A too."; later: "I didn't validate model
+  after the car fire"). FS, BX, the matter family and the warnings are not reviewed yet. Two changes:
   - CS-A gets more blood ("id like more blood");
   - fire on cars is rethought ("The fire cant be a circle if the car is a rectangle. Circle may represent the heat.
     But flames in a perfect circle look weird"): FI-A is declined and FI-B is proposed.
@@ -97,4 +98,7 @@ Lessons:
 - **Additive light saturates.** Many overlapping added flames clip to lemon yellow, which reads green next to orange.
   Use fewer, fainter flames where they stack, and darken the base under them (burnt-out cabin soot) so the added
   light reads amber.
+- **A pick covers only what the designer looked at.** "All A" covered the cards up to the car fire, where the
+  designer stopped reading ("I didn't validate model after the car fire"). When a reply could cover a whole page, ask
+  how far it goes before recording it for every card.
 
