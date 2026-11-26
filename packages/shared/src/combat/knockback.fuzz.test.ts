@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
@@ -136,12 +136,19 @@ function nearCoverSpot(world: World, rng: Rng, slot: number): { x: number; y: nu
 }
 
 /**
- * The fuzz body (Story 5.3; Story 5.2 runs it again with four Fire Axe players): every player aims
+ * The fuzz (Story 5.3; Story 5.2 runs it again with four Fire Axe players), one test per layout + the totals: every player aims
  * at its nearest zombie with fire held.
  */
-function runFuzz(label: string, c: FuzzCase): void {
-  const applied0 = knockbacks.applied;
-  const stopped0 = knockbacks.stopped;
+function fuzzSuite(label: string, c: FuzzCase): void {
+  // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions
+  // as the old single test (57 s / 61 s in CI); the layouts share the counters below, so the totals need every layout
+  // test above to have run (a -t filter on one layout fails them).
+  let applied0 = 0;
+  let stopped0 = 0;
+  beforeAll(() => {
+    applied0 = knockbacks.applied;
+    stopped0 = knockbacks.stopped;
+  });
   let kills = 0;
   let buildingsPlaced = 0;
   let navRebuildsOutsideBuildChanges = 0;
@@ -154,7 +161,8 @@ function runFuzz(label: string, c: FuzzCase): void {
   const midX = new Float32Array(512);
   const midY = new Float32Array(512);
   const ids = c.loadouts.map((_, i) => `p${i}`);
-  for (let seed = 1; seed <= c.layouts; seed++) {
+  let layoutsRun = 0;
+  it.each(Array.from({ length: c.layouts }, (_, i) => i + 1))(`layout %i of ${c.layouts}`, (seed) => {
     const rng = createRng(seed * 7717);
     const killsBefore = kills;
     let afterCombatChecks = 0;
@@ -256,32 +264,35 @@ function runFuzz(label: string, c: FuzzCase): void {
     if (tough) expect(contacts, `${label} seed ${seed}: no zombie ever reached a player`).toBeGreaterThan(0);
     // Killable layouts: the waves move on, or (four slow axes vs a four-player wave) the kills keep coming.
     else expect(world.waves.number > 4 || kills - killsBefore >= c.minLayoutKills, `${label} seed ${seed}: the waves stalled (wave ${world.waves.number}, ${kills - killsBefore} kills)`).toBe(true);
-  }
-  const applied = knockbacks.applied - applied0;
-  const stopped = knockbacks.stopped - stopped0;
-  (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`${label}: ${c.layouts} layouts, ${buildingsPlaced} buildings, ${applied} knockbacks, ${stopped} stopped at a face (${stoppedByMap} by a map box), ${kills} kills by ${c.weapons.join("/")}`);
-  expect(legs).toBeGreaterThanOrEqual(c.minApplied); // the per-leg check really ran
-  expect(navRebuildsOutsideBuildChanges, `${label}: nav rebuilt without a building change`).toBe(0);
-  expect(buildingsPlaced).toBeGreaterThan(c.layouts * 2);
-  expect(applied).toBeGreaterThanOrEqual(c.minApplied);
-  expect(stopped).toBeGreaterThanOrEqual(c.minStopped);
-  if (c.nearCover) expect(stoppedByMap, `${label}: knockbacks really met map boxes (cars, bus, buildings, barriers)`).toBeGreaterThanOrEqual(c.minStopped);
-  expect(kills).toBeGreaterThanOrEqual(c.minKills);
+    layoutsRun++;
+  }, 120_000);
+
+  it(`the ${c.layouts} layouts together: enough knockback legs, knockbacks, stops at a face, buildings and kills; no nav rebuild`, () => {
+    expect(layoutsRun, "every layout test above ran and passed").toBe(c.layouts);
+    const applied = knockbacks.applied - applied0;
+    const stopped = knockbacks.stopped - stopped0;
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`${label}: ${c.layouts} layouts, ${buildingsPlaced} buildings, ${applied} knockbacks, ${stopped} stopped at a face (${stoppedByMap} by a map box), ${kills} kills by ${c.weapons.join("/")}`);
+    expect(legs).toBeGreaterThanOrEqual(c.minApplied); // the per-leg check really ran
+    expect(navRebuildsOutsideBuildChanges, `${label}: nav rebuilt without a building change`).toBe(0);
+    expect(buildingsPlaced).toBeGreaterThan(c.layouts * 2);
+    expect(applied).toBeGreaterThanOrEqual(c.minApplied);
+    expect(stopped).toBeGreaterThanOrEqual(c.minStopped);
+    if (c.nearCover) expect(stoppedByMap, `${label}: knockbacks really met map boxes (cars, bus, buildings, barriers)`).toBeGreaterThanOrEqual(c.minStopped);
+    expect(kills).toBeGreaterThanOrEqual(c.minKills);
+  });
 }
 
 describe("Shotgun knockback fuzz (Story 5.3, brief line 7)", () => {
-  it(
-    "random decay × building layouts × 2,000 ticks: no body in a box, none through one, none off the map, zombies reach the player",
-    () => runFuzz("shotgun knockback fuzz", { loadouts: [["shotgun", null]], layouts: LAYOUTS, weapons: ["shotgun"], minApplied: 500, minStopped: 20, minKills: 100, minLayoutKills: Infinity }),
-    240_000,
+  describe("random decay × building layouts × 2,000 ticks: no body in a box, none through one, none off the map, zombies reach the player", () =>
+    fuzzSuite("shotgun knockback fuzz", { loadouts: [["shotgun", null]], layouts: LAYOUTS, weapons: ["shotgun"], minApplied: 500, minStopped: 20, minKills: 100, minLayoutKills: Infinity }),
   );
 });
 
 describe("Fire Axe knockback fuzz (Story 5.2, brief line 7)", () => {
-  it(
+  describe(
     "4 axe players × random decay × building layouts × 2,000 ticks: no body in a box, none through a barricade, none off the map, zombies reach a player, no nav rebuild from knockback",
     () =>
-      runFuzz("axe knockback fuzz", {
+      fuzzSuite("axe knockback fuzz", {
         loadouts: [["fire_axe", null], ["fire_axe", null], ["fire_axe", null], ["fire_axe", null]],
         layouts: AXE_LAYOUTS,
         weapons: ["fire_axe"],
@@ -291,6 +302,5 @@ describe("Fire Axe knockback fuzz (Story 5.2, brief line 7)", () => {
         minLayoutKills: 60,
         nearCover: true,
       }),
-    240_000,
   );
 });

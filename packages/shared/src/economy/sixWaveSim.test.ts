@@ -49,35 +49,34 @@ function checkRun(b: Balance, r: HeadlessRunLog): void {
 const sum = (xs: readonly (number | undefined)[]) => xs.reduce<number>((a, x) => a + (x ?? 0), 0);
 
 describe("six-wave card sim (Story 5.13: bots buy from their cards; seeded)", () => {
-  it("seeds 1–6 × 2/3/4 bots: every run ends; cards bought (builds 0 and 3, ≥ 3 per run); rerolls paid", () => {
-    const lines: string[] = [];
-    for (const players of TEAM_SIZES) {
-      let rerolls = 0;
-      for (let seed = 1; seed <= 6; seed++) {
-        const r = runHeadless({ balance, seed, players, list: LIST });
-        checkRun(balance, r);
-        expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(3);
-        // Build phases reached: 0 … reached − 1 (an extracted run ends in Results after the vote after the last wave).
-        for (const build of CARD_BUILDS) if (build < r.reached) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
-        rerolls += sum(r.rerolls);
-        lines.push(`${players}p seed ${seed}: ${(r.ending === "extracted") ? "extracted" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
-      }
-      expect(rerolls, `${players} bots`).toBeGreaterThanOrEqual(1); // rerolls really happen
-    }
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[six-wave card sim]\n${lines.join("\n")}`);
-  }, 300_000);
+  // E8-A8 (no test over 30 s): one test per run (team size × seed, a few s each), then the per-team-size totals. Same
+  // runs and the same assertions as the old two tests (89 s and 51 s in CI); the totals need every run test to have
+  // run first (a -t filter on one run fails them).
+  const RUNS = TEAM_SIZES.flatMap((players) => [1, 2, 3, 4, 5, 6].map((seed) => [players, seed] as const));
+  const rerollsBy = new Map<number, number>();
+  const lines: string[] = [];
+  it.each(RUNS)("%i bots, seed %i: the run ends; cards bought (builds 0 and 3, ≥ 3 per run); rerolls paid", (players, seed) => {
+    const r = runHeadless({ balance, seed, players, list: LIST });
+    checkRun(balance, r);
+    expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(3);
+    // Build phases reached: 0 … reached − 1 (an extracted run ends in Results after the vote after the last wave).
+    for (const build of CARD_BUILDS) if (build < r.reached) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
+    rerollsBy.set(players, (rerollsBy.get(players) ?? 0) + sum(r.rerolls));
+    lines.push(`${players}p seed ${seed}: ${(r.ending === "extracted") ? "extracted" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
+  }, 120_000);
 
-  it("startingWallet 400: cards from build 0 in every run, ≥ 2 per bot over the run", () => {
-    const lines: string[] = [];
-    for (const players of TEAM_SIZES) {
-      for (let seed = 1; seed <= 3; seed++) {
-        const r = runHeadless({ balance: rich, seed, players, list: LIST });
-        checkRun(rich, r);
-        expect(r.cardsByBuild[0] ?? 0).toBeGreaterThanOrEqual(1);
-        expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(2 * players);
-        lines.push(`${players}p seed ${seed} (400): cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")}`);
-      }
-    }
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[six-wave card sim, wallet 400]\n${lines.join("\n")}`);
-  }, 300_000);
+  it("seeds 1–6 × 2/3/4 bots together: rerolls really happen for every team size", () => {
+    expect(lines.length, "every run test above ran and passed").toBe(RUNS.length);
+    for (const players of TEAM_SIZES) expect(rerollsBy.get(players) ?? 0, `${players} bots`).toBeGreaterThanOrEqual(1);
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[six-wave card sim]\n${lines.join("\n")}`);
+  });
+
+  const RICH_RUNS = TEAM_SIZES.flatMap((players) => [1, 2, 3].map((seed) => [players, seed] as const));
+  it.each(RICH_RUNS)("startingWallet 400, %i bots, seed %i: cards from build 0, ≥ 2 per bot over the run", (players, seed) => {
+    const r = runHeadless({ balance: rich, seed, players, list: LIST });
+    checkRun(rich, r);
+    expect(r.cardsByBuild[0] ?? 0).toBeGreaterThanOrEqual(1);
+    expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(2 * players);
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[six-wave card sim, wallet 400] ${players}p seed ${seed} (400): cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")}`);
+  }, 120_000);
 });

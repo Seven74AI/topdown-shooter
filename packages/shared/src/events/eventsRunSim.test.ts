@@ -24,7 +24,9 @@ const info = (msg: string): void => (globalThis as unknown as { console: { info(
 const IDX = (k: string): number => EVENT_KINDS.indexOf(k as (typeof EVENT_KINDS)[number]);
 
 describe("Stories 6.9 + 6.10: the four events in whole runs", () => {
-  it("8 seeds × 4 god-mode bots: every run plays all 10 waves; booms kill, bots take crates, the power fails, survivors are saved and lost", () => {
+  describe("8 seeds × 4 god-mode bots: every run plays all 10 waves; booms kill, bots take crates, the power fails, survivors are saved and lost", () => {
+    // E8-A8 (no test over 30 s; was 26 s in CI, close to the limit): one test per seed, then the totals. Same runs,
+    // order and assertions as the old single test; the totals need every seed test above to have run.
     let booms = 0;
     let gasKills = 0;
     let crates = 0;
@@ -32,7 +34,8 @@ describe("Stories 6.9 + 6.10: the four events in whole runs", () => {
     let saved = 0;
     let lost = 0;
     let eventPay = 0;
-    for (const seed of SEEDS) {
+    let casesRun = 0;
+    it.each(SEEDS)("seed %i: all 10 waves, each of the four events once", (seed) => {
       let darkTicks = 0;
       const onTick = (w: World): void => {
         if (w.lights.powerFailure && w.lights.blackoutPct > 0) darkTicks++;
@@ -62,16 +65,21 @@ describe("Stories 6.9 + 6.10: the four events in whole runs", () => {
       lost += log.survivorsLost;
       eventPay += r.earnedBy.event;
       expect(w.lights.powerFailure, `seed ${seed}: the flag is cleared after the wave`).toBe(false);
-    }
-    info(`events sim: booms ${booms}, gas kills ${gasKills}, crates ${crates}, dark ${dark}, saved ${saved}, lost ${lost}, event pay ${eventPay}`);
-    expect(booms).toBe(SEEDS.length); // one blast per gas leak, never two
-    expect(gasKills).toBeGreaterThan(0);
-    expect(crates).toBeGreaterThan(0);
-    expect(dark).toBe(SEEDS.length);
-    expect(saved + lost).toBe(SEEDS.length);
-    expect(saved).toBeGreaterThan(0);
-    expect(eventPay).toBe(saved * 4 * balance.events.survivor.reward);
-  }, 240_000);
+      casesRun++;
+    }, 120_000);
+
+    it("the seeds together: booms kill, bots take crates, the power fails, survivors are saved and lost", () => {
+      expect(casesRun, "every case above ran and passed").toBe(SEEDS.length);
+      info(`events sim: booms ${booms}, gas kills ${gasKills}, crates ${crates}, dark ${dark}, saved ${saved}, lost ${lost}, event pay ${eventPay}`);
+      expect(booms).toBe(SEEDS.length); // one blast per gas leak, never two
+      expect(gasKills).toBeGreaterThan(0);
+      expect(crates).toBeGreaterThan(0);
+      expect(dark).toBe(SEEDS.length);
+      expect(saved + lost).toBe(SEEDS.length);
+      expect(saved).toBeGreaterThan(0);
+      expect(eventPay).toBe(saved * 4 * balance.events.survivor.reward);
+    });
+  });
 
   it("same seed + no input → the same digest through all four events (events stream only, brief 8)", () => {
     const go = (): string => {
