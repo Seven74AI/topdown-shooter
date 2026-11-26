@@ -77,6 +77,15 @@ export class TextureRegistry {
     return () => this.unregister(key);
   }
 
+  /**
+   * Story 9.15 (review L1): gives a registered entry its `isIntact` check later, once its canvas holds a known pixel (a
+   * texture registered while still empty has none). No-op for an unknown key.
+   */
+  setIntactCheck(key: string, isIntact: () => boolean): void {
+    const e = this.entries.get(key);
+    if (e) this.entries.set(key, { ...e, isIntact });
+  }
+
   unregister(key: string): void {
     this.entries.delete(key);
     const cs = this.canvases.get(key);

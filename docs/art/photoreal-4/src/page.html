@@ -1,0 +1,100 @@
+<title>Photoreal Behemoth</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a before/after ledger. One wide card per Behemoth look with Now, Take A and Take B side by side on the same night street, then every pose of one look. Dark by design: the art lives on the street, like the earlier photoreal pages. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 60px; margin: 0; }
+main { max-width: 1200px; margin-inline: auto; display: flex; flex-direction: column; gap: 14px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 6px; text-wrap: balance; }
+h1 span { color: var(--accent); }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin: 22px 0 0; text-wrap: balance; }
+p { color: var(--muted); line-height: 1.5; max-width: 72ch; margin: 0; }
+p b { color: var(--fg); font-weight: 600; }
+.takes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.take { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.take h3 { margin: 0; font: 600 15px var(--font-body); }
+.take h3 small { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-right: 8px; }
+.take p { font-size: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.card h3 { margin: 0 0 8px; font: 600 15px var(--font-body); }
+.sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 900px) { .sides { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .sides { grid-template-columns: 1fr; } }
+figure { margin: 0; min-width: 0; }
+figure canvas { width: 100%; height: auto; display: block; border-radius: 4px; }
+figcaption { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+figure:not(.now) figcaption { color: var(--accent); }
+.poses { overflow-x: auto; }
+.poses table { border-collapse: collapse; }
+.poses th { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px 4px 0; white-space: nowrap; }
+.poses td { padding: 2px; }
+.poses canvas { width: 132px; height: 132px; display: block; border-radius: 4px; }
+.poses .cap { font: 500 11px var(--font-body); color: var(--muted); max-width: 132px; padding-top: 3px; }
+.poses .cap.wide { vertical-align: top; }
+#dc-looks button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; cursor: pointer; margin-left: 6px; }
+#dc-looks button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
+#loading { color: var(--muted); font-size: 14px; }
+.finds { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.5; font-size: 14px; display: flex; flex-direction: column; gap: 6px; max-width: 90ch; }
+.finds b { color: var(--fg); font-weight: 600; }
+.nw { color: #7fd38a; font-weight: 600; }
+.plan { display: flex; flex-direction: column; gap: 8px; }
+.plan .goal { color: var(--fg); }
+.plan .timing { font-size: 13px; }
+.dope { overflow-x: auto; display: flex; flex-direction: column; gap: 3px; }
+.dope .lane, .dope .ruler { display: grid; grid-template-columns: 170px minmax(560px, 1fr); align-items: center; gap: 8px; }
+.dope .lane > span { font: 600 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dope .track { position: relative; height: 26px; background: #12161a; border-radius: 4px; }
+.dope .ruler .track { height: 16px; background: none; border-bottom: 1px solid var(--line); }
+.dope .ruler i { position: absolute; top: 0; font: normal 10px var(--font-body); color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+.dope .bar { position: absolute; top: 2px; bottom: 2px; background: #2b3540; border: 1px solid #3c4955; border-radius: 3px; font: 500 11px/20px var(--font-body); color: var(--fg); padding: 0 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-left: 1px; }
+.dope .bar.nw { background: #1f3a26; border-color: #3f7a4c; }
+.dope .bar.key { background: #5a3a12; border-color: var(--accent); }
+.dope .bar.key.nw { background: #4a4a14; }
+.player .pc { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.player .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; max-width: 560px; }
+.player .row > span { display: inline-flex; gap: 4px; margin-right: 8px; }
+.player button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+.player button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
+#pl-canvas { width: min(100%, 560px); height: auto; border-radius: 6px; display: block; }
+.player .bar { position: relative; flex: 1; height: 6px; background: #12161a; border-radius: 3px; }
+.player .bar i { position: absolute; top: -3px; width: 3px; height: 12px; background: var(--accent); border-radius: 2px; }
+#pl-time { font: 500 12px var(--font-body); color: var(--muted); min-width: 110px; text-align: right; }
+.moments { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.moments figure canvas { width: 100%; height: auto; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.controls button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
+.controls button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+<main>
+  <header>
+    <h1>The Behemoth, <span>photoreal</span></h1>
+    <p>Photoreal group 4: the wave-10 boss. Each card shows the boss as the game draws it now, then the previous pick and the new take, walking on the same night street. Both keep today's size, poses and grey outline, so the slam, charge and throw warnings still line up. Pick a take, or tell me what to mix.</p>
+  </header>
+  <section class="takes">
+    <div class="take"><h3><small>Previous pick</small>Take B + V2/V3 mix</h3><p>Take B's detail with the organic pulsing veins, as picked before the rethink: the parts were added on top of each other.</p></div>
+    <div class="take"><h3><small>Take C · new</small>One model</h3><p>Everything rethought around one idea: <b>a body that grew too fast for its skin.</b> Muscle masses follow the hunched back (trapezius, deltoids, lats, spine groove). The skin <b>split</b> where it stretches most (shoulder tops, the seams, the flanks, the biceps), and those splits replace the random cracks and wounds. The <b>veins</b> run along the grooves from the neck to the splits they feed and on down the arms. Enraged, veins and splits glow from the same blood and <b>one heartbeat</b> (1.2 s) runs out from the neck; the eyes pulse on the same beat. The clothes are torn where the body burst out, with strain creases toward the shoulders. It rams walls shoulder first, so <b>concrete sits in the front of the shoulders and grit in the knuckles</b>; blood only where the rebar goes in. Per look: BH1 has one split stapled shut by the lab, BH2 is covered in concrete dust, BH3's tumours grew out of the splits, BH4's flesh swells round its fused armour and tears at the rims. Silhouette, size, poses, outline frames and warnings unchanged.</p></div>
+  </section>
+  <div class="controls" role="group" aria-label="Animation">
+    <button id="anim" aria-pressed="true">Animation on</button>
+    <button id="enr" aria-pressed="false">Show enraged</button>
+    <span>In the game: the two walk pictures crossfade, the body breathes, the eyes pulse and the street light slides over the skin.</span>
+  </div>
+  <p id="loading">Drawing the takes…</p>
+  <div id="looks" style="display:flex;flex-direction:column;gap:14px"></div>
+  <h2>Every pose (BH1, the prototype)</h2>
+  <p>Walk, slam wind-up, slam hit, charge, rush, throw, stun, roar and the collapse, as the boss fight uses them.</p>
+  <div class="card poses"><table id="poses"></table></div>
+</main>
+<script>/*@JS@*/</script>

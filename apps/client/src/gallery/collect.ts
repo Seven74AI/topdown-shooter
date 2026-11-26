@@ -6,6 +6,7 @@ import { ensureCharacterSheets, pumpCharacters } from "../render/city/characters
 import { ensureBuildIcons } from "../render/city/buildIcons";
 import { ensureBlastFxAtlas } from "../render/city/blastFxAtlas";
 import { ensureBossTextures } from "../render/city/bossAtlas";
+import { ensureBossRelit, finishBossRelitNow, requestBossLook } from "../render/city/bossRelit";
 import { ensureConsumableIcons, CONSUMABLE_ICON_FRAMES, consumableIconUrl } from "../render/city/consumableIcons";
 import { ensureFireFxAtlas } from "../render/city/fireFxAtlas";
 import { ensureGearIcons, GEAR_ICON_FRAMES, gearIconUrl } from "../render/city/gearIcons";
@@ -52,6 +53,9 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);
           ensureBossTextures(this);
+          ensureBossRelit(this, { worker: false }); // Story 9.15: the relit Behemoth (one look in the sheets: BH1), baked on the spot
+          requestBossLook(0);
+          finishBossRelitNow();
           ensureConsumableIcons(this);
           ensureFireFxAtlas(this);
           ensureGearIcons(this);

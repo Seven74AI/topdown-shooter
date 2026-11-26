@@ -134,3 +134,18 @@ export function deathFrameIndex(sinceS: number, collapseS: number): 0 | 1 | 2 {
   const k = collapseS > 0 ? sinceS / collapseS : 1;
   return k < 1 / 3 ? 0 : k < 2 / 3 ? 1 : 2;
 }
+
+/**
+ * Story 9.15 (G2 A): how far a throw's lift is (0–1), from the start tick to the release (`releaseTick` = the impact
+ * minus the flight), for the throw pose by progress. 0 outside the lift's ticks or for an empty lift.
+ */
+export function throwLiftProgress(nowServerTick: number, startTick: number, releaseTick: number): number {
+  const len = releaseTick - startTick;
+  if (!(len > 0) || !(nowServerTick >= startTick)) return 0;
+  return Math.min(1, (nowServerTick - startTick) / len);
+}
+
+/** Story 9.15 (G2 A): the charge / throw warning pose by progress: the half-way frame (0), then the full pose (1). */
+export function warningPoseIndex(progress: number): 0 | 1 {
+  return progress < 0.5 ? 0 : 1;
+}
