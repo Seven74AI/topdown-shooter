@@ -7,6 +7,7 @@ import type { Database } from "./client";
 import { accounts, paidBags, progress, runRewards, type LifetimeStatsRow } from "./schema";
 import { PROGRESSION, parseStoredSettings, type StoredPlayerSettings } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
+import { log } from "../ops/logger";
 
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 
@@ -109,6 +110,8 @@ export interface BankResult {
   breakdown: Record<string, unknown>;
   /** Story 7.6 (AC 10, D9): this bank is a guest's first of ≥ `account.saveNudgeSupplies`: show "Save my progress" once. */
   nudge: boolean;
+  /** Story 10.1 re-review M3-log: the seat's account no longer exists (deleted): nothing paid, not "already banked". */
+  noAccount?: true;
 }
 
 /**
@@ -334,7 +337,11 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .for("no key update");
           // Story 10.1 review M3: the seat's account was deleted (Delete my progress) while its run went on: nobody to pay.
           // A quiet no-op (never an FK error, a `supplies_bank_failed` line or a hand-grant request on every retry).
-          if (acc[0] === undefined) return { banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false };
+          // Re-review M3-log: one line per bank attempt, so a made-up id is not silent and ops can tell it from "already banked".
+          if (acc[0] === undefined) {
+            log.warn({ runId }, "supplies_bank_no_account");
+            return { banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false, noAccount: true };
+          }
           const payee = acc[0].mergedInto ?? accountId;
           await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx

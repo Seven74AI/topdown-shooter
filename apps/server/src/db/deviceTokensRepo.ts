@@ -15,7 +15,7 @@
  * - `logOut`: the device's row is deleted and a new guest (account + device row + empty progress) is made; the
  *   account is untouched.
  */
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { parseStoredSettings } from "@topdown/shared";
 import { mergeProgress, type MergeRefunds, type MergeRow } from "../meta/merge";
 import type { Account } from "./accountsRepo";
@@ -113,15 +113,19 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
         database,
         "devices.logIn",
         async (tx): Promise<LogInResult> => {
-          // Review L4: one lock order for every account switch — the device row, then the account row, then the guest.
+          // Review L4 + Story 10.1 re-review M2: one lock order for every account switch and delete — the device rows (sorted by
+          // token hash), then the account row, then the guest. A reset also locks every device row of the account here
+          // (it deletes them below), in the same sorted statement as the device's own row.
           let current: string | undefined;
-          if (input.oldTokenHash !== null) {
-            const dev = await tx
-              .select({ accountId: deviceTokens.accountId })
-              .from(deviceTokens)
-              .where(eq(deviceTokens.tokenHash, input.oldTokenHash))
-              .for("update");
-            current = dev[0]?.accountId;
+          const old = input.oldTokenHash;
+          if (old !== null || input.credentials) {
+            const which = input.credentials
+              ? old !== null
+                ? or(eq(deviceTokens.tokenHash, old), eq(deviceTokens.accountId, input.accountId))
+                : eq(deviceTokens.accountId, input.accountId)
+              : eq(deviceTokens.tokenHash, old as string);
+            const devs = await tx.select({ h: deviceTokens.tokenHash, accountId: deviceTokens.accountId }).from(deviceTokens).where(which).orderBy(asc(deviceTokens.tokenHash)).for("update");
+            current = old === null ? undefined : devs.find((d) => d.h === old)?.accountId;
           }
           const target = await tx
             .select({ passwordHash: accounts.passwordHash, recoveryCodeHash: accounts.recoveryCodeHash })

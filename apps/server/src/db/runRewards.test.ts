@@ -172,7 +172,7 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     await db.execute(sql`delete from progress where account_id = ${acct.id}`);
     const repo = progressRepo(database);
     expect((await repo.addSupplies(RUN_A, acct.id, pays(30))).newTotal).toBe(30);
-    expect(await repo.addSupplies(RUN_A, "99999999-9999-4999-8999-999999999999", pays(30))).toEqual({ banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false });
+    expect(await repo.addSupplies(RUN_A, "99999999-9999-4999-8999-999999999999", pays(30))).toEqual({ banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false, noAccount: true });
   });
 
   it("a negative payout is clamped to 0 (a balance never goes down through a bank)", async () => {

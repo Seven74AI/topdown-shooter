@@ -43,7 +43,8 @@ import { serverUrl } from "./serverUrl";
 import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 import { accountStore } from "./accountStore";
 import { progressStore } from "./progressStore";
-import { acceptSessionSettings } from "./settingsSync";
+import { acceptSessionSettings, pushSettings } from "./settingsSync";
+import { setSettingsPending, settingsPendingFor } from "../settings/settings";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -307,6 +308,10 @@ export async function recoverAccount(username: string, code: string, newPassword
 
 export async function logOutAccount(over: Partial<AccountDeps> = {}): Promise<AccountCall<DeviceSessionResponse>> {
   accountStore.expectGuest(); // Story 10.1 review L9: my own log-out is not "the account went away"
+  // Story 10.1 re-review (M1 nit): a change still pending for this account is sent first, then the mark is dropped, so
+  // nothing changed later as a guest can reach the account at its next login.
+  if (settingsPendingFor() !== null) await pushSettings();
+  setSettingsPending(null);
   const r = await action(ACCOUNT_LOGOUT_PATH, {}, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
   if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
   return r;

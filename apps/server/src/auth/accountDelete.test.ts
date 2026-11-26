@@ -367,3 +367,45 @@ describe("Story 10.1 review fixes (server)", () => {
     expect((await repo.get(other.id))?.cosmetics).not.toContain("hat:blue");
   });
 });
+
+describe("Story 10.1 re-review round 1 (server)", () => {
+  it("L5-live: a live room remembers my seat; I delete; its next autosave keeps my seat scrubbed (snapshot and names)", async () => {
+    const me = await account();
+    const other = await account();
+    const run = crypto.randomUUID();
+    const saves = savedRunsRepo(database);
+    const snapshot = () => ({ schemaVersion: 1, wave: 4, seats: [{ seatKey: `acct:${me.id}`, accountId: me.id, name: "Ana Real", slot: 0 }, { seatKey: `acct:${other.id}`, accountId: other.id, name: "Bo", slot: 1 }], bannedSeats: [] });
+    const row = () => ({ ...saveRow(run, [me.id, other.id]), roomCode: "LIVE", snapshot: snapshot(), names: [{ name: "Ana Real", slot: 0 }, { name: "Bo", slot: 1 }] });
+    expect(await saves.upsertOpen(row())).toBe(true);
+    expect((await post("/account/delete", { password: PASSWORD }, { cookie: me.token })).status).toBe(200);
+    // the room still remembers the seat (its account id and real name) and autosaves
+    expect(await saves.upsertOpen(row())).toBe(true);
+    const after = await savedRunForTest(database, run);
+    expect(JSON.stringify(after)).not.toContain(me.id);
+    expect(JSON.stringify(after)).not.toContain("Ana Real");
+    expect(after?.names).toEqual([{ name: DELETED_SEAT_NAME, slot: 0 }, { name: "Bo", slot: 1 }]);
+    expect((after?.snapshot.seats as Record<string, unknown>[])[1]).toMatchObject({ accountId: other.id, name: "Bo" });
+    expect(await accountFootprintForTest(database, [other.id], [run])).toMatchObject({ savedRunPlayers: 1, savedRuns: 1 });
+  });
+
+  it("L5-bans: a ban matching a scrubbed seat's guest key or token hash loses its hash too; other bans stay", () => {
+    const out = scrubSeats(
+      {
+        seats: [{ seatKey: "acct:m1", accountId: "m1", name: "Me", slot: 0, guestTokenHash: "h-me" }, { seatKey: "guest:h-g", accountId: "m1", name: "Me2", slot: 1 }],
+        bannedSeats: [{ seatKey: "guest:h-g", guestTokenHash: "x" }, { seatKey: "other", guestTokenHash: "h-me" }, { seatKey: "other", guestTokenHash: "h-g" }, { seatKey: "keep", guestTokenHash: "h-keep" }],
+      },
+      [],
+      new Set(["m1"]),
+    );
+    expect(out?.snapshot.bannedSeats).toEqual([{ seatKey: "deleted", guestTokenHash: "" }, { seatKey: "deleted", guestTokenHash: "" }, { seatKey: "deleted", guestTokenHash: "" }, { seatKey: "keep", guestTokenHash: "h-keep" }]);
+  });
+
+  it("M3-log: a bank for a missing account logs supplies_bank_no_account { runId } once and answers noAccount (not 'already banked')", async () => {
+    const warns: unknown[][] = [];
+    vi.spyOn(log, "warn").mockImplementation(((...args: unknown[]) => void warns.push(args)) as never);
+    const runId = crypto.randomUUID();
+    const r = await progressRepo(database).addSupplies(runId, "99999999-9999-4999-8999-999999999999", () => ({ supplies: 5, breakdown: {} }));
+    expect(r).toMatchObject({ banked: false, noAccount: true });
+    expect(warns.filter((w) => w[1] === "supplies_bank_no_account")).toEqual([[{ runId }, "supplies_bank_no_account"]]);
+  });
+});

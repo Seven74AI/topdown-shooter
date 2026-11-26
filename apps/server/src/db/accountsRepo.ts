@@ -3,11 +3,12 @@
  * Every call: async, 2 s timeout, `db_error {op}` on failure (`withDbTimeout`). Story 7.6: a device is found through
  * `device_tokens` (one account, several devices); usernames, password and recovery-code hashes.
  */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database } from "./client";
 import { accounts, deviceTokens, paidBags, progress, runRewards, savedRunPlayers, savedRuns } from "./schema";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 import { boundedTransaction } from "./boundedTx";
+import { scrubSeats } from "./scrubSeats";
 
 /** What the rest of the server may know about an account (never a hash). */
 export interface Account {
@@ -111,15 +112,19 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
     // Not under withDbTimeout: a delete reported as failed must never commit later (the player would retry a ghost).
     deleteAccount: (tokenHash, expectAccountId, expectPasswordHash, checkedHashes) =>
       boundedTransaction(database, "accounts.deleteAccount", async (tx): Promise<DeleteAccountResult> => {
-        // One lock order with the 7.6 switches (review L3): the device row, then the account row, then its other devices.
-        const dev = await tx.select({ accountId: deviceTokens.accountId }).from(deviceTokens).where(eq(deviceTokens.tokenHash, tokenHash)).for("update");
+        // Re-review M2: ONE lock order for every account switch and delete — the device rows (sorted by token hash), then
+        // the account row. The device's account is read without a lock, then ALL its device rows are locked in order.
+        const dev = await tx.select({ accountId: deviceTokens.accountId }).from(deviceTokens).where(eq(deviceTokens.tokenHash, tokenHash));
         const id = dev[0]?.accountId;
         if (id === undefined || id !== expectAccountId) return { outcome: "gone" };
+        const locked = await tx.select({ h: deviceTokens.tokenHash }).from(deviceTokens).where(eq(deviceTokens.accountId, id)).orderBy(asc(deviceTokens.tokenHash)).for("update");
+        if (!locked.some((d) => d.h === tokenHash)) return { outcome: "gone" }; // the device was logged out or switched meanwhile
         const acc = await tx.select({ username: accounts.username, passwordHash: accounts.passwordHash }).from(accounts).where(eq(accounts.id, id)).for("update");
         const a = acc[0];
         if (!a) return { outcome: "gone" };
         if (a.username !== null && a.passwordHash !== expectPasswordHash) return { outcome: "stale_credentials" };
-        const devices = await tx.select({ h: deviceTokens.tokenHash }).from(deviceTokens).where(eq(deviceTokens.accountId, id)).for("update");
+        // Review M2: a device row added after the route's room check (a login that held the account lock first).
+        const devices = await tx.select({ h: deviceTokens.tokenHash }).from(deviceTokens).where(eq(deviceTokens.accountId, id));
         if (devices.some((d) => !checkedHashes.has(d.h))) return { outcome: "new_device" };
         const guests = (await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.mergedInto, id))).map((r) => r.id);
         const mine = [id, ...guests];
@@ -235,29 +240,4 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
   };
 }
 
-/** Review L5: the neutral name a deleted player's seat keeps in a shared saved run. */
-export const DELETED_SEAT_NAME = "Survivor";
-
-/**
- * Review L5: a shared saved run's snapshot and list names with every seat of `mine` scrubbed: `accountId` null, a seat key
- * no join can produce (`deleted:<slot>`), the name `DELETED_SEAT_NAME`; a ban of such a seat loses its token hash too.
- * null when no seat was mine. Pure (tested without a database).
- */
-export function scrubSeats(snapshot: Record<string, unknown>, names: readonly { name: string; slot: number }[], mine: ReadonlySet<string>): { snapshot: Record<string, unknown>; names: { name: string; slot: number }[] } | null {
-  const seats = Array.isArray(snapshot.seats) ? (snapshot.seats as Record<string, unknown>[]) : [];
-  const keys = new Set([...mine].map((id) => `acct:${id}`));
-  const slots = new Set<number>();
-  const nextSeats = seats.map((seat) => {
-    const isMine = (typeof seat.accountId === "string" && mine.has(seat.accountId)) || (typeof seat.seatKey === "string" && keys.has(seat.seatKey));
-    if (!isMine) return seat;
-    slots.add(Number(seat.slot));
-    return { ...seat, accountId: null, seatKey: `deleted:${String(seat.slot)}`, name: DELETED_SEAT_NAME };
-  });
-  if (slots.size === 0) return null;
-  const bans = Array.isArray(snapshot.bannedSeats) ? (snapshot.bannedSeats as Record<string, unknown>[]) : [];
-  const nextBans = bans.map((b) => (typeof b.seatKey === "string" && keys.has(b.seatKey) ? { seatKey: "deleted", guestTokenHash: "" } : b));
-  return {
-    snapshot: { ...snapshot, seats: nextSeats, bannedSeats: nextBans },
-    names: names.map((n) => (slots.has(n.slot) ? { name: DELETED_SEAT_NAME, slot: n.slot } : { ...n })),
-  };
-}
+export { DELETED_SEAT_NAME, scrubSeats } from "./scrubSeats";

@@ -56,6 +56,69 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
     expect(deleted + kept).toBe(20);
   });
 
+  /** An account with two devices D and E (both checked by the route). */
+  async function twoDevices(): Promise<{ id: string; d: string; e: string }> {
+    const a = await acct();
+    const e = hex();
+    const r = await deviceTokensRepo(database).logIn({ oldTokenHash: null, newTokenHash: e, accountId: a.id, expectPasswordHash: "p" });
+    expect(r.outcome).toBe("ok");
+    return { id: a.id, d: a.token, e };
+  }
+  const tallies = new Map<string, number>();
+  const tally = (k: string): void => void tallies.set(k, (tallies.get(k) ?? 0) + 1);
+  afterAll(() => {
+    if (tallies.size > 0) console.info(`race tallies: ${JSON.stringify(Object.fromEntries(tallies))}`);
+  });
+  const isDeadlockOr503 = (e: unknown): boolean => {
+    for (let x: unknown = e, i = 0; x && i < 5; x = (x as { cause?: unknown }).cause, i++) if ((x as { code?: unknown }).code === "40P01") return true;
+    return true; // any thrown error is a 503 for the route
+  };
+
+  it("re-review M2: a delete from D and a re-login of the account's OTHER phone E (it holds its own device row) at once, ×20: no 40P01, no error", async () => {
+    let errors = 0;
+    for (let k = 0; k < 20; k++) {
+      const { id, d, e } = await twoDevices();
+      const results = await Promise.allSettled([
+        accountsRepo(database).deleteAccount(d, id, "p", new Set([d, e])),
+        deviceTokensRepo(database).logIn({ oldTokenHash: e, newTokenHash: hex(), accountId: id, expectPasswordHash: "p" }),
+      ]);
+      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      const [del, login] = results;
+      tally(`relogin del=${del.status === "fulfilled" ? del.value.outcome : "error"} login=${login.status === "fulfilled" ? login.value.outcome : "error"}`);
+      if (del.status === "fulfilled" && del.value.outcome === "deleted") expect(login.status === "fulfilled" && login.value.outcome).toBe("stale_credentials");
+    }
+    expect(errors).toBe(0);
+  });
+
+  it("re-review M2: two deletes of one account from its phones D and E at once, ×20: no 40P01, no error, the account goes exactly once", async () => {
+    let errors = 0;
+    for (let k = 0; k < 20; k++) {
+      const { id, d, e } = await twoDevices();
+      const both = new Set([d, e]);
+      const results = await Promise.allSettled([accountsRepo(database).deleteAccount(d, id, "p", both), accountsRepo(database).deleteAccount(e, id, "p", both)]);
+      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      const outcomes = results.map((r) => (r.status === "fulfilled" ? r.value.outcome : "error"));
+      tally(`two-deletes ${[...outcomes].sort().join("+")}`);
+      expect(outcomes.filter((o) => o === "deleted").length).toBeLessThanOrEqual(1);
+    }
+    expect(errors).toBe(0);
+  });
+
+  it("re-review M2 (lock-order audit): a delete and a forgotten-password reset of the same account at once, ×20: no 40P01, no error", async () => {
+    let errors = 0;
+    for (let k = 0; k < 20; k++) {
+      const { id, d, e } = await twoDevices();
+      await (await database.db()).execute(sql`update accounts set recovery_code_hash = 'r' where id = ${id}`);
+      const results = await Promise.allSettled([
+        accountsRepo(database).deleteAccount(d, id, "p", new Set([d, e])),
+        deviceTokensRepo(database).logIn({ oldTokenHash: e, newTokenHash: hex(), accountId: id, credentials: { expectRecoveryHash: "r", passwordHash: "p2", recoveryCodeHash: "r2" } }),
+      ]);
+      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      tally(`reset del=${results[0].status === "fulfilled" ? results[0].value.outcome : "error"} reset=${results[1].status === "fulfilled" ? results[1].value.outcome : "error"}`);
+    }
+    expect(errors).toBe(0);
+  });
+
   it("M3: a bank racing the delete of its account, ×20: never an error; the money lands before the delete or nowhere", async () => {
     for (let k = 0; k < 20; k++) {
       const a = await acct();

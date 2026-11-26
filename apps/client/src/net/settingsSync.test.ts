@@ -145,3 +145,36 @@ describe("settingsSync", () => {
     expect(settingsPendingFor()).toBe("mo_42");
   });
 });
+
+describe("re-review M1 nit: logging out drops this account's pending mark (after one last send)", () => {
+  afterEach(() => {
+    setSettingsSyncDeps(null);
+    resetSettingsCache();
+  });
+  it("A's unsent change is sent before the log-out; guest-era changes then never reach A at its next login", async () => {
+    resetSettingsCache();
+    const sent: unknown[] = [];
+    let user: string | null = "mo_42";
+    setSettingsSyncDeps({
+      fetch: (async (_u: string, init: RequestInit) => {
+        sent.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({ ok: false }), { status: 503 }); // the last send fails: the mark must still go
+      }) as unknown as typeof fetch,
+      url: () => "/api/account/settings",
+      username: () => user,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    });
+    changeSettings({ rain: "off" });
+    const { logOutAccount } = await import("./account");
+    const logout = (async () => new Response(JSON.stringify({ message: "save_unavailable" }), { status: 503 })) as unknown as typeof fetch;
+    await logOutAccount({ fetch: logout, url: () => "/x" });
+    expect(sent).toEqual([{ settings: { rain: "off" } }]);
+    expect(settingsPendingFor()).toBeNull();
+    user = null;
+    changeSettings({ glow: "off" }); // a guest change
+    user = "mo_42";
+    expect(acceptSessionSettings("mo_42", { rain: "light" })).toBe("adopt");
+    expect(sent).toHaveLength(1);
+  });
+});
