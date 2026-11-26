@@ -10,6 +10,20 @@ import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 import { boundedTransaction } from "./boundedTx";
 import { scrubSeats } from "./scrubSeats";
 
+/**
+ * LOCK ORDER (Story 10.1 re-review rounds 1–2): every transaction that locks more than one of these takes them in this
+ * order, or deadlocks become possible (PostgreSQL aborts one side with 40P01 → a 503):
+ *
+ *   1. device_tokens rows — all of them for one account, sorted by token_hash (`ORDER BY token_hash FOR UPDATE`);
+ *   2. accounts rows — the account first, then its merged guests; several accounts in id order;
+ *   3. guest-side rows (the merged guest's account / progress rows);
+ *   4. saved_runs (and saved_run_players).
+ *
+ * Paths: `deleteAccount` (1 → 2 → 3 → 4), `deviceTokensRepo.logIn` / reset (1 → 2 → merge 3), `deviceTokensRepo.logOut`
+ * (1 only), `progressRepo.addSupplies` (2: payee before the merged guest's seat row), `savedRunsRepo` put (2 as KEY SHARE
+ * → 4). A new path that locks two of these points here.
+ */
+
 /** What the rest of the server may know about an account (never a hash). */
 export interface Account {
   id: string;
@@ -112,7 +126,7 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
     // Not under withDbTimeout: a delete reported as failed must never commit later (the player would retry a ghost).
     deleteAccount: (tokenHash, expectAccountId, expectPasswordHash, checkedHashes) =>
       boundedTransaction(database, "accounts.deleteAccount", async (tx): Promise<DeleteAccountResult> => {
-        // Re-review M2: ONE lock order for every account switch and delete — the device rows (sorted by token hash), then
+        // LOCK ORDER (top of this file). Re-review M2: ONE lock order for every account switch and delete — the device rows (sorted by token hash), then
         // the account row. The device's account is read without a lock, then ALL its device rows are locked in order.
         const dev = await tx.select({ accountId: deviceTokens.accountId }).from(deviceTokens).where(eq(deviceTokens.tokenHash, tokenHash));
         const id = dev[0]?.accountId;

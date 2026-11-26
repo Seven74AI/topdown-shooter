@@ -113,7 +113,7 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
         database,
         "devices.logIn",
         async (tx): Promise<LogInResult> => {
-          // Review L4 + Story 10.1 re-review M2: one lock order for every account switch and delete — the device rows (sorted by
+          // LOCK ORDER (`accountsRepo.ts`). Review L4 + Story 10.1 re-review M2: one lock order for every account switch and delete — the device rows (sorted by
           // token hash), then the account row, then the guest. A reset also locks every device row of the account here
           // (it deletes them below), in the same sorted statement as the device's own row.
           let current: string | undefined;

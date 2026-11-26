@@ -190,6 +190,15 @@ Ultimate context engine analysis completed - comprehensive developer guide creat
 | L5-bans | Bans matching a scrubbed guest seat key / token hash kept the hash | `scrubSeats` also clears bans by the scrubbed seats' original keys and guest token hashes | "L5-bans: a ban matching a scrubbed seat's guest key or token hash loses its hash too" |
 | M1 nit | A pending mark survived a log-out | `logOutAccount` sends a pending change first, then drops the mark (`net/account.ts`); B9 states the A → B fallback | `settingsSync.test.ts` "re-review M1 nit: logging out drops this account's pending mark" |
 
+**Re-review round 2 (the last; the cap is reached, the main session checks these): M2 holds for login, reset, delete, merge, upgrade; 2 more lock-order paths + 1 test nit.** All fixed:
+
+| # | Finding | Fix (file) | Test (real PG 16, `realPostgresDelete.test.ts`) |
+| --- | --- | --- | --- |
+| R2-1 (medium) | Delete (A devices → A FOR UPDATE → saved_runs) vs an autosave of a shared run linking A (upsert run → link insert → FK key share on A) deadlocked; a delete committing between `knownAccounts` and the link insert gave 23503 | `savedRunsRepo` put: `knownAccounts` locks the linked account rows `ORDER BY id FOR KEY SHARE` BEFORE the run row (accounts → saved_runs, like delete and merge); a deleted account reads as gone (scrubbed, not linked). Line 143 unchanged; the delete's order unchanged | "re-review round 2 #1 (deterministic)": a third transaction holds the run row, the autosave queues on it, the delete starts, the row is freed — old code 1/1 40P01, fixed 0. "re-review round 2 #1 (race) ×20": old code 19/20 40P01, fixed 0 in 4 runs (save-race: deleted 20/20) |
+| R2-2 (low) | Bank for a merged guest's seat (guest row FOR NO KEY UPDATE → insert progress(A) → key share A) vs the delete of A (holds A, deletes the guest rows) | `progressRepo.addSupplies`: `mergedInto` read unlocked, the payee account row locked first (FOR NO KEY UPDATE), then the seat row, `mergedInto` re-checked (a merge that landed in between locks its payee then) | "re-review round 2 #2 ×20" with progress(A) missing: old code 6/20 40P01, fixed 0 in 4 runs (bank banked 13–20 / noAccount 0–7) |
+| R2-nit | `isDeadlockOr503` always returned true | Replaced by `countErrors` (every rejected result counts) with codes tallied from the `db_error` log line, which now carries the PostgreSQL SQLSTATE (`code`, `boundedTx.ts › pgCode`) | the tallies above (40P01 counts on the old code) |
+| docs | One lock order, written once | LOCK ORDER block at the top of `db/accountsRepo.ts` (device rows by token_hash → accounts (account, then merged guests; several in id order) → guest rows → saved_runs); `deleteAccount`, `deviceTokensRepo.logIn`, `savedRunsRepo` put, `progressRepo.addSupplies` point at it | — |
+
 Mutation check (E8-A1/E8-A3): each round-1 fix was removed and its test re-run. All fail without the fix and pass with it.
 
 E8-A1: no red test was labelled flaky. Real PostgreSQL 16 (local, `TEST_DATABASE_URL`): `realPg`, `realPostgres`, `realPostgresAccounts`, `realPostgresSaves`, `realPostgresDelete` all green, one file at a time.
@@ -199,3 +208,4 @@ E8-A1: no red test was labelled flaky. Real PostgreSQL 16 (local, `TEST_DATABASE
 - 2026-11-26: story written (gds-create-story), built (gds-dev-story), status review.
 - 2026-11-26: review 1 fixes (M1–M3, L1–L9, nits), B9 / B12 updated, B21–B23 added; status review (narrow re-review of the medium fixes next).
 - 2026-11-26: re-review round 1 fixes (M2 lock order, L5-live, M3-log, L5-bans, M1 nit); B9 updated; status review (re-review round 2 next).
+- 2026-11-26: re-review round 2 fixes (save and merged-guest bank lock order, test nit, LOCK ORDER note); the re-review cap is reached: the main session checks these.

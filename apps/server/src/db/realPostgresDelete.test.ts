@@ -7,6 +7,7 @@ import { openPostgres, type Database } from "./client";
 import { deviceTokensRepo } from "./deviceTokensRepo";
 import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
+import { savedRunsRepo } from "./savedRunsRepo";
 
 /**
  * Story 10.1 review (M2, L3, L4, M3, L6): Delete my progress racing logins and banks on a REAL PostgreSQL (PGlite runs on
@@ -69,10 +70,39 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
   afterAll(() => {
     if (tallies.size > 0) console.info(`race tallies: ${JSON.stringify(Object.fromEntries(tallies))}`);
   });
-  const isDeadlockOr503 = (e: unknown): boolean => {
-    for (let x: unknown = e, i = 0; x && i < 5; x = (x as { cause?: unknown }).cause, i++) if ((x as { code?: unknown }).code === "40P01") return true;
-    return true; // any thrown error is a 503 for the route
+  // Re-review round 2 nit: `boundedTransaction` throws DbUnavailableError (no PG code) after logging `db_error {code}`;
+  // the logged code tells a deadlock (40P01) and a foreign-key failure (23503) apart.
+  const dbErrors: string[] = [];
+  beforeAll(() => {
+    const orig = log.error.bind(log);
+    log.error = ((obj: unknown, msg?: string) => {
+      if (msg === "db_error") dbErrors.push(String((obj as { code?: unknown }).code ?? "none"));
+      return orig(obj as never, msg as never);
+    }) as typeof log.error;
+  });
+  const takeDbErrors = (label: string): void => {
+    for (const code of dbErrors.splice(0)) tally(`${label} db_error ${code}`);
   };
+  /** Re-review round 2 nit: what an error from a race is (every error is a 503 for the route; 40P01 / 23503 are counted). */
+  const errorCode = (e: unknown): string => {
+    for (let x: unknown = e, i = 0; x && i < 5; x = (x as { cause?: unknown }).cause, i++) {
+      const code = (x as { code?: unknown }).code;
+      if (code === "40P01" || code === "23503") return code;
+    }
+    return "other";
+  };
+  /** Any rejected race result is an error (the route answers 503); tallied by code. */
+  const countErrors = (label: string, results: PromiseSettledResult<unknown>[]): number => {
+    let n = 0;
+    for (const r of results) {
+      if (r.status !== "rejected") continue;
+      n++;
+      tally(`${label} error ${errorCode(r.reason)}`);
+    }
+    takeDbErrors(label);
+    return n;
+  };
+
 
   it("re-review M2: a delete from D and a re-login of the account's OTHER phone E (it holds its own device row) at once, ×20: no 40P01, no error", async () => {
     let errors = 0;
@@ -82,7 +112,7 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
         accountsRepo(database).deleteAccount(d, id, "p", new Set([d, e])),
         deviceTokensRepo(database).logIn({ oldTokenHash: e, newTokenHash: hex(), accountId: id, expectPasswordHash: "p" }),
       ]);
-      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      errors += countErrors("relogin", results);
       const [del, login] = results;
       tally(`relogin del=${del.status === "fulfilled" ? del.value.outcome : "error"} login=${login.status === "fulfilled" ? login.value.outcome : "error"}`);
       if (del.status === "fulfilled" && del.value.outcome === "deleted") expect(login.status === "fulfilled" && login.value.outcome).toBe("stale_credentials");
@@ -96,7 +126,7 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
       const { id, d, e } = await twoDevices();
       const both = new Set([d, e]);
       const results = await Promise.allSettled([accountsRepo(database).deleteAccount(d, id, "p", both), accountsRepo(database).deleteAccount(e, id, "p", both)]);
-      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      errors += countErrors("two-deletes", results);
       const outcomes = results.map((r) => (r.status === "fulfilled" ? r.value.outcome : "error"));
       tally(`two-deletes ${[...outcomes].sort().join("+")}`);
       expect(outcomes.filter((o) => o === "deleted").length).toBeLessThanOrEqual(1);
@@ -113,8 +143,87 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
         accountsRepo(database).deleteAccount(d, id, "p", new Set([d, e])),
         deviceTokensRepo(database).logIn({ oldTokenHash: e, newTokenHash: hex(), accountId: id, credentials: { expectRecoveryHash: "r", passwordHash: "p2", recoveryCodeHash: "r2" } }),
       ]);
-      for (const r of results) if (r.status === "rejected" && isDeadlockOr503(r.reason)) errors++;
+      errors += countErrors("reset", results);
       tally(`reset del=${results[0].status === "fulfilled" ? results[0].value.outcome : "error"} reset=${results[1].status === "fulfilled" ? results[1].value.outcome : "error"}`);
+    }
+    expect(errors).toBe(0);
+  });
+
+  /** A shared saved run R linking `a` and `b` (status open, room RACE). */
+  async function sharedRun(a: string, b: string): Promise<{ id: string; row: Parameters<ReturnType<typeof savedRunsRepo>["upsertOpen"]>[0] }> {
+    const id = randomUUID();
+    const row = {
+      id,
+      district: "downtown",
+      seed: 1,
+      snapshot: { schemaVersion: 1, wave: 2, seats: [{ seatKey: `acct:${a}`, accountId: a, name: "A", slot: 0 }, { seatKey: `acct:${b}`, accountId: b, name: "B", slot: 1 }], bannedSeats: [] },
+      schemaVersion: 1,
+      wave: 2,
+      names: [{ name: "A", slot: 0 }, { name: "B", slot: 1 }],
+      roomCode: "RACE",
+      links: [{ accountId: a, seatKey: `acct:${a}` }, { accountId: b, seatKey: `acct:${b}` }],
+    };
+    expect(await savedRunsRepo(database).upsertOpen(row)).toBe(true);
+    return { id, row };
+  }
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("re-review round 2 #1 (deterministic): an autosave waiting on its run row, then a delete of a linked account, then the run row freed: no 40P01, no 23503", async () => {
+    const a = await acct();
+    const b = await acct();
+    const run = await sharedRun(a.id, b.id);
+    let free!: () => void;
+    const gate = new Promise<void>((r) => (free = r));
+    // a third transaction holds the run row (another writer), so the autosave queues behind it
+    const holder = (await database.db()).transaction(async (tx) => {
+      await tx.execute(sql`select 1 from saved_runs where id = ${run.id} for update`);
+      await gate;
+    });
+    await sleep(100);
+    const save = savedRunsRepo(database).upsertOpen(run.row);
+    await sleep(200);
+    const del = accountsRepo(database).deleteAccount(a.token, a.id, "p", new Set([a.token]));
+    await sleep(200);
+    free();
+    const results = await Promise.allSettled([holder, save, del]);
+    const errors = countErrors("save-deterministic", results);
+    expect(errors).toBe(0);
+    expect(results[2].status === "fulfilled" && results[2].value.outcome).toBe("deleted");
+    const db = await database.db();
+    const snap = ((await db.execute(sql`select snapshot from saved_runs where id = ${run.id}`)) as unknown as { rows: { snapshot: unknown }[] }).rows[0];
+    expect(JSON.stringify(snap ?? null)).not.toContain(a.id);
+  });
+
+  it("re-review round 2 #1 (race): a delete and an autosave of a shared run linking the account at once, ×20: no 40P01, no 23503", async () => {
+    let errors = 0;
+    for (let k = 0; k < 20; k++) {
+      const a = await acct();
+      const b = await acct();
+      const run = await sharedRun(a.id, b.id);
+      const results = await Promise.allSettled([accountsRepo(database).deleteAccount(a.token, a.id, "p", new Set([a.token])), savedRunsRepo(database).upsertOpen(run.row)]);
+      errors += countErrors("save-race", results);
+      tally(`save-race del=${results[0].status === "fulfilled" ? results[0].value.outcome : "error"}`);
+    }
+    expect(errors).toBe(0);
+  });
+
+  it("re-review round 2 #2: a bank for a merged guest's seat and the delete of its account at once (progress(A) missing), ×20: no error", async () => {
+    let errors = 0;
+    for (let k = 0; k < 20; k++) {
+      const a = await acct();
+      const g = await accountsRepo(database).createGuest(hex(), "");
+      const gToken = hex();
+      await (await database.db()).execute(sql`insert into device_tokens (token_hash, account_id) values (${gToken}, ${g.id})`);
+      const devHash = hex();
+      const li = await deviceTokensRepo(database).logIn({ oldTokenHash: gToken, newTokenHash: devHash, accountId: a.id, expectPasswordHash: "p" });
+      expect(li.outcome === "ok" && li.merged !== null).toBe(true);
+      await (await database.db()).execute(sql`delete from progress where account_id = ${a.id}`);
+      const results = await Promise.allSettled([
+        accountsRepo(database).deleteAccount(a.token, a.id, "p", new Set([a.token, devHash])),
+        progressRepo(database).addSupplies(randomUUID(), g.id, () => ({ supplies: 9, breakdown: {} })),
+      ]);
+      errors += countErrors("merged-bank", results);
+      tally(`merged-bank del=${results[0].status === "fulfilled" ? results[0].value.outcome : "error"} bank=${results[1].status === "fulfilled" ? (results[1].value.noAccount ? "noAccount" : results[1].value.banked ? "banked" : "not") : "error"}`);
     }
     expect(errors).toBe(0);
   });

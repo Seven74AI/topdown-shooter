@@ -330,6 +330,12 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
           // Story 7.6: the seat's account row first (FOR NO KEY UPDATE: a login merge holds FOR UPDATE, so a bank and a
           // merge of one guest run one after the other). A guest merged into an account pays that account (its
           // `run_rewards` row keeps the seat's id: the (run, seat account) guard is unchanged).
+          // Story 10.1 re-review round 2 (LOCK ORDER in `accountsRepo.ts`: the account before its merged guests): a merged
+          // guest's seat locks its payee account row FIRST (read unlocked, then re-checked under the seat row's lock), so a
+          // bank never holds the guest row while a delete of the account (which holds the account and deletes its guests)
+          // waits on it.
+          const seen = await tx.select({ mergedInto: accounts.mergedInto }).from(accounts).where(eq(accounts.id, accountId));
+          if (seen[0]?.mergedInto) await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, seen[0].mergedInto)).for("no key update");
           const acc = await tx
             .select({ mergedInto: accounts.mergedInto, username: accounts.username, saveNudged: accounts.saveNudged })
             .from(accounts)
@@ -343,6 +349,9 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             return { banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false, noAccount: true };
           }
           const payee = acc[0].mergedInto ?? accountId;
+          // A merge landed between the unlocked read and the lock (the payee was not locked first): lock it now. Rare; the
+          // merge holds the guest row until it commits, so this guest is merged and stays merged from here on.
+          if (acc[0].mergedInto && acc[0].mergedInto !== seen[0]?.mergedInto) await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, acc[0].mergedInto)).for("no key update");
           await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx
             .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies, cosmetics: progress.cosmetics, stats: progress.stats, districts: progress.districts })
