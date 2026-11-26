@@ -184,6 +184,7 @@ export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGri
 export {
   HORDE_BACKPRESSURE_BYTES,
   HORDE_LINE_BASE_WINDOW_S,
+  HORDE_LINE_CLOCK_JUMP_MS,
   HORDE_LINE_CONFIRM_MS,
   HORDE_LINE_MAX_GAP_MS,
   HORDE_LINE_RESUME_MS,

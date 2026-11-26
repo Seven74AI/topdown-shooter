@@ -48,6 +48,8 @@ interface LineCase {
   upExtraMs?: (t: number) => number;
   /** Re-review M1b-R1: whether the phone sends an input at tick t (default every tick; 8.9 pacing sends 0.9×, a hitch drops steps). */
   sends?: (t: number) => boolean;
+  /** Re-review round 2 L1: added to the phone's send-time stamp of tick t's input (a clock jump, stamp jitter); default 0. */
+  clockMs?: (t: number) => number;
 }
 
 interface LineResult {
@@ -199,7 +201,7 @@ function runLine(c: LineCase): LineResult {
     upDelay += c.upExtraMs?.(t) ?? 0;
     if (c.sends && !c.sends(t)) continue; // no input this tick (the phone's clock: 0.9× pacing, dropped steps)
     upLastAt = Math.max(upLastAt, phoneAt + upDelay);
-    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK, sendMs: Math.floor(phoneAt + PHONE_CLOCK_MS) });
+    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK, sendMs: Math.floor(phoneAt + PHONE_CLOCK_MS + (c.clockMs?.(t) ?? 0)) });
   }
   return r;
 }
@@ -463,6 +465,41 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
       expect(HORDE_LINE_CONFIRM_MS).toBe(100);
       enc.ack(c, 108, t0 + 100, (t0 + 100) & INPUT_ACK_MASK); // the recorded 100 ms (D2), as a number
       expect(st.lineSlow).toBe(true);
+    });
+  });
+
+  describe("main-session check after re-review round 2 (L1): a phone clock jump does not mute the skip", () => {
+    /**
+     * A downstream queue: every ack reads `waitMs` (450) above the base from tick 200 on; each input's send time is the
+     * phone's clock (`clock(t)`, any offset) as it is sent, the upload itself never waits. Returns the slow ticks.
+     */
+    const slowTicks = (clock: (t: number) => number): number => {
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {} } });
+      const enc = new HordeEncoder();
+      const c = {};
+      let slow = 0;
+      for (let t = 0; t < 800; t++) {
+        world.tick = t;
+        enc.prepare(world, t * TICK_MS);
+        const lag = t < 200 ? 4 : 13; // 200 ms, then 650 ms: +450 ms queued on the way down
+        const at = t * TICK_MS + 10;
+        if (t >= lag && (t < 200 || t >= 209)) enc.ack(c, t - lag, at, Math.floor(at + clock(t)) & INPUT_ACK_MASK);
+        if (enc.stateFor(c).lineSlow) slow++;
+      }
+      return slow;
+    };
+    const jitter = (t: number): number => (t * 7919) % 31; // 0–30 ms of stamp jitter
+    const PHONE = 1_234_567; // the phone's clock offset (any)
+    it("a 32,781 ms jump (just past half the 16-bit range) with 0–30 ms jitter: as many slow ticks as without it", () => {
+      const control = slowTicks((t) => PHONE + jitter(t));
+      expect(control).toBeGreaterThan(100); // liveness: the queue skips (until the 10 s base learns the new delay)
+      expect(slowTicks((t) => PHONE + jitter(t) + (t >= 100 ? 32_781 : 0))).toBeGreaterThanOrEqual(control - 5);
+      expect(slowTicks((t) => PHONE + jitter(t) - (t >= 100 ? 32_781 : 0))).toBeGreaterThanOrEqual(control - 5);
+    });
+    it("the phone's clock jumps back 20 s during a downstream queue (arrival − send time +20 s): no 10 s mute", () => {
+      const control = slowTicks(() => PHONE);
+      expect(slowTicks((t) => PHONE - (t >= 300 ? 20_000 : 0))).toBeGreaterThanOrEqual(control - 5);
+      expect(slowTicks((t) => PHONE + (t >= 300 ? 20_000 : 0))).toBeGreaterThanOrEqual(control - 5); // forward: never muted
     });
   });
 });

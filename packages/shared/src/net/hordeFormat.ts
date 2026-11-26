@@ -130,6 +130,12 @@ export const HORDE_LINE_RESUME_MS = 100;
  * a burst after an upstream stall land together, the first ones carrying old acks, so one late ack is no queue.
  */
 export const HORDE_LINE_CONFIRM_MS = 100;
+/**
+ * Story 8.13 re-review round 2 L1: an input's `arrival − send time` more than this above the upload's base (ms) is the
+ * phone's clock jumping (a sleep, a clock fix), not an upload queue: the upload base starts again instead of muting
+ * the skip for HORDE_LINE_BASE_WINDOW_S.
+ */
+export const HORDE_LINE_CLOCK_JUMP_MS = 5000;
 /** The base (the line's round trip with nothing queued) is the lowest age of this many 1-second buckets. */
 export const HORDE_LINE_BASE_WINDOW_S = 10;
 /**

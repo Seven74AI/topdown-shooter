@@ -193,8 +193,17 @@ Bots re-measured on the fixed tree (same method, 13:54–14:04, load 0.1–0.3):
 
 All 64 kbit/s rows ≤ 1,000 ms; 128 kbit/s and clean 0 skips. The skip share moves run to run with where the stalls and rushes land (70 s runs).
 
+### Main-session check after re-review round 2
+
+Re-review round 2 (the last): no high, no medium. One low, fixed here and checked by the main session (the re-review cap):
+
+| # | Sev | Finding | Fix | Test that fails without it |
+| --- | --- | --- | --- | --- |
+| R2-L1 | low | `hordeEncoder.ts` unwrap of `arrival − send time` used a FIXED reference (the first input's): a phone clock jump that lands within jitter of ±32,768 ms flips later inputs between ±32.7 s, the upload base locks on −32.7 s and the skip is muted until a reset (reviewer: 121 slow ticks vs 291 in the control) | Unwrap step by step against the PREVIOUS input and add up the signed steps (`upPrevD`, `upAcc`, both reset in `resetLine`); an input more than `HORDE_LINE_CLOCK_JUMP_MS` (5,000 ms, `hordeFormat.ts`) above the upload base is a clock jump: the upload window is cleared (no 10 s mute) | `hordeLineSkip.test.ts > main-session check after re-review round 2 (L1) …`: a 32,781 ms jump (±) with 0–30 ms jitter keeps the control's slow ticks (164); the phone's clock jumping back 20 s during a downstream queue keeps them too. The round-2 code as it was fails both (0 and 89 of 164); without the jump reset alone the 20 s test fails (89 of 164); without the step unwrap alone these cases pass (the jump reset covers them) |
+
 ## Change Log
 
 - 2026-11-26: story file created (gds-create-story) and built (gds-dev-story) in the builder session; status review.
 - 2026-11-26: review fixes M1 (upload wait taken off; 1 s freeze cap), L1–L3, N1; bot rows re-measured; status review (M1 to a narrow re-review).
 - 2026-11-26: re-review round 1: M1b-R1 fixed (the phone's send time in the input, 18 B; the upload timed from it); bot rows re-measured; status review (round 2 is the last re-review).
+- 2026-11-26: re-review round 2: no high/medium; R2-L1 (clock-jump unwrap) fixed, main-session check.

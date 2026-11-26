@@ -2,6 +2,7 @@ import {
   BYTES,
   HORDE_BACKPRESSURE_BYTES,
   HORDE_LINE_BASE_WINDOW_S,
+  HORDE_LINE_CLOCK_JUMP_MS,
   HORDE_LINE_CONFIRM_MS,
   HORDE_LINE_MAX_GAP_MS,
   HORDE_LINE_RESUME_MS,
@@ -137,7 +138,7 @@ export class HordeClientState {
   readonly baseMs = new Float64Array(HORDE_LINE_BASE_WINDOW_S);
   /**
    * Review M1 (b), re-review M1b-R1: the upload's own wait. Per input, `arrival − the phone's send time` (both ms, the
-   * send time's low 16 bits unwrapped against the first one: `upRef`); its lowest value of the last
+   * send time's low 16 bits unwrapped step by step against the previous input: `upPrevD`, `upAcc`); its lowest value of the last
    * HORDE_LINE_BASE_WINDOW_S seconds is the upload's base (the clocks' offset + the fastest way up), the rest is time
    * the input waited on the way up. The ack's wait minus it is what waited on the way DOWN (only that a skip drains).
    * (Not `seq × 50 ms`: the phone's steps slow to 0.9× and drop after a hitch, which would read as upload wait.)
@@ -146,8 +147,13 @@ export class HordeClientState {
   readonly upMs = new Float64Array(HORDE_LINE_BASE_WINDOW_S);
   /** The upload wait of the newest input (ms). */
   upWaitMs = 0;
-  /** The first input's `(arrival − sendLow) mod 65,536` (NaN: none yet): later ones are read as a signed distance from it. */
-  upRef = Number.NaN;
+  /**
+   * Re-review round 2 L1: the previous input's `(arrival − sendLow) mod 65,536` (NaN: none yet) and the sum of the
+   * signed steps between inputs (each within ±32.8 s): the unwrapped `arrival − send time`, so a phone clock jump moves
+   * it once instead of flipping every later input around a fixed reference.
+   */
+  upPrevD = Number.NaN;
+  upAcc = 0;
   /** When this phone's last horde frame went out (ms; NaN: none yet): the freeze cap (review M1 a). */
   lastFrameMs = Number.NaN;
   constructor(readonly keyPhase: number) {}
@@ -162,7 +168,8 @@ export class HordeClientState {
     this.baseSec.fill(-1);
     this.upSec.fill(-1);
     this.upWaitMs = 0;
-    this.upRef = Number.NaN;
+    this.upPrevD = Number.NaN;
+    this.upAcc = 0;
     this.projectedMs = 0;
     this.trendCount = 0;
     this.trendHead = 0;
@@ -357,9 +364,16 @@ export class HordeEncoder {
     const timed = sendLow >= 0;
     if (timed) {
       const d = (((nowMs - sendLow) % ACK_WRAP_MS) + ACK_WRAP_MS) % ACK_WRAP_MS;
-      if (Number.isNaN(st.upRef)) st.upRef = d;
-      const up = ((((d - st.upRef + ACK_WRAP_MS / 2) % ACK_WRAP_MS) + ACK_WRAP_MS) % ACK_WRAP_MS) - ACK_WRAP_MS / 2; // signed, ±32.8 s
-      st.upWaitMs = up - windowMin(st.upSec, st.upMs, nowMs, up);
+      if (!Number.isNaN(st.upPrevD)) st.upAcc += ((((d - st.upPrevD + ACK_WRAP_MS / 2) % ACK_WRAP_MS) + ACK_WRAP_MS) % ACK_WRAP_MS) - ACK_WRAP_MS / 2; // signed step, ±32.8 s
+      st.upPrevD = d;
+      const up = st.upAcc;
+      let upBase = windowMin(st.upSec, st.upMs, nowMs, up);
+      if (up - upBase > HORDE_LINE_CLOCK_JUMP_MS) {
+        // Re-review round 2 L1: the phone's clock jumped forward (no upload waits this long): start the upload base again.
+        st.upSec.fill(-1);
+        upBase = windowMin(st.upSec, st.upMs, nowMs, up);
+      }
+      st.upWaitMs = up - upBase;
     }
     const tick = ackTickFrom(ackLow, this.tick);
     if (tick < 0 || tick <= st.ackTick) return;
