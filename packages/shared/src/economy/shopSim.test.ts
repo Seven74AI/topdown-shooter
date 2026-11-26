@@ -121,21 +121,27 @@ function run(seed: number, players: number): RunLog {
 }
 
 describe("shop bot sim (A10: 2/3/4 bots, Pistol starts, buying from their cards, seeded)", () => {
-  it("logs survival by wave, earnings and the first purchase; money adds up", () => {
+  describe("logs survival by wave, earnings and the first purchase; money adds up", () => {
+    // E8-A8 (no test over 30 s; was 20–33 s in CI): one test per run (team size × seed), then the totals. Same runs,
+    // order and assertions as the old single test; the totals need every run test above to have run.
     const lines: string[] = [];
     let anyBought = false;
-    for (const n of TEAM_SIZES) {
-      for (const seed of SEEDS) {
-        const r = run(seed, n);
-        // The run really ran (3.3 review: a lobby-only run must not pass silently).
-        expect(r.wavesEnded).toBeGreaterThanOrEqual(1);
-        if (r.bought > 0) anyBought = true;
-        lines.push(
-          `${n} players seed ${seed}: reached wave ${r.reached}${r.wiped ? " (wiped)" : " (alive after W" + MAX_WAVE + ")"}; earned ${r.earned.join("/")}; first buy ${r.firstBuy.join(", ")}`,
-        );
-      }
-    }
-    expect(anyBought).toBe(true);
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[shop sim]\n${lines.join("\n")}`);
-  }, 120_000);
+    let casesRun = 0;
+    it.each(TEAM_SIZES.flatMap((k) => SEEDS.map((s) => [k, s] as const)))("%i players, seed %i: the run really ran", (n, seed) => {
+      const r = run(seed, n);
+      // The run really ran (3.3 review: a lobby-only run must not pass silently).
+      expect(r.wavesEnded).toBeGreaterThanOrEqual(1);
+      if (r.bought > 0) anyBought = true;
+      lines.push(
+        `${n} players seed ${seed}: reached wave ${r.reached}${r.wiped ? " (wiped)" : " (alive after W" + MAX_WAVE + ")"}; earned ${r.earned.join("/")}; first buy ${r.firstBuy.join(", ")}`,
+      );
+      casesRun++;
+    }, 120_000);
+
+    it("the runs together: some bot bought something", () => {
+      expect(casesRun, "every case above ran and passed").toBe(TEAM_SIZES.length * SEEDS.length);
+      expect(anyBought).toBe(true);
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[shop sim]\n${lines.join("\n")}`);
+    });
+  });
 });
