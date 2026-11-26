@@ -15,7 +15,8 @@
  * - `logOut`: the device's row is deleted and a new guest (account + device row + empty progress) is made; the
  *   account is untouched.
  */
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { parseStoredSettings } from "@topdown/shared";
 import { mergeProgress, type MergeRefunds, type MergeRow } from "../meta/merge";
 import type { Account } from "./accountsRepo";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
@@ -59,7 +60,7 @@ export interface DeviceTokensRepo {
 }
 
 const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
-const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats">): Progress => ({
+const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats" | "settings">): Progress => ({
   accountId: r.accountId,
   supplies: r.supplies,
   lifetimeSupplies: r.lifetimeSupplies,
@@ -69,6 +70,7 @@ const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplie
   look: r.look, // Story 7.9
   cosmetics: r.cosmetics, // Stories 7.11 / 7.12
   stats: readStats(r.stats),
+  settings: r.settings === null ? null : parseStoredSettings(r.settings), // Story 10.1: a login on a new phone gets them
 });
 
 /** The account row is already locked by the caller (device → account → guest: review L4); the guest is locked here. */
@@ -111,15 +113,19 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
         database,
         "devices.logIn",
         async (tx): Promise<LogInResult> => {
-          // Review L4: one lock order for every account switch — the device row, then the account row, then the guest.
+          // LOCK ORDER (`accountsRepo.ts`). Review L4 + Story 10.1 re-review M2: one lock order for every account switch and delete — the device rows (sorted by
+          // token hash), then the account row, then the guest. A reset also locks every device row of the account here
+          // (it deletes them below), in the same sorted statement as the device's own row.
           let current: string | undefined;
-          if (input.oldTokenHash !== null) {
-            const dev = await tx
-              .select({ accountId: deviceTokens.accountId })
-              .from(deviceTokens)
-              .where(eq(deviceTokens.tokenHash, input.oldTokenHash))
-              .for("update");
-            current = dev[0]?.accountId;
+          const old = input.oldTokenHash;
+          if (old !== null || input.credentials) {
+            const which = input.credentials
+              ? old !== null
+                ? or(eq(deviceTokens.tokenHash, old), eq(deviceTokens.accountId, input.accountId))
+                : eq(deviceTokens.accountId, input.accountId)
+              : eq(deviceTokens.tokenHash, old as string);
+            const devs = await tx.select({ h: deviceTokens.tokenHash, accountId: deviceTokens.accountId }).from(deviceTokens).where(which).orderBy(asc(deviceTokens.tokenHash)).for("update");
+            current = old === null ? undefined : devs.find((d) => d.h === old)?.accountId;
           }
           const target = await tx
             .select({ passwordHash: accounts.passwordHash, recoveryCodeHash: accounts.recoveryCodeHash })
@@ -127,7 +133,8 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
             .where(eq(accounts.id, input.accountId))
             .for("update");
           const t = target[0];
-          if (!t) throw new Error("account missing at login");
+          // Story 10.1 review L4: the account was deleted between the verify and this transaction: a wrong login now.
+          if (!t) return { outcome: "stale_credentials" };
           if (input.credentials) {
             // A reset: only if the recovery hash is still the one that was verified (two resets, one code: one wins).
             if (t.recoveryCodeHash !== input.credentials.expectRecoveryHash) return { outcome: "stale_credentials" };

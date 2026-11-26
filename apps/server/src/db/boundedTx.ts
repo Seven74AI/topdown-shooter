@@ -91,7 +91,17 @@ export async function boundedTransaction<T>(database: Database, op: string, body
     });
   } catch (e) {
     const reason = "error";
-    log.error({ op, reason, err: dbErrText(e) }, "db_error"); // review L5: never the query parameters
+    // Story 10.1 re-review round 2: + the PostgreSQL error code (40P01 deadlock, 23503 foreign key…) from the cause chain.
+    log.error({ op, reason, err: dbErrText(e), code: pgCode(e) }, "db_error"); // review L5: never the query parameters
     throw e instanceof DbUnavailableError ? e : new DbUnavailableError(op, reason);
   }
+}
+
+/** Story 10.1 re-review round 2: the PostgreSQL SQLSTATE of an error or its causes (Drizzle wraps it), or null. */
+export function pgCode(e: unknown): string | null {
+  for (let x: unknown = e, i = 0; x && i < 5; x = (x as { cause?: unknown }).cause, i++) {
+    const code = (x as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return null;
 }

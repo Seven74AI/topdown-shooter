@@ -35,6 +35,8 @@ export function bakeTiles(
   light: CanvasImageSource,
   glow: CanvasImageSource,
   paint: BakePainters = REAL,
+  /** Story 10.1 (B5): the Light glow setting (1 / 0.5 / 0): the glow layer's strength; 0 skips it. */
+  glowK = 1,
 ): { baseKey: string; baseRedrawn: boolean } {
   const s = bakePxPerM / MAP_PX_PER_M;
   const mapW = cs.map.widthM * MAP_PX_PER_M;
@@ -61,8 +63,12 @@ export function bakeTiles(
     paint.overlay(g, s, cs, bd);
     g.globalCompositeOperation = "multiply";
     g.drawImage(light, 0, 0, mapW, mapH);
-    g.globalCompositeOperation = "lighter";
-    g.drawImage(glow, 0, 0, mapW, mapH);
+    if (glowK > 0) {
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = Math.min(1, glowK);
+      g.drawImage(glow, 0, 0, mapW, mapH);
+      g.globalAlpha = 1;
+    }
     g.globalCompositeOperation = "source-over";
   }
   return { baseKey: bk, baseRedrawn: redrawBase };
