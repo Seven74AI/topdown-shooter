@@ -563,6 +563,7 @@
   "tools/checks/votePollWiring.test.ts": 0,
   "tools/checks/wallSilhouetteWiring.test.ts": 0,
   "tools/ci/shard.test.ts": 1.3,
+  "tools/ci/slowest.test.ts": 0.3,
   "tools/lint/sharedBoundary.test.ts": 0.9,
   "tools/maps/downtownFiles.test.ts": 0,
   "tools/netaudit/lagLine.test.ts": 3.2,
