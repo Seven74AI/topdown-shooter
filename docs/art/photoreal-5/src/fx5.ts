@@ -19,7 +19,7 @@
  * Page shell: the cards come from the family modules (see kit.ts for the contract). Query `?only=<family>` or
  * `?card=<id>` draws a part of the page (faster checks).
  */
-import { LANES, make, idle, drawStats, type FxCard, type Look, type Stage } from "./kit";
+import { LANES, make, idle, drawStats, type ActionPlan, type FxCard, type Look, type Stage } from "./kit";
 import { cards as gunfire } from "./gunfire";
 import { cards as fire } from "./fire";
 import { cards as matter } from "./matter";
@@ -124,8 +124,8 @@ const io = new IntersectionObserver((es) => {
 
 /* ---------------- Card ---------------- */
 const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-function dope(card: FxCard): string {
-  const p = card.plan;
+function dope(card: FxCard, plan?: ActionPlan): string {
+  const p = plan ?? card.plan;
   if (!p) return "";
   const ticks: number[] = [];
   const step = p.lengthS > 4 ? 1 : p.lengthS > 1.5 ? 0.5 : p.lengthS > 0.6 ? 0.1 : 0.05;
@@ -152,6 +152,16 @@ async function buildCard(card: FxCard, host: HTMLElement): Promise<void> {
     <div class="cols2"><div><h4>Brief</h4><div class="txt">${card.brief}</div></div><div><h4>In the game now</h4><div class="txt">${card.game}</div></div></div>
     <div class="looks"></div>
     ${card.plan ? `<h4>Action plan (timeline)</h4>${dope(card)}` : ""}
+    ${card.looks
+      .filter((l) => l.goalFirst)
+      .map((l) => {
+        const gf = l.goalFirst!;
+        return `<div class="gf"><h4>${l.code} · goal first: goal → elements → composition</h4><p class="goal"><b>Goal:</b> ${gf.goal}</p>
+        <div class="txt"><b>Elements, each with one job:</b><ul>${gf.elements.map((e) => `<li><b>${e.name}</b>: ${e.job}</li>`).join("")}</ul>
+        <b>How they compose:</b><ul>${gf.composition.map((c) => `<li>${c}</li>`).join("")}</ul></div>
+        ${gf.plan ? `<h4>${l.code} timeline</h4>${dope(card, gf.plan)}` : ""}</div>`;
+      })
+      .join("")}
     <details class="decomp"><summary>Decomposition: frames, diffs, parts, performance</summary><div class="dhost"></div></details>`;
   host.append(art);
   const looks = art.querySelector(".looks")!;
