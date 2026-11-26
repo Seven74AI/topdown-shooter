@@ -161,6 +161,24 @@ The review (RM2) measured the far rule's stutter on the clean line: between a fa
 
 Horde budget unchanged at ≤ 16 KB/s (13.5 + 20 %). The 64 kbit/s backpressure finding (B6) is owed to Story 8.11.
 
+### 8.13 Slow-line horde skip (closes 8.10 B6; re-checks B7)
+
+Branch `story-8-13` on master `d8ffaee`. Change: every input carries the newest server tick the phone has received (2 bytes, `NET_PROTOCOL_VERSION` 4); the server times each new ack against when it wrote that tick, takes the lowest age of the last 10 s as the line's own round trip, and skips that phone's horde frames while the wait above it (projected to now from its trend) is over 300 ms for ≥ 100 ms of acks; a keyframe once the wait is under 100 ms (decisions 8.13 D1–D4). Patches and events are never skipped. Full table and method: `_bmad-output/implementation-artifacts/8-13-slow-line-horde-skip.md` › Measurements. **Bots and a model only; no phone.**
+
+**Method** (8.10 T8): `npm run bots -- --url http://localhost:4167 --count 4 --scenario net150 --until-wave 4 --hold-fire 45 --lag 150 --jitter 20 --loss 1 --stall S --kbps K`, one run at a time, load 0.0–0.3. Before = the same build with `BOTS_NO_ACK=1` (the server then acts as master).
+
+| Cap | Stall | Longest wait: 8.10 T8 | Before (no ack) | After | Frames skipped (4 phones) | Decode errors |
+| --- | --- | --- | --- | --- | --- | --- |
+| 64 kbit/s | 0.2 s | 4,720 ms | 8,155 ms | **674 ms** | 26 % | 0 |
+| 64 kbit/s | 0.4 s | 4,680 ms | 7,909 ms | **774 ms** | 20 % | 0 |
+| 64 kbit/s | 1 s | 1,883 ms | 8,150 ms | **383 ms** | 0.5 % | 0 |
+| 128 kbit/s | 0.2 / 0.4 / 1 s | 158 / 159 / 159 ms | 191 ms (0.2 s) | 192 / 191 / 191 ms | **0** | 0 |
+| no cap (lossy 1 % × 0.2 s) / clean | — | — | — | — | **0** / **0** | 0 |
+
+**After the review fixes** (M1: the upload's own wait no longer counts; a keyframe at least once a second while skipping): 64 kbit/s 658 / 655 / 609 ms with 14 / 15 / 4 % of frames skipped, 1–4 freeze-cap keyframes per phone per wave; 128 kbit/s 191 ms and clean: 0 skips. **After re-review round 1** (the upload timed from the phone's send time in the input, 18 B): 64 kbit/s 497 / 475 / 648 ms (20 / 6 / 5 % skipped); 128 kbit/s 191 ms and clean: 0 skips.
+
+Encoder bandwidth unchanged: audit replay 8.9 KB/s on master and on the branch (8.2 when 8.10 shipped; later stories moved it), stampede test unchanged; per 100 zombies in view the bots' horde KB/s is the same with and without the ack (7.1–7.3). **8.10 B7 (every zombie at 20 Hz) holds:** both capped rows meet their targets with the far rule off.
+
 ## 8.11 One packet per tick
 
 Branched from master `c9726a5`. Change: the state patch comes from the tick (`onTick` = one step, then `broadcastPatch`; `patchRate` null once the fixed timestep runs, so Results, the lobby after a run and an 8.1 frozen room still patch on change at 20 Hz from the same timestep); Colyseus 0.18.29's `autoBatchMessages` corks each socket for the timestep's callback, so the tick's horde frame, events, ping and patch leave as one TCP write (decisions D2, D3; B1); the input is a 14-byte binary `BYTES.INPUT` (int8 sticks at 1/127, D4) instead of the ~116 B msgpack `input.send`, validated like the zod schema, quantised on the phone before prediction; `NET_PROTOCOL_VERSION` 3.
