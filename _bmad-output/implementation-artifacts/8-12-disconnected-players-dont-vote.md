@@ -4,7 +4,7 @@ baseline_commit: e029c57
 
 # Story 8.12: Only standing, connected players vote
 
-Status: review
+Status: done
 
 <!-- Quick story 2026-11-25 from a designer decision in the party-mode session on cinematics. It deliberately REVERSES Story 8.1 review M2 / re-review RR1-M1 (a held seat counted as a silent = Extract vote). -->
 
@@ -97,3 +97,8 @@ The story left these open; each takes the recommendation and is logged in `docs/
 
 - netEvents kinds and readability-sheet numbers: none used.
 - `run.vote_resolved`'s `silent` no longer includes held seats (server log `vote_resolved` changes the same way).
+
+## Main session close-out (2026-11-26)
+- Fresh three-layer review of 5fef88a: no high or medium findings; L1–L3 and N1–N4 fixed in 79bd2ed.
+- Main-session check of 79bd2ed (comments, tests and docs; plus N4's one-line "You" chip): matches the review. CI green. Merged as a1763cb8 (PR #29).
+- Open for the designer: L4. A connection blip during the 1 s "everyone voted" beat clears that player's vote, and a return inside the beat counts as silent, so 2 × Stay can become Extract. This is pre-existing behaviour, now easier to hit. Recommendation: leave as is.
