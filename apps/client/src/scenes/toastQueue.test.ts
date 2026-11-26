@@ -56,5 +56,6 @@ describe("ToastQueue (Story 2.11)", () => {
   it("words the reason", () => {
     expect(playerLeftText("Bo", "left")).toBe("Bo left");
     expect(playerLeftText("Bo", "disconnected")).toBe("Bo lost connection");
+    expect(playerLeftText("Bo", "removed")).toBe("Bo was removed"); // Story 8.3
   });
 });

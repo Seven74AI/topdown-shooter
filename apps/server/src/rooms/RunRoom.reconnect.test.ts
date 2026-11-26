@@ -1,3 +1,4 @@
+import { sendInput } from "../test/sendInput";
 import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
@@ -131,7 +132,7 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     p1.hp = 44;
     const ana = clients[0] as RunSdkRoom;
     let anaSeq = 0;
-    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50); // Ana stays present (no freeze)
+    const keepAlive = setInterval(() => sendInput(ana, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50); // Ana stays present (no freeze)
     onTestFinished(() => clearInterval(keepAlive));
     const bo = clients[1] as RunSdkRoom;
     reconnect(bo, false);
@@ -160,7 +161,7 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "token", reason: "drop" })]);
     expect(seen[0]?.left).toEqual([]);
     // The returning seat applies its next input whatever its seq (no seq_gap_suspect for a legit return).
-    back.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 9000, moveX: 1 });
+    sendInput(back, { ...NEUTRAL_INPUT, seq: 9000, moveX: 1 });
     await vi.waitFor(() => expect(room.controller?.ackSeq("p1")).toBe(9000));
     expect(lines("seq_gap_suspect")).toEqual([]);
   });
@@ -338,9 +339,13 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
     expect(room.members.size).toBe(4);
   });
 
-  it("a stranger (unknown guest token) is still refused in a started run (run_started)", async () => {
-    const { clients } = await runOf(2);
-    await expect(colyseus.sdk.joinById((clients[0] as RunSdkRoom).roomId, options("join", "Eve", randomBytes(16).toString("hex")))).rejects.toThrow("run_started");
+  it("Story 8.2: a stranger (unknown guest token) gets a NEW seat in a started run, never a teammate's", async () => {
+    const { clients, room } = await runOf(2);
+    const eve = await colyseus.sdk.joinById<RunStateView>((clients[0] as RunSdkRoom).roomId, options("join", "Eve", randomBytes(16).toString("hex")));
+    record(eve);
+    await vi.waitFor(() => expect(room.state.players.get("p2")?.name).toBe("Eve"));
+    expect(room.state.players.get("p0")?.name).toBe("Ana");
+    expect(room.state.players.get("p1")?.name).toBe("Bo");
   });
 
   it("the lobby keeps the already_joined refusal", async () => {
@@ -434,7 +439,7 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
     startWave(w);
     const ana = clients[0] as RunSdkRoom;
     let seq = 0;
-    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
+    const keepAlive = setInterval(() => sendInput(ana, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
     try {
       await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 10_000 });
       const until = room.state.players.get("p1")?.heldUntilTick;
@@ -463,14 +468,14 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
     startWave(w);
     const ana = clients[0] as RunSdkRoom;
     let seq = 0;
-    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
+    const keepAlive = setInterval(() => sendInput(ana, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
     try {
       await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 6000 });
       expect(room.holds.has("p0")).toBe(false); // Ana kept sending
       const heldAt = lines("player_held").find((l) => l.playerId === "p1");
       expect(heldAt).toMatchObject({ reason: "quiet" });
       expect(QUIET_HOLD_TICKS).toBe(60);
-      (clients[1] as RunSdkRoom).send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
+      sendInput(clients[1] as RunSdkRoom, { ...NEUTRAL_INPUT, seq: 1 });
       await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
       // RR3-M1: 3 s quiet + back after the vanish = away > 3 s since the last input: the wave's one protected return.
       expect(w.players.get("p1")?.protectTicks).toBeGreaterThan(0);
@@ -522,7 +527,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     // Flake fix: Ana keeps sending (else D1's quiet rule can hold her ~3 s in and freeze the room before Bo's body vanishes).
     const ana = clients[0] as RunSdkRoom;
     let anaSeq = 0;
-    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50);
+    const keepAlive = setInterval(() => sendInput(ana, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50);
     onTestFinished(() => clearInterval(keepAlive));
     reconnect(bo, false);
     dropSocket(room, bo);

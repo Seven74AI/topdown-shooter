@@ -1,6 +1,6 @@
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
-import { layoutHpBlock, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
+import { layoutHpBlock, layoutMoneyLine, layoutPingButton, layoutWaveLine } from "../scenes/hudTopLayout";
 
 /**
  * Story 6.8 review M2 (brief 31): where the event edge arrow sits on the SCREEN. Not pressable, but it
@@ -36,7 +36,8 @@ export const EVENT_ARROW_PAD_CSS_PX = 6;
 /**
  * What the arrow keeps off in a wave (the same layout functions / constants HudScene draws with), into
  * `out` (7 rects): ☰, swap, quick-use, then (re-review R1) the HP block (bar + HP row), the wave line,
- * (re-review 3 RR3-2) the money line and (Story 6.14 review L3) the boss bar while it shows (`boss`).
+ * (re-review 3 RR3-2) the money line and (Story 6.14 review L3) the boss bar while it shows (`boss`);
+ * Story 8.7: an 8th rect, the ping button (`newWaveControlRects` makes 8).
  */
 export function waveControlRects(w: number, h: number, insets: Insets, k: number, out: ScreenRect[], boss: Readonly<ScreenRect> | null = null): ScreenRect[] {
   const ms = MENU_BUTTON_CSS_PX * k;
@@ -63,12 +64,15 @@ export function waveControlRects(w: number, h: number, insets: Insets, k: number
   b.y = src.y;
   b.w = src.w;
   b.h = src.h;
+  // Story 8.7: the ping button (left of ☰), when the caller made room for it (8 rects).
+  const ping = out[7];
+  if (ping) layoutPingButton(w, insets, k, ping);
   return out;
 }
 const rightScratch = newRightButtonsLayout();
 
 export function newWaveControlRects(): ScreenRect[] {
-  return [0, 1, 2, 3, 4, 5, 6].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
+  return [0, 1, 2, 3, 4, 5, 6, 7].map(() => ({ x: 0, y: 0, w: 0, h: 0 }));
 }
 
 /** The arrow's placement (kept by the caller across frames: `side` is the hysteresis state). */
@@ -138,6 +142,32 @@ export function placeEventArrow(sx: number, sy: number, w: number, h: number, in
 export const EVENT_ARROW_JUMP_CSS_PX = 40;
 /** …while last frame's spot is within this of the bearing. */
 export const EVENT_ARROW_HOLD_RAD = (10 * Math.PI) / 180;
+
+/**
+ * Story 8.7 (CI timeout fix): the arrow's spot on the ray towards (sx, sy) ONLY — no ±30° search round it — or false
+ * when that ray's exit isn't clear. For callers that step through the rays themselves (the 6.14 pair fan): calling
+ * `placeEventArrow` per fan ray re-ran a full search per ray (the 6.14 L4 sweep went 4.9 s → 40 s once its 16 keep-offs
+ * all counted).
+ */
+export function placeEventArrowOnRay(sx: number, sy: number, w: number, h: number, insets: Insets, k: number, size: number, avoid: readonly ScreenRect[], out: EventArrowPlace): boolean {
+  const half = size / 2 + EVENT_ARROW_PAD_CSS_PX * k;
+  rg.L = insets.left * k + half;
+  rg.R = w - insets.right * k - half;
+  rg.T = insets.top * k + half;
+  rg.B = h - insets.bottom * k - half;
+  rg.cx = w / 2;
+  rg.cy = h / 2;
+  rg.size = size;
+  rg.clear = CENTRE_CLEAR_CSS_PX * k;
+  const bearing = Math.atan2(sy - rg.cy, sx - rg.cx);
+  buildNotches(avoid, half, rg.L, rg.R, rg.T, rg.B, rg.cx, rg.cy, Math.max(4, NOTCH_CHAMFER_MARGIN_CSS_PX * k));
+  if (!exitClear(bearing, bearing)) return false;
+  out.x = rg.x;
+  out.y = rg.y;
+  out.angle = bearing;
+  out.side = 1;
+  return true;
+}
 
 /** The fresh placement for `bearing` into rg.x / rg.y. */
 function place(bearing: number, hadPrev: boolean, prevX: number, prevY: number): void {
@@ -243,7 +273,8 @@ interface Notch {
   c0: number;
   c1: number;
 }
-const MAX_NOTCHES = 8;
+/** Story 8.7: 8 → 24 (preallocated): the ping button and up to 3 other ping arrows + the event arrow join the keep-offs; an obstacle past the capacity was silently dropped. */
+const MAX_NOTCHES = 24;
 const notches: Notch[] = Array.from({ length: MAX_NOTCHES }, () => ({ edge: 0, a0: 0, a1: 0, d: 0, c0: 0, c1: 0 }));
 let notchCount = 0;
 /** Floating blocks (inflated by `half`): the arrow's centre stays out of them. */
@@ -263,6 +294,8 @@ function buildNotches(avoid: readonly ScreenRect[], half: number, L: number, R: 
   nb.B = B;
   notchCount = 0;
   obstacleCount = 0;
+  // Story 8.7 review nit: a keep-off past the capacity would be dropped silently — a programming error in dev builds and tests.
+  if (avoid.length > MAX_NOTCHES && import.meta.env?.DEV) throw new Error(`eventArrow: ${avoid.length} keep-offs, more than ${MAX_NOTCHES}`);
   for (let i = 0; i < avoid.length && notchCount < MAX_NOTCHES; i++) {
     const a = avoid[i] as ScreenRect;
     const x0 = a.x - half;

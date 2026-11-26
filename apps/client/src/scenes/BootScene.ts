@@ -6,6 +6,7 @@ import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
+import { loadStreetProps } from "../render/city/streetPropsAtlas";
 
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
@@ -20,11 +21,25 @@ const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
 
 export class BootScene extends Phaser.Scene {
+  /**
+   * Story 9.14 (review NEW-1): the first start request taken (solo or online); every later one is ignored, the title's
+   * delayed start screen never comes back, and the Game scene starts exactly once. Reset in `create` (Phaser reuses
+   * the scene object when Boot starts again).
+   */
+  private starting = false;
+  /** The title's delayed step (start screen, or the `?solo` start), removed once a start is taken. */
+  private titleTimer: Phaser.Time.TimerEvent | null = null;
+
   constructor() {
     super("Boot");
   }
 
   create(data?: BootSceneData): void {
+    this.starting = false;
+    this.titleTimer = null;
+    // Story 9.14 (B1, B26): the street props atlas image (~0.5 MB) downloads in the background; nothing waits for it. A
+    // run that starts before it is in draws its street props from code; the next run uses the image.
+    loadStreetProps(this);
     prewarmAmbience(); // Stories 4.6/4.7 review M: synthesize the ambience loops in idle time on the start screen / lobby (once per page)
     const error = data?.error;
     if (data?.lobby || data?.start) {
@@ -56,7 +71,9 @@ export class BootScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, center);
     });
 
-    this.time.delayedCall(TITLE_SHOW_MS, () => {
+    this.titleTimer = this.time.delayedCall(TITLE_SHOW_MS, () => {
+      this.titleTimer = null;
+      if (this.starting) return; // review NEW-1: a start was taken during the title (a resumed seat): keep its screen
       // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
       if (skipsStartScreen(urlOptions())) return this.startSolo();
       uiStore.handle("startSolo", () => this.startSolo());
@@ -67,15 +84,25 @@ export class BootScene extends Phaser.Scene {
 
   /** The host started the online run: the server runs the fight (Story 2.4). */
   private startOnline(session: NetSession): void {
-    uiStore.handle("startSolo", undefined);
-    uiStore.handle("startOnline", undefined);
-    this.scene.start("Game", { mode: "online", session } satisfies GameSceneData);
+    this.startGame({ mode: "online", session });
   }
 
   /** Offline play, exactly as in Epic 1. */
   private startSolo(): void {
+    this.startGame({ mode: "solo" });
+  }
+
+  /**
+   * Story 9.14 (review NEW-1, B26): the first start request only starts the Game scene, at once (the handlers go, the
+   * title's delayed step is cancelled); later requests are ignored. Nothing waits for the street props image.
+   */
+  private startGame(data: GameSceneData): void {
+    if (this.starting) return;
+    this.starting = true;
     uiStore.handle("startSolo", undefined);
     uiStore.handle("startOnline", undefined);
-    this.scene.start("Game", { mode: "solo" } satisfies GameSceneData);
+    this.titleTimer?.remove();
+    this.titleTimer = null;
+    this.scene.start("Game", data);
   }
 }

@@ -22,8 +22,10 @@ const balance = loadBalance();
  * Epic 5 balance pass: 3 → 7, a seed where p0 still rerolls with the new numbers (the reroll replay
  * below needs one) and p1 doesn't (the stream test perturbs p1's shop stream only in build phases).
  * Story 6.3: 7 → 20 (the Tactical flashlight joined the card pool: seed 7's p0 no longer rerolls; 20 has rerolls (p0 only), Spitters and acid).
+ * Fix bloater-car-corner FX-B1: 20 → 34 (hit pushback is swept now, so every run's path changes; seed 20's bots no longer
+ * reroll; 34 has rerolls, p0 only, buildings standing at the end and no evacuation vote command, like 20 had).
  */
-const SEED = 20;
+const SEED = 34;
 const PLAYERS = 2;
 
 function record(): { log: InputLog; run: HeadlessRunLog; digest: number; kills: number } {

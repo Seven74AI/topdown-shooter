@@ -1,14 +1,21 @@
 import { mirrorLootBag, mirrorSpecialEvent } from "../net/mirrorEvent";
+import { waitingView } from "../ui/waitingView";
 import { FlameCues } from "../render/flameCues";
 import {
   C2S,
   NET_EVENT_KIND,
+  BYTES,
+  INPUT_BYTES,
   NEUTRAL_INPUT,
+  decodeInput,
+  encodeInput,
   MUZZLE_OFFSET_M,
   createLobTarget,
   lobFlightTicks,
   lobTarget,
   NET_NONE,
+  PING_KINDS,
+  type PingKind,
   NO_SYSTEMS,
   TICK_DT_S,
   acidSpitOf,
@@ -54,6 +61,7 @@ import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } fro
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { MoveRefusal, NetSession } from "../net/session";
 import type { TeammateGhosts } from "../net/teammateGhosts";
+import type { PingModel } from "../render/pingModel";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
@@ -159,7 +167,7 @@ export interface NetSimHostOptions {
  *   render tick as players, written into `world.zombies` by `mirrorZombies`. A `zombie.killed`
  *   hides its net id when the render tick reaches it (the death FX plays in the same frame).
  *
- * Inputs: one `input.send` per 50 ms step with seq + 1, edge flags latched until a step takes
+ * Inputs: one binary input (`BYTES.INPUT`, Story 8.11) per 50 ms step with seq + 1, edge flags latched until a step takes
  * them, at most 5 steps per frame (the backlog after a hidden tab is dropped, never burst).
  * Events (`drainEvents`, Story 2.7 routing): 1. my local cosmetic events (shots, swings);
  * 2. my own server weapon-state events (reload, swap) on arrival, so my reload sound isn't late;
@@ -264,6 +272,8 @@ export class NetSimHost implements SimHost {
   private latchedTapFire = false;
   private seq = 0;
   private readonly sendBuf: MutableInput = { ...NEUTRAL_INPUT };
+  /** Story 8.11: `sendBuf` on the wire (`encodeInput`), reused every step. */
+  private readonly sendBytes = new Uint8Array(INPUT_BYTES);
   private drained: SimEvent[] = [];
   /** Server tick of each event drained from the queue this frame (review L1; reused). */
   private readonly drainedTicks: number[] = [];
@@ -297,12 +307,13 @@ export class NetSimHost implements SimHost {
   private readonly moveRefusals: MoveRefusal[] = [];
   // Story 8.1 (AC 1): a held teammate (`heldUntilTick > 0`) has no body on the map: out of the mirror
   // World like on the server (no ring, no arrow, no aim-assist target); it comes back when the hold ends.
+  // Story 8.2 (J4): a WAITING teammate (a late joiner watching a wave) has no body either: it is not in the server World.
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     const s = this.latest?.players.get(id);
-    if (!s || (s.heldUntilTick > 0 && id !== this.localPlayerId)) removePlayer(this.world, id);
+    if (!s || ((s.heldUntilTick > 0 || s.waiting === true) && id !== this.localPlayerId)) removePlayer(this.world, id);
   };
   private readonly addMissing = (p: PlayerStateView, id: string): void => {
-    if (p.heldUntilTick > 0 && id !== this.localPlayerId) return;
+    if ((p.heldUntilTick > 0 || p.waiting === true) && id !== this.localPlayerId) return;
     if (!this.world.players.has(id)) addPlayer(this.world, id, p.x, p.y);
   };
   private readonly writePlayer = (p: PlayerState): void => this.applyPlayer(p);
@@ -424,6 +435,27 @@ export class NetSimHost implements SimHost {
   get decaySynced(): boolean {
     const st = this.session.room.state?.decayStage ?? 0;
     return st >= 1 && this.world.decay.stage === st;
+  }
+
+  /** Story 8.2 (J4, AC 4): I am a late joiner watching this wave (`waitingView`): no body, no input, the camera spectates. */
+  get waiting(): boolean {
+    const state = this.session.room.state;
+    return waitingView(state?.players?.get(this.localPlayerId), state?.phase).waiting;
+  }
+
+  /** Story 8.2: the waiting line ("Wave in progress, …", or "Joining…" while a build-phase join loads; "" when not waiting). */
+  get waitingLine(): string {
+    const state = this.session.room.state;
+    return waitingView(state?.players?.get(this.localPlayerId), state?.phase).line;
+  }
+
+  /** Story 8.3 (H1): the room's host slot (−1 before the first state) and mine, for "You are now the host". */
+  get hostSlot(): number {
+    return this.session.room.state?.hostSlot ?? -1;
+  }
+
+  get mySlot(): number {
+    return this.session.slot;
   }
 
   /** Story 2.10: this device holds the room's host slot. */
@@ -594,6 +626,27 @@ export class NetSimHost implements SimHost {
   /** Story 5.24: the inbox's store (listened since the join). */
   get teammateGhosts(): TeammateGhosts {
     return this.session.inbox.ghosts;
+  }
+
+  /** Story 8.7: the one `ping.send` payload, reused. */
+  private readonly pingMsg: { kind: PingKind } = { kind: "help" };
+
+  /** Story 8.7 (AC 4): `ping.send { kind }` — only the kind (P1); nothing while disposed or while the link is down. */
+  sendPing(kind: number): void {
+    const k = PING_KINDS[kind];
+    if (this.disposed || k === undefined || !this.linkUp()) return;
+    this.pingMsg.kind = k;
+    this.session.room.send(C2S.PING_SEND, this.pingMsg);
+  }
+
+  /** Story 8.7 review L2: the room's World is frozen now (8.1: nobody connected, or the 3-2-1): no ping button. */
+  get roomFrozen(): boolean {
+    return this.session.room.state?.frozen === true;
+  }
+
+  /** Story 8.7: the inbox's ping model (listened since the join). */
+  get pings(): PingModel {
+    return this.session.inbox.pings;
   }
 
   takeRepairRefusal(): RepairError | null {
@@ -767,7 +820,8 @@ export class NetSimHost implements SimHost {
 
   /** One input per 50 ms step, like LocalSimHost; at most 5 per frame, the rest dropped. */
   private stepInputs(frameDtS: number): void {
-    if (!this.linkUp()) {
+    // Story 8.2 (J4): a waiting late joiner sends nothing (the server has no body for it), like an offline step.
+    if (!this.linkUp() || this.waiting) {
       // Story 8.1 (F7): offline steps are never sent or predicted (and never sent late as a burst).
       this.accumulatorS = 0;
       this.latchedSwap = false;
@@ -794,7 +848,11 @@ export class NetSimHost implements SimHost {
       buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
-      room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
+      // Story 8.11 (AC 3): the 14-byte binary input; `buf` is rounded to what the server decodes (1/127 stick steps)
+      // BEFORE the predictor and the fire clock see it, so the predicted and the server's moves use the same values.
+      encodeInput(buf, this.sendBytes);
+      decodeInput(this.sendBytes, buf);
+      room.sendBytes(BYTES.INPUT, this.sendBytes); // copied synchronously: the bytes can be reused
       // Story 2.6: my survivor moves now, not a round trip later. Story 5.2: with the weapon state the
       // server's movement sees on this seq (the fire clock's, from the seq before: the Chainsaw slow).
       this.predictor.applyLocal(buf, this.fireClock.moveWeapon, this.fireClock.moveSwapping);
@@ -991,6 +1049,8 @@ export class NetSimHost implements SimHost {
     p.consumable = consumableAt(this.world.balance, s.consumable); // Story 5.12: the slot is server truth (never predicted)
     p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;
+    // Story 8.2 (J4): while I wait (not in the server World) my mirror body is "out": not drawn, the camera spectates.
+    if (s.waiting === true) p.status = "out";
     p.buildReady = s.buildReady;
     p.vote = s.vote ?? 0; // Story 6.11
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)

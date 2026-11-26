@@ -1,6 +1,10 @@
+---
+baseline_commit: c9726a53
+---
+
 # Story 8.11: One packet per tick (optional)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Network pass story 5 of 5, optional (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). -->
 
@@ -34,12 +38,12 @@ so that less of my data and battery goes on packet overhead.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Before numbers** (brief 13): `lagLine` write/segment counters (add them if 8.8 didn't: count `write` calls and bytes per direction per second); bots on clean + lossy line; record down writes/s, up KB/s, patches/s, the patch-tick histogram (0/1/2 ticks per patch).
-- [ ] **T2 Patch from the tick** (AC 1, F3): `RunRoom.ts` `patchRate = null`, `broadcastPatch()` at the end of `onTick` (after `forwardEvents` and `sendHorde`, so the patch is last — or first, see D3), the lobby/results/frozen patch interval; check in `node_modules/@colyseus/core/build/Room.mjs` that a manual `broadcastPatch` with `patchRate = null` still sends the full state to new joiners and still flushes `afterNextPatch` messages; keep `slowPatches` timing.
-- [ ] **T3 One write** (AC 2): per client, cork the `ws` socket's underlying TCP socket (`client.ref._socket.cork()` / `uncork()` on `process.nextTick`, or the documented equivalent in `node_modules/ws`) around horde + events + patch; verify with `lagLine` that one tick = one segment burst (writes/s ≈ 20 + pings). If cork is not reachable cleanly, decision D2's alternative.
-- [ ] **T4 Binary input** (AC 3, F2): `packages/shared/src/net/input.ts` `encodeInput(input, out)` / `decodeInput(bytes, out)` (preallocated, no allocation per input), a `BYTES.INPUT` message type next to `BYTES.HORDE_FRAME`; server `RunRoom.onMessage(BYTES.INPUT, …)` through the same guard path as today (`this.net.guard` with the "input" bucket and `onInputRateDropped`; `apps/server/src/net/messageGuard.ts` needs a bytes variant), then `onInput`; client `NetSimHost.stepInputs` (`room.send(C2S.INPUT_SEND, buf)` at line ~722) → `room.sendBytes`; the dev throttle's outgoing queue copies the bytes (it copies the input object today: `Outgoing.input`); `tools/bots/botClient.ts:349`; `tools/netsim/hitsSim.ts` (encode → decode on the up link so the harness sees the quantised values). Remove `C2S.INPUT_SEND` and `playerInputSchema` from the wire path only when nothing else uses them (keep the type `PlayerInput`).
-- [ ] **T5 Tests** (F1–F3): round-trip encode/decode for random inputs (quantised values equal on both sides), boundary values (−1, 1, −1 viewTick, 2³¹), malformed (short, long, NaN-free by construction, out-of-range int8 impossible) refused and counted; prediction-vs-server error unchanged in `tools/netsim/predictionCircle.test.ts`; patch carries one tick (a server test watching patch ticks during a wave); lobby Ready still patches; replay digests unchanged.
-- [ ] **T6 After numbers + docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.11; `game-architecture.md` (patch from the tick; binary input); HANDOFF §4 netcode line.
+- [x] **T1 Before numbers** (brief 13): `lagLine` write/segment counters (add them if 8.8 didn't: count `write` calls and bytes per direction per second); bots on clean + lossy line; record down writes/s, up KB/s, patches/s, the patch-tick histogram (0/1/2 ticks per patch).
+- [x] **T2 Patch from the tick** (AC 1, F3): `RunRoom.ts` `patchRate = null`, `broadcastPatch()` at the end of `onTick` (after `forwardEvents` and `sendHorde`, so the patch is last — or first, see D3), the lobby/results/frozen patch interval; check in `node_modules/@colyseus/core/build/Room.mjs` that a manual `broadcastPatch` with `patchRate = null` still sends the full state to new joiners and still flushes `afterNextPatch` messages; keep `slowPatches` timing.
+- [x] **T3 One write** (AC 2): per client, cork the `ws` socket's underlying TCP socket (`client.ref._socket.cork()` / `uncork()` on `process.nextTick`, or the documented equivalent in `node_modules/ws`) around horde + events + patch; verify with `lagLine` that one tick = one segment burst (writes/s ≈ 20 + pings). If cork is not reachable cleanly, decision D2's alternative.
+- [x] **T4 Binary input** (AC 3, F2): `packages/shared/src/net/input.ts` `encodeInput(input, out)` / `decodeInput(bytes, out)` (preallocated, no allocation per input), a `BYTES.INPUT` message type next to `BYTES.HORDE_FRAME`; server `RunRoom.onMessage(BYTES.INPUT, …)` through the same guard path as today (`this.net.guard` with the "input" bucket and `onInputRateDropped`; `apps/server/src/net/messageGuard.ts` needs a bytes variant), then `onInput`; client `NetSimHost.stepInputs` (`room.send(C2S.INPUT_SEND, buf)` at line ~722) → `room.sendBytes`; the dev throttle's outgoing queue copies the bytes (it copies the input object today: `Outgoing.input`); `tools/bots/botClient.ts:349`; `tools/netsim/hitsSim.ts` (encode → decode on the up link so the harness sees the quantised values). Remove `C2S.INPUT_SEND` and `playerInputSchema` from the wire path only when nothing else uses them (keep the type `PlayerInput`).
+- [x] **T5 Tests** (F1–F3): round-trip encode/decode for random inputs (quantised values equal on both sides), boundary values (−1, 1, −1 viewTick, 2³¹), malformed (short, long, NaN-free by construction, out-of-range int8 impossible) refused and counted; prediction-vs-server error unchanged in `tools/netsim/predictionCircle.test.ts`; patch carries one tick (a server test watching patch ticks during a wave); lobby Ready still patches; replay digests unchanged.
+- [x] **T6 After numbers + docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.11; `game-architecture.md` (patch from the tick; binary input); HANDOFF §4 netcode line.
 
 ## Dev Notes
 
@@ -124,14 +128,62 @@ Round 3 (alone). Effort S–M. Light-to-full review: the input validation part g
 
 ### Agent Model Used
 
+Autonomous builder (gds-dev-story), 2026-11-25, branch `story-8-11` from master `c9726a5`.
+
 ### Debug Log References
+
+- Colyseus 0.18.29 (`node_modules/@colyseus/core/build/Room.mjs`): `autoBatchMessages` wraps each `setFixedTimestep` callback in `batchMessages` (a cork window: `sendClientRaw` corks each client's socket on its first send, `#closeWindow` uncorks in a `finally`); the schema serializer's patches and `sendBytes`/`send` all go through `sendClientRaw`. `patchRate = null` with no simulation interval starts Colyseus's own `clock.tick()` interval (it would double-tick the clock the fixed timestep reads), so it is set right after `setFixedTimestep`. The timestep is never cleared, so it patches the lobby after a run and Results too. Byte messages arrive on `onMessageBytes` handlers (`_$b<type>`) as a Buffer subarray.
+- An in-process lag line cannot see the corking (its reads run after the server's whole tick and coalesce 3 writes into 1 chunk: the first version of `onePacket.test.ts` passed with `autoBatchMessages` off). The test counts the server sockets' `_write`/`_writev` calls instead; the measurements use the separate-process server + line.
+- netsim: with the quantised harness, `hits.test.ts` 20 Runners kiting clean read 5/436 (1.15 %, bound 1 %) and `smooth.test.ts` F4 Runners 2/218 (0.92 %, bound 0.5 %). 30 seeds (scratch script): float 41/4268 = 0.96 % and 23/2117 = 1.09 %, quantised 35/4266 = 0.82 % and 18/2124 = 0.85 %; aim normalisation alone identical to the original. → B3.
 
 ### Completion Notes List
 
-- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.11 D1–D4 pending.
+- Story file written 2026-11-24 by the story writer (gds-create-story, non-interactive) from master da82847; decisions 8.11 D1–D4 accepted 2026-11-24 (recommended values: build it, cork, horde → events → patch, int8 sticks).
+- **T1** before numbers: `tools/bots/wireMeter.ts` (bytes by kind, patches, ticks-per-patch histogram, input bytes) in `bot_wave.wire`; `tools/bots/run.ts` `bots_line_wave` (writes and wire bytes per phone per wave from the lag line). Measured on `c9726a5`'s server (table below).
+- **T2** (AC 1, F3): `RunRoom.onTick` = `step()` (the old tick body) + `broadcastPatch()` in a `finally`; `LOBBY_PATCH_RATE_MS` 50 until the first run, `patchRate = null` after `setFixedTimestep`; `slow_patch` timing kept (`broadcastPatch` override). Tests: `apps/server/src/rooms/RunRoom.patch.test.ts > during a wave every patch is exactly one tick after the last (server and phone), after that tick's horde frame` (mutation: patch twice → fails), `… > outside the stepping phases (Results → Back to lobby) a Ready tap still reaches the other phone within 150 ms`; the 8.1 frozen room's `resumeIn` 3-2-1 patches: `apps/server/src/rooms/RunRoom.reconnect.test.ts > solo drop mid-wave: … back → 3-2-1 → ticking again` (green).
+- **T3** (AC 2, D2/D3): `this.autoBatchMessages = true` (B1). Test: `tools/bots/onePacket.test.ts > mid-wave: ≤ 25 down writes per phone per s, one tick per patch, 16 B per input` (mutation: `autoBatchMessages = false` → 47.5 writes/s, fails).
+- **T4** (AC 3, F2): `packages/shared/src/net/input.ts` `encodeInput`/`decodeInput`/`quantizeInput` (14 B, B5), `BYTES.INPUT` = 2, `NET_PROTOCOL_VERSION` 3, `C2S.INPUT_SEND` removed (B6); server `onMessageBytes(BYTES.INPUT, net.guard(bytesParser(decodeInput, …), …, "input", onInputRateDropped))` (`apps/server/src/net/messageGuard.ts › bytesParser`; rate-dropped bytes decoded for seq + edges); `NetSimHost.stepInputs` encodes, decodes back into `sendBuf` (prediction and fire clock use the quantised values), `room.sendBytes`; `NetRoomLike.sendBytes`; `DevThrottle.sendBytes` (pooled 14-byte copies, same ordered queue as `send`); `FakeRoom.sendBytes`/`inputsSent()`; bots `encodeInput` + `sendBytes`; `tools/netsim/hitsSim.ts` normalises the aim (as the phone's InputRouter) and quantises through the codec (`quantizeInput` option, default on; B3). Epic 6 check (brief 22): the vote, crate and lever messages are their own C2S messages (unchanged); no edge flag beyond swap/consumable rides the input.
+- **T5** tests: `packages/shared/src/net/input.test.ts > Story 8.11 binary input …` (round trip of 5000 random inputs + quantise idempotent; boundaries ±1, viewTick −1/0/2³¹, seq 0/2³²−1; encoder clamps; refusals: every length 0–32 but 14, format byte, −128 per stick, flag bits 4–7, viewTick u32 > 2³¹+1; 20 000-case fuzz: never throws, every accepted decode passes `playerInputSchema` and re-encodes to the same bytes; Buffer-subarray offsets); `apps/server/src/net/messageGuard.test.ts > Story 8.11 (F2): the binary input through bytesParser …`; `apps/server/src/rooms/RunRoom.test.ts > drops an invalid binary input and keeps the client connected (Story 8.11 F2)` (short, long, −128, extra flag, old msgpack type → `invalid` ×4 counted + `unknown_type`), `> closes only the client that sends a message over 1 KB` (now a 2 KB binary input); `apps/client/src/net/devThrottle.test.ts > holds outgoing sends half the lag, copied at send time (Story 8.11 …)`; `apps/client/src/sim/NetSimHost.test.ts > NetSimHost: Story 8.11 binary input … > sends 14-byte BYTES.INPUT frames and predicts with exactly the quantised values the server decodes` (wiring, brief 26: deleting the decode-back fails it); prediction error unchanged: `tools/netsim/predictionCircle.test.ts` green unchanged; version refusal: `apps/server/src/rooms/RunRoom.test.ts > Story 8.10 (F5, brief 19): a client with another wire format is refused at join as update_required …` (now refuses v2); replay digests: `packages/shared/src/replay/**` green unchanged.
+- **T6**: `docs/perf/network-pass-2026-11.md § 8.11`, `game-architecture.md` (one packet per tick, binary input, naming row), HANDOFF §4 netcode line and the 8.10 B6 note (B2), `docs/network-pass-decisions.md` 8.11 B1–B8.
+- **F1**: no simulation code changed; every unit test, replay digest, netsim, netaudit and bot test green; the only test changes are the input's transport (bytes instead of `input.send`), one exact stick value now asserted at its 1/127 step (`NetSimHost.consumables.test.ts`), and the two clean-line netsim rows' paired control (B3).
+
+**Measurements** (4 bots, net150, waves 4–5, `--lag 150 --jitter 20` (+ `--loss 1`), load 0.1–0.8; full table `docs/perf/network-pass-2026-11.md § 8.11`):
+
+| Metric | Line | Before (`c9726a5`) | After | Target |
+| --- | --- | --- | --- | --- |
+| Down writes per phone per s | clean | 46.0–46.5 | **20.1–20.3** | ≤ 25 ✓ |
+| | lossy | 47.0 | **20.2–20.3** | ≤ 25 ✓ |
+| Input upload payload KB/s | clean / lossy | 2.28–2.38 | **0.31** | ≤ 0.6 ✓ |
+| Patches per s / ticks per patch | clean | 19.87–19.94 / 0–2 (5–12 two-tick patches per wave) | **20.0 / exactly 1** | 20 / 1 ✓ |
+| | lossy | 19.88–19.92 / 0–2 (6–9) | **20.0 / exactly 1** | ✓ |
+| Horde stream (deterministic audit replay) | — | 8.2 KB/s | **8.2 KB/s**, 0 mismatches | ± 2 % ✓ (B8) |
+| Server tick avg / max | — | 1.26–1.30 / 3.1–8.7 ms | 0.87–1.02 / 2.5–5.2 ms | ≤ +0.1 ms ✓ |
+| Estimated 4G wire saving | — | — | down ≈ 2.0 KB/s (26 segments/s × ~78 B), up −2.0 KB/s payload | estimate (H4) |
+
+**Decisions logged (auto-accepted, autonomous build; `docs/network-pass-decisions.md`):** 8.11 B1 (Colyseus `autoBatchMessages` = the cork), B2 (8.10 B6's RTT skip stays owed: not in this story), B3 (netsim clean-line rows: float-input paired control + 1 shot), B4 (no extra patch timer: the timestep patches idle phases), B5 (14-byte layout), B6 (old `input.send` removed), B7 (catch-up: one patch per step, one write per callback), B8 (± 2 % shown deterministically; write-count method).
+
+**PR #19 review (APPROVED, 1 low + 4 nits; main session checks the fixes):** L — the ping was stamped before the corked step and patch (≈ 1–5 ms RTT bias): the timer now only marks it due and `onTick` sends it after the patch (`RunRoom.patch.test.ts > PR #19 review L: the 1/s ping is sent and stamped after the step and the patch …`; mutation ping-before-step fails); nit — the patch's own try/catch logs `patch_failed` and never hides the step error (`… > PR #19 review nit: a patch error is logged on its own …`); nit — rate-dropped binary input carries its swap (`… > a binary input the 25/s bucket dropped still carries its swap …`; mutation raw bytes fails); nit — hits/smooth test titles match B3; B9 mouse aim accepted.
+
+**Not verified:** real phones, real 4G, iOS Safari, Cloudflare's own coalescing (the wire saving is an estimate); the per-segment radio overhead (~78 B) is the audit's number, not measured here.
+
+**Gate:** see the Change Log line of the hand-back (gate:fast on the branch head; the PR's CI `gate` is the full gate).
 
 ### File List
+
+- `apps/server/src/rooms/RunRoom.ts` (patch from the tick, `autoBatchMessages`, binary input handler)
+- `apps/server/src/net/messageGuard.ts` (`bytesParser`), `apps/server/src/net/limits.ts` (comment), `apps/server/src/run/RunController.ts` (comment)
+- `apps/server/src/test/sendInput.ts` (new: test helper)
+- `apps/server/src/rooms/RunRoom.patch.test.ts` (new), `RunRoom.test.ts`, `RunRoom.fight.test.ts`, `RunRoom.reconnect.test.ts`, `RunRoom.downed.test.ts`, `RunRoom.buildings.test.ts`, `RunRoom.account.test.ts`, `apps/server/src/net/messageGuard.test.ts`
+- `packages/shared/src/net/input.ts`, `input.test.ts`, `messages.ts`, `messages.test.ts`, `packages/shared/src/index.ts`
+- `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/net/session.ts`, `apps/client/src/net/devThrottle.ts`, `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/sim/NetSimHost.test.ts`, `NetSimHost.consumables.test.ts`, `NetSimHost.economy.test.ts`, `NetSimHost.reconnect.test.ts`, `apps/client/src/net/devThrottle.test.ts`, `apps/client/src/input/menuInput.test.ts`
+- `tools/bots/botClient.ts`, `tools/bots/run.ts`, `tools/bots/wireMeter.ts` (new), `tools/bots/onePacket.test.ts` (new)
+- `tools/netsim/hitsSim.ts`, `tools/netsim/hits.test.ts`, `tools/netsim/smooth.test.ts`
+- `docs/perf/network-pass-2026-11.md`, `docs/network-pass-decisions.md`, `_bmad-output/planning-artifacts/game-architecture.md`, `HANDOFF.md`, this story file, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
+- 2026-11-25: built (autonomous, gds-dev-story): patch from the tick, one write per tick, 14-byte binary input (`NET_PROTOCOL_VERSION` 3); before/after measured; decisions 8.11 B1–B8 auto-accepted; status → review.
+- 2026-11-25: PR #19 review fixes (L ping stamp after the patch; patch error logged alone; rate-drop swap test; test titles; B9).
+- 2026-11-25: PR #19 CI fix: `saveResume.test.ts` holds the bots' Ready in the save build (B10: a test race the prompter patch exposed).

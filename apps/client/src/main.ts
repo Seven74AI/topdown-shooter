@@ -24,7 +24,7 @@ import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
-import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
+import { RUN_SAVED_TEXT, SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
 import { RECONNECT, shouldRescueReload } from "@topdown/shared";
@@ -117,6 +117,20 @@ function enterRoom(room: RunConnection, c: Connection): void {
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.alreadyJoined);
           return;
         }
+        if (reason === "saved") {
+          // Story 8.5 (AC 9): "Run saved. Anyone from this run can resume it for 7 days." with OK; carried ghosts drop with the scene.
+          uiStore.set({ kind: "start" });
+          uiStore.request("leaveRun");
+          serverNotice.show(RUN_SAVED_TEXT);
+          return;
+        }
+        if (reason === "removed") {
+          // Story 8.3 (AC 12): "You were removed from this run" with Back to start (the notice dialog); no reconnect.
+          uiStore.set({ kind: "start" });
+          uiStore.request("leaveRun");
+          serverNotice.show(JOIN_ERROR_TEXT.removed);
+          return;
+        }
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too
@@ -161,9 +175,16 @@ function resumeSavedSeat(): void {
   if (!seat) return;
   void import("./net/connection")
     .then(async (c) => {
-      const room = (await c.reconnectSeat(seat.token)) ?? (await c.rejoinGame(seat.roomId, seat.name).then((r) => (r.ok ? r.room : null)));
+      let removed = false;
+      const room =
+        (await c.reconnectSeat(seat.token)) ??
+        (await c.rejoinGame(seat.roomId, seat.name).then((r) => {
+          if (!r.ok && r.reason === "removed") removed = true;
+          return r.ok ? r.room : null;
+        }));
       if (!room) {
         seatStore.clear();
+        if (removed) serverNotice.show(JOIN_ERROR_TEXT.removed); // Story 8.3 review M3: a removed seat reloads into the notice
         return;
       }
       enterRoom(room, c);
@@ -213,6 +234,7 @@ function throttled(room: RunConnection): NetRoomLike {
 
 uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));
 uiStore.handle("joinGame", (code, name) => enterLobby((c) => c.joinGame(code, name)));
+uiStore.handle("resumeGame", (id, name) => enterLobby((c) => c.resumeGame(id, name))); // Story 8.6
 /**
  * Leaves the room for good: the current one, or with `room` only if that is still the current one.
  * A share link is done with once you leave (BASE_URL: "/" on the VPS).

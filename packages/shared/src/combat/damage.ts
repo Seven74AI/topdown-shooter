@@ -109,15 +109,17 @@ export function applyZombieDamage(
   return false;
 }
 
-/** HP and the map-clamped pushback (scaled by the type's `knockbackTakenPct`, Story 5.2 D3). */
+/**
+ * HP and the pushback (scaled by the type's `knockbackTakenPct`, Story 5.2 D3). FX-B1 (fix
+ * bloater-car-corner, 2026-11-25): the pushback is swept like a knockback (`sweptMove`): it stops when
+ * the body touches a map solid or a wall building. It used to be clamped to the map only, so co-op hits
+ * stacked in one tick (~1 m) could shove a centre into a car or a dumpster, where it stayed.
+ */
 function hurt(world: World, id: number, amount: number, dirX: number, dirY: number, pushbackM: number): void {
   const z = world.zombies;
   z.hp[id] = (z.hp[id] as number) - amount;
-  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
   const push = pushbackM > 0 ? pushbackM * knockbackShare(world, id) : 0;
-  const { widthM, heightM } = world.map;
-  z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * push));
-  z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * push));
+  if (push > 0) sweptMove(world, id, dirX, dirY, push);
 }
 
 /**
@@ -178,6 +180,20 @@ export function applyKnockback(world: World, id: number, dirX: number, dirY: num
   if (!isZombieAlive(z, id) || distM <= 0) return 0;
   distM *= knockbackShare(world, id);
   if (distM <= 0) return 0;
+  const x = z.x[id] as number;
+  const y = z.y[id] as number;
+  const d = sweptMove(world, id, dirX, dirY, distM);
+  knockbackTrace.fn?.(id, x, y, z.x[id] as number, z.y[id] as number);
+  return d;
+}
+
+/**
+ * Moves zombie `id` up to `distM` along the unit (dirX, dirY), swept: it stops when its body touches a
+ * map solid or a wall building, and never leaves the map (`applyKnockback`; FX-B1: hit pushback too).
+ * Allocation-free. Returns the distance moved.
+ */
+function sweptMove(world: World, id: number, dirX: number, dirY: number, distM: number): number {
+  const z = world.zombies;
   const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
   const x = z.x[id] as number;
   const y = z.y[id] as number;
@@ -202,7 +218,6 @@ export function applyKnockback(world: World, id: number, dirX: number, dirY: num
   const d = t < 1 ? Math.max(0, t * distM - KNOCK_FACE_GAP_M) : distM;
   z.x[id] = Math.min(widthM - r, Math.max(r, x + dirX * d));
   z.y[id] = Math.min(heightM - r, Math.max(r, y + dirY * d));
-  knockbackTrace.fn?.(id, x, y, z.x[id] as number, z.y[id] as number);
   return d;
 }
 

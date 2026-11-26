@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignSlot, hashGuestToken, nextHost } from "./lobby";
+import { assignSlot, hashGuestToken, nextConnectedHost, nextHost } from "./lobby";
 
 describe("assignSlot", () => {
   it("returns the lowest free slot", () => {
@@ -33,6 +33,20 @@ describe("nextHost", () => {
     ]);
     expect(nextHost(m.values())?.slot).toBe(3);
     expect(nextHost([])).toBeUndefined();
+  });
+});
+
+describe("nextConnectedHost (Story 8.3 H1)", () => {
+  it("skips held and waiting members; the longest-connected of the rest wins; none → undefined", () => {
+    const m = [
+      { playerId: "p0", joinOrder: 1 },
+      { playerId: "p1", joinOrder: 2, waiting: true },
+      { playerId: "p2", joinOrder: 3 },
+      { playerId: "p3", joinOrder: 4 },
+    ];
+    expect(nextConnectedHost(m, () => false)?.playerId).toBe("p0");
+    expect(nextConnectedHost(m, (id) => id === "p0")?.playerId).toBe("p2"); // p1 waits: never host
+    expect(nextConnectedHost(m, (id) => id !== "p1")).toBeUndefined(); // only the waiting one is connected
   });
 });
 

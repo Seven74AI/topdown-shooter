@@ -373,6 +373,11 @@ export const wavesSchema = z
     zombiesPerWave: z.number().int().positive().max(65535), // the biggest wave is checked against the Uint16 counts in balance.ts crossCheck (3.10 review)
     maxAlive: z.number().int().positive(),
     lastRushCount: z.number().int().min(0),
+    /**
+     * Spitter deadlock fix A (designer 2026-11-25; review L5, decision 8.2-B15): the last rush also starts once EVERY
+     * remaining wave zombie has been a Spitter holding its spot for `holdS` (checked every `checkEveryTicks` ticks).
+     */
+    spitterStall: z.object({ holdS: z.number().min(0), checkEveryTicks: z.number().int().min(1) }).strict().default({ holdS: 8, checkEveryTicks: 10 }),
     /** Story 3.1: the build phase before wave 1 and after every wave (FR44); ends early when everyone is Ready. */
     buildPhaseS: z.number().positive(),
     /** Spawn pressure: every spawnIntervalS, up to spawnPerInterval zombies leave the queue. */
@@ -573,6 +578,14 @@ export const fxSchema = z
     floodLightMergeM: z.number().min(0).max(16).default(4),
     /** Designer pick C (2026-11-25): silhouettes of bodies behind standing walls drawn at once (pooled, capped). */
     maxWallSilhouettes: z.number().int().min(1).max(64).default(24),
+    /** Story 9.13 (B4): zombies drawn with the full animation (walk crossfade, glow, sheen), nearest the camera first; the rest step their walk pictures and breathe only. `?fx=low` halves every Story 9.13 cap. */
+    maxCharacterAnim: z.number().int().min(0).max(256).default(12),
+    /** Story 9.13 (B5): of those, the ones that also get the moving sheen. */
+    maxCharacterSheen: z.number().int().min(0).max(256).default(6),
+    /** Story 9.13 (B6): Bloaters drawn with their glowing veins and acid sacs. */
+    maxBloaterFx: z.number().int().min(0).max(32).default(6),
+    /** Story 9.13 (B7): Spitters drawn dripping acid. */
+    maxSpitterDrips: z.number().int().min(0).max(32).default(8),
     /** Story 5.23: placement dust particles alive at once (8 per puff; the oldest puff reused). */
     maxPlaceDust: z.number().int().min(8).max(512).default(64),
     /** Story 5.23: owner corner tabs (3 s after a placement) drawn at once (the oldest reused). */
@@ -638,6 +651,18 @@ export const economySchema = z
     waveClearBonusPerWave: z.number().int().min(0),
     /** Story 3.6: a building's kill pays its owner this share of the kill reward, rounded down. */
     buildingKillShare: z.number().min(0).max(1),
+    /**
+     * Story 8.2 (FR72, Epic 8 D6/D7, decisions E8-J1/E8-J4): a late joiner's money and the build time a join adds.
+     * Money = max(own start money, `base` + ⌊`avgShare` × team average earned⌋); the first late join in a build
+     * phase adds `extraBuildS` seconds (whole ticks).
+     */
+    lateJoin: z
+      .object({
+        base: z.number().int().min(0),
+        avgShare: z.number().min(0).max(1),
+        extraBuildS: z.number().min(0).max(120),
+      })
+      .strict(),
   })
   .strict();
 

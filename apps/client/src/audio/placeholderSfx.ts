@@ -40,6 +40,9 @@ export type SfxName =
   // Story 5.23 (ux-spec §10): a building into my hands (soft click); placed: a wooden "thunk", a metal
   // "clank", a floor trap's "click"; my placement refused: a dull buzz. Placed sounds take a pan and a volume.
   | "ui_build_pick"
+  // Story 8.7 (AC 8, E8-P3): the ping chirp, panned toward the ping; "Help!" plays it twice, 80 ms apart.
+  | "ping"
+  | "ping_double"
   | "building_placed_thunk"
   | "building_placed_clank"
   | "building_placed_click"
@@ -405,6 +408,9 @@ function noiseInto(c: AudioContext, out: AudioNode, at: number, durS: number, ga
   src.stop(at + durS);
 }
 
+/** Story 8.7 (AC 8): "Help!" plays the ping chirp twice, this far apart (s). */
+export const PING_DOUBLE_GAP_S = 0.08;
+
 /** Story 5.23: at most one of each placed sound per this many seconds (four players placing at once). */
 const PLACED_MIN_INTERVAL_S = 0.05;
 const lastPlacedAt: Record<string, number> = { building_placed_thunk: -1, building_placed_clank: -1, building_placed_click: -1 };
@@ -419,6 +425,14 @@ function placeSfx(c: AudioContext, name: SfxName, t: number, pan: number, volume
   switch (name) {
     case "ui_build_pick": // a soft, short tick
       voice(c, out, t, 0.035, 0.18, "triangle", 1900, 1500);
+      break;
+    case "ping": // Story 8.7: a short rising two-tone chirp (never a danger sound)
+    case "ping_double":
+      for (let i = 0; i < (name === "ping_double" ? 2 : 1); i++) {
+        const at = t + i * PING_DOUBLE_GAP_S;
+        voice(c, out, at, 0.07, 0.32, "sine", 1180, 1560);
+        voice(c, out, at + 0.035, 0.06, 0.18, "triangle", 2350, 2350);
+      }
       break;
     case "building_placed_thunk": // wood: a low body knock with a dull thud
       voice(c, out, t, 0.16, 0.7, "sine", 150, 70);
@@ -671,6 +685,8 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       placeSfx(c, name, t, pan, volume);
       break;
     case "ui_build_pick":
+    case "ping":
+    case "ping_double":
     case "building_place_refused":
       placeSfx(c, name, t, pan, volume);
       break;

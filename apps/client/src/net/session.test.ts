@@ -80,6 +80,7 @@ describe("player.left (Story 2.11)", () => {
 
   it("parsePlayerLeft checks the reason", () => {
     expect(parsePlayerLeft({ playerId: "p1", name: "Bo", reason: "left" })).toEqual({ playerId: "p1", name: "Bo", reason: "left" });
+    expect(parsePlayerLeft({ playerId: "p1", name: "Bo", reason: "removed" })?.reason).toBe("removed"); // Story 8.3
     expect(parsePlayerLeft({ playerId: "p1", name: "Bo", reason: "kicked" })).toBeNull();
     expect(parsePlayerLeft(null)).toBeNull();
   });

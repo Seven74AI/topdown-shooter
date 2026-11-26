@@ -26,7 +26,8 @@ const valid = { intent: "create", name: "Ana", balanceVersion: "1a2b3c4d", mapVe
 describe("net contract", () => {
   it("names the room and the message types", () => {
     expect(RUN_ROOM_NAME).toBe("run");
-    expect(C2S.INPUT_SEND).toBe("input.send");
+    expect((C2S as Record<string, string>).INPUT_SEND).toBeUndefined(); // Story 8.11: BYTES.INPUT
+    expect(BYTES.INPUT).toBe(2);
     expect(S2C.RUN_JOINED).toBe("run.joined");
     expect(BYTES.HORDE_FRAME).toBe(1);
     const all = [...Object.values(C2S), ...Object.values(S2C)];

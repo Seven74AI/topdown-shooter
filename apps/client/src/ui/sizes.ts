@@ -4,6 +4,13 @@ export const MIN_TEXT_CSS_PX = 14;
 /** Story 2.11: the in-run menu button (☰), top-right, this far inside the safe area (CSS px). */
 export const MENU_BUTTON_CSS_PX = 48;
 export const MENU_BUTTON_INSET_CSS_PX = 12;
+/** Story 8.7 (AC 2): the ping button — round, 48 CSS px, top right, left of ☰ with this gap. */
+export const PING_BUTTON_CSS_PX = 48;
+export const PING_BUTTON_GAP_CSS_PX = 12;
+/** Story 8.7 (decision 8.7 B5): the wheel's chips (≥ 44 px: icon over its word) and the gap between them. */
+export const PING_CHIP_W_CSS_PX = 64;
+export const PING_CHIP_H_CSS_PX = 44;
+export const PING_CHIP_GAP_CSS_PX = 6;
 /** Story 3.1: the build phase's Ready button, bottom centre between the thumbs (CSS px). */
 export const READY_BUTTON_W_CSS_PX = 168;
 export const READY_BUTTON_H_CSS_PX = 52;
@@ -40,11 +47,10 @@ export const HAND_MENU_CLEAR_CSS_PX = 4;
 export const HAND_CHIP_TEXT_CSS_PX = 14;
 export const HAND_CHIP_PAD_CSS_PX = 8;
 /**
- * Story 5.16 (ux-spec §4): the build bar, bottom right while my hands are empty in a build phase:
- * a grid of square tiles (size, gap) this far inside the right and bottom safe-area insets (CSS px).
+ * Story 5.16 (ux-spec §4): the build tiles, bottom right while my hands are empty in a build phase:
+ * square tiles (size, gap) this far inside the right and bottom safe-area insets (CSS px). Story 10.10
+ * (BU-1 = B): the 4 × 2 grid became the Build cluster (quick tile + Build + Shop chip) and the 3 × 3 panel.
  */
-export const BUILD_BAR_COLS = 4;
-export const BUILD_BAR_ROWS = 2;
 export const BUILD_TILE_CSS_PX = 56;
 export const BUILD_TILE_GAP_CSS_PX = 8;
 export const BUILD_BAR_INSET_CSS_PX = 16;
@@ -52,12 +58,34 @@ export const BUILD_BAR_INSET_CSS_PX = 16;
 export const BUILD_PRICE_TEXT_CSS_PX = 14;
 export const BUILD_COUNT_TEXT_CSS_PX = 15;
 export const BUILD_COUNT_GAP_CSS_PX = 4;
+/**
+ * Story 10.10 (BU-1 = B, BU-2, BU-4): the Build button (56 px, Build's spot = the corner; Close takes it
+ * while the panel is open), the round Shop chip this far above it (48 px), the count badge on Build's
+ * top-right corner (text px, how far it sticks out right and up), and the 3 × 3 panel (cells = the
+ * tiles; the card's padding and header; the header shrinks to keep this far below ping / ☰).
+ */
+export const BUILD_BTN_CSS_PX = 56;
+export const SHOP_CHIP_CSS_PX = 48;
+export const SHOP_CHIP_GAP_CSS_PX = 12;
+export const BUILD_BADGE_OUT_X_CSS_PX = 6;
+export const BUILD_BADGE_OUT_Y_CSS_PX = 9;
+export const BUILD_PANEL_COLS = 3;
+export const BUILD_PANEL_ROWS = 3;
+export const BUILD_PANEL_PAD_CSS_PX = 8;
+export const BUILD_PANEL_HEADER_CSS_PX = 24;
+export const BUILD_PANEL_HEADER_MIN_CSS_PX = 18;
+export const BUILD_PANEL_TOP_CLEAR_CSS_PX = 12;
 /** Ready keeps at least this far left of the build bar (it slides further left on narrow screens). */
 export const READY_BAR_GAP_CSS_PX = 12;
 /** Story 5.20 (ux-spec §4): the undo chip ↶ (48 px round); with the bar up it sits left of Story 5.12's consumable button (`undoChip.ts`). */
 export const UNDO_CHIP_CSS_PX = 48;
-/** Story 5.20 (ux-spec §4): while holding, ↶ centre from the bottom-right safe-area corner (Ready is hidden then). */
-export const UNDO_HAND = { rightCss: 270, bottomCss: 64 } as const;
+/**
+ * Story 5.20 (ux-spec §4) / 10.10 (re-review 1): ↶'s ONE spot, hands empty or full — its centre from the
+ * bottom-right safe-area corner: 12 px above the hand cluster's ⟳, 10 px left of its Place, clear of ✕,
+ * the quick tile and Ready's row. (5.20 had (270, 64) while holding; in both modes that spot sat on Ready's
+ * row and pushed Ready further into the move-stick half than before Story 10.10.)
+ */
+export const UNDO_HAND = { rightCss: 164, bottomCss: 146 } as const;
 /** Story 5.20: the undo glyph and the ring's stroke (CSS px). */
 export const UNDO_GLYPH_CSS_PX = 26;
 export const UNDO_RING_CSS_PX = 4;

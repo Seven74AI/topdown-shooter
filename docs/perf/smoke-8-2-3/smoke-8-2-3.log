@@ -1,0 +1,9 @@
+[2.1 s] room EXUR
+[5.7 s] start clicked
+[36.3 s] wave: true {"active":true,"phase":"wave","wave":4,"waiting":false,"line":"","wallet":200,"hostSlot":0,"mySlot":0,"notice":null,"lobbyNotice":null,"toast":""}
+[43.8 s] C mid-wave: waiting after 5515 ms, line "Wave in progress, you'll join at the next build phase", phase wave, wave 4
+[83.2 s] C at the build phase: entered (wave 4, wallet 214)
+[83.9 s] host for the remove: A (hostSlot 0)
+[87.4 s] remove: C shows "You were removed from this run" after 13 ms
+[90.5 s] host move: the other tab is host 268 ms after the host hid; toast "You are now the host"
+[92.5 s] end: B {"active":true,"phase":"build","wave":4,"waiting":false,"line":"","wallet":405,"hostSlot":1,"mySlot":1,"notice":null,"lobbyNotice":null,"toast":"You are now the host"}

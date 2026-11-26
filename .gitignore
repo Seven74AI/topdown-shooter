@@ -18,3 +18,7 @@ deploy/backup.env
 
 # Asset review export (tools/gallery/export.ts): regenerated, ~6 MB
 tools/gallery/out/
+
+# CI speed-up: vitest JSON reports (tools/ci/update-timings.mjs, docs/ci.md)
+reports/
+.bots-tokens.json

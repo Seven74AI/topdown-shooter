@@ -9,6 +9,8 @@ import { survivorPortraitUrl } from "../render/city/survivorPortrait";
 import { lobbyLayout, type Insets, type Rect } from "./lobbyLayout";
 import { districtCards, districtResetText } from "./districtModel";
 import { districtName } from "@topdown/shared";
+import { MENU_TEXT, removeConfirmText } from "./menuItems";
+import { HOST_TOAST_TEXT, HostToastWatch } from "./hostToast";
 
 /** How long "Link copied" stays visible. */
 const NOTICE_MS = 2000;
@@ -58,6 +60,8 @@ export function LobbyScreen() {
   const [sheet, setSheet] = useState(false); // Story 7.7: the DP2 district sheet
   const vp = useViewport();
   const [startTap, setStartTap] = useState<number | null>(null); // Stories 7.4/7.5: "Starting…" while the server reads progress
+  const [confirmRemove, setConfirmRemove] = useState<{ playerId: string; name: string } | null>(null); // Story 8.3 (H2)
+  const [hostWatch] = useState(() => new HostToastWatch()); // Story 8.3 (H1): "You are now the host", once
   useEffect(() => {
     if (startTap === null) return;
     const id = setTimeout(() => setStartTap(null), STARTING_MS);
@@ -69,6 +73,15 @@ export function LobbyScreen() {
   useEffect(() => {
     if (lobby.districtResetSeq > 0 && lobby.districtReset) setNotice(districtResetText(lobby.districtReset));
   }, [lobby.districtResetSeq]);
+  // Story 8.3 (H1, AC 9): the role moved to me (the host left): once, never on the first patch (the creator never sees it).
+  useEffect(() => {
+    const mine = lobby.players.find((p) => p.playerId === lobby.localPlayerId)?.slot;
+    if (hostWatch.observe(lobby.hostSlot, mine)) setNotice(HOST_TOAST_TEXT);
+  }, [lobby.hostSlot, lobby.localPlayerId, lobby.players]);
+  // Story 8.3: a confirm for someone who has left meanwhile closes.
+  useEffect(() => {
+    if (confirmRemove && !lobby.players.some((p) => p.playerId === confirmRemove.playerId)) setConfirmRemove(null);
+  }, [lobby.players, confirmRemove]);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(""), NOTICE_MS);
@@ -102,13 +115,24 @@ export function LobbyScreen() {
         {showLink && <p class="lobby__link">{shareLink(code)}</p>}
       </section>
       {/* Story 7.7 (DP2): the district line opens the sheet; the host picks there, everyone sees the pick. */}
-      <button type="button" class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${pickedName}. ${view.isHost ? "Change" : "See"} districts`} aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
-        <span class="lobby__district-thumb" aria-hidden="true" />
-        <span class="lobby__district-text">
-          <span class="lobby__label lobby__label--accent">District</span>
-          <span class="lobby__district-name">{pickedName}</span>
-        </span>
-      </button>
+      {lobby.resumeWave > 0 ? (
+        // Story 8.6 (E8-R1): a resumed run keeps its district: "Resuming · Downtown · wave 6" (no sheet).
+        <div class="lobby__panel lobby__district" style={place(L.district)} data-testid="resume-line">
+          <span class="lobby__district-thumb" aria-hidden="true" />
+          <span class="lobby__district-text">
+            <span class="lobby__label lobby__label--accent">Resuming</span>
+            <span class="lobby__district-name">{resumeLine(pickedName, lobby.resumeWave)}</span>
+          </span>
+        </div>
+      ) : (
+        <button type="button" class="lobby__panel lobby__district" style={place(L.district)} aria-label={`District ${pickedName}. ${view.isHost ? "Change" : "See"} districts`} aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
+          <span class="lobby__district-thumb" aria-hidden="true" />
+          <span class="lobby__district-text">
+            <span class="lobby__label lobby__label--accent">District</span>
+            <span class="lobby__district-name">{pickedName}</span>
+          </span>
+        </button>
+      )}
       {/* Story 7.3 (D2): spend Supplies between runs without leaving the room; beside Leave in the header. */}
       <button type="button" class="lobby__leave lobby__progress" style={place(L.progress)} onClick={() => uiStore.set(openProgress({ kind: "lobby", code }))}>
         Progress
@@ -192,6 +216,19 @@ export function LobbyScreen() {
                 {you && <span class="lobby__tag lobby__tag--you">You</span>}
               </span>
               <span class="lobby-card__bar" style={{ ...at(c.bar), background: SLOT_COLOR_CSS[slot] }} />
+              {/* Story 8.3 (H2, AC 11): the host removes another player (never themselves), with a confirm. */}
+              {view.isHost && !you && (
+                <button
+                  type="button"
+                  class="lobby-card__remove"
+                  style={at(c.remove)}
+                  aria-label={`${MENU_TEXT.remove} ${p.name}`}
+                  data-testid="lobby-remove"
+                  onClick={() => setConfirmRemove({ playerId: p.playerId, name: p.name })}
+                >
+                  ✕
+                </button>
+              )}
               <span class="lobby-card__name" style={at(c.name)}>
                 <span class="lobby-card__who">
                   <span class="lobby-card__chip" style={{ background: SLOT_COLOR_CSS[slot] }}>
@@ -246,6 +283,31 @@ export function LobbyScreen() {
       <p class="lobby__notice" aria-live="polite">
         {notice}
       </p>
+      {confirmRemove && (
+        <div class="in-run-menu" role="dialog" aria-modal="true" aria-labelledby="lobby-remove-title" data-testid="lobby-remove-confirm">
+          <p id="lobby-remove-title" class="in-run-menu__title">
+            {removeConfirmText(confirmRemove.name)}
+          </p>
+          <div class="in-run-menu__items">
+            <button
+              type="button"
+              class="btn btn--danger"
+              onClick={() => {
+                lobbyStore.remove(confirmRemove.playerId);
+                setConfirmRemove(null);
+              }}
+            >
+              {MENU_TEXT.remove}
+            </button>
+            <button type="button" class="btn btn--secondary" autofocus onClick={() => setConfirmRemove(null)}>
+              {MENU_TEXT.cancel}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+/** Story 8.6 (E8-R1): the resumed lobby's line under "Resuming". */
+export const resumeLine = (district: string, wave: number): string => `${district} · wave ${wave}`;

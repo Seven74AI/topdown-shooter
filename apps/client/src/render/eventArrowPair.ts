@@ -1,5 +1,5 @@
 import { CENTRE_CLEAR_CSS_PX, rectCentreGap } from "../scenes/consumableButton";
-import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
+import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, placeEventArrowOnRay, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 
 /**
  * Story 6.10 (review L11, re-review RR1–RR3): the survivor shows two edge arrows at once (the NPC
@@ -157,7 +157,8 @@ function tryFan(off: number, sx: number, sy: number, w: number, h: number, inset
   const ray = angle + off;
   const R = Math.hypot(sx - w / 2, sy - h / 2);
   fanPlace.side = 0;
-  if (!placeEventArrow(w / 2 + Math.cos(ray) * R, h / 2 + Math.sin(ray) * R, w, h, insets, k, size, avoid, fanPlace)) return false;
+  // Story 8.7: this fan ray only (the fan steps through the rays itself; a full search per ray was 8× slower)
+  if (!placeEventArrowOnRay(w / 2 + Math.cos(ray) * R, h / 2 + Math.sin(ray) * R, w, h, insets, k, size, avoid, fanPlace)) return false;
   if (!legalAt(fanPlace.x, fanPlace.y, angle, w, h, insets, k, size, avoid)) return false;
   if (bearingErr(fanPlace.x, fanPlace.y, angle, w, h) > maxErr) return false;
   probe.x = fanPlace.x;

@@ -1,4 +1,6 @@
 import {
+  addLatePlayer,
+  disownBuildings,
   INPUT_QUEUE_TARGET,
   forceLootPlan,
   NEUTRAL_INPUT,
@@ -68,6 +70,11 @@ import {
   type ZombieTypeId,
   setForcedBlackout,
   type TrainingLevels,
+  restoreRunSave,
+  resumeSavedRun,
+  type Restored,
+  type RunSave,
+  type SavedSeat,
 } from "@topdown/shared";
 import { INPUT_SEQ_RESYNC_AFTER, QUIET_HOLD_TICKS, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS, STALE_INPUT_TICKS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
@@ -310,6 +317,13 @@ export interface RunControllerOptions {
    * had to be resynced (a run of non-consecutive seqs). Telemetry only (`seq_gap_suspect`).
    */
   onSeqResync?: (playerId: string, wave: number, resyncs: number) => void;
+  /**
+   * Story 8.6 (AC 12, 13): build the World from this save (`restoreRunSave`, THE restore path) instead of a fresh
+   * one: `players`, the scenario, start wave and dev loot are ignored; `present` picks the seats that come into the
+   * World now (the rest are `restored.away`). The calm phase it was saved in opens with a fresh timer
+   * (`resumeSavedRun`: no build-start heal, no offer redraw). Throws `SaveRestoreError` (the room refuses the resume).
+   */
+  restore?: { save: RunSave; present: (seat: SavedSeat) => boolean; codeVersion?: string; onDropped?: (d: { kind: string; id: string; owner: string | null; refund: number }) => void };
 }
 
 /**
@@ -342,6 +356,8 @@ export class RunController {
   private readonly onDropHold: ((playerId: string) => void) | null;
   /** Story 8.1: slots of held players (kept so a return keeps kills and telemetry). */
   private readonly heldSlots = new Map<string, PlayerSlot>();
+  /** Story 8.6: what the restore brought back (null: a fresh run). */
+  readonly restored: Restored | null;
 
   constructor(opts: RunControllerOptions) {
     this.onQuietHold = opts.onQuietHold ?? null;
@@ -349,13 +365,34 @@ export class RunController {
     this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
     this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
     this.onSeqResync = opts.onSeqResync ?? null;
-    this.world = createWorld({
-      balance: opts.balance,
-      seed: opts.seed,
-      map: opts.map ?? DOWNTOWN_MAP,
-      ...(opts.systems ? { systems: opts.systems } : {}),
-      loot: { salt: opts.lootSalt ?? 0, prevVariant: opts.lootPrevVariant ?? -1 }, // Story 7.12
-    });
+    const restored = opts.restore
+      ? restoreRunSave(opts.restore.save, { balance: opts.balance, map: opts.map ?? DOWNTOWN_MAP, present: opts.restore.present, ...(opts.restore.codeVersion !== undefined ? { codeVersion: opts.restore.codeVersion } : {}), ...(opts.systems ? { systems: opts.systems } : {}), ...(opts.restore.onDropped ? { onDropped: opts.restore.onDropped } : {}) })
+      : null;
+    this.restored = restored;
+    this.world =
+      restored?.world ??
+      createWorld({
+        balance: opts.balance,
+        seed: opts.seed,
+        map: opts.map ?? DOWNTOWN_MAP,
+        ...(opts.systems ? { systems: opts.systems } : {}),
+        loot: { salt: opts.lootSalt ?? 0, prevVariant: opts.lootPrevVariant ?? -1 }, // Story 7.12
+      });
+    if (restored) {
+      this.world.waves.paused = opts.pauseWaves === true;
+      const lagComp = opts.lagCompensation !== false;
+      setZombieHistoryEnabled(this.world, lagComp);
+      for (const { seat, player } of restored.present) {
+        player.rewindMaxTicks = lagComp ? REWIND_CAP_TICKS : 0;
+        const s = new PlayerSlot(seat.playerId);
+        s.kills = seat.kills;
+        this.slots.set(seat.playerId, s);
+        this.insertInOrder(s);
+      }
+      this.world.events.subscribe((e) => this.events.push(e));
+      resumeSavedRun(this.world, restored.away.map((r) => r.player)); // tonight's calm phase: a fresh timer (E8-R4), Ready cleared, no take-back
+      return;
+    }
     if (opts.devLoot) forceLootPlan(this.world, opts.devLoot[0], opts.devLoot[1]); // Story 7.12 dev switch
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
@@ -509,7 +546,7 @@ export class RunController {
   }
 
   /**
-   * Story 2.12 re-review M-B: an `input.send` the message rate bucket dropped (an honest burst after a
+   * Story 2.12 re-review M-B: an input the message rate bucket dropped (an honest burst after a
    * stall can exceed MAX_INPUTS_PER_S), unvalidated. Only its seq and edge flags are read (no full
    * validation: the bucket exists to spare that work). If it is the next seq, the seq counts as
    * received (no gap, so the following inputs are not refused) and its swap/consumable move to the
@@ -703,6 +740,28 @@ export class RunController {
     this.slots.set(player.id, s);
     this.insertInOrder(s);
     return true;
+  }
+
+  /**
+   * Story 8.2 (AC 1): a late joiner enters the World in a build phase (shared `addLatePlayer`: team spawn point or
+   * the first free spot round it, `wallet`, a fresh survivor, +15 s once per build). Rewind as in the constructor,
+   * a new input slot in player-id order. The card offer is drawn on demand (`offerFor` → `ensureOffer`, stream
+   * `shop:<slot>:<n>`). False outside a build phase or for an id already in the run.
+   */
+  addLatePlayer(playerId: string, slot: number, wallet: number, init: { unlocks?: number; training?: TrainingLevels } = {}, extend = true): boolean {
+    if (this.slots.has(playerId)) return false;
+    const p = addLatePlayer(this.world, playerId, slot, wallet, init, extend); // Story 8.6 (E8-R4): no +15 s for a resume's newcomers
+    if (!p) return false;
+    p.rewindMaxTicks = this.world.zombieHistory.enabled ? REWIND_CAP_TICKS : 0;
+    const s = new PlayerSlot(playerId);
+    this.slots.set(playerId, s);
+    this.insertInOrder(s);
+    return true;
+  }
+
+  /** Story 8.3 (H3, decision E8-H3): a removed player's buildings stay, pay nobody and count for nobody's cap. */
+  disownBuildings(playerId: string): number {
+    return disownBuildings(this.world, playerId);
   }
 
   /** Back into the tick order by player id (`p0` < `p1` …), so the order never depends on who dropped first. */

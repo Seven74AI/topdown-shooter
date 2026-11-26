@@ -1,7 +1,8 @@
 import { LOOT_ICON_CSS_PX, LOOT_ICON_GAP_CSS_PX, layoutLootLine } from "./hudTopLayout";
 import { LOOT_ATLAS, LOOT_BADGE_FRAME } from "../render/city/lootBagAtlas";
-import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, hpRowText, layoutBanner, placeWaveText, reportHudTextWidths } from "./hudTopLayout";
+import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, fitWaveText, hpRowText, layoutBanner, reportHudTextWidths } from "./hudTopLayout";
 import { layoutBossBar } from "./bossBar";
+import { PingHud } from "./PingHud"; // Story 8.7
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
@@ -18,7 +19,9 @@ import {
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
   BUILD_COUNT_TEXT_CSS_PX,
+  BUILD_PANEL_PAD_CSS_PX,
   BUILD_PRICE_TEXT_CSS_PX,
+  BUILD_TILE_CSS_PX,
   HAND_CHIP_PAD_CSS_PX,
   HAND_CHIP_TEXT_CSS_PX,
   UNDO_GLYPH_CSS_PX,
@@ -39,7 +42,7 @@ import { BUTTON_TOLERANCE_PX } from "../input/routePointer";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
-import { BUILD_BAR_SLOTS, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, buildBarSlots, layoutBuildBar, newBuildBarLayout, readyLeftX, tileState, type BuildTile } from "./buildBar";
+import { BUILD_BAR_SLOTS, PANEL_CELLS, PANEL_TAP_CONSUME, PANEL_TAP_KEEP, PANEL_TAP_NONE, buildPanelSlots, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, onPanelCard, panelAllowed, panelTapOutside, readyClearLeft, readyLeftX, tileState, type BuildTile } from "./buildBar";
 import { FRAME_WOOD, buildingFrame, ensureBuildingsAtlas, textureOfFrame } from "../render/city/buildingsAtlas";
 import { BUILD_ICON_FRAME_H, BUILD_ICON_FRAME_W, BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y, BUILD_ICON_TEXTURE, buildIconFrame, ensureBuildIcons } from "../render/city/buildIcons";
 import { drawPlankIcon } from "../render/BuildingView";
@@ -57,7 +60,7 @@ import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
 import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "../render/city/spriteAtlas";
 import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
-import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./consumableButton";
+import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout } from "./consumableButton";
 import { CONSUMABLE_ICON_CSS_PX, CONSUMABLE_ICON_FRAMES, CONSUMABLE_ICON_TEXTURE, ensureConsumableIcons } from "../render/city/consumableIcons";
 
 export interface HudSceneData {
@@ -223,7 +226,30 @@ const SHOP_BORDER = 0xf5c542;
  * icon centred 22 px from the tile's top in a 42 × 28 px box, the price centred 45 px down; a tile I
  * can't pick (too expensive, or at the cap) at 40 % with a red price when it's the money.
  */
-const TILE_IDS = ["tile0", "tile1", "tile2", "tile3", "tile4", "tile5", "tile6", "tile7"] as const;
+/**
+ * Story 10.10 (BU-1 = B): the tile objects — 0–7 the open panel's cells (Story 5.16's 8 slots), 8 the
+ * quick tile (BU-3: the 1st short-list tile), 9 BU-3's 2nd short-list tile on Build's spot.
+ */
+const TILE_IDS = ["ptile0", "ptile1", "ptile2", "ptile3", "ptile4", "ptile5", "ptile6", "ptile7", "quick", "quick2"] as const;
+const TILE_COUNT = TILE_IDS.length;
+const T_QUICK = 8;
+const T_SHORT2 = 9;
+/** Story 10.10: what the build tiles show — hidden, BU-3's short list, the closed cluster, the open panel. */
+const BAR_HIDDEN = 0;
+const BAR_SHORT = 1;
+const BAR_CLOSED = 2;
+const BAR_OPEN = 3;
+/** Story 10.10: Build / Close's icon box (centred `TILE_ICON_Y_PX` down), label size; the Shop chip's glyph; the ↻ "again" mark. */
+const BUILD_ICON_PX = 11;
+const BUILD_LABEL_PX = 13;
+const SHOP_CHIP_GLYPH_PX = 22;
+const AGAIN_R_PX = 10;
+const AGAIN_GLYPH_PX = 13;
+const BADGE_PAD_X_PX = 6;
+const BADGE_H_PX = 20;
+const PANEL_TITLE_PX = 15;
+const PANEL_CARD_ALPHA = 0.72;
+const PANEL_CARD_RADIUS_PX = 14;
 const TILE_BG_ALPHA = 0.58;
 const TILE_BORDER_ALPHA = 0.85;
 const TILE_RADIUS_PX = 10;
@@ -314,6 +340,9 @@ export class HudScene extends Phaser.Scene {
   /** The build bar was up at the last layout (the button then sits above the grid). */
   private consAboveBar = false;
   private menuBtn!: Phaser.GameObjects.Graphics;
+  /** Story 8.7: the ping button and its wheel. */
+  private pingHud!: PingHud;
+  private readonly waveFit = { x: 0, scale: 1, compact: false };
   private shownMenuButton: boolean | null = null;
   private shownMenuOpen = false;
   private toastText!: Phaser.GameObjects.Text;
@@ -332,8 +361,10 @@ export class HudScene extends Phaser.Scene {
   /** `readyOn`, count and total folded into one key (redraw only when it changes). */
   private shownReadyKey = -1;
   /**
-   * Story 5.16: the build bar (8 tiles: background, icon image or Graphics, price/label, glyph) and
-   * its count line. Slots and looks are redrawn only when the items, the page or the state key change.
+   * Story 5.16 / 10.10: the build tiles (`TILE_IDS`: background, icon image or Graphics, price/label,
+   * glyph), Build / Close, the Shop chip, the count (Build's badge, or the panel's header), the panel's
+   * card and title and the quick tile's ↻. Slots and looks are redrawn only when the items, the page,
+   * the mode, the quick type or the state key change.
    */
   private barTiles: Phaser.GameObjects.Graphics[] = [];
   private barIcons: Phaser.GameObjects.Image[] = [];
@@ -341,14 +372,29 @@ export class HudScene extends Phaser.Scene {
   private barPrices: Phaser.GameObjects.Text[] = [];
   private barGlyphs: Phaser.GameObjects.Text[] = [];
   private barCount!: Phaser.GameObjects.Text;
-  private readonly bar = newBuildBarLayout();
-  /** Story 5.12: scratch for the consumable button above the grid. */
-  private readonly consBar = newBuildBarLayout();
+  private barBadge!: Phaser.GameObjects.Graphics;
+  private buildBtn!: Phaser.GameObjects.Graphics;
+  private buildIcon!: Phaser.GameObjects.Graphics;
+  private buildLabel!: Phaser.GameObjects.Text;
+  private shopChip!: Phaser.GameObjects.Graphics;
+  private shopChipGlyph!: Phaser.GameObjects.Text;
+  private panelCard!: Phaser.GameObjects.Graphics;
+  private panelTitle!: Phaser.GameObjects.Text;
+  private againMark!: Phaser.GameObjects.Graphics;
+  private againGlyph!: Phaser.GameObjects.Text;
+  private readonly cluster = newBuildClusterLayout();
+  private readonly panel = newBuildPanelLayout();
   private readonly rightBtns = newRightButtonsLayout();
+  /** Story 5.16's 8 slots (the panel's first 8 cells). */
   private readonly barSlots = new Int16Array(BUILD_BAR_SLOTS);
+  /** Story 10.10: what each tile object shows (an item index or SLOT_*) and where (canvas px). */
+  private readonly tileSlot = new Int16Array(TILE_COUNT);
+  private readonly tileX = new Float32Array(TILE_COUNT);
+  private readonly tileY = new Float32Array(TILE_COUNT);
   private barPage = 0;
   private barSlotsDirty = true;
-  private shownBarVisible: boolean | null = null;
+  private shownBarMode = -1;
+  private shownQuick = "";
   private shownBarItems: readonly BuildTile[] | null = null;
   private shownBarKey = -1;
   private shownBuildSecs = -2;
@@ -445,7 +491,6 @@ export class HudScene extends Phaser.Scene {
   private shownBannerColor = "";
   private shownBannerBoss = false;
   /** Story 6.14: layout scratch (no allocation per frame). */
-  private readonly waveAt = { x: 0, scale: 1 };
   private readonly bannerAt = { x: 0, y: 0, w: 0, h: 0 };
   private readonly bannerBoss = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
   private shownWeapon = "";
@@ -508,7 +553,9 @@ export class HudScene extends Phaser.Scene {
     this.shownToast = "";
     this.shownReadyVisible = null;
     this.shownReadyKey = -1;
-    this.shownBarVisible = null; // Story 5.16
+    this.shownBarMode = -1; // Story 5.16 / 10.10
+    this.shownQuick = "";
+    this.model.buildPanelOpen = false; // Story 10.10: never remembered open across a restart
     this.shownBarItems = null;
     this.shownBarKey = -1;
     this.barSlotsDirty = true;
@@ -608,6 +655,7 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
+    this.pingHud = new PingHud(this, this.buttons, this.model); // Story 8.7: left of ☰
     // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 5.16: Shop is a build-bar tile.
     this.readyBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
@@ -641,7 +689,10 @@ export class HudScene extends Phaser.Scene {
     this.barIconGfx.length = 0;
     this.barPrices.length = 0;
     this.barGlyphs.length = 0;
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+    // Story 10.10: the panel's card under its cells.
+    this.panelCard = this.add.graphics().setDepth(1000).setVisible(false);
+    this.panelTitle = this.add.text(0, 0, "Build", { ...this.outlinedStyle(PANEL_TITLE_PX), fontStyle: "bold" }).setOrigin(0, 0.5).setDepth(1002).setVisible(false);
+    for (let s = 0; s < TILE_COUNT; s++) {
       this.barTiles.push(this.add.graphics().setDepth(1001).setVisible(false));
       this.barIcons.push(this.add.image(0, 0, textureOfFrame(FRAME_WOOD), FRAME_WOOD).setDepth(1002).setVisible(false));
       this.barIconGfx.push(this.add.graphics().setDepth(1002).setVisible(false));
@@ -649,7 +700,22 @@ export class HudScene extends Phaser.Scene {
       this.barPrices.push(this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_PRICE_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1002).setVisible(false));
       this.buttons.set({ id: TILE_IDS[s] as string, x: 0, y: 0, w: 0, h: 0, visible: false }, () => this.pressTile(s));
     }
-    this.barCount = this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_COUNT_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(1, 1).setDepth(1002).setVisible(false);
+    // Story 10.10: Build (Close while the panel is open), the Shop chip above it, the quick tile's ↻ and the count badge.
+    this.buildBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.buildIcon = this.add.graphics().setDepth(1002).setVisible(false);
+    this.buildLabel = this.add.text(0, 0, "Build", { ...this.outlinedStyle(BUILD_LABEL_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: "build", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.buildPanelPressed = true; // the GameScene toggles the panel (review 1: not in 5.18's quiet window)
+    });
+    this.shopChip = this.add.graphics().setDepth(1001).setVisible(false);
+    this.shopChipGlyph = this.add.text(0, 0, "🛒", this.outlinedStyle(SHOP_CHIP_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: "shopchip", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      if (this.model.buildPick === "") this.model.shopPressed = true; // review L3 (5.16): a building picked this frame wins
+    });
+    this.againMark = this.add.graphics().setDepth(1003).setVisible(false);
+    this.againGlyph = this.add.text(0, 0, "↻", { ...this.outlinedStyle(AGAIN_GLYPH_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1004).setVisible(false);
+    this.barBadge = this.add.graphics().setDepth(1003).setVisible(false);
+    this.barCount = this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_COUNT_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(1, 0).setDepth(1004).setVisible(false);
     // Story 5.21: the action bar (Move · Upgrade · Repair · Sell · ✕; a touch on its buttons never starts a stick).
     this.actBtns.length = 0;
     this.actTexts.length = 0;
@@ -783,6 +849,20 @@ export class HudScene extends Phaser.Scene {
     // nothing (no aim stick, no fire: the right half belongs to the build cluster; BX-5 drags with it).
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
+      this.pingHud.pointerDown(this.buttons.hit(p.x, p.y, this.scale.width)); // Story 8.7: a tap off the wheel closes it
+      // Story 10.10 (AC 6): a touch outside the open Build panel closes it; off every button it is consumed
+      // (no stick, no fire, no building selected), on another button (Ready, ping, ☰) that button still gets it.
+      // Review 4, 5: a touch on the card itself keeps it open (consumed); a move-stick-half touch closes it and still walks.
+      const open = this.shownBarMode === BAR_OPEN;
+      const outside = panelTapOutside(open, this.buttons.hit(p.x, p.y, this.scale.width), open && onPanelCard(this.panel, p.x, p.y), p.wasTouch && p.x < this.scale.width / 2);
+      if (outside !== PANEL_TAP_NONE) {
+        if (outside !== PANEL_TAP_KEEP) this.model.buildPanelOpen = false;
+        if (outside === PANEL_TAP_CONSUME || outside === PANEL_TAP_KEEP) {
+          this.buttons.claim(p.id);
+          this.router.pointerDown(p.id, p.x, p.y, p.wasTouch, p.button, true, this.scale.width);
+          return;
+        }
+      }
       if (this.model.placementActive) {
         // Story 5.23 (AC 10, D13): a mouse while holding: right button puts away; a left press that
         // misses the HUD buttons places (on press, like the buttons); no mouse drag (the ghost follows the cursor).
@@ -1040,12 +1120,20 @@ export class HudScene extends Phaser.Scene {
     return g;
   }
 
+  /** Story 5.12 / 10.10 (AC 8): swap + consumable — above the Build cluster while it is up, else bottom right. */
+  private rightRow(k: number): ReturnType<typeof layoutRightButtons> {
+    const safe = this.insets;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    if (!this.consAboveBar) return layoutRightButtons(w, h, safe.right, safe.bottom, k, false, 0, 0, this.rightBtns);
+    const c = layoutBuildCluster(w, h, safe.right, safe.bottom, k, this.cluster);
+    return layoutRowAboveCluster(w, h, safe.right, safe.bottom, k, c.top, c.right, this.rightBtns, safe.top); // re-review 2: under a top inset too
+  }
+
   /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */
   private layoutButtons(): void {
     const k = dpr();
-    const safe = this.insets;
-    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
-    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
+    const l = this.rightRow(k);
     const size = l.size;
     const x = l.swapX;
     const y = l.swapY;
@@ -1055,6 +1143,7 @@ export class HudScene extends Phaser.Scene {
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutConsumableButton();
     this.layoutMenuButton();
+    this.pingHud.layout(this.scale.width, this.insets, k); // Story 8.7
     this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
     this.layoutPlacementButtons();
@@ -1062,10 +1151,10 @@ export class HudScene extends Phaser.Scene {
     this.layoutUndo(); // Story 5.20: after the build bar and the hand cluster (it sits by both)
   }
 
-  /** Story 5.20 (D4): ↶ above the build bar's top-left (`layoutUndoChip`), the bar's or the hand's spot. */
+  /** Story 5.20 (D4) / 10.10 (re-review 1): ↶ on its one spot (`layoutUndoChip`), hands empty or full. */
   private layoutUndo(): void {
     const k = dpr();
-    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.bar.left, this.bar.top, this.bar.countX, k, this.model.undoHolding, this.undoRect);
+    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.undoRect);
     const rect = this.buttons.get("undo");
     if (rect) Object.assign(rect, { x: l.x, y: l.y, w: l.size, h: l.size });
     const g = this.undoBg;
@@ -1084,7 +1173,7 @@ export class HudScene extends Phaser.Scene {
   /** Story 5.20: shows ↶ with its draining ring (redrawn only when the drawn share changes). */
   private drawUndo(): void {
     const m = this.model;
-    const shown = m.undoVisible;
+    const shown = m.undoVisible && this.barMode() !== BAR_OPEN; // Story 10.10: under the open Build panel
     if (shown !== this.shownUndoVisible) {
       this.shownUndoVisible = shown;
       this.buttons.setVisible("undo", shown);
@@ -1158,9 +1247,7 @@ export class HudScene extends Phaser.Scene {
    */
   private layoutConsumableButton(): void {
     const k = dpr();
-    const safe = this.insets;
-    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
-    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
+    const l = this.rightRow(k);
     const size = l.size;
     const x = l.consX;
     const y = l.consY;
@@ -1180,7 +1267,7 @@ export class HudScene extends Phaser.Scene {
       this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
-    const show = m.consumableVisible && frame !== undefined && !m.voting; // Story 6.11: hidden in the vote
+    const show = m.consumableVisible && frame !== undefined && !m.voting && !m.watching && this.barMode() !== BAR_OPEN; // Story 10.10: under the open Build panel // Story 6.11: hidden in the vote; 8.2: and while waiting (8.7 B5 amended: it stays while the ping wheel is open)
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
     const f = show ? (frame as string) : "";
     const count = show ? m.consumableCount : -1;
@@ -1509,7 +1596,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const w = READY_BUTTON_W_CSS_PX * k;
     const h = READY_BUTTON_H_CSS_PX * k;
-    const x = readyLeftX(this.scale.width, w, this.bar.left, k);
+    const x = readyLeftX(this.scale.width, w, readyClearLeft(this.panel), k); // Story 10.10 (B4): clear of the open card (it never jumps; ↶ sits above Ready's row)
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
@@ -1518,36 +1605,61 @@ export class HudScene extends Phaser.Scene {
     this.shownReadyKey = -1; // redraw at the new size
   }
 
-  /** Story 5.16: the build bar's tiles and count line, from the bottom-right safe-area corner (`layoutBuildBar`). */
+  /**
+   * Story 10.10: the Build cluster (`layoutBuildCluster`) and the open panel (`layoutBuildPanel`), from
+   * the bottom-right safe-area corner. Fixed parts (Build / Close, the Shop chip, the card, the ↻) are
+   * drawn here; the tiles go where the mode puts them (`placeBarSlots`).
+   */
   private layoutBuildBar(): void {
     const k = dpr();
-    const l = layoutBuildBar(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.bar);
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-      const x = l.x[s] as number;
-      const y = l.y[s] as number;
-      const rect = this.buttons.get(TILE_IDS[s] as string);
-      if (rect) Object.assign(rect, { x, y, w: l.tile, h: l.tile });
-      (this.barTiles[s] as Phaser.GameObjects.Graphics).setPosition(x, y);
-      (this.barGlyphs[s] as Phaser.GameObjects.Text)
-        .setFontSize(Math.round(TILE_GLYPH_PX * k))
-        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
-        .setPosition(x + l.tile / 2, y + TILE_ICON_Y_PX * k);
-      (this.barPrices[s] as Phaser.GameObjects.Text)
-        .setFontSize(Math.round(BUILD_PRICE_TEXT_CSS_PX * k))
-        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75))
-        .setPosition(x + l.tile / 2, y + TILE_PRICE_Y_PX * k);
-    }
-    this.barCount
-      .setFontSize(Math.round(BUILD_COUNT_TEXT_CSS_PX * k))
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const c = layoutBuildCluster(w, h, this.insets.right, this.insets.bottom, k, this.cluster);
+    const p = layoutBuildPanel(w, h, this.insets.right, this.insets.bottom, k, this.panel, this.insets.top);
+    this.buildLabel.setFontSize(Math.round(BUILD_LABEL_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75));
+    const chipRect = this.buttons.get("shopchip");
+    if (chipRect) Object.assign(chipRect, { x: c.chipX, y: c.chipY, w: c.chip, h: c.chip });
+    const r = c.chip / 2;
+    this.shopChip
+      .clear()
+      .fillStyle(READY_BG, READY_BG_ALPHA)
+      .fillCircle(r, r, r)
+      .lineStyle(TILE_BORDER_PX * 1.4 * k, SHOP_BORDER, 1)
+      .strokeCircle(r, r, r - TILE_BORDER_PX * 0.7 * k)
+      .setPosition(c.chipX, c.chipY);
+    this.shopChipGlyph.setFontSize(Math.round(SHOP_CHIP_GLYPH_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.5)).setPosition(c.chipX + r, c.chipY + r);
+    const ar = AGAIN_R_PX * k;
+    this.againMark
+      .clear()
+      .fillStyle(READY_BG, 0.85)
+      .fillCircle(0, 0, ar)
+      .lineStyle(TILE_BORDER_PX * k, READY_BORDER, TILE_BORDER_ALPHA)
+      .strokeCircle(0, 0, ar)
+      .setPosition(c.quickX + ar / 2, c.quickY + ar / 2);
+    this.againGlyph.setFontSize(Math.round(AGAIN_GLYPH_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.5)).setPosition(c.quickX + ar / 2, c.quickY + ar / 2);
+    this.panelCard
+      .clear()
+      .fillStyle(READY_BG, PANEL_CARD_ALPHA)
+      .fillRoundedRect(0, 0, p.cardW, p.cardH, PANEL_CARD_RADIUS_PX * k)
+      .lineStyle(TILE_BORDER_PX * k, READY_BORDER, 0.35)
+      .strokeRoundedRect(0, 0, p.cardW, p.cardH, PANEL_CARD_RADIUS_PX * k)
+      .setPosition(p.cardX, p.cardY);
+    this.panelTitle
+      .setFontSize(Math.round(PANEL_TITLE_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75))
-      .setPosition(l.countX, l.countY);
-    this.barSlotsDirty = true; // icons re-fitted at the new size
+      .setPosition(p.cardX + (BUILD_PANEL_PAD_CSS_PX + 2) * k, p.headerY);
+    this.barCount.setFontSize(Math.round(BUILD_COUNT_TEXT_CSS_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75));
+    for (let s = 0; s < TILE_COUNT; s++) {
+      (this.barGlyphs[s] as Phaser.GameObjects.Text).setFontSize(Math.round(TILE_GLYPH_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k));
+      (this.barPrices[s] as Phaser.GameObjects.Text).setFontSize(Math.round(BUILD_PRICE_TEXT_CSS_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75));
+    }
+    this.barSlotsDirty = true; // tiles re-placed and icons re-fitted at the new size
     this.shownBarKey = -1;
   }
 
   /** Story 5.16: a tile tap (HudButtons handler): a building → `buildPick`, Shop → `shopPressed`, More ▸ → the next page. */
   private pressTile(s: number): void {
-    const slot = this.barSlots[s] as number;
+    const slot = this.tileSlot[s] as number;
     if (slot >= 0) {
       const item = this.model.buildItems[slot];
       if (item && this.model.buildPick === "") this.model.buildPick = item.id; // review L3: two taps in one frame: the first wins
@@ -1560,29 +1672,39 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
+  /** Story 10.10: the mode the build tiles are in now (hidden under the open ping wheel, Story 8.7). */
+  private barMode(): number {
+    const m = this.model;
+    const v = m.buildBar && !this.pingHud.wheelOpen; // Story 8.7: hidden under the open ping wheel (≤ 3 s)
+    if (!v) return BAR_HIDDEN;
+    if (!panelAllowed(m.buildItems.length)) return BAR_SHORT;
+    return m.buildPanelOpen ? BAR_OPEN : BAR_CLOSED;
+  }
+
   /**
-   * Story 5.16: shows, hides and redraws the build bar, only when something it shows changes: the
-   * slots (items, page, layout) re-place the icons and labels; the state key (each tile's short/cap
-   * bits, my count, the cap) redraws the tiles' looks and the count line. No allocation otherwise.
+   * Story 5.16 / 10.10: shows, hides and redraws the build tiles, only when something they show changes:
+   * the mode, the slots (items, page, quick type, layout) re-place the tiles, icons and labels; the state
+   * key (each tile's short/cap bits, my count, the cap) redraws the tiles' looks and the count. No allocation otherwise.
    */
   private drawBuildBar(): void {
     const m = this.model;
-    const v = m.buildBar;
+    const mode = this.barMode();
     if (m.buildItems !== this.shownBarItems) {
       this.shownBarItems = m.buildItems;
       this.barPage = 0;
       this.barSlotsDirty = true;
     }
-    if (v !== this.shownBarVisible || this.barSlotsDirty) {
-      if (!v && this.shownBarVisible === true && this.barPage !== 0) {
-        this.barPage = 0; // review L4: the bar reopens on its first page
-        this.barSlotsDirty = true;
-      }
-      if (this.barSlotsDirty) this.placeBarSlots();
-      this.shownBarVisible = v;
-      for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-        const slot = this.barSlots[s] as number;
-        const on = v && slot !== SLOT_EMPTY;
+    if (m.buildQuick !== this.shownQuick) {
+      this.shownQuick = m.buildQuick;
+      this.barSlotsDirty = true;
+    }
+    if (mode !== this.shownBarMode || this.barSlotsDirty) {
+      if (mode !== BAR_OPEN && this.barPage !== 0) this.barPage = 0; // review L4 (5.16): the panel reopens on its first page
+      this.shownBarMode = mode;
+      this.placeBarSlots(mode);
+      for (let s = 0; s < TILE_COUNT; s++) {
+        const slot = this.tileSlot[s] as number;
+        const on = slot !== SLOT_EMPTY;
         this.buttons.setVisible(TILE_IDS[s] as string, on);
         (this.barTiles[s] as Phaser.GameObjects.Graphics).setVisible(on);
         (this.barPrices[s] as Phaser.GameObjects.Text).setVisible(on);
@@ -1591,24 +1713,41 @@ export class HudScene extends Phaser.Scene {
         (this.barIcons[s] as Phaser.GameObjects.Image).setVisible(on && framed);
         (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setVisible(on && slot >= 0 && !framed);
       }
-      this.barCount.setVisible(v);
+      const build = mode === BAR_CLOSED || mode === BAR_OPEN;
+      const chip = mode === BAR_SHORT || mode === BAR_CLOSED;
+      this.buttons.setVisible("build", build);
+      this.buildBtn.setVisible(build);
+      this.buildIcon.setVisible(build);
+      this.buildLabel.setVisible(build);
+      this.buttons.setVisible("shopchip", chip);
+      this.shopChip.setVisible(chip);
+      this.shopChipGlyph.setVisible(chip);
+      const again = mode === BAR_CLOSED && (this.tileSlot[T_QUICK] as number) >= 0;
+      this.againMark.setVisible(again);
+      this.againGlyph.setVisible(again);
+      this.panelCard.setVisible(mode === BAR_OPEN);
+      this.panelTitle.setVisible(mode === BAR_OPEN);
+      this.barCount.setVisible(mode !== BAR_HIDDEN);
+      this.barBadge.setVisible(mode === BAR_SHORT || mode === BAR_CLOSED);
+      if (build) this.drawBuildButton(mode === BAR_OPEN);
+      else this.buttons.setVisible("build", false);
       this.shownBarKey = -1;
     }
-    if (!v) return;
+    if (mode === BAR_HIDDEN) return;
     let bits = 0;
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-      const slot = this.barSlots[s] as number;
-      if (slot >= 0) bits |= tileState(m.buildOwned, m.buildCap, m.money, (m.buildItems[slot] as BuildTile).price) << (2 * s);
+    for (let s = 0; s < TILE_COUNT; s++) {
+      const slot = this.tileSlot[s] as number;
+      if (slot >= 0) bits += tileState(m.buildOwned, m.buildCap, m.money, (m.buildItems[slot] as BuildTile).price) * 4 ** s;
     }
-    const key = bits + m.buildOwned * 65536 + m.buildCap * 65536 * 256;
+    const key = bits + m.buildOwned * 4 ** TILE_COUNT + m.buildCap * 4 ** TILE_COUNT * 256;
     if (key === this.shownBarKey) return;
     this.shownBarKey = key;
     const k = dpr();
-    const t = this.bar.tile;
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-      const slot = this.barSlots[s] as number;
+    const t = this.shownBarMode === BAR_OPEN ? this.panel.tile : this.cluster.tile;
+    for (let s = 0; s < TILE_COUNT; s++) {
+      const slot = this.tileSlot[s] as number;
       if (slot === SLOT_EMPTY) continue;
-      const st = slot >= 0 ? (bits >> (2 * s)) & 3 : 0;
+      const st = slot >= 0 ? tileState(m.buildOwned, m.buildCap, m.money, (m.buildItems[slot] as BuildTile).price) : 0;
       const a = st !== 0 ? TILE_DIM_ALPHA : 1;
       const g = (this.barTiles[s] as Phaser.GameObjects.Graphics).clear();
       g.fillStyle(READY_BG, slot === SLOT_SHOP ? READY_BG_ALPHA : TILE_BG_ALPHA).fillRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
@@ -1619,24 +1758,116 @@ export class HudScene extends Phaser.Scene {
       (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setAlpha(a);
       if (slot >= 0) (this.barPrices[s] as Phaser.GameObjects.Text).setColor(st & TILE_SHORT ? TILE_PRICE_SHORT : TILE_PRICE);
     }
-    this.barCount.setText(`${m.buildOwned}/${m.buildCap}`).setColor(m.buildOwned >= m.buildCap ? COUNT_FULL : COUNT_OK);
+    const count = this.barCount.setText(`${m.buildOwned}/${m.buildCap}`).setColor(m.buildOwned >= m.buildCap ? COUNT_FULL : COUNT_OK);
+    if (this.shownBarMode === BAR_OPEN) {
+      count.setOrigin(1, 0.5).setPosition(this.panel.cardX + this.panel.cardW - (BUILD_PANEL_PAD_CSS_PX + 2) * k, this.panel.headerY);
+      return;
+    }
+    // The badge on Build's top-right corner (BU-3: on the corner tile): a dark pill behind the count.
+    const c = this.cluster;
+    const bw = count.width + 2 * BADGE_PAD_X_PX * k;
+    const bh = BADGE_H_PX * k;
+    this.barBadge
+      .clear()
+      .fillStyle(READY_BG, 0.85)
+      .fillRoundedRect(0, 0, bw, bh, bh / 2)
+      .lineStyle(TILE_BORDER_PX * k, READY_BORDER, TILE_BORDER_ALPHA)
+      .strokeRoundedRect(0, 0, bw, bh, bh / 2)
+      .setPosition(c.badgeX - bw, c.badgeY);
+    count.setOrigin(1, 0.5).setPosition(c.badgeX - BADGE_PAD_X_PX * k, c.badgeY + bh / 2);
   }
 
-  /** Story 5.16: which item each slot shows (page, Shop last) and their icons and labels (on change only). */
-  private placeBarSlots(): void {
+  /**
+   * Story 10.10: Build (hammer + "Build") on its corner spot or, while the panel is open, Close (✕ +
+   * "Close") as the panel's 9th cell (the same spot; 10.10-B3: a shrunk cell on the tightest screen).
+   */
+  private drawBuildButton(close: boolean): void {
+    const k = dpr();
+    const c = this.cluster;
+    const p = this.panel;
+    const t = close ? p.tile : c.tile;
+    const x = close ? (p.x[PANEL_CELLS - 1] as number) : c.buildX;
+    const y = close ? (p.y[PANEL_CELLS - 1] as number) : c.buildY;
+    const rect = this.buttons.get("build");
+    if (rect) Object.assign(rect, { x, y, w: t, h: t });
+    this.buildBtn.setPosition(x, y);
+    const f = t / (BUILD_TILE_CSS_PX * k); // review 6: a shrunk cell (10.10-B3)
+    this.buildIcon.setPosition(x + t / 2, y + TILE_ICON_Y_PX * k * f);
+    this.buildLabel.setPosition(x + t / 2, y + TILE_PRICE_Y_PX * k * f);
+    const g = this.buildBtn.clear();
+    g.fillStyle(READY_BG, READY_BG_ALPHA).fillRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
+    g.lineStyle(TILE_BORDER_PX * 1.4 * k, READY_BORDER, 0.95).strokeRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
+    const s = BUILD_ICON_PX * k;
+    const ic = this.buildIcon.clear().lineStyle(3 * k, 0xf4f4f2, 1);
+    if (close) {
+      ic.lineBetween(-s * 0.7, -s * 0.7, s * 0.7, s * 0.7).lineBetween(s * 0.7, -s * 0.7, -s * 0.7, s * 0.7);
+    } else {
+      // A hammer: the handle down-left, the head across its top end.
+      ic.lineBetween(-s * 0.8, s * 0.85, s * 0.25, -s * 0.2);
+      const hx = s * 0.35;
+      const hy = -s * 0.3;
+      const u = Math.SQRT1_2;
+      const L = s * 0.75;
+      const W = s * 0.32;
+      const ax = hx - u * L + u * W;
+      const ay = hy - u * L - u * W;
+      const bx = hx + u * L + u * W;
+      const by = hy + u * L - u * W;
+      const cx = hx + u * L - u * W;
+      const cy = hy + u * L + u * W;
+      const dx = hx - u * L - u * W;
+      const dy = hy - u * L + u * W;
+      ic.fillStyle(0xf4f4f2, 1).fillTriangle(ax, ay, bx, by, cx, cy).fillTriangle(ax, ay, cx, cy, dx, dy);
+    }
+    this.buildLabel.setText(close ? "Close" : "Build");
+  }
+
+  /**
+   * Story 5.16 / 10.10: what each tile object shows and where, by mode (on change only) — open: the 8
+   * slots (page, Shop last) in the panel's cells; closed: the quick type on the quick tile; BU-3: the 1–2
+   * types on the quick tile's and Build's spots. Then their icons and labels.
+   */
+  private placeBarSlots(mode: number): void {
     this.barSlotsDirty = false;
     const items = this.model.buildItems;
-    buildBarSlots(items.length, this.barPage, this.barSlots);
+    const c = this.cluster;
+    const p = this.panel;
+    this.tileSlot.fill(SLOT_EMPTY);
+    let quick = -1;
+    for (let i = 0; i < items.length; i++) if ((items[i] as BuildTile).id === this.model.buildQuick) quick = i;
+    if (mode === BAR_OPEN) {
+      buildPanelSlots(items.length, quick, this.barPage, this.barSlots); // review 9 (B13): the quick type on the quick tile's own spot
+      for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+        this.tileSlot[s] = this.barSlots[s] as number;
+        this.tileX[s] = p.x[s] as number;
+        this.tileY[s] = p.y[s] as number;
+      }
+    } else if (mode === BAR_CLOSED) {
+      this.tileSlot[T_QUICK] = quick;
+    } else if (mode === BAR_SHORT) {
+      if (items.length === 2) this.tileSlot[T_QUICK] = 0;
+      if (items.length >= 1) this.tileSlot[T_SHORT2] = items.length - 1;
+    }
+    this.tileX[T_QUICK] = c.quickX;
+    this.tileY[T_QUICK] = c.quickY;
+    this.tileX[T_SHORT2] = c.buildX;
+    this.tileY[T_SHORT2] = c.buildY;
     const k = dpr();
-    const t = this.bar.tile;
-    const boxW = TILE_ICON_W_PX * k;
-    const boxH = TILE_ICON_H_PX * k;
-    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
-      const slot = this.barSlots[s] as number;
-      const cx = (this.bar.x[s] as number) + t / 2;
-      const cy = (this.bar.y[s] as number) + TILE_ICON_Y_PX * k;
-      const price = this.barPrices[s] as Phaser.GameObjects.Text;
-      const glyph = this.barGlyphs[s] as Phaser.GameObjects.Text;
+    const t = mode === BAR_OPEN ? p.tile : c.tile;
+    const f = t / (BUILD_TILE_CSS_PX * k); // review 6: a shrunk cell (10.10-B3) scales its icon and label spots
+    const boxW = TILE_ICON_W_PX * k * f;
+    const boxH = TILE_ICON_H_PX * k * f;
+    for (let s = 0; s < TILE_COUNT; s++) {
+      const slot = this.tileSlot[s] as number;
+      const x = this.tileX[s] as number;
+      const y = this.tileY[s] as number;
+      const rect = this.buttons.get(TILE_IDS[s] as string);
+      if (rect) Object.assign(rect, { x, y, w: t, h: t });
+      (this.barTiles[s] as Phaser.GameObjects.Graphics).setPosition(x, y);
+      const cx = x + t / 2;
+      const cy = y + TILE_ICON_Y_PX * k * f;
+      const price = (this.barPrices[s] as Phaser.GameObjects.Text).setPosition(cx, y + TILE_PRICE_Y_PX * k * f);
+      const glyph = (this.barGlyphs[s] as Phaser.GameObjects.Text).setPosition(cx, cy);
       const gfx = (this.barIconGfx[s] as Phaser.GameObjects.Graphics).clear();
       if (slot === SLOT_SHOP || slot === SLOT_MORE) {
         glyph.setText(slot === SLOT_SHOP ? "🛒" : "▸");
@@ -1655,7 +1886,7 @@ export class HudScene extends Phaser.Scene {
           .setTexture(BUILD_ICON_TEXTURE, icon)
           .setOrigin(BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y)
           .setPosition(cx, cy)
-          .setDisplaySize(BUILD_ICON_FRAME_W * k, BUILD_ICON_FRAME_H * k);
+          .setDisplaySize(BUILD_ICON_FRAME_W * k * f, BUILD_ICON_FRAME_H * k * f);
       } else if (art) {
         // No icon yet (e.g. 5.10's types): the same code-drawn frame as in the world (rot 0), fitted into the icon box.
         const img = (this.barIcons[s] as Phaser.GameObjects.Image).setTexture(art.texture, art.frame).setOrigin(0.5);
@@ -1762,6 +1993,12 @@ export class HudScene extends Phaser.Scene {
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
     const { hp, maxHp, burning, inAcid, gearMask } = this.model;
+    // Story 8.2 (AC 4, B11): a waiting late joiner has no survivor yet: no HP row (it would read "0 / 0").
+    const watching = this.model.watching;
+    if (this.hpBar.visible === watching) {
+      this.hpBar.setVisible(!watching);
+      this.hpText.setVisible(!watching);
+    }
     if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid && gearMask === this.shownGearMask) return;
     this.shownGearMask = gearMask;
     this.shownHp = hp;
@@ -1809,6 +2046,7 @@ export class HudScene extends Phaser.Scene {
   private drawMoney(): void {
     const m = this.model;
     const k = dpr();
+    if (this.moneyText.text !== "" && this.moneyText.visible === m.watching) this.moneyText.setVisible(!m.watching); // Story 8.2: no "$0" while waiting
     if (m.money !== this.shownMoney) {
       this.shownMoney = m.money;
       const safe = this.insets;
@@ -1845,7 +2083,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   override update(): void {
-    const touch = !this.router.isMouse && !this.model.voting; // mouse mode hides the sticks; Story 6.11: so does the vote
+    const touch = !this.router.isMouse && !this.model.voting && !this.model.watching; // mouse mode hides the sticks; Story 6.11: so does the vote; 8.2: and waiting
     this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
@@ -1860,6 +2098,7 @@ export class HudScene extends Phaser.Scene {
     this.drawTeammates();
     this.drawGhostLabels(); // Story 5.24
     this.drawMenu();
+    this.pingHud.draw(this.time.now, this.model.pingSlot); // Story 8.7: before the buttons the open wheel hides
     this.drawReady();
     this.drawPlacement();
     this.drawBuildBar(); // Story 5.16
@@ -2005,6 +2244,13 @@ export class HudScene extends Phaser.Scene {
         const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
         name.setPosition(lx, ly).setVisible(true);
       } else if (name.visible) name.setVisible(false);
+      // Story 8.7 review M2: while this teammate's ping shows as an edge arrow on the same bearing, it stands in for
+      // their arrow (a downed teammate keeps the red "Bo · 14 s" label).
+      if ((m.pingArrowSlots & (1 << slot)) !== 0) {
+        if (arrow.visible) arrow.setVisible(false);
+        if (cross.visible) cross.setVisible(false);
+        continue;
+      }
       arrow
         .setPosition(mk.x, mk.y)
         .setRotation(mk.angle)
@@ -2047,10 +2293,13 @@ export class HudScene extends Phaser.Scene {
       this.shownEndless = m.endless; // Story 6.12
       this.shownVoting = m.voting; // Story 6.11
       // Story 3.1: during a build the top line counts down to the next wave.
-      const text = waveLine(m);
-      this.waveText.setText(text);
-      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit).
-      const at = placeWaveText(this.scale.width, this.insets, dpr(), this.waveText.width, this.waveAt);
+      // Story 6.14: off the HP bar on small screens (shifted right, shrunk only if it can't fit). Story 8.7 (B3): beside
+      // the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
+      const compact = waveLine(m, true);
+      const compactW = this.waveText.setText(compact).width;
+      const fullW = this.waveText.setText(waveLine(m)).width;
+      const at = fitWaveText(this.scale.width, this.insets, dpr(), fullW, compactW, this.waveFit);
+      if (at.compact) this.waveText.setText(compact);
       this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
     if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor || m.bossVisible !== this.shownBannerBoss) {
@@ -2104,7 +2353,7 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3); Story 5.21: under the action bar.
-    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting; // Story 6.11: under the vote's buttons too
+    const hidden = m.placementActive || m.buildBar || m.repairOpen || m.voting || m.watching; // Story 6.11: under the vote's buttons too; 8.2: a waiting joiner has no weapon yet
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;
@@ -2117,7 +2366,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting; // Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen && !m.voting && !m.watching && !this.pingHud.wheelOpen && this.barMode() !== BAR_OPEN; // Story 10.10: under the open Build panel; Story 8.2: nor while waiting; Story 8.7: not under the open ping wheel; Story 5.21 (D3): not under the action bar either; Story 6.11: nor in the vote
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

@@ -53,6 +53,31 @@ describe("menuStep (Story 2.11)", () => {
     expect(run("closed", "toggle", "leave", "confirm")).toBe("left");
   });
 
+  it("Story 8.3: Players → Remove asks first; Cancel / confirm go back to the list; Back to the menu; Esc closes", () => {
+    expect(run("closed", "toggle", "players")).toBe("players");
+    expect(run("closed", "toggle", "players", "remove")).toBe("confirmRemove");
+    expect(run("closed", "toggle", "players", "remove", "cancel")).toBe("players");
+    expect(run("closed", "toggle", "players", "remove", "confirm")).toBe("players"); // never "left"
+    expect(run("closed", "toggle", "players", "back")).toBe("open");
+    expect(run("closed", "toggle", "players", "cancel")).toBe("open");
+    expect(menuStep("confirmRemove", "toggle")).toBe("closed");
+    expect(menuStep("players", "toggle")).toBe("closed");
+    expect(menuStep("open", "remove")).toBe("open"); // Remove only from the list
+    expect(menuStep("closed", "players")).toBe("closed");
+  });
+
+  it("Settings opens from the menu; Back / Cancel return to it; Esc closes", () => {
+    expect(run("closed", "toggle", "settings")).toBe("settings");
+    expect(run("closed", "toggle", "settings", "back")).toBe("open");
+    expect(run("closed", "toggle", "settings", "cancel")).toBe("open");
+    expect(run("closed", "toggle", "settings", "confirm")).toBe("settings"); // never "left"
+    expect(run("closed", "toggle", "settings", "leave")).toBe("settings");
+    expect(menuStep("settings", "toggle")).toBe("closed");
+    expect(menuStep("settings", "resume")).toBe("closed");
+    expect(menuStep("closed", "settings")).toBe("closed");
+    expect(menuStep("players", "settings")).toBe("players");
+  });
+
   it("leaves only from the confirm step", () => {
     expect(menuStep("closed", "confirm")).toBe("closed");
     expect(menuStep("open", "confirm")).toBe("open");

@@ -1,3 +1,4 @@
+import { layoutPingButton } from "./hudTopLayout";
 import { describe, expect, it } from "vitest";
 import { layoutBossBar, type BossBarLayout } from "./bossBar";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
@@ -23,10 +24,12 @@ describe("Story 6.5 boss bar layout", () => {
     [800, 360, 44, 0, 44],
     [800, 360, 0, 21, 0],
   ] as const) {
-    it(`${w}×${h} insets ${insL}/${insT}/${insR}: top centre, ≥ 220 px, ≥ 12 px from ☰ and the wave line, upper third only`, () => {
+    it(`${w}×${h} insets ${insL}/${insT}/${insR}: top centre, ≥ 220 px (Story 8.7 review L4: ≥ 216 where the ping button's 12 px gap needs it), ≥ 12 px from ☰, the ping button and the wave line, upper third only`, () => {
       const out: BossBarLayout = { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 };
       layoutBossBar(w, insL, insT, insR, 1, out);
-      expect(out.w).toBeGreaterThanOrEqual(220);
+      expect(out.w).toBeGreaterThanOrEqual(w <= 568 && insR >= 44 ? 216 : 220);
+      const ping = layoutPingButton(w, { right: insR, top: insT }, 1, { x: 0, y: 0, w: 0, h: 0 });
+      expect(ping.x - (out.x + out.w), "Story 8.7 review L4: 12 px to the ping button").toBeGreaterThanOrEqual(12 - 1e-6);
       expect(out.x + out.w / 2).toBeCloseTo(w / 2, 6);
       const menu = { x: w - MENU_BUTTON_INSET_CSS_PX - insR - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + insT, w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX };
       expect(rectGap(out, menu)).toBeGreaterThanOrEqual(12);

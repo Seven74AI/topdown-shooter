@@ -59,7 +59,7 @@ export function ResultsScreen() {
   }
   const sub = resultsSub(screen);
   const cls = `game-over results rw${screen.ending === "extracted" ? " results--held" : screen.ending === "lost" ? " results--lost" : ""}`;
-  const view = rewardsView(rewards, screen.online, screen.seed, undefined, (slot) => screen.rows.find((r) => r.slot === slot)?.name ?? "");
+  const view = rewardsView(rewards, screen.online, screen.seed, undefined, (slot, seatId) => resultName(screen.rows, slot, seatId));
   return (
     <div class={look !== "none" ? `results-backdrop results-backdrop--${look}` : undefined}>
       <div class={cls} role="dialog" aria-labelledby="results-title">
@@ -270,4 +270,13 @@ export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** 
       </div>
     </section>
   );
+}
+
+/**
+ * PR #9 review L1: the Results name of a teammate's find — by the finder's seat id when the message has one (a seat no
+ * longer in the run → "" → "A teammate"), else by slot (an older server).
+ */
+export function resultName(rows: readonly { readonly slot: number; readonly name: string; readonly seat?: string }[], slot: number, seatId?: string): string {
+  if (seatId !== undefined) return rows.find((r) => r.seat === seatId)?.name ?? "";
+  return rows.find((r) => r.slot === slot)?.name ?? "";
 }

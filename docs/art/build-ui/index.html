@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build Button Options</title>
+<style>
+  :root {
+    --bg: #f5f4f0; --card: #ffffff; --ink: #1d1f23; --muted: #5d636d; --line: #dcdad3;
+    --pro: #1d6b45; --con: #8a5a00; --rec: #1f5fbf; --rec-bg: #e6eefb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121418; --card: #1b1e24; --ink: #eceae4; --muted: #a2a8b2; --line: #2e333b;
+      --pro: #6fd3a0; --con: #e8b45a; --rec: #8db4ff; --rec-bg: #1c2a44;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121418; --card: #1b1e24; --ink: #eceae4; --muted: #a2a8b2; --line: #2e333b;
+    --pro: #6fd3a0; --con: #e8b45a; --rec: #8db4ff; --rec-bg: #1c2a44;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1680px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 20px; max-width: 900px; }
+  .today { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 24px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .today h2 { font-size: 15px; margin: 0 0 6px; width: 100%; }
+  .today figure { margin: 0; flex: 1 1 300px; max-width: 520px; }
+  .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 1300px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .opt { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .opt.rec { border: 2px solid var(--rec); }
+  .opt h2 { font-size: 17px; margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tag { font-size: 12px; font-weight: 700; color: var(--rec); background: var(--rec-bg); border-radius: 999px; padding: 2px 8px; }
+  .what { color: var(--muted); margin: 0; font-size: 14px; }
+  .pc { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+  .pc li { padding-left: 18px; position: relative; }
+  .pc .p::before { content: "+"; position: absolute; left: 2px; color: var(--pro); font-weight: 700; }
+  .pc .c::before { content: "–"; position: absolute; left: 2px; color: var(--con); font-weight: 700; }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 6px; border: 1px solid var(--line); }
+  figcaption { font-size: 12px; color: var(--muted); margin: 2px 0 6px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .notes { margin-top: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; font-size: 14px; }
+  .notes h2 { font-size: 16px; margin: 4px 0 8px; }
+  .notes li { margin-bottom: 4px; }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Build button (hybrid): layout options — Decision BU-1</h1>
+  <p class="lede">Designer decision 2026-11-25: in build phases show a <b>Build</b> button plus the <b>last-placed building</b> as a one-tap quick tile; Build opens the full grid as a panel, and picking from it closes the panel. Story <code>10.10</code> (<code>_bmad-output/implementation-artifacts/10-10-build-button.md</code>). Pick one code (A–D). Every still is a real build-phase screenshot (dev server, <code>DEV_NO_WAVES=1</code>) with the overlay drawn in HTML/CSS and today's tiles cropped from the game, at 568 × 320 (smallest phone) and 844 × 390, dpr 2. Closed = after placing one wood barricade (1/6, ↶ shown); open = a full-unlock account (7 shop types). The dashed ring is the survivor's 48 px clear zone (annotation only).</p>
+
+  <section class="today">
+    <h2>Today (Story 5.16, as built): the fixed 4 × 2 grid — a new account shows 2 types, Shop always bottom right</h2>
+    <figure><a href="build-ui-today-568.png"><img src="build-ui-today-568.png" alt="Today at 568 by 320"></a><figcaption>568 × 320 — tile 1 is 3 px from the survivor's centre zone (as-built baseline)</figcaption></figure>
+    <figure><a href="build-ui-today-844.png"><img src="build-ui-today-844.png" alt="Today at 844 by 390"></a><figcaption>844 × 390</figcaption></figure>
+  </section>
+
+  <div class="grid">
+    <article class="opt">
+      <h2>A · Corner pair, Shop in the panel</h2>
+      <p class="what">Closed: quick tile + Build in the corner, count above. Open: a 3 × 3 panel over the corner; Close sits on Build's own spot, Shop is the panel's last tile.</p>
+      <ul class="pc"><li class="p">Clearest edge: only two controls when closed.</li><li class="c">Shop becomes two taps (Build → Shop).</li></ul>
+      <div class="pair">
+        <figure><a href="build-ui-A-568-closed.png"><img src="build-ui-A-568-closed.png" alt="A closed 568"></a><figcaption>568 closed</figcaption></figure>
+        <figure><a href="build-ui-A-568-open.png"><img src="build-ui-A-568-open.png" alt="A open 568"></a><figcaption>568 open</figcaption></figure>
+        <figure><a href="build-ui-A-844-closed.png"><img src="build-ui-A-844-closed.png" alt="A closed 844"></a><figcaption>844 closed</figcaption></figure>
+        <figure><a href="build-ui-A-844-open.png"><img src="build-ui-A-844-open.png" alt="A open 844"></a><figcaption>844 open</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="opt rec">
+      <h2>B · Corner pair + Shop chip <span class="tag">Recommended</span></h2>
+      <p class="what">Closed: quick tile + Build (count as a badge on Build), a round 48 px Shop chip above Build, ↶ above the quick tile. Open: the same 3 × 3 panel as A (Close on Build's spot, Shop inside too).</p>
+      <ul class="pc"><li class="p">Repeat and Shop both stay one tap; same panel on every phone, clear of the survivor.</li><li class="c">Three controls closed (still half of today's footprint).</li></ul>
+      <div class="pair">
+        <figure><a href="build-ui-B-568-closed.png"><img src="build-ui-B-568-closed.png" alt="B closed 568"></a><figcaption>568 closed</figcaption></figure>
+        <figure><a href="build-ui-B-568-open.png"><img src="build-ui-B-568-open.png" alt="B open 568"></a><figcaption>568 open</figcaption></figure>
+        <figure><a href="build-ui-B-844-closed.png"><img src="build-ui-B-844-closed.png" alt="B closed 844"></a><figcaption>844 closed</figcaption></figure>
+        <figure><a href="build-ui-B-844-open.png"><img src="build-ui-B-844-open.png" alt="B open 844"></a><figcaption>844 open</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="opt">
+      <h2>C · Bottom shelf</h2>
+      <p class="what">Closed: Shop chip, quick tile and Build in one row along the bottom. Open: a one-row shelf across the bottom edge (7 types + Shop + Close); Ready hides while it is open.</p>
+      <ul class="pc"><li class="p">Always far from the survivor and the ghost; one reading row.</li><li class="c">Covers Ready and the move-stick half while open; 52 px tiles on 568.</li></ul>
+      <div class="pair">
+        <figure><a href="build-ui-C-568-closed.png"><img src="build-ui-C-568-closed.png" alt="C closed 568"></a><figcaption>568 closed</figcaption></figure>
+        <figure><a href="build-ui-C-568-open.png"><img src="build-ui-C-568-open.png" alt="C open 568"></a><figcaption>568 open</figcaption></figure>
+        <figure><a href="build-ui-C-844-closed.png"><img src="build-ui-C-844-closed.png" alt="C closed 844"></a><figcaption>844 closed</figcaption></figure>
+        <figure><a href="build-ui-C-844-open.png"><img src="build-ui-C-844-open.png" alt="C open 844"></a><figcaption>844 open</figcaption></figure>
+      </div>
+    </article>
+
+    <article class="opt">
+      <h2>D · Thumb arc</h2>
+      <p class="what">Closed: like A. Open: tiles fan round Build in two rings — cheap traps on the inner ring (r 96), the rest and Shop on the outer ring (r 168).</p>
+      <ul class="pc"><li class="p">Every tile is one thumb sweep; the most-used are closest.</li><li class="c">New pattern to learn; tops out at 8 tiles; ragged edge.</li></ul>
+      <div class="pair">
+        <figure><a href="build-ui-D-568-closed.png"><img src="build-ui-D-568-closed.png" alt="D closed 568"></a><figcaption>568 closed</figcaption></figure>
+        <figure><a href="build-ui-D-568-open.png"><img src="build-ui-D-568-open.png" alt="D open 568"></a><figcaption>568 open</figcaption></figure>
+        <figure><a href="build-ui-D-844-closed.png"><img src="build-ui-D-844-closed.png" alt="D closed 844"></a><figcaption>844 closed</figcaption></figure>
+        <figure><a href="build-ui-D-844-open.png"><img src="build-ui-D-844-open.png" alt="D open 844"></a><figcaption>844 open</figcaption></figure>
+      </div>
+    </article>
+  </div>
+
+  <section class="notes">
+    <h2>Open questions for the designer (recommendations in the story, BU-2 … BU-5)</h2>
+    <ol>
+      <li><b>BU-2 Where Shop lives:</b> B's chip above Build (recommended), A's panel tile, or C's chip left of the quick tile.</li>
+      <li><b>BU-3 Only 1–2 types unlocked</b> (every new account): recommended — no Build button and no panel; the 1–2 tiles sit where quick + Build would be (zero extra taps, same footprint). Build appears from the 3rd unlock.</li>
+      <li><b>BU-4 Where the panel opens:</b> recommended over the thumb corner (A/B), the Close button on Build's own spot, never inside the survivor's 48 px or over the ghost (hands are empty while it is open, and a pick closes it before the ghost appears).</li>
+      <li><b>BU-5 The quick tile's states:</b> exactly today's tile rules — 40 % + red price when short (5.16, the only red), 40 % at the cap with "6/6" on the count (red as built), a tap toasts the same reason ("Need $250 (you have $180)", "Building limit reached (6)"). Before the first placement it shows the first unlocked type.</li>
+    </ol>
+    <p>Sources: <code>src/base-shots.cjs</code> (the base stills), <code>src/tile-crops.cjs</code> (real tiles), <code>src/mock.html</code> + <code>src/render.cjs</code> (the overlays). In the stills the money line still reads $200 and Ready sits where today's code puts it next to the old grid; with a smaller cluster Ready can move back to 40 px left of centre.</p>
+  </section>
+</main>
+</body>
+</html>

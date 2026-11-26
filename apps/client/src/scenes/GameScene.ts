@@ -63,6 +63,8 @@ import {
   type ShopOfferView,
   isBlackout as isBlackoutNow,
   setForcedBlackout,
+  MAX_PLAYERS,
+  PING_SHOW_MS,
 } from "@topdown/shared";
 import { dpr, safeArea, type SafeArea } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -76,7 +78,7 @@ import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
-import { EventView } from "../render/EventView";
+import { EVENT_ARROW_CSS_PX, EventView } from "../render/EventView";
 import { LootBagView } from "../render/LootBagView";
 import { createLootCue, lootCue } from "../render/lootBagCue";
 import { cratePrompt, createEventCue, eventCue } from "../render/eventMarkers";
@@ -100,6 +102,7 @@ import { BuildingView } from "../render/BuildingView";
 import { BlockReasonView } from "../render/BlockReasonView";
 import { PendingView } from "../render/PendingView";
 import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
+import { pendingPlacements } from "../ui/pendingPlacements";
 import { runPendingFrame, type PendingFlowScene } from "./pendingFlow";
 import { MineView } from "../render/MineView";
 import { MINE_SHAKE_MS, mineShakeIntensity } from "../render/mineBlast";
@@ -147,8 +150,9 @@ import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from ".
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { cachedProgress, practiceInit } from "../net/practicePool";
 import { progressStore } from "../net/progressStore";
-import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
+import { buildBarItems, dropQuietPresses, dropUndoAfterPick, panelStaysOpen, pickError, pickRefusalText, quickType, stepBuildBar, togglePanelKey, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
+import { HOST_TOAST_TEXT, HostToastWatch } from "../ui/hostToast";
 import { getSettings } from "../settings/settings";
 import {
   COUNTDOWN_LIFT_M,
@@ -181,6 +185,9 @@ import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStre
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
+import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
+import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
+import { eventArrowDrawnRect, type ScreenRect } from "../render/eventArrow";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -250,6 +257,8 @@ export class GameScene extends Phaser.Scene {
   private leaving = false;
   /** Story 2.11: "<name> left" lines for the HUD, one at a time. */
   private readonly toasts = new ToastQueue();
+  /** Story 8.3 (H1, AC 9): "You are now the host", once, when the role moves to me mid-run (never on the first patch). */
+  private readonly hostWatch = new HostToastWatch();
   /** Story 5.7: the Brute spawn cue (reused record). */
   private readonly bruteCue: BruteCue = { roar: false, banner: false, pan: 0 };
   /** How this run is simulated: the local World, or the server's (Story 2.4). */
@@ -347,7 +356,9 @@ export class GameScene extends Phaser.Scene {
     const sv = this.wallSilhouettes;
     const bv = this.buildingView;
     if (!sv || !bv) return;
-    const walls = bv.standingSprites();
+    // Story 9.14 (AC 4): the standing police lines hide bodies too (joined into a reused list: no allocation per frame)
+    const police = this.cityView?.policeLines.sprites();
+    const walls = police && police.length > 0 ? this.joinWalls(bv.standingSprites(), police) : bv.standingSprites();
     let n = 0;
     if (walls.length > 0) {
       const zn = this.zombieView?.shownImages(this.silZombieImgs) ?? 0;
@@ -355,6 +366,13 @@ export class GameScene extends Phaser.Scene {
       for (const [id, v] of this.playerViews) n = this.putSilBody(n, v.bodyImage, SLOT_COLORS[(this.host?.playerInfo(id).slot ?? 0) % SLOT_COLORS.length] as number);
     }
     sv.update(walls, this.silBodies, n, this.time.now, darknessAlpha(world as World) > 0);
+  }
+  private joinWalls(a: readonly Phaser.GameObjects.Image[], b: readonly Phaser.GameObjects.Image[]): readonly Phaser.GameObjects.Image[] {
+    const out = this.silWalls;
+    out.length = 0;
+    for (const w of a) out.push(w);
+    for (const w of b) out.push(w);
+    return out;
   }
   private putSilBody(n: number, img: Phaser.GameObjects.Image, color: number): number {
     let e = this.silBodies[n];
@@ -373,6 +391,8 @@ export class GameScene extends Phaser.Scene {
   private wallSilhouettes: WallSilhouetteView | null = null;
   private readonly silBodies: SilhouetteBody[] = [];
   private readonly silZombieImgs: Phaser.GameObjects.Image[] = [];
+  /** Story 9.14: the standing walls plus the police lines, for the silhouettes (reused). */
+  private readonly silWalls: Phaser.GameObjects.Image[] = [];
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
@@ -396,6 +416,8 @@ export class GameScene extends Phaser.Scene {
   private bossMusic = false;
   /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
   private eventView: EventView | null = null;
+  /** Story 8.7: everyone's pings in the world (above the darkness) and their edge arrows; online only. */
+  private pingView: PingView | null = null;
   /** Story 7.12: the loot bag (bag, ring, glint, off-screen badge) and its HUD line (BF2). */
   private lootView: LootBagView | null = null;
   private readonly lootCueOut = createLootCue();
@@ -495,7 +517,7 @@ export class GameScene extends Phaser.Scene {
   private seenPlaces = 0;
   private wasMouse = false;
   /** Story 5.23: the building keys' reused answer. */
-  private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false };
+  private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false, panel: false };
   private readonly feelBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   /** Story 5.23 (D4, review L2): the placed sounds of this frame's events, one per kind (mine wins). */
   private readonly placedSounds = new PlacedSoundPicker();
@@ -547,6 +569,10 @@ export class GameScene extends Phaser.Scene {
   private readonly barStep: BuildBarStep = { show: false, pick: "", toast: "" };
   /** Story 5.16: the bar's last refusal toast ("" = none), withdrawn once a pick succeeds. */
   private barToast = "";
+  /** Story 10.10 (BU-5, B9): the type of my last confirmed building this run — the server's (solo: the sim's) `building.placed` for me (the quick tile; client-side only). */
+  private lastPlacedType = "";
+  /** Story 10.10 (re-review 2, M): scene clock when a panel pick or the quick tile last started a hold. */
+  private barPickMs = Number.NEGATIVE_INFINITY;
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
   /** Story 5.20: the undo chip ↶ (the last Place's take-back) and what I paid per building this build phase (the panel's label). */
@@ -650,6 +676,7 @@ export class GameScene extends Phaser.Scene {
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;
+    this.hostWatch.reset(); // Story 8.3: a (re)started scene's first patch never toasts
     this.toasts.clear();
     this.barToast = "";
     perf.hits = netHost ? netHost.netStats : null;
@@ -689,6 +716,9 @@ export class GameScene extends Phaser.Scene {
     this.pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs, balance.buildings.maxPerPlayer);
     this.refusalsDropped.seen = host.placeRefusalsDropped;
     this.handEmptiedMs = Number.NEGATIVE_INFINITY;
+    this.lastPlacedType = ""; // Story 10.10: the quick tile starts from the first unlocked type each run
+    this.barPickMs = Number.NEGATIVE_INFINITY;
+    this.hudModel.buildPanelOpen = false;
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
     this.undo.clear(); // Story 5.20: no undo nor spend from the last run
@@ -744,6 +774,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.eventView = new EventView(this, host.world); // Story 6.8
+    this.pingView = host.pings ? new PingView(this) : null; // Story 8.7 (B8: online only)
     this.lootView = new LootBagView(this, host.world); // Story 7.12
     this.lootLine.text = ""; // Phaser reuses this scene object: no line from the last run
     this.lootLine.untilMs = 0;
@@ -936,6 +967,8 @@ export class GameScene extends Phaser.Scene {
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
       this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
+      this.pingView?.destroy(); // Story 8.7
+      this.pingView = null;
       this.eventView = null;
       this.lootView?.destroy(); // Story 7.12
       this.lootView = null;
@@ -1118,6 +1151,7 @@ export class GameScene extends Phaser.Scene {
     m.wave = host.world.waves.number;
     m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
     m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
+    m.watching = host instanceof NetSimHost && host.waiting; // Story 8.2 (J4): a waiting late joiner has only ☰
     m.remaining = host.world.waves.remaining;
   }
 
@@ -1191,7 +1225,7 @@ export class GameScene extends Phaser.Scene {
     const build = run.phase === "build";
     m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
     // Story 5.21 (D3): hidden under the action bar too (its row is only 8 px above Ready's top edge).
-    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active && !this.repairPanel.open;
+    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active && !this.repairPanel.open && !m.watching;
     const serverReady = host.world.players.get(host.localPlayerId)?.buildReady === true;
     const now = this.time.now;
     this.myReady = this.ready.update(run.phase, host.world.waves.number, serverReady, now);
@@ -1401,6 +1435,7 @@ export class GameScene extends Phaser.Scene {
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
+    if (host instanceof NetSimHost && host.hostSlot >= 0 && this.hostWatch.observe(host.hostSlot, host.mySlot)) this.toasts.push(HOST_TOAST_TEXT); // Story 8.3 (H1): no state yet = no patch yet
     this.updateConsumable(host, menuOpen, shopOpen); // Story 5.12: after placement (the hand cluster hides the button)
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
@@ -1458,6 +1493,7 @@ export class GameScene extends Phaser.Scene {
   private buildKeys(host: SceneHost, router: InputRouter, blocked: boolean): void {
     const k = routeBuildKeys(router.kbm, this.hudModel, this.placement.active, blocked, this.buildKeysOut);
     if (k.slot >= 0) this.keyPick(host, k.slot, blocked);
+    if (k.panel) togglePanelKey(this.hudModel); // Story 10.10 (AC 9): B opens / closes the Build panel
     if (k.pickUp && this.canPlace(host, blocked)) this.onPickUpKey(); // review L5: only while building is possible (5.21: also needs a selection)
   }
 
@@ -1641,6 +1677,7 @@ export class GameScene extends Phaser.Scene {
    */
   private updateUndo(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
     const m = this.hudModel;
+    dropUndoAfterPick(m, this.time.now - this.barPickMs, host.world.balance.controls.build.barQuietMs); // Story 10.10 (re-review 2, M)
     const press = m.undoPressed;
     m.undoPressed = false;
     const standing = this.canPlace(host, false);
@@ -1793,13 +1830,20 @@ export class GameScene extends Phaser.Scene {
     if (r.pick !== "") {
       this.startPlacement(r.pick);
       if (this.placement.active) {
+        this.barPickMs = this.time.now; // re-review 2 (M): a double tap on the pick doesn't reach ↶ beneath it
         if (this.barToast !== "") this.toasts.withdraw(this.barToast); // an old refusal off the screen
         this.barToast = "";
         holdBuildingInput(this.input_); // the hold starts now: no aim or fire in this frame's input either
         r.show = false;
       }
     }
-    m.buildBar = r.show;
+    m.buildBar = r.show && !m.watching; // Story 8.2: nothing to build while waiting
+    m.buildQuick = quickType(m.buildItems, this.lastPlacedType); // Story 10.10 (BU-5)
+    if (m.buildPanelPressed) {
+      m.buildPanelPressed = false; // Build / Close (its quiet-window press was dropped by `dropQuietPresses`)
+      togglePanelKey(m);
+    }
+    m.buildPanelOpen = panelStaysOpen(m.buildPanelOpen, m.buildBar, r.pick !== "", m.ping.open, m.buildItems.length); // Story 10.10 (AC 6)
   }
 
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
@@ -1821,7 +1865,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.statusSecs = -1;
-    m.statusText = me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
+    // Story 8.2 (J4): a waiting late joiner reads as "out" in the mirror; its own line says why.
+    const waitingLine = this.host instanceof NetSimHost ? this.host.waitingLine : "";
+    m.statusText = waitingLine !== "" ? waitingLine : me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
   }
 
   /** Story 2.9: teammates for the HUD (none once the team is wiped: Results are up). */
@@ -2002,6 +2048,43 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(pixelsPerMeter(this.scale.width, this.scale.height));
   }
 
+  /** Story 8.7 (AC 6–8): the pings this frame — new ones start (with their chirp, panned by screen x), old ones expire, then the view. */
+  private readonly pingArrowRect = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly pingFlagRect = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly pingLootRect = { x: 0, y: 0, w: 0, h: 0 };
+  /** The other arrows the ping arrows keep off: the event arrow, the 6.10 flag arrow, the loot badge (null = none). */
+  private readonly pingOthers: (ScreenRect | null)[] = [null, null, null];
+  private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
+    const now = performance.now(); // the model's clock (decision 8.7 B4)
+    const host = this.host;
+    const sw = this.cameras.main.width;
+    const sh = this.cameras.main.height;
+    const k = dpr();
+    const started = pings.update(now, host?.serverTick ?? 0);
+    for (let i = 0; started !== 0 && i < MAX_PLAYERS; i++) {
+      if ((started & (1 << i)) === 0) continue;
+      const p = pings.live(i);
+      if (!p || now - p.startMs > PING_SHOW_MS - PING_FADE_MS) continue; // review nit: no chirp for a ping already fading out
+      const sx = vw > 0 ? ((p.x - vx) / vw) * sw : sw / 2;
+      playSfx(p.kind === 0 ? "ping_double" : "ping", pingPan(sx, sw), PING_SFX_VOLUME); // "Help!" twice (E8-P3)
+    }
+    const ev = this.eventView;
+    const size = EVENT_ARROW_CSS_PX * k;
+    // B16 (designer 2026-11-25): ping arrows sit under the HUD (it is semi-transparent): no HUD control is a keep-off.
+    // They keep off the other arrows only (the badge is placed before the pings, so the two never overlap); the HUD
+    // rects only decide whether a ping's icon is seen (review M1).
+    const arrow = ev?.edgeArrowAt() ?? null;
+    const flag = ev?.flagArrowAt() ?? null;
+    const badge = this.lootView?.badgeArrowAt() ?? null;
+    const others = this.pingOthers;
+    others[0] = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
+    others[1] = flag ? eventArrowDrawnRect(flag, size, this.pingFlagRect) : null;
+    others[2] = badge ? eventArrowDrawnRect(badge, size, this.pingLootRect) : null;
+    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, ev?.controlRects() ?? [], others);
+    const m = this.hudModel;
+    m.pingArrowSlots = this.pingView?.arrowMask() ?? 0; // review M2: HudScene hides those senders' teammate arrows
+  }
+
   override update(_time: number, deltaMs: number): void {
     const host = this.host;
     const router = this.router;
@@ -2014,6 +2097,7 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     // Story 5.5: with the launcher in hand the aim's length carries the lob distance (FR-A, D1).
     // Story 5.12 (D11): with no launcher in hand, a throwable in my slot sets the aim length (its throw range).
+    dropQuietPresses(this.hudModel, this.barQuiet(host)); // Story 10.10 (review 1, 2): a stray Place / ✕ tap lands on ↶, swap, quick-use or Build
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed, this.localThrow(host));
     this.hudModel.swapPressed = false;
     this.hudModel.consumablePressed = false;
@@ -2021,6 +2105,16 @@ export class GameScene extends Phaser.Scene {
 
     // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
     let menuKey = router.kbm.takeMenu();
+    // Story 8.7 (AC 3): Esc closes an open ping wheel before it opens the menu.
+    if (menuKey && this.hudModel.ping.open) {
+      this.hudModel.ping.open = false;
+      menuKey = false;
+    }
+    // Story 10.10 (AC 9): Esc closes the open Build panel before it opens the menu.
+    if (menuKey && this.hudModel.buildPanelOpen) {
+      this.hudModel.buildPanelOpen = false;
+      menuKey = false;
+    }
     const menuTap = this.hudModel.menuPressed;
     this.hudModel.menuPressed = false;
     // Story 5.23 (AC 10, D14): Esc while holding a building puts it away first (the next Esc opens the menu).
@@ -2045,6 +2139,8 @@ export class GameScene extends Phaser.Scene {
     // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
     // everything; neutral moves keep the Predictor standing still too).
     if (standsStill(menuOpen, shopOpen, host.world.run.phase)) neutralizeInput(this.input_);
+    // Story 8.7: the ping button, F, 1–4 while the wheel is open (before the build keys take the digit), and the send.
+    pingFrame(this.hudModel, router.kbm, host, linkStore.get().status === "ok", this.running && !this.gameOver && !this.stressMode && screen.kind === "playing", menuOpen || shopOpen, this.placement.active || this.repairPanel.open, this.time.now);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
@@ -2055,6 +2151,7 @@ export class GameScene extends Phaser.Scene {
     fc.shopOpen = shopOpen;
     fc.deltaMs = deltaMs;
     runPendingFrame(this.pending, host, this.time.now, this.pendingScene, this.sendNow, this.refusalsDropped);
+    pendingPlacements.set(this.pending.count); // Story 8.5: Save and quit waits for my placements to settle
     const repairRefused = host.takeRepairRefusal(); // Story 3.7
     if (repairRefused) this.toasts.push(this.repairText(repairRefused));
     const upgradeRefused = host.takeUpgradeRefusal(); // Story 5.9
@@ -2110,6 +2207,7 @@ export class GameScene extends Phaser.Scene {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
       } else if (e.type === "building.placed") {
+        if (e.ownerId === localId) this.lastPlacedType = e.buildingType; // Story 10.10 (AC 2, review 3): the quick tile repeats my last building that went down (server truth; a refused Place never counts)
         this.placedFeel(host, e);
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
@@ -2202,6 +2300,7 @@ export class GameScene extends Phaser.Scene {
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     // Story 7.12: the bag from the World's loot record (server ticks); its badge keeps off the HUD and the event's arrow.
     if (this.eventView) this.lootView?.update(host.serverTick, ev.x, ev.y, ev.width, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets, this.eventView.controlRects(), this.eventView.edgeArrowAt());
+    if (this.pingView && host.pings && this.eventView) this.updatePings(host.pings, ev.x, ev.y, ev.width); // Story 8.7
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
