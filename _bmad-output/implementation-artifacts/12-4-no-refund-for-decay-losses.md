@@ -32,6 +32,11 @@ so that building next to crumbling parts of the city is a real gamble.
 7. **Tests.** Update the tests that pin the old refund: `decay/decay.test.ts` (the 0.5 check and the range check), `decay/panic.test.ts`, `decay/ruins.test.ts`, `decay/fire.test.ts`, `buildings/floor.test.ts`. Each one now expects the building gone and the wallet unchanged.
 8. **Docs.** FR58 in `_bmad-output/planning-artifacts/epics.md` (and the readiness report copy) loses "with a 50% refund". Add a line pointing to this story.
 
+Added 2026-11-26 (clash X2; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).
+
+9. **Every place the refund is written.** Besides FR58, add as-built notes to Story 4.5's ACs and Story 6.2's rubble AC ("the usual 50 % refund (FR53)") in `epics.md`, and update the rule line in `game-architecture.md` ("buildings on newly blocked cells are destroyed with a 50% refund") and the HANDOFF Epic 4 summary.
+10. **Before 10.8, with a changelog line.** Land this story before Story 10.8 (its 2,500–3,000 earnings target may move). Log the end-of-run money change, with its reason and the re-checked sim numbers, in `docs/balance/changelog.md`.
+
 ## Tasks
 
 - [ ] `decay/decaySystem.ts`: drop the refund (AC 1, 2); update the header comment (step 2) and the Story 6.2 L4 comment.
@@ -39,6 +44,8 @@ so that building next to crumbling parts of the city is a real gamble.
 - [ ] Client toast (AC 5).
 - [ ] Tests and sims (AC 6, 7).
 - [ ] `epics.md` FR58 (AC 8).
+- [ ] As-built notes on 4.5 and 6.2, architecture rule line, HANDOFF line (AC 9).
+- [ ] `docs/balance/changelog.md` line (AC 10).
 - [x] Story 12.1 AC 6 already says "no refund" (updated with this story).
 
 ## Dev Notes
