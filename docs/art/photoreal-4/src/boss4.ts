@@ -134,7 +134,7 @@ function relit(v: number, pose: BehemothPose, k: number, enr: boolean, ph: numbe
   const s = src.getContext("2d", { willReadFrequently: true })!;
   s.translate(N, N);
   (t === "c" ? drawOneModel : drawBehemoth)(s, PXM * SS, v, pose, k, enr, ph);
-  const veins = t !== "a" && t !== "b" && enr && pose !== "dead" ? markerPulse(src, t !== "v3", t === "c" ? 0.3 : -0.1) : null;
+  const veins = t !== "a" && t !== "b" && enr && (pose !== "dead" || t === "c") ? markerPulse(src, t !== "v3", t === "c" ? 0.3 : -0.1) : null;
   const L = run(relightCharSteps(src, N, SS, PXM * SS * RF, 901 + v * 7, make));
   return { base: L.base, glow: L.glow, sheen: sheenStrip(L.gloss, N, make), veins };
 }
@@ -272,6 +272,7 @@ async function main(): Promise<void> {
   }
   document.getElementById("loading")!.hidden = true;
   if (playing) requestAnimationFrame(frame);
+  const playerDone = actionPlayer();
   // every pose of BH1
   const POSES: [string, BehemothPose, number][] = [
     ["Walk", "walk", 0],
@@ -317,6 +318,7 @@ async function main(): Promise<void> {
       tr.append(td);
     }
   }
+  await playerDone;
   await decomposed();
   await actionPlan();
   (window as unknown as { done: boolean }).done = true;
@@ -851,6 +853,468 @@ async function actionPlan(): Promise<void> {
       host.append(fig);
     }
   }
+}
+
+/* ---------------- Action player: the plan, playing (take C) ----------------
+ * Designer 2026-11-26: "it would be cool to be able to see action playing, not only frames". Each action plays in
+ * real time as planned (`PLAN`): frame swaps, breath / swell, eye levels, the vein glow and its beats, dust, and a
+ * rough sketch of the game's own warning FX (disc, lane, target ring, CRASH, shock ring). The street scrolls under
+ * the boss when it moves. Same pictures as the bake (take C, relit).
+ */
+type PlayerAction = "walk" | "slam" | "charge" | "throw" | "roar" | "death";
+const PLAYER_ACTIONS: readonly [PlayerAction, string][] = [
+  ["walk", "Walk"],
+  ["slam", "Slam"],
+  ["charge", "Charge → crash"],
+  ["throw", "Throw"],
+  ["roar", "Roar (enrage)"],
+  ["death", "Death"],
+];
+/** World scale of the player canvas (px per metre): rings of 4.5–5 m fit. */
+const PW = 560;
+/** Player scale (px per metre): 36 = the game's size; the zoom doubles it. */
+let PS = 36;
+const framePx = (): number => BH_R_M * 2 * 1.75 * PS; // the 7 m frame at the player's scale
+/** Plain asphalt for the scrolling street (the cards' street has a vignette that would repeat as a pattern). */
+const asphalt = ((): HTMLCanvasElement => {
+  const c = make(256, 256);
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#23282d";
+  g.fillRect(0, 0, 256, 256);
+  let q = 11;
+  const rnd = (): number => ((q = (q * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 1500; i++) {
+    g.fillStyle = `rgba(${rnd() < 0.5 ? "0,0,0" : "120,130,140"},${0.05 + rnd() * 0.08})`;
+    g.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 1 + rnd() * 2);
+  }
+  return c;
+})();
+/** One reusable canvas for the dead body's grey tint (tinting on the main canvas would grey the street too). */
+const tintC = make(N, N);
+interface FramePair {
+  calm: Pic;
+  enr: Pic;
+}
+const EXTRA_FRAMES: readonly { name: string; pose: BehemothPose; k: number; ph: number }[] = [
+  { name: "charge_h", pose: "charge", k: 0.5, ph: 0 }, // G2 A: the charge warning, crouching
+  { name: "throw_h", pose: "throw", k: 0.5, ph: 0 }, // G2 A: the throw lift, half way
+];
+const pairsByLook = new Map<number, Map<string, FramePair>>();
+async function framePairs(v: number, onProgress: (k: number) => void): Promise<Map<string, FramePair>> {
+  const have = pairsByLook.get(v);
+  if (have) return have;
+  const m = new Map<string, FramePair>();
+  const all = [...GAME_FRAMES.map((f) => ({ name: f.name, pose: f.pose, k: f.k, ph: f.ph })), ...EXTRA_FRAMES];
+  let i = 0;
+  for (const f of all) {
+    await idle();
+    m.set(f.name, { calm: pic("c", v, f.pose, f.k, false, f.ph), enr: pic("c", v, f.pose, f.k, true, f.ph) });
+    onProgress(++i / all.length);
+  }
+  pairsByLook.set(v, m);
+  return m;
+}
+
+/** What the plan says at time t of an action. */
+interface PlayState {
+  frame: string;
+  /** 0 calm … 1 enraged picture (the roar crossfades). */
+  rage: number;
+  /** Eye glow level 0–1 (multiplies the eye layer). */
+  eyes: number;
+  /** Steady vein glow (the ember between beats), 0–1. */
+  ember: number;
+  /** Seconds since the last beat (Infinity: none), and that beat's strength (1 normal, flash = all lit). */
+  sinceBeat: number;
+  flash: number;
+  scale: number;
+  /** Street scroll speed (m/s) and the boss's travel. */
+  speed: number;
+}
+const beatsBefore = (t: number, beats: readonly number[]): number => {
+  let s = Infinity;
+  for (const b of beats) if (b <= t) s = Math.min(s, t - b);
+  return s;
+};
+const lengthOf = (a: PlayerAction, enr: boolean): number => (a === "walk" ? (enr ? 0.38 : 0.5) * 6 : a === "slam" ? 2.0 : a === "charge" ? 4.0 : a === "throw" ? 2.4 : a === "roar" ? 2.5 : 2.5);
+function planAt(a: PlayerAction, t: number, enr: boolean): PlayState {
+  const st: PlayState = { frame: "walk_a", rage: enr ? 1 : 0, eyes: enr ? EYE_FLOOR : 1, ember: enr ? 0.25 : 0, sinceBeat: Infinity, flash: 0, scale: 1, speed: 0 };
+  const step = enr ? 0.38 : 0.5;
+  const eyeBeat = (since: number): number => (enr ? EYE_FLOOR + (1 - EYE_FLOOR) * Math.max(0, 1 - since / 0.25) : 1);
+  if (a === "walk") {
+    const n = Math.floor(t / step);
+    st.frame = n % 2 === 0 ? "walk_a" : "walk_b";
+    const sinceStep = t - n * step;
+    st.scale = 1 - 0.01 * Math.max(0, 1 - sinceStep / 0.12) + 0.004 * Math.sin((sinceStep / step) * Math.PI); // dip on the footfall, the breath rides the step
+    st.speed = 1.3 * (enr ? 1.3 : 1);
+    if (enr) {
+      const beats: number[] = [];
+      for (let k = 0; k * step <= t; k += 3) beats.push(k * step); // every 3rd footfall
+      st.sinceBeat = beatsBefore(t, beats);
+      st.eyes = eyeBeat(st.sinceBeat);
+    }
+  } else if (a === "slam") {
+    st.frame = t < 0.4 ? "slam_a" : t < 0.8 ? "slam_b" : t < 1.2 ? "slam_c" : t < 1.5 ? "slamhit_a" : "walk_a";
+    st.eyes = t < 1.2 ? 0.75 + 0.25 * (t / 1.2) : t < 1.35 ? 1 : enr ? EYE_FLOOR : 1;
+    if (t >= 1.2) st.scale = 1 + 0.01 * Math.max(0, 1 - (t - 1.2) / 0.8); // the exhale
+    if (enr) {
+      st.sinceBeat = beatsBefore(t, [0, 0.55, 0.9, 1.1, 2.4]);
+      if (t >= 1.2 && t < 1.35) st.flash = 1;
+    }
+  } else if (a === "charge") {
+    st.frame = t < 0.5 ? "charge_h" : t < 1 ? "charge_a" : t < 2 ? "rush_a" : "stun_a";
+    st.eyes = t < 2 ? 1 : 0.3;
+    st.speed = t >= 1 && t < 2 ? 12 : 0;
+    if (t >= 2) st.scale = 1 + 0.006 * Math.sin(((t - 2) / 1.0) * Math.PI * 2); // slow, heavy, dazed breaths
+    if (enr) {
+      if (t < 1) st.sinceBeat = beatsBefore(t, [0, 0.4, 0.7, 0.9]);
+      else if (t < 2) st.ember = 0.6;
+      else st.ember = 0; // helpless: the glow goes out
+    }
+  } else if (a === "throw") {
+    st.frame = t < 0.5 ? "throw_h" : t < 1 ? "throw_a" : "walk_a";
+    st.scale = t < 1 ? 1 + 0.012 * (t / 1) : 1 + 0.012 * Math.max(0, 1 - (t - 1) / 0.4);
+    st.eyes = t < 1 ? 1 : enr ? EYE_FLOOR : 1;
+    if (enr) st.sinceBeat = beatsBefore(t, [0, 1.0, 2.2]);
+  } else if (a === "roar") {
+    st.frame = "roar_a";
+    st.rage = t < 0.3 ? 0 : Math.min(1, (t - 0.3) / 1.2);
+    st.scale = t < 0.3 ? 1 + 0.02 * (t / 0.3) : 1.02;
+    st.eyes = 1;
+    st.ember = 0.25 * st.rage;
+  } else {
+    st.frame = t < 0.5 ? "dead_a" : t < 1 ? "dead_b" : "dead_c";
+    st.eyes = 0;
+    st.ember = 0;
+    st.rage = 0;
+    if (enr) st.sinceBeat = t < 0.4 ? t : Infinity; // the last weak beat
+  }
+  if (st.sinceBeat !== Infinity && a !== "walk" && enr && a !== "death") st.eyes = Math.max(st.eyes, eyeBeat(st.sinceBeat));
+  return st;
+}
+
+/* dust: deterministic puffs (soft grey discs that grow and fade) */
+interface Puff {
+  t0: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  life: number;
+}
+function puffsFor(a: PlayerAction, enr: boolean): Puff[] {
+  const R = BH_R_M;
+  const out: Puff[] = [];
+  let q = 17;
+  const rnd = (): number => ((q = (q * 16807) % 2147483647) / 2147483647);
+  const burst = (t0: number, x: number, y: number, n: number, spd: number, r: number, life: number): void => {
+    for (let i = 0; i < n; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const s = spd * (0.4 + rnd() * 0.6);
+      out.push({ t0: t0 + rnd() * 0.08, x, y, vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, r: r * (0.6 + rnd() * 0.6), life: life * (0.7 + rnd() * 0.5) });
+    }
+  };
+  if (a === "slam") {
+    for (const s of [-1, 1]) burst(1.2, 1.12 * R, s * 0.5 * R, 9, 2.2, 0.35, 0.5); // fists hit the ground
+    for (const s of [-1, 1]) for (let i = 0; i < 6; i++) out.push({ t0: 1.25 + i * 0.07, x: 0.2 * R + (rnd() - 0.5) * 0.4, y: s * 0.72 * R, vx: (rnd() - 0.5) * 0.4, vy: s * (0.6 + rnd() * 0.5), r: 0.08, life: 0.5 }); // grit falls off the shoulders
+  } else if (a === "charge") {
+    for (let i = 0; i < 26; i++) out.push({ t0: 1 + i * 0.038, x: -1.1 * R, y: (rnd() - 0.5) * 1.4 * R, vx: -1.5 - rnd(), vy: (rnd() - 0.5) * 0.6, r: 0.3 + rnd() * 0.25, life: 0.6 }); // the trail
+    burst(2.0, 1.3 * R, 0, 16, 3, 0.4, 0.6); // the crash
+  } else if (a === "throw") {
+    for (let i = 0; i < 8; i++) out.push({ t0: 0.3 + i * 0.08, x: (rnd() - 0.4) * 0.6, y: (rnd() - 0.5) * 0.6, vx: (rnd() - 0.5) * 0.3, vy: (rnd() - 0.5) * 0.3, r: 0.07, life: 0.4 }); // crumbs from the chunk
+    burst(1.8, 6.0, 0, 12, 2, 0.4, 0.5); // the landing
+  } else if (a === "roar") {
+    burst(0.3, 0, 0, 22, 4.5, 0.3, 0.5); // dust blown off
+  } else if (a === "death") {
+    burst(1.0, -0.2, 0.3, 24, 2.2, 0.55, 0.7); // it hits the ground
+  }
+  void enr;
+  return out;
+}
+
+function drawPlayer(g: CanvasRenderingContext2D, pairs: Map<string, FramePair>, a: PlayerAction, t: number, enr: boolean, puffs: Puff[], travel: number): void {
+  const st = planAt(a, t, enr);
+  const cx = PW * 0.36;
+  const cy = PW / 2;
+  const FRAME_PX = framePx();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = "source-over";
+  // the street, scrolling as it walks (it faces +x, so the street slides left)
+  const tile = 256;
+  const off = -((travel * PS) % tile);
+  for (let x = off - tile; x < PW + tile; x += tile) for (let y = 0; y < PW; y += tile) g.drawImage(asphalt, x, y, tile, tile);
+  const vg = g.createRadialGradient(cx, cy, PW * 0.15, cx, cy, PW * 0.8);
+  vg.addColorStop(0, "rgba(255,226,170,0.05)");
+  vg.addColorStop(1, "rgba(0,0,0,0.4)");
+  g.fillStyle = vg;
+  g.fillRect(0, 0, PW, PW);
+  // the game's warning FX, roughly
+  g.save();
+  if (a === "slam" && t < 1.2) {
+    const p = t / 1.2;
+    const gr = g.createRadialGradient(cx, cy, BH_R_M * PS, cx, cy, 4.5 * PS);
+    gr.addColorStop(0, `rgba(255,59,48,${0.05 + 0.25 * p})`);
+    gr.addColorStop(1, `rgba(255,59,48,${0.15 + 0.35 * p})`);
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(cx, cy, 4.5 * PS, 0, Math.PI * 2);
+    g.arc(cx, cy, BH_R_M * PS, 0, Math.PI * 2, true);
+    g.fill();
+    g.strokeStyle = "rgba(255,90,70,0.9)";
+    g.lineWidth = 3;
+    const ticks = 12;
+    for (let i = 0; i < ticks; i++) {
+      if (i / ticks > p) break;
+      const an = (i / ticks) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(an) * 4.3 * PS, cy + Math.sin(an) * 4.3 * PS);
+      g.lineTo(cx + Math.cos(an) * 4.6 * PS, cy + Math.sin(an) * 4.6 * PS);
+      g.stroke();
+    }
+  }
+  if (a === "slam" && t >= 1.2) {
+    const k = 1 - (t - 1.2) / 0.8;
+    g.strokeStyle = `rgba(10,10,10,${0.7 * Math.max(0, k)})`;
+    g.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const an = (i / 14) * Math.PI * 2 + 0.3;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(an) * 2.1 * PS, cy + Math.sin(an) * 2.1 * PS);
+      g.lineTo(cx + Math.cos(an) * (3.2 + (i % 3) * 0.5) * PS, cy + Math.sin(an) * (3.2 + (i % 3) * 0.5) * PS);
+      g.stroke();
+    }
+  }
+  if (a === "charge" && t < 1) {
+    g.fillStyle = "rgba(255,59,48,0.22)";
+    g.fillRect(cx - BH_R_M * PS, cy - 2.4 * PS, 12 * PS, 4.8 * PS);
+    g.strokeStyle = "rgba(255,59,48,0.9)";
+    g.lineWidth = 2;
+    g.strokeRect(cx - BH_R_M * PS, cy - 2.4 * PS, 12 * PS, 4.8 * PS);
+  }
+  if (a === "throw" && t < 1.8) {
+    g.fillStyle = "rgba(255,59,48,0.2)";
+    g.beginPath();
+    g.arc(cx + 6 * PS, cy, 3 * PS, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "rgba(255,59,48,0.9)";
+    g.lineWidth = 2;
+    g.stroke();
+  }
+  if (a === "roar" && t >= 0.3 && t < 0.8) {
+    const k = (t - 0.3) / 0.5;
+    g.strokeStyle = `rgba(255,59,48,${0.9 * (1 - k)})`;
+    g.lineWidth = 6;
+    g.beginPath();
+    g.arc(cx, cy, (BH_R_M + (5 - BH_R_M) * k) * PS, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.restore();
+  // the body
+  const pair = pairs.get(st.frame) ?? pairs.get("walk_a")!;
+  const calmP = pair.calm;
+  const enrP = pair.enr;
+  g.save();
+  g.translate(cx, cy);
+  g.scale(st.scale, st.scale);
+  const half = FRAME_PX / 2;
+  const deadTint = a === "death" && t > 1.5;
+  if (deadTint) {
+    const tg = tintC.getContext("2d")!;
+    tg.globalCompositeOperation = "source-over";
+    tg.clearRect(0, 0, N, N);
+    tg.drawImage(calmP.base, 0, 0);
+    tg.globalCompositeOperation = "source-atop";
+    tg.fillStyle = `rgba(40,40,44,${Math.min(0.45, (t - 1.5) * 0.9)})`;
+    tg.fillRect(0, 0, N, N);
+    g.drawImage(tintC, -half, -half, FRAME_PX, FRAME_PX);
+  } else {
+    if (st.rage < 1) g.drawImage(calmP.base, -half, -half, FRAME_PX, FRAME_PX);
+    if (st.rage > 0) {
+      g.globalAlpha = st.rage;
+      g.drawImage(enrP.base, -half, -half, FRAME_PX, FRAME_PX);
+      g.globalAlpha = 1;
+    }
+  }
+  g.globalCompositeOperation = "lighter";
+  // eyes (the relight's glow layer); in the roar they snap from yellow to red at 0.3 s
+  const eyeP = a === "roar" ? (t < 0.3 ? calmP : enrP) : st.rage > 0.5 ? enrP : calmP;
+  if (eyeP.glow && st.eyes > 0) {
+    g.globalAlpha = Math.min(1, st.eyes);
+    g.drawImage(eyeP.glow, -half, -half, FRAME_PX, FRAME_PX);
+  }
+  // the vein glow: ember, beats (the wave runs out over 4 steps of 0.15 s), flash, the roar's slow wave
+  const strip = (a === "death" ? pairs.get("dead_a")?.enr.veins : enrP.veins) ?? null;
+  if (strip) {
+    const stepDraw = (s: number, alpha: number): void => {
+      if (alpha <= 0) return;
+      g.globalAlpha = Math.min(1, alpha);
+      g.drawImage(strip, s * N, 0, N, N, -half, -half, FRAME_PX, FRAME_PX);
+    };
+    if (st.ember > 0) stepDraw(4, st.ember / 0.25);
+    if (st.flash > 0) for (const s of [0, 1, 2, 3]) stepDraw(s, 1);
+    if (a === "roar" && t >= 0.3) {
+      const k = Math.min(4, ((t - 0.3) / 1.2) * 4);
+      for (let s = 0; s < Math.floor(k); s++) stepDraw(s, 0.6);
+    }
+    if (st.sinceBeat !== Infinity) {
+      const s = st.sinceBeat / 0.15;
+      const weak = a === "death" ? 0.4 * Math.max(0, 1 - st.sinceBeat / 0.4) : 1;
+      if (s < 4) stepDraw(Math.floor(s), weak);
+    }
+  }
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = "source-over";
+  // the sheen (G4 A): the drifting street light
+  if (calmP.sheen && a !== "death") {
+    g.globalCompositeOperation = "lighter";
+    const h = sheenSide(N);
+    g.drawImage(calmP.sheen, sheenStep(t) * h, 0, h, h, -half, -half, FRAME_PX, FRAME_PX);
+    g.globalCompositeOperation = "source-over";
+  }
+  g.restore();
+  // the thrown chunk in flight
+  if (a === "throw" && t >= 1 && t < 1.8) {
+    const k = (t - 1) / 0.8;
+    const x = cx + 6 * PS * k;
+    const lift = Math.sin(k * Math.PI) * 1.2 * PS;
+    g.fillStyle = "rgba(0,0,0,0.35)";
+    g.beginPath();
+    g.ellipse(x, cy + 6, 0.6 * PS, 0.4 * PS, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#6a675f";
+    g.beginPath();
+    g.ellipse(x, cy - lift, 0.65 * PS * (1 + 0.3 * Math.sin(k * Math.PI)), 0.5 * PS, k * 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  // dust
+  for (const p of puffs) {
+    const dt = t - p.t0;
+    if (dt < 0 || dt > p.life) continue;
+    const k = dt / p.life;
+    const x = cx + (p.x + p.vx * dt) * PS;
+    const y = cy + (p.y + p.vy * dt) * PS;
+    const r = p.r * (1 + k * 1.6) * PS;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(170,166,156,${0.5 * (1 - k)})`);
+    gr.addColorStop(1, "rgba(170,166,156,0)");
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  // CRASH (amber: your chance)
+  if (a === "charge" && t >= 2) {
+    g.save();
+    g.font = "700 30px Oswald, Impact, sans-serif";
+    g.textAlign = "center";
+    g.fillStyle = `rgba(242,181,68,${0.9 * (0.6 + 0.4 * Math.sin(t * 8))})`;
+    g.fillText("CRASH", cx + 1.6 * PS, cy - 2.6 * PS);
+    g.restore();
+  }
+}
+
+async function actionPlayer(): Promise<void> {
+  const main = document.querySelector("main")!;
+  const sec = document.createElement("section");
+  sec.innerHTML = `<h2>Watch the actions play (take C, as planned)</h2>
+  <p>Each action plays in real time as the plan says: the frames the game shows, the breath, the eyes, the heartbeat glow, dust, and a rough sketch of the game's own warnings (disc, lane, target ring, CRASH, shock ring). Pick an action, calm or enraged, a look and a speed.</p>
+  <div class="card player"><div class="pc">
+    <div class="row" id="pl-actions"></div>
+    <div class="row"><span id="pl-mode"></span><span id="pl-looks"></span><span id="pl-speed"></span><span id="pl-zoom"></span><button id="pl-pause" aria-pressed="false">Pause</button></div>
+    <canvas id="pl-canvas" width="${PW}" height="${PW}"></canvas>
+    <div class="row"><div class="bar"><i id="pl-head"></i></div><span id="pl-time">0.00 s</span></div>
+    <p id="pl-goal"></p><p id="pl-loading" class="timing"></p>
+  </div></div>`;
+  main.insertBefore(sec, main.querySelector("h2"));
+  let action: PlayerAction = "slam";
+  let enr = true;
+  let look = 0;
+  let speed = 1;
+  let paused = false;
+  let pairs: Map<string, FramePair> | null = null;
+  let t = 0;
+  let travel = 0;
+  let last = performance.now();
+  let puffs = puffsFor(action, enr);
+  const canvas = document.getElementById("pl-canvas") as HTMLCanvasElement;
+  const g = canvas.getContext("2d")!;
+  const goal = document.getElementById("pl-goal")!;
+  const loading = document.getElementById("pl-loading")!;
+  const head = document.getElementById("pl-head")!;
+  const time = document.getElementById("pl-time")!;
+  const setGoal = (): void => {
+    const p = PLAN.find((x) => x.id === action);
+    goal.innerHTML = p ? `<b>Goal:</b> ${p.goal}` : "";
+  };
+  const group = (host: HTMLElement, items: readonly [string, string][], pick: (id: string) => void, on: string): void => {
+    for (const [id, label] of items) {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.setAttribute("aria-pressed", String(id === on));
+      b.addEventListener("click", () => {
+        for (const x of host.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+        pick(id);
+      });
+      host.append(b);
+    }
+  };
+  const restart = (): void => {
+    t = 0;
+    puffs = puffsFor(action, enr);
+    setGoal();
+  };
+  group(document.getElementById("pl-actions")!, PLAYER_ACTIONS, (id) => {
+    action = id as PlayerAction;
+    restart();
+  }, action);
+  group(document.getElementById("pl-mode")!, [["calm", "Calm"], ["enr", "Enraged"]], (id) => {
+    enr = id === "enr";
+    restart();
+  }, "enr");
+  const loadLook = async (v: number): Promise<void> => {
+    pairs = null;
+    loading.textContent = "Drawing the frames…";
+    const got = await framePairs(v, (k) => (loading.textContent = `Drawing the frames… ${Math.round(k * 100)} %`));
+    if (look === v) {
+      pairs = got;
+      loading.textContent = "";
+    }
+  };
+  group(document.getElementById("pl-looks")!, BEHEMOTH_LOOK_IDS.map((id, i) => [String(i), id] as [string, string]), (id) => {
+    look = Number(id);
+    void loadLook(look);
+  }, "0");
+  group(document.getElementById("pl-speed")!, [["1", "1×"], ["0.5", "½×"], ["0.25", "¼×"]], (id) => (speed = Number(id)), "1");
+  group(document.getElementById("pl-zoom")!, [["36", "Game size"], ["72", "Zoom 2×"]], (id) => (PS = Number(id)), "36");
+  const pauseBtn = document.getElementById("pl-pause")!;
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.setAttribute("aria-pressed", String(paused));
+    pauseBtn.textContent = paused ? "Play" : "Pause";
+  });
+  setGoal();
+  const tick = (now: number): void => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const len = lengthOf(action, enr);
+    if (!paused) {
+      t += dt * speed;
+      travel += planAt(action, Math.min(t, len), enr).speed * dt * speed;
+      if (t > len + 0.8) {
+        t = 0;
+        puffs = puffsFor(action, enr);
+      }
+    }
+    const tt = Math.min(t, len);
+    if (pairs) drawPlayer(g, pairs, action, tt, enr, puffs, travel);
+    head.style.left = `${(tt / len) * 100}%`;
+    time.textContent = `${tt.toFixed(2)} s / ${len.toFixed(2)} s`;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  await loadLook(0);
 }
 
 const animBtn = document.getElementById("anim")!;
