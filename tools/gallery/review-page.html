@@ -80,7 +80,7 @@ dialog .foot button { font: 500 13px var(--font-body); background: var(--well); 
 
 <header class="intro">
   <h1>Dead City <span>asset review</span></h1>
-  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; street props and vehicles show their accepted photoreal looks, which are not in the game yet; survivors and zombies show the relit pictures the game now draws.</p>
+  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again. Only the accepted version of each picture is shown; survivors, zombies, street props and vehicles show the photoreal pictures the game now draws (Stories 9.13 and 9.14).</p>
   <p class="notice" id="notice" hidden></p>
 </header>
 
@@ -114,7 +114,7 @@ const GROUPS = {
   boss_tele_disc: ["Boss slam warning", "The glowing disc under the countdown: the ticks light up in turn and sparks drift in while the slam winds up."],
   boss_tele_ring: ["Boss throw warning", "The hatched ring where a thrown chunk will land."],
   boss_tele_lane: ["Boss charge warning", "The hatched lane the Behemoth will charge down."],
-  atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers (sawhorses and concrete with tape), dumpster, sandbags."],
+  atlas_downtown: ["Street props and vehicles", "In the game (Story 9.14): the photoreal set from the pre-rendered image. Cars (normal and burnt), the bus, dumpster, pump, rubble block, sandbags, the concrete barrier, and the standing police sawhorse pieces and traffic drums."],
   approved_buildables: ["Things you build", "The accepted look (not in the game yet). Traps, floodlights and med station relit and animated; the barricades standing, with four pictures each (front inside / outside, two sides) and a corner piece, built from random scavenged parts."],
   approved_photoreal_props: ["Street props and vehicles", "The accepted look: photoreal (not in the game yet). Cars on a real sedan body, burnt cars, the bus, dumpster, pump, rubble, sandbags and both barriers."],
   atlas_heli: ["Helicopter", "The helicopter's frames."],
