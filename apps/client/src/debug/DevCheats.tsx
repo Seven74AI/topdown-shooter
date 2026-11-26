@@ -48,7 +48,7 @@ function hookGridView(game: Phaser.Game): void {
 }
 
 /** Story 10.11 (AC 4): production online runs keep only the view tools (a dev build keeps today's online panel). */
-const PRACTICE_ONLY_ONLINE = !import.meta.env.DEV;
+const PRACTICE_ONLY_ONLINE_DEFAULT = !import.meta.env.DEV;
 
 /** Story 10.11 (AC 5): turns off what the panel turned on for this phone when the admin mark goes (B-code B2). */
 function dropCheatState(game: Phaser.Game): void {
@@ -60,7 +60,7 @@ function dropCheatState(game: Phaser.Game): void {
   if (w) w.debug.godMode = false;
 }
 
-function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
+function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; visible: boolean; practiceOnlyOnline: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ZombieTypeId>(ZOMBIE_TYPES[0]);
   const [count, setCount] = useState("50");
@@ -102,7 +102,7 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
   // Story 4.4: online the server owns the run seed (host's ?seed= + DEV_ALLOW_RUN_SEED=1).
   const online = scene()?.isOnline ?? false;
   // Story 10.11 (AC 4): every control but the two view tools is disabled (and does nothing) in a production online run.
-  const locked = PRACTICE_ONLY_ONLINE && online;
+  const locked = practiceOnlyOnline && online;
   const spawn = (where: "ring" | "view") => {
     const s = scene();
     if (locked || !w || !p || !s) return;
@@ -331,10 +331,18 @@ export interface CheatPanelHandle {
 }
 
 /** Renders the cheat panel into the UI layer: at once in dev builds; for admins in production (`adminGate.ts`). */
-export function mountDevCheats(game: Phaser.Game, visible = true): CheatPanelHandle {
+export interface CheatPanelOptions {
+  /** Shown at mount (default true). */
+  visible?: boolean;
+  /** Story 10.11 (AC 4): online runs keep only the view tools. Default: production builds yes, dev builds no. */
+  practiceOnlyOnline?: boolean;
+}
+
+export function mountDevCheats(game: Phaser.Game, opts: CheatPanelOptions = {}): CheatPanelHandle {
+  const { visible = true, practiceOnlyOnline = PRACTICE_ONLY_ONLINE_DEFAULT } = opts;
   const el = document.createElement("div");
   (document.getElementById("ui") ?? document.body).appendChild(el);
-  const draw = (v: boolean) => render(h(DevCheats, { game, visible: v }), el);
+  const draw = (v: boolean) => render(h(DevCheats, { game, visible: v, practiceOnlyOnline }), el);
   draw(visible);
   return { setVisible: draw };
 }

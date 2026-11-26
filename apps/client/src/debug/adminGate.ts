@@ -13,7 +13,7 @@ interface AdminSource {
   get(): AccountSnapshot;
   subscribe(l: (s: AccountSnapshot) => void): () => void;
 }
-type MountPanel = (game: Phaser.Game, visible: boolean) => PanelHandle;
+type MountPanel = (game: Phaser.Game, opts: { visible: boolean }) => PanelHandle;
 
 /** Watches `store`; the first `admin: true` calls `load()` once and mounts the panel. Returns the unsubscribe. */
 export function installAdminGate(game: Phaser.Game, store: AdminSource, load: () => Promise<{ mountAdminTools: MountPanel }>): () => void {
@@ -27,7 +27,7 @@ export function installAdminGate(game: Phaser.Game, store: AdminSource, load: ()
     loading = true;
     load().then(
       (m) => {
-        panel = m.mountAdminTools(game, want);
+        panel = m.mountAdminTools(game, { visible: want });
       },
       () => {
         loading = false; // a failed download (offline): the next admin answer tries again

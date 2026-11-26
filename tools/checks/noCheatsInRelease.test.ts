@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -38,8 +38,9 @@ export const CHEAT_STRINGS = [
   "Spawn Behemoth", // Story 6.5
 ];
 
-/** Story 10.11: the admin-only panel chunk (JS and CSS), by its fixed name. */
-export const ADMIN_CHUNK = /(^|[\\/])assets[\\/]admin-tools-[\w-]+\.(js|css)$/;
+/** Story 10.11: the admin-only panel chunk (JS and CSS), by its fixed name, directly in DIST/assets (review nit). */
+const ADMIN_CHUNK_NAME = /^admin-tools-[\w-]+\.(js|css)$/;
+export const isAdminChunk = (f: string): boolean => dirname(f) === join(DIST, "assets") && ADMIN_CHUNK_NAME.test(basename(f));
 
 function builtFiles(dir: string): string[] {
   const out: string[] = [];
@@ -60,7 +61,7 @@ describe.skipIf(!hasDist && !REQUIRED)("release build has no dev cheats", () => 
     const files = builtFiles(DIST);
     expect(files.some((f) => f.endsWith(".js"))).toBe(true);
     const found: string[] = [];
-    for (const f of files.filter((x) => !ADMIN_CHUNK.test(x))) {
+    for (const f of files.filter((x) => !isAdminChunk(x))) {
       const text = readFileSync(f, "utf8");
       for (const s of CHEAT_STRINGS) if (text.includes(s)) found.push(`${s} in ${f}`);
     }
@@ -68,7 +69,7 @@ describe.skipIf(!hasDist && !REQUIRED)("release build has no dev cheats", () => 
   });
 
   it("Story 10.11: the admin-tools chunk exists (one JS, at most one CSS) and really holds the panel", () => {
-    const admin = builtFiles(DIST).filter((f) => ADMIN_CHUNK.test(f));
+    const admin = builtFiles(DIST).filter((f) => isAdminChunk(f));
     const js = admin.filter((f) => f.endsWith(".js"));
     expect(js, "assets/admin-tools-*.js is missing").toHaveLength(1);
     expect(admin.filter((f) => f.endsWith(".css")).length).toBeLessThanOrEqual(1);

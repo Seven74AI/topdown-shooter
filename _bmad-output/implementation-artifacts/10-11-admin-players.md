@@ -146,6 +146,7 @@ Claude (builder session, `gds-dev-story`), 2026-11-26.
 ### Change Log
 
 - 2026-11-26: Story 10.11 built (status → review).
+- 2026-11-26: Review fixes (test-only + one mount option): L1 `mountDevCheats(game, { visible, practiceOnlyOnline })` (default: production yes, dev no) + `tools/checks/adminPanelDomLayout.test.ts` (real Chromium: online → only Perf overlay + Collision / grid view enabled, one "Practice only"; solo → nothing locked; proven to fail with the lock removed); L2 the real-PostgreSQL case now adds the admin through `runAdminCommand` with the upper-case name; N1 the release scan exempts `admin-tools-*` only directly in `DIST/assets` (a nested copy now fails, checked on a doctored dist).
 
 ## Senior Developer Review (AI)
 

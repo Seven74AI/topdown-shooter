@@ -61,7 +61,7 @@ describe("Story 10.11 AC 3, 5, 7: the admin gate loads the panel only for an adm
   it("a guest and a non-admin never load it; the first admin answer loads it once and shows it; losing admin hides it", async () => {
     const store = fakeStore({ known: false, username: null, admin: false });
     const visible: boolean[] = [];
-    const mount = vi.fn((_g: Phaser.Game, v: boolean) => (visible.push(v), { setVisible: (x: boolean) => void visible.push(x) }));
+    const mount = vi.fn((_g: Phaser.Game, o: { visible: boolean }) => (visible.push(o.visible), { setVisible: (x: boolean) => void visible.push(x) }));
     const load = vi.fn(async () => ({ mountAdminTools: mount }));
     installAdminGate(game, store, load);
     store.set(guest);
@@ -81,7 +81,7 @@ describe("Story 10.11 AC 3, 5, 7: the admin gate loads the panel only for an adm
   it("losing admin while the chunk downloads mounts it hidden; a failed download is retried at the next admin answer", async () => {
     const store = fakeStore(admin);
     let fail = true;
-    const mount = vi.fn((_g: Phaser.Game, v: boolean) => ({ setVisible: () => void v }));
+    const mount = vi.fn((_g: Phaser.Game, o: { visible: boolean }) => ({ setVisible: () => void o }));
     const load = vi.fn(async () => {
       if (fail) throw new Error("offline");
       return { mountAdminTools: mount };
@@ -93,7 +93,7 @@ describe("Story 10.11 AC 3, 5, 7: the admin gate loads the panel only for an adm
     store.set(admin);
     store.set(plain);
     await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
-    expect(mount.mock.calls[0]?.[1]).toBe(false);
+    expect(mount.mock.calls[0]?.[1]).toEqual({ visible: false });
   });
 });
 

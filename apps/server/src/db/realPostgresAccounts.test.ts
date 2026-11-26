@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo, adminsRepo } from "./accountsRepo";
+import { runAdminCommand } from "./adminCommand";
 import { openPostgres, type Database } from "./client";
 import { deviceTokensRepo } from "./deviceTokensRepo";
 import { migrateDb } from "./migrate";
@@ -136,7 +137,8 @@ describe.skipIf(!URL)("Story 7.6: accounts on real PostgreSQL (TEST_DATABASE_URL
     const g = await device(0);
     expect((await accountsRepo(database).findByTokenHash(a.token))?.isAdmin).toBe(false);
     expect((await accountsRepo(database).findByTokenHash(g.token))?.isAdmin).toBe(false);
-    expect(await adminsRepo(database).setAdmin(n.toUpperCase().toLowerCase(), true)).toEqual({ accountId: a.id });
+    // Case-blind: the operator types the name in upper case (the command lower-cases it for username_lower).
+    expect(await runAdminCommand(["add", n.toUpperCase()], adminsRepo(database), () => {})).toBe(0);
     expect((await accountsRepo(database).findByTokenHash(a.token))?.isAdmin).toBe(true);
     expect((await adminsRepo(database).listAdmins()).some((x) => x.accountId === a.id && x.username === n)).toBe(true);
     expect(await adminsRepo(database).setAdmin("no_such_user_1011", true)).toBeNull();

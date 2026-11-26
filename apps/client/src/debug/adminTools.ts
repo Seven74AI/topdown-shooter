@@ -4,4 +4,4 @@
  * `tools/checks/noCheatsInRelease.test.ts` can exempt exactly this chunk. A production build downloads it only for an
  * admin (`adminGate.ts`); a dev build at boot (main.ts).
  */
-export { mountDevCheats as mountAdminTools, type CheatPanelHandle } from "./DevCheats";
+export { mountDevCheats as mountAdminTools, type CheatPanelHandle, type CheatPanelOptions } from "./DevCheats";
