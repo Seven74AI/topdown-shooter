@@ -3291,12 +3291,12 @@ So that I can read my teammates' roles and state at a glance.
 *(Re-based 2026-11-26, correct-course: attack and death animations, plus a photoreal Behemoth — the Behemoth part moved to Story 9.15 the same day. Walk loops for Walker, Runner and Crawler, breathing, glow, Bloater veins and Spitter drips are done in 9.13.)*
 
 As a player,
-I want every zombie to attack and die visibly, and the Behemoth to match the rest,
+I want every zombie to attack and die visibly,
 So that I can read the fight in the crowd and the dark.
 
 **Acceptance Criteria:**
 
-**Given** proposal pages for the attack and death animations and for a photoreal Behemoth (relit like 9.13, keeping its silhouette and every telegraph)
+**Given** proposal pages for the attack and death animations
 **When** the designer picks
 **Then** the picks are recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
 
@@ -3306,9 +3306,7 @@ So that I can read the fight in the crowd and the dark.
 **And** death animations are client-only, pooled and capped (a `controls.fx` cap, `?fx=low` halves it); beyond the cap a zombie vanishes with today's splat
 **And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
-**Given** the Behemoth
-**When** it is drawn
-**Then** it uses the approved photoreal look (worker relight, code drawing as fallback) for its walk, slam, charge, throw, stun / roar and enrage poses, and its telegraphs (ring, hatching, P1 warning display) read the same as today on the readability sheet
+*(The photoreal Behemoth AC moved to Story 9.15, merged 2026-11-26 as PR #34; 9.15's "Covers from 9.4" section lists what it took. 9.4 keeps the attack and death animations of the six zombie types.)*
 
 **Given** 150 animated zombies in view, with deaths at the cap
 **When** the `?stress=150` test runs the 9.13 way
