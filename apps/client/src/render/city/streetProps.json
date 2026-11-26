@@ -1,0 +1,266 @@
+{
+ "note": "Story 9.14: written by `npm run art:street-props` (tools/art/streetProps.ts); do not edit.",
+ "image": "streetProps.webp",
+ "imageSha": "751fd14e55334692",
+ "chromium": "158.0.8127.36",
+ "sourcesHash": "ebea0464f42a7f16",
+ "sources": [
+  "apps/client/src/render/city/atlasLayout.ts",
+  "apps/client/src/render/city/barricadeArt.ts",
+  "apps/client/src/render/city/behemothArt.ts",
+  "apps/client/src/render/city/bloaterArt.ts",
+  "apps/client/src/render/city/bruteArt.ts",
+  "apps/client/src/render/city/buildingArt.ts",
+  "apps/client/src/render/city/buildingsFrames.ts",
+  "apps/client/src/render/city/dressing.ts",
+  "apps/client/src/render/city/groundDamageArt.ts",
+  "apps/client/src/render/city/palette.ts",
+  "apps/client/src/render/city/propArt.ts",
+  "apps/client/src/render/city/relight.ts",
+  "apps/client/src/render/city/spitterArt.ts",
+  "apps/client/src/render/city/spriteArt.ts",
+  "apps/client/src/render/city/streetPropsFrames.ts",
+  "apps/client/src/render/city/survivorLayers.ts",
+  "apps/client/src/render/city/survivorLook.ts",
+  "apps/client/src/render/city/survivorParts.ts",
+  "docs/art/asset-fixes-1/src/lib.ts",
+  "docs/art/photoreal-1/src/atlas.ts",
+  "docs/art/photoreal-1/src/pilot.ts",
+  "docs/art/photoreal-1/src/relief.ts"
+ ],
+ "width": 2032,
+ "height": 536,
+ "pxPerM": {
+  "props": 64,
+  "police": 96
+ },
+ "frames": {
+  "prop_policeside_a": {
+   "x": 2,
+   "y": 2,
+   "w": 96,
+   "h": 269
+  },
+  "prop_policeside_b": {
+   "x": 100,
+   "y": 2,
+   "w": 96,
+   "h": 269
+  },
+  "prop_policedrum_a": {
+   "x": 198,
+   "y": 2,
+   "w": 134,
+   "h": 192
+  },
+  "vehicle_bus_a": {
+   "x": 334,
+   "y": 2,
+   "w": 640,
+   "h": 160
+  },
+  "vehicle_car_a": {
+   "x": 976,
+   "y": 2,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_car_b": {
+   "x": 1266,
+   "y": 2,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_car_c": {
+   "x": 1556,
+   "y": 2,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_car_d": {
+   "x": 2,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_car_e": {
+   "x": 292,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_carburnt_a": {
+   "x": 582,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_carburnt_b": {
+   "x": 872,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_carburnt_c": {
+   "x": 1162,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_carburnt_d": {
+   "x": 1452,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "vehicle_carburnt_e": {
+   "x": 1742,
+   "y": 273,
+   "w": 288,
+   "h": 128
+  },
+  "prop_policefront_1a": {
+   "x": 2,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_policefront_1b": {
+   "x": 196,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_policefront_2a": {
+   "x": 390,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_policefront_2b": {
+   "x": 584,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_policefront_3a": {
+   "x": 778,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_policefront_3b": {
+   "x": 972,
+   "y": 403,
+   "w": 192,
+   "h": 96
+  },
+  "prop_block_a": {
+   "x": 1166,
+   "y": 403,
+   "w": 96,
+   "h": 96
+  },
+  "prop_dumpster_a": {
+   "x": 1264,
+   "y": 403,
+   "w": 96,
+   "h": 96
+  },
+  "prop_sandbags_a": {
+   "x": 1362,
+   "y": 403,
+   "w": 192,
+   "h": 64
+  },
+  "prop_pump_a": {
+   "x": 1556,
+   "y": 403,
+   "w": 128,
+   "h": 64
+  },
+  "prop_barrier_a": {
+   "x": 2,
+   "y": 501,
+   "w": 384,
+   "h": 32
+  },
+  "prop_barrier_b": {
+   "x": 388,
+   "y": 501,
+   "w": 384,
+   "h": 32
+  }
+ },
+ "lamps": {
+  "prop_policeside_a": [
+   [
+    47.8,
+    44.8
+   ],
+   [
+    47.9,
+    173.4
+   ]
+  ],
+  "prop_policeside_b": [
+   [
+    47.9,
+    173.4
+   ]
+  ],
+  "prop_policedrum_a": [
+   [
+    66.8,
+    89.8
+   ]
+  ],
+  "prop_policefront_1a": [
+   [
+    54.4,
+    7.8
+   ]
+  ],
+  "prop_policefront_1b": [],
+  "prop_policefront_2a": [
+   [
+    54.4,
+    7.8
+   ],
+   [
+    72.9,
+    8.4
+   ]
+  ],
+  "prop_policefront_2b": [
+   [
+    72.2,
+    8.2
+   ]
+  ],
+  "prop_policefront_3a": [
+   [
+    54.4,
+    7.8
+   ],
+   [
+    182.7,
+    8
+   ],
+   [
+    72.9,
+    8.4
+   ]
+  ],
+  "prop_policefront_3b": [
+   [
+    181.1,
+    7.7
+   ],
+   [
+    72.2,
+    8.2
+   ]
+  ]
+ }
+}

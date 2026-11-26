@@ -1079,11 +1079,14 @@ export function drawCorner(g: Ctx, style: Style, h: 1 | -1, v: 1 | -1, inside: b
 
 // ─────────────────────────────── police ───────────────────────────────
 
-/** Police front (both rotations: a sawhorse looks the same from both sides): three sawhorses edge to edge. */
-export function drawPoliceFront(g: Ctx, variant: number): void {
+/**
+ * Police front (both rotations: a sawhorse looks the same from both sides): three sawhorses edge to edge. Story 9.14:
+ * `units` < 3 draws only the first (west) ones, the same as in the full picture (the end piece of a police line).
+ */
+export function drawPoliceFront(g: Ctx, variant: number, units = 3): void {
   const r = rng(7100 + variant * 997);
   withShadow(g, 2, 1, YB, (c) => {
-    for (let u = 0; u < 3; u++) {
+    for (let u = 0; u < units; u++) {
       const cx = -0.667 + u * 0.667 + (r() - 0.5) * 0.04;
       const ang = (r() - 0.5) * 0.05;
       c.save();
