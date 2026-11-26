@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { createRng, type Rng } from "../core/rng";
@@ -167,14 +167,20 @@ function run(seed: number) {
 }
 
 describe("Story 5.9 fuzz: walls vs floor on Downtown", () => {
-  it(`${LAYOUTS} random layouts × ${TICKS} ticks of waves: no body in a wall, nav only on wall changes, zombies reach us, no stall; liveness`, () => {
-    trapCounters.pulses = trapCounters.kills = trapCounters.wornOut = 0;
-    mineCounters.exploded = 0;
+  describe(`${LAYOUTS} random layouts × ${TICKS} ticks of waves: no body in a wall, nav only on wall changes, zombies reach us, no stall; liveness`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
+    beforeAll(() => {
+      trapCounters.pulses = trapCounters.kills = trapCounters.wornOut = 0;
+      mineCounters.exploded = 0;
+    });
     let onFloor = 0;
     let upgradedBroken = 0;
     let waves = 0;
     let ended = 0;
-    for (let seed = 1; seed <= LAYOUTS; seed++) {
+    let casesRun = 0;
+    it.each(Array.from({ length: LAYOUTS }, (_, i) => i + 1))(`layout %i of ${LAYOUTS}`, (seed) => {
       const r = run(seed);
       expect(r.violation, `seed ${seed}`).toBeNull();
       expect(r.reached, `seed ${seed}: no zombie reached a player`).toBeGreaterThan(0);
@@ -184,15 +190,20 @@ describe("Story 5.9 fuzz: walls vs floor on Downtown", () => {
       upgradedBroken += r.upgradedBroken;
       waves += r.waves;
       ended += r.wavesEnded;
-    }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
-      `[floor fuzz] ${LAYOUTS} layouts: ${waves} waves started, ${ended} ended; ${mineCounters.exploded} mines exploded, ${trapCounters.pulses} spike hits, ` +
-        `${trapCounters.kills} trap kills, ${trapCounters.wornOut} traps worn out, ${upgradedBroken} upgraded walls broken, ${onFloor} body-ticks on floor buildings`,
-    );
-    expect(mineCounters.exploded).toBeGreaterThanOrEqual(1);
-    expect(trapCounters.kills).toBeGreaterThanOrEqual(1);
-    expect(trapCounters.wornOut).toBeGreaterThanOrEqual(1);
-    expect(upgradedBroken).toBeGreaterThanOrEqual(1);
-    expect(onFloor).toBeGreaterThan(0);
-  }, 240_000);
+      casesRun++;
+    }, 120_000);
+
+    it(`the ${LAYOUTS} layouts together: mines, trap kills, worn-out traps, broken upgraded walls, bodies on floor buildings`, () => {
+      expect(casesRun, "every case above ran and passed").toBe(LAYOUTS);
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+        `[floor fuzz] ${LAYOUTS} layouts: ${waves} waves started, ${ended} ended; ${mineCounters.exploded} mines exploded, ${trapCounters.pulses} spike hits, ` +
+          `${trapCounters.kills} trap kills, ${trapCounters.wornOut} traps worn out, ${upgradedBroken} upgraded walls broken, ${onFloor} body-ticks on floor buildings`,
+      );
+      expect(mineCounters.exploded).toBeGreaterThanOrEqual(1);
+      expect(trapCounters.kills).toBeGreaterThanOrEqual(1);
+      expect(trapCounters.wornOut).toBeGreaterThanOrEqual(1);
+      expect(upgradedBroken).toBeGreaterThanOrEqual(1);
+      expect(onFloor).toBeGreaterThan(0);
+    });
+  });
 });

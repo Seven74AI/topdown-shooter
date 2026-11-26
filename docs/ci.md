@@ -14,8 +14,9 @@ Push runs on `master` only; every pull request runs; changes only under `docs/**
 | `static` | `npm ci`, typecheck, lint | ~2 min |
 | `release` | `npm run release:check`: client build + `REQUIRE_DIST=1` cheat scan (Story 1.11). A cheat-string leak fails here in about a minute. | ~1–2 min |
 | `test (shard i/4)` | 4-shard matrix, `fail-fast: false`. Each shard runs `npx vitest run $(node tools/ci/shard.mjs i 4)` and uploads its JSON report as the `test-report-i` artifact. | see the PR |
+| `postgres` | Epic 7 retro E7-A1: a `postgres:16` service; runs `realPostgres*.test.ts` + `realPg.test.ts` with `TEST_DATABASE_URL` set, one file at a time (they share the database), then `tools/ci/check-all-passed.mjs` fails the job if any of the 32+ tests skipped. The test shards still skip these files (no URL there). | ~2 min |
 | `docker` | buildx images with the GitHub Actions layer cache (`type=gha`, one scope per target, `load: true`), Caddyfile check, compose smoke test with throwaway secrets | ~3–6 min |
-| `gate` | `needs` all four, `if: always()`; fails unless every one of them is `success` | seconds |
+| `gate` | `needs` all five, `if: always()`; fails unless every one of them is `success` | seconds |
 
 **`gate` is the single check to require** in branch protection. A PR that only touches the paths-ignore paths gets no CI run and so no `gate`
 check; that is fine while docs / BMAD-only changes go straight to master (HANDOFF §3), but such a PR would wait forever
@@ -39,6 +40,21 @@ on a required `gate`.
 
 `tools/ci/shard.test.ts` proves, against `vitest list`, that the 4 shards are disjoint, cover every file, and that
 each shard's command line selects exactly its own files.
+
+### No test over 30 s (Epic 8 retro E8-A8)
+
+Every test shard (and the `postgres` job) runs `node tools/ci/slowest.mjs <its report>` after the tests: it writes the
+**slowest 15 tests** to the job summary and **fails the job if one test took over 30 s** (a warning annotation from
+20 s, so a test is split before it reaches the limit). Split such a test per case, the way the fuzzes and sims were
+split in the E8-A8 PR: an `it.each` per seed / layout / run, the shared counters in the `describe`, then one totals test
+that first checks every case ran (`expect(casesRun).toBe(n)`) and then makes the old cross-case assertions. Real-time
+bot tests are split into their steps on one room (`tools/bots/cut.test.ts`, `lateJoin.test.ts`).
+
+Why a check over the CI report, not a lower per-test timeout: `testTimeout` (30 s) is a default that the slow tests
+raise on purpose, because a timeout also fires on the builders' loaded shared boxes (load 8–16), where it would flake.
+The report check runs only on the CI runners (one machine type), reads the time vitest measured, and names every
+offender at once. The splits aim at ≤ ~15 s per test in CI, so a runner twice as slow still passes. Locally:
+`node tools/ci/slowest.mjs reports/` over downloaded `test-report-*` artifacts, or over a local `--reporter=json` file.
 
 ### Refreshing the shard timings
 

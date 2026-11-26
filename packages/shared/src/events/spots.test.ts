@@ -140,15 +140,19 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
     stuckAll: 0,
     spawnedAll: 0,
   };
+  // E8-A8 (no test over 30 s): one test per stage × mask (was per stage: 22–32 s in CI), the same lanes and checks.
+  let laneCases = 0;
+  let laneCasesRun = 0;
   for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++) {
-    it(`every lane, stage ${stage}: a 30-Runner stampede spawns, never puts a Runner in a box, and ends with every Runner crossed or converted (≤ ${LANE_MASKS} masks)`, () => {
-      const masks =
-        stage === 1
-          ? [0]
-          : MASKS.filter(
-              (_, i) => i % Math.ceil(MASKS.length / LANE_MASKS) === 0,
-            );
-      for (const mask of masks) {
+    const masks =
+      stage === 1
+        ? [0]
+        : MASKS.filter(
+            (_, i) => i % Math.ceil(MASKS.length / LANE_MASKS) === 0,
+          );
+    laneCases += masks.length;
+    for (const mask of masks) {
+      it(`every lane, stage ${stage}, mask ${mask} (≤ ${LANE_MASKS} masks per stage): a 30-Runner stampede spawns, never puts a Runner in a box, and ends with every Runner crossed or converted`, () => {
         for (let li = 0; li < map.stampedeLanes.length; li++) {
           if (!laneOpen(map.stampedeLanes[li]!, stage)) continue; // a lane closed at this stage (the cross street from stage 4)
           const world = createWorld({ balance, seed: 7 + li, map });
@@ -207,11 +211,13 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
             laneTally.spawnedMain += log.stampedeSpawned;
           }
         }
-      }
-    }, 120_000);
+        laneCasesRun++;
+      }, 120_000);
+    }
   }
 
   it(`every lane: the stampede crosses and leaves on both streets over stages 1–5 (liveness)`, () => {
+    expect(laneCasesRun, "every stage × mask test above ran and passed").toBe(laneCases);
     expect(laneTally.spawnedAll).toBeGreaterThan(0);
     // Liveness (6.8 B2, runS 12): the stampede crosses and leaves on both streets (48 m main street:
     // 9.6 s at 5 m/s + 1.5 s of rows); cover deflects them, the stuck rule is rare.

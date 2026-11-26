@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { SimEvent } from "@topdown/shared";
 import { bootTestServer } from "../../apps/server/src/test/bootTestServer";
@@ -33,40 +33,65 @@ async function until(ok: () => boolean, timeoutMs: number, stepMs = 50): Promise
 }
 
 describe("Story 8.2 late bots (T8)", () => {
-  it("a bot joins at a build phase and plays; a bot joining mid-wave waits, enters at the next build phase, then shoots", async () => {
+  // E8-A8 (no test over 30 s; was 36 s in CI): the one run is split into its steps, in order, on the same room and
+  // bots: each step needs the ones before it (a -t filter on one step fails it).
+  describe("a bot joins at a build phase and plays; a bot joining mid-wave waits, enters at the next build phase, then shoots", () => {
     const lines: Record<string, unknown>[] = [];
     const log = (l: Record<string, unknown>): void => void lines.push(l);
-    const url = `http://127.0.0.1:${port}`;
-    const host = await BotClient.connect({ url, name: "Bot 1", log });
-    const bots = [host, await BotClient.connect({ url, name: "Bot 2", roomId: host.roomId, log })];
-    const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
-    room.allowSoloStart = true;
-    const info = vi.spyOn(room.log, "info");
+    const url = () => `http://127.0.0.1:${port}`;
+    const bots: BotClient[] = [];
+    let room: RunRoom;
+    let info: MockInstance<RunRoom["log"]["info"]>;
     const logged = (msg: string) => info.mock.calls.filter((c) => c[1] === msg).map((c) => c[0] as Record<string, unknown>);
-    try {
+    let world: NonNullable<RunRoom["controller"]>["world"];
+    let b3: BotClient;
+    let b4: BotClient;
+    let shots = 0;
+    afterAll(async () => {
+      await Promise.all(bots.map((b) => b.stop()));
+    });
+
+    it("step 1: two bots start the run; bot 3 joins in the first build phase and gets a seat at once", async () => {
+      const host = await BotClient.connect({ url: url(), name: "Bot 1", log });
+      bots.push(host, await BotClient.connect({ url: url(), name: "Bot 2", roomId: host.roomId, log }));
+      room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+      room.allowSoloStart = true;
+      info = vi.spyOn(room.log, "info");
       expect(await until(() => room.members.size === 2 && [...room.state.players.values()].every((p) => p.ready), 30_000)).toBe(true);
       host.room.send("run.start", {});
       expect(await until(() => room.state.phase === "build", 30_000)).toBe(true);
       // Bot 3: a build-phase join → a new seat at once.
-      const b3 = await BotClient.connect({ url, name: "Bot 3", roomId: host.roomId, log });
+      b3 = await BotClient.connect({ url: url(), name: "Bot 3", roomId: host.roomId, log });
       bots.push(b3);
-      const world = room.controller?.world;
-      if (!world) throw new Error("no run");
+      const w = room.controller?.world;
+      if (!w) throw new Error("no run");
+      world = w;
       expect(await until(() => world.players.has(b3.playerId), 10_000)).toBe(true);
       expect(logged("player_joined_mid_run").map((l) => l.playerId)).toEqual([b3.playerId]);
+    }, 120_000);
+
+    it("step 2: bot 4 joins mid-wave 1 and waits (in the state as waiting, not in the World)", async () => {
+      expect(world, "step 1 ran").toBeDefined();
       // Mid-wave 1: bot 4 joins and waits.
       expect(await until(() => room.state.phase === "wave", 90_000)).toBe(true);
-      const b4 = await BotClient.connect({ url, name: "Bot 4", roomId: host.roomId, log });
+      b4 = await BotClient.connect({ url: url(), name: "Bot 4", roomId: room.roomId, log });
       bots.push(b4);
       expect(await until(() => b4.waited, 10_000)).toBe(true);
       expect(world.players.has(b4.playerId)).toBe(false);
       expect(room.state.players.get(b4.playerId)?.waiting).toBe(true);
       expect(lines.some((l) => l.msg === "bot_waiting" && l.bot === "Bot 4")).toBe(true);
+    }, 120_000);
+
+    it("step 3: bot 4 enters at the next build phase", async () => {
+      expect(b4?.waited, "step 2 ran").toBe(true);
       // The next build phase: it enters; wave 2: it shoots.
       expect(await until(() => world.players.has(b4.playerId), 150_000, 250)).toBe(true);
       expect(world.waves.number).toBe(1);
       expect(await until(() => b4.entered, 10_000)).toBe(true);
-      let shots = 0;
+    }, 180_000);
+
+    it("step 4: bot 4 shoots in wave 2", async () => {
+      expect(b4?.entered, "step 3 ran").toBe(true);
       const off = world.events.subscribe((e: SimEvent) => {
         if (e.type === "weapon.fired" && e.playerId === b4.playerId) shots++;
       });
@@ -75,8 +100,6 @@ describe("Story 8.2 late bots (T8)", () => {
       expect(world.waves.number).toBeGreaterThanOrEqual(2);
       expect(room.members.size).toBe(4);
       console.log(JSON.stringify({ msg: "late_join_test", b3: b3.playerId, b4: b4.playerId, shots, wave: world.waves.number }));
-    } finally {
-      await Promise.all(bots.map((b) => b.stop()));
-    }
-  }, 360_000);
+    }, 180_000);
+  });
 });

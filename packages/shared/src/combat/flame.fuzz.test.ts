@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
 import type { FlameStats } from "../config/balanceSchema";
 import { TICK_DT_S } from "../config/constants";
@@ -114,194 +114,201 @@ function nearCoverSpot(world: World, rng: Rng, slot: number): { x: number; y: nu
 }
 
 describe("Flame fuzz (Story 5.4, brief lines 5 and 7)", () => {
-  it(
-    "random decay layouts × 2 flamers near cover × 2,000 ticks: nothing behind a shot blocker or outside the cone is ever burned; no body in a box; zombies reach a player",
-    () => {
-      const s0 = { ...flameStats };
-      let checkedHits = 0;
-      let coverRefusals = 0;
-      let coverCandidates = 0;
-      let flameKills = 0;
-      let igniteKillsSeen = 0;
-      let ffPulses = 0;
-      let navRebuildsOutsideBuildChanges = 0;
-      const hp0 = new Float32Array(256);
-      const burning0 = new Uint8Array(256);
-      const flamers: Flamer[] = [];
-      const combatPos = new Map<string, { x: number; y: number; r: number }>();
-      for (let seed = 1; seed <= LAYOUTS; seed++) {
-        const rng = createRng(seed * 4241);
-        const players: PlayerState[] = [];
-        const ffEvents: Extract<SimEvent, { type: "player.damaged" }>[] = [];
-        const checked: SystemFn = (w, dt) => {
-          // the tick's flamers, from their inputs (what tryFire will see), before combat
-          flamers.length = 0;
-          for (const p of players) {
-            const input = w.inputs.get(p.id);
-            const slot = activeSlot(p.loadout);
-            const stats = weaponStats(balance, slot.weapon);
-            if (!input?.fire || stats.kind !== "flame" || p.status !== "alive" || slot.reloadTicks > 0 || slot.ammo <= 0 || p.loadout.swapTicks > 0) continue;
-            const l = Math.hypot(input.aimX, input.aimY);
-            if (l < 1e-6) continue;
-            const dx = input.aimX / l;
-            const dy = input.aimY / l;
-            const ox = p.x + dx * (p.radiusM + 0.1);
-            const oy = p.y + dy * (p.radiusM + 0.1);
-            const muzzleInCover = w.obstacles.shotBlockers.some((b) => inside(ox, oy, b) || segmentEntersBox(p.x, p.y, ox, oy, b));
-            flamers.push({ ox, oy, dx, dy, stats, muzzleInCover, id: p.id });
+  // E8-A8 (no test over 30 s): one test per layout (~14 s each in CI), then the totals over all of them. Same seeds,
+  // same order and the same assertions as the old single 160 s test: the layouts share the counters below, so the
+  // totals test needs every layout test of this file to have run first (a -t filter on one layout fails it).
+  const s0 = { ...flameStats };
+  let checkedHits = 0;
+  let coverRefusals = 0;
+  let coverCandidates = 0;
+  let flameKills = 0;
+  let igniteKillsSeen = 0;
+  let ffPulses = 0;
+  let navRebuildsOutsideBuildChanges = 0;
+  const hp0 = new Float32Array(256);
+  const burning0 = new Uint8Array(256);
+  const flamers: Flamer[] = [];
+  const combatPos = new Map<string, { x: number; y: number; r: number }>();
+  let layoutsRun = 0;
+  beforeAll(() => Object.assign(s0, flameStats));
+  it.each(Array.from({ length: LAYOUTS }, (_, i) => i + 1))(
+    `layout %i of ${LAYOUTS} × 2 flamers near cover × 2,000 ticks: nothing behind a shot blocker or outside the cone is ever burned; no body in a box; zombies reach a player`,
+    (seed) => {
+      const rng = createRng(seed * 4241);
+      const players: PlayerState[] = [];
+      const ffEvents: Extract<SimEvent, { type: "player.damaged" }>[] = [];
+      const checked: SystemFn = (w, dt) => {
+        // the tick's flamers, from their inputs (what tryFire will see), before combat
+        flamers.length = 0;
+        for (const p of players) {
+          const input = w.inputs.get(p.id);
+          const slot = activeSlot(p.loadout);
+          const stats = weaponStats(balance, slot.weapon);
+          if (!input?.fire || stats.kind !== "flame" || p.status !== "alive" || slot.reloadTicks > 0 || slot.ammo <= 0 || p.loadout.swapTicks > 0) continue;
+          const l = Math.hypot(input.aimX, input.aimY);
+          if (l < 1e-6) continue;
+          const dx = input.aimX / l;
+          const dy = input.aimY / l;
+          const ox = p.x + dx * (p.radiusM + 0.1);
+          const oy = p.y + dy * (p.radiusM + 0.1);
+          const muzzleInCover = w.obstacles.shotBlockers.some((b) => inside(ox, oy, b) || segmentEntersBox(p.x, p.y, ox, oy, b));
+          flamers.push({ ox, oy, dx, dy, stats, muzzleInCover, id: p.id });
+        }
+        const z = w.zombies;
+        for (let i = 0; i < z.aliveCount; i++) {
+          const id = z.aliveIds[i] as number;
+          const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+          for (const f of flamers) if (allowedBy(f, w.obstacles.shotBlockers, z.x[id] as number, z.y[id] as number, r) === "cover") coverCandidates++;
+          hp0[id] = z.hp[id] as number;
+          burning0[id] = (z.igniteTicks[id] as number) > 0 ? 1 : 0;
+        }
+        updateCombat(w, dt);
+        // every zombie hurt this tick (alive or killed by it)
+        for (let id = 0; id < 256; id++) {
+          if (!(hp0[id] as number)) continue;
+          const now = (z.alivePos[id] as number) >= 0 ? (z.hp[id] as number) : -Infinity;
+          const lost = (hp0[id] as number) - now;
+          hp0[id] = 0;
+          if (!(lost > 1e-6)) continue;
+          const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+          const x = z.x[id] as number;
+          const y = z.y[id] as number;
+          let verdict: "yes" | "cover" | "cone" = "cone";
+          for (const f of flamers) {
+            const v = allowedBy(f, w.obstacles.shotBlockers, x, y, r);
+            if (v === "yes") verdict = "yes";
+            else if (v === "cover" && verdict !== "yes") verdict = "cover";
           }
-          const z = w.zombies;
-          for (let i = 0; i < z.aliveCount; i++) {
-            const id = z.aliveIds[i] as number;
-            const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-            for (const f of flamers) if (allowedBy(f, w.obstacles.shotBlockers, z.x[id] as number, z.y[id] as number, r) === "cover") coverCandidates++;
-            hp0[id] = z.hp[id] as number;
-            burning0[id] = (z.igniteTicks[id] as number) > 0 ? 1 : 0;
-          }
-          updateCombat(w, dt);
-          // every zombie hurt this tick (alive or killed by it)
-          for (let id = 0; id < 256; id++) {
-            if (!(hp0[id] as number)) continue;
-            const now = (z.alivePos[id] as number) >= 0 ? (z.hp[id] as number) : -Infinity;
-            const lost = (hp0[id] as number) - now;
-            hp0[id] = 0;
-            if (!(lost > 1e-6)) continue;
-            const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-            const x = z.x[id] as number;
-            const y = z.y[id] as number;
-            let verdict: "yes" | "cover" | "cone" = "cone";
-            for (const f of flamers) {
-              const v = allowedBy(f, w.obstacles.shotBlockers, x, y, r);
-              if (v === "yes") verdict = "yes";
-              else if (v === "cover" && verdict !== "yes") verdict = "cover";
+          if (verdict === "cover") coverRefusals++;
+          if (verdict !== "yes") {
+            // only its burn may have hurt it (≤ one ignite pulse), and only if it was burning
+            expect(burning0[id] === 1 && (lost <= IGNITE_PULSE + 1e-4 || now === -Infinity), `seed ${seed} tick ${w.tick} zombie ${id}: lost ${lost} but ${verdict}`).toBe(true);
+          } else checkedHits++;
+        }
+        // the players where combat saw them (the friendly-fire events flush at the end of the step)
+        for (const p of players) combatPos.set(p.id, { x: p.x, y: p.y, r: p.radiusM });
+      };
+      const world = createWorld({ balance, seed, map, systems: { combat: checked } });
+      world.decay.variants = MASKS[seed % MASKS.length] as number;
+      applyDecayStage(world, 1 + (seed % 3), world.decay.variants);
+      LOADOUTS.forEach((lo, i) => {
+        // the second flamer stands 1.5–3 m from the first (friendly fire happens)
+        const first = players[0];
+        let at = nearCoverSpot(world, rng, i);
+        if (first) {
+          for (let k = 0; k < 40; k++) {
+            const a = rng.range(0, Math.PI * 2);
+            const d = rng.range(1.5, 3);
+            const x = first.x + Math.cos(a) * d;
+            const y = first.y + Math.sin(a) * d;
+            if (x > 1 && y > 1 && x < map.widthM - 1 && y < map.heightM - 1 && !world.obstacles.solids.some((b) => circleOverlapsBox(x, y, 0.6, b.minX, b.minY, b.maxX, b.maxY))) {
+              at = { x, y };
+              break;
             }
-            if (verdict === "cover") coverRefusals++;
-            if (verdict !== "yes") {
-              // only its burn may have hurt it (≤ one ignite pulse), and only if it was burning
-              expect(burning0[id] === 1 && (lost <= IGNITE_PULSE + 1e-4 || now === -Infinity), `seed ${seed} tick ${w.tick} zombie ${id}: lost ${lost} but ${verdict}`).toBe(true);
-            } else checkedHits++;
-          }
-          // the players where combat saw them (the friendly-fire events flush at the end of the step)
-          for (const p of players) combatPos.set(p.id, { x: p.x, y: p.y, r: p.radiusM });
-        };
-        const world = createWorld({ balance, seed, map, systems: { combat: checked } });
-        world.decay.variants = MASKS[seed % MASKS.length] as number;
-        applyDecayStage(world, 1 + (seed % 3), world.decay.variants);
-        LOADOUTS.forEach((lo, i) => {
-          // the second flamer stands 1.5–3 m from the first (friendly fire happens)
-          const first = players[0];
-          let at = nearCoverSpot(world, rng, i);
-          if (first) {
-            for (let k = 0; k < 40; k++) {
-              const a = rng.range(0, Math.PI * 2);
-              const d = rng.range(1.5, 3);
-              const x = first.x + Math.cos(a) * d;
-              const y = first.y + Math.sin(a) * d;
-              if (x > 1 && y > 1 && x < map.widthM - 1 && y < map.heightM - 1 && !world.obstacles.solids.some((b) => circleOverlapsBox(x, y, 0.6, b.minX, b.minY, b.maxX, b.maxY))) {
-                at = { x, y };
-                break;
-              }
-            }
-          }
-          const p = addPlayer(world, `p${i}`, at.x, at.y);
-          setLoadout(balance, p.loadout, lo);
-          players.push(p);
-        });
-        world.events.subscribe((e) => {
-          if (e.type === "zombie.killed" && (e.weapon === "flamethrower" || e.weapon === "gas_torch")) flameKills++;
-          if (e.type === "player.damaged" && e.sourcePlayerId !== null) ffEvents.push(e);
-        });
-        startBuild(world);
-        world.waves.number = 3;
-        startWave(world);
-        const tough = seed % 3 === 0;
-        let contacts = 0;
-        const z = world.zombies;
-        const blockers = world.obstacles.shotBlockers;
-        let mode = 0;
-        for (let t = 0; t < TICKS; t++) {
-          if (t % 40 === 0) mode = rng.int(0, 3);
-          for (const p of players) {
-            p.hp = 100; // nobody goes down: the check needs standing targets
-            let ax: number;
-            let ay: number;
-            let best = -1;
-            let bestD = Infinity;
-            for (let i = 0; i < z.aliveCount; i++) {
-              const id = z.aliveIds[i] as number;
-              const d = Math.hypot((z.x[id] as number) - p.x, (z.y[id] as number) - p.y);
-              if (d < bestD) {
-                bestD = d;
-                best = id;
-              }
-            }
-            if (mode === 0 && best >= 0) {
-              ax = (z.x[best] as number) - p.x;
-              ay = (z.y[best] as number) - p.y;
-            } else if (mode === 1 && blockers.length > 0) {
-              // into the nearest cover (the cars and the bus): the zombies behind it must be safe
-              let nb = blockers[0] as MapBox;
-              let nd = Infinity;
-              for (const b of blockers) {
-                const d = Math.hypot((b.minX + b.maxX) / 2 - p.x, (b.minY + b.maxY) / 2 - p.y);
-                if (d < nd) {
-                  nd = d;
-                  nb = b;
-                }
-              }
-              ax = rng.range(nb.minX, nb.maxX) - p.x;
-              ay = rng.range(nb.minY, nb.maxY) - p.y;
-            } else if (mode === 2) {
-              const o = players.find((q) => q !== p) as PlayerState;
-              ax = o.x - p.x;
-              ay = o.y - p.y;
-            } else {
-              const a = rng.range(0, Math.PI * 2);
-              ax = Math.cos(a);
-              ay = Math.sin(a);
-            }
-            const l = Math.hypot(ax, ay) || 1;
-            setInput(world, p.id, { ...NEUTRAL_INPUT, seq: t + 1, aimX: ax / l, aimY: ay / l, fire: rng.next() < 0.9, isMouse: true });
-          }
-          if (tough) for (let i = 0; i < z.aliveCount; i++) z.hp[z.aliveIds[i] as number] = 1e6;
-          const buildingsBefore = world.buildings.version;
-          const navBefore = world.pathing.nav.version;
-          const ffBefore = ffEvents.length;
-          step(world, TICK_DT_S);
-          // every friendly-fire pulse this tick: its target was allowed by that flamer's cone
-          for (let k = ffBefore; k < ffEvents.length; k++) {
-            const e = ffEvents[k] as Extract<SimEvent, { type: "player.damaged" }>;
-            const f = flamers.find((q) => q.id === e.sourcePlayerId);
-            const q = combatPos.get(e.playerId);
-            expect(e.tag).toBe("fire");
-            expect(f && q ? allowedBy(f, world.obstacles.shotBlockers, q.x, q.y, q.r) : "none", `seed ${seed} tick ${t}: friendly fire on ${e.playerId}`).toBe("yes");
-            ffPulses++;
-          }
-          if (world.pathing.nav.version !== navBefore && navBefore === buildingsBefore && world.buildings.version === buildingsBefore) navRebuildsOutsideBuildChanges++;
-          for (let i = 0; i < z.aliveCount; i++) {
-            const id = z.aliveIds[i] as number;
-            const x = z.x[id] as number;
-            const y = z.y[id] as number;
-            const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-            for (const s of world.obstacles.solids) expect(circleOverlapsBox(x, y, r - 1e-5, s.minX, s.minY, s.maxX, s.maxY), `seed ${seed} tick ${t} zombie ${id} in ${s.name}`).toBe(false);
-            for (const p of players) if (Math.hypot(x - p.x, y - p.y) <= r + p.radiusM + 0.1) contacts++;
           }
         }
-        igniteKillsSeen = flameStats.igniteKills - s0.igniteKills;
-        if (tough) expect(contacts, `seed ${seed}: no zombie ever reached a player`).toBeGreaterThan(0);
+        const p = addPlayer(world, `p${i}`, at.x, at.y);
+        setLoadout(balance, p.loadout, lo);
+        players.push(p);
+      });
+      world.events.subscribe((e) => {
+        if (e.type === "zombie.killed" && (e.weapon === "flamethrower" || e.weapon === "gas_torch")) flameKills++;
+        if (e.type === "player.damaged" && e.sourcePlayerId !== null) ffEvents.push(e);
+      });
+      startBuild(world);
+      world.waves.number = 3;
+      startWave(world);
+      const tough = seed % 3 === 0;
+      let contacts = 0;
+      const z = world.zombies;
+      const blockers = world.obstacles.shotBlockers;
+      let mode = 0;
+      for (let t = 0; t < TICKS; t++) {
+        if (t % 40 === 0) mode = rng.int(0, 3);
+        for (const p of players) {
+          p.hp = 100; // nobody goes down: the check needs standing targets
+          let ax: number;
+          let ay: number;
+          let best = -1;
+          let bestD = Infinity;
+          for (let i = 0; i < z.aliveCount; i++) {
+            const id = z.aliveIds[i] as number;
+            const d = Math.hypot((z.x[id] as number) - p.x, (z.y[id] as number) - p.y);
+            if (d < bestD) {
+              bestD = d;
+              best = id;
+            }
+          }
+          if (mode === 0 && best >= 0) {
+            ax = (z.x[best] as number) - p.x;
+            ay = (z.y[best] as number) - p.y;
+          } else if (mode === 1 && blockers.length > 0) {
+            // into the nearest cover (the cars and the bus): the zombies behind it must be safe
+            let nb = blockers[0] as MapBox;
+            let nd = Infinity;
+            for (const b of blockers) {
+              const d = Math.hypot((b.minX + b.maxX) / 2 - p.x, (b.minY + b.maxY) / 2 - p.y);
+              if (d < nd) {
+                nd = d;
+                nb = b;
+              }
+            }
+            ax = rng.range(nb.minX, nb.maxX) - p.x;
+            ay = rng.range(nb.minY, nb.maxY) - p.y;
+          } else if (mode === 2) {
+            const o = players.find((q) => q !== p) as PlayerState;
+            ax = o.x - p.x;
+            ay = o.y - p.y;
+          } else {
+            const a = rng.range(0, Math.PI * 2);
+            ax = Math.cos(a);
+            ay = Math.sin(a);
+          }
+          const l = Math.hypot(ax, ay) || 1;
+          setInput(world, p.id, { ...NEUTRAL_INPUT, seq: t + 1, aimX: ax / l, aimY: ay / l, fire: rng.next() < 0.9, isMouse: true });
+        }
+        if (tough) for (let i = 0; i < z.aliveCount; i++) z.hp[z.aliveIds[i] as number] = 1e6;
+        const buildingsBefore = world.buildings.version;
+        const navBefore = world.pathing.nav.version;
+        const ffBefore = ffEvents.length;
+        step(world, TICK_DT_S);
+        // every friendly-fire pulse this tick: its target was allowed by that flamer's cone
+        for (let k = ffBefore; k < ffEvents.length; k++) {
+          const e = ffEvents[k] as Extract<SimEvent, { type: "player.damaged" }>;
+          const f = flamers.find((q) => q.id === e.sourcePlayerId);
+          const q = combatPos.get(e.playerId);
+          expect(e.tag).toBe("fire");
+          expect(f && q ? allowedBy(f, world.obstacles.shotBlockers, q.x, q.y, q.r) : "none", `seed ${seed} tick ${t}: friendly fire on ${e.playerId}`).toBe("yes");
+          ffPulses++;
+        }
+        if (world.pathing.nav.version !== navBefore && navBefore === buildingsBefore && world.buildings.version === buildingsBefore) navRebuildsOutsideBuildChanges++;
+        for (let i = 0; i < z.aliveCount; i++) {
+          const id = z.aliveIds[i] as number;
+          const x = z.x[id] as number;
+          const y = z.y[id] as number;
+          const r = balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+          for (const s of world.obstacles.solids) expect(circleOverlapsBox(x, y, r - 1e-5, s.minX, s.minY, s.maxX, s.maxY), `seed ${seed} tick ${t} zombie ${id} in ${s.name}`).toBe(false);
+          for (const p of players) if (Math.hypot(x - p.x, y - p.y) <= r + p.radiusM + 0.1) contacts++;
+        }
       }
-      const pulses = flameStats.zombiePulses - s0.zombiePulses;
-      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
-        `flame fuzz: ${LAYOUTS} layouts, ${pulses} flame pulses, ${checkedHits} hurt bodies checked, ${coverCandidates} in-cone bodies behind cover, ${coverRefusals} cover/cone-refused hurts (ignite only), ${flameStats.muzzleBlocked - s0.muzzleBlocked} muzzle-in-cover ticks, ${flameKills} kills, ${igniteKillsSeen} ignite kills, ${ffPulses} friendly-fire pulses`,
-      );
-      expect(pulses).toBeGreaterThanOrEqual(1000);
-      expect(checkedHits).toBeGreaterThanOrEqual(500);
-      expect(coverCandidates, "the cover rule was really exercised").toBeGreaterThanOrEqual(50);
-      expect(flameKills).toBeGreaterThanOrEqual(100);
-      expect(igniteKillsSeen).toBeGreaterThanOrEqual(1);
-      expect(ffPulses).toBeGreaterThanOrEqual(5);
-      expect(navRebuildsOutsideBuildChanges).toBe(0);
+      igniteKillsSeen = flameStats.igniteKills - s0.igniteKills;
+      if (tough) expect(contacts, `seed ${seed}: no zombie ever reached a player`).toBeGreaterThan(0);
+      layoutsRun++;
     },
-    300_000,
+    120_000,
   );
+  it(`the ${LAYOUTS} layouts together: enough flame pulses, checked hurts, cover cases, kills, ignite kills and friendly fire; no nav rebuild`, () => {
+    expect(layoutsRun, "every layout test above ran and passed").toBe(LAYOUTS);
+    const pulses = flameStats.zombiePulses - s0.zombiePulses;
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `flame fuzz: ${LAYOUTS} layouts, ${pulses} flame pulses, ${checkedHits} hurt bodies checked, ${coverCandidates} in-cone bodies behind cover, ${coverRefusals} cover/cone-refused hurts (ignite only), ${flameStats.muzzleBlocked - s0.muzzleBlocked} muzzle-in-cover ticks, ${flameKills} kills, ${igniteKillsSeen} ignite kills, ${ffPulses} friendly-fire pulses`,
+    );
+    expect(pulses).toBeGreaterThanOrEqual(1000);
+    expect(checkedHits).toBeGreaterThanOrEqual(500);
+    expect(coverCandidates, "the cover rule was really exercised").toBeGreaterThanOrEqual(50);
+    expect(flameKills).toBeGreaterThanOrEqual(100);
+    expect(igniteKillsSeen).toBeGreaterThanOrEqual(1);
+    expect(ffPulses).toBeGreaterThanOrEqual(5);
+    expect(navRebuildsOutsideBuildChanges).toBe(0);
+  });
 });

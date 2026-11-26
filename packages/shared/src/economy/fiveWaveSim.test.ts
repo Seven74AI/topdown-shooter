@@ -275,34 +275,40 @@ describe("six-wave bot sim with the Grenade Launcher (Story 5.5, brief lines 9 a
 });
 
 describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () => {
-  it("1–4 bots × seeds 1–4: every run reaches Results (extracted or wiped); wave 6 really brings Bloaters that swell and burst", () => {
+  describe("1–4 bots × seeds 1–4: every run reaches Results (extracted or wiped); wave 6 really brings Bloaters that swell and burst", () => {
+    // E8-A8 (no test over 30 s): one test per run (team size × seed), then the totals. Same runs, order and assertions as
+    // the old single test (30 s in CI); the totals need every run test above to have run (a -t filter fails them).
     const lines: string[] = [];
     let reached6 = 0;
     let bursts6 = 0;
     let chains = 0;
-    for (const players of [1, 2, 3, 4]) {
-      for (const seed of [1, 2, 3, 4]) {
-        const r = runHeadless({ balance, seed, players });
-        expect(r.timedOut).toBe(false);
-        expect((r.ending === "extracted") !== r.wiped).toBe(true);
-        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
-        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(6);
-        // Bloaters only from wave 6 (D9).
-        expect(r.bloaters.burstsInWave.slice(0, 5).every((n) => n === 0)).toBe(true);
-        if (r.reached >= 6) {
-          reached6++;
-          bursts6 += r.bloaters.burstsInWave[5] ?? 0;
-        }
-        chains += r.bloaters.chains;
-        const earned = r.earned.reduce((a, b) => a + b, 0);
-        lines.push(`${formatRunLine(r)} | W6 Bloater swells ${r.bloaters.swellsInWave[5] ?? 0}, bursts ${r.bloaters.burstsInWave[5] ?? 0}, chain links ${r.bloaters.chains}, blast hits on players ${r.bloaters.playerHits}; team earned ${earned}`);
+    let casesRun = 0;
+    it.each([1, 2, 3, 4].flatMap((n) => [1, 2, 3, 4].map((s) => [n, s] as const)))("%i bots, seed %i", (players, seed) => {
+      const r = runHeadless({ balance, seed, players });
+      expect(r.timedOut).toBe(false);
+      expect((r.ending === "extracted") !== r.wiped).toBe(true);
+      expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+      if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(6);
+      // Bloaters only from wave 6 (D9).
+      expect(r.bloaters.burstsInWave.slice(0, 5).every((n) => n === 0)).toBe(true);
+      if (r.reached >= 6) {
+        reached6++;
+        bursts6 += r.bloaters.burstsInWave[5] ?? 0;
       }
-    }
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[sim] Story 5.8 six waves:\n${lines.join("\n")}`);
-    expect(reached6).toBeGreaterThan(0); // liveness: some runs got to wave 6 …
-    expect(bursts6).toBeGreaterThanOrEqual(reached6); // … and Bloaters burst there (≥ 1 per such run on average)
-    expect(chains).toBeGreaterThanOrEqual(0);
-  }, 900_000);
+      chains += r.bloaters.chains;
+      const earned = r.earned.reduce((a, b) => a + b, 0);
+      lines.push(`${formatRunLine(r)} | W6 Bloater swells ${r.bloaters.swellsInWave[5] ?? 0}, bursts ${r.bloaters.burstsInWave[5] ?? 0}, chain links ${r.bloaters.chains}, blast hits on players ${r.bloaters.playerHits}; team earned ${earned}`);
+      casesRun++;
+    }, 120_000);
+
+    it("the 16 runs together: some reached wave 6 and Bloaters burst there", () => {
+      expect(casesRun, "every case above ran and passed").toBe(16);
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[sim] Story 5.8 six waves:\n${lines.join("\n")}`);
+      expect(reached6).toBeGreaterThan(0); // liveness: some runs got to wave 6 …
+      expect(bursts6).toBeGreaterThanOrEqual(reached6); // … and Bloaters burst there (≥ 1 per such run on average)
+      expect(chains).toBeGreaterThanOrEqual(0);
+    });
+  });
 });
 
 describe("six-wave bot sim with gear (Story 5.11, brief lines 9 and 15)", () => {

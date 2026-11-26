@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
@@ -242,15 +242,20 @@ function run(seed: number) {
 }
 
 describe("Brute fuzz (Story 5.7, brief line 7): random layouts × stages × 3,000 ticks", () => {
-  it(`${LAYOUTS} layouts: no Brute or player in a box, nobody knocked into fire, no stall, walls only at the stage change`, () => {
+  describe(`${LAYOUTS} layouts: no Brute or player in a box, nobody knocked into fire, no stall, walls only at the stage change`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
     const all: string[] = [];
     let knocks = 0;
     let stopped = 0;
     let buildingHits = 0;
     let hitters = 0;
     let total = 0;
-    const b0 = bruteStats.buildingHits;
-    for (let seed = 1; seed <= LAYOUTS; seed++) {
+    let b0 = 0;
+    beforeAll(() => void (b0 = bruteStats.buildingHits));
+    let casesRun = 0;
+    it.each(Array.from({ length: LAYOUTS }, (_, i) => i + 1))(`layout %i of ${LAYOUTS}`, (seed) => {
       const r = run(seed);
       all.push(...r.violations.slice(0, 3));
       if (r.players > 0) expect(r.knocks, `seed ${seed}: liveness, a knockback (${JSON.stringify({ ...r, violations: r.violations.length })})`).toBeGreaterThanOrEqual(1);
@@ -260,14 +265,19 @@ describe("Brute fuzz (Story 5.7, brief line 7): random layouts × stages × 3,00
       buildingHits += r.buildingHits;
       hitters += r.hitPlayers;
       total += r.brutes;
-    }
-    expect(hitters / total).toBeGreaterThan(0.5); // most Brutes really landed a hit
-    expect(all).toEqual([]);
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[brute fuzz] ${LAYOUTS} layouts: ${knocks} knockbacks, ${stopped} knock ticks stopped short, Brute building hits ${bruteStats.buildingHits - b0}, Brutes that broke in ${buildingHits}, Brutes that hit a player ${hitters}/${total}`);
-    expect(knocks).toBeGreaterThan(LAYOUTS);
-    expect(stopped).toBeGreaterThan(0); // knocks really met cover
-    expect(bruteStats.buildingHits - b0).toBeGreaterThan(0);
-  }, 600_000);
+      casesRun++;
+    }, 120_000);
+
+    it(`the ${LAYOUTS} layouts together: most Brutes landed a hit, knockbacks met cover, Brutes broke buildings`, () => {
+      expect(casesRun, "every case above ran and passed").toBe(LAYOUTS);
+      expect(hitters / total).toBeGreaterThan(0.5); // most Brutes really landed a hit
+      expect(all).toEqual([]);
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[brute fuzz] ${LAYOUTS} layouts: ${knocks} knockbacks, ${stopped} knock ticks stopped short, Brute building hits ${bruteStats.buildingHits - b0}, Brutes that broke in ${buildingHits}, Brutes that hit a player ${hitters}/${total}`);
+      expect(knocks).toBeGreaterThan(LAYOUTS);
+      expect(stopped).toBeGreaterThan(0); // knocks really met cover
+      expect(bruteStats.buildingHits - b0).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("Brute reachability (Story 5.7, the 4.5 pattern with the wide field)", () => {

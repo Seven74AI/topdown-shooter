@@ -150,12 +150,17 @@ function spatialChecks(w: World, layout: number, t: number, every: number): void
 }
 
 describe("Story 6.5 Behemoth fuzz (brief 7)", () => {
-  it(`${LAYOUTS} layouts × stages 1–5 × variant masks × ${TICKS} ticks: no box overlap, no stall, walls only at build starts`, () => {
+  describe(`${LAYOUTS} layouts × stages 1–5 × variant masks × ${TICKS} ticks: no box overlap, no stall, walls only at build starts`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
+    "// One rng runs through the layouts in order, as before."
     const rng = createRng(6505);
     let slamHits = 0;
     let broken = 0;
     let switches = 0;
-    for (let layout = 0; layout < LAYOUTS; layout++) {
+    let casesRun = 0;
+    it.each(Array.from({ length: LAYOUTS }, (_, i) => i))(`layout %i (of 0–${LAYOUTS - 1})`, (layout) => {
       bossStats.slamPlayerHits = 0;
       bossStats.buildingsBroken = 0;
       bossStats.chargePlayerHits = 0;
@@ -184,13 +189,18 @@ describe("Story 6.5 Behemoth fuzz (brief 7)", () => {
       slamHits += bossStats.slamPlayerHits;
       broken += bossStats.buildingsBroken + bossStats.chargeBuildingsSmashed;
       switches += seenTargets;
-    }
-    // Liveness (brief 9): the fuzz really fought.
-    expect(slamHits).toBeGreaterThan(0);
-    expect(broken).toBeGreaterThan(0);
-    expect(switches).toBeGreaterThan(LAYOUTS);
-    expect([...alleys].sort()).toEqual([0, 1, 2]); // Story 6.2 review M2: every collapsed alley ran at stages 4–5
-  }, 240_000);
+      casesRun++;
+    }, 120_000);
+
+    it("the layouts together: the fuzz really fought (slam hits, buildings broken, target switches, every collapsed alley)", () => {
+      expect(casesRun, "every case above ran and passed").toBe(LAYOUTS);
+      // Liveness (brief 9): the fuzz really fought.
+      expect(slamHits).toBeGreaterThan(0);
+      expect(broken).toBeGreaterThan(0);
+      expect(switches).toBeGreaterThan(LAYOUTS);
+      expect([...alleys].sort()).toEqual([0, 1, 2]); // Story 6.2 review M2: every collapsed alley ran at stages 4–5
+    });
+  });
 });
 
 /**
@@ -203,11 +213,16 @@ describe("Story 6.5 Behemoth fuzz (brief 7)", () => {
  * smashed, roars, ≥ 3 drops, a death.
  */
 describe("Stories 6.6 + 6.7 Behemoth charge / throw / enrage fuzz (brief 7)", () => {
-  it(`${LAYOUTS * 2} layouts × ${TICKS} ticks: lanes and drops never in a box, no stall, cap 110, a dead boss never hurts`, () => {
+  describe(`${LAYOUTS * 2} layouts × ${TICKS} ticks: lanes and drops never in a box, no stall, cap 110, a dead boss never hurts`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
+    "// One rng runs through the layouts in order, as before."
     const rng = createRng(6606);
     const total = { crashes: 0, clean: 0, throwHits: 0, smashed: 0, roars: 0, drops: 0, deaths: 0, chargeHits: 0 };
     const crawlerR = balance.zombies.types.crawler?.radiusM ?? 0.3;
-    for (let layout = 0; layout < LAYOUTS * 2; layout++) {
+    let chargeLayoutsRun = 0;
+    it.each(Array.from({ length: LAYOUTS * 2 }, (_, i) => i))(`layout %i (of 0–${LAYOUTS * 2 - 1})`, (layout) => {
       for (const k of Object.keys(bossStats) as (keyof typeof bossStats)[]) bossStats[k] = 0;
       const { w, walls0 } = layoutWorld(layout, rng, true);
       const enrageStart = layout % 2 === 0;
@@ -263,15 +278,20 @@ describe("Stories 6.6 + 6.7 Behemoth charge / throw / enrage fuzz (brief 7)", ()
       total.deaths += bossStats.kills;
       total.chargeHits += bossStats.chargePlayerHits;
       if (enrageStart) expect(bossStats.roars, `layout ${layout}: never roared`).toBe(1);
-    }
-    // Liveness (brief 9): it really charged, crashed, threw, smashed, roared, dropped and died.
-    expect(total.crashes).toBeGreaterThan(0);
-    expect(total.clean).toBeGreaterThan(0);
-    expect(total.chargeHits).toBeGreaterThan(0);
-    expect(total.throwHits).toBeGreaterThan(0);
-    expect(total.smashed).toBeGreaterThan(0);
-    expect(total.roars).toBeGreaterThanOrEqual(LAYOUTS);
-    expect(total.drops).toBeGreaterThanOrEqual(3);
-    expect(total.deaths).toBeGreaterThan(0);
-  }, 400_000);
+      chargeLayoutsRun++;
+    }, 120_000);
+
+    it("the layouts together: it charged, crashed, threw, smashed, roared, dropped Crawlers and died", () => {
+      expect(chargeLayoutsRun, "every case above ran and passed").toBe(LAYOUTS * 2);
+      // Liveness (brief 9): it really charged, crashed, threw, smashed, roared, dropped and died.
+      expect(total.crashes).toBeGreaterThan(0);
+      expect(total.clean).toBeGreaterThan(0);
+      expect(total.chargeHits).toBeGreaterThan(0);
+      expect(total.throwHits).toBeGreaterThan(0);
+      expect(total.smashed).toBeGreaterThan(0);
+      expect(total.roars).toBeGreaterThanOrEqual(LAYOUTS);
+      expect(total.drops).toBeGreaterThanOrEqual(3);
+      expect(total.deaths).toBeGreaterThan(0);
+    });
+  });
 });
