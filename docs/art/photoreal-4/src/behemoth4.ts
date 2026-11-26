@@ -106,14 +106,63 @@ export function setDetail(on: boolean): void {
 /**
  * Take B's zigzag veins: "static" (take B: a steady red core when enraged), "marker" (V2: the enraged core is drawn in
  * pure magenta so `boss4.ts › markerPulse` can find the visible vein pixels and make them pulse), "off" (V3 and the
- * mix: organic veins are grown on the relit picture instead, `boss4.ts › growVeins`).
+ * mix: organic veins are grown on the relit picture instead, `boss4.ts › growVeins`), "organic" (V3 and the mix
+ * since the designer's "how can veins be on a shield?": Bloater-style branching veins drawn in the body's own drawing,
+ * per part and under the clothes, so they stay on skin and move with the limbs; enraged core in marker magenta).
  */
-export type VeinMode = "static" | "marker" | "off";
+export type VeinMode = "static" | "marker" | "organic" | "off";
 let VEIN_MODE: VeinMode = "static";
 export function setVeinMode(m: VeinMode): void {
   VEIN_MODE = m;
 }
-const veinCore = (): string => (VEIN_MODE === "marker" ? "#ff00ff" : "#ff5a32");
+const veinCore = (): string => (VEIN_MODE === "static" ? "#ff5a32" : "#ff00ff");
+
+/**
+ * An organic vein (V3 / mix): the Bloater's growth (`charBloaterFx.ts`), in metres: a random walk of short steps
+ * (± 0.275 rad each), branching (7 % a step, two levels, branches 0.45 × as long and 0.6 × as thick), tapering.
+ * Drawn source-atop (only on what is already painted, inside the caller's clip): a dark raised trace, a faint lit
+ * edge, and (enraged) the marker core the page turns into the red glow and beat.
+ */
+function organicVein(c: G, x0: number, y0: number, ang: number, len: number, seed: number, enr: boolean, w = 0.034): void {
+  const rnd = mulberry(seed);
+  const step = 0.035;
+  const lines: { pts: number[]; w: number }[] = [];
+  const grow = (x: number, y: number, a: number, l: number, ww: number, depth: number): void => {
+    const pts = [x, y];
+    for (let t = 0; t < l; t += step) {
+      a += (rnd() - 0.5) * 0.55;
+      x += Math.cos(a) * step;
+      y += Math.sin(a) * step;
+      pts.push(x, y);
+      if (depth < 2 && rnd() < 0.07) grow(x, y, a + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.5), (l - t) * 0.45 + l * 0.1, ww * 0.6, depth + 1);
+    }
+    lines.push({ pts, w: ww });
+  };
+  grow(x0, y0, ang, len, w, 0);
+  c.save();
+  c.globalCompositeOperation = "source-atop";
+  for (const v of lines) {
+    const n = v.pts.length / 2;
+    // taper: draw in a few runs, thinner towards the tip
+    for (let k = 0; k < 3; k++) {
+      const i0 = Math.floor((k * (n - 1)) / 3);
+      const i1 = Math.floor(((k + 1) * (n - 1)) / 3);
+      if (i1 <= i0) continue;
+      const ww = v.w * (1 - k * 0.25);
+      const path: Path = (q) => {
+        q.moveTo(v.pts[i0 * 2] as number, v.pts[i0 * 2 + 1] as number);
+        for (let i = i0 + 1; i <= i1; i++) q.lineTo(v.pts[i * 2] as number, v.pts[i * 2 + 1] as number);
+      };
+      c.save();
+      c.translate(-ww * 0.4, -ww * 0.4);
+      strokeP(c, path, enr ? "rgba(255,130,90,0.28)" : "rgba(175,188,155,0.35)", ww * 0.6);
+      c.restore();
+      strokeP(c, path, enr ? "rgba(70,12,8,0.85)" : "rgba(24,32,22,0.62)", ww);
+      if (enr) strokeP(c, path, "#ff00ff", ww * 0.5);
+    }
+  }
+  c.restore();
+}
 /** A soft-edged lump that reads as a muscle under the skin (a colour step the relight turns into a volume). */
 function muscle(c: G, x: number, y: number, rx: number, ry: number, rot: number, col: string, seed: number): void {
   void seed;
@@ -265,8 +314,26 @@ function torsoDetail(c: G, r: number, look: LookKind, skin: string, enr: boolean
     muscle(c, -0.12 * r, s * 0.42 * r, 0.34 * r, 0.16 * r, s * 0.15, dk, 205 + s);
     // the lats: two long swells down the flanks
     muscle(c, -0.55 * r, s * 0.6 * r, 0.34 * r, 0.17 * r, s * -0.25, shade(skin, -0.12), 209 + s);
-    vein(c, 0.32 * r, s * 0.5 * r, s * 1.9, 0.55 * r, 213 + s * 3, enr);
-    vein(c, -0.3 * r, s * 0.72 * r, Math.PI + s * 0.3, 0.45 * r, 219 + s * 5, enr, 0.035);
+    if (VEIN_MODE !== "organic") {
+      vein(c, 0.32 * r, s * 0.5 * r, s * 1.9, 0.55 * r, 213 + s * 3, enr);
+      vein(c, -0.3 * r, s * 0.72 * r, Math.PI + s * 0.3, 0.45 * r, 219 + s * 5, enr, 0.035);
+    }
+  }
+  if (VEIN_MODE === "organic") {
+    // kept on the torso's own lumps (the arms under it are not painted on); they start near the chest and run out
+    // over the shoulders, flanks and back; the shirt / vest / shield drawn after covers them where it lies
+    c.save();
+    c.beginPath();
+    E(c, -0.2 * r, 0, 0.66 * r, 0.8 * r);
+    for (const s of [-1, 1]) E(c, 0.14 * r, s * 0.6 * r, 0.42 * r, 0.38 * r);
+    c.clip();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU + 0.3;
+      organicVein(c, -0.05 * r + Math.cos(a) * 0.18 * r, Math.sin(a) * 0.18 * r, a, 0.75 * r, 213 + i * 7, enr);
+    }
+    // the mix: today's enraged cracks also go under the clothes (they lit BH2's hi-vis vest yellow), on the torso only
+    if (enr) enragedCracks(c, r);
+    c.restore();
   }
   if (look === "growth") {
     stapledScar(c, -0.6 * r, -0.2 * r, -0.05 * r, -0.38 * r, 231);
@@ -312,8 +379,21 @@ function limbDetail(c: G, p: readonly number[], s: number, skin: string, enr: bo
   muscle(c, lerp(ax, ex, 0.55), lerp(ay, ey, 0.55), ul * 0.36, 0.2, ua, shade(skin, 0.12), seed);
   muscle(c, lerp(ex, fx, 0.4), lerp(ey, fy, 0.4), fl * 0.33, 0.16, fa, shade(skin, 0.08), seed + 1);
   striations(c, lerp(ax, ex, 0.55), lerp(ay, ey, 0.55), ul * 0.32, 0.17, ua + Math.PI / 2, 3, "rgba(24,30,20,0.25)");
-  vein(c, lerp(ax, ex, 0.2), lerp(ay, ey, 0.2) + s * 0.08, ua, ul * 0.9, seed + 2, enr, 0.04);
-  vein(c, lerp(ex, fx, 0.05), lerp(ey, fy, 0.05) - s * 0.05, fa, fl * 0.8, seed + 3, enr, 0.035);
+  if (VEIN_MODE === "organic") {
+    // along the limb, kept on the upper arm and forearm (the fist is drawn after)
+    c.save();
+    c.beginPath();
+    E(c, lerp(ax, ex, 0.5), lerp(ay, ey, 0.5), ul * 0.62, 0.21, ua);
+    E(c, lerp(ex, fx, 0.5), lerp(ey, fy, 0.5), fl * 0.6, 0.18, fa);
+    c.clip();
+    organicVein(c, lerp(ax, ex, 0.15), lerp(ay, ey, 0.15) + s * 0.05, ua, ul * 0.95, seed + 2, enr, 0.03);
+    organicVein(c, lerp(ax, ex, 0.3), lerp(ay, ey, 0.3) - s * 0.06, ua + s * 0.2, ul * 0.7, seed + 4, enr, 0.026);
+    organicVein(c, lerp(ex, fx, 0.0), lerp(ey, fy, 0.0), fa, fl * 0.9, seed + 3, enr, 0.026);
+    c.restore();
+  } else {
+    vein(c, lerp(ax, ex, 0.2), lerp(ay, ey, 0.2) + s * 0.08, ua, ul * 0.9, seed + 2, enr, 0.04);
+    vein(c, lerp(ex, fx, 0.05), lerp(ey, fy, 0.05) - s * 0.05, fa, fl * 0.8, seed + 3, enr, 0.035);
+  }
 }
 /** Head detail: a heavy brow, a scarred scalp, and teeth bared at the front. */
 function headDetail(c: G, r: number, skin: string, roar: boolean): void {
@@ -327,6 +407,31 @@ function headDetail(c: G, r: number, skin: string, roar: boolean): void {
   }
 }
 
+/** Today's enraged cracks in the hide (glowing red strokes over the torso). */
+function enragedCracks(c: G, r: number): void {
+    c.save();
+    c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 9; i++) {
+      let x = (hash(i + 9) * 0.7 - 0.3) * r;
+      let y = (hash(i * 5 + 2) - 0.5) * 1.5 * r;
+      const pts = [x, y];
+      for (let j = 0; j < 5; j++) {
+        x += (hash(i * 13 + j) - 0.5) * 0.32 * r;
+        y += (hash(i * 17 + j * 3) - 0.5) * 0.32 * r;
+        pts.push(x, y);
+      }
+      strokeP(
+        c,
+        (q) => {
+          q.moveTo(pts[0] as number, pts[1] as number);
+          for (let j = 2; j < pts.length; j += 2) q.lineTo(pts[j] as number, pts[j + 1] as number);
+        },
+        "rgba(255,70,40,0.55)",
+        0.05,
+      );
+    }
+    c.restore();
+}
 /** The pose drawing (reference units, metres, facing +x). `k` = pose progress 0–1, `ph` = walk phase 0–1. */
 function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind, skin: string, enr: boolean, ph: number): void {
   // Story 6.7: the collapse darkens the body as it sags (the corpse reads as no longer a threat).
@@ -501,30 +606,7 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
   backDetail(c, r, look);
   wound(c, 0.2 * r, -0.62 * r, 0.12 * r, 101);
   if (look !== "riot") wound(c, 0.05 * r, 0.75 * r, 0.09 * r, 103);
-  if (enr) {
-    c.save();
-    c.globalCompositeOperation = "lighter";
-    for (let i = 0; i < 9; i++) {
-      let x = (hash(i + 9) * 0.7 - 0.3) * r;
-      let y = (hash(i * 5 + 2) - 0.5) * 1.5 * r;
-      const pts = [x, y];
-      for (let j = 0; j < 5; j++) {
-        x += (hash(i * 13 + j) - 0.5) * 0.32 * r;
-        y += (hash(i * 17 + j * 3) - 0.5) * 0.32 * r;
-        pts.push(x, y);
-      }
-      strokeP(
-        c,
-        (q) => {
-          q.moveTo(pts[0] as number, pts[1] as number);
-          for (let j = 2; j < pts.length; j += 2) q.lineTo(pts[j] as number, pts[j + 1] as number);
-        },
-        "rgba(255,70,40,0.55)",
-        0.05,
-      );
-    }
-    c.restore();
-  }
+  if (enr && VEIN_MODE !== "organic") enragedCracks(c, r);
   c.restore();
   if (raised) arms();
   if (pose === "throw") {

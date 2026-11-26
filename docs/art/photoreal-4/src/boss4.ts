@@ -55,7 +55,7 @@ const beat = (d: number, t: number, spacing: number): number => Math.pow(Math.ma
  * vest show), paints them dark red in the source before the relight, and returns their pulse strip: each vein pixel
  * lights with a beat running outward from the chest (by radius).
  */
-function markerPulse(src: HTMLCanvasElement): HTMLCanvasElement {
+function markerPulse(src: HTMLCanvasElement, pulse = true): HTMLCanvasElement {
   const W = src.width;
   const sg = src.getContext("2d", { willReadFrequently: true })!;
   const img = sg.getImageData(0, 0, W, W);
@@ -91,7 +91,7 @@ function markerPulse(src: HTMLCanvasElement): HTMLCanvasElement {
       for (let x = 0; x < N; x++) {
         const m = mask[y * N + x] as number;
         if (m <= 0.02) continue;
-        const al = Math.min(0.95, 0.18 + beat(Math.hypot(x - cx, y - cy), t, spacing) * 0.8) * Math.min(1, m * 1.6);
+        const al = (pulse ? Math.min(0.95, 0.18 + beat(Math.hypot(x - cx, y - cy), t, spacing) * 0.8) : STEADY_GLOW) * Math.min(1, m * 1.6);
         const j = (y * N + x) * 4;
         fr.data[j] = 255;
         fr.data[j + 1] = 120;
@@ -114,112 +114,6 @@ function markerPulse(src: HTMLCanvasElement): HTMLCanvasElement {
   }
   return strip;
 }
-interface VeinLine {
-  pts: number[];
-  dist: number[];
-  width: number;
-}
-/**
- * The Bloater's vein growth (`charBloaterFx.ts › prepareBloaterFx`), on the boss: branching random walks from the
- * chest, kept on the figure's opaque pixels and off the head. Draws the dark trace into `base` (calm and enraged);
- * returns the red pulse strip when enraged.
- */
-function growVeins(base: HTMLCanvasElement, seed: number, enr: boolean, pulse: boolean): HTMLCanvasElement | null {
-  const bg = base.getContext("2d", { willReadFrequently: true })!;
-  const a = bg.getImageData(0, 0, N, N).data;
-  const R = BH_R_M * PXM;
-  const headX = N / 2 + 0.3 * R;
-  const inside = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < N && y < N && x < headX && (a[(Math.floor(y) * N + Math.floor(x)) * 4 + 3] as number) > 230;
-  let q = seed;
-  const rnd = (): number => {
-    q = (q * 16807) % 2147483647;
-    return q / 2147483647;
-  };
-  const cx = N / 2 - 0.1 * R;
-  const cy = N / 2;
-  const step = 3;
-  const lines: VeinLine[] = [];
-  const grow = (x: number, y: number, ang: number, len: number, w: number, d0: number, depth: number): void => {
-    const pts = [x, y];
-    const dist = [d0];
-    let d = d0;
-    for (let t = 0; t < len; t += step) {
-      ang += (rnd() - 0.5) * 0.55;
-      const nx = x + Math.cos(ang) * step;
-      const ny = y + Math.sin(ang) * step;
-      if (!inside(nx, ny)) break;
-      x = nx;
-      y = ny;
-      d += step;
-      pts.push(x, y);
-      dist.push(d);
-      if (depth < 2 && rnd() < 0.07) grow(x, y, ang + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.5), len * 0.45, w * 0.6, d, depth + 1);
-    }
-    if (pts.length > 6) lines.push({ pts, dist, width: w });
-  };
-  const roots = 9;
-  for (let i = 0; i < roots; i++) {
-    const ang = (i / roots) * Math.PI * 2 + rnd() * 0.4;
-    const r0 = R * (0.22 + rnd() * 0.16);
-    grow(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0, ang, R * (0.8 + rnd() * 0.6), 1.2 + rnd() * 0.6, r0, 0);
-  }
-  const path = (g: CanvasRenderingContext2D, v: VeinLine): void => {
-    g.beginPath();
-    for (let m = 0; m < v.pts.length; m += 2) {
-      if (m) g.lineTo(v.pts[m] as number, v.pts[m + 1] as number);
-      else g.moveTo(v.pts[m] as number, v.pts[m + 1] as number);
-    }
-  };
-  // the dark raised trace, kept on the figure
-  const trace = make(N, N);
-  const tg = trace.getContext("2d")!;
-  tg.lineCap = "round";
-  tg.lineJoin = "round";
-  for (const v of lines) {
-    tg.strokeStyle = enr ? "rgba(70,14,8,0.55)" : "rgba(22,30,20,0.45)";
-    tg.lineWidth = v.width + 1;
-    path(tg, v);
-    tg.stroke();
-  }
-  tg.globalCompositeOperation = "destination-in";
-  tg.drawImage(base, 0, 0);
-  bg.drawImage(trace, 0, 0);
-  if (!enr) return null;
-  // the red pulse: a steady ember glow plus one bright beat running outward per period
-  const spacing = 1.9 * R; // one beat on the body at a time
-  const speed = spacing / VEIN_PERIOD_S;
-  const steady = 0.14;
-  const strip = make(N * VEIN_STEPS, N);
-  const sg = strip.getContext("2d")!;
-  sg.lineCap = "round";
-  for (let f = 0; f < VEIN_STEPS; f++) {
-    const t = (f / VEIN_STEPS) * VEIN_PERIOD_S;
-    sg.save();
-    sg.beginPath();
-    sg.rect(f * N, 0, N, N);
-    sg.clip();
-    sg.translate(f * N, 0);
-    sg.globalCompositeOperation = "lighter";
-    for (const v of lines) {
-      for (let m = 2; m < v.pts.length; m += 2) {
-        const d = v.dist[m / 2] as number;
-        const wave = pulse ? Math.pow(Math.max(0, Math.cos(((d - t * speed) / spacing) * Math.PI * 2)), 6) : 0;
-        const al = pulse ? Math.min(0.9, steady + wave * 0.7) : STEADY_GLOW;
-        sg.beginPath();
-        sg.moveTo(v.pts[m - 2] as number, v.pts[m - 1] as number);
-        sg.lineTo(v.pts[m] as number, v.pts[m + 1] as number);
-        sg.strokeStyle = `rgba(255,60,30,${al * 0.3})`;
-        sg.lineWidth = v.width * 2.6;
-        sg.stroke();
-        sg.strokeStyle = `rgba(255,150,105,${al})`;
-        sg.lineWidth = v.width * 0.8;
-        sg.stroke();
-      }
-    }
-    sg.restore();
-  }
-  return strip;
-}
 function today(v: number, pose: BehemothPose, k: number, enr: boolean, ph: number): Pic {
   const c = make(N, N);
   const g = c.getContext("2d")!;
@@ -229,14 +123,13 @@ function today(v: number, pose: BehemothPose, k: number, enr: boolean, ph: numbe
 }
 function relit(v: number, pose: BehemothPose, k: number, enr: boolean, ph: number, t: Take): Pic {
   setDetail(t !== "a");
-  setVeinMode(t === "v2" ? "marker" : t === "v3" || t === "mix" ? "off" : "static");
+  setVeinMode(t === "v2" ? "marker" : t === "v3" || t === "mix" ? "organic" : "static");
   const src = make(N * SS, N * SS);
   const s = src.getContext("2d", { willReadFrequently: true })!;
   s.translate(N, N);
   drawBehemoth(s, PXM * SS, v, pose, k, enr, ph);
-  const pulseV2 = t === "v2" && enr && pose !== "dead" ? markerPulse(src) : null;
+  const veins = t !== "a" && t !== "b" && enr && pose !== "dead" ? markerPulse(src, t !== "v3") : null;
   const L = run(relightCharSteps(src, N, SS, PXM * SS * RF, 901 + v * 7, make));
-  const veins = pulseV2 ?? ((t === "v3" || t === "mix") && pose !== "dead" ? growVeins(L.base, 977 + v * 13, enr, t === "mix") : null);
   return { base: L.base, glow: L.glow, sheen: sheenStrip(L.gloss, N, make), veins };
 }
 const pic = (t: Take, v: number, pose: BehemothPose, k: number, enr: boolean, ph = 0): Pic => (t === "now" ? today(v, pose, k, enr, ph) : relit(v, pose, k, enr, ph, t));
