@@ -215,6 +215,26 @@ export function fiCarLook(): Look {
     code: "FI-B",
     title: "Flames on the car, heat in the circle",
     note: "Rethought from the goal. The flames burn where the fuel is, on the car's own shape: the cabin tallest, then the engine bay, the four tyres, and a fuel pool leaking under the rear. They lean downwind and never form a circle. The circle is heat: a warm glow on the asphalt, strongest at the car, that ends exactly at the 2 m damage edge, with a thin heat line there that brightens on each 0.5 s damage tick. Black smoke from the cabin drifts downwind; soot stays burnt into the street.",
+    goalFirst: {
+      goal: "<b>This car</b> is burning, and inside <b>this 2 m circle</b> you get hurt (decay.json fire: 10 damage/s in 0.5 s pulses, for 2 waves).",
+      elements: [
+        { name: "The wreck", job: "the fuel (the approved Story 9.14 burnt car). Read 1: this car." },
+        { name: "Flames on the car's fuel", job: "it burns, in the car's own shape: the cabin (seats, plastics: tallest, densest), the engine bay, the four tyres (small, long-lived), a fuel pool leaking under the rear (low, wide). They lean downwind and never form a circle. Read 1." },
+        { name: "Heat on the ground", job: "the circle: a warm glow, strongest at the car, that ends exactly at 2 m, and a thin heat line on that edge. No flame draws the circle. Read 2." },
+        { name: "Damage pulse", job: "the heat line brightens a little on each 0.5 s damage tick (one clock with the game). Read 2." },
+        { name: "Light from the flames", job: "a flickering pool on the car; its flicker also drives the ground glow (one clock). Read 1." },
+        { name: "Black smoke", job: "a fire, from far away: from the cabin and engine, downwind, born downwind of the flames so the cores show; may cross the edge. Read 1." },
+        { name: "Embers", job: "it's alive: from the cabin, downwind." },
+        { name: "The mark", job: "what stays: soot burnt into the asphalt under the car, the fuel pool's stain, soot in the burnt-out cabin (it also makes the added flames read amber, not lemon)." },
+      ],
+      composition: [
+        "Flames only inside the car's shape and the pool; the circle only from heat.",
+        "Brightness: cabin > engine > pool > tyres > ground glow > heat line.",
+        "The bright flame never passes R: the car is 4.5 m and the zone 4 m wide, so the bumpers stick out 0.25 m and their flames are held inside.",
+        "One flicker for flames, car light and ground glow; the heat line moves only with the 0.5 s damage tick.",
+        "Smoke may cross the edge (it doesn't burn); bright flame may not.",
+      ],
+    },
     async bake() {
       await approvedCar();
       bakeTex();
