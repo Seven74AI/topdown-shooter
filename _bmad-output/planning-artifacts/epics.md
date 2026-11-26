@@ -3931,6 +3931,7 @@ So that my team can't build a sealed fort, and there's always a way through for 
 **Given** a decay stage adds solid cover (4.2 `minStage`, a 4.8 wreck or rubble)
 **When** `destroyBlockedBuildings` runs at the build start
 **Then** every wall-type building closer than 0.8 m (one player body) to the new cover is destroyed with no refund (12.4), in building-id order, with the owner toast "Your barricade was cleared by the collapse"
+**And** a decay stage re-checks paths; walls that now seal are cleared (review H1, designer-decided 2026-11-26: A): a spot that was in the main region before the stage, is still free and is now cut off by walls (the map alone still joins it) gets the walls nearest it cleared, highest id first, same cause, toast and no refund
 **And** saves and replays that already hold a sealed fort still load; bots handle `"seals_path"`
 
 ### Story 12.2: Extraction: walk to the helicopter and lift off

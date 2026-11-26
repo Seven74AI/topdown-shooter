@@ -371,3 +371,58 @@ describe("Story 12.1 review L3: Downtown has no free vertex outside the main reg
     expect(bad).toEqual([]);
   });
 });
+
+/**
+ * Story 12.1 H1 (designer 2026-11-26: A): a decay stage must not finish a seal the walls started. After a
+ * stage's mutations the path rule runs again; walls that now cut part of the old main region off (while the
+ * map alone still joins it) are cleared, highest id first, cause `cleared`, no refund.
+ */
+describe("Story 12.1 H1: a decay stage re-checks paths; walls that now seal are cleared", () => {
+  const lost = (events: SimEvent[]) => events.filter((e): e is Extract<SimEvent, { type: "building.destroyed" }> => e.type === "building.destroyed");
+  it("the Downtown parking lot, stages 2 → 4 with the alley-2 rubble (review probe 3): no pocket is left, the sealing wall is cleared, no refund", () => {
+    const world = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    for (let i = 0; i < 2; i++) addPlayer(world, `p${i}`, 24 + i, 16).wallet = 1000;
+    world.decay.variants = 1 << 10;
+    applyDecayStage(world, 2, world.decay.variants);
+    for (const [x, y] of [[20, 22], [19.5, 24], [19.5, 26], [19.5, 28], [19.5, 30]] as const) put(world, "wood_barricade", x, y, 1, "p0");
+    expect(verticesOutsideMainRegion(world), "stage 2: nothing sealed yet").toBe(0);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    const wallets = [...world.players.values()].map((p) => p.wallet);
+    expect(changeDecayStage(world, 4)).toBe(true);
+    world.events.flush();
+    expect(verticesOutsideMainRegion(world), "stage 4: no pocket left").toBe(0);
+    const cleared = lost(events).filter((e) => e.cause === "cleared");
+    expect(cleared.length, "liveness: the re-check really cleared a wall").toBeGreaterThan(0);
+    expect(world.buildings.list.length).toBeGreaterThan(0); // only the sealing wall(s), not all five
+    expect([...world.players.values()].map((p) => p.wallet)).toEqual(wallets);
+  });
+
+  it("a 0.85 m gap left by new cover (wider than the 0.8 m margin, read as closed by the grid): the wall is cleared by the re-check", () => {
+    // The north-east corner [45, 48] × [0, 4]: a west wall x [44.5, 45] and a south wall [44, 46] × [4, 4.5] leave a 2 m mouth
+    // x [46, 48]; at stage 2 a wreck lands at [46.85, 48] × [4, 4.5], 0.85 m from the wall's end.
+    const wreck: DecayMutation = { name: "flip_wreck", action: "add", stage: 2, variant: -1, kind: "car", target: "", radiusM: 0, minX: 46.85, minY: 4, maxX: 48, maxY: 4.5 };
+    const world = setup(openMap([], [wreck]));
+    const w1 = put(world, "wood_barricade", 44.5, 0, 1, "p0");
+    const w2 = put(world, "wood_barricade", 44.5, 2, 1, "p0");
+    const w3 = put(world, "wood_barricade", 44, 4, 0, "p0");
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    expect(changeDecayStage(world, 2)).toBe(true);
+    world.events.flush();
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+    const cleared = lost(events).filter((e) => e.cause === "cleared").map((e) => e.buildingId);
+    expect(cleared.length).toBeGreaterThan(0);
+    expect(cleared[0]).toBe(Math.max(...[w1.id, w2.id, w3.id].filter((id) => cleared.includes(id)))); // highest id first
+    expect(events.some((e) => e.type === "money.earned")).toBe(false);
+  });
+
+  it("a stage that seals nothing clears nothing (a wall 1 m from new cover stays)", () => {
+    const wreck: DecayMutation = { name: "far_wreck", action: "add", stage: 2, variant: -1, kind: "car", target: "", radiusM: 0, minX: 20, minY: 10, maxX: 22, maxY: 12 };
+    const world = setup(openMap([], [wreck]));
+    const keep = put(world, "wood_barricade", 23, 10, 1, "p0"); // x [23, 23.5]: 1 m east
+    expect(changeDecayStage(world, 2)).toBe(true);
+    expect(world.buildings.list.map((b) => b.id)).toEqual([keep.id]);
+  });
+});

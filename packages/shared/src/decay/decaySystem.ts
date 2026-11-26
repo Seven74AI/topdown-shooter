@@ -1,6 +1,7 @@
 import type { World } from "../core/world";
 import type { MapBox } from "../map/districtMap";
 import { removeBuilding, type Building } from "../buildings/buildings";
+import { captureStageRegion, stageCutWall } from "../buildings/pathOpen";
 import { PUSH_STUCK, circleHitsBuilding, pushOutOfBuildings, pushed } from "../buildings/collision";
 import { boxBlocked, boxOrFireBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import type { PlayerState } from "../player/player";
@@ -23,7 +24,8 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
  *   2. every building that overlaps a solid is destroyed (`building.destroyed`); Story 12.4 (designer
  *      2026-11-25, "bad luck"): no money goes back (FR58 had a 50 % refund until then);
  *      (Story 4.8 review M2: also every building a fire lit now overlaps; Story 12.1 AC 6: every wall
- *      within one player body of new cover);
+ *      within one player body of new cover); Story 12.1 H1: then walls that now seal part of the old
+ *      main region are cleared (`clearStageSeals`);
  *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`); Story 4.8
  *      review M1: then every standing player inside a fire lit now is moved just outside it
  *      (`moveOutOfNewFires`);
@@ -91,6 +93,26 @@ export function destroyBlockedBuildings(world: World, newFires: readonly FireRec
   }
   return n;
 }
+
+/**
+ * Story 12.1 H1 (designer 2026-11-26: A): a stage must not finish a seal the walls started. After step 2,
+ * while the stage cut part of the old main region off by walls (the map alone still joins it), the wall
+ * `stageCutWall` names (highest id first) is cleared: `building.destroyed`, cause `cleared`, no refund
+ * (12.4). Returns how many. Server and solo (the DecaySystem); copies follow the removal.
+ */
+export function clearStageSeals(world: World): number {
+  let n = 0;
+  for (let b = stageCutWall(world); b !== null; b = stageCutWall(world)) {
+    if (!removeBuilding(world, b.id)) break;
+    n++;
+    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause: "cleared" });
+  }
+  stageSealsCleared.count += n;
+  return n;
+}
+
+/** Story 12.1 H1: walls the stage re-check cleared (process-global diagnostic for sims and tests; not simulation state). */
+export const stageSealsCleared = { count: 0 };
 
 function placePlayer(p: PlayerState, x: number, y: number): void {
   p.x = x;
@@ -274,11 +296,13 @@ export function decayMutate(world: World, stage: number): boolean {
   const coming = world.waves.number + 1;
   solidsBefore.length = 0;
   for (let i = 0; i < world.obstacles.solids.length; i++) solidsBefore.push(world.obstacles.solids[i] as MapBox); // Story 12.1 (AC 6)
+  captureStageRegion(world); // Story 12.1 H1: the main region before the mutations
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave
   lightNewFires(world, world.decay.stage, coming);
   if (!changed) return false;
   destroyBlockedBuildings(world, lit, solidsBefore);
+  clearStageSeals(world);
   relocateBodies(world);
   moveOutOfNewFires(world, lit);
   return true;

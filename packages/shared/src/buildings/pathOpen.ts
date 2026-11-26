@@ -62,6 +62,12 @@ let after = new Uint8Array(0);
 let order = new Int32Array(0);
 let orderLen = 0;
 let queue = new Int32Array(0);
+/** Story 12.1 H1 (designer A): the main region before a decay stage's mutations (`captureStageRegion`). */
+let stageBefore = new Uint8Array(0);
+/** H1: the map-only layer's region (no walls) after the mutations. */
+let mapOnly = new Uint8Array(0);
+let stageCols = 0;
+let stageRows = 0;
 let cols = 0;
 let rows = 0;
 
@@ -93,6 +99,10 @@ function ensure(n: number): void {
   order = new Int32Array(n);
   queue = new Int32Array(n);
   sealedPocket.cells = new Int32Array(n);
+  const kept = stageBefore;
+  stageBefore = new Uint8Array(n);
+  stageBefore.set(kept.subarray(0, Math.min(kept.length, n)));
+  mapOnly = new Uint8Array(n);
 }
 
 /** Clears the bits of every vertex / edge the box comes within `r` of (strictly, like every clearance test). */
@@ -313,6 +323,54 @@ export function inMainRegion(world: Readonly<World>, i: number, j: number): bool
   buildBefore(world, r, 0);
   if (i < 0 || j < 0 || i >= cols || j >= rows) return false;
   return before[j * cols + i] === 1;
+}
+
+/**
+ * Story 12.1 H1 (designer 2026-11-26: A, "re-check paths after each decay stage"). The decay system
+ * calls this just before a build start's mutations: the main region as it stands then (map + walls) is
+ * kept until `stageCutWall`. Build starts only (never per tick); no allocation.
+ */
+export function captureStageRegion(world: Readonly<World>): void {
+  const r = world.balance.player.radiusM;
+  if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
+  buildBefore(world, r, 0);
+  stageBefore.set(before.subarray(0, cols * rows));
+  stageCols = cols;
+  stageRows = rows;
+}
+
+/**
+ * Story 12.1 H1 (designer A): after a decay stage's mutations (and the overlap / 0.8 m clearing), a
+ * vertex that was in the main region before the stage (`captureStageRegion`), is still free, and is now
+ * cut off from the main region by walls while the map alone (no walls) still joins it, is a seal the
+ * stage finished. Returns the wall to clear for it: the highest-id wall within `player.radiusM +
+ * BUILD_GRID_M` of a cut vertex (only such a wall can close one of its lattice steps), or null when
+ * nothing is cut. The decay system clears it and asks again until null, so the order is fixed (ids
+ * descending) on every copy that runs it. Build starts only.
+ */
+export function stageCutWall(world: Readonly<World>): Building | null {
+  const r = world.balance.player.radiusM;
+  if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
+  if (cols !== stageCols || rows !== stageRows) return null; // no capture for this map
+  buildBefore(world, r, 0);
+  flood(base, anchorVertex(world, base), mapOnly, false);
+  const n = cols * rows;
+  const reach = r + BUILD_GRID_M;
+  const list = world.buildings.list;
+  let best: Building | null = null;
+  for (let v = 0; v < n; v++) {
+    if (stageBefore[v] !== 1 || before[v] === 1 || mapOnly[v] !== 1 || ((walls[v] as number) & FREE) === 0) continue;
+    const x = (v % cols) * BUILD_GRID_M;
+    const y = Math.floor(v / cols) * BUILD_GRID_M;
+    for (let k = list.length - 1; k >= 0; k--) {
+      const b = list[k] as Building;
+      if (!b.solid || (best !== null && b.id <= best.id)) continue;
+      const dx = Math.max(0, b.minX - x, x - b.maxX);
+      const dy = Math.max(0, b.minY - y, y - b.maxY);
+      if (dx * dx + dy * dy < reach * reach) best = b;
+    }
+  }
+  return best;
 }
 
 /**
