@@ -93,21 +93,25 @@ jobs:
       - name: Tests
         run: |
           mapfile -t files < shard-files.txt
-          npx vitest run --reporter=default --reporter=json --outputFile.json=reports/test-report-${{ matrix.shard }}.json "${files[@]}"
+          # fileTimesReporter: each file's time outside its tests (hooks, imports), which the JSON report leaves out
+          FILE_TIMES_OUT=reports/file-times-${{ matrix.shard }}.json npx vitest run --reporter=default --reporter=json --reporter=./tools/ci/fileTimesReporter.mjs --outputFile.json=reports/test-report-${{ matrix.shard }}.json "${files[@]}"
       - name: The browser DOM checks ran (passed, not skipped)
         if: matrix.shard == 1
         run: node tools/ci/check-browser-ran.mjs reports/test-report-1.json
-      - name: Slowest 15 tests (job summary); fails if one took over 30 s (E8-A8, docs/ci.md)
+      - name: Slowest 15 tests (job summary); fails if a test, or a file's hooks, took over 30 s (E8-A8, docs/ci.md)
         if: always()
         run: |
           [ -f reports/test-report-${{ matrix.shard }}.json ] || { echo "::error::no JSON report"; exit 1; }
-          node tools/ci/slowest.mjs reports/test-report-${{ matrix.shard }}.json
+          [ -f reports/file-times-${{ matrix.shard }}.json ] || { echo "::error::no file-times report"; exit 1; }
+          node tools/ci/slowest.mjs reports/test-report-${{ matrix.shard }}.json reports/file-times-${{ matrix.shard }}.json
       - name: Upload the JSON report (timings refresh, docs/ci.md)
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
           name: test-report-${{ matrix.shard }}
-          path: reports/test-report-${{ matrix.shard }}.json
+          path: |
+            reports/test-report-${{ matrix.shard }}.json
+            reports/file-times-${{ matrix.shard }}.json
           if-no-files-found: warn
 
   postgres:
@@ -134,12 +138,12 @@ jobs:
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - name: Real-PostgreSQL tests
-        run: npx vitest run --no-file-parallelism --reporter=default --reporter=json --outputFile.json=reports/test-report-postgres.json apps/server/src/db/realPostgres apps/server/src/db/realPg.test.ts
+        run: FILE_TIMES_OUT=reports/file-times-postgres.json npx vitest run --no-file-parallelism --reporter=default --reporter=json --reporter=./tools/ci/fileTimesReporter.mjs --outputFile.json=reports/test-report-postgres.json apps/server/src/db/realPostgres apps/server/src/db/realPg.test.ts
       - name: They ran (passed, not skipped)
         run: node tools/ci/check-all-passed.mjs reports/test-report-postgres.json 41
       - name: Slowest tests (job summary); fails if one took over 30 s
         if: always()
-        run: node tools/ci/slowest.mjs reports/test-report-postgres.json
+        run: node tools/ci/slowest.mjs reports/test-report-postgres.json reports/file-times-postgres.json
 
   docker:
     # Story 2.2: the VPS images must build. Build only, nothing is pushed: deploys run on the VPS

@@ -122,7 +122,8 @@ describe("netsim: smooth through hiccups (Story 8.9)", () => {
       off: { seconds: 60, walkers: 150, kite: false, loss: LOSSY, pacing: false },
     } satisfies Record<string, Line>;
     const runs = { on: new Map<number, Result>(), off: new Map<number, Result>() };
-    it.each(SEEDS_9.flatMap((seed) => [["on", seed], ["off", seed]] as const))("pacing %s, seed %i", (k, seed) => {
+    // The old order: all nine ON runs, then all nine OFF runs (each run is simulated alone, but keep the order anyway).
+    it.each([...SEEDS_9.map((seed) => ["on", seed] as const), ...SEEDS_9.map((seed) => ["off", seed] as const)])("pacing %s, seed %i", (k, seed) => {
       runs[k].set(seed, simulate({ ...LINE, ...LINES[k], seed }));
     }, 60_000);
 
