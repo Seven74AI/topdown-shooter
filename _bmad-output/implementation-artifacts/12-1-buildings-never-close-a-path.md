@@ -46,6 +46,13 @@ so that my team can't build a sealed fort, and there's always a way through for 
     - Move and chain cases (AC 3, 4).
     - A decay stage adds cover 0.5 m from a barricade → the barricade is destroyed (no refund); one 1.0 m away stays; a mine 0.2 m away stays (AC 6).
 
+Added 2026-11-26 (clashes X3, X4, X5, X10; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6). These add tests and measures; the rule above is unchanged.
+
+13. **One shared rasteriser (X3).** `pathOpen.ts` uses the same grid and clearance helper as `pushOutOfBuildings › escapeInside` (PRs #12 and #18, `spec-fix-escape-narrow-openings.md`), or the flow-field rasteriser named in the Dev Notes, so the placement check and the escape fill never disagree about what a gap is. The sealed-fort escape tests (`collision.test.ts`, `relocationPinned.test.ts`) stay: saves and replays can still hold forts (AC 10). New test: a placement this check accepts never produces a pocket the escape would call sealed.
+14. **Measure the zombie side (X4).** Before and after this story, run the 10-wave bot sim (bots build around the pad) and record wall damage taken, zombies through gaps and team wipes in the story file, as input for 10.8. Add the 6.13 wide-body case "Brute at a 0.8 m forced gap" to the tests.
+15. **The dev fort stays (X5).** `?stress=5&stressbuild=fort` (`debug/stressScenario.ts`, used by the 9.11 / 9.12 look checks and readability sheet item 63) keeps its closed fort as a debug-only layout that bypasses the placement check (it never reaches the server), with a comment pointing to AC 10.
+16. **AC 9 measured headless (X10).** Reference phones are parked: measure the check at 4× CPU throttle in headless Chromium (< 1 ms per check on Downtown), and record the time on a 140 × 140-cell grid for Epic 11's 70 × 70 m maps. The reference-phone wording of AC 9 stays, parked.
+
 ## Tasks
 
 - [ ] `packages/shared/src/buildings/pathOpen.ts` (new): the player-clearance flood fill and `sealsPath(world, box, exceptId)` (AC 2, 5, 6, 9).
@@ -55,6 +62,10 @@ so that my team can't build a sealed fort, and there's always a way through for 
 - [ ] Client: ghost refusal line, pocket highlight (AC 7), cache (AC 9).
 - [ ] Bots (AC 11).
 - [ ] Tests (AC 8, 12).
+- [ ] Shared rasteriser + escape-agreement test (AC 13).
+- [ ] Bot-sim before/after table + Brute forced-gap test (AC 14).
+- [ ] Dev fort bypass comment (AC 15).
+- [ ] Headless 4× CPU timing, Downtown + 140 × 140 grid (AC 16).
 
 ## Dev Notes
 

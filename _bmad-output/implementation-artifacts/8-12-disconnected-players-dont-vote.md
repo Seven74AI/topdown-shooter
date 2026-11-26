@@ -42,6 +42,7 @@ This replaces the rule from Story 8.1 review M2 ("a held seat is a silent vote, 
 5. **Earnings unchanged.** `markHeldEvac` stays: a held seat still gets `earnedAtEvac` at the first Stay (the 8.1 M2 earnings fix is about banking, not the vote).
 6. **The panel agrees with the server.** Downed and out players' chips are shown as "not voting" too, and their vote buttons are disabled. The client vote panel stops counting held seats as silent Extract chips (`apps/client/src/ui/voteModel.ts` `addHeldVoters`, 8.1 RR1-M1). A held seat is either hidden from the panel or shown as a dimmed chip marked "not voting" that is left out of the result line, `allIn` and `voteUrgent`. The result line ("STAY · 1 – 2") matches what the server will decide.
 7. **Replay unchanged.** `hold` / `return` stay replay commands. The replay digest test still passes; only the vote outcome in scenarios with held seats changes.
+8. **As-built notes when it lands (clash X1; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).** Add an as-built note to Story 6.11 in `epics.md` (only connected, standing players count; downed, out and held players see disabled buttons) and reword FR66 to "a majority of the connected, standing players; a tie or no counted votes means Extract". The reversal of 8.1 M2 / RR1-M1 is confirmed with 8.1 B15/B16/B19 in the E8-A9 review (`docs/epic-8-story-decisions.md` › Designer review 2026-11-26); the existing Docs task covers the note there.
 
 ## Tasks
 

@@ -215,3 +215,16 @@ Story decisions 7.4 D1–D5 and 7.5 D1–D5 were accepted with the progress file
 ### 7-UI-3 amended (designer, 2026-11-25)
 
 After a 6-colour comparison (`docs/art/occlusion/colours.html`), zombie wall silhouettes stay **red**. Designer: "Red is better, red shouldn't be only for bosses. I mean that the color usually used to show danger. So it works for zombie silhouette." The in-play colour rule becomes **red = danger** (boss danger and zombies), not boss-only. Menu screens keep 7-UI-3 (red allowed).
+
+## Designer answers 2026-11-26 (retro E7-A6)
+
+Designer "ok" 2026-11-26 to every recommendation in `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6 (E7-A6). These close the Epic 7 picks still owed (`_bmad-output/implementation-artifacts/epic-7-retro-2026-11-26.md` E7-A6).
+
+| Code | Question | Answer |
+| --- | --- | --- |
+| 7.3 F12 | Unlock screen: condensed font (≈ 3 rows at 568 × 320); "Not enough" under the price | **Kept as built** (wide sans, 2 rows at 568 × 320; "Not enough · need N" under the line on the left). No story |
+| 7.4 B11 | A second borrowed card through a paid reroll | **Dropped**: one borrowed card keeps the deck rule simple. The auto-accepted "allowed" answer above is not followed up; any change to it needs a new story |
+| 7.6 B18 | "That name is taken" on Save my progress (10 name checks / minute per address) | **Build item**, in **Story 7.13 "Epic 7 leftovers (B18/B19, Wear it)"**. As of 2026-11-26 the code already holds it (`net/account.ts` `name_taken`, `limits.ts` / `rateLimit.ts`); 7.13 checks it end to end and adds the tests |
+| 7.6 B19 | The guest-progress warning on Log in | **Build item**, in **Story 7.13**. The line exists (`ui/accountModel.ts` `mergeWarning`); 7.13 checks it is shown and tested |
+| 7.11 D8 | "Wear it" on the Results new-item line (7.12 B21 / B34: not built) | **Build it** in **Story 7.13** (one button on the loot / milestone reveal, through 7.10's save path) |
+| 7.10 AC 12 | The 30-second editor playtest | **Runs in Story 10.9's first game night** (10.9 AC; result in `docs/playtests/epic-7-customization.md`) |

@@ -157,6 +157,21 @@ Questions the build met that the story and E8-S/R leave open. Each takes the GDS
 
 - **8.7 B16 note (final re-review, 2026-11-25):** with everything under the semi-transparent HUD, a ping icon that sits under a mode control (build bar, Ready, vote panel) counts as SEEN, so it shows through the HUD and gets no edge arrow (M1's icon check uses only the 8 wave control rects).
 
+## Designer review 2026-11-26 (retro E8-A9)
+
+Designer "ok" 2026-11-26 to the E8-A9 recommendation (`_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6): the rule changes accepted overnight are **confirmed as built**. Rows: `docs/network-pass-decisions.md` (8.9, 8.10, 8.1) and this file (8.3).
+
+| Code | Rule as built | Answer |
+| --- | --- | --- |
+| 8.9 B7 | Starved ticks +41–61 % on the lossy line (0 server skips, 0 lost shots) | **Confirmed** |
+| 8.9 B9 | At most 1.2 freezes per 30 s on every 1 % lossy row | **Confirmed** |
+| 8.10 B7 | The 10 Hz far rule is off (overrides 8.10 D1): every zombie refreshed at 20 Hz | **Confirmed, with a re-check in Story 8.13** on the capped-line netsim (phones are parked): if the 64 and 128 kbit/s rows hold, B7 stands; if not, 8.13's skip is the first lever, before turning the far rule back on (8.13 AC in `epics.md`) |
+| 8.1 B15 | A returning player is teleported next to a teammate with 2 s protection at most once per wave | **Confirmed** |
+| 8.1 B16 | A dropped body stays 3 s mid-wave, still and hittable | **Confirmed** |
+| 8.1 B19 | Solo drop with B16's 3 s body: the dropping body counts as present | **Confirmed** |
+| 8.3-B14 | Accepted risk: Remove + a fresh guest token can farm late-join money | **Confirmed (risk accepted)** |
+| 8.1 M2 / RR1-M1 → 8.12 | A held seat counted as a silent Extract vote; **reversed by Story 8.12** (only connected, standing players vote) | **Confirmed with the list** (clash X1): the M2 risk (a phone that drops for a few seconds lets the rest switch to endless) is accepted. 8.12 adds the 6.11 as-built note and the FR66 rewording when it lands |
+
 ## Story 8.12: only connected, standing players vote (designer 2026-11-25)
 
 Reverses 8.1 review M2 / RR1-M1 for the vote (the `earnedAtEvac` banking part of M2 stays). Who counts: connected (not held) and `alive`, taken at the tick the vote resolves. Builder decisions, **auto-accepted (designer 2026-11-26)**:

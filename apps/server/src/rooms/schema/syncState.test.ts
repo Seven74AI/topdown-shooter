@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, disownBuildings, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setForcedBlackout, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { Decoder, Encoder } from "@colyseus/schema";
+import { LOOT_BAG, NEUTRAL_INPUT, disownBuildings, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setForcedBlackout, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -730,5 +730,112 @@ describe("Stories 6.9 + 6.10 syncState: the crate and the survivor", () => {
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] survivor walking: +${(walk / 20).toFixed(1)} B per patch (≈ ${Math.round(walk)} B/s at 20 Hz)`);
     resetRunFields(state);
     expect([state.crateWeapon, state.crateClaimSlot, state.crateClaimTicks, state.npcX, state.npcState, state.npcLeaderSlot, state.safeX]).toEqual([255, 255, 0, 0, 0, 255, 0]);
+  });
+});
+
+/**
+ * Retro E8-A2 (the copy-chain audit): every building field the World can change after the entry was
+ * sent, "sent → changed → synced", through the real shared writer, with the patch decoded into a
+ * client copy of the state (the PR #21 nit: the wire, not only the server's schema object). The
+ * entry must be the SAME on both sides (an in-place update, never a remove + add).
+ */
+describe("E8-A2 syncState: building fields changed after the entry was sent reach the wire in place", () => {
+  function sent(type: string, gx: number, gy: number, rot: number) {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    w.run.phase = "build";
+    const me = w.players.get("p0");
+    if (me) me.wallet = 2000;
+    const r = controller.placeBuilding("p0", { type, gx, gy, rot });
+    if (!r.ok) throw new Error(`placement refused: ${r.error}`);
+    controller.tick();
+    syncState(state, controller);
+    const client = new RunState();
+    const decoder = new Decoder(client);
+    decoder.decode(encoder.encodeAll());
+    encoder.discardChanges();
+    const serverEntry = state.buildings.get("1");
+    const clientEntry = client.buildings.get("1");
+    if (!serverEntry || !clientEntry) throw new Error("not sent");
+    const b = w.buildings.list[0];
+    if (!b) throw new Error("no building");
+    /** One room tick's sync, then that tick's patch onto the client copy. */
+    const patch = (): void => {
+      syncState(state, controller);
+      decoder.decode(encoder.encode());
+      encoder.discardChanges();
+      expect(state.buildings.get("1")).toBe(serverEntry);
+      expect(client.buildings.get("1")).toBe(clientEntry);
+    };
+    return { controller, w, b, client, clientEntry, patch };
+  }
+
+  it("type (setBuildingType via upgradeBuilding, version +1)", () => {
+    const { controller, clientEntry, patch } = sent("wood_barricade", 18, 28, 1);
+    expect(clientEntry.type).toBe("wood_barricade");
+    expect(controller.upgradeBuilding("p0", 1).ok).toBe(true);
+    patch();
+    expect(clientEntry.type).toBe("reinforced_barricade");
+  });
+
+  it("owner (disownBuildings, version +1)", () => {
+    const { w, clientEntry, patch } = sent("wood_barricade", 18, 28, 1);
+    expect(clientEntry.owner).toBe("p0");
+    expect(disownBuildings(w, "p0")).toBe(1);
+    patch();
+    expect(clientEntry.owner).toBe("");
+  });
+
+  it("gx, gy, rot (relocateBuilding via moveBuilding, version +1)", () => {
+    const { controller, clientEntry, patch } = sent("wood_barricade", 18, 28, 1);
+    expect(controller.moveBuilding("p0", { id: 1, gx: 18, gy: 31, rot: 1 }).ok).toBe(true);
+    patch();
+    expect([clientEntry.gx, clientEntry.gy, clientEntry.rot]).toEqual([18, 31, 1]);
+    expect(controller.moveBuilding("p0", { id: 1, gx: 21, gy: 31, rot: 0 }).ok).toBe(true);
+    patch();
+    expect([clientEntry.gx, clientEntry.gy, clientEntry.rot]).toEqual([21, 31, 0]);
+  });
+
+  it("trap (the jaws: bearTrap's setState writes trapState with version +1)", () => {
+    const { w, b, clientEntry, patch } = sent("bear_trap", 18, 28, 0);
+    expect(clientEntry.trap).toBe(0);
+    b.trapState = 1; // what bearTrap.ts › setState does (a private writer)
+    w.buildings.version++;
+    patch();
+    expect(clientEntry.trap).toBe(1);
+  });
+
+  it("hp (damage and repair: compared every tick, no version needed)", () => {
+    const { b, clientEntry, patch } = sent("wood_barricade", 18, 28, 1);
+    expect(clientEntry.hp).toBe(200);
+    b.hp = 120.4; // Story 3.5 damage writes hp only
+    patch();
+    expect(clientEntry.hp).toBe(121);
+  });
+});
+
+/**
+ * E8-A2: the loot bag's record (x, y, untilTick, variant) is copied only when its state changes.
+ * The World writes those four only in `lootBag.ts › drop` (NONE → OUT, once per run), so they never
+ * change while the bag is out; this pins that the copy still equals the World after ticks out.
+ */
+describe("E8-A2 syncState: the loot bag record never changes while out", () => {
+  it("drop → sent; ticks out → the World's record still equals the copy", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    Object.assign(w.loot, { state: LOOT_BAG.OUT, x: 30.5, y: 40.25, dropTick: w.tick, untilTick: w.tick + 400, variant: 2, foundBy: null });
+    syncState(state, controller);
+    const client = new RunState();
+    const decoder = new Decoder(client);
+    decoder.decode(encoder.encodeAll());
+    encoder.discardChanges();
+    for (let i = 0; i < 40; i++) {
+      controller.tick();
+      syncState(state, controller);
+      decoder.decode(encoder.encode());
+      encoder.discardChanges();
+    }
+    expect(w.loot.state).toBe(LOOT_BAG.OUT);
+    expect([client.lootBagX, client.lootBagY, client.lootBagUntilTick, client.lootBagVariant]).toEqual([w.loot.x, w.loot.y, w.loot.untilTick, w.loot.variant]);
   });
 });

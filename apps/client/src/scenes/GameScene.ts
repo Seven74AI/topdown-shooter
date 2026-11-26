@@ -277,7 +277,7 @@ export class GameScene extends Phaser.Scene {
     let view = this.playerViews.get(id);
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
-      view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
+      view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot (E8-A2: set once: a player id's slot never changes, `p${slot}`)
       this.playerViews.set(id, view);
     }
     this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
