@@ -76,7 +76,8 @@ const last = { valid: false, minX: 0, minY: 0, maxX: 0, maxY: 0, sealed: false }
 
 /**
  * Story 12.1 (AC 7, CN-2): the pocket the last refused check would close, for the ghost's highlight:
- * `count` vertices (indices into a `cols` × `rows` vertex grid, `cellM` apart), valid until the next
+ * the smaller side of the cut (the cut-off vertices, or the pad's side when that is smaller: a ring
+ * round the pad highlights its inside), `count` vertices (indices into a `cols` × `rows` vertex grid, `cellM` apart), valid until the next
  * check. Empty after an accepted one.
  */
 export const sealedPocket = { count: 0, cells: new Int32Array(0), cols: 0, rows: 0, cellM: BUILD_GRID_M };
@@ -271,10 +272,23 @@ export function sealsPath(world: Readonly<World>, box: Readonly<Box>, exceptId =
   }
   flood(work, seed, after, false);
   let count = 0;
+  let kept = 0;
   const cells = sealedPocket.cells;
   for (let k = 0; k < orderLen; k++) {
     const v = order[k] as number;
-    if (after[v] === 0 && ((work[v] as number) & FREE) !== 0) cells[count++] = v;
+    if (((work[v] as number) & FREE) === 0) continue;
+    if (after[v] === 0) cells[count++] = v;
+    else kept++;
+  }
+  const sealed = count > 0;
+  // The highlight (CN-2) is the smaller side: a ring round the pad cuts the rest of the map off from the
+  // pad, but the pocket a player sees is the ring's inside (the part still joined to the pad).
+  if (sealed && kept < count) {
+    count = 0;
+    for (let k = 0; k < orderLen; k++) {
+      const v = order[k] as number;
+      if (after[v] === 1 && ((work[v] as number) & FREE) !== 0) cells[count++] = v;
+    }
   }
   sealedPocket.count = count;
   sealedPocket.cols = cols;
@@ -284,8 +298,8 @@ export function sealsPath(world: Readonly<World>, box: Readonly<Box>, exceptId =
   last.minY = box.minY;
   last.maxX = box.maxX;
   last.maxY = box.maxY;
-  last.sealed = count > 0;
-  return count > 0;
+  last.sealed = sealed;
+  return sealed;
 }
 
 /**

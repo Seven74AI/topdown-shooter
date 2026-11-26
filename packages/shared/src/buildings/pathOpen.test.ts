@@ -62,6 +62,8 @@ describe("Story 12.1: the rule (AC 2)", () => {
     const world = setup();
     ringMissingOne(world, 22, 14); // the pad (24, 16) is inside
     expect(placementError(world, "p0", req("wood_barricade", 24, 13.5))).toBe("seals_path");
+    // The highlight is the smaller side: the ring's inside (the pad's side), not the rest of the map.
+    expect(sealedPocket.count).toBe(49);
     const r = placeBuilding(world, "p0", req("wood_barricade", 24, 13.5));
     expect(r.ok ? null : r.error).toBe("seals_path");
     // A turret (1 × 1) at x [24, 25] leaves [25, 26]: 1.0 m, a player (0.8 m) passes.
