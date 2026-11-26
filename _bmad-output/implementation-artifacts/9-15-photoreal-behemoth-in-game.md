@@ -1,6 +1,6 @@
 # Story 9.15: Photoreal Behemoth in game
 
-Status: in-progress
+Status: review
 
 <!-- Written 2026-11-26 by the 9.15 builder (gds-create-story) from the real code, the approved proposal
      (docs/art/photoreal-4) and the parent session's brief. Epic 9 is photoreal; the Behemoth part of 9.4 moved here. -->
@@ -80,21 +80,21 @@ and "ok" to the whole **action plan** (`docs/art/photoreal-4/src/boss4.ts › PL
 
 ## Tasks / Subtasks
 
-- [ ] T1 Art (AC 1, 3): port `behemoth5.ts` into `behemothArt.ts` (no inspector; `GLOW_MARKER` exported; `hexOf`);
+- [x] T1 Art (AC 1, 3): port `behemoth5.ts` into `behemothArt.ts` (no inspector; `GLOW_MARKER` exported; `hexOf`);
   export the eye positions per pose (`behemothEyes(pose, k)`) for the eye layer; an option to draw a body frame without
   the eye glow halo (the eye layer draws it); outline frames unchanged.
-- [ ] T2 Frames (AC 2, 4, 5): `bossAtlas.ts › POSE_FRAMES` walk phases 0.25 / 0.75, new `charge_b`, `throw_b`; the
+- [x] T2 Frames (AC 2, 4, 5): `bossAtlas.ts › POSE_FRAMES` walk phases 0.25 / 0.75, new `charge_b`, `throw_b`; the
   plain atlas keeps 16 body frames per look (4 × 16 = 64 = 8 × 8 in 2048²) — the two outline frames per look move to
   their own small texture `boss_outline` (8 frames).
-- [ ] T3 Bake (AC 2, 5): `render/city/bossFrames.ts` (pure, worker-safe: the relit frame list of one look, `bakeSteps`:
+- [x] T3 Bake (AC 2, 5): `render/city/bossFrames.ts` (pure, worker-safe: the relit frame list of one look, `bakeSteps`:
   draw ×2 → marker → relight → vein glow + sheen), `bossBakeWorker.ts`, `bossRelit.ts` (one sheet `boss_relit` for the
   look in play, kept pixels, pump, worker timeout / fallback, restore registration, landed set per look).
-- [ ] T4 View (AC 4–7): `BossView` frame choice by progress for charge / throw; a second body image for the roar
+- [x] T4 View (AC 4–7): `BossView` frame choice by progress for charge / throw; a second body image for the roar
   crossfade; layers (eyes ×2, veins, sheen) pooled; `bossAnim.ts` (pure: breath, beat scheduler, eye / glow levels per
   state and time; the visual config); dust pool (`bossDust.ts`, pure state + one Graphics-free sprite pool).
-- [ ] T5 Tests: art (walk frames differ, death colours), frames list (no blank frame, sheet ≤ 2048²), anim levels per
+- [x] T5 Tests: art (walk frames differ, death colours), frames list (no blank frame, sheet ≤ 2048²), anim levels per
   plan moment, beat on every 3rd footfall, dust determinism, bake pump (worker fallback, restore), wiring check.
-- [ ] T6 Gallery, readability sheet, stills of every action in the game in `docs/art/9-15/`, perf note
+- [x] T6 Gallery, readability sheet, stills of every action in the game in `docs/art/9-15/`, perf note
   `docs/perf/epic-9-behemoth.md`, decisions doc and skill updated.
 
 ## Dev Notes
@@ -139,7 +139,21 @@ and "ok" to the whole **action plan** (`docs/art/photoreal-4/src/boss4.ts › PL
 - **B5 Visual config.** Every animation number (breath amplitude and timings, beat times, glow / eye levels, dust
   counts and lives) lives in `render/bossAnim.ts › BOSS_ANIM`; durations of the actions come from `world.balance.boss`.
   Not in `boss.json`: a balance change would change `balance.version` (9.13 B28) for numbers that never touch play.
-- **B6 Sheen on the walk frames only** (the idle state; the attacks are short and show no sheen).
+- **B6 Sheen on the walk frames only** (the idle state; the attacks are short and show no sheen); `?fx=low`: no sheen,
+  half the dust pool.
+- **B7 No kept pixels** (unlike 9.13 B18): a lost context or wiped canvas leaves a relit sheet empty; its pictures stop
+  being "ready" (the plain atlas shows) and are baked again. Saves ~11 MB of CPU copies.
+- **B8 Crop.** Every relit picture is drawn cropped to its opaque box (`setCrop`): the 7 m frame is mostly empty and the
+  full-quad additive layers cost −2.2 FPS in the headless software renderer; −0.8 after the crop.
+- **B9 Half-way warning frames.** `charge_b` is baked at the charge's k 0.25 and `throw_b` at the throw's k 0.28, not a
+  literal k 0.5: the pose drawing reaches its full charge at k 0.5 (`e = min(1, 2k)`) and nearly its full lift (0.9) at
+  k 0.5 (`e = min(1, 1.8k)`), so k 0.5 would have been the same picture as `charge_a` (the identical-frame bug the
+  decomposition warned about). These are the pictures half-way into each pose (e = 0.5); a test diffs them.
+- **B10 Roar shock ring at 0 s.** The plan's dope sheet put the 5 m shock ring at 0.3 s with the eye snap; the sim pushes
+  players at the roar's first tick, so the ring stays on the push (readability of the push). Eyes snap, veins light and
+  the roar dust start at 0.3 s as planned.
+- **B11 Reused dust textures.** The dust and grit sprites are `atlas_fx › fx_dust_a / fx_grit_a` (the Ruins dust's code
+  textures, through `addGeneratedTexture`), tinted the boss puff colour; no new texture.
 
 ### Guardrails (AGENTS.md § 5)
 
@@ -166,8 +180,60 @@ and "ok" to the whole **action plan** (`docs/art/photoreal-4/src/boss4.ts › PL
 
 ### Agent Model Used
 
+Claude (9.15 builder session)
+
 ### Debug Log References
+
+- Perf, bake and memory numbers: `docs/perf/epic-9-behemoth.md`.
+- Stills of every action in the game (844 × 390, DPR 2, crops round the boss): `docs/art/9-15/actions-in-game.png`
+  (contact sheet) and `docs/art/9-15/01…21-*.png`; side-by-side with the approved page: `docs/art/9-15/side-by-side-take-c.png`.
+  The looks differ between the stills (each still session is a new solo run; the look follows the run seed).
 
 ### Completion Notes List
 
+- AC 1: take C ported into `behemothArt.ts` (inspector dropped; `GLOW_MARKER`, `hexOf`, `behemothHeadM`, eyes off for
+  body frames). The approved page's "Now" column now draws from a copy of the pre-9.15 drawing (`docs/art/photoreal-4/src/behemothNow.ts`).
+- AC 2: `bossFrames.ts` (pure), `bossBakeWorker.ts`, `bossRelit.ts`; pumped from `BossView.update` (`bakeLook`);
+  B1 / B2 / B7 / B8. Bake 2.9–3.9 s in the worker at 1×.
+- AC 3: walk at 0.25 / 0.75, death skin as hex; `behemoth.raster.test.ts` (walk frames differ only round the arms,
+  death head / spine not black, the kit's `shade` returns rgb()).
+- AC 4: `warningPoseIndex`, `throwLiftProgress` (B9).
+- AC 5: enraged frames (13) + vein glow pictures (13 + the death glow); the vein layer pulses as a WHOLE layer (B4, the
+  travelling wave not done: 8 steps × 13 frames ≈ 26 MB); eyes as two ADD sprites (B3), enraged floor 75 %.
+- AC 6: `bossAnim.ts` (`BOSS_ANIM` visual config; durations from `world.balance.boss`), `bossDust.ts`; the plan's
+  moments tested in `bossAnim.test.ts` (beat every 3rd footfall, slam's racing beats at 0 / 0.55 / 0.9 / 1.1 s and the
+  peak on the hit, charge / rush / stun levels, throw release beat, roar snap at 0.3 s and the 0.3–1.5 s crossfade,
+  death's last beat out by 0.4 s). The view never touches the sim (no shared-package change).
+- AC 7: breath on every state as planned (walk dips 1 % per footfall, slam / charge held, throw swells with the lift,
+  exhale in the recovery, dazed stun breaths, roar inhale); sheen on the walk frames (B6); additive layers never tinted
+  (wiring test); every layer takes the body's dim alpha and goes above the lane with `bodyTop`.
+- AC 8: gallery bakes the relit look on the spot (BH1; 75 relit frames on the review page); readability items 147–152;
+  `noUnregisteredTextures` green; perf: `?stress=150` within budget at 1× and 4×; boss scene −0.8 FPS, p95 one bucket
+  up in 2 of 3 controlled rounds (CPU renderer).
+- `tools/checks/streetPropsAtlas.test.ts`: `behemothArt.ts` is one of the street-props atlas page's hashed sources
+  (imported, never drawn there): `npm run art:street-props` rebuilt it; the image is byte-identical (same `imageSha`),
+  only `sourcesHash` changed.
+- Not verified: a real phone (Mi 11i / iOS Safari), a real GPU; the blackout outline frames only through the gallery
+  (their drawing is unchanged, they moved to `boss_outline`); a real online session (the run-seed prediction online
+  uses `NetSimHost.runSeed`; a wrong prediction re-bakes at arrival).
+
 ### File List
+
+- apps/client/src/render/city/behemothArt.ts (take C)
+- apps/client/src/render/city/bossFrames.ts (new)
+- apps/client/src/render/city/bossBakeWorker.ts (new)
+- apps/client/src/render/city/bossRelit.ts (new)
+- apps/client/src/render/city/bossAtlas.ts
+- apps/client/src/render/city/streetProps.json (source hash only)
+- apps/client/src/render/BossView.ts
+- apps/client/src/render/bossAnim.ts (new)
+- apps/client/src/render/bossDust.ts (new)
+- apps/client/src/render/bossTelegraph.ts
+- apps/client/src/scenes/GameScene.ts (run seed into BossView)
+- apps/client/src/gallery/collect.ts
+- apps/client/src/render/city/behemoth.raster.test.ts (new), apps/client/src/render/bossAnim.test.ts (new),
+  tools/checks/bossBakeWiring.test.ts (new)
+- tools/gallery/manifest.json
+- docs/art/photoreal-4/src/behemothNow.ts (new), docs/art/photoreal-4/src/boss4.ts, docs/art/photoreal-4/compare.html
+- docs/art/9-15/** (stills), docs/playtests/milestone-1/readability-sheet.md, docs/perf/epic-9-behemoth.md,
+  docs/art/photoreal-decisions.md, .claude/skills/dead-city-model/SKILL.md
