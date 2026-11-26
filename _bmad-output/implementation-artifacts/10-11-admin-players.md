@@ -4,7 +4,7 @@ baseline_commit: d8ffaee
 
 # Story 10.11: Admin players
 
-Status: ready-for-dev
+Status: review
 
 (Added 2026-11-26. Designer: "I'd like to add Admin players. That would get the dev btn so he can do whatever we can do in dev mode but in production." The four decisions AD-1…AD-4 were proposed with a recommendation and the designer answered "Ok with all your recommendation" (2026-11-26), so every one is **A**. Online cheats are a separate story, **10.12** (backlog). Written with `gds-create-story` from the real code at `d8ffaee`.)
 
@@ -38,30 +38,30 @@ so that I can test any wave, weapon, boss or event on a real phone without a dev
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Server: the flag (AC 1, 2)**
-  - [ ] `apps/server/src/db/schema.ts` `accounts`: `isAdmin: boolean("is_admin").notNull().default(false)` (same pattern as `saveNudged`). `npm run db:generate -w @topdown/server` → `0007_*.sql` + snapshot + journal. Never rename a migration (Drizzle skips an older journal `when`); if master gains a `0007` first, regenerate on top of master.
-  - [ ] `apps/server/src/db/accountsRepo.ts`: add `isAdmin` to `Account` (:28-32) and the `columns` select (:94); add `setAdmin(usernameLower, admin): Promise<{ accountId } | null>` and `listAdmins(): Promise<{ accountId, username }[]>`. Only this repo touches the table (`noDbImports.test.ts`).
-  - [ ] Session builders: `saved()` in `apps/server/src/auth/guestSession.ts:139-146`, `sessionOf()` in `apps/server/src/auth/accountAuth.ts:130-138`, the logout guest at `accountAuth.ts:262` (`admin: false`), and the upgrade path. Rule: `admin = account.username !== null && account.isAdmin`.
-  - [ ] `packages/shared/src/net/account.ts:50-69`: `account: { …, admin: z.boolean().optional() }` (covers session, device session, recover through `.options[0]` / `extend`).
-- [ ] **T2 Server: the command (AC 1)**
-  - [ ] `apps/server/src/db/adminCli.ts` shaped like `migrateCli.ts` (`databaseFromEnv`, `log.info`, `process.exitCode = 1` on error, `close()`); `"admin": "tsx src/db/adminCli.ts"` in `apps/server/package.json`. Usage text on a bad argument.
-  - [ ] `docs/deploy.md` › "Database…" section: the VPS command, following `deploy.sh`'s migrate pattern: `docker compose -f deploy/docker-compose.yml run --rm --no-deps server node --import tsx apps/server/src/db/adminCli.ts add <username>` (with `GIT_SHA` from `deploy/.env` as the other compose commands). Say that the change shows on the player's next session fetch (opening the start screen or a reload).
-- [ ] **T3 Client: knowing you're an admin (AC 2, 5)**
-  - [ ] `apps/client/src/net/accountStore.ts`: `AccountSnapshot.admin: boolean`; `accept(username, admin)`. Callers: `accountSession()` in `apps/client/src/net/account.ts:83` and `adopt()` (:279-290), upgrade (:291-294). Missing field (older server) = false.
-- [ ] **T4 Client: lazy admin panel (AC 3, 5, 7, 8)**
-  - [ ] `apps/client/src/main.ts:266-275`: keep the DEV block (`__game`, `__gfx`, mount) as is. Add a production path: subscribe to `accountStore`; the first time `admin` is true, `import()` the panel and mount it; when it turns false, hide it (an `unmount`/`setVisible` export, or a prop/store the panel reads). Never import it for a non-admin.
-  - [ ] Give the lazy chunk a **fixed neutral name** so the entry chunk's import/preload list doesn't carry "DevCheats" (e.g. a small entry module `debug/adminTools.ts` that re-exports the mount, plus `build.rollupOptions.output.chunkFileNames` / `manualChunks` in `apps/client/vite.config.ts` so it and `DevCheats.css` land in `assets/admin-tools-<hash>.{js,css}`). Check the real `dist/` output.
-  - [ ] `DevCheats.tsx`: a `practiceOnlyOnline` flag (true in production, false in dev builds). When it's true and `scene.isOnline`, disable every control except Perf overlay and Collision / grid view, and show the one-line "Practice only" note. The existing per-control `online` guards (decay, blackout, seed) stay.
-- [ ] **T5 Client: dev link switches for admins (AC 6)**
-  - [ ] `urlOptions()` caches at boot (`urlOptions.ts:303-306`, first call `main.ts:68`), before the account is known, and `soloBalance()` caches too (`clientBalance.ts:31`). Add a solo-only read that re-parses at each solo start: `parseUrlOptions(location.search, import.meta.env.DEV || accountStore.get().admin)` and make `soloBalance()` / `soloOverrides` (`clientBalance.ts:15-29`) take that `dev` flag instead of `import.meta.env.DEV` (key any cache on it). Use it in GameScene's solo branch (`GameScene.ts:668-708`: `startWave` :675, `loot` :676, `practiceInit` :698, `shopCards` :702, boss/events :704-708, `devLooks` :847, `devLayer` :322).
-  - [ ] Online stays `import.meta.env.DEV` only: `clientBalance()` online (:15, :37), `net/connection.ts:49`, `LobbyScreen.tsx:18`. Add a unit test proving a production-mode parse with `admin` on still leaves the online balance untouched.
-- [ ] **T6 Tests (all ACs)**
-  - [ ] Server (PGlite): CLI add/remove/list, unknown username, case-blind match, guest can't be named; session route returns `admin` true/false; login into an admin account → true; logout → new guest false; upgrade → false. A real-Postgres case in `realPostgresAccounts.test.ts` for the column default (runs in the CI `postgres` job).
-  - [ ] Shared: schema accepts with and without `admin`.
-  - [ ] Client unit: `accountStore` admin; `parseUrlOptions` with the admin flag (each AD-4 switch on for admin solo, off for non-admin); `soloBalance` admin vs non-admin; online balance unchanged.
-  - [ ] `noCheatsInRelease.test.ts` (AC 8): exception for the named chunk only; liveness (chunk exists and contains "Spawn zombies"); entry chunk + `index.html` clean incl. "DevCheats". Prove once with `CHEAT_SCAN_DIR` on a doctored dist that a cheat string in another chunk still fails.
-  - [ ] Browser (Playwright, preinstalled Chromium) against a **production build** (`vite build` + `vite preview` + a dev server on your own ports, AGENTS §6): (a) guest: no ⚙, no request for `admin-tools-*`; (b) admin (mark the account through the repo or the CLI on the test DB): ⚙ appears, Practice solo `Spawn 50 around me` really spawns (alive count goes up), god mode works, `?startwave=7` starts at wave 7; (c) admin online: only the two view checkboxes enabled, "Practice only" shown; (d) logout → ⚙ gone without reload. Screenshots at deviceScaleFactor 1 for your own check; say what wasn't verified.
-- [ ] **T7 Hand-back** — `gate:fast`, plus `test:changed` for the touched DOM checks; branch `story-10-11`, PR "Story 10.11: Admin players"; record B-codes for anything you decided (AC 5 cleanup choice, chunk-naming method).
+- [x] **T1 Server: the flag (AC 1, 2)**
+  - [x] `apps/server/src/db/schema.ts` `accounts`: `isAdmin: boolean("is_admin").notNull().default(false)` (same pattern as `saveNudged`). `npm run db:generate -w @topdown/server` → `0007_*.sql` + snapshot + journal. Never rename a migration (Drizzle skips an older journal `when`); if master gains a `0007` first, regenerate on top of master.
+  - [x] `apps/server/src/db/accountsRepo.ts`: add `isAdmin` to `Account` (:28-32) and the `columns` select (:94); add `setAdmin(usernameLower, admin): Promise<{ accountId } | null>` and `listAdmins(): Promise<{ accountId, username }[]>`. Only this repo touches the table (`noDbImports.test.ts`).
+  - [x] Session builders: `saved()` in `apps/server/src/auth/guestSession.ts:139-146`, `sessionOf()` in `apps/server/src/auth/accountAuth.ts:130-138`, the logout guest at `accountAuth.ts:262` (`admin: false`), and the upgrade path. Rule: `admin = account.username !== null && account.isAdmin`.
+  - [x] `packages/shared/src/net/account.ts:50-69`: `account: { …, admin: z.boolean().optional() }` (covers session, device session, recover through `.options[0]` / `extend`).
+- [x] **T2 Server: the command (AC 1)**
+  - [x] `apps/server/src/db/adminCli.ts` shaped like `migrateCli.ts` (`databaseFromEnv`, `log.info`, `process.exitCode = 1` on error, `close()`); `"admin": "tsx src/db/adminCli.ts"` in `apps/server/package.json`. Usage text on a bad argument.
+  - [x] `docs/deploy.md` › "Database…" section: the VPS command, following `deploy.sh`'s migrate pattern: `docker compose -f deploy/docker-compose.yml run --rm --no-deps server node --import tsx apps/server/src/db/adminCli.ts add <username>` (with `GIT_SHA` from `deploy/.env` as the other compose commands). Say that the change shows on the player's next session fetch (opening the start screen or a reload).
+- [x] **T3 Client: knowing you're an admin (AC 2, 5)**
+  - [x] `apps/client/src/net/accountStore.ts`: `AccountSnapshot.admin: boolean`; `accept(username, admin)`. Callers: `accountSession()` in `apps/client/src/net/account.ts:83` and `adopt()` (:279-290), upgrade (:291-294). Missing field (older server) = false.
+- [x] **T4 Client: lazy admin panel (AC 3, 5, 7, 8)**
+  - [x] `apps/client/src/main.ts:266-275`: keep the DEV block (`__game`, `__gfx`, mount) as is. Add a production path: subscribe to `accountStore`; the first time `admin` is true, `import()` the panel and mount it; when it turns false, hide it (an `unmount`/`setVisible` export, or a prop/store the panel reads). Never import it for a non-admin.
+  - [x] Give the lazy chunk a **fixed neutral name** so the entry chunk's import/preload list doesn't carry "DevCheats" (e.g. a small entry module `debug/adminTools.ts` that re-exports the mount, plus `build.rollupOptions.output.chunkFileNames` / `manualChunks` in `apps/client/vite.config.ts` so it and `DevCheats.css` land in `assets/admin-tools-<hash>.{js,css}`). Check the real `dist/` output.
+  - [x] `DevCheats.tsx`: a `practiceOnlyOnline` flag (true in production, false in dev builds). When it's true and `scene.isOnline`, disable every control except Perf overlay and Collision / grid view, and show the one-line "Practice only" note. The existing per-control `online` guards (decay, blackout, seed) stay.
+- [x] **T5 Client: dev link switches for admins (AC 6)**
+  - [x] `urlOptions()` caches at boot (`urlOptions.ts:303-306`, first call `main.ts:68`), before the account is known, and `soloBalance()` caches too (`clientBalance.ts:31`). Add a solo-only read that re-parses at each solo start: `parseUrlOptions(location.search, import.meta.env.DEV || accountStore.get().admin)` and make `soloBalance()` / `soloOverrides` (`clientBalance.ts:15-29`) take that `dev` flag instead of `import.meta.env.DEV` (key any cache on it). Use it in GameScene's solo branch (`GameScene.ts:668-708`: `startWave` :675, `loot` :676, `practiceInit` :698, `shopCards` :702, boss/events :704-708, `devLooks` :847, `devLayer` :322).
+  - [x] Online stays `import.meta.env.DEV` only: `clientBalance()` online (:15, :37), `net/connection.ts:49`, `LobbyScreen.tsx:18`. Add a unit test proving a production-mode parse with `admin` on still leaves the online balance untouched.
+- [x] **T6 Tests (all ACs)**
+  - [x] Server (PGlite): CLI add/remove/list, unknown username, case-blind match, guest can't be named; session route returns `admin` true/false; login into an admin account → true; logout → new guest false; upgrade → false. A real-Postgres case in `realPostgresAccounts.test.ts` for the column default (runs in the CI `postgres` job).
+  - [x] Shared: schema accepts with and without `admin`.
+  - [x] Client unit: `accountStore` admin; `parseUrlOptions` with the admin flag (each AD-4 switch on for admin solo, off for non-admin); `soloBalance` admin vs non-admin; online balance unchanged.
+  - [x] `noCheatsInRelease.test.ts` (AC 8): exception for the named chunk only; liveness (chunk exists and contains "Spawn zombies"); entry chunk + `index.html` clean incl. "DevCheats". Prove once with `CHEAT_SCAN_DIR` on a doctored dist that a cheat string in another chunk still fails.
+  - [x] Browser (Playwright, preinstalled Chromium) against a **production build** (`vite build` + `vite preview` + a dev server on your own ports, AGENTS §6): (a) guest: no ⚙, no request for `admin-tools-*`; (b) admin (mark the account through the repo or the CLI on the test DB): ⚙ appears, Practice solo `Spawn 50 around me` really spawns (alive count goes up), god mode works, `?startwave=7` starts at wave 7; (c) admin online: only the two view checkboxes enabled, "Practice only" shown; (d) logout → ⚙ gone without reload. Screenshots at deviceScaleFactor 1 for your own check; say what wasn't verified.
+- [x] **T7 Hand-back** — `gate:fast`, plus `test:changed` for the touched DOM checks; branch `story-10-11`, PR "Story 10.11: Admin players"; record B-codes for anything you decided (AC 5 cleanup choice, chunk-naming method).
 
 ## Dev Notes
 
@@ -106,10 +106,43 @@ No per-frame allocation, no gameplay numbers inline, Phaser 4 types, exact versi
 
 ### Agent Model Used
 
+Claude (builder session, `gds-dev-story`), 2026-11-26.
+
 ### Debug Log References
+
+- `npm run gate:fast` on the merged tree (story + master 71bbe8e): typecheck + lint + unit 512 files / 4937 tests passed, `release:check` 5/5 passed.
+- `npm run test:changed`: 585 files / 5677 tests passed.
+- Real PostgreSQL 16 (local, `TEST_DATABASE_URL`, `--no-file-parallelism`): `realPostgres*` + `realPg` 5 files / 42 tests passed (incl. the new is_admin case).
+- Release scan proof: `CHEAT_SCAN_DIR` on a copy of `dist/` with `/* Spawn zombies */` appended to `urlOptions-*.js` → the scan fails naming that file; the real dist passes.
+- Browser (Playwright + preinstalled Chromium, production `vite build` + `vite preview` on :4611 with an `/api` proxy, server on :2611 on a local PostgreSQL; processes stopped by PID): see Completion Notes.
+
+### Implementation Plan / decisions (B-codes)
+
+- **B1 (chunk naming):** `src/debug/adminTools.ts` re-exports the panel's mount; `vite.config.ts` `build.rollupOptions.output.chunkFileNames` / `assetFileNames` functions name that chunk and its CSS `assets/admin-tools-<hash>.{js,css}`; every other file keeps Vite's default name (checked: same names as before). Dev builds load the same entry at boot.
+- **B2 (AC 5 cleanup):** when the admin mark goes, the ⚙ and the backtick key go, the open panel closes, and the panel turns OFF what it turned on for this phone: Collision / grid view and god mode (on the current world). The Perf overlay is left as it is (it is also a release feature through `?debug=1`).
+- **B3 (unsaved reply):** a `saved: false` session reply (save server down) drops the admin mark (`accountStore.dropAdmin()`), as AC 2 says an unsaved session is never an admin; a failed / offline fetch (no reply) changes nothing.
+- **B4 (direct links, the Dev Notes "known limit" fixed):** a production direct solo link (`?solo` / `?stress` / `?loadout` / `?tune`) that ALSO names one of the AD-4 switches waits for the session fetch (≤ 3 s, its own timeout) before starting, so an admin's first run honours it. Every other link starts at once as before; dev builds never wait.
+- **B5 (online lock):** in a production online run every control except Perf overlay and Collision / grid view is `disabled` and its handler also returns early; one "Practice only" line at the top; the three existing "Online: … DEV_* on a dev server" hints are hidden in that mode (they describe dev servers). Dev builds keep today's online panel.
+- **B6 (repo shape):** the admin reads/writes are a separate `adminsRepo()` in `accountsRepo.ts` (only the CLI uses it), so the `AccountsRepo` interface and its test fakes are unchanged; `Account.isAdmin` is optional (absent in fakes = false) and only `isAdminAccount()` reads it (`username !== null && isAdmin`).
+- **B7 (CLI exit codes):** unknown username → exit 1 (`no registered account named "…"`); bad arguments → usage, exit 2; database error → `admin_command_failed`, exit 1. `list` prints usernames to the operator's terminal only (never logged).
 
 ### Completion Notes List
 
 - Story context created with `gds-create-story` (main session, 2026-11-26).
+- T1/T2: migration `0007_admin.sql` (generated: `ALTER TABLE "accounts" ADD COLUMN "is_admin" boolean DEFAULT false NOT NULL`); `npm run admin -w @topdown/server -- add|remove|list`; `account_admin {accountId, admin}` log; docs/deploy.md › Database "Admins (Story 10.11)" with the VPS compose command.
+- Session replies: `/account/session` (`guestSession.saved`), login / recover (`sessionOf`), logout's new guest (`admin: false`) carry `account.admin`; the shared schema field is optional. Upgrade answers no session; the client sets admin false there.
+- Client: `accountStore.admin`; `debug/adminGate.ts` (production) loads `adminTools` on the first admin answer, shows/hides it after; `main.ts` keeps `__game` / `__gfx` dev-only.
+- AD-4: `debug/soloDevSwitches.ts` (`soloDevAllowed()`, `soloUrlOptions()`), `soloBalance(dev)` cached per flag; GameScene's solo branch, `?devlayer` (now a per-run field) and `?devlooks` read it; online keeps `urlOptions()` / `clientBalance()` / `connection.ts` / `LobbyScreen` on `import.meta.env.DEV` only (unit test in production mode: an admin's solo balance changes, `clientBalance()` stays the bundled version, `urlOptions()` still ignores the switches).
+- Tests added: `apps/server/src/auth/adminSession.test.ts` (6: CLI add/remove/list case-blind, log fields, unknown name, usage, guest never matched, session/login/recover/logout flags, no leak to another device), real-PostgreSQL case in `realPostgresAccounts.test.ts`, `packages/shared/src/net/accountAdmin.test.ts`, `apps/client/src/debug/adminPlayers.test.ts` (8), `noCheatsInRelease.test.ts` (+2: chunk liveness incl. "Practice only" and no `__game`/`__gfx`; entry chunk + index.html clean). Existing exact-shape asserts updated for the new field.
+- Browser, production build: (a) guest: no ⚙ on start screen or in a Practice run, backtick opens nothing, **0 requests** for `admin-tools-*`; (b) after `upgrade` + `admin add <NAME in upper case>` + reload with `?startwave=7`: the browser requested `admin-tools-*.js` + `.css`, ⚙ shown; Practice solo: HUD "Wave 7 in 25 s", "Spawn 50 around me" → alive 0 → 50, god mode stays checked (world flag), 0 controls locked except the build-phase decay select; (c) admin hosts online with a second (guest) player, both Ready, Start: no ⚙ in the lobby; in the run only "Perf overlay" and "Collision / grid view" are enabled (19 disabled), one "Practice only" line; both view tools toggled on/off; (d) admin tab with the panel open → Log out through the account screen → ⚙ and panel gone, backtick opens nothing, no navigation/reload.
+- Not verified: a real phone; `admin remove` seen by a tab mid-run (covered by the unit test of the gate: a session saying `admin: false` hides it; the change shows at the next session fetch, which happens on the start screen / before Create or Join); the docker/VPS form of the command (CI's docker job builds the image; the compose command mirrors deploy.sh's migrate line); sprint-status.yaml left for the main session (docs-only commit at merge, AGENTS §2).
 
 ### File List
+
+- New: `apps/server/drizzle/0007_admin.sql`, `apps/server/drizzle/meta/0007_snapshot.json`, `apps/server/src/db/adminCli.ts`, `apps/server/src/db/adminCommand.ts`, `apps/server/src/auth/adminSession.test.ts`, `packages/shared/src/net/accountAdmin.test.ts`, `apps/client/src/debug/adminTools.ts`, `apps/client/src/debug/adminGate.ts`, `apps/client/src/debug/soloDevSwitches.ts`, `apps/client/src/debug/adminPlayers.test.ts`
+- Changed: `apps/server/drizzle/meta/_journal.json`, `apps/server/package.json`, `apps/server/src/db/schema.ts`, `apps/server/src/db/accountsRepo.ts`, `apps/server/src/db/deviceTokensRepo.ts`, `apps/server/src/auth/guestSession.ts`, `apps/server/src/auth/accountAuth.ts`, `packages/shared/src/net/account.ts`, `apps/client/src/net/accountStore.ts`, `apps/client/src/net/account.ts`, `apps/client/src/main.ts`, `apps/client/src/debug/DevCheats.tsx`, `apps/client/src/debug/clientBalance.ts`, `apps/client/src/scenes/GameScene.ts`, `apps/client/src/scenes/BootScene.ts`, `apps/client/vite.config.ts`, `tools/checks/noCheatsInRelease.test.ts`, `docs/deploy.md`
+- Tests updated for the new field / code shape: `apps/server/src/auth/accountAuth.test.ts`, `apps/server/src/auth/accountDelete.test.ts`, `apps/server/src/auth/accountRoutes.test.ts`, `apps/server/src/db/db.test.ts`, `apps/server/src/db/deviceTokens.test.ts`, `apps/server/src/db/realPostgresAccounts.test.ts`, `apps/client/src/net/accountActions.test.ts`, `apps/client/src/net/accountGone.test.ts`, `apps/client/src/scenes/lookWiring.test.ts`, `tools/checks/accountUpgradeWiring.test.ts`
+
+### Change Log
+
+- 2026-11-26: Story 10.11 built (status → review).
