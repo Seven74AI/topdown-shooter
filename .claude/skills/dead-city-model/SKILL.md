@@ -125,7 +125,12 @@ code in `docs/art/photoreal-4/src/boss4.ts › PLAN`, `actionPlan`), and get the
 5. **Show the composed key moments**: at each key time, the model with every element as planned at that moment
    (frame + glow level + eye level), so the composition is checked, not only the parts. Note what the
    composition shows (a pose that hides another part's job, two moments that end on the same picture).
-6. Only then animate, and check each part **alone** (section 6) **and composed** (the moments, played in time).
+6. **Play the plan** on the page (designer 2026-11-26: "it would be cool to be able to see action playing, not
+   only frames"): an action player that runs each action in real time exactly as planned (the frames the game
+   shows, breath, eyes, glow beats, dust, and a rough sketch of the game's own warning FX), calm / active, every
+   look, speeds 1× ½× ¼×, at **game size** (~36 px/m) and zoomed. The Behemoth's: `boss4.ts › actionPlayer`,
+   `planAt` (the plan as a function of time: the same function is the build's spec).
+7. Only then animate in the game, and check each part **alone** (section 6) **and composed** (the player).
 
 Base rules for motion:
 

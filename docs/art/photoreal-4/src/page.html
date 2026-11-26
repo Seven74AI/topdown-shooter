@@ -61,6 +61,15 @@ figure:not(.now) figcaption { color: var(--accent); }
 .dope .bar.nw { background: #1f3a26; border-color: #3f7a4c; }
 .dope .bar.key { background: #5a3a12; border-color: var(--accent); }
 .dope .bar.key.nw { background: #4a4a14; }
+.player .pc { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.player .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; max-width: 560px; }
+.player .row > span { display: inline-flex; gap: 4px; margin-right: 8px; }
+.player button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+.player button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
+#pl-canvas { width: min(100%, 560px); height: auto; border-radius: 6px; display: block; }
+.player .bar { position: relative; flex: 1; height: 6px; background: #12161a; border-radius: 3px; }
+.player .bar i { position: absolute; top: -3px; width: 3px; height: 12px; background: var(--accent); border-radius: 2px; }
+#pl-time { font: 500 12px var(--font-body); color: var(--muted); min-width: 110px; text-align: right; }
 .moments { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .moments figure canvas { width: 100%; height: auto; }
 .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
