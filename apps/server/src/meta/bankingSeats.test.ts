@@ -60,7 +60,7 @@ describe("PR #9 re-review: the loot finder is a seat on every bank path", () => 
     const { bank, di, eve, lootOwned } = await setup();
     bank.noteLootFinder("p3#4");
     await bank.bank({ playerId: "p3", seatId: "p3#4", accountId: di, record: rec, ending: "quit", meta: { player, facts } });
-    const world = { run: { ending: "wiped" }, players: new Map([["p3", { ...rec, ...player, lockedUsed: 255 }]]), heldPlayers: new Map(), loot: { foundBy: "p3", foundWave: 3, plan: { itemRoll: 0.5 } }, special: {} };
+    const world = { run: { ending: "wiped" }, players: new Map([["p3", { ...rec, ...player, lockedUsed: 255 }]]), heldPlayers: new Map(), loot: { foundBy: "p3", foundWave: 3, plan: { itemRoll: 0.5 } }, special: {}, extract: { started: false } }; // Story 12.2: runFacts reads extract
     await bank.bankRunEnd(world as never, [{ playerId: "p3", accountId: eve, seatId: "p3#6" }], []).catch(() => undefined);
     expect(await lootOwned(eve)).toEqual([]);
     expect(await lootOwned(di)).toHaveLength(1);

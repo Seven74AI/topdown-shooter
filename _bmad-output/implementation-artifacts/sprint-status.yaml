@@ -257,7 +257,7 @@ development_status:
   # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
   epic-12: in-progress
   12-1-buildings-never-close-a-path: done  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
-  12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
+  12-2-extraction-walk-and-lift-off: done  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
   12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
   12-4-no-refund-for-decay-losses: done  # designer 2026-11-25 "bad luck": buildings lost to decay (stage cover, fire, 12.1 margin) give no money back; FR58 changed
   epic-12-retrospective: optional

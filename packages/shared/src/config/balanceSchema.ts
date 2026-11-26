@@ -456,9 +456,31 @@ export const wavesSchema = z
         dawnS: z.number().min(0).max(30).default(4),
         everyWaves: z.number().int().min(1).max(100).default(5),
         padRadiusM: z.number().positive().max(10).default(3),
+        /**
+         * Story 12.2: the extraction after an Extract vote. `descendS`: the helicopter's descent from the vote's
+         * opening (nobody boards before it is on the pad; the client's `DESCEND_S` draws the same 2 s).
+         * `walkTimeoutS`: from the extract's start, everyone not yet boarded is boarded anyway (`run.extract_cut`).
+         * `liftBeatS`: the beat between the last boarding and the lift-off. `flyOutS`: the fly-out (the sim keeps
+         * stepping, then Results). `flyOutHorde`: the extraction horde from lift-off (`count` zombies of `type`,
+         * `perS` a second, from the wave spawn points; no wave, no bounty, no kills).
+         */
+        descendS: z.number().min(0).max(10).default(2),
+        walkTimeoutS: z.number().positive().max(60).default(8),
+        liftBeatS: z.number().min(0).max(5).default(0.5),
+        flyOutS: z.number().positive().max(30).default(8),
+        flyOutHorde: z
+          .object({
+            count: z.number().int().min(0).max(200).default(40),
+            perS: z.number().positive().max(100).default(8),
+            type: z.enum(["walker"]).default("walker"), // review nit: walkers only (no Bloater swell, no Spitter acid in a phase where nothing hurts)
+          })
+          .strict()
+          .default({ count: 40, perS: 8, type: "walker" }),
       })
       .strict()
-      .default({ voteS: 15, allVotedHoldS: 1, dawnS: 4, everyWaves: 5, padRadiusM: 3 }),
+      // Story 12.2 review L2: the walk's timeout cut must come after the landing (no boarding, beat or cut before it).
+      .refine((e) => e.walkTimeoutS > e.descendS, "evac.walkTimeoutS must be greater than evac.descendS")
+      .default({ voteS: 15, allVotedHoldS: 1, dawnS: 4, everyWaves: 5, padRadiusM: 3, descendS: 2, walkTimeoutS: 8, liftBeatS: 0.5, flyOutS: 8, flyOutHorde: { count: 40, perS: 8, type: "walker" } }),
     /**
      * Story 6.12: endless waves (past `runWaves`, after Stay). Size `min(N × zombiesPerWave,
      * maxZombiesPerWave)` × the party scale (F1); every zombie spawned in wave N > `hpGrowthFromWave`

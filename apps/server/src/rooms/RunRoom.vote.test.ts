@@ -125,7 +125,44 @@ describe("RunRoom evacuation vote (Story 6.11)", () => {
     await guest.leave();
     await vi.waitFor(() => expect(room.controller?.world.players.size).toBe(1));
     host.send(C2S.EVAC_VOTE, { choice: "extract" });
-    await vi.waitFor(() => expect(host.state.phase).toBe("results"), { timeout: 3000 }); // everyone left voted: 1 s, not 15
-    expect(host.state.resultEnding).toBe("extracted");
+    await vi.waitFor(() => expect(host.state.phase).toBe("extract"), { timeout: 3000 }); // everyone left voted: 1 s, not 15 (Story 12.2: then the extraction)
+    expect(room.controller?.world.run.ending).toBe("extracted");
+  });
+});
+
+describe("RunRoom extraction (Story 12.2)", () => {
+  async function toExtract() {
+    const t = await toVote();
+    await new Promise((r) => setTimeout(r, 1100)); // the Ready taps emptied each client's guard bucket: let it refill
+    for (const c of [t.host, t.guest]) c.send(C2S.EVAC_VOTE, { choice: "extract" });
+    await vi.waitFor(() => expect(t.room.state.phase).toBe("extract"), { timeout: 3000 });
+    return t;
+  }
+
+  it("AC 12: a seat that leaves during the extraction banks 'extracted' (not 'quit')", async () => {
+    const { guest, room } = await toExtract();
+    const bank = room.bank;
+    if (!bank) throw new Error("no bank");
+    const spy = vi.spyOn(bank, "bank");
+    guest.send(C2S.RUN_LEAVE, {});
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(spy.mock.calls[0]![0]).toMatchObject({ ending: "extracted" });
+  });
+
+  it("AC 13: nobody joins during the extraction (refused, never a waiting joiner)", async () => {
+    const { host, room } = await toExtract();
+    await expect(colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", "Cy"))).rejects.toThrow(/run_started/);
+    expect([...room.members.values()].some((m) => m.waiting === true)).toBe(false);
+  });
+
+  it("AC 3: a ping sent during the extraction reaches the teammate (through the room)", async () => {
+    const { host, guest, room } = await toExtract();
+    const shown: unknown[] = [];
+    host.onMessage(S2C.PING_SHOWN, (m: unknown) => shown.push(m));
+    await new Promise((r) => setTimeout(r, 1100)); // the two votes used the guard bucket: let it refill
+    expect(room.state.phase).toBe("extract");
+    guest.send(C2S.PING_SEND, { kind: "help" });
+    await vi.waitFor(() => expect(shown.length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(room.state.phase).toBe("extract");
   });
 });

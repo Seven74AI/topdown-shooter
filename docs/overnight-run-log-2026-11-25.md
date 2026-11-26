@@ -224,3 +224,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 17:10 12.1 + 12.4 PR #33 merged 73b8bea0 (fresh review → H1 = A by the designer → 2 re-reviews + 1 cap-exception re-review for a new high → main-session check; MEDIUM-1 over-clear accepted by the designer, A).
 - 18:43 Master CI green on 73b8bea0 (#33, 12.1 + 12.4).
 - 18:50 Epic 8 marked done (13/13); 9.15 marked done (PR #34). Next: 12.2 → 12.3 → 10.12 with Epic 10 (designer).
+- 23:10 12.2 extraction walk + lift-off, PR #36 merged e5aef083 (fresh review → fixes → narrow re-review clean; protocol 5). Timings, downed walk and horde size await the designer (balance only).

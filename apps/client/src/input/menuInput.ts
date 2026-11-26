@@ -36,5 +36,5 @@ export function holdBuildingInput(out: MutablePlayerInput): MutablePlayerInput {
  * netsim test both use this one rule.
  */
 export function standsStill(menuOpen: boolean, shopOpen: boolean, phase: string): boolean {
-  return menuOpen || shopOpen || phase === "vote";
+  return menuOpen || shopOpen || phase === "vote" || phase === "extract"; // Story 12.2: the autopilot walks (nothing is sent)
 }

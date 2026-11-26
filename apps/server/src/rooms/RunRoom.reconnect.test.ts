@@ -16,6 +16,8 @@ import {
   S2C,
   downPlayer,
   endWave,
+  castVote,
+  skipWave,
   startWave,
   worldDigest,
   type PlayerLeft,
@@ -536,5 +538,34 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 10_000 }); // B16: once the dropped body vanished
     // Review L1: the held seat is in run_ended too.
     expect(lines("run_ended")[0]).toMatchObject({ earned: { p0: 0, p1: 77 } });
+  });
+});
+
+describe("Story 12.2 review H1: everyone gone during the extraction", () => {
+  it("a solo player votes Extract then drops: the World is not frozen, the run reaches Results and banks 'extracted'; the save is dropped as 'ended'", async () => {
+    const { clients, room } = await runOf(1);
+    const lines = logLines(room);
+    const w = world(room);
+    w.debug.bossWaves = [];
+    w.waves.number = 9;
+    startWave(w);
+    skipWave(w); // wave 10 cleared → the vote
+    expect(w.run.phase).toBe("vote");
+    castVote(w, "p0", "extract");
+    await vi.waitFor(() => expect(room.state.phase).toBe("extract"), { timeout: 3000 });
+    const bank = room.bank;
+    if (!bank) throw new Error("no bank");
+    const banked = vi.spyOn(bank, "bankRunEnd");
+    const dropped = vi.spyOn(room as unknown as { dropSave(why: string): void }, "dropSave");
+    const ana = clients[0] as RunSdkRoom;
+    reconnect(ana, false);
+    dropSocket(room, ana);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 25_000 });
+    expect(lines("room_frozen")).toHaveLength(0);
+    expect(w.run.ending).toBe("extracted");
+    expect(banked).toHaveBeenCalledTimes(1);
+    expect(lines("run_ended")[0]).toMatchObject({ ending: "extracted" });
+    expect(dropped).toHaveBeenCalledWith("ended");
+    expect(dropped).not.toHaveBeenCalledWith("lost");
   });
 });

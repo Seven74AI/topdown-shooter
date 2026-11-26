@@ -41,7 +41,7 @@ export function clock(s: number): string {
 
 export function connectionView(link: LinkSnapshot, state: RunStateView | null | undefined, localPlayerId: string | null, nowMs: number): ConnectionView {
   const chips: HeldChip[] = [];
-  const inRun = !!state && (state.phase === "build" || state.phase === "wave" || state.phase === "vote");
+  const inRun = !!state && (state.phase === "build" || state.phase === "wave" || state.phase === "vote" || state.phase === "extract"); // Story 12.2
   if (state && inRun) {
     state.players.forEach((p, id) => {
       if (id === localPlayerId || !(p.heldUntilTick > 0)) return;

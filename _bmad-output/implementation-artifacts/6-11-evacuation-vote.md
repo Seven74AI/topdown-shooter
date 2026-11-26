@@ -2,6 +2,12 @@
 
 Status: done
 
+> **As-built note (Story 12.2, 2026-11-26).** Extract no longer ends the run on the vote's tick. `resolveEvacVote` still
+> decides the ending (`run.ending = "extracted"`, `run.extracted`) but calls `startExtract`: a new `extract` phase in
+> which the survivors walk to the pad, board, the helicopter lifts off (`run.lifted`) and flies out (`evac.flyOutS`),
+> then `run.extract_done` and `endRun` → Results. The room ends the run on `run.extract_done` (not `run.extracted`);
+> the helicopter climbs from the lift-off, not from the vote (`heliPose`, `liftedAtTick`). See Story 12.2.
+
 ## Story
 
 As a team,

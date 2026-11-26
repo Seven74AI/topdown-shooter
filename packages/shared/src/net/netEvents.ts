@@ -88,6 +88,11 @@ export const NET_EVENT_KIND = {
   RUN_VOTE_OPENED: 65,
   RUN_VOTE_RESOLVED: 66,
   RUN_EXTRACTED: 67,
+  // Story 12.2 (68–71, in 6.11's reserved 65–74; never reuse)
+  PLAYER_BOARDED: 68,
+  RUN_EXTRACT_CUT: 69,
+  RUN_LIFTED: 70,
+  RUN_EXTRACT_DONE: 71,
   // Stories 6.9 + 6.10 (75–84 are theirs; never reuse)
   WEAPON_CRATE_TAKEN: 75,
   // Story 7.12 (130–139 are 7.12's, Epic 7 brief 27; never reuse)
@@ -214,6 +219,14 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.RUN_VOTE_RESOLVED, e.choice === "stay" ? 1 : 0, e.extract, e.stay, e.silent];
     case "run.extracted":
       return [K.RUN_EXTRACTED, e.wave, e.endless ? 1 : 0];
+    case "player.boarded":
+      return [K.PLAYER_BOARDED, playerSlotOf(e.playerId)];
+    case "run.extract_cut":
+      return [K.RUN_EXTRACT_CUT];
+    case "run.lifted":
+      return [K.RUN_LIFTED, e.tick];
+    case "run.extract_done":
+      return [K.RUN_EXTRACT_DONE, e.wave];
     case "wave.started":
       return [K.WAVE_STARTED, e.number, e.size];
     case "wave.ended":
@@ -468,6 +481,14 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "run.vote_resolved", choice: n(t, 1) === 1 ? "stay" : "extract", extract: n(t, 2), stay: n(t, 3), silent: n(t, 4) };
     case K.RUN_EXTRACTED:
       return { type: "run.extracted", wave: n(t, 1), endless: n(t, 2) === 1 };
+    case K.PLAYER_BOARDED:
+      return { type: "player.boarded", playerId: pid(t, 1) };
+    case K.RUN_EXTRACT_CUT:
+      return { type: "run.extract_cut" };
+    case K.RUN_LIFTED:
+      return { type: "run.lifted", tick: n(t, 1) };
+    case K.RUN_EXTRACT_DONE:
+      return { type: "run.extract_done", wave: n(t, 1) };
     case K.WAVE_STARTED:
       return { type: "wave.started", number: n(t, 1), size: n(t, 2) };
     case K.WAVE_ENDED:

@@ -89,6 +89,14 @@ export type SimEvent =
   | { type: "run.vote_resolved"; choice: "extract" | "stay"; extract: number; stay: number; silent: number }
   /** Story 6.11: the team extracted after clearing `wave` (`endless`: after Stay, 6.12: the DW2 dawn); Results follow the same tick. */
   | { type: "run.extracted"; wave: number; endless: boolean }
+  /** Story 12.2: a survivor is in the helicopter (walked onto the pad, or boarded on their own: out, held, the timeout). */
+  | { type: "player.boarded"; playerId: string }
+  /** Story 12.2: the walk timed out (`evac.walkTimeoutS`): everyone left on the ground was boarded at once (12.3 fades through black). */
+  | { type: "run.extract_cut" }
+  /** Story 12.2: everyone is aboard; the helicopter lifts off at server tick `tick` (= `extract.liftedAtTick`). */
+  | { type: "run.lifted"; tick: number }
+  /** Story 12.2: the fly-out is over: Results follow the same tick (`endRun`, ending "extracted"). */
+  | { type: "run.extract_done"; wave: number }
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }

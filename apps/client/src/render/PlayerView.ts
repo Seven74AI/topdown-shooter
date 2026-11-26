@@ -300,7 +300,7 @@ export class PlayerView {
       this.ring.setScale(pulseScale(timeMs)).setAlpha(pulseAlpha(timeMs));
     }
     // Story 8.1 (D3): spawn protection after a mid-wave return blinks the body (only touched while it changes).
-    const blink = protectBlinkAlpha(p.protectTicks, timeMs);
+    const blink = protectBlinkAlpha(this.noBlink ? 0 : p.protectTicks, timeMs);
     if (blink !== this.shownBlink) {
       this.shownBlink = blink;
       this.body.setAlpha(blink);
@@ -342,6 +342,8 @@ export class PlayerView {
 
   /** Story 8.1: the body alpha last set by the protection blink (1 = none). */
   private shownBlink = 1;
+  /** Story 12.2: the extraction protects everyone the whole phase: no spawn-protection blink then (set by GameScene). */
+  noBlink = false;
 
   destroy(): void {
     this.ring.destroy();

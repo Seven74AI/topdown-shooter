@@ -16,7 +16,7 @@ import {
   PAD_RING_PX,
   ensureHeliAtlas,
 } from "./city/heliArt";
-import { BEAM_RX_M, BEAM_RY_M, BEAM_R_M, BEAM_SWEEP_HZ, ROTOR_RAD_S, evacPadOf, heliPose, type HeliPhase, type HeliPose } from "./heliPose";
+import { BEAM_RX_M, BEAM_RY_M, BEAM_R_M, BEAM_SWEEP_HZ, EXTRACT_FLY_S, ROTOR_RAD_S, evacPadOf, flyOutDxM, heliPose, type HeliPhase, type HeliPose } from "./heliPose";
 
 /**
  * Story 6.11 (AC 9, D5): the evacuation helicopter. Visual only — no collision, nothing under it is
@@ -38,11 +38,15 @@ export class HeliView {
   private openedAtS = -1;
   private leftAtS = -1;
   private extract = false;
+  /** Story 12.2: the fly-out's length (s, `evac.flyOutS`) and east run (m, to past the map edge). */
+  private flyS = EXTRACT_FLY_S;
+  private readonly flyDxM: number;
   private readonly pose: HeliPose = { phase: "gone", dx: 0, dy: 0, scale: 1, alpha: 0 };
 
   constructor(scene: Phaser.Scene, map: Readonly<DistrictMap>, padRadiusM: number) {
     ensureHeliAtlas(scene);
     this.at = evacPadOf(map);
+    this.flyDxM = flyOutDxM(map, this.at.x);
     const padSide = (padRadiusM * PAD_FRAME_PX) / PAD_RING_PX;
     this.pad = aboveDarkness(scene.add.image(this.at.x, this.at.y, ATLAS_HELI, HELI_PAD).setDisplaySize(padSide, padSide).setAlpha(0.55).setVisible(false), "marker");
     this.beam = aboveDarkness(scene.add.image(0, 0, ATLAS_HELI, HELI_BEAM).setDisplaySize(BEAM_R_M * 2, BEAM_R_M * 2).setVisible(false), "marker");
@@ -66,11 +70,17 @@ export class HeliView {
     this.leftAtS = -1;
   }
 
-  /** The vote resolved: lift off (Stay) or climb away (Extract). */
-  left(nowS: number, extract: boolean): void {
+  /** The vote resolved on Stay: lift off. Story 12.2: an Extract leaves at the lift-off (`flyS`: the fly-out's length). */
+  left(nowS: number, extract: boolean, flyS = EXTRACT_FLY_S): void {
     if (this.openedAtS < 0) return;
     this.leftAtS = nowS;
     this.extract = extract;
+    this.flyS = flyS;
+  }
+
+  /** Story 12.2: it already left (a lift-off seen, or a woken phone: `left` with the server's lift-off time). */
+  get hasLeft(): boolean {
+    return this.leftAtS >= 0;
   }
 
   /** A new run or Back to lobby: nothing on the pad. */
@@ -84,7 +94,7 @@ export class HeliView {
   }
 
   update(nowS: number): void {
-    const p = heliPose(nowS, this.openedAtS, this.leftAtS, this.extract, this.pose);
+    const p = heliPose(nowS, this.openedAtS, this.leftAtS, this.extract, this.pose, this.flyS, this.flyDxM);
     const on = p.phase !== "gone";
     this.pad.setVisible(on && (p.phase === "descending" || p.phase === "landed"));
     this.body.setVisible(on);

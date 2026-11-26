@@ -85,14 +85,18 @@ describe("RunRoom ten-wave run (Story 3.10; Story 6.1: runWaves 10)", () => {
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.phase).toBe("vote"));
     await new Promise((r) => setTimeout(r, 1100)); // the 20 Ready taps above emptied each client's guard bucket (~10 msgs/s): let it refill
     for (const c of [host, guest]) c.send(C2S.EVAC_VOTE, { choice: "extract" });
+    // Story 12.2: the 1 s all-voted beat → the extraction (the walk, the lift-off, the 8 s fly-out) → Results.
+    for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.phase).toBe("extract"), { timeout: 3000 });
+    expect(info).not.toHaveBeenCalledWith(expect.anything(), "run_ended"); // not at the vote any more
     for (const c of [host, guest]) {
-      await vi.waitFor(() => expect(c.state.phase).toBe("results"), { timeout: 3000 }); // the 1 s all-voted beat
+      await vi.waitFor(() => expect(c.state.phase).toBe("results"), { timeout: 20_000 });
       expect(c.state.resultEnding).toBe("extracted");
       expect(c.state.resultWave).toBe(10);
       // the wave-clear bonuses 15 × (1 + … + 10) (balance pass B1; skipped waves pay no kills) reached the clients
       for (const id of ["p0", "p1"]) expect(c.state.players.get(id)?.earned).toBe(825);
     }
     await vi.waitFor(() => expect(guestEvents.some((b) => b.events.some((t) => t[0] === NET_EVENT_KIND.RUN_EXTRACTED && t[1] === 10))).toBe(true));
+    for (const kind of [NET_EVENT_KIND.PLAYER_BOARDED, NET_EVENT_KIND.RUN_LIFTED, NET_EVENT_KIND.RUN_EXTRACT_DONE]) expect(guestEvents.some((b) => b.events.some((t) => t[0] === kind)), `kind ${kind}`).toBe(true); // Story 12.2
     expect(info).toHaveBeenCalledWith(expect.objectContaining({ wave: 10, ending: "extracted", endless: false, endlessWaves: 0, earned: { p0: 825, p1: 825 } }), "run_ended");
     expect(info).toHaveBeenCalledWith({ wave: 10, extract: 2, stay: 0, silent: 0, choice: "extract" }, "vote_resolved");
     // No more ticks after Results: the World stays put, no build phase for a wave 11.
