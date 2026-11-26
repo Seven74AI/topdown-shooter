@@ -80,9 +80,9 @@ Builder: cloud session, branch `story-12-1` (one PR with Story 12.4), 2026-11-26
 
 ### Decisions
 
-No decision was left open in this story file (CN-1, CN-2 settled). Builder decisions, each the recommended/minimal option, **auto-accepted (designer 2026-11-26: follow recommendations)**:
+No decision was left open in this story file (CN-1, CN-2 settled). Builder decisions, each the recommended/minimal option, **auto-accepted (designer 2026-11-26: follow recommendations)** unless marked otherwise:
 
-- **D1 the grid.** The check floods the vertices of the 0.5 m build lattice (97 × 65 on Downtown) at player clearance: a vertex is free when a 0.4 m body centred there overlaps no box and stays in the map; two neighbours are joined when the body slides between them (exact box-to-segment clearance). A lattice gap between buildings is open exactly when ≥ 1.0 m (0.5 m: closed). Between a building and a map solid it is conservative: 0.8–0.9 m can read closed, never the reverse (a grid path is always a real path). A pocket with no lattice vertex inside (only possible between map solids) isn't tracked.
+- **D1 the grid** (**designer-confirmed 2026-11-26**, "ok": the strict gap rule may refuse a placement that still leaves a narrow way through, but never allows a real seal). The check floods the vertices of the 0.5 m build lattice (97 × 65 on Downtown) at player clearance: a vertex is free when a 0.4 m body centred there overlaps no box and stays in the map; two neighbours are joined when the body slides between them (exact box-to-segment clearance). A lattice gap between buildings is open exactly when ≥ 1.0 m (0.5 m: closed). Between a building and a map solid it is conservative: 0.8–0.9 m can read closed, never the reverse (a grid path is always a real path). A pocket with no lattice vertex inside (only possible between map solids) isn't tracked.
 - **D2 "before" region.** Refused iff a vertex of the evac pad's region **before** the placement is still free but no longer joined to it. Map nooks the grid already reads as closed, and the inside of an old save's fort (AC 10), never refuse anything. A map without an `evac_pad` anchors at team start 0.
 - **D3 shared rasteriser (AC 13).** `collision.ts` exports the two clearance helpers (`bodyFitsInMap`, `segmentNearBox`, plus the existing `circleOverlapsBox`); `pathOpen.ts` and the escape's flood both use them. The escape's flood window is snapped to the lattice **for a player's body only**: snapping it for zombies too broke three tuned escape tests (they encode the escape at one grid offset), and 12.1 makes no promise for zombies. Zombie escapes are byte-identical to before.
 - **D4 highlight.** The pocket fill is the smaller side of the cut: for a ring round the pad the cut-off part is the whole rest of the map, so the ring's inside is filled instead.
@@ -162,6 +162,10 @@ Downtown meets < 1 ms at 4× for every check a placement or a drag makes. The fu
 ### Browser check
 
 Headless Chromium, mobile emulation, dpr 2, Practice solo (`?wallet=5000`), Vite on its own port (5421, stopped by PID). A wood ring round the pad laid in the solo World but for one piece; the ghost pinned on the closing spot. Shots in `docs/art/12-1/` (README): `12-1-ghost-{844x390,568x320}.png` (red ghost, "Leave a way through", the ring's inside filled soft red) and `12-1-refusal-toast-{844x390,568x320}.png` (after Place the solo host refuses it and the toast reads "Leave a way through"). No console or page errors. Not verified in a browser: the online path (the refusal comes back as `building.refused`, same text) and the decay-loss toasts (unit-tested texts; the event path is the same loop as other toasts).
+
+### Follow-ups
+
+- **For 10.8 (balance pass):** in the 10-wave bot sim, 4 bots seed 3 went from extracting to a team wipe in wave 10. 12.1's 0.8 m margin cleared one bot barricade at the stage-3 build start, and the run diverged from there. Re-check bot survival with 12.1's rules in force.
 
 ### Notes for the merge
 
