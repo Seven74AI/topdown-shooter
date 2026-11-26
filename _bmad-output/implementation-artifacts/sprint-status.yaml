@@ -226,7 +226,7 @@ development_status:
 
   # Epic 10: Performance and polish
   epic-10: in-progress
-  10-1-settings-screen: review  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
+  10-1-settings-screen: done  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
   10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; buildable part = headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked
   10-3-memory-and-battery-pass: backlog  # buildable part = headless 10-wave heap/CPU run; phone ACs parked
   10-4-fast-loading: backlog

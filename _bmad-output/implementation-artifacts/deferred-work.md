@@ -31,3 +31,4 @@ One triage of the follow-ups that lived only in story files and the run log (Epi
   - The syncState trap test sets trapState with a hand-written version++ instead of calling bearTrap setState. Reword the describe, or call the real writer.
   - The loot-bag pin test puts the bag out with Object.assign instead of `drop`.
 - **Pre-existing (from the 8.12 review):** a seat whose hold ran out before the first Stay is a remembered seat, outside world.players and heldPlayers. It never gets earnedAtEvac, so earnedBeforeEndless shows 0 for it. Owner: the next builder touching evac/endless earnings.
+- **10.1 residual lock order (owner: next builder touching banking/merge):** addSupplies locks the new payee after the seat row when a guest merge lands between its unlocked mergedInto read and the seat lock. A deadlock there needs a merge and a delete of that same new account in the window. Fix if seen: retry the bank once on 40P01, or re-read and restart.

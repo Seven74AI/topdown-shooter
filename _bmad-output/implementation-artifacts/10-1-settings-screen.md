@@ -4,7 +4,7 @@ baseline_commit: 144c671
 
 # Story 10.1: Settings screen
 
-Status: review
+Status: done
 
 (Written 2026-11-26 with `gds-create-story`, headless, from epics.md Story 10.1 (incl. the E7-A8 deletion AC), the readiness report of 2026-11-26 (state today, Q3), `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §4.2 and the Epic 7 / Epic 8 retros. **Built first in Epic 10**: 9.5 (gore), 9.6 (effects quality), 9.8 (3 volumes) and 10.2 (quality defaults) plug into the store this story makes. Every story decision below is **auto-accepted (designer 2026-11-26: follow recommendations)**.)
 
@@ -209,3 +209,13 @@ E8-A1: no red test was labelled flaky. Real PostgreSQL 16 (local, `TEST_DATABASE
 - 2026-11-26: review 1 fixes (M1–M3, L1–L9, nits), B9 / B12 updated, B21–B23 added; status review (narrow re-review of the medium fixes next).
 - 2026-11-26: re-review round 1 fixes (M2 lock order, L5-live, M3-log, L5-bans, M1 nit); B9 updated; status review (re-review round 2 next).
 - 2026-11-26: re-review round 2 fixes (save and merged-guest bank lock order, test nit, LOCK ORDER note); the re-review cap is reached: the main session checks these.
+
+## Main session close-out (2026-11-26)
+- Review: fresh 3-layer review (M1–M3, L1–L9) → round 1 (M2 still deadlocked, plus 3 lows) → round 2 (save vs delete deadlock, merged-guest bank order, plus 1 nit) → cap reached.
+- Main-session check of 43f0b56:
+  - knownAccounts takes KEY SHARE in id order before the run row upsert.
+  - addSupplies locks the payee account before the guest seat row.
+  - Both follow the LOCK ORDER note.
+  - The builder's real-PG races show 0 errors over 4 runs (old code: 19/20 and 6/20 40P01).
+  - CI green. Merged as c5273e15 (PR #30).
+- Accepted residual (logged in deferred-work): addSupplies, when a merge lands between the unlocked mergedInto read and the seat lock, locks the new payee after the seat row. A deadlock then needs a merge and a delete of that same new account inside that window.
