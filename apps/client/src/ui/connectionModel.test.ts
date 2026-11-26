@@ -39,24 +39,82 @@ describe("Story 8.1 connection overlay model (AC 1, 4, 9, 10; brief 24)", () => 
 });
 
 
-describe("Story 8.1 RR1-M1: held seats in the vote panel agree with the server", () => {
+describe("Story 8.12 (AC 6; was 8.1 RR1-M1): the vote panel counts only connected, standing players, as the server", () => {
   const present = (): VotePlayerIn[] => [
     { slot: 0, vote: VOTE_STAY, standing: true, mine: true },
     { slot: 1, vote: VOTE_STAY, standing: true, mine: false },
     { slot: 2, vote: VOTE_EXTRACT, standing: true, mine: false },
     { slot: 0, vote: 0, standing: true, mine: false }, // preallocated spare
   ];
-  it("2 Stay + 1 Extract + 1 held: no result line yet (the server waits), not urgent, and the outcome counts the held seat as Extract", () => {
+  it("2 Stay + 1 Extract + 1 held: the held seat is a dimmed 'not voting' chip; result 'STAY · 1 – 2' (the server: Stay); urgent (all who count voted)", () => {
     const players = present();
     const n = addHeldVoters(players, 3, [3]);
     expect(n).toBe(4);
     expect(players[3]).toEqual({ slot: 3, vote: VOTE_NONE, standing: false, mine: false });
     const v = voteView(true, 200, 300, 20, players.slice(0, n), VOTE_STAY, false);
-    expect(v.result).toBe(""); // before the fix: "STAY · 1 – 2"
-    expect(v.chips.find((c) => c.slot === 3)).toMatchObject({ vote: VOTE_NONE, dimmed: true });
-    expect(voteUrgent(200, 20, players, n)).toBe(false); // the server's everyoneVoted is false too
-    expect(voteResultLine(players.slice(0, n), VOTE_STAY)).toBe("EXTRACT · 2 – 2"); // silent = Extract, as the server
-    expect(voteUrgent(200, 20, players, 3)).toBe(true); // liveness: without the held seat it would be urgent
+    expect(v.result).toBe("STAY · 1 – 2"); // 8.1 RR1-M1 had no line here (the held seat was a silent Extract)
+    expect(v.chips.find((c) => c.slot === 3)).toEqual({ slot: 3, vote: VOTE_NONE, dimmed: true, mine: false });
+    expect(v.canVote).toBe(true);
+    expect(voteResultLine(players.slice(0, n), VOTE_STAY)).toBe("STAY · 1 – 2");
+    expect(voteUrgent(200, 20, players, n)).toBe(true); // the server's everyoneVoted is true: the 1 s hold runs
+  });
+
+  it("2 Stay + 2 held → STAY · 0 – 2", () => {
+    const players = present();
+    players[2] = { slot: 2, vote: VOTE_NONE, standing: true, mine: false };
+    const n = addHeldVoters(players, 2, [2, 3]);
+    expect(voteView(true, 200, 300, 20, players.slice(0, n), VOTE_STAY, false).result).toBe("STAY · 0 – 2");
+  });
+
+  it("a silent standing player still holds the line back and isn't urgent; a held one doesn't", () => {
+    const players: VotePlayerIn[] = [
+      { slot: 0, vote: VOTE_STAY, standing: true, mine: true },
+      { slot: 1, vote: VOTE_NONE, standing: true, mine: false },
+    ];
+    expect(voteView(true, 200, 300, 20, players, VOTE_STAY, false).result).toBe("");
+    expect(voteUrgent(200, 20, players, 2)).toBe(false);
+  });
+
+  it("downed / out teammates: 'not voting' chips (their stored vote hidden), out of the count; 1 downed (voted Extract) + 2 Stay + 1 Extract → STAY · 1 – 2", () => {
+    const players: VotePlayerIn[] = [
+      { slot: 0, vote: VOTE_STAY, standing: true, mine: true },
+      { slot: 1, vote: VOTE_STAY, standing: true, mine: false },
+      { slot: 2, vote: VOTE_EXTRACT, standing: true, mine: false },
+      { slot: 3, vote: VOTE_EXTRACT, standing: false, mine: false }, // downed
+    ];
+    const v = voteView(true, 200, 300, 20, players, VOTE_STAY, false);
+    expect(v.chips[3]).toEqual({ slot: 3, vote: VOTE_NONE, dimmed: true, mine: false });
+    expect(v.result).toBe("STAY · 1 – 2");
+    // 2 downed, 1 Stay + 1 Extract → a tie → Extract
+    players[1] = { slot: 1, vote: VOTE_STAY, standing: false, mine: false };
+    players[0] = { slot: 0, vote: VOTE_STAY, standing: true, mine: true };
+    players[2] = { slot: 2, vote: VOTE_EXTRACT, standing: true, mine: false };
+    expect(voteView(true, 200, 300, 20, players, VOTE_STAY, false).result).toBe("EXTRACT · 1 – 1");
+  });
+
+  it("I'm downed: my buttons are disabled (canVote false) and my chip is 'not voting', even with a stored vote", () => {
+    const players: VotePlayerIn[] = [
+      { slot: 0, vote: VOTE_STAY, standing: false, mine: true },
+      { slot: 1, vote: VOTE_EXTRACT, standing: true, mine: false },
+    ];
+    const v = voteView(true, 200, 300, 20, players, VOTE_STAY, false);
+    expect(v.canVote).toBe(false);
+    expect(v.mine).toBe(VOTE_NONE); // no button shows pressed
+    expect(v.chips[0]).toEqual({ slot: 0, vote: VOTE_NONE, dimmed: true, mine: true });
+    expect(v.result).toBe("EXTRACT · 1 – 0");
+  });
+
+  it("nobody counts (all held / down): no result line, not urgent (the server waits the timer, then Extract)", () => {
+    const players: VotePlayerIn[] = [
+      { slot: 0, vote: VOTE_STAY, standing: false, mine: true },
+      { slot: 0, vote: 0, standing: true, mine: false },
+    ];
+    const n = addHeldVoters(players, 1, [1]);
+    const v = voteView(true, 200, 300, 20, players.slice(0, n), VOTE_STAY, false);
+    expect(v.result).toBe("");
+    expect(v.canVote).toBe(false);
+    expect(voteUrgent(200, 20, players, n)).toBe(false);
+    expect(voteUrgent(5, 20, players, n)).toBe(true); // the last 500 ms are still urgent
   });
 
   it("never writes past the preallocated chips", () => {

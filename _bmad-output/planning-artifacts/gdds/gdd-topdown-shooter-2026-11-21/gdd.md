@@ -58,7 +58,7 @@ Each pillar is a decision rule. When a feature or tuning choice is unclear, thes
 - **Loss:** no player is standing (everyone is downed or out). The run ends.
 - **Downed state:** a player at 0 HP goes down. A standing teammate within **2.0 m** (centre to centre) for **3 s** revives them; the downed countdown pauses while someone revives, and the downed player's gun keeps reloading. If no one does within **20 s**, they are out until the next build phase, when they return automatically.
 - **Win:** survive wave 10. An evacuation helicopter arrives and the team votes:
-  - **Vote rules:** 15 s to vote; majority wins; a tie or no votes means extract.
+  - **Vote rules:** 15 s to vote; a majority of the connected, standing players wins; a tie or no counted votes means extract. Disconnected, downed and dead players don't count (designer 2026-11-25, Story 8.12).
   - **Extract:** the run is won; all rewards are kept. The helicopter lifts off into 4 s of dawn, then Results.
   - **Stay:** endless waves in the collapsed city. A new evacuation comes every 5 waves (15, 20, 25…). If the team is wiped before extracting, it loses the rewards earned after wave 10 and keeps everything from waves 1–10.
 
