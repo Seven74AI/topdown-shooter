@@ -231,7 +231,8 @@ export function castVote(world: World, playerId: string, choice: EvacChoice): vo
 /**
  * Story 8.12 (AC 0): who counts in the vote — a connected (in `world.players`, not held) player who is
  * standing (`alive`). Downed and out players don't count; a held seat isn't in `world.players` at all.
- * Taken when the vote resolves, so a revive or a return before then counts again.
+ * Taken when the vote resolves. Status is frozen during the vote (`step` runs no down or revive in phase
+ * "vote", 6.11 F5), so only holds and returns change who counts.
  */
 export const countsInVote = (p: Readonly<PlayerState>): boolean => p.status === "alive";
 

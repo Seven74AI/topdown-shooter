@@ -3048,7 +3048,7 @@ So that we can coordinate without voice chat.
 
 ### Story 8.12: Only standing, connected players vote
 
-(Quick story 2026-11-25, party-mode session, designer decision; story file `8-12-disconnected-players-dont-vote.md` (ready-for-dev) is the full spec. Copied into epics.md by the correct-course of 2026-11-26 without scope change. It deliberately **reverses Story 8.1 review M2 / RR1-M1** (a held seat counted as a silent = Extract vote) and narrows 6.11's "whole team" count.)
+(Quick story 2026-11-25, party-mode session, designer decision; story file `8-12-disconnected-players-dont-vote.md` is the full spec. Copied into epics.md by the correct-course of 2026-11-26 without scope change. It deliberately **reverses Story 8.1 review M2 / RR1-M1** (a held seat counted as a silent = Extract vote) and narrows 6.11's "whole team" count.)
 
 As a player in a co-op run,
 I want the evacuation vote to count only the players who are actually connected and standing,
@@ -3058,7 +3058,7 @@ So that a teammate who dropped can't tip the vote to Extract against the players
 
 **Given** the vote resolves
 **When** the votes are counted
-**Then** only players who are connected (not in `world.heldPlayers`) and alive (`status === "alive"`) count; downed and out players don't; the count is taken at the resolving tick, so a revived player counts again with the choice they made (or silent)
+**Then** only players who are connected (not in `world.heldPlayers`) and alive (`status === "alive"`) count; downed and out players don't; the count is taken at the resolving tick (status is frozen during the vote, so only holds and returns change who counts)
 **And** `resolveEvacVote` uses `voteOutcome(t.stay, <counted players>)` and `countVotes` no longer adds held seats to `silent`; connected silent players still count as Extract (6.11 D1), a tie is Extract, and nobody counted means Extract
 **And** the story's table holds, e.g. 4 seats, 1 held, 2 Stay + 1 Extract → Stay; 4 connected, 2 downed, 1 Stay + 1 Extract → Extract (tie)
 
@@ -3073,7 +3073,7 @@ So that a teammate who dropped can't tip the vote to Extract against the players
 
 **Given** the story lands (X1, designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6)
 **When** it merges
-**Then** Story 6.11 in this file gets an as-built note ("since 8.12: only connected, standing players count; downed, out and held players see disabled buttons") and FR66 is reworded to "a majority of the connected, standing players; a tie or no counted votes means Extract"
+**Then** Story 6.11 in this file gets an as-built note ("since 8.12: only connected, standing players count; downed and out players see disabled buttons; held players see nothing") and FR66 is reworded to "a majority of the connected, standing players; a tie or no counted votes means Extract"
 **And** the 8.1 M2 / RR1-M1 reversal is recorded in `docs/epic-8-story-decisions.md` › Designer review 2026-11-26 (E8-A9), next to 8.1 B15/B16/B19 (confirmed 2026-11-26)
 
 ### Story 8.13: Slow-line horde skip

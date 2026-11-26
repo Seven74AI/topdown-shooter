@@ -178,7 +178,7 @@ Reverses 8.1 review M2 / RR1-M1 for the vote (the `earnedAtEvac` banking part of
 
 | Code | What it changes in play | Taken | Alternative |
 |---|---|---|---|
-| **8.12 D1** | A downed or out player taps a vote (an old client, or a tap in flight as they go down). | The server still stores the choice (`castVote` unchanged); it simply doesn't count unless they stand again before the vote resolves. The panel disables their buttons and the scene drops their taps. | Refuse the vote on the server too. |
+| **8.12 D1** | A downed or out player taps a vote (an old client, or a tap in flight as they go down). | The server still stores the choice (`castVote` unchanged); it doesn't count. Status is frozen during the vote, so only holds and returns change who counts. The panel disables their buttons and the scene drops their taps. | Refuse the vote on the server too. |
 | **8.12 D2** | A seat returns during the 1 s "everyone voted" beat. | The beat is never extended (6.11 F4: the timer only shortens). The returner counts at the resolve, silent = Extract unless they tap in time. | Re-open the full timer when a counted player appears. |
 | **8.12 D3** | Nobody counts (all held, downed or out). | No early end: the timer runs out, then Extract. | End at once as Extract. |
 | **8.12 D4** | How held seats show in the panel. | Kept as dimmed chips (AC 6's second option), now reading "not voting" like downed and out players; left out of the result line, `allIn` and `voteUrgent`. | Hide them. |

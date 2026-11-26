@@ -437,6 +437,18 @@ describe("Story 8.12: only connected, standing players vote (reverses 8.1 review
     expect(world.run.phase).toBe("build");
   });
 
+  it("AC 2 (review L2): a silent DOWNED player doesn't hold the early end — 2 Stay + 1 downed silent ends after the hold beat", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "stay");
+    downPlayer(world, players[2]!); // never votes
+    run(world, HOLD_TICKS - 1);
+    expect(world.run.phase).toBe("vote");
+    run(world, 1);
+    expect(world.run.phase).toBe("build"); // without the countsInVote skip in everyoneVoted it waits the full timer
+  });
+
   it("AC 2: a silent standing player still holds the timer open", () => {
     const { world } = setup(["p0", "p1", "p2"]);
     toVoteAfter(world);
@@ -448,8 +460,9 @@ describe("Story 8.12: only connected, standing players vote (reverses 8.1 review
   });
 
   it("AC 3: a seat that returns mid-vote counts again from that tick, silent (= Extract) until it votes", () => {
-    // 3 seats, 2 Stay + 1 held: Stay. The held seat returns silent: 2 of 3 still Stay; it votes Extract: still Stay (2×2 > 3).
-    // 2 seats, 1 Stay + 1 held: Stay; the return (silent) makes it 1 of 2 → Extract.
+    // a: 2 seats, 1 Stay + 1 held (its earlier Stay cleared by the hold) → ends early, Stay.
+    // b: the same, but the seat returns 5 ticks into the hold beat: silent, 1 of 2 → Extract (the beat isn't re-extended, D2).
+    // c: 3 seats, 1 Stay + 1 Extract + 1 held; the seat returns and votes Stay → 2 of 3 → Stay.
     const a = setup(["p0", "p1"]);
     toVoteAfter(a.world);
     castVote(a.world, "p0", "stay");
@@ -504,7 +517,7 @@ describe("Story 8.12: only connected, standing players vote (reverses 8.1 review
     expect(r).toEqual({ type: "run.vote_resolved", choice: "stay", extract: 1, stay: 2, silent: 0 });
   });
 
-  it("a downed player revived before the vote resolves counts again with the choice they made", () => {
+  it("guard for the future (status is frozen during the vote today: no down or revive runs in phase vote): a player standing again before the resolve counts with the choice they made", () => {
     const { world, players, events } = setup(["p0", "p1", "p2"]);
     toVoteAfter(world);
     castVote(world, "p0", "stay");

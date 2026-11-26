@@ -567,7 +567,7 @@ describe("Story 8.12 (reverses 8.1 review M2): a held seat doesn't count in the 
 });
 
 describe("Story 8.1 RR1-N1/N3: the held-seat rules really wired", () => {
-  it("N1, as 8.12 AC 2 changed it: all present voted and a seat is held → the vote IS shortened, as without the hold", () => {
+  it("N1, as 8.12 AC 2 changed it: p2 never votes — held, the vote IS shortened (it doesn't count); present and silent, it is not", () => {
     for (const held of [true, false]) {
       const { world } = setup(["p0", "p1", "p2"], null); // the run system (in the `waves` slot) counts the vote down
       startBuild(world);
@@ -576,9 +576,8 @@ describe("Story 8.1 RR1-N1/N3: the held-seat rules really wired", () => {
       if (held) holdPlayer(world, "p2");
       castVote(world, "p0", "stay");
       castVote(world, "p1", "stay");
-      if (!held) castVote(world, "p2", "stay");
       run(world, ticksFor(balance.waves.evac.allVotedHoldS) + 2);
-      expect([held, world.run.phase]).toEqual([held, "build"]);
+      expect([held, world.run.phase]).toEqual([held, held ? "build" : "vote"]);
     }
   });
 

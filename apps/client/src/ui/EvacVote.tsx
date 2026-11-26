@@ -43,7 +43,7 @@ export function EvacVote() {
               style={{ borderColor: SLOT_COLOR_CSS[c.slot], background: c.vote ? SLOT_COLOR_CSS[c.slot] : undefined, color: c.vote ? undefined : SLOT_COLOR_CSS[c.slot] }}
               data-vote={c.vote}
             >
-              {c.dimmed ? NOT_VOTING : c.vote ? CHIP_TEXT[c.vote] : c.mine ? "You" : "…"}
+              {c.dimmed ? (c.mine ? "You" : NOT_VOTING) : c.vote ? CHIP_TEXT[c.vote] : c.mine ? "You" : "…"}
             </span>
           ))}
         </div>

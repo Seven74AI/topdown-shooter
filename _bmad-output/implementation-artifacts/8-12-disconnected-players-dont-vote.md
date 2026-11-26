@@ -25,9 +25,9 @@ This replaces the rule from Story 8.1 review M2 ("a held seat is a silent vote, 
 
 ## Acceptance Criteria
 
-0. **Who counts: connected players who are standing.** A player counts in the vote only while connected (not in `world.heldPlayers`) **and alive** (`status === "alive"`): downed and out (dead, spectating) players don't count. The count is taken at the tick the vote resolves: a downed player who is revived before then counts again with the choice they made (or silent).
+0. **Who counts: connected players who are standing.** A player counts in the vote only while connected (not in `world.heldPlayers`) **and alive** (`status === "alive"`): downed and out (dead, spectating) players don't count. The count is taken at the tick the vote resolves. Status is frozen during the vote (no down or revive runs in phase `vote`), so only holds and returns change who counts; if a downed player ever stood up before the resolve, they would count with the choice they made (or silent).
 
-1. **Held seats leave the count.** `resolveEvacVote` uses only the connected players as the total: `voteOutcome(t.stay, world.players.size)`. `countVotes` no longer adds `world.heldPlayers.size` to `silent`.
+1. **Held seats leave the count.** `resolveEvacVote` uses only the counted players as the total: `voteOutcome(t.stay, t.extract + t.stay + t.silent)` (connected and alive). `countVotes` no longer adds `world.heldPlayers.size` to `silent`.
    - 4 seats, 1 held, 2 Stay + 1 Extract → **Stay** (endless on).
    - 4 seats, 2 held, 2 Stay → **Stay**.
    - 4 seats, 1 held, 1 Stay + 2 Extract → Extract.
@@ -42,7 +42,7 @@ This replaces the rule from Story 8.1 review M2 ("a held seat is a silent vote, 
 5. **Earnings unchanged.** `markHeldEvac` stays: a held seat still gets `earnedAtEvac` at the first Stay (the 8.1 M2 earnings fix is about banking, not the vote).
 6. **The panel agrees with the server.** Downed and out players' chips are shown as "not voting" too, and their vote buttons are disabled. The client vote panel stops counting held seats as silent Extract chips (`apps/client/src/ui/voteModel.ts` `addHeldVoters`, 8.1 RR1-M1). A held seat is either hidden from the panel or shown as a dimmed chip marked "not voting" that is left out of the result line, `allIn` and `voteUrgent`. The result line ("STAY · 1 – 2") matches what the server will decide.
 7. **Replay unchanged.** `hold` / `return` stay replay commands. The replay digest test still passes; only the vote outcome in scenarios with held seats changes.
-8. **As-built notes when it lands (clash X1; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).** Add an as-built note to Story 6.11 in `epics.md` (only connected, standing players count; downed, out and held players see disabled buttons) and reword FR66 to "a majority of the connected, standing players; a tie or no counted votes means Extract". The reversal of 8.1 M2 / RR1-M1 is confirmed with 8.1 B15/B16/B19 in the E8-A9 review (`docs/epic-8-story-decisions.md` › Designer review 2026-11-26); the existing Docs task covers the note there.
+8. **As-built notes when it lands (clash X1; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).** Add an as-built note to Story 6.11 in `epics.md` (only connected, standing players count; downed and out players see disabled buttons; held players see nothing) and reword FR66 to "a majority of the connected, standing players; a tie or no counted votes means Extract". The reversal of 8.1 M2 / RR1-M1 is confirmed with 8.1 B15/B16/B19 in the E8-A9 review (`docs/epic-8-story-decisions.md` › Designer review 2026-11-26); the existing Docs task covers the note there.
 
 ## Tasks
 
@@ -63,7 +63,7 @@ This replaces the rule from Story 8.1 review M2 ("a held seat is a silent vote, 
 
 The story left these open; each takes the recommendation and is logged in `docs/epic-8-story-decisions.md` › "Story 8.12".
 
-- **D1** A downed or out player's `castVote` is still stored on the server (unchanged); it only counts if they stand again before the vote resolves. The panel disables their buttons and the scene drops their taps.
+- **D1** A downed or out player's `castVote` is still stored on the server (unchanged); it doesn't count. Status is frozen during the vote, so only holds and returns change who counts (it would count only if they stood up before the resolve, which no system does today). The panel disables their buttons and the scene drops their taps.
 - **D2** A seat returning during the 1 s "everyone voted" beat doesn't re-extend it (6.11 F4: the timer only shortens). The returner counts at the resolve: silent = Extract unless they tap in time.
 - **D3** Nobody counts (all held, downed or out): no early end; the timer runs out, then Extract.
 - **D4** Held seats stay in the panel as dimmed chips (AC 6's second option), reading "not voting" like downed and out players; left out of the result line, `allIn` and `voteUrgent`. When I'm down or out, my buttons are disabled and neither shows pressed.
@@ -80,7 +80,7 @@ The story left these open; each takes the recommendation and is logged in `docs/
 
 ### Tests
 
-- `run/evacVote.test.ts` › "Story 8.12": the AC 1 table through the real run (held, downed, out; counted totals checked); early end with held + downed seats; a silent standing player keeps the timer; a return mid-vote counts again, silent, including the "inside the hold beat" case (D2) and a returner who votes Stay; the threshold recomputes when the silent player drops (tie → Stay); a revived player counts with their earlier choice; nobody counts (all held; held + downed) → Extract after the full timer. The old "a downed player votes too (F1)" case is rewritten to the new rule.
+- `run/evacVote.test.ts` › "Story 8.12": the AC 1 table through the real run (held, downed, out; counted totals checked); early end with held + downed seats; a silent standing player keeps the timer; a return mid-vote counts again, silent, including the "inside the hold beat" case (D2) and a returner who votes Stay; the threshold recomputes when the silent player drops (tie → Stay); a revived player counts with their earlier choice (a guard for the future: status is frozen during the vote today); a downed silent player doesn't hold the early end (L2); nobody counts (all held; held + downed) → Extract after the full timer. The old "a downed player votes too (F1)" case is rewritten to the new rule.
 - `player/hold.test.ts`: the 8.1 M2 block rewritten (2 Stay + 2 held → Stay; 1 held + 2 Stay + 1 Extract → Stay with `earnedAtEvac` kept; 1 held + 1 Stay + 2 Extract → Extract); RR1-N1 now asserts the vote IS shortened with a held seat.
 - `ui/connectionModel.test.ts` › "Story 8.12": the panel's counts (held, downed, out, me downed, nobody counting); `ui/voteModel.test.ts` downed case updated.
 - Browser (Playwright + Chromium, 800 × 360, a temporary page rendering `EvacVote` with `overlay.css`): "not voting" chips dimmed, result lines "STAY · 0 – 2" / "EXTRACT · 1 – 1", both buttons disabled and greyed when I'm downed. Not verified: the full online game with a real dropped phone during a vote.
