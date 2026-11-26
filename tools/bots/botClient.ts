@@ -772,8 +772,8 @@ export class BotClient {
   private placeRefused(m: BuildingRefused): void {
     const p = this.shopPending;
     if (!p || p.kind !== "building") return;
-    // A bad spot: the next candidate on the next step. Money or the cap: give up on that entry.
-    if (m.reason !== "blocked") {
+    // A bad spot (Story 12.1: or one that would seal a path): the next candidate on the next step. Money or the cap: give up on that entry.
+    if (m.reason !== "blocked" && m.reason !== "seals_path") {
       this.shopSkip |= 1 << p.index;
       this.placeAttempt = 0;
     }

@@ -67,7 +67,7 @@ describe("moveBuilding (Story 5.22)", () => {
     }
   });
 
-  it("checks in order: unknown player → not_alive → not_build_phase → gone → not_owner → blocked; MOVE_ERRORS lists them", () => {
+  it("checks in order: unknown player → not_alive → not_build_phase → gone → not_owner → blocked → seals_path (12.1); MOVE_ERRORS lists them", () => {
     const { world, p0, place } = setup();
     const b = place("wood_barricade", 40, 20, 0);
     const mate = place("wood_barricade", 40, 30, 0, "p1");
@@ -85,7 +85,7 @@ describe("moveBuilding (Story 5.22)", () => {
     expect(moveError(world, "p0", ok)).toBeNull();
     startWave(world);
     expect(moveError(world, "p0", ok)).toBe("not_build_phase"); // F4 (B2)
-    expect(MOVE_ERRORS).toEqual(["unknown_player", "not_alive", "not_build_phase", "gone", "not_owner", "blocked"]);
+    expect(MOVE_ERRORS).toEqual(["unknown_player", "not_alive", "not_build_phase", "gone", "not_owner", "blocked", "seals_path"]);
   });
 
   it("an error changes nothing (spot, versions, events)", () => {

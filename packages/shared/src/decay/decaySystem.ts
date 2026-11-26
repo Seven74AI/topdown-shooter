@@ -36,6 +36,25 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
 /** Scratch spot (build starts only; synchronous). */
 const spot = { x: 0, y: 0 };
 
+/**
+ * Story 12.1 (AC 6): the solids active before this build start's mutations (`decayMutate` copies them
+ * just before `applyDecayStage`), so step 2 can tell the NEW cover. Map boxes and cover are stable
+ * objects (`fillObstacles` reuses them), so "new" = not in this list. Build starts only: no per-tick cost.
+ */
+const solidsBefore: MapBox[] = [];
+
+/** Story 12.1 (AC 6): the box comes closer than `margin` to a solid that is not in `before` (new cover). */
+function nearNewSolid(solids: readonly MapBox[], before: readonly MapBox[], b: Building, margin: number): boolean {
+  for (let i = 0; i < solids.length; i++) {
+    const s = solids[i] as MapBox;
+    if (before.includes(s)) continue;
+    const dx = Math.max(0, s.minX - b.maxX, b.minX - s.maxX);
+    const dy = Math.max(0, s.minY - b.maxY, b.minY - s.maxY);
+    if (dx * dx + dy * dy < margin * margin) return true;
+  }
+  return false;
+}
+
 /** The box overlaps an obstacle solid (strictly: touching is fine, like placement). */
 function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
   for (let i = 0; i < solids.length; i++) {
@@ -48,19 +67,28 @@ function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
 /**
  * Step 2: buildings on newly blocked cells are destroyed and refunded (FR58). Story 4.8 review M2:
  * so are buildings a fire lit at this build start overlaps (`newFires`; a building placed into a
- * fire later burns instead, D6). Returns how many.
+ * fire later burns instead, D6). Story 12.1 (AC 6): with `before` (the solids active before this
+ * build start), so is every WALL whose box comes closer than one player body (2 × `player.radiusM`)
+ * to a solid that is new (not in `before`), even if it would not seal a path: a building never
+ * squeezes a gap below player width against new cover. Floor types never block, so only overlap
+ * removes them. No refund for that one (Story 12.4). The event carries the cause (`collapse`: under
+ * new cover, `fire`, `cleared`: the margin) for the owner's toast. Same order (id, descending walk
+ * of the id-sorted list) on every copy. Returns how many.
  */
-export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = []): number {
+export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = [], before: readonly MapBox[] | null = null): number {
   const list = world.buildings.list;
   const solids = world.obstacles.solids;
   const share = world.balance.decay.buildingRefundShare;
+  const margin = 2 * world.balance.player.radiusM;
   let n = 0;
   for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
-    if (!overlapsSolid(solids, b) && !buildingInFires(newFires, b)) continue;
+    const cause = overlapsSolid(solids, b) ? "collapse" : buildingInFires(newFires, b) ? "fire" : before !== null && b.solid && nearNewSolid(solids, before, b, margin) ? "cleared" : null;
+    if (cause === null) continue;
     if (!removeBuilding(world, b.id)) continue;
     n++;
-    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
+    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause });
+    if (cause === "cleared") continue; // Story 12.1 (AC 6): no refund
     // Story 6.2 review L4 (designer intent "50 % back"): half of what the player PAID for it — its
     // price and every upgrade step (5.20 bookkeeping, `paid`) — not the base price.
     const paid = Number.isFinite(b.paid) && b.paid > 0 ? b.paid : (buildingStats(world.balance, b.type)?.price ?? 0);
@@ -249,11 +277,13 @@ export function decayMutate(world: World, stage: number): boolean {
   resetBurnClocks(world); // re-review L2: every build start (also when nothing else changes)
   resetRelocated(); // fix re-review L2: no stale counts after a build start that changes nothing
   const coming = world.waves.number + 1;
+  solidsBefore.length = 0;
+  for (let i = 0; i < world.obstacles.solids.length; i++) solidsBefore.push(world.obstacles.solids[i] as MapBox); // Story 12.1 (AC 6)
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave
   lightNewFires(world, world.decay.stage, coming);
   if (!changed) return false;
-  destroyBlockedBuildings(world, lit);
+  destroyBlockedBuildings(world, lit, solidsBefore);
   relocateBodies(world);
   moveOutOfNewFires(world, lit);
   return true;

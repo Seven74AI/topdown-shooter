@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { weaponIds, type WeaponId } from "../combat/weapons";
-import { DAMAGE_TAGS, MONEY_REASONS, type DamageTag, type SimEvent } from "../core/simEvents";
+import { BUILDING_LOSS_CAUSES, DAMAGE_TAGS, MONEY_REASONS, type DamageTag, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
@@ -233,6 +233,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "building.destroyed": {
       // Story 3.5: for the debris FX (the removal itself comes from schema, on the same patch).
       const t = buildingTypeIds(b).indexOf(e.buildingType);
+      // Story 12.1 / 12.4: a decay loss appends its cause (index + 1) for the owner's toast; others stay 7 long.
+      if (e.cause !== undefined) return [K.BUILDING_DESTROYED, e.buildingId, t < 0 ? NET_NONE : t, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot, BUILDING_LOSS_CAUSES.indexOf(e.cause) + 1];
       return [K.BUILDING_DESTROYED, e.buildingId, t < 0 ? NET_NONE : t, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot];
     }
     case "turret.fired":
@@ -486,6 +488,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     case K.BUILDING_DESTROYED: {
       const buildingType = buildingTypeIds(b)[n(t, 2)];
       if (buildingType === undefined) return null;
+      const cause = BUILDING_LOSS_CAUSES[n(t, 7) - 1]; // Story 12.1 / 12.4: absent or 0 = not a decay loss
+      if (cause !== undefined) return { type: "building.destroyed", buildingId: n(t, 1), buildingType, ownerId: pid(t, 3), gx: n(t, 4), gy: n(t, 5), rot: n(t, 6), cause };
       return { type: "building.destroyed", buildingId: n(t, 1), buildingType, ownerId: pid(t, 3), gx: n(t, 4), gy: n(t, 5), rot: n(t, 6) };
     }
     case K.TURRET_FIRED: {

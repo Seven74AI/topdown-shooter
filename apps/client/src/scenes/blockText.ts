@@ -1,4 +1,4 @@
-import { isRubble, type BlockReason, type CoverKind, type MapBox, type PlaceError, type World } from "@topdown/shared";
+import { isRubble, type BlockReason, type BuildingLossCause, type CoverKind, type MapBox, type PlaceError, type World } from "@topdown/shared";
 import { pickRefusalText } from "./buildBar";
 
 /**
@@ -24,6 +24,8 @@ export const COVER_WORDS: Readonly<Record<CoverKind, string>> = Object.freeze({
 });
 
 const WALL = "a wall";
+/** Story 12.1 (AC 7): a wall that would close off part of the map (the reason line, the refusal toast, a refused move). */
+export const SEALS_PATH_TEXT = "Leave a way through";
 /** Story 6.2 (F3): every `rubble_*` box (the collapsed alley, the street piles): one prefix rule. */
 export const RUBBLE_WORD = "rubble";
 
@@ -56,6 +58,8 @@ export function blockText(world: Readonly<World>, reason: Readonly<BlockReason>,
       return `${nameOf(reason.playerId) || "A teammate"} is standing there`; // no name yet (a late join): still says who
     case "zombie":
       return "A zombie is in the way";
+    case "seals_path":
+      return SEALS_PATH_TEXT; // Story 12.1 (AC 7)
   }
 }
 
@@ -78,4 +82,20 @@ export function placementHintText(world: Readonly<World>, e: PlaceError, reason:
   if (e === "limit" || e === "money") return pickRefusalText(e, c.price, c.wallet, world.balance.buildings.maxPerPlayer);
   if (e === "blocked" && reason) return blockText(world, reason, c.nameOf);
   return c.refusal(e);
+}
+
+/**
+ * Stories 12.1 (AC 6) and 12.4 (AC 5): the owner's toast when the decay system destroys one of their
+ * buildings (`building.destroyed.cause`). No amount: decay losses aren't refunded. "barricade" names
+ * the barricade types; any other wall is "building" ("cleared" hits walls only).
+ */
+export function decayLossText(cause: BuildingLossCause, buildingType: string): string {
+  switch (cause) {
+    case "collapse":
+      return "Lost to the collapse";
+    case "fire":
+      return "Lost to the fire";
+    case "cleared":
+      return `Your ${buildingType.endsWith("_barricade") ? "barricade" : "building"} was cleared by the collapse`;
+  }
 }

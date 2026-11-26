@@ -16,6 +16,7 @@ import {
   type World,
 } from "@topdown/shared";
 import { LOCKED_TEXT, NOT_ALIVE_TEXT } from "./placement";
+import { SEALS_PATH_TEXT } from "./blockText";
 
 /** A tap this close to a building (m, each side of its footprint) selects it: a 0.5 m barricade is thin under a finger. */
 export const BUILDING_TAP_TOLERANCE_M = 0.4;
@@ -89,6 +90,8 @@ export function moveRefusalText(e: MoveError): string {
       return NOT_ALIVE_TEXT;
     case "blocked":
       return "Can't move it there";
+    case "seals_path":
+      return SEALS_PATH_TEXT; // Story 12.1 (AC 3, 7)
     case "unknown_player":
       return "Can't move that";
   }

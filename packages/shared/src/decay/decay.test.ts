@@ -591,7 +591,7 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
 });
 
 describe("Story 4.5 player-visible properties", () => {
-  it("a path can still be closed: after the dumpster narrows alley 3, a barricade still fits across the gap", () => {
+  it("Story 12.1 (was 4.5's \"a path can still be closed\"): after the dumpster narrows alley 3, a barricade still fits in the gap, but the one that would close it is refused", () => {
     for (const seed of [1, 2]) {
       const w = downtownRun(seed, 1);
       expect(changeDecayStage(w, 2)).toBe(true);
@@ -601,13 +601,16 @@ describe("Story 4.5 player-visible properties", () => {
       const req = { type: "wood_barricade", gx: Math.round(DUMPSTER.maxX / 0.5), gy: Math.round(DUMPSTER.minY / 0.5) + 1, rot: 1 };
       const box = footprint(wood, req.gx, req.gy, req.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 } as Box);
       expect(box.minX).toBe(39.5);
-      expect(box.maxX).toBe(40); // rot 1: 0.5 m wide; two side by side close the 1.5 m gap
+      expect(box.maxX).toBe(40); // rot 1: 0.5 m wide; two side by side would close the 1.5 m gap
       expect(placementError(w, "p0", req)).toBe(null);
-      expect(placeBuilding(w, "p0", req).ok).toBe(true);
-      expect(placeBuilding(w, "p0", { ...req, gx: req.gx + 1 }).ok).toBe(true);
-      expect(placeBuilding(w, "p0", { ...req, gx: req.gx + 2 }).ok).toBe(true);
-      // Alley 3 is now closed at that row: no free line through it for a body.
-      for (let x = 38.1; x < 41; x += 0.2) expect(segmentHitsBuildings(w, x, 25, x, 28.5, 0), `x ${x.toFixed(1)}`).toBe(true);
+      expect(placeBuilding(w, "p0", req).ok).toBe(true); // 1.0 m left: a player (0.8 m) still passes
+      const closing = { ...req, gx: req.gx + 1 }; // would leave 0.5 m: closed for a player
+      expect(placementError(w, "p0", closing)).toBe("seals_path");
+      const r = placeBuilding(w, "p0", closing);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error).toBe("seals_path");
+      // Alley 3 stays open at that row: a body-wide line still runs through the 1.0 m gap (x 40–41).
+      expect(segmentHitsBuildings(w, 40.5, 25, 40.5, 28.5, balance.player.radiusM)).toBe(false);
     }
   });
 

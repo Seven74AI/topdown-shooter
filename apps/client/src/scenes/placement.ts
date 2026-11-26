@@ -10,6 +10,7 @@ import {
   moveError,
   ownedCount,
   placementError,
+  sealedPocket,
   type Balance,
   type BuildingRotation,
   type BlockReason,
@@ -21,6 +22,7 @@ import {
   type World,
 } from "@topdown/shared";
 import { holdBuildingInput } from "../input/menuInput";
+import { SEALS_PATH_TEXT } from "./blockText";
 import type { MutablePlayerInput } from "../input/InputRouter";
 
 /** Grid indices go on the wire as uint8. */
@@ -109,6 +111,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
   switch (e) {
     case "blocked":
       return "Can't build here";
+    case "seals_path":
+      return SEALS_PATH_TEXT; // Story 12.1 (AC 7)
     case "limit":
       return `Building limit reached (${balance.buildings.maxPerPlayer})`;
     case "money":
@@ -243,6 +247,15 @@ export class Placement {
   shownError: PlaceError | null = null;
   readonly shownReason: BlockReason = createBlockReason();
   shownHasReason = false;
+  /**
+   * Story 12.1 (AC 7, CN-2): the pocket a shown `seals_path` would close (lattice vertices of
+   * `sealedPocket`'s grid, `pocketCellM` apart, `pocketCols` per row), copied when the shown reason
+   * changes; the view fills them soft red. The buffer only grows (never per frame).
+   */
+  pocketCells = new Int32Array(0);
+  pocketCount = 0;
+  pocketCols = 0;
+  pocketCellM = BUILD_GRID_M;
   /** Scene clock (ms) of the last frame the preview was blocked (review L1: valid needs `reasonHoldMs` of continuous clear). */
   shownSinceMs = 0;
   /** +1 whenever the shown error/reason changes (views redraw on it; no string per frame). */
@@ -717,7 +730,10 @@ export class Placement {
   explain(world: Readonly<World>, ownerId: string, nowMs: number): void {
     const stats = this.stats;
     this.hasReason = false;
-    if (this.active && stats && this.error === "blocked") {
+    if (this.active && stats && this.error === "seals_path") {
+      // Story 12.1 (AC 7): the same shared check (cached: no new flood while the ghost stays put) fills the pocket.
+      this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), this.moveId, this.reason, true)?.cause === "seals_path";
+    } else if (this.active && stats && this.error === "blocked") {
       this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), this.moveId, this.reason) !== null; // Story 5.22: a moved building never blocks itself
       if (!this.hasReason && this.pendingOverlap) {
         // Story 5.18 (AC 5): only one of my pending boxes is there: "Overlaps a building" (id 0: no culprit outline; the box itself shows).
@@ -744,6 +760,7 @@ export class Placement {
         s.index = r.index;
         s.id = r.id;
         s.playerId = r.playerId;
+        if (this.hasReason && r.cause === "seals_path") this.copyPocket();
         this.shownVersion++;
       }
       this.shownSinceMs = nowMs; // review L1: every blocked frame restarts the hold
@@ -752,6 +769,16 @@ export class Placement {
       this.shownHasReason = false;
       this.shownVersion++;
     }
+  }
+
+  /** Story 12.1: `sealedPocket` (just filled by `blockReason`) into this placement's buffer. */
+  private copyPocket(): void {
+    const n = sealedPocket.count;
+    if (this.pocketCells.length < n) this.pocketCells = new Int32Array(Math.max(n, this.pocketCells.length * 2)); // grows only
+    this.pocketCells.set(sealedPocket.cells.subarray(0, n));
+    this.pocketCount = n;
+    this.pocketCols = sealedPocket.cols;
+    this.pocketCellM = sealedPocket.cellM;
   }
 
   /** Story 5.23 (review M2): blocked, on the spot just placed, and nothing else in the way (`blockReason` with that building excepted). */

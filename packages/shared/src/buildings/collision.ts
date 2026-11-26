@@ -42,6 +42,26 @@ export function circleOverlapsBox(x: number, y: number, r: number, minX: number,
   return dx * dx + dy * dy < r * r;
 }
 
+/**
+ * Story 12.1 (AC 13): a body of radius r centred at (x, y) is inside a widthM × heightM map (touching
+ * the edge is fine). One of the two clearance helpers the escape's flood (`buildFlood`) and the
+ * placement path check (`buildings/pathOpen.ts`) share, so they never disagree about what fits.
+ */
+export function bodyFitsInMap(x: number, y: number, r: number, widthM: number, heightM: number): boolean {
+  return x >= r && x <= widthM - r && y >= r && y <= heightM - r;
+}
+
+/**
+ * Story 12.1 (AC 13): the box comes closer than r to the axis-aligned segment (x0, y0)–(x1, y1)
+ * (x0 ≤ x1, y0 ≤ y1; strictly, like `circleOverlapsBox`): a body of radius r sliding along it would
+ * touch the box. Exact (box-to-box distance; the segment is a box of zero width).
+ */
+export function segmentNearBox(x0: number, y0: number, x1: number, y1: number, r: number, b: Readonly<BoxView>): boolean {
+  const dx = Math.max(0, b.minX - x1, x0 - b.maxX);
+  const dy = Math.max(0, b.minY - y1, y0 - b.maxY);
+  return dx * dx + dy * dy < r * r;
+}
+
 /** The circle overlaps any map solid (Story 4.1) or building (`spotBlocked`, free-spot search). */
 export function circleHitsBuilding(world: Readonly<World>, x: number, y: number, r: number): boolean {
   const solids = world.obstacles.solids;
@@ -354,7 +374,14 @@ const PATH_STEP_M = 0.025;
 const FLOOD_CELL_M = 0.25;
 /** Review M-A: the window covers the whole escape reach (and a cell), so a deep sealed pocket can't touch its edge and pass for open. */
 const FLOOD_HALF_M = ESCAPE_REACH_M + FLOOD_CELL_M;
-const FLOOD_N = Math.ceil((2 * FLOOD_HALF_M) / FLOOD_CELL_M); // 98 × 98 cells
+/**
+ * Story 12.1 (AC 13): for a player's body the cells are aligned to the build lattice (every centre on a
+ * multiple of `FLOOD_CELL_M` = half the 0.5 m lattice step), so every vertex `pathOpen` floods is a cell
+ * centre here and every 0.5 m step it takes passes one more: a way the placement check calls open is
+ * open here too (`escapeAreaOpen`, the agreement test). The snapped window starts up to 1.5 cells further
+ * out than the reach, so it is 2 cells wider.
+ */
+const FLOOD_N = Math.ceil((2 * FLOOD_HALF_M) / FLOOD_CELL_M) + 2; // 100 × 100 cells
 /** 0 = not computed / blocked, 1 = free, 2 = free and connected to the area's edge (open). */
 const flood = new Uint8Array(FLOOD_N * FLOOD_N);
 const floodQueue = new Int32Array(FLOOD_N * FLOOD_N);
@@ -385,7 +412,7 @@ function nearestBoxDistance(px: number, py: number, skipHolds = false): number {
 
 /**
  * The free area for a body of radius r round (x, y), and which of it is open (reaches the area's edge).
- * Review L1 (cost): 98 × 98 circle tests against the near boxes plus one flood, about 1.4–3.9 ms per
+ * Review L1 (cost): 100 × 100 circle tests (Story 12.1: was 98 × 98) against the near boxes plus one flood, about 1.4–3.9 ms per
  * escape. That is fine while escapes happen only on illegal starts (dev spawns; 0 in real runs). If the
  * escape ever runs in real play, cache the flood per (World, obstacle and building versions, r).
  * Review N1 (resolution): a 0.25 m cell grid can't see a free cell through a wall, nor miss a passage
@@ -394,14 +421,21 @@ function nearestBoxDistance(px: number, py: number, skipHolds = false): number {
  */
 function buildFlood(world: Readonly<World>, x: number, y: number, r: number): void {
   const { widthM, heightM } = world.map;
-  floodX0 = x - FLOOD_HALF_M;
-  floodY0 = y - FLOOD_HALF_M;
+  // Story 12.1 (AC 13): for a PLAYER's body the cells are snapped so their centres sit on multiples of
+  // FLOOD_CELL_M (exact in binary), the placement check's lattice. Other bodies (zombies: 12.1 makes no
+  // promise for them) keep the unsnapped window, so their escapes are exactly as before.
+  if (r === world.balance.player.radiusM) {
+    floodX0 = (Math.floor((x - FLOOD_HALF_M) / FLOOD_CELL_M) - 0.5) * FLOOD_CELL_M;
+    floodY0 = (Math.floor((y - FLOOD_HALF_M) / FLOOD_CELL_M) - 0.5) * FLOOD_CELL_M;
+  } else {
+    floodX0 = x - FLOOD_HALF_M;
+    floodY0 = y - FLOOD_HALF_M;
+  }
   for (let j = 0; j < FLOOD_N; j++) {
     for (let i = 0; i < FLOOD_N; i++) {
       const px = floodX0 + (i + 0.5) * FLOOD_CELL_M;
       const py = floodY0 + (j + 0.5) * FLOOD_CELL_M;
-      const inMap = px >= r && px <= widthM - r && py >= r && py <= heightM - r;
-      flood[j * FLOOD_N + i] = inMap && escapeSpotClear(px, py, r) ? 1 : 0;
+      flood[j * FLOOD_N + i] = bodyFitsInMap(px, py, r, widthM, heightM) && escapeSpotClear(px, py, r) ? 1 : 0;
     }
   }
   let qt = 0;
@@ -431,6 +465,23 @@ function buildFlood(world: Readonly<World>, x: number, y: number, r: number): vo
   }
 }
 
+/**
+ * Story 12.1 (AC 13, tests): the escape's flood for a body of radius r started at (x, y) (the same
+ * near boxes and window `escape` builds) says (x, y)'s own cell is open: joined to the window's edge.
+ */
+export function escapeAreaOpen(world: Readonly<World>, x: number, y: number, r: number): boolean {
+  const reach = FLOOD_HALF_M + 2 * FLOOD_CELL_M + r;
+  nearCount = 0;
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) addNear(x, y, reach, solids[i] as MapBox);
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) addNear(x, y, reach, list[i] as Building);
+  buildFlood(world, x, y, r);
+  const ci = Math.floor((x - floodX0) / FLOOD_CELL_M);
+  const cj = Math.floor((y - floodY0) / FLOOD_CELL_M);
+  return flood[cj * FLOOD_N + ci] === 2;
+}
+
 /** The spot (px, py) lies in the open part of the free area (any of the 3 × 3 cells round it; outside the area counts as open). */
 function floodOpen(px: number, py: number): boolean {
   const ci = Math.floor((px - floodX0) / FLOOD_CELL_M);
@@ -445,7 +496,7 @@ function escape(world: Readonly<World>, x: number, y: number, r: number, withBui
   if (deadEndKnown(world, x, y, r, withBuildings)) return false;
   // Only boxes in the flood window grown by the body (a square containing the reach circle) can touch a
   // candidate, the path to it or a flood cell.
-  const reach = FLOOD_HALF_M + r;
+  const reach = FLOOD_HALF_M + 2 * FLOOD_CELL_M + r; // Story 12.1: the snapped window reaches up to 1.5 cells further
   nearCount = 0;
   const solids = world.obstacles.solids;
   for (let i = 0; i < solids.length; i++) addNear(x, y, reach, solids[i] as MapBox);

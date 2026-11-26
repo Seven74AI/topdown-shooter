@@ -7,6 +7,7 @@ import { maxZombieRadius } from "../zombies/zombieTypes";
 import { circleOverlapsBox } from "./collision";
 import { BUILD_GRID_M } from "../config/constants";
 import { inPool } from "../meta/pool";
+import { sealedPocket, sealsPath } from "./pathOpen";
 
 /**
  * Story 3.4: buildings (GDD › Buildings and Defenses; FR50, FR51, FR53).
@@ -115,7 +116,7 @@ export function createBuildingState(): BuildingState {
 }
 
 /** Why a placement is refused. The client maps it to text (`placeRefusalText`). */
-export type PlaceError = "unknown_player" | "not_alive" | "not_build_phase" | "unknown_type" | "not_for_sale" | "not_unlocked" | "limit" | "money" | "blocked";
+export type PlaceError = "unknown_player" | "not_alive" | "not_build_phase" | "unknown_type" | "not_for_sale" | "not_unlocked" | "limit" | "money" | "blocked" | "seals_path";
 
 /** A footprint box in metres. */
 export interface Box {
@@ -263,14 +264,16 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>, exc
  * `off_map` (index −1) → `spawn` (index into `world.map.spawnPoints`) → `solid` (index into
  * `world.obstacles.solids`: a map box or active cover) → `building` (`id`: the building's id) → `me`
  * (`playerId` = the owner) → `teammate` (`playerId`) → `zombie` (`id`: the zombie's slot id).
+ * Story 12.1 (AC 7): then `seals_path` (a wall only, `blockReason`'s `wall`): the spot is free but the
+ * wall would close a pocket (`pathOpen.ts › sealedPocket` holds it for the highlight).
  */
-export type BlockCause = "off_map" | "spawn" | "solid" | "building" | "me" | "teammate" | "zombie";
+export type BlockCause = "off_map" | "spawn" | "solid" | "building" | "me" | "teammate" | "zombie" | "seals_path";
 
 export interface BlockReason {
   cause: BlockCause;
-  /** Spawn point / solid index; −1 for the other causes. */
+  /** Spawn point / solid index; Story 12.1: `seals_path`'s pocket's first vertex (nearest the pad); −1 for the other causes. */
   index: number;
-  /** Building id / zombie slot id; 0 for the other causes. */
+  /** Building id / zombie slot id; Story 12.1: `seals_path`'s pocket size (vertices); 0 for the other causes. */
   id: number;
   /** Player id for `me` / `teammate`; "" otherwise. */
   playerId: string;
@@ -297,9 +300,11 @@ function setReason(out: BlockReason, cause: BlockCause, index: number, id: numbe
  * in `blockReason.test.ts`); `footprintBlocked` stays the server's check. `exceptId` (a building id;
  * 0 = none) leaves one building out (Story 5.24's move: the building being moved never blocks itself).
  * Returns `out` filled (default: one module scratch object, valid until the next call) or null when
- * the spot is clear. No allocation.
+ * the spot is clear. No allocation. Story 12.1 (AC 7, 8): with `wall` (the held type is a wall), a
+ * clear spot whose wall would close a pocket gives `seals_path` (`sealsPath`, the server's check); so
+ * `blockReason(…, wall) !== null ⇔ footprintBlocked(…) || sealsPath(…)`.
  */
-export function blockReason(world: Readonly<World>, ownerId: string, box: Readonly<Box>, exceptId = 0, out: BlockReason = reasonScratch): BlockReason | null {
+export function blockReason(world: Readonly<World>, ownerId: string, box: Readonly<Box>, exceptId = 0, out: BlockReason = reasonScratch, wall = false): BlockReason | null {
   const { widthM, heightM, spawnPoints } = world.map;
   if (box.minX < 0 || box.minY < 0 || box.maxX > widthM || box.maxY > heightM) return setReason(out, "off_map", -1, 0, "");
   const clear = world.balance.buildings.spawnClearM;
@@ -332,12 +337,14 @@ export function blockReason(world: Readonly<World>, ownerId: string, box: Readon
       if (circleOverlapsBox(z.x[id] as number, z.y[id] as number, rz, box.minX, box.minY, box.maxX, box.maxY)) return setReason(out, "zombie", -1, id, "");
     }
   }
+  if (wall && sealsPath(world, box, exceptId)) return setReason(out, "seals_path", sealedPocket.cells[0] as number, sealedPocket.count, ""); // the pocket: a new one is a new reason
   return null;
 }
 
 /**
  * The whole placement check, in this order: unknown player → (Story 5.20) not standing (downed or out) → not a build phase → unknown type or a
- * bad grid point/rotation → (Story 5.10) not for sale → (Story 7.4) not in the placer's unlocks → the owner's cap → money → the spot. null = the server would accept it.
+ * bad grid point/rotation → (Story 5.10) not for sale → (Story 7.4) not in the placer's unlocks → the owner's cap → money → the spot → (Story 12.1)
+ * a wall that would close a pocket of the walkable map (`seals_path`; floor types never). null = the server would accept it.
  * The client's preview runs the same check on its mirror World (the server's answer may still differ:
  * others' positions there are interpolated).
  */
@@ -354,6 +361,7 @@ export function placementError(world: Readonly<World>, ownerId: string, req: Pla
   if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
   if (p.wallet < stats.price) return "money";
   if (footprintBlocked(world, footprint(stats, req.gx, req.gy, req.rot, scratch))) return "blocked";
+  if (stats.solid && sealsPath(world, scratch)) return "seals_path"; // Story 12.1 (AC 2, 5)
   return null;
 }
 
