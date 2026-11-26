@@ -253,5 +253,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
  * client-only `controls.fx` caps change (B28); the simulation is unchanged.
  * Story 12.4: re-pinned (was 3587910981) only because removing `decay.buildingRefundShare` changes
  * `balance.version`; this scenario has no buildings and no decay change (it passed unchanged on 12.1's commit).
+ * Story 12.2: re-pinned (was 2551157819) only because the new `waves.evac` extraction keys (descendS, walkTimeoutS,
+ * liftBeatS, flyOutS, flyOutHorde) change `balance.version`; this scenario never reaches a vote.
  */
-const GOLDEN_DIGEST = 2551157819;
+const GOLDEN_DIGEST = 2082734638;

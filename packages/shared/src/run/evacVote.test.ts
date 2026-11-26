@@ -141,7 +141,7 @@ describe("Story 6.11: everyone votes, Stay needs a real majority (F1, F3, D1)", 
       const { world, resolved } = vote(votes);
       expect(resolved.choice, JSON.stringify(votes)).toBe(want);
       expect(resolved.stay + resolved.extract + resolved.silent).toBe(votes.length);
-      expect(world.run.phase, JSON.stringify(votes)).toBe(want === "stay" ? "build" : "results");
+      expect(want === "stay" ? ["build"] : ["extract", "results"], JSON.stringify(votes)).toContain(world.run.phase); // Story 12.2: Extract → the extraction (Results after the fly-out)
     }
   });
 
@@ -197,7 +197,7 @@ describe("Story 6.11: live, changeable votes and the 15 s server clock (F2, F4, 
     expect(world.run.phase).toBe("vote");
     expect(world.run.voteTicksLeft).toBe(1);
     run(world, 1);
-    expect(world.run.phase).toBe("results");
+    expect(world.run.phase).toBe("extract"); // Story 12.2 (Results after the fly-out)
     expect(world.run.ending).toBe("extracted");
   });
 
@@ -220,7 +220,7 @@ describe("Story 6.11: live, changeable votes and the 15 s server clock (F2, F4, 
     castVote(b.world, "p0", "extract");
     castVote(b.world, "p1", "extract");
     run(b.world, 5);
-    expect(b.world.run.phase).toBe("results");
+    expect(b.world.run.phase).toBe("extract"); // Story 12.2
   });
 
   it("two votes on the tick the timer hits 0: one result (beat the rule 8)", () => {
@@ -289,17 +289,19 @@ describe("Story 6.11: nothing can hurt you during the vote (F5, D4)", () => {
 });
 
 describe("Story 6.11: the result always leads somewhere (F7, brief 28)", () => {
-  it("Extract → run.extracted { wave, endless: false } then Results \"extracted\" on the same tick", () => {
+  it("Extract → run.extracted { wave, endless: false } then the extraction (Story 12.2: was Results on the same tick)", () => {
     const { world, events } = setup(["p0"]);
     toVoteAfter(world);
     castVote(world, "p0", "extract");
     run(world, HOLD_TICKS + 1);
-    expect(world.run.phase).toBe("results");
+    expect(world.run.phase).toBe("extract"); // Story 12.2 (Results after the fly-out)
     expect(world.run.ending).toBe("extracted");
     expect(world.run.voteTicksLeft).toBe(0);
     expect(ofType(events, "run.extracted")).toEqual([{ type: "run.extracted", wave: 10, endless: false }]);
+    run(world, 600); // Story 12.2: the extraction plays out, then Results; nothing moves on
+    expect(world.run.phase).toBe("results");
     run(world, 100);
-    expect(world.run.phase).toBe("results"); // nothing moves on
+    expect(world.run.phase).toBe("results");
   });
 
   it("Stay → a normal build phase for wave 11: endless on, downed players back, earnings at the vote recorded", () => {
@@ -427,7 +429,7 @@ describe("Story 8.12: only connected, standing players vote (reverses 8.1 review
       const { world, r } = vote(seats);
       expect(r.choice, JSON.stringify(seats)).toBe(want);
       expect(r.stay + r.extract + r.silent, JSON.stringify(seats)).toBe(counted);
-      expect(world.run.phase, JSON.stringify(seats)).toBe(want === "stay" ? "build" : "results");
+      expect(want === "stay" ? ["build"] : ["extract", "results"], JSON.stringify(seats)).toContain(world.run.phase); // Story 12.2: Extract → the extraction (Results after the fly-out)
     }
   });
 

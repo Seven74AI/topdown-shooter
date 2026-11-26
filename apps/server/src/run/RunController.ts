@@ -853,7 +853,8 @@ export class RunController {
         cur.swap = false;
         cur.consumable = false;
       }
-      setInput(this.world, s.playerId, cur);
+      // Story 12.2 (AC 3): during the extraction the queue drains but nothing reaches the World (the autopilot moves the bodies).
+      if (this.world.run.phase !== "extract") setInput(this.world, s.playerId, cur);
     }
     step(this.world, TICK_DT_S);
     // Story 2.12 review M1 (re-review L): the spread watch reads the weapon after this tick's swap.

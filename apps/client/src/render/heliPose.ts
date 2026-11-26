@@ -1,8 +1,10 @@
-import type { DistrictMap } from "@topdown/shared";
+import { evacPadPoint, type DistrictMap } from "@topdown/shared";
 
 /** Story 6.11 (AC 9): the helicopter's pose over time, pure (no Phaser): `HeliView` draws it. */
+/** The descent (= `waves.json › evac.descendS`: the sim boards nobody before it ends; a test keeps them equal). */
 export const DESCEND_S = 2;
 export const LIFT_S = 2;
+/** Story 6.11's Extract climb (4 s). Story 12.2: the fly-out is `evac.flyOutS` long (`heliPose`'s `flyS`), toward the east edge. */
 export const EXTRACT_FLY_S = 4;
 /** The rotor's spin (rad/s; the look page's 14). */
 export const ROTOR_RAD_S = 14;
@@ -37,8 +39,10 @@ const smooth = (t: number): number => {
 /**
  * Pure: the helicopter at `nowS` given when the vote opened and when (and how) it left (−1 = not yet).
  * The descent always starts at `openedAtS`; a phone that wakes late sees it landed (no replay).
+ * Story 12.2: an Extract leaves at the lift-off (`run.lifted` / `liftedAtTick`) and flies out over `flyS` s,
+ * `flyDxM` m east (to past the map's east edge), climbing north a little and growing (closer to the camera).
  */
-export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extract: boolean, out: HeliPose): HeliPose {
+export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extract: boolean, out: HeliPose, flyS = EXTRACT_FLY_S, flyDxM = EXTRACT_DX_M): HeliPose {
   out.dx = 0;
   out.dy = 0;
   out.scale = 1;
@@ -50,7 +54,7 @@ export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extra
   }
   if (leftAtS >= 0 && nowS >= leftAtS) {
     const t = nowS - leftAtS;
-    const len = extract ? EXTRACT_FLY_S : LIFT_S;
+    const len = extract ? flyS : LIFT_S;
     if (t >= len) {
       out.phase = "gone";
       out.alpha = 0;
@@ -59,7 +63,7 @@ export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extra
     const u = smooth(t / len);
     if (extract) {
       out.phase = "extracting";
-      out.dx = EXTRACT_DX_M * u;
+      out.dx = flyDxM * u;
       out.dy = EXTRACT_DY_M * u;
       out.scale = 1 + EXTRACT_GROW * u;
       out.alpha = 1 - Math.max(0, (u - 0.6) / 0.4);
@@ -84,7 +88,10 @@ export function heliPose(nowS: number, openedAtS: number, leftAtS: number, extra
 
 /** The pad centre: the map's `evac_pad` event spot (6.8's `events` layer), else the map centre. */
 export function evacPadOf(map: Readonly<DistrictMap>): { x: number; y: number } {
-  const pad = map.eventSpots.find((s) => s.kind === "evac_pad");
-  return pad ? { x: pad.x, y: pad.y } : { x: map.widthM / 2, y: map.heightM / 2 };
+  return evacPadPoint(map, { x: 0, y: 0 }); // Story 12.2: the same point the sim walks the survivors to
 }
+
+/** Story 12.2: the fly-out's east run, from the pad to this far past the map's east edge (the body is off screen). */
+export const FLY_OUT_PAST_EDGE_M = 6;
+export const flyOutDxM = (map: Readonly<DistrictMap>, padX: number): number => Math.max(EXTRACT_DX_M, map.widthM - padX + FLY_OUT_PAST_EDGE_M);
 

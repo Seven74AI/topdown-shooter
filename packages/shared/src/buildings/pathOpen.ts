@@ -569,3 +569,67 @@ export function resetPathOpenCache(): void {
   beforeWalls = -1;
   last.valid = false;
 }
+
+/** Story 12.2: the lattice `walkDistanceFrom` filled (vertex (i, j) = index j × cols + i, at (i, j) × `cellM`). */
+export const walkLattice = { cols: 0, rows: 0, cellM: BUILD_GRID_M };
+
+/**
+ * Story 12.2 (AC 5): the extraction walk's field. Lattice steps from the free vertex nearest (x, y) (the `evac_pad`) to
+ * every vertex a player's body reaches over the World as it stands (map solids + wall buildings: the same joins the
+ * 12.1 rule guarantees), into `out` (grown here if short: once per run); −1 = not joined. Fills `walkLattice`. Once at
+ * the extract's start (buildings never change in that phase), never per tick. Returns `out` (or its replacement).
+ */
+export function walkDistanceFrom(world: Readonly<World>, x: number, y: number, out: Int32Array): Int32Array {
+  const r = world.balance.player.radiusM;
+  if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
+  buildBefore(world, r, 0);
+  const n = cols * rows;
+  walkLattice.cols = cols;
+  walkLattice.rows = rows;
+  const dist = out.length >= n ? out : new Int32Array(n);
+  dist.fill(-1, 0, n);
+  const ci = Math.min(cols - 1, Math.max(0, Math.round(x / BUILD_GRID_M)));
+  const cj = Math.min(rows - 1, Math.max(0, Math.round(y / BUILD_GRID_M)));
+  let seed = -1;
+  for (let ring = 0; ring <= ANCHOR_RINGS && seed < 0; ring++) {
+    for (let dj = -ring; dj <= ring && seed < 0; dj++) {
+      for (let di = -ring; di <= ring; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== ring) continue;
+        const i = ci + di;
+        const j = cj + dj;
+        if (i < 0 || j < 0 || i >= cols || j >= rows) continue;
+        if (((walls[j * cols + i] as number) & FREE) !== 0) {
+          seed = j * cols + i;
+          break;
+        }
+      }
+    }
+  }
+  if (seed < 0) return dist;
+  let qh = 0;
+  let qt = 0;
+  dist[seed] = 0;
+  queue[qt++] = seed;
+  while (qh < qt) {
+    const v = queue[qh++] as number;
+    const d = (dist[v] as number) + 1;
+    const i = v % cols;
+    if (i + 1 < cols && dist[v + 1] === -1 && joined(walls, v, v + 1)) {
+      dist[v + 1] = d;
+      queue[qt++] = v + 1;
+    }
+    if (i > 0 && dist[v - 1] === -1 && joined(walls, v, v - 1)) {
+      dist[v - 1] = d;
+      queue[qt++] = v - 1;
+    }
+    if (v + cols < n && dist[v + cols] === -1 && joined(walls, v, v + cols)) {
+      dist[v + cols] = d;
+      queue[qt++] = v + cols;
+    }
+    if (v - cols >= 0 && dist[v - cols] === -1 && joined(walls, v, v - cols)) {
+      dist[v - cols] = d;
+      queue[qt++] = v - cols;
+    }
+  }
+  return dist;
+}

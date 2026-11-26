@@ -24,7 +24,7 @@ const JOINING: WaitingView = Object.freeze({ waiting: true, line: JOINING_TEXT }
 /** My schema entry (absent before it arrives) and the run phase → the waiting view. Never in the lobby or Results. */
 export function waitingView(me: Pick<PlayerStateView, "waiting"> | undefined, phase: RunPhase | undefined): WaitingView {
   if (!me || me.waiting !== true) return NOT_WAITING;
-  if (phase !== "build" && phase !== "wave" && phase !== "vote") return NOT_WAITING;
+  if (phase !== "build" && phase !== "wave" && phase !== "vote" && phase !== "extract") return NOT_WAITING; // Story 12.2
   return phase === "build" ? JOINING : WAITING; // build: the server's progress read (≤ 2 s), then the survivor enters
 
 }

@@ -17,6 +17,8 @@ import { refreshBlackout } from "../decay/lightState";
 import { endSpecialEvent, eventHoldsWave } from "../events/specialEvents";
 import { scheduleEndlessEvent } from "./endlessEvents";
 import { armEndlessEvent } from "../events/schedule";
+import { beginExtract, updateExtract } from "./extract";
+import { TICK_RATE_HZ } from "../config/constants";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -25,7 +27,7 @@ import { armEndlessEvent } from "../events/schedule";
  *
  * Story 6.11: clearing wave `runWaves` (10) opens the evacuation vote instead of Results:
  *
- *   … Wave 10 ─endWave→ Vote ─resolveEvacVote→ Results ("extracted")
+ *   … Wave 10 ─endWave→ Vote ─resolveEvacVote→ Extract ─(walk, lift-off, fly-out)→ Results ("extracted")  (Story 12.2)
  *                            └────────────────→ Build (wave 11, endless) ─startWave→ Wave … Wave 15 ─endWave→ Vote …
  *
  * Story 6.12: endless waves past 10; a Behemoth every 5th wave and a vote after it (`isEvacWave`);
@@ -40,7 +42,7 @@ import { armEndlessEvent } from "../events/schedule";
  * is `world.run.buildTicksLeft`. Story 3.2's economy system pays the wave-clear bonus from the
  * `wave.ended` event that `endWave` emits.
  */
-export type RunPhase = "lobby" | "build" | "wave" | "vote" | "results";
+export type RunPhase = "lobby" | "build" | "wave" | "vote" | "extract" | "results";
 
 /** Story 6.11: how a finished run ended ("none" until Results). 6.12: "lost" = a wipe after Stay. */
 export type RunEnding = "none" | "wiped" | "extracted" | "lost";
@@ -165,11 +167,11 @@ export function endWave(world: World): void {
 }
 
 /**
- * Build | Wave | Vote → Results: the run is over; nothing changes phase after this. The ending:
- * "extracted" when `resolveEvacVote` set it, else a wipe ("lost" after Stay: Story 6.12 F7).
+ * Build | Wave | Vote | Extract → Results: the run is over; nothing changes phase after this. The ending:
+ * "extracted" when `resolveEvacVote` set it (Story 12.2: at the fly-out's end), else a wipe ("lost" after Stay: Story 6.12 F7).
  */
 export function endRun(world: World): void {
-  expectPhase(world, "endRun", "build", "wave", "vote");
+  expectPhase(world, "endRun", "build", "wave", "vote", "extract");
   const run = world.run;
   run.phase = "results";
   run.buildTicksLeft = 0;
@@ -179,6 +181,25 @@ export function endRun(world: World): void {
   clearMolotovZones(world); // Story 5.12
   clearBlasts(world); // Story 5.8: no blast or gas cloud outlives the run (FR-B: Results never bursts)
   refreshBlackout(world); // Story 6.3: Results are lit (→ 0)
+}
+
+/**
+ * Story 12.2 (AC 1): Vote → Extract. The run's ending is already "extracted" (`resolveEvacVote`); the timers are 0;
+ * the cleared wave's rounds, fires, acid and spits are gone (as at the vote's opening). `beginExtract` stands the
+ * downed up, boards the out players and held seats, and builds the walking field.
+ */
+export function startExtract(world: World): void {
+  expectPhase(world, "startExtract", "vote");
+  const run = world.run;
+  run.phase = "extract";
+  run.buildTicksLeft = 0;
+  run.voteTicksLeft = 0;
+  clearAcid(world);
+  clearGrenades(world.grenades);
+  clearMolotovZones(world);
+  drainBlasts(world);
+  clearBlasts(world);
+  beginExtract(world);
 }
 
 /**
@@ -208,6 +229,7 @@ export function openEvacVote(world: World): void {
   run.phase = "vote";
   run.buildTicksLeft = 0;
   run.voteTicksLeft = ticksFor(world.balance.waves.evac.voteS);
+  world.extract.landTicksLeft = Math.round(world.balance.waves.evac.descendS * TICK_RATE_HZ); // Story 12.2: the helicopter descends (0 s: on the pad)
   world.players.forEach(clearVote);
   clearAcid(world);
   clearGrenades(world.grenades);
@@ -268,8 +290,9 @@ const markEvac = (p: PlayerState): void => {
 const markHeldEvac = (h: { readonly player: PlayerState }): void => markEvac(h.player);
 
 /**
- * Story 6.11: Vote → Results ("extracted") or Vote → Build (Stay, F3 / F7). `run.vote_resolved`
- * first; Extract: `run.extracted { wave, endless }` then `endRun`; Stay: `run.endless` on (the first
+ * Story 6.11: Vote → Extract (Story 12.2; was Results) or Vote → Build (Stay, F3 / F7). `run.vote_resolved`
+ * first; Extract: the ending is decided here (`run.extracted { wave, endless }`), then `startExtract` (Results
+ * follow the fly-out: `updateRun` → `endRun`); Stay: `run.endless` on (the first
  * Stay records each player's `earnedAtEvac`, 6.12 F7) and a normal build phase for the next wave.
  */
 export function resolveEvacVote(world: World): void {
@@ -282,7 +305,7 @@ export function resolveEvacVote(world: World): void {
   if (choice === "extract") {
     run.ending = "extracted";
     world.events.emit({ type: "run.extracted", wave: world.waves.number, endless: run.endless });
-    endRun(world);
+    startExtract(world);
     return;
   }
   if (!run.endless) {
@@ -353,7 +376,13 @@ export function buildEndsThisTick(world: World): boolean {
  */
 export const updateRun: SystemFn = (world) => {
   const run = world.run;
+  if (run.phase === "extract") {
+    // Story 12.2: the walk, the boarding, the lift-off and the fly-out; then Results (never a wipe: nobody can be hurt).
+    if (updateExtract(world)) endRun(world);
+    return;
+  }
   if (run.phase === "vote") {
+    if (world.extract.landTicksLeft > 0) world.extract.landTicksLeft--; // Story 12.2: the helicopter's descent
     // Story 6.11 (F4): server ticks; everyone in → `allVotedHoldS` more (the last chip is seen), then resolve.
     if (everyoneVoted(world)) run.voteTicksLeft = Math.min(run.voteTicksLeft, ticksFor(world.balance.waves.evac.allVotedHoldS));
     run.voteTicksLeft--;

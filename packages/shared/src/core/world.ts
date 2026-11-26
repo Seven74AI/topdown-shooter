@@ -13,7 +13,7 @@ import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
 import { createEconomyState, type EconomyState } from "../economy/economy";
 import { createBuildingState, type BuildingState } from "../buildings/buildings";
-import { createPathingState, type PathingState } from "../zombies/flowField";
+import { createPathingState, updatePathing, type PathingState } from "../zombies/flowField";
 import { createObstacles, type ObstacleState } from "../map/obstacles";
 import { FIRST_DECAY_STAGE } from "../map/decayStage";
 import { createDecayState, pickDecayVariants, type DecayState } from "../decay/decayState";
@@ -31,6 +31,7 @@ import { createSpecialEventState, type SpecialEventState } from "../events/event
 import { createBossState, recordBossHistory, type BossState } from "../boss/bossState";
 import { createLootState, type LootState } from "../loot/lootBag";
 import { makeLootPlan } from "../loot/lootPlan";
+import { createExtractState, extractInputs, type ExtractState } from "../run/extract";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -154,6 +155,8 @@ export interface World {
    * `snapshotWorld`; the client's mirror copies the bag from the room's `lootBag*` record.
    */
   readonly loot: LootState;
+  /** Story 12.2: the extraction (walk, boarding, lift-off, fly-out; `run/extract.ts`). Never saved. */
+  readonly extract: ExtractState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -271,6 +274,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     boss: createBossState(), // Story 6.5
     special: createSpecialEventState(), // Story 6.8
     loot: createLootState(), // Story 7.12
+    extract: createExtractState(), // Story 12.2
   };
   world.loot.salt = lootSalt;
   if (opts.loot?.off !== true) makeLootPlan(streams.loot, opts.balance, opts.loot?.prevVariant ?? -1, world.loot.plan);
@@ -290,7 +294,19 @@ export function step(world: World, dtS: number): void {
   }
   const systems = worldSystems.get(world);
   if (!systems) throw new Error("step: world was not created by createWorld()");
-  if (world.run.phase === "vote") {
+  if (world.run.phase === "extract") {
+    // Story 12.2 (AC 3–5, 9, 10): the extraction. No player input (the autopilot writes the inputs), no fire, building,
+    // hazard, decay or loot system (nothing hurts and nothing is killed); the players walk, the horde moves after the
+    // lift-off (its flow fields advance), the run slot boards, lifts off and ends the run.
+    extractInputs(world);
+    systems.player(world, dtS);
+    if (world.extract.liftedAtTick >= 0) {
+      updatePathing(world);
+      systems.zombies(world, dtS);
+    }
+    systems.waves(world, dtS);
+    systems.economy(world, dtS);
+  } else if (world.run.phase === "vote") {
     // Story 6.11 (F5, D4): nothing acts during the evacuation vote — no zombie, fire, hazard, timer
     // (downed countdown included), building or player move/shot; only the inputs, the run (the
     // vote's countdown) and the economy (it only pays this tick's pending events, e.g. a wave bonus

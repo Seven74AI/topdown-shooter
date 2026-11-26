@@ -36,6 +36,7 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.halfDark !== world.lights.halfDark) state.halfDark = world.lights.halfDark;
   if (state.voteTicksLeft !== world.run.voteTicksLeft) state.voteTicksLeft = world.run.voteTicksLeft; // Story 6.11
   if (state.endless !== world.run.endless) state.endless = world.run.endless; // Story 6.12
+  if (state.liftedAtTick !== world.extract.liftedAtTick) state.liftedAtTick = world.extract.liftedAtTick; // Story 12.2
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
   syncSpecialEvent(state, world); // Story 6.8
@@ -209,6 +210,8 @@ function visitPlayer(p: SimPlayer): void {
     // Story 8.9: the queue depth my client paces its steps by (room state, not World state).
     const queued = Math.min(255, pass.controller.queuedAtTick(p.id));
     if (s.inputQueued !== queued) s.inputQueued = queued;
+    const boarded = pass.controller.world.extract.boarded.has(p.id); // Story 12.2
+    if (s.boarded !== boarded) s.boarded = boarded;
   }
 }
 
@@ -300,6 +303,7 @@ export function resetRunFields(state: RunState): void {
   state.aliveCount = 0;
   state.resultWave = 0;
   state.resultEnding = ""; // Story 6.11
+  state.liftedAtTick = -1; // Story 12.2
   state.voteTicksLeft = 0;
   state.endless = false; // Story 6.12
   state.frozen = false; // Story 8.1
@@ -367,6 +371,7 @@ function resetPlayer(s: PlayerState): void {
   s.vote = 0; // Story 6.11
   s.heldUntilTick = 0; // Story 8.1
   s.protectTicks = 0;
+  s.boarded = false; // Story 12.2
   s.waiting = false; // Story 8.2: a late joiner still waiting at Results is a normal lobby member now
   s.unlocks = 0; // Story 7.4: the next run writes its own
   s.trainHp = 0; // Story 7.5

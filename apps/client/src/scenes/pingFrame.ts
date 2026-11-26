@@ -27,7 +27,7 @@ export function pingPan(sx: number, screenW: number): number {
 export function pingFrame(m: HudModel, kb: KeyboardMouse, host: SimHost, linkOk: boolean, runOnScreen: boolean, blocked: boolean, busy: boolean, nowMs: number): void {
   const w = host.world;
   const phase = w.run.phase;
-  const inRun = phase === "build" || phase === "wave" || phase === "vote";
+  const inRun = phase === "build" || phase === "wave" || phase === "vote" || phase === "extract"; // Story 12.2 (AC 3): pings still work
   const me = w.players.get(host.localPlayerId);
   const standing = me !== undefined && (me.status === "alive" || me.status === "downed");
   m.pingButton = host.pings !== null && linkOk && !host.roomFrozen && !m.watching && runOnScreen && inRun && standing && !blocked && !busy; // review L2: not frozen; 8.2: not while waiting (watching)

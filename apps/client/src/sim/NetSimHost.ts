@@ -821,7 +821,8 @@ export class NetSimHost implements SimHost {
   /** One input per 50 ms step, like LocalSimHost; at most 5 per frame, the rest dropped. */
   private stepInputs(frameDtS: number): void {
     // Story 8.2 (J4): a waiting late joiner sends nothing (the server has no body for it), like an offline step.
-    if (!this.linkUp() || this.waiting) {
+    // Story 12.2 (AC 3): nothing is sent during the extraction (the server ignores player input then).
+    if (!this.linkUp() || this.waiting || this.session.room.state?.phase === "extract") {
       // Story 8.1 (F7): offline steps are never sent or predicted (and never sent late as a burst).
       this.accumulatorS = 0;
       this.latchedSwap = false;
@@ -890,6 +891,9 @@ export class NetSimHost implements SimHost {
     this.world.run.voteTicksLeft = state.voteTicksLeft ?? 0;
     this.world.run.ending = state.phase === "results" ? endingOf(state.resultEnding) : "none";
     this.world.run.endless = state.endless === true;
+    // Story 12.2: the extraction's lift-off (the helicopter's fly-out is a pure function of it).
+    this.world.extract.liftedAtTick = state.liftedAtTick ?? -1;
+    this.world.extract.started = state.phase === "extract" || (state.phase === "results" && this.world.extract.liftedAtTick >= 0);
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
@@ -1037,8 +1041,11 @@ export class NetSimHost implements SimHost {
   private applyPlayer(p: PlayerState): void {
     const s = this.session.room.state.players.get(p.id);
     if (!s) return;
-    if (p.id === this.localPlayerId && this.predictor.ready) this.writePredicted(p);
+    // Story 12.2: the server walks my survivor during the extraction (no input is sent): drawn like the others.
+    if (p.id === this.localPlayerId && this.predictor.ready && this.session.room.state.phase !== "extract") this.writePredicted(p);
     else this.writeInterpolated(p, s);
+    if (s.boarded === true) this.world.extract.boarded.add(p.id); // Story 12.2: aboard (not drawn)
+    else this.world.extract.boarded.delete(p.id);
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.gear = s.gear; // Story 5.11: HUD icons, shop "Owned", the reviver's kit (the predictor has its own copy)
