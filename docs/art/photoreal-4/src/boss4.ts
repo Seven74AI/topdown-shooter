@@ -4,7 +4,7 @@
  * relight (`charRelight.ts`, Story 9.13). Take B: the same with new detail drawn into the body before the relight.
  * Drawn at 48 px per metre (the game: 36). Built into ../compare.html by build.mjs.
  */
-import { drawBehemoth as drawToday } from "../../../../apps/client/src/render/city/behemothArt";
+import { drawBehemoth as drawToday } from "./behemothNow"; // the drawing before Story 9.15 (the "Now" column)
 import { relightCharSteps, sheenStep, sheenStrip, sheenSide } from "../../../../apps/client/src/render/city/charRelight";
 import { drawBehemoth as drawOneModel, setHighlight, HL_COLOUR, type ModelElement } from "./behemoth5";
 import { drawBehemoth, setDetail, setVeinMode, BEHEMOTH_LOOK_IDS, BH_R_M, type BehemothPose } from "./behemoth4";
