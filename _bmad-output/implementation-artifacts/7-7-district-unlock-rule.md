@@ -109,6 +109,7 @@ so that I have a goal beyond one map.
 ### Completion Notes List
 
 - Story file written 2026-11-24 (gds-create-story, non-interactive) from master 7385b47; decisions 7.7 D1–D3 pending.
+- **Update 2026-11-26 (back-filled, Epic 7 retro E7-A4):** D1–D3 are no longer pending. The designer accepted every recommended value on 2026-11-25 ("Okay, for all", `docs/epic-7-story-decisions-progress.md:3`, rows :96–:98): D1 the card is named **"District 2"** until its content is chosen; D2 a **"Districts" line in the Progress hub**; D3 the pick goes **back to Downtown with a notice** when its only holder leaves. Built that way in the merged story (see `7-12-surprise-loot-bag.md`).
 
 ### File List
 
@@ -117,3 +118,4 @@ so that I have a goal beyond one map.
 - 2026-11-24: story file created (ready-for-dev).
 
 - 2026-11-25: built in the merged story 7.7 + 7.11 + 7.12 (branch `story-7-12`); the named tests per task, the Gate line, Notes for the merge and Not verified are in `7-12-surprise-loot-bag.md` › Dev Agent Record.
+- 2026-11-26: Completion Notes updated: decisions D1–D3 accepted 2026-11-25 (docs/epic-7-story-decisions-progress.md), back-filled per Epic 7 retro E7-A4.

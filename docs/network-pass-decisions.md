@@ -153,3 +153,7 @@ Logged by the 8.1 builder 2026-11-25 (brief 31 B-codes). Each: the value built, 
 | 8.1 B18 | Re-review RR1-L3: solo (a frozen World: no tick passes while held) never gets the return protection | **The 3-2-1 resume countdown replaces protection** in a frozen World (zombies stood still too) (measure the hold in room ms instead) |
 | 8.1 B19 | Re-review RR2-L1: a solo drop (or a re-drop during the 3-2-1) with B16's 3 s standing body | **Accepted: the dropping body counts as present — the World runs its 3 s (the 3-2-1 finishes, the body stands hittable), then freezes** (while frozen, hold a dropping body at once) |
 | 8.1 B14 | Seat identity | **One function `seatKey()` = `guest:<hash>`** (`apps/server/src/run/lobby.ts`); Story 7.1 switches it to `acct:<id>` |
+
+## Designer review 2026-11-26 (retro E8-A9)
+
+Designer "ok" 2026-11-26: 8.9 B7, 8.9 B9, 8.1 B15, B16 and B19 are **confirmed as built**. **8.10 B7** (far rule off) is confirmed provisionally and re-checked on Story 8.13's 64 / 128 kbit/s netsim (8.13's skip is the first lever if it fails). Full table: `docs/epic-8-story-decisions.md` › Designer review 2026-11-26.

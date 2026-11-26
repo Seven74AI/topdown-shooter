@@ -144,7 +144,7 @@ FR81: District 2 unlocks for a player after their first extraction from Downtown
 
 **Presentation, audio and settings**
 
-FR82: Dead City art, drawn in game code: gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
+FR82: Dead City art, made without hiring: photoreal looks the designer picks on proposal pages, put into the game as code drawings relit at load in a Web Worker or as atlases pre-rendered offline from the approved code (the code drawings stay the fallback); gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
 FR83: Gore: heavy hits (axe, chainsaw, shotgun, explosions) dismember zombies, explosive kills burst them apart, and blood stays on the ground for the wave; a gore toggle switches to blood only.
 FR84: Every special attack has a readable visual and audio warning; each special zombie has a signature sound (Spitter gurgle, Bloater swelling, Brute roar, Runner shriek).
 FR85: Ambience follows the decay stage (5 loops); music intensity follows the number of zombies alive; a calmer build-phase track and a dedicated Behemoth track.
@@ -306,7 +306,7 @@ FR78: Epic 7 - Supplies earning
 FR79: Epic 7 - Starter pool, unlocks, unlock screen
 FR80: Epic 7 - Training boosts
 FR81: Epic 7 - District 2 unlock rule
-FR82: Epic 4 (code-drawn Dead City art) · Epic 9 (polish pass, no hiring)
+FR82: Epic 4 (code-drawn Dead City art) · Epic 9 (photoreal pass: relit code drawings and pre-rendered atlases, no hiring; correct-course 2026-11-26)
 FR83: Epic 9 - Gore and dismemberment with toggle
 FR84: Epic 5–6 (visual telegraphs, placeholder sounds) · Epic 9 (polished signature sounds)
 FR85: Epic 9 - Ambience and adaptive music
@@ -323,7 +323,7 @@ FR90–FR94: Epic 11 - Random city (generator, checks, decay rules, spawns, city
 Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
-One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
+One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones. *(Closed 2026-11-26, correct-course: 1.11 AC 3 is folded into 10.2 and 1.12 into the 10.9 game nights.)*
 **FRs covered:** FR1–FR7, FR9, FR12, FR13 (4 weapons), FR14, FR15, FR16 (pierce), FR19, FR20, FR26 (chase, separation), FR27, FR28 (simple), FR30, FR55 (camera follow)
 
 ### Epic 2: Online co-op foundation
@@ -335,7 +335,7 @@ A team plays 5 waves (now 6 waves; 6.1 makes 10) with build phases: earning into
 **FRs covered:** FR9 (build heal), FR12 (start currency), FR21, FR22, FR26 (attack buildings, flow fields), FR28 (5-wave curve), FR29 (W1–W3), FR31, FR44, FR45, FR46, FR50, FR51, FR52 (2 buildings), FR53 (blocking)
 
 ### Epic 4: Downtown and city decay (Milestone 1)
-2–4 players online in Downtown play 5 waves (now 6; 6.1 makes 10) through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Dead City art drawn in code, cover rules, spawn points and the run seed.
+2–4 players online in Downtown play 5 waves (now 6; 6.1 makes 10) through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Dead City art drawn in code, cover rules, spawn points and the run seed. *(Closed 2026-11-26, correct-course: the 4.10 playtest is folded into the 10.9 game nights.)*
 **FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
 
 ## Epic 5: Full arsenal and bestiary
@@ -347,7 +347,7 @@ A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, 
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
 ### Epic 7: Accounts and meta-progression
-Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool; each player makes their own survivor look, with milestone and loot parts.
+Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool; each player makes their own survivor look, with milestone and loot parts. Story 7.13 (added 2026-11-26, retro E7-A6) holds the leftovers: the 7.6 B18/B19 account lines and the Results "Wear it" button.
 **FRs covered:** FR77, FR78, FR79, FR80, FR81, FR89 · NFR12 (passwords), NFR13
 
 ### Epic 8: Real-life resilience
@@ -355,7 +355,7 @@ Real life doesn't break a run: a bad 4G line doesn't spoil hits or the picture (
 **FRs covered:** FR72, FR73, FR74, FR75, FR76
 
 ### Epic 9: Dead City art and audio
-The game looks and sounds like Dead City: a polish pass of the code-drawn art (district in 5 decay states, animations, gore and dismemberment, effects, UI art) and of the audio (ambience per stage, adaptive music, weapon and zombie sounds). Nobody is hired: art stays drawn in game code, sounds are procedural or from licensed/free libraries (designer, 2026-11-23).
+The game looks and sounds like Dead City: a photoreal pass of the art (district in 5 decay states, animations, a photoreal Behemoth, gore and dismemberment, effects, UI art), each group picked by the designer on a proposal page and put into the game through the 9.11–9.14 pipeline (relit code drawings baked in a worker, or a pre-rendered atlas), and of the audio (ambience per stage, adaptive music, weapon and zombie sounds). Nobody is hired: sounds are procedural or from licensed/free libraries (designer, 2026-11-23; photoreal direction 2026-11-26).
 **FRs covered:** FR82, FR83, FR84 (polished sounds), FR85, FR86
 
 ### Epic 10: Performance and polish
@@ -364,6 +364,10 @@ Every technical target is met on the reference phones; quality settings, home-sc
 
 ### Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
+
+### Epic 12: Extraction cinematic
+A won run ends like a film: no building can seal a pocket of the map, decay losses are not refunded, and on Extract the survivors walk to the helicopter, board and fly out over the horde into the sunrise (party-mode session 2026-11-25, quick stories 12.1–12.4; with Story 8.12, only connected, standing players vote).
+**FRs touched:** FR58 (no refund), FR66, FR67
 **FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
 
 ## Epic 1: Core combat on one phone
@@ -638,6 +642,8 @@ So that I can test or play without a phone.
 
 ### Story 1.11: Performance overlay and 150-Walker stress test
 
+*(Done 2026-11-26, folded into 10.2 (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): AC 1 and 2 are built; AC 3's reference-phone rows (iPhone 12 class, Pixel 5 class) are measured by Story 10.2 on the same phones, which is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2).)*
+
 As the designer,
 I want an on-screen readout of frame rate and load, and a way to spawn 150 Walkers in view,
 So that we know early whether phones can handle the horde.
@@ -659,6 +665,8 @@ So that we know early whether phones can handle the horde.
 **And** if a phone misses the target, the note lists the measured bottleneck (rendering vs simulation) for follow-up
 
 ### Story 1.12: Melee and controls playtest on real phones
+
+*(Done 2026-11-26, folded into 10.9's game nights (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): the controls feedback and the melee decision are collected in the first 10.9 game night.)*
 
 As the designer,
 I want my friends and me to try the controls on our own phones,
@@ -1441,6 +1449,8 @@ So that we judge the milestone on the right mood.
 **Then** the light state follows a time of night per stage: stage 1 dusk (a little blue left in the sky, warm shop light), stage 2 full night, stage 3 deep night with rain; stages 4–5 are darker placeholders until Epic 6 (blackout and fog in 6.4)
 
 ### Story 4.10: Milestone 1 playtest
+
+*(Done 2026-11-26, folded into 10.9's game nights (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): its FPS / bandwidth / reversed-hit rows and its fun, difficulty, economy, building and decay feedback are collected in the first 10.9 game night, on the 10-wave game. The "go / fix-first for Epic 5" decision is moot: Epics 5–8 are done.)*
 
 As the designer,
 I want my friends and me to play the Milestone 1 build online,
@@ -2723,6 +2733,30 @@ So that some runs end with a surprise.
 **When** Vitest runs
 **Then** a seeded sim over 1,000 run seeds gives 20 % ± 3 % runs with a bag, every bag at waves 3–10, the same seed gives the same bag, and the bag never spawns inside a solid
 
+### Story 7.13: Epic 7 leftovers (B18/B19, Wear it)
+
+(Added 2026-11-26: the designer's "ok" to retro E7-A6 (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6; answers in `docs/epic-7-decisions.md` › Designer answers 2026-11-26). No other story owns these: 7.12 B21 / B34 left "Wear it" as a follow-up. 7.3 F12 is kept as built and 7.4 B11 is dropped, so neither is in this story. The 7.10 AC 12 30-second check runs in 10.9's first game night. A small client-first story; the save path is 7.10's `POST /account/look`.)
+
+As a player,
+I want the account screens to tell me what happens to my progress, and to wear a new item straight from Results,
+So that I never lose progress by surprise and a new item feels like a reward.
+
+**Acceptance Criteria:**
+
+**Given** 7.6 B18 ("That name is taken" on Save my progress, at 10 name checks per minute per address) and 7.6 B19 (the Log in form shows "This phone's guest progress will be added to that account." first when this phone's guest has progress)
+**When** the story starts
+**Then** the builder checks both against the code (as of 2026-11-26 both appear built: `packages/shared/src/net/account.ts` `name_taken`, `apps/server/src/net/limits.ts` / `rateLimit.ts`, `apps/client/src/ui/accountModel.ts` `mergeWarning`); any part not wired into `AccountScreen.tsx` or the server route is built
+**And** each has a test: Save with a taken name shows the line and the 11th check in a minute from one address is refused; Log in with a guest that has progress shows the warning before the request, and a guest with no progress doesn't
+
+**Given** a new item on the Results "Run rewards" lines (7.11 milestone item or 7.12 loot item; 7.11 D8)
+**When** I tap **Wear it**
+**Then** the item is put on in its slot through 7.10's save path (owned-part check on the server), my lobby card and next run show it, and the button changes to "Wearing"; offline or a refused save shows "Couldn't save · try in the editor" and nothing else changes
+**And** the button is ≥ 44 × 44 px, fits the Results layout at 568 × 320 … 1920 × 1080 with and without insets (layout test), and practice solo / guests without a bank show no button
+
+**Given** the gate
+**When** it runs
+**Then** nothing in gameplay, balance or net protocol changes (one new client call to an existing route at most), and the 7.10 / 7.11 / 7.12 tests stay green
+
 ---
 
 ## Epic 8: Real-life resilience
@@ -2739,7 +2773,7 @@ Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat
 - **8.9:** the rewind window was raised to 600 ms / 12 ticks (T10).
 - **8.10:** the 10 Hz far rule is off (B7); every zombie is refreshed at 20 Hz.
 - **8.11:** wire format `NET_PROTOCOL_VERSION` 3, with a 14-byte binary input.
-- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6) has no owner: 8.11 B2 left it out of 8.11's scope.
+- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6). 8.11 B2 left it out of 8.11's scope; since 2026-11-26 (correct-course) it is **Story 8.13**, a small story in the normal build order, landed before any real-device network test.
 
 
 Designer decision 2026-11-24 (`sprint-change-proposal-2026-11-24-network-pass.md`), from the network audit `docs/perf/network-audit-2026-11.md` (measured: hits and picture break on a lossy 4G line; a dropped phone is out for the run). Build order: **8.8 ∥ 8.9** (different files) → **8.1** (below, extended) → **8.10** → **8.11** (optional). Numbered 8.8–8.11 so the existing 8.1–8.7 references stay valid. Then the designer's 4-phone 4G test (Story 2.10 plan) is the check, Wi-Fi phones with `&loss=1`.
@@ -3012,77 +3046,180 @@ So that we can coordinate without voice chat.
 **When** it is sent (`ping.send`, max 1 per second per player)
 **Then** every teammate sees its icon in my color pinned where I sent it for 4 s, with an edge arrow when off screen, and a short sound; a new ping replaces my previous one; pings draw above the blackout darkness
 
-## Epic 9: Dead City art and audio
+### Story 8.12: Only standing, connected players vote
 
-The game looks and sounds like Dead City. Can start after Epic 4 and runs alongside later epics. **No hiring (designer, 2026-11-23: "we won't hire anybody"):** this epic is a polish pass of the art already drawn in game code (`render/city/*`, baked atlases with `category_name_variant` frames, every texture through `addGeneratedTexture`) and of the audio, made from code/procedural sound or licensed/free libraries. No hired artist or sound designer. Polish keeps every look the designer picked and the two-pick rule (first = base look, second = upgrade/skin look); Meshy and vector images are only references. Changes stay in the drawing and audio code and the same frame names, so they need no gameplay code changes.
+(Quick story 2026-11-25, party-mode session, designer decision; story file `8-12-disconnected-players-dont-vote.md` (ready-for-dev) is the full spec. Copied into epics.md by the correct-course of 2026-11-26 without scope change. It deliberately **reverses Story 8.1 review M2 / RR1-M1** (a held seat counted as a silent = Extract vote) and narrows 6.11's "whole team" count.)
 
-### Story 9.1: Art and audio asset spec
-
-As the designer,
-I want a complete list of every image and sound the game has, with its generator, names and picked look,
-So that the polish pass knows exactly what exists and what to improve.
+As a player in a co-op run,
+I want the evacuation vote to count only the players who are actually connected and standing,
+So that a teammate who dropped can't tip the vote to Extract against the players who are still here.
 
 **Acceptance Criteria:**
 
-**Given** the code-drawn atlases, maps and sound files
+**Given** the vote resolves
+**When** the votes are counted
+**Then** only players who are connected (not in `world.heldPlayers`) and alive (`status === "alive"`) count; downed and out players don't; the count is taken at the resolving tick, so a revived player counts again with the choice they made (or silent)
+**And** `resolveEvacVote` uses `voteOutcome(t.stay, <counted players>)` and `countVotes` no longer adds held seats to `silent`; connected silent players still count as Extract (6.11 D1), a tie is Extract, and nobody counted means Extract
+**And** the story's table holds, e.g. 4 seats, 1 held, 2 Stay + 1 Extract → Stay; 4 connected, 2 downed, 1 Stay + 1 Extract → Extract (tie)
+
+**Given** every counted player has voted
+**When** held, downed or out players have not
+**Then** the vote still ends `allVotedHoldS` later (6.11 F4); a seat returning during the vote counts from that tick, starting silent
+
+**Given** the vote panel
+**When** it shows
+**Then** downed and out players' chips read "not voting" with disabled buttons, held seats are hidden or dimmed "not voting" and left out of the result line, `allIn` and `voteUrgent`, and the result line matches the server's outcome
+**And** `markHeldEvac` earnings are unchanged (8.1 M2's banking fix stays), and the replay digest test passes
+
+**Given** the story lands (X1, designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6)
+**When** it merges
+**Then** Story 6.11 in this file gets an as-built note ("since 8.12: only connected, standing players count; downed, out and held players see disabled buttons") and FR66 is reworded to "a majority of the connected, standing players; a tie or no counted votes means Extract"
+**And** the 8.1 M2 / RR1-M1 reversal is recorded in `docs/epic-8-story-decisions.md` › Designer review 2026-11-26 (E8-A9), next to 8.1 B15/B16/B19 (confirmed 2026-11-26)
+
+### Story 8.13: Slow-line horde skip
+
+(Added 2026-11-26, correct-course; named 8.12 by the designer and renumbered because 8.12 is the quick story "Disconnected players don't vote" `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`: the owner of 8.10 B6 / retro E8-A4. A small story in the normal build order; land it before any real-device network test (real-phone testing is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)). Source: the 8.10 backpressure table, `8-10-half-size-horde-stream.md` (64 kbit/s: 0 skips, frames wait up to 4,720 ms in the line, because the 64 KB socket rule cannot see a queue that sits in the network).)
+
+As a player on a very slow mobile line,
+I want to see where the horde is now, not where it was seconds ago,
+So that a bad signal costs me detail, not my life.
+
+**Acceptance Criteria:**
+
+**Given** a per-phone latency signal on the server (the round trip of something the phone already answers, or a new tiny ack if none fits; a new message bumps `NET_PROTOCOL_VERSION` with the usual "please reload" path)
+**When** the estimated age of the horde frames queued for that phone passes a threshold (a named constant, recorded with its measured reason)
+**Then** the server skips the stale horde frames for that phone and sends a keyframe (full frame) once the line catches up, the same keyframe path as 8.10's join / skip / once-a-second rule
+**And** only horde frames are skipped: state patches and events are never dropped
+
+**Given** the 8.10 capped-line measurement (`tools/netaudit/lagLine.ts --kbps`, 4 bot phones, wave 4, stalls of 0.2, 0.4 and 1 s at 64 and 128 kbit/s; the 8.10 T8 table method)
+**When** it runs with this change
+**Then** at 64 kbit/s the longest wait of a horde frame in the capped queue is **≤ 1,000 ms** in every row (today 4,720 / 4,680 / 1,883 ms), with **0 decode errors**, and after each keyframe the phone's zombie positions match a full frame within 1 cm
+**And** at 128 kbit/s and on a clean line `framesSkipped` stays **0** and the horde stream stays within **+5 %** of the 8.10 numbers (8.2 KB/s on the audit replay, ≤ 13.5 KB/s with the stampede's 180 in one view)
+**And** the before / after table is recorded in the story file and in `docs/perf/network-pass-2026-11.md` § 8.10, and `deferred-work.md`'s 8.10 B6 line is closed
+
+**Given** the existing net tests (hits harness, `smooth.test.ts`, `hordeEncoder.test.ts`, the 8.10 fuzz decode)
+**When** the gate runs
+**Then** they pass unchanged; the lossy-line numbers of 8.8 / 8.9 (reversed hits < 5 %, ≤ 1 visible freeze per 30 s) do not get worse
+
+**Given** 8.10 B7 (the 10 Hz far rule is off, so every zombie is refreshed at 20 Hz; retro E8-A9, designer "ok" 2026-11-26: re-checked here instead of on phones, which are parked)
+**When** the 64 and 128 kbit/s rows above are measured
+**Then** the story file records whether B7 holds: if both rows meet their targets with the far rule off, B7 is confirmed in `docs/network-pass-decisions.md`; if not, this story's skip is the first lever, and turning the far rule back on (`HORDE_NEAR_M`) is tried only after it, with the numbers of both in the table
+
+## Epic 9: Dead City art and audio
+
+The game looks and sounds like Dead City. Can start after Epic 4 and runs alongside later epics. **No hiring (designer, 2026-11-23: "we won't hire anybody").** **Direction: photoreal (designer, 2026-11-26, correct-course `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`; readiness Q1).** Stories 9.1–9.10 are re-based on the pipeline that 9.11–9.14 built (`docs/art/photoreal-decisions.md`):
+
+- **Pick first.** Each art group gets a before/after proposal page (`docs/art/photoreal-<n>/compare.html` style). The designer picks; only the approved look is built. Meshy and vector images are references only; the two-pick rule (first = base look, second = upgrade/skin look) and every picked look id are kept.
+- **Two ways into the game, chosen per group by the story:** (a) **worker relight**: today's code drawing, relit at load in a Web Worker (9.11 / 9.13: `render/city/relight.ts`, `*BakeWorker.ts`, main-thread sliced fallback, kept cache, graphics-restore re-bake), for anything animated or per-player; (b) **pre-rendered atlas**: rendered offline from the approved code into a lossless WebP atlas with a frame JSON and a drift hash (9.14: `npm run art:street-props`, `render/city/streetProps.webp`, `streetProps.json`), for static art. In both, the code drawing is the fallback and frame names stay `category_name_variant`.
+- **Budgets for every Epic 9 art story** (the 9.13 / 9.14 measuring method): atlases ≤ 2048 × 2048; each pre-rendered atlas ≤ 2 MB and the first-load download < 15 MB in total (music streamed); main-thread long task from a bake ≤ 6 ms at 1× CPU (report 1× and 4×); a group's full bake done within 15 s at 4× CPU; with `?stress=150` at 844 × 390 DPR 2, average FPS within **2 FPS** of master and frame-time p95 within **+1 ms** of master, at 1× and 4× CPU; animated extras capped and pooled (`controls.fx` caps, `?fx=low` halves them), no per-frame allocation.
+- **Gameplay unchanged:** no change to simulation, balance numbers (except new `controls.fx` caps), net messages, collision or the world digest.
+- **Order and dependencies:** 9.1 first (the spec). 9.5, 9.6 and 9.8 read settings that **Story 10.1** adds, so 10.1 is built before them.
+
+### Story 9.1: Art and audio asset spec
+
+*(Re-based 2026-11-26, correct-course: the look ids stay; the photoreal pipeline and budgets are added.)*
+
+As the designer,
+I want a complete list of every image and sound the game has, with its pipeline, names, picked look and budget,
+So that each photoreal group and each sound story knows exactly what exists, how it gets into the game and what it may cost.
+
+**Acceptance Criteria:**
+
+**Given** the code-drawn atlases, the 9.11 / 9.13 relit atlases, the 9.14 pre-rendered atlas, maps and sound code
 **When** the spec is written to `docs/art/asset-spec.md` and `docs/audio/asset-spec.md`
-**Then** it lists every generator (`render/city/*`), atlas and frame (`category_name_variant`), frame sizes, poses and frame counts, decay layer groups, every picked look id (Spitter P4, Brute BR1–BR5, Bloater BL1–BL5, floodlight FL1/FL5, med station MS10, gear GR6, consumables CI4, hand grenade HG1, molotov MB1, cards C3, build-bar icons I1/T1/M1, fire-lab D, explosions EX1/EX2, flame streams FS1/FS2), the Dead City palette and mood references (style labs), and every sound with its trigger, length, loop flag and source (procedural, or the licensed/free library and its licence)
+**Then** it lists every generator (`render/city/*`), atlas and frame (`category_name_variant`), frame sizes, poses and frame counts, decay layer groups, and every picked look id (Spitter P4, Brute BR1–BR5, Bloater BL1–BL5, floodlight FL1/FL5, med station MS10, gear GR6, consumables CI4, hand grenade HG1, molotov MB1, cards C3, build-bar icons I1/T1/M1, fire-lab D, explosions EX1/EX2, flame streams FS1/FS2, photoreal take 4 grey outline, the approved street-props and police sets), the Dead City palette and mood references
+**And** each art group has a pipeline line: **code only**, **worker relight** (bake worker, `controls.fx` caps) or **pre-rendered atlas** (build command, output file, frame JSON, drift hash), its photoreal state from `docs/art/photoreal-decisions.md` (approved and in game / not started) and the story that owns it (9.2–9.7, 9.11–9.14)
+**And** the 12.3 helicopter crew sprite and the helicopter are listed as a photoreal group of their own (X9, designer "ok" 2026-11-26): code-drawn placeholders until then, picked with 9.4 (characters) or 9.2 (city)
+**And** every sound is listed with its trigger, length, loop flag, bus (music, SFX, ambience) and source (procedural, or the licensed/free library and its licence)
 
 **Given** the platform budgets
 **When** the spec is reviewed
-**Then** it states the limits: atlases ≤ 2048 × 2048, first-load download < 15 MB (music streamed), SFX in audio sprites
+**Then** it states the Epic 9 budgets as numbers (atlases ≤ 2048 × 2048; each pre-rendered atlas ≤ 2 MB; first load < 15 MB; bake long task ≤ 6 ms at 1×; full bake ≤ 15 s at 4×; `?stress=150` within 2 FPS and +1 ms p95 of master; SFX in audio sprites; music streamed)
+**And** it records today's measured spend against them (at least the 9.13 caps and bake times and the 9.14 atlas: 2032 × 536, 531 KB), so later stories know the headroom
 
 ### Story 9.2: Downtown in five decay states
 
+*(Re-based 2026-11-26, correct-course: buildings, ground and decay props only. Cars in 3 conditions, the bus, barriers, police lines, sandbags, dumpster, gas pump and rubble boxes are done in 9.14.)*
+
 As a player,
-I want Downtown to look like a real city that falls apart stage by stage,
+I want Downtown's buildings and streets to look real and fall apart stage by stage,
 So that the decay tells the story of the run.
 
 **Acceptance Criteria:**
 
-**Given** the polished code-drawn district art
-**When** it is drawn
-**Then** Downtown has 5 visual states, one per decay stage (Evening, Panic, Breakdown, Ruins, Collapse; one night: dusk at stage 1, darker each stage, dawn only on Extract), with decay props: cars in 3 conditions, barriers, sandbags, rubble, fires and vegetation (FR82)
-**And** collision, cover and spawn layers are unchanged, and all map tests still pass
+**Given** a proposal page for the buildings, the ground and the remaining decay props (before/after per decay stage, Evening, Panic, Breakdown, Ruins, Collapse)
+**When** the designer picks
+**Then** the pick is recorded in `docs/art/photoreal-decisions.md`, and only the approved look is built
+**And** the proposal page also shows each look at 12.3's 0.6× zoom-out (about 40 × 22.5 m) and it looks right there (X9, designer "ok" 2026-11-26)
 
-**Given** a full run
-**When** played on the reference phones
-**Then** FPS stays within NFR1 and the first-load size stays under 15 MB
+**Given** the approved look
+**When** the city is drawn
+**Then** buildings (facades and roofs, lit shop fronts, damage per stage), ground (asphalt, sidewalks, road markings, puddles, cracks, the Ruins and Collapse ground) and the decay props not in 9.14 (fires and scorch, debris and loose rubble on the ground layer, vegetation at stages 4–5) use it in all 5 visual states (one night: dusk at stage 1, darker each stage, dawn only on Extract) (FR82)
+**And** static art ships as a pre-rendered atlas (9.14 way: build command, frame JSON, drift hash, code fallback) and animated or lit parts as worker-relit frames; the story records which part took which way
+**And** collision, cover and spawn layers are unchanged, and all map, decay and digest tests still pass
+
+**Given** the Epic 9 budgets
+**When** measured the 9.14 way
+**Then** the new atlas(es) add ≤ 2 MB to the first load each (first load < 15 MB total), the slow-4G page-load-to-title time is no worse than +1 s against master, and `?stress=150` in a stage-3 rain wave and a stage-5 blackout stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
 
 ### Story 9.3: Survivor animations
 
+*(Re-based 2026-11-26, correct-course: weapon-family, reload and downed poses on the 9.13 relit bodies.)*
+
 As a player,
-I want my survivor to look like a person seen from above holding the weapon I carry,
-So that I can read my teammates' roles at a glance.
+I want my survivor to hold, fire and reload the weapon I carry and to look downed when I'm down,
+So that I can read my teammates' roles and state at a glance.
 
 **Acceptance Criteria:**
+
+**Given** a proposal page of the poses on the 9.13 take-4 relit bodies (grey see-through outline kept)
+**When** the designer picks
+**Then** the pick is recorded in `docs/art/photoreal-decisions.md`, and only the approved poses are built
 
 **Given** a survivor
 **When** it is drawn
-**Then** the body comes from the player's look (Stories 7.8/7.9, drawn in code into a per-player texture at join); the slot colour shows only on the ring, name and edge arrows; holding poses exist per weapon family (pistol, two-handed gun, melee, chainsaw, flamethrower/gas torch, launcher) with walk, fire or swing, reload and downed, within 7.9's budget (FR82)
+**Then** the body still comes from the player's look (Stories 7.8 / 7.9, per-player texture, relit in the worker as in 9.13); the slot colour shows only on the ring, name and edge arrows
+**And** holding poses exist for each of the 6 weapon families (pistol, two-handed gun, melee, chainsaw, flamethrower / gas torch, launcher), each with walk, fire or swing, and reload, plus a downed pose that replaces today's tint (the ring stays) (FR82)
 
-**Given** a player swaps or buys a weapon
-**When** the active weapon changes
-**Then** the survivor's holding pose changes to match
+**Given** a player swaps or buys a weapon, reloads, or goes down
+**When** the state changes
+**Then** the pose changes on the next rendered frame, the reload pose lasts exactly the weapon's reload time, and revive returns to the holding pose
+
+**Given** 4 survivors with 4 looks
+**When** their poses are baked
+**Then** a body's pose set bakes in the worker within 7.9's / 9.13's one-body-per-frame landing budget (main-thread long task ≤ 6 ms at 1×), `survivorParts.raster.test.ts` stays green, and `?stress=150` with 4 survivors stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
 
 ### Story 9.4: Zombie and Behemoth animations
 
+*(Re-based 2026-11-26, correct-course: attack and death animations, plus a photoreal Behemoth. Walk loops for Walker, Runner and Crawler, breathing, glow, Bloater veins and Spitter drips are done in 9.13.)*
+
 As a player,
-I want every zombie type to look and move differently,
-So that I can spot the dangerous ones in the crowd and the dark.
+I want every zombie to attack and die visibly, and the Behemoth to match the rest,
+So that I can read the fight in the crowd and the dark.
 
 **Acceptance Criteria:**
 
-**Given** the zombie atlas (drawn in code)
-**When** it is loaded
-**Then** Walker, Runner, Crawler, Spitter, Bloater, Brute and the Behemoth each have walk, attack and death animations, keeping the picked looks and variants (Spitter P4; Brute BR1–BR5 and Bloater BL1–BL5 as random per-zombie variants), plus telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, the Brute's 0.5 s wind-up with the arms under the clothes, the Behemoth's walk, slam, charge, throw and stun/roar) (FR82, FR84)
+**Given** proposal pages for the attack and death animations and for a photoreal Behemoth (relit like 9.13, keeping its silhouette and every telegraph)
+**When** the designer picks
+**Then** the picks are recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
+
+**Given** Walker, Runner, Crawler, Spitter, Bloater and Brute
+**When** they attack or die
+**Then** each has an attack animation and a death animation (≤ 0.8 s, then today's splat), keeping the picked looks and variants (Spitter P4; Brute BR1–BR5 and Bloater BL1–BL5 as random per-zombie variants) and the telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, the Brute's 0.5 s wind-up with the arms under the clothes) (FR82, FR84)
+**And** death animations are client-only, pooled and capped (a `controls.fx` cap, `?fx=low` halves it); beyond the cap a zombie vanishes with today's splat
 **And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
-**Given** 150 animated zombies in view
-**When** the stress test from Story 1.11 runs
-**Then** FPS still meets NFR1
+**Given** the Behemoth
+**When** it is drawn
+**Then** it uses the approved photoreal look (worker relight, code drawing as fallback) for its walk, slam, charge, throw, stun / roar and enrage poses, and its telegraphs (ring, hatching, P1 warning display) read the same as today on the readability sheet
+
+**Given** 150 animated zombies in view, with deaths at the cap
+**When** the `?stress=150` test runs the 9.13 way
+**Then** average FPS is within 2 FPS and p95 within +1 ms of master at 1× and 4× CPU, and the world digest is unchanged
 
 ### Story 9.5: Gore and dismemberment
+
+*(Re-based 2026-11-26, correct-course: photoreal style through the designer's proposal-page pick. **Depends on Story 10.1** (the gore setting).)*
 
 As a player,
 I want heavy hits to tear zombies apart,
@@ -3090,67 +3227,93 @@ So that the fight feels as brutal as Dead City should.
 
 **Acceptance Criteria:**
 
+**Given** a proposal page of photoreal gore (pieces and blood, matched to the 9.13 bodies)
+**When** the designer picks
+**Then** the pick is recorded in `docs/art/photoreal-decisions.md`, and only the approved look is built
+
 **Given** a `zombie.killed` event with its weapon and damage type
 **When** the killing hit was heavy (Fire Axe, Chainsaw, Shotgun) or an explosion
-**Then** the client spawns code-drawn dismemberment pieces (arms, heads, torso halves, through `addGeneratedTexture`) for heavy hits, or bursts the zombie apart for explosive kills (FR83)
-**And** gore is client-only and never affects the simulation
+**Then** the client spawns dismemberment pieces in the approved look (arms, heads, torso halves; worker-relit or pre-rendered, frames per zombie type) for heavy hits, or bursts the zombie apart for explosive kills (FR83)
+**And** gore is client-only and never affects the simulation or the digest
 
 **Given** blood
 **When** zombies are hit or die
-**Then** blood decals stay on the ground until the wave ends, pooled and capped at 300 so memory stays flat
+**Then** blood decals stay on the ground until the wave ends, pooled and capped at 300 (today 200, `FxView.ts`; raise it only if the stress test holds, otherwise keep 200 and record why), so memory stays flat
+**And** with the cap full and 150 zombies in view, `?stress=150` stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
 
-**Given** the gore toggle set to "Blood only"
+**Given** Story 10.1's gore setting set to "Blood only"
 **When** zombies die
-**Then** no dismemberment pieces spawn; blood still shows
+**Then** no dismemberment pieces spawn; blood still shows; the change applies without a reload
 
 ### Story 9.6: Effects
 
+*(Re-based 2026-11-26, correct-course: photoreal style through the designer's proposal-page pick. **Depends on Story 10.1** (the quality settings).)*
+
 As a player,
-I want muzzle flashes, fire, acid, gas, explosions, rain and fog that look the part,
+I want muzzle flashes, fire, acid, gas, explosions, rain and fog that look real,
 So that the screen reads clearly even in chaos.
 
 **Acceptance Criteria:**
 
-**Given** the effects atlas
+**Given** a proposal page of photoreal effects (before/after, built from the picked looks: fire-lab D (4.12), EX1 (launcher) and EX2 (mine, hand grenade), the FS1 / FS2 flame streams)
+**When** the designer picks
+**Then** the pick is recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
+
+**Given** the approved look
 **When** effects play
-**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light textures are polished in code, keeping the picked looks: fire-lab D (4.12), EX1 (launcher) and EX2 (mine, hand grenade), the FS1 / FS2 flame streams
+**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, film grain, flashlight and floodlight light textures use it (pre-rendered frames or worker relight, code fallback)
 **And** rain follows decay (drizzle from stage 1, heavy rain at stage 3) and fog comes at stage 5
 
 **Given** effects
 **When** they play
-**Then** they come from Phaser object pools with no per-frame allocation, and rain, fog visuals, film grain and light glow read their quality settings
+**Then** they come from Phaser object pools with no per-frame allocation, and rain, fog visuals, film grain and light glow read Story 10.1's quality settings and change without a reload; blackout darkness and the 10 m fog vision limit ignore them (FR87)
+**And** at default settings `?stress=150` in a stage-3 rain wave with a flamethrower and a launcher firing stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
 
 ### Story 9.7: UI art
 
+*(Re-based 2026-11-26, correct-course: photoreal style through the designer's proposal-page pick. The Lumen LF5 UI style of Epic 7 is the starting point.)*
+
 As a player,
-I want menus and the HUD to look like they belong to Dead City,
+I want menus, icons and the HUD to look like they belong to the photoreal Dead City,
 So that the game feels finished.
 
 **Acceptance Criteria:**
 
-**Given** the UI art
+**Given** a proposal page per UI group (HUD and Build button, action bar and I1 build icons (5.16 / 5.21 / 5.26 / 5.27 / 10.10), C3 shop cards, GR6 gear and CI4 consumable icons, lobby, survivor editor (7.10), evacuation vote, ping icons, unlock and training screens), each showing today's Lumen LF5 look next to the photoreal proposal
+**When** the designer picks
+**Then** the pick is recorded in `docs/art/photoreal-decisions.md` (or `docs/art/epic-7/lumen/` for a Lumen change), and only the approved looks are built, keeping the picked looks' ids
+
+**Given** the approved UI art
 **When** applied
-**Then** the HUD, build bar, action bar and I1 build-bar icons (5.16/5.21/5.26/5.27), C3 shop cards, GR6 gear and CI4 consumable icons, lobby, survivor editor (7.10), evacuation vote, ping icons, unlock and training screens use code-drawn UI art, keeping the picked looks
-**And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px
+**Then** icons and card art ship as a pre-rendered atlas (9.14 way) or worker-relit frames, ≤ 2 MB per atlas, and the HTML overlays keep their Preact layouts
+**And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px, and `hudLayout.test.ts` passes at 568 × 320 … 1920 × 1080 with and without insets
 
 ### Story 9.8: Ambience and audio buses
 
 *(State on 2026-11-26, readiness check: per-stage procedural ambience with a 3 s crossfade already exists in `apps/client/src/audio/ambience.ts`, built by 4.6/4.7/6.2/6.4. Stage 3 reuses the Panic loop, and there is no Breakdown loop of its own. There are no buses: the ambience gain goes straight to the output, and the boss loop runs on the SFX master. The volume sliders need Story 10.1's settings screen.)*
 
+*(Scope shrunk 2026-11-26, correct-course, readiness Q2: the per-stage loops are kept; this story adds the three buses, a Breakdown loop of its own, the rain beds and wires 10.1's volumes. **Depends on Story 10.1** (it stores the 3 volumes).)*
+
 As a player,
-I want the city's sound to change as it decays,
-So that I can hear the run getting worse.
+I want the city's sound to change as it decays and each kind of sound on its own volume,
+So that I can hear the run getting worse and set the mix I like.
 
 **Acceptance Criteria:**
 
-**Given** three audio buses (music, SFX, ambience)
-**When** the Settings screen is open
-**Then** each has its own volume slider, saved in player settings
+**Given** three audio buses (music, SFX, ambience) under one master
+**When** the game plays
+**Then** every sound goes through exactly one bus: the ambience player's gain feeds the ambience bus, the boss loop moves from the SFX master to the music bus, and every other cue feeds the SFX bus (a unit test checks the routing)
+**And** each bus applies Story 10.1's saved volume (0–100 %) at start and within 100 ms of a slider change, with no reload
 
-**Given** each decay stage
+**Given** stage 3 (Breakdown)
 **When** it becomes active
-**Then** its ambience loop crossfades in over 3 s: Evening (traffic, distant music, voices), Panic (sirens, car alarms, shouting), Breakdown (rain, crackling fire), Ruins (wind, falling debris), Collapse (near silence, growls, rain) (FR85); light drizzle is audible from stage 1 and heavy rain from stage 3
-**And** loops are procedural or from licensed/free libraries (credits listed in the audio spec)
+**Then** its own `breakdown` loop (heavy rain, crackling fire; procedural, appended to `AMBIENCE_LOOPS`) crossfades in over 3 s instead of the Panic loop (FR85)
+**And** the other stages keep their loops (Evening, Panic, Ruins, Collapse / Collapse ash) and light drizzle is audible from stage 1, heavy rain from stage 3 (none for the ash style)
+
+**Given** the audio spec (9.1)
+**When** this story lands
+**Then** every loop is listed with its bus and source (procedural, or a licensed/free library with its credit)
+**And** the per-frame ambience step still allocates nothing (existing tests green)
 
 ### Story 9.9: Adaptive music
 
@@ -3199,7 +3362,7 @@ So that I can fight by ear in the dark.
 
 ### Photoreal pass (stories 9.11–9.14, added 2026-11-25)
 
-The designer ran a photoreal art pass outside the story flow (the asset session, 2026-11-24/25): every look was picked by the designer on proposal pages, then the approved sets go into the game in game code. *(As built: 9.11 and 9.13 relight the code drawings at load in a Web Worker. 9.14 ships the street props and vehicles as one pre-rendered image atlas, `apps/client/src/render/city/streetProps.webp`, rendered offline from the approved code by `npm run art:street-props` (9.14 B1). The Behemoth, FX, icons, UI, buildings and ground are not reworked yet (`docs/art/photoreal-decisions.md`).)* Decisions: `docs/art/photoreal-decisions.md`; art direction: `docs/art/visual-direction.md`; the asset review page (https://claude.ai/artifact/Eznwmb2BbdSoogcXKKN4Ro, `docs/art/asset-review.md`) shows only accepted looks. These stories overlap 9.3 (survivor animations), 9.4 (zombie animations), 9.6 (effects) and 9.2 (Downtown look): when those are written, start from what is already built and approved here.
+The designer ran a photoreal art pass outside the story flow (the asset session, 2026-11-24/25): every look was picked by the designer on proposal pages, then the approved sets go into the game in game code. *(As built: 9.11 and 9.13 relight the code drawings at load in a Web Worker. 9.14 ships the street props and vehicles as one pre-rendered image atlas, `apps/client/src/render/city/streetProps.webp`, rendered offline from the approved code by `npm run art:street-props` (9.14 B1). The Behemoth, FX, icons, UI, buildings and ground are not reworked yet (`docs/art/photoreal-decisions.md`).)* Decisions: `docs/art/photoreal-decisions.md`; art direction: `docs/art/visual-direction.md`; the asset review page (https://claude.ai/artifact/Eznwmb2BbdSoogcXKKN4Ro, `docs/art/asset-review.md`) shows only accepted looks. These stories overlap 9.3 (survivor animations), 9.4 (zombie animations), 9.6 (effects) and 9.2 (Downtown look): since the 2026-11-26 correct-course, 9.1–9.7 are re-based on this pipeline and start from what is built and approved here.
 
 ### Story 9.11: Photoreal things you build (done)
 
@@ -3261,9 +3424,13 @@ So that the whole street matches.
 
 Every technical target is met on the reference phones; quality settings, home-screen install, problem reports, run stats, a balance pass and friend-group playtests deliver v1 for weekly game nights.
 
+**Order (designer, 2026-11-26, correct-course):** **10.1 first**: 9.5, 9.6, 9.8 and 10.2 depend on its settings. Then 10.2–10.7 → 10.8 → 10.9. 10.2 absorbs 1.11 AC 3; 10.9's game nights absorb 1.12 and 4.10 (Epics 1 and 4 are closed). **All real-phone testing is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**: the phone ACs of 10.2, 10.3, 10.5 and 10.9 are kept but marked parked, no story waits on them, and the simulated or headless measures (`?stress=150`, CDP CPU and network throttling, Playwright browsers and device emulation) are the buildable part. Epic 12 (extraction cinematic) lands before 10.2, 10.8 and 10.9 (see Epic 12).
+
 ### Story 10.1: Settings screen
 
 *(State on 2026-11-26: `apps/client/src/settings/settings.ts` already stores `screenShake`, `haptics` and `alwaysFullSpeed` in localStorage under `topdown-shooter.settings`. The in-run ☰ menu has a Settings view with the Always full speed toggle (`spec-always-full-speed-setting.md`). Quality, volumes, gore, aim assist, Show performance and account sync are not built; `progress` has no `settings` column. The only quality switch is the URL flag `?fx=low`. 9.5 (gore toggle), 9.6 (quality settings) and 9.8 (volume sliders) read settings this story adds.)*
+
+*(Correct-course 2026-11-26: **built first in Epic 10**; 9.5, 9.6, 9.8 and 10.2 depend on it. Extends `settings/settings.ts` and the existing ☰ Settings view rather than replacing them. Retro E7-A8 adds the deletion AC below.)*
 
 As a player,
 I want to adjust quality, sound and controls,
@@ -3281,6 +3448,12 @@ So that the game runs and feels right on my phone.
 **Then** it applies immediately, is stored in localStorage (wrapped in try/catch, with defaults if storage fails), and is synced to my account when I'm logged in
 **And** account sync uses its own `settings` field in `progress`, added by this story's own migration (Story 7.1 doesn't create it)
 
+**Given** the Settings screen, as a guest or logged in (retro E7-A8)
+**When** I choose "Delete my progress" and confirm it on a second screen that names what goes (Supplies, unlocks, training, look, saved runs, the account if I have one)
+**Then** the server deletes my `progress` row, my saved runs (or my seat in them), my `run_rewards` and `device_tokens` rows, and the account row with its username and password hash, in one transaction, and logs `account_deleted` with no personal data
+**And** the device's guest token, cookie and stored settings are cleared, the next open starts a fresh guest with 0 Supplies, and a test proves that a deleted account's username can be registered again and its old token is refused
+**And** the endpoint needs the current session (and the password for an account), is rate-limited, and works while the player is in no run
+
 ### Story 10.2: Frame-rate pass on reference phones
 
 As a player,
@@ -3289,14 +3462,24 @@ So that nothing stutters when it matters.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11i
+*(Correct-course 2026-11-26: the real-phone ACs below are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**. The buildable part is the headless one: Chromium at 844 × 390 DPR 2 with CDP CPU throttling 1× and 4× (the Mi 11i stand-in used by 7.9 / 9.13), measured the 9.13 way.)*
+
+**Given** headless Chromium at 844 × 390 DPR 2 with 1× and 4× CPU throttling
+**When** `?stress=150` runs a wave 9 blackout with all 150 alive zombies in view at default settings (8 s warm-up, 12 s count, two rounds)
+**Then** the average and 1 % low FPS and frame-time p95 are recorded in `docs/perf/epic-10-fps.md` with every optimization made, and at 4× the average is ≥ 30 FPS, or the bottleneck is named and the default quality settings for that class are lowered until it is
+
+**Given** *(parked)* an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11i
 **When** a full wave 9 blackout is played with all 150 alive zombies in one player's view at default settings
 **Then** FPS averages 60 and never stays below 30 (NFR1)
 **And** the measurements and every optimization made are recorded in `docs/perf/epic-10-fps.md`
 
 **Given** a phone that misses the target
 **When** quality settings are lowered
-**Then** the target is met, and the default settings for that device class are adjusted if needed
+**Then** the target is met, and the default settings for that device class are adjusted if needed (this uses Story 10.1's quality settings: **depends on 10.1**)
+
+**Given** *(parked)* god mode and 150 Walkers spawned inside the camera view (Story 1.11 AC 3, folded in here 2026-11-26)
+**When** the scene runs for 60 s on the iPhone 12 class and Pixel 5 class phones
+**Then** the average and minimum FPS fill the empty reference-phone rows of `docs/perf/epic-1-stress.md` (target 60 FPS, never below 30, NFR1), with the measured bottleneck (rendering vs simulation) for any miss
 
 ### Story 10.3: Memory and battery pass
 
@@ -3306,11 +3489,17 @@ So that we can play a whole evening.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12 in Safari
+*(Correct-course 2026-11-26: the real-phone ACs below are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**. The buildable part: a headless Chromium solo or bot run of all 10 waves.)*
+
+**Given** headless Chromium running a full 10-wave solo run (bots or a scripted player) at 844 × 390
+**When** the JS heap (CDP `Performance.getMetrics`) and GPU texture memory are sampled at each build phase
+**Then** neither grows from wave to wave by more than 5 % after wave 2, the peak is recorded, and 4× CPU-throttled main-thread busy time per minute is recorded as the battery proxy, in `docs/perf/epic-10-memory-battery.md`
+
+**Given** *(parked)* an iPhone 12 in Safari
 **When** a full 10-wave run is played
 **Then** the tab stays under 300 MB throughout, with no growth from wave to wave (NFR2)
 
-**Given** the reference phones at 100% charge
+**Given** *(parked)* the reference phones at 100% charge
 **When** a 20-minute run is played at default settings
 **Then** battery use is under 15% (NFR7)
 **And** results are recorded in `docs/perf/epic-10-memory-battery.md`
@@ -3349,11 +3538,16 @@ So that it feels like an app.
 **When** I choose "Add to Home Screen" on iOS or "Install" on Android
 **Then** the game opens fullscreen in landscape from the icon
 
-**Given** a phone with a notch or rounded corners
+**Given** *(parked: parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2))* a real phone with a notch or rounded corners
 **When** the game runs
-**Then** HUD and controls stay inside the safe areas
+**Then** HUD and controls stay inside the safe areas (until then: the buildable check below)
 
-**Given** Safari on iOS 16+, Chrome on Android 10+, and current desktop Chrome, Firefox, Safari and Edge
+**Given** the safe areas already built (Q4, designer "ok" 2026-11-26: this AC is narrowed to emulation and top-inset cases)
+**When** the layout checks run
+**Then** `hudLayout.test.ts` gains cases with a non-zero top inset (≥ 47 px) at 568 × 320 and 844 × 390, and one Playwright run with iPhone and Pixel device emulation (with insets) shows HUD and controls inside the safe areas
+**And** the manifest, icons, Add to Home Screen and the browser matrix are the story's main work
+
+**Given** current desktop Chrome, Firefox, Safari (WebKit) and Edge, run through Playwright now, and *(parked)* real Safari on iOS 16+ and Chrome on Android 10+
 **When** a smoke test (lobby, one wave, shop, build) runs on each
 **Then** it passes, and the results are recorded in `docs/qa/browsers.md` (NFR8)
 
@@ -3385,6 +3579,7 @@ So that I can check the success metrics.
 **Given** a migration creating only the `run_results` table (district, seed, player count, wave reached, extracted, loadout per player, started, ended)
 **When** a run ends
 **Then** a row is written (FR88)
+**And** kills during the `extract` phase (12.2's fly-out horde) are not counted in the run's stats (X8, designer "ok" 2026-11-26)
 
 **Given** a stats script (`npm run stats`)
 **When** I run it
@@ -3392,7 +3587,7 @@ So that I can check the success metrics.
 
 ### Story 10.8: Balance pass
 
-*(State on 2026-11-26: the balance files are in `packages/shared/src/config/balance/`. The balance version is a hash of the JSON (`config/balance.ts`), so every change bumps it. Story 9.13 changed it by adding 4 `controls.fx` caps (no gameplay number). `docs/balance/changelog.md` does not exist yet. Already settled: wave bonus 15 × N (Epic 5 balance pass, `docs/epic-5-decisions.md`), `loot.runChance` 0.2 (`loot.json`), building cap `maxPerPlayer` 6 (`buildings.json`), solo × 0.35.)*
+*(State on 2026-11-26: the balance files are in `packages/shared/src/config/balance/`. The balance version is a hash of the JSON (`config/balance.ts`), so every change bumps it. Story 9.13 changed it by adding 4 `controls.fx` caps (no gameplay number). `docs/balance/changelog.md` was created 2026-11-26 (Q5, designer "ok" 2026-11-26), back-filled with Epic 5 B1–B12 and 9.13 B28; every balance change adds a line. Already settled: wave bonus 15 × N (Epic 5 balance pass, `docs/epic-5-decisions.md`), `loot.runChance` 0.2 (`loot.json`), building cap `maxPerPlayer` 6 (`buildings.json`), solo × 0.35.)*
 
 As the designer,
 I want the economy and difficulty tuned from real runs,
@@ -3402,7 +3597,8 @@ So that the run feels like the GDD's curve.
 
 **Given** run stats, bot runs and playtest notes
 **When** the balance is reviewed
-**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), `loot.runChance` and the 6-building cap
+**Then** it re-checks the wave bonus 15 × N, `loot.runChance` 0.2 and the cap of 6 buildings per player against real runs and bot runs (Q5, designer "ok" 2026-11-26), and changes any of them only with a reason line in `docs/balance/changelog.md`
+**And** the re-check uses runs with 12.4's no-refund rule and 12.1's no-fort rule (12.4 lands before this story; 12.1's before/after bot-sim numbers are an input, X2, X4)
 **And** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
 
 **Given** balance changes
@@ -3417,11 +3613,13 @@ So that we know it's ready for every week.
 
 **Acceptance Criteria:**
 
+*(Correct-course 2026-11-26: the per-phone measurements and phone-specific checks below (4.10's per-phone rows, 1.12 "on their own phones") are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**; the game nights themselves run on whatever devices the group uses and are not held back.)*
+
 **Given** the release build
 **When** the friend group plays at least 3 game nights
 **Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
 **And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
-**And** if the 4.10 Milestone 1 playtest never ran, its checks (`docs/playtests/milestone-1.md`) run in the first game night
+**And** the first game night also runs the folded checks (correct-course 2026-11-26): **4.10**: *(per-phone rows parked)* FPS, bandwidth and reversed hits for each phone in `docs/perf/milestone-1.md` against NFR1, NFR3–NFR5, and feedback on fun, difficulty, economy, building and decay, from `docs/playtests/milestone-1.md` refreshed first to the 10-wave game (current earnings, the Behemoth, events, the evacuation vote, the Build button); **1.12**: at least 3 people's feedback on move stick, aim stick, auto-fire, aim assist, swap and melee in `docs/playtests/epic-1-controls.md`, with the melee-under-twin-stick decision (keep, tune or change) recorded and each issue fixed by tuning or turned into a story; **7.10 AC 12** (retro E7-A6, designer "ok" 2026-11-26): a first-time player is timed from opening the survivor editor to Done (target < 30 s), written in `docs/playtests/epic-7-customization.md`
 
 **Given** every NFR
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
@@ -3505,6 +3703,7 @@ So that a bad layout never ruins a run.
 **Given** the Epic 6 content on the map
 **When** the **anchor check** runs
 **Then** the city has 4 main-street ends at least 4 m clear at every stage (Behemoth entries), an `evac_pad` point inside area C, and crate, survivor and safe spots plus stampede lanes on open road and reachable (Story 6.8's tests run on generated maps too)
+**And** the `evac_pad` sits in the main walkable region, and Story 12.1's `seals_path` check runs on the generated map (X11, designer "ok" 2026-11-26)
 **And** the boss entries are map data (`events` layer), no longer names in `boss.json › entryPoints`; Downtown gets its 4 street ends as map objects, with the same behaviour and tests
 
 **Given** a city that fails any check
@@ -3596,6 +3795,7 @@ So that it feels like the same game as Downtown.
 **Given** a generated city
 **When** the client draws it
 **Then** buildings, cars, barriers, the gas station and decay props are drawn **by kind and at any size**, with no lookups by object name (today `DOWNTOWN_DRESSING`, `d.canopy`, `bus_glass`); heights, shop lights and car colours come from the city's own seeded dressing
+**And** street props, cars, barriers and the gas station reuse the 9.14 pre-rendered atlas frames, picked by kind without stretching (today `drawFrame` stretches); size variants a generated city needs are added with `npm run art:street-props`; only generated buildings and ground are code drawings, and once 9.2 lands its building and ground atlas is used the same way (Q8, designer "ok" 2026-11-26; the building and ground part follows 9.2's pick)
 
 **Given** the ground bake on a 70 × 70 m city
 **When** it is built
@@ -3607,7 +3807,7 @@ So that it feels like the same game as Downtown.
 
 **Given** the designer
 **When** the look is proposed before the build
-**Then** they see code-drawn screenshots of 3 seeds × 5 stages and pick
+**Then** they see screenshots (9.14 atlas frames plus code drawings) of 3 seeds × 5 stages and pick
 
 ### Story 11.7: Pick Random city, share its code
 
@@ -3638,3 +3838,99 @@ So that we can play the same streets again or send them to friends.
 **Given** a saved run (Story 8.4) and run stats (Story 10.7)
 **When** a Random city run is saved or recorded
 **Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
+
+## Epic 12: Extraction cinematic
+
+(Added to epics.md by the correct-course of 2026-11-26 from the story files written in the party-mode session of 2026-11-25 (designer decisions; PR #25, `9bf596bf`). The story files are the full spec; the ACs below are copied without scope change. The clashes with the rest of the plan (X1–X11, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6) were resolved by the designer "ok" 2026-11-26: their lines are added to 8.12, 12.1–12.4, 9.1, 9.2, 10.7 and 11.1 below and to the story files.)
+
+A won run ends like a film: buildings can never seal a pocket of the map (no forts), decay losses are not refunded, and when Extract wins the survivors walk to the helicopter, board and fly out over the horde into the sunrise. Build order: **8.12** (vote counting) → **12.1** → **12.2** → **12.3**; **12.4** with or right after 12.1 (12.1 AC 6 already assumes no refund). Epic 12 runs after or alongside 10.1 and lands **before 10.2** (the frame-rate pass measures the fly-out), **10.8** (12.4 moves the money) and **10.9** (the playtests play the final ending); Epic 9 has no hard tie (12.3 uses placeholders); Epic 11 needs 12.1's check on generated maps (X11). Changes FR58 (no refund, 12.4) and FR66 / FR67 (who votes, 8.12; the extraction walk and fly-out replace "4 s of dawn, then Results", 12.2 / 12.3).
+
+### Story 12.1: Buildings never close a path (no forts)
+
+(Story file `12-1-buildings-never-close-a-path.md`, ready-for-dev.)
+
+As a player,
+I want the game to refuse a building that would wall off part of the map,
+So that my team can't build a sealed fort, and there's always a way through for every survivor.
+
+**Acceptance Criteria:**
+
+**Given** a placement or a move (5.24) of a wall-type building
+**When** the shared check runs (a flood fill on the 0.5 m nav grid at player clearance, `player.radiusM` 0.4 m)
+**Then** it is refused with `"seals_path"` if any free cell would no longer connect to the main walkable region (the one holding `evac_pad`); a gap narrower than a player counts as closed; floor types (spike trap, mine, bear trap) are never refused
+**And** walls stay solid for players, zombies and bullets; chained and pending placements (5.18) are checked in arrival order; the client ghost and the server agree (fuzz test); the ghost shows "Leave a way through" and highlights the pocket it would close
+**And** the check allocates nothing per call, is cached on the client per (cell, rotation, `buildings.version`), and costs < 1 ms per check on Downtown, measured headless at 4× CPU throttle, with the time on a 140 × 140-cell grid recorded for Epic 11's 70 × 70 m maps (X10; the reference-phone wording stays, parked)
+**And** `pathOpen.ts` uses the same grid and clearance helper as `pushOutOfBuildings › escapeInside` (or the flow-field rasteriser), so the two never disagree about a gap; the sealed-fort escape tests stay, and a new test shows a placement this check accepts never makes a pocket the escape would call sealed (X3)
+**And** the 10-wave bot sim (bots build around the pad) is run before and after the story, recording wall damage taken, zombies through gaps and team wipes for 10.8, and a 6.13 wide-body test "Brute at a 0.8 m forced gap" is added (X4)
+**And** the `?stress=5&stressbuild=fort` dev fort stays as a debug-only layout that bypasses the check (it never reaches the server), with a comment pointing to AC 10 of the story file (X5)
+
+**Given** a decay stage adds solid cover (4.2 `minStage`, a 4.8 wreck or rubble)
+**When** `destroyBlockedBuildings` runs at the build start
+**Then** every wall-type building closer than 0.8 m (one player body) to the new cover is destroyed with no refund (12.4), in building-id order, with the owner toast "Your barricade was cleared by the collapse"
+**And** saves and replays that already hold a sealed fort still load; bots handle `"seals_path"`
+
+### Story 12.2: Extraction: walk to the helicopter and lift off
+
+(Story file `12-2-extraction-walk-and-lift-off.md`, ready-for-dev. Needs 12.1 and 8.12.)
+
+As a team that just voted to extract,
+I want our survivors to walk to the helicopter on their own, climb in and fly off over the horde,
+So that the end of a won run feels like an ending, not a cut to a menu.
+
+**Acceptance Criteria:**
+
+**Given** Extract wins the vote (any way, after wave 10 or an endless evacuation)
+**When** `resolveEvacVote` decides it
+**Then** the run enters a new phase `"extract"` between `vote` and `results` (`run.ending` is still fixed at the vote); player inputs except pings are dropped, every player is protected, and fire, acid and spit pools are cleared
+**And** each standing player is walked by a sim autopilot at walk speed to the pad along a pad-seeded flow field (buildings as walls); downed players stand up and walk; out players and held seats board at the phase start
+
+**Given** the helicopter has landed
+**When** a player is within `evac.padRadiusM` (3 m) of the pad
+**Then** they board (`player.boarded`); after `evac.walkTimeoutS` (8 s) the rest are boarded with `run.extract_cut`
+
+**Given** everyone has boarded
+**When** a 0.5 s beat has passed
+**Then** `run.lifted` is emitted, the sim keeps stepping for `evac.flyOutS` (8 s) while an extraction horde (`evac.flyOutHorde.count`, `.perS`; not a wave, no bounty, no stats) runs at the pad and the helicopter flies to the east edge (`heliPose`, from `liftedAtTick`), then `endRun` (extracted) banks rewards and Results show
+**And** joiners are not admitted and nothing is saved during `extract`; solo runs the same phase; `run.phase`, `boarded` and `liftedAtTick` go through the full copy chain; replay digest and bots handle the phase
+**And** `NET_PROTOCOL_VERSION` is bumped for the new phase and fields (an old tab gets "please reload"); whichever of 12.2, 8.13 and Epic 11 lands first takes 4, the next takes 5 (X6)
+**And** when the story lands, FR67 is reworded to "Extract wins the run: the survivors walk to the helicopter and fly out (≤ 20 s), then Results" and Story 6.11 gets an as-built note (X6)
+**And** `runSave.coverage.test.ts` excludes `boarded` and `liftedAtTick` with the reason "phase extract is never saved"; a save taken in the vote and resumed still runs the extraction; the three synced fields get E8-A2 "sent, changed, synced" copy-chain tests (X7)
+**And** a test shows milestone counters do not move during `extract` (X8; 10.7 does not count those kills either)
+
+### Story 12.3: Extraction cinematic camera
+
+(Story file `12-3-extraction-cinematic-camera.md`, ready-for-dev. Needs 12.2. Client only.)
+
+As a player who just won a run,
+I want the camera to frame our walk to the helicopter, then follow it over the horde into the sunrise,
+So that the extraction plays like a short film.
+
+**Acceptance Criteria:**
+
+**Given** the `extract` phase
+**When** it plays
+**Then** a pure, data-driven camera director (`render/cameraDirector.ts`, shot list keyed to timeline events) replaces the player-follow camera: 8 % letterbox bars ease in over 0.6 s, the camera frames all walkers plus the pad (3 m margin) with no jumps, the HUD hides except pings, the bars go to 12 % when the last player boards, and a timeout cut fades through black (0.3 s)
+**And** at lift-off the camera follows the helicopter and zooms out to 0.6× over 3 s (never past 1.0×), fog lifts, the DW1 dawn sweeps west from the east edge, a crew sprite helps boarding, and the screen fades to white before the view reaches the map edge, then Results
+
+**Given** any phone
+**When** it plays or wakes late
+**Then** every timing comes from server ticks, a late phone goes straight to Results, the sequence is ≤ 20 s with no skip, bars and fades work at 568×320, 640×360, 800×360 and 844×390, darkness and fog cover the zoomed-out view, and the fly-out holds the frame budget (debug overlay)
+**And** the frame budget is measured headless with `?stress=150` at 4× CPU during the fly-out: within 2 FPS and +1 ms p95 of a normal wave (the 9.x budget); the reference-phone wording stays, parked (X10)
+**And** the crew sprite and the helicopter stay code-drawn placeholders; they are a photoreal group in 9.1's inventory, picked with 9.4 or 9.2 (X9)
+
+### Story 12.4: No refund for buildings lost to decay
+
+(Story file `12-4-no-refund-for-decay-losses.md`, ready-for-dev. Changes FR58 and Story 6.2 review L4.)
+
+As the designer,
+I want buildings destroyed by the city's decay to be simply lost,
+So that building next to crumbling parts of the city is a real gamble.
+
+**Acceptance Criteria:**
+
+**Given** the decay system destroys a building (new stage cover, FR58; a fire lit at the build start, 4.8 M2; within 0.8 m of new cover, 12.1 AC 6)
+**When** it is destroyed
+**Then** `building.destroyed` is emitted and no money goes back (no `refundMoney`, no `money.earned` reason `refund` from decay), and the owner sees "Lost to the collapse" or "Lost to the fire" with no amount
+**And** `decay.buildingRefundShare` is removed from `balanceSchema.ts` and `decay.json` (the schema rejects an old override), selling / take-back (5.20) is unchanged, economy sims and bot seeds are re-checked, and any end-of-run money change is noted for 10.8
+**And** the doc update covers every place the 50 % refund is written (X2, designer "ok" 2026-11-26): FR58, as-built notes on Stories 4.5 and 6.2 (its rubble AC), the `game-architecture.md` rule line and the HANDOFF Epic 4 summary
+**And** the story lands **before 10.8**, and the end-of-run money change is logged with its reason in `docs/balance/changelog.md` (X2)
