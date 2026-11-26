@@ -207,3 +207,9 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
   - Nit (logged, not fixed): a download that FAILS after Boot has shut down never settles (Phaser removes the loader's listeners on shutdown). State stays "loading", so every run draws the code props (the B8 fallback) and the warning never prints.
   - Not verified: real devices (iOS Safari WebP, Android context loss) and a real network.
 - 00:32 (11-26) Master CI green on 1fbf310e (#22, 9.14) and ad25fca5 (#24, asset review page: gallery manifest + text, CI green). The art orchestrator's stories 9.13 + 9.14 are complete.
+
+## 2026-11-26 (designer back in the loop)
+- 07:47 Readiness + drift check: implementation-readiness-report-2026-11-26.md (8299e5a); 17 doc fixes applied.
+- 07:58 Retros Epic 7 + 8: epic-7/8-retro-2026-11-26.md (c0251bc).
+- 08:33 Correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed by folding, 8.13 slow-line skip, 8.12 + Epic 12 added to epics.md (3627d27). Designer "ok" to every recommendation, applied in dfcbebc.
+- 08:40 PR #26 copy-chain audit (E8-A2) merged 4421603f: no gap left besides #21's owner; review clean (6/6 mutants killed); master CI green.
