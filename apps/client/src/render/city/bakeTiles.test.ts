@@ -4,7 +4,8 @@ import { bakeTiles, type BakeTile } from "./bakeTiles";
 import { baseKey, drawOverlay, mapBounds, type CityScene } from "./drawCity";
 import { downtownScene } from "./testScene";
 import { packAtlas } from "./atlasLayout";
-import { downtownSpecs } from "./spriteAtlas";
+import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BARRIER_CONCRETE, downtownSpecs } from "./spriteAtlas";
+import { STREET_PROPS_FRAMES } from "./streetPropsAtlas";
 
 /** A fake 2D context: records every call and property write (no DOM). */
 function recorder(): { ctx: CanvasRenderingContext2D; log: string[] } {
@@ -96,5 +97,46 @@ describe("random streams at the call sites (re-review L4)", () => {
     expect(overlayLog(renamed)).toBe(overlayLog(cs)); // 4.11's static flames (seeded by the fire's name) are gone
     const notACar: CityScene = { ...cs, fires: cs.fires.map((f) => ({ ...f, target: "nothing" })) };
     expect(overlayLog(notACar)).not.toBe(overlayLog(cs)); // same scorch, but the car is drawn from its normal frame
+  });
+});
+
+describe("Story 9.14: the bake with the pre-rendered photoreal atlas", () => {
+  const overlayLog = (cs: CityScene): string => {
+    const { ctx, log } = recorder();
+    drawOverlay(ctx, 1, cs, mapBounds(cs.map));
+    return log.join("\n");
+  };
+  const photo = (cs: CityScene): CityScene => ({ ...cs, atlas: { canvas: {}, frames: new Map(Object.entries(STREET_PROPS_FRAMES).map(([name, f]) => [name, { name, ...f }] as const)) } as unknown as CityScene["atlas"] });
+  const src = (name: string): string => {
+    const f = STREET_PROPS_FRAMES[name] as { x: number; y: number; w: number; h: number };
+    return `drawImage(obj,${f.x},${f.y},${f.w},${f.h},`;
+  };
+
+  it("the sawhorse police lines leave the ground bake (they stand); the concrete barrier lies flat with its picture", () => {
+    const cs = photo(downtownScene(2));
+    const noLines: CityScene = { ...cs, cover: cs.cover.filter((c) => !c.name.startsWith("police_line_")) };
+    expect(cs.cover.length - noLines.cover.length).toBe(2);
+    expect(overlayLog(noLines)).toBe(overlayLog(cs));
+    expect(overlayLog(cs)).toContain(src(PROP_BARRIER_CONCRETE));
+    // with the code atlas (B8 fallback) the lines are still drawn flat, from code: many paint calls, no picture
+    const frames = new Map(packAtlas(downtownSpecs()).frames.map((f) => [f.name, f] as const));
+    const code: CityScene = { ...downtownScene(2), atlas: { canvas: {}, frames } as unknown as CityScene["atlas"] };
+    const withLines = overlayLog(code).split("\n");
+    const without = overlayLog({ ...code, cover: code.cover.filter((c) => !c.name.startsWith("police_line_")) }).split("\n");
+    expect(withLines.length - without.length).toBeGreaterThan(100);
+    expect(withLines.some((l) => l.startsWith("fillRect("))).toBe(true);
+    const codeLog = withLines.join("\n");
+    expect(Object.keys(STREET_PROPS_FRAMES).some((n) => codeLog.includes(src(n)))).toBe(false); // nothing from the image layout
+    const car = frames.get(CAR_FRAMES[0] as string) as { x: number; y: number; w: number; h: number };
+    expect(CAR_FRAMES.some((n) => { const f = frames.get(n) as typeof car; return codeLog.includes(`drawImage(obj,${f.x},${f.y},${f.w},${f.h},`); })).toBe(true);
+    expect(car).toBeDefined();
+  });
+
+  it("a burning car is drawn from its burnt picture, a parked one from its car picture", () => {
+    const cs = photo(downtownScene(3, 0b01001111));
+    const log = overlayLog(cs);
+    expect(CAR_BURNT_FRAMES.some((n) => log.includes(src(n)))).toBe(true);
+    expect(CAR_FRAMES.some((n) => log.includes(src(n)))).toBe(true);
+    expect(CAR_BURNT_FRAMES.some((n) => overlayLog({ ...cs, fires: [] }).includes(src(n)))).toBe(false);
   });
 });

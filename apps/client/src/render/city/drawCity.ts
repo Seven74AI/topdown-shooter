@@ -1,8 +1,10 @@
 import { isRubble, shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
 import { alleyHeap, breachHole, brokenRoof, deadLampHead, fallenLamp, flatSpill, floodPuddle, looseDebris, rubblePile, soot } from "./ruinsArt";
 import { SCORCH_FULL_FRAC } from "./fireRing";
+import { releaseCanvas } from "./canvasTexture";
 import type { AtlasCanvas } from "./spriteAtlas";
-import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
+import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BARRIER_CONCRETE, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
+import { POLICE_DRUM, POLICE_DRUM_LAMP_DY_M, policeLineLayout, type PolicePiece } from "./streetPropsFrames";
 import { HEIGHT_BY_KIND, MAP_PX_PER_M, barrierStyle, carStyle, nameHash, powerOff, type Dressing, type Front } from "./dressing";
 import {
   GROUND,
@@ -155,6 +157,94 @@ function carShadow(g: G, s: number, b: Box, len: number): void {
   });
 }
 
+/**
+ * Story 9.14: the pre-rendered props cast their own silhouette (not a box): the same soft smear along the light as
+ * `carShadow`, from the picture's alpha, and a lighter contact shadow (the picture already darkens its own edge).
+ */
+function frameShadow(g: G, s: number, atlas: AtlasCanvas, name: string, b: Box, front: Front, len: number, alpha = 0.62): void {
+  if (typeof document === "undefined") return paintFrameShadow(g, s, atlas, name, b, front, len, alpha); // tests (fake context)
+  // Perf: one blurred stamp per picture, facing, size and bake density, kept between bakes (a stage change only
+  // copies it); `resetPatternTiles` drops them with the other cached tiles after a lost context, and a new bake density
+  // drops them all (review L1: a stamp is only reused at its own density).
+  if (s !== stampScale) {
+    releaseShadowStamps();
+    stampScale = s;
+  }
+  const key = `${name}|${front}|${b.w}|${b.h}|${len}|${alpha}`;
+  let st = shadowStamps.get(key);
+  if (st && !stampIntact(st)) {
+    // review L6: the browser emptied this canvas (Android drops 2D canvases in the background): paint it again
+    releaseCanvas(st.c);
+    shadowStamps.delete(key);
+    st = undefined;
+  }
+  if (!st) {
+    const pad = Math.ceil(len + 3 * Math.max(1.5, len * 0.3) + 4);
+    const c = document.createElement("canvas");
+    c.width = Math.ceil((b.w + 2 * pad) * s);
+    c.height = Math.ceil((b.h + 2 * pad) * s);
+    const sg = c.getContext("2d") as G;
+    sg.setTransform(s, 0, 0, s, 0, 0);
+    paintFrameShadow(sg, s, atlas, name, { ...b, x: pad, y: pad }, front, len, alpha);
+    st = { c, pad, probe: darkPixel(sg, c.width, c.height) };
+    shadowStamps.set(key, st);
+  }
+  g.drawImage(st.c, b.x - st.pad, b.y - st.pad, st.c.width / s, st.c.height / s);
+}
+interface ShadowStamp {
+  readonly c: HTMLCanvasElement;
+  readonly pad: number;
+  /** A pixel that is dark in the stamp, read to see it's still there (null: none found, never checked). */
+  readonly probe: readonly [number, number] | null;
+}
+/** The first dark pixel of a 3 × 3 grid round the stamp's middle (under the picture's contact shadow). */
+function darkPixel(g: G, w: number, h: number): [number, number] | null {
+  try {
+    for (const fy of [0.5, 0.4, 0.6]) {
+      for (const fx of [0.5, 0.4, 0.6]) {
+        const x = Math.floor(w * fx);
+        const y = Math.floor(h * fy);
+        if ((g.getImageData(x, y, 1, 1).data[3] ?? 0) > 0) return [x, y];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+const shadowStamps = new Map<string, ShadowStamp>();
+let stampScale = 0;
+function stampIntact(st: ShadowStamp): boolean {
+  if (st.c.width === 0) return false;
+  if (!st.probe) return true;
+  try {
+    return ((st.c.getContext("2d") as G).getImageData(st.probe[0], st.probe[1], 1, 1).data[3] ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+/** Story 9.14: frees the shadow stamps (a lost context, a new bake density, the city view going away). */
+export function releaseShadowStamps(): void {
+  for (const st of shadowStamps.values()) releaseCanvas(st.c);
+  shadowStamps.clear();
+}
+function paintFrameShadow(g: G, s: number, atlas: AtlasCanvas, name: string, b: Box, front: Front, len: number, alpha: number): void {
+  softShadow(g, s, Math.max(1.5, len * 0.3), `rgba(0,0,0,${alpha})`, () => {
+    for (let k = 1; k <= FRAME_SHADOW_STEPS; k++) {
+      const t = (k / FRAME_SHADOW_STEPS) * len;
+      drawFrame(g, atlas, name, { ...b, x: b.x + LIGHT_DIR.x * t, y: b.y + LIGHT_DIR.y * t }, front);
+    }
+  });
+  softShadow(g, s, 2, "rgba(0,0,0,0.45)", () => drawFrame(g, atlas, name, b, front));
+}
+/** Copies of the picture in its cast shadow (`carShadow` smears 7 boxes). */
+const FRAME_SHADOW_STEPS = 4;
+
+/** Story 9.14: the downtown atlas is the pre-rendered photoreal set (it has the standing police pictures). */
+export const isPhotoAtlas = (atlas: AtlasCanvas): boolean => atlas.frames.has(POLICE_DRUM);
+/** Story 9.14 (AC 4): a sawhorse police line stands (a sprite view draws it) instead of lying in the ground bake. */
+export const standsUp = (cs: CityScene, b: { readonly name: string; readonly kind: string }): boolean => b.kind === "barrier" && barrierStyle(b.name) === "sawhorse" && isPhotoAtlas(cs.atlas);
+
 function heightOf(d: Dressing, b: Box): number {
   return d.heightByName[b.name] ?? HEIGHT_BY_KIND[b.kind] ?? HEIGHT_BY_KIND.solid ?? 2;
 }
@@ -196,6 +286,7 @@ let patternTiles: { grain: HTMLCanvasElement; fine: HTMLCanvasElement; wet: HTML
 /** Story 4.13: drops the cached noise tiles (the browser may have emptied them with a lost graphics context). */
 export function resetPatternTiles(): void {
   patternTiles = null;
+  releaseShadowStamps(); // Story 9.14
 }
 function patterns(g: G): Patterns {
   patternTiles ??= {
@@ -686,8 +777,50 @@ function drawFrame(g: G, atlas: AtlasCanvas, name: string, b: Box, front: Front)
   g.restore();
 }
 
+/** The picture and facing a cover piece is drawn with (null: drawn another way). */
+function coverFrame(cs: CityScene, b: Box): [string, Front] | null {
+  const horiz = b.w >= b.h;
+  if (b.kind === "bus") return [VEHICLE_BUS, horiz ? "right" : "down"];
+  if (b.kind === "car") {
+    const st = carStyle(cs.dressing, b.name, b.w, b.h);
+    const frames = cs.fires.some((f) => f.target === b.name) ? CAR_BURNT_FRAMES : CAR_FRAMES;
+    return [frames[st.variant % frames.length] as string, st.front];
+  }
+  if (b.kind === "sandbags") return [PROP_SANDBAGS, horiz ? "right" : "down"];
+  return null;
+}
+
+/** Story 9.14 (B3): the concrete police barrier lies flat with the pilot's 6 m picture, repeated along a longer line. */
+function concreteLine(g: G, cs: CityScene, b: Box): void {
+  const horiz = b.w >= b.h;
+  const L = horiz ? b.w : b.h;
+  const D = horiz ? b.h : b.w;
+  const f = cs.atlas.frames.get(PROP_BARRIER_CONCRETE);
+  if (!f) return;
+  const seg = (f.w / f.h) * D; // the picture at the line's depth, never stretched
+  g.save();
+  g.beginPath();
+  g.rect(b.x, b.y, b.w, b.h);
+  g.clip();
+  for (let p = 0; p < L - 0.01; p += seg) {
+    const part: Box = horiz ? { ...b, x: b.x + p, w: seg } : { ...b, y: b.y + p, h: seg };
+    drawFrame(g, cs.atlas, PROP_BARRIER_CONCRETE, part, horiz ? "right" : "down");
+  }
+  g.restore();
+}
+
 function coverPiece(g: G, cs: CityScene, b: Box): void {
   const horiz = b.w >= b.h;
+  if (isPhotoAtlas(cs.atlas)) {
+    // Story 9.14: the pre-rendered pictures (fire still swaps a car to its burnt frame: `coverFrame`)
+    if (b.kind === "barrier") {
+      if (barrierStyle(b.name) === "concrete") concreteLine(g, cs, b);
+      return; // a sawhorse line stands (`PoliceLineView`)
+    }
+    const fr = coverFrame(cs, b);
+    if (fr) drawFrame(g, cs.atlas, fr[0], b, fr[1]);
+    return;
+  }
   // the bus frame's front (crushed) is at its −x end: unrotated it faces west, turned it faces north
   if (b.kind === "bus") drawFrame(g, cs.atlas, VEHICLE_BUS, b, horiz ? "right" : "down");
   else if (b.kind === "car") {
@@ -819,7 +952,13 @@ export function drawBase(g: G, s: number, cs: CityScene, bd: Bounds): void {
   drawGround(g, cs, k, pat, bd);
   wetGround(g, cs, pat, bd);
   for (const o of k.buildings) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.55);
-  for (const o of k.pumps.concat(k.walls)) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.6);
+  const photo = isPhotoAtlas(cs.atlas);
+  for (const o of k.walls) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.6);
+  for (const o of k.pumps) {
+    if (!boxIn(bd, o)) continue;
+    if (photo) frameShadow(g, s, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down", shadowLenPx(heightOf(d, o)), 0.6); // Story 9.14
+    else castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.6);
+  }
   for (const o of k.buildings) if (boxIn(bd, o)) building(g, s, o, d);
   for (const o of k.walls) if (boxIn(bd, o)) wall(g, o);
   for (const o of k.pumps) if (boxIn(bd, o)) drawFrame(g, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down");
@@ -844,13 +983,25 @@ export function baseKey(cs: CityScene): string {
 export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
   const k = classify(cs);
   const d = cs.dressing;
+  const photo = isPhotoAtlas(cs.atlas);
   for (const o of k.cover) {
     if (!boxIn(bd, o)) continue;
+    if (photo) {
+      // Story 9.14: picture-shaped shadows (no box shadow under a shorter sedan); a standing line carries its own
+      const fr = coverFrame(cs, o);
+      if (fr) frameShadow(g, s, cs.atlas, fr[0], o, fr[1], shadowLenPx(heightOf(d, o)), o.kind === "sandbags" ? 0.45 : 0.62);
+      else if (o.kind === "barrier" && !standsUp(cs, o)) castBoxShadow(g, s, { ...o, x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 }, shadowLenPx(heightOf(d, o)), 0.45, false);
+      continue;
+    }
     if (o.kind === "car") carShadow(g, s, o, shadowLenPx(heightOf(d, o)));
     else if (o.kind === "bus") castBoxShadow(g, s, { ...o, x: o.x + 1, y: o.y + 1, w: o.w - 2, h: o.h - 2 }, shadowLenPx(heightOf(d, o)), 0.6);
     else castBoxShadow(g, s, { ...o, x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 }, shadowLenPx(heightOf(d, o)), 0.45, false);
   }
-  for (const o of k.blocks) if (boxIn(bd, o) && !isRubble(o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.5); // rubble casts its own
+  for (const o of k.blocks) {
+    if (!boxIn(bd, o) || isRubble(o)) continue; // rubble casts its own
+    if (photo) frameShadow(g, s, cs.atlas, blockFrame(o), o, "right", shadowLenPx(heightOf(d, o)), 0.55);
+    else castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.5);
+  }
   hazards(g, cs);
   for (const f of cs.fires) scorch(g, f);
   ruinsUnder(g, cs, k, bd);
@@ -858,13 +1009,16 @@ export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
   for (const o of k.blocks) {
     if (!boxIn(bd, o)) continue;
     if (isRubble(o)) rubbleOf(g, cs, o);
-    else drawFrame(g, cs.atlas, o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK, o, "right");
+    else drawFrame(g, cs.atlas, blockFrame(o), o, "right");
   }
   for (const o of k.cover) if (boxIn(bd, o)) coverPiece(g, cs, o);
   for (const o of k.ground) if (o.kind === "canopy" && boxIn(bd, o)) canopy(g, o);
   if (cs.powerOut) deadLampHeads(g, cs, k);
   else lampHeads(g, d, cs.map.widthM * P);
 }
+
+/** Story 4.5's `block` mutations: the dumpster, or the generic blockage. */
+const blockFrame = (o: Box): string => (o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK);
 
 // ---------------------------------------------------------------------------
 // Stories 6.2 / 6.4: Ruins and Collapse (painters in `ruinsArt.ts`, drawn in metres)
@@ -980,20 +1134,39 @@ export function drawStatic(g: G, s: number, cs: CityScene): void {
 /** Story 4.7 review: the view's pool of barrier lamps — two on every police barrier (Downtown stage 2: 3 barriers; room for 4). */
 export const BARRIER_LAMPS = 8;
 
-/** Bus hazard blinkers and barrier lamps (the view animates them): positions in map px. */
-export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier: [number, number][] } {
+/**
+ * Bus hazard blinkers and barrier lamps (the view animates them): positions in map px. Story 9.14 (AC 4): a standing
+ * sawhorse line's two blinkers sit on the lamps of its end drums, and `barrierStand[i]` is that drum's spot y (m: the
+ * view draws the glow just over the drum); −1 for a flat barrier's lamp.
+ */
+export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier: [number, number][]; barrierStand: number[] } {
   const bus: [number, number][] = [];
   const barrier: [number, number][] = [];
+  const barrierStand: number[] = [];
   for (const c of cs.cover) {
     const b = toBox(c, c.kind);
     if (c.kind === "bus") bus.push([b.x + 4, b.y + 12], [b.x + 4, b.y + b.h - 12]);
-    if (c.kind === "barrier") {
+    if (c.kind === "barrier" && standsUp(cs, c)) {
+      for (const p of policeLineLayout(c)) {
+        if (!p.drum) continue;
+        barrier.push([p.x * P, (p.y + POLICE_DRUM_LAMP_DY_M) * P]);
+        barrierStand.push(p.sortY);
+      }
+    } else if (c.kind === "barrier") {
+      barrierStand.push(-1, -1);
       // At both ends along the barrier's length (police_line_gas runs north–south).
       if (b.w >= b.h) barrier.push([b.x + 5, b.y + b.h / 2], [b.x + b.w - 5, b.y + b.h / 2]);
       else barrier.push([b.x + b.w / 2, b.y + 5], [b.x + b.w / 2, b.y + b.h - 5]);
     }
   }
-  return { bus, barrier };
+  return { bus, barrier, barrierStand };
+}
+
+/** Story 9.14 (AC 4): the standing pictures of every sawhorse police line in the cover (empty with the code atlas). */
+export function policePieces(cs: CityScene, out: PolicePiece[] = []): PolicePiece[] {
+  out.length = 0;
+  for (const c of cs.cover) if (c.kind === "barrier" && standsUp(cs, c)) for (const p of policeLineLayout(c)) out.push(p);
+  return out;
 }
 
 // ---------------------------------------------------------------------------

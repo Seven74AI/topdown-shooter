@@ -315,3 +315,23 @@ Player:
 ## 141: can you name every zombie type at a glance? (Story 9.13: Walkers, Runners, a Crawler, a Spitter, a Brute and a Bloater round the survivor; the Spitter's acid and the Bloater's sacs glow)
 ![141](../../art/9-13/9-13-844x390-all-types.png)
 ![141 small phone](../../art/9-13/9-13-568x320-all-types.png)
+
+## 142: which of these can you hide behind? (Story 9.14: the photoreal street, stage 1: parked cars, a sedan at the curb, the sidewalk)
+![142](../../art/9-14/stage1-street-phone.png)
+![142 small phone](../../art/9-14/stage1-street-small.png)
+
+## 143: what is that line, and what is behind it? (Story 9.14: a police sawhorse line standing across the lot, a traffic drum at each end, zombies behind it)
+![143](../../art/9-14/stage2-police-phone.png)
+![143 small phone](../../art/9-14/stage2-police-small.png)
+
+## 144: can you walk through here? (Story 9.14: a police line running up the street seen end-on, the concrete blocks with tape lying flat)
+![144](../../art/9-14/stage2-gasline-phone.png)
+![144 small phone](../../art/9-14/stage2-gasline-small.png)
+
+## 145: which car is burning, and where does it hurt? (Story 9.14: the burnt photoreal car under the fire, in the rain)
+![145](../../art/9-14/stage3-burning-rain-phone.png)
+![145 small phone](../../art/9-14/stage3-burning-rain-small.png)
+
+## 146: what blocks the street now? (Story 9.14: stage 4, a rubble pile next to the photoreal cars)
+![146](../../art/9-14/stage4-rubble-phone.png)
+![146 small phone](../../art/9-14/stage4-rubble-small.png)

@@ -26,7 +26,8 @@
     "db:migrate": "npm run db:migrate -w @topdown/server",
     "maps:build": "tsx tools/maps/buildDowntown.ts",
     "maps:sync": "tsx tools/maps/buildDowntown.ts --sync",
-    "gallery:export": "tsx tools/gallery/export.ts"
+    "gallery:export": "tsx tools/gallery/export.ts",
+    "art:street-props": "tsx tools/art/streetProps.ts"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.10",
@@ -34,6 +35,7 @@
     "@napi-rs/canvas": "1.1.0",
     "@types/node": "26.6.6",
     "concurrently": "10.0.7",
+    "esbuild": "0.28.2",
     "eslint": "10.15.0",
     "globals": "17.14.0",
     "playwright": "1.63.0",

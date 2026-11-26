@@ -5,7 +5,7 @@ ground damage, one group at a time with a before/after page each.
 
 | Group | Decision | Where |
 | --- | --- | --- |
-| Street props and vehicles | **Approved** (2026-11-25): cars on a real-sedan body, burnt cars without rust, sharp dumpster, pump, rubble, sandbags, both barriers. Not in the game yet: these need the switch to pre-made image files (planned for Epic 9). | `docs/art/photoreal-1/` (page: `compare.html`, source `src/pilot.ts`, renderer `src/relief.ts`) |
+| Street props and vehicles | **Approved** (2026-11-25): cars on a real-sedan body, burnt cars without rust, sharp dumpster, pump, rubble, sandbags, both barriers. **In the game since Story 9.14**: pre-rendered offline from the approved code into one image atlas (`npm run art:street-props`); the sawhorse police lines stand with the approved police set (drums at the line ends), the concrete barrier stays flat; rubble boxes keep the Ruins art (see the story's B-codes). | `docs/art/photoreal-1/` (page: `compare.html`, source `src/pilot.ts`, renderer `src/relief.ts`) |
 | Zombies and survivors | **Approved: take 4 with today's grey see-through outline** (2026-11-25, "the new gray outline version is perfect"). Today's drawings kept with every detail, relit (rounded volumes, cool key light, cloth and skin texture, gloss), the outline left exactly as today, and animated (breathing, weight shift, glow pulses with bloom, Spitter acid drips, chainsaw shake, drifting sheen). Bloaters: glowing veins with travelling pulses on every look (BL4 and BL5 too) and glossy bubbling acid sacs. Walkers, runners and crawlers: new detailed designs (`src/commonz.ts`) with real limb animation. Earlier tries declined: take 1 (rebuilt bodies), take 2 (relit, no animation), take 3 (Meshy-referenced rebuild: lost details, weapons didn't match). **In the game since Story 9.13** (worker bake, capped animation: see the story's B-codes). | `docs/art/photoreal-2/take4-grey.html` (approved), `take4.html`, `outline.html`; source `src/take4.ts` (KEEP_OUTLINE), `src/commonz.ts`; Meshy references in `refs/` |
 | Other groups (Behemoth, buildables, FX, icons) | Not started. | |
 
@@ -31,7 +31,7 @@ and the asset review in `docs/art/asset-review.md`.
 - Step 3: corner pieces appear automatically in the free square where a front line and a side line meet (`render/wallCorners.ts › findCorners`, a pooled sprite per corner in `BuildingView`), in the front line's look; visual only (no collision change).
 - The relit pictures are baked progressively (`pumpBuildingsAtlas`): the plain drawings show for the first second or two, then the relit ones replace them, so the game's start isn't blocked.
 - Dev check: `?stress=5&stressbuild=fort` lays a closed fort round the player.
-- The police barricade is a street prop baked into the city's ground: it gets the standing look with the street props' rollout (Epic 9), not here.
+- The police barricade is a street prop baked into the city's ground: it gets the standing look with the street props' rollout (Epic 9), not here. Done in Story 9.14.
 
 ### Bodies behind walls (2026-11-25)
 

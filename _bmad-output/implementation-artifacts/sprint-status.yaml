@@ -211,7 +211,7 @@ development_status:
   9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
-  9-14-photoreal-street-props-in-game: ready-for-dev  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); builder after 9.13 merges (spriteAtlas.ts overlap)
+  9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); builder after 9.13 merges (spriteAtlas.ts overlap)
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
