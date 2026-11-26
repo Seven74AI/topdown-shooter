@@ -101,4 +101,4 @@ The story left these open; each takes the recommendation and is logged in `docs/
 ## Main session close-out (2026-11-26)
 - Fresh three-layer review of 5fef88a: no high or medium findings; L1–L3 and N1–N4 fixed in 79bd2ed.
 - Main-session check of 79bd2ed (comments, tests and docs; plus N4's one-line "You" chip): matches the review. CI green. Merged as a1763cb8 (PR #29).
-- Open for the designer: L4. A connection blip during the 1 s "everyone voted" beat clears that player's vote, and a return inside the beat counts as silent, so 2 × Stay can become Extract. This is pre-existing behaviour, now easier to hit. Recommendation: leave as is.
+- Open for the designer: L4. A connection blip during the 1 s "everyone voted" beat clears that player's vote, and a return inside the beat counts as silent, so 2 × Stay can become Extract. This is pre-existing behaviour, now easier to hit. Recommendation: leave as is. **Designer 2026-11-26: A, leave it as is.**
