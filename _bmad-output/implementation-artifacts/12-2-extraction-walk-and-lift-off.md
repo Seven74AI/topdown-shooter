@@ -57,6 +57,12 @@ so that the end of a won run feels like an ending, not a cut to a menu.
    - Replay digest with an extraction.
    - `headlessRun` / bots handle the new phase.
 
+Added 2026-11-26 (clashes X6, X7, X8; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).
+
+17. **Protocol and docs (X6).** Bump `NET_PROTOCOL_VERSION` for the new phase and synced fields, so an old tab gets "please reload". Whichever of 12.2, 8.13 and Epic 11 lands first takes 4, the next one takes 5. When the story lands, reword FR67 in `epics.md` to "Extract wins the run: the survivors walk to the helicopter and fly out (≤ 20 s), then Results" and add an as-built note to Story 6.11.
+18. **Saves and the copy chain (X7).** `runSave.coverage.test.ts` excludes `boarded` and `liftedAtTick` with the reason "phase extract is never saved". A save taken in the vote (8.4–8.6 S12) and resumed still runs the extraction. `run.phase`, `boarded` and `liftedAtTick` each get an E8-A2-style "sent, changed, synced" copy-chain test.
+19. **Fly-out kills count for nothing (X8).** A test shows the milestone counters (7.11) do not move during `extract`. Story 10.7 does not count `extract` kills in run stats either (its AC).
+
 ## Tasks
 
 - [ ] `packages/shared/src/run/runStateMachine.ts`: `"extract"` phase, `startExtract`, phase tick, `endRun` from `extract` (AC 1, 2, 9).
@@ -65,6 +71,9 @@ so that the end of a won run feels like an ending, not a cut to a menu.
 - [ ] Server: `RunRoom.onTick` steps the `extract` phase; drop inputs (AC 3); copy chain (AC 15).
 - [ ] Client: hide the action controls and stop sending input; `heliPose` fly-out (AC 11); Results timing (AC 12).
 - [ ] Tests (AC 16).
+- [ ] `NET_PROTOCOL_VERSION` bump; FR67 and 6.11 as-built note at landing (AC 17).
+- [ ] Coverage exclusions, vote-save resume test, copy-chain tests (AC 18).
+- [ ] Milestone counters test (AC 19).
 
 ## Dev Notes
 

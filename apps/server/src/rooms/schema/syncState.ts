@@ -46,6 +46,7 @@ export function syncState(state: RunState, controller: RunController): void {
 function syncLootBag(state: RunState, world: World): void {
   const l = world.loot;
   if (state.lootBagState === l.state) return; // the record changes only with the state
+  // E8-A2: x, y, untilTick and variant are written only by lootBag.ts › drop (NONE → OUT, once per run): never while out.
   if (l.state === LOOT_BAG.OUT) {
     state.lootBagX = l.x;
     state.lootBagY = l.y;

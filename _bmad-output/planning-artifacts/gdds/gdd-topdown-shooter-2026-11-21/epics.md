@@ -64,7 +64,7 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epic 6.
 - **Playable result:** a player unlocks a weapon after a run and sees it appear in their next shop.
 - **Out:** cosmetics, district 2 content.
-- **High-level stories:** guest-to-account upgrade · Supplies earning and banking · unlock screen · shop deck from unlocked pool · Training boosts and costs · district unlock rule.
+- **High-level stories:** guest-to-account upgrade · Supplies earning and banking · unlock screen · shop deck from unlocked pool · Training boosts and costs · district unlock rule · (2026-11-26, retro E7-A6) Epic 7 leftovers: account-screen lines (7.6 B18/B19) and "Wear it" on Results (7.13).
 
 ## Epic 8 — Real-life resilience
 - **Goal:** real life doesn't break a run.
@@ -90,15 +90,16 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Playable result:** v1, ready for weekly game nights.
 - **Out:** new content.
 - **Order:** settings (10.1) first, because Epic 9's gore, effects and audio buses and the frame-rate pass read it; the frame-rate pass takes over Epic 1's open phone FPS check, and the game nights take over Epic 1's controls playtest and Epic 4's Milestone 1 playtest (Epics 1 and 4 closed 2026-11-26).
-- **High-level stories:** quality settings, gore toggle and progress deletion · reference-phone performance pass · memory and battery pass · load time and music streaming · economy and wave balance pass · home-screen install and safe areas · run stats · friend-group playtests.
+- **High-level stories:** quality settings, gore toggle and progress deletion · reference-phone performance pass · memory and battery pass · load time and music streaming · economy and wave balance re-check (logged in `docs/balance/changelog.md`) · home-screen install and safe areas (safe-area check: top-inset layout tests and device emulation) · run stats (fly-out kills not counted) · friend-group playtests (the first night also runs the 7.10 30-second editor check).
 
 ## Epic 11 — Random city (post-v1)
 - **Goal:** the host can pick Random city: a new 70 × 70 m city generated from rules on every run, shareable by its city code (designer 2026-11-24, `sprint-change-proposal-2026-11-24-random-city.md`).
 - **Depends on:** Epic 6, Story 7.7, Story 8.4, Story 10.7; built after Epic 10.
-- **High-level stories:** 11.1–11.7 in `_bmad-output/planning-artifacts/epics.md` › Epic 11 (added to this summary by the readiness check 2026-11-26).
+- **High-level stories:** 11.1–11.7 in `_bmad-output/planning-artifacts/epics.md` › Epic 11 (added to this summary by the readiness check 2026-11-26). Art by kind reuses the 9.14 photo-atlas frames (Q8, 2026-11-26); generated maps pass Story 12.1's no-sealed-pocket check (X11).
 
 ## Epic 12 — Extraction cinematic
 - **Goal:** a won run ends like a film (party-mode session 2026-11-25, designer decisions; added to this summary by the correct-course 2026-11-26).
 - **In:** no building can seal a pocket of the map (12.1), no refund for decay losses (12.4), an extraction phase where survivors walk to the helicopter, board and fly out over a horde (12.2), a cinematic camera with letterbox, zoom-out, dawn sweep and fade (12.3). With Story 8.12: only connected, standing players vote.
 - **Depends on:** Epic 6 (vote, pad, helicopter), Story 8.12; lands before the Epic 10 frame-rate pass, balance pass and playtests.
 - **High-level stories:** 12.1–12.4 in `_bmad-output/planning-artifacts/epics.md` › Epic 12.
+- **Clashes resolved (designer "ok" 2026-11-26, X1–X11):** FR66 / FR67 reworded when 8.12 / 12.2 land; 12.4 updates every 50 % refund mention and lands before the balance pass; 12.1 shares the escape rasteriser; 12.2 takes the next `NET_PROTOCOL_VERSION`; the crew and helicopter join Epic 9's photoreal inventory; performance measured headless at 4× CPU.

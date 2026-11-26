@@ -39,6 +39,11 @@ so that the extraction plays like a short film.
    - The wake-up-late path.
    - One Playwright run of a solo extraction with screenshots at walk, lift-off and fade, to look at by hand.
 
+Added 2026-11-26 (clashes X9, X10; designer "ok" 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6).
+
+14. **AC 12 measured headless (X10).** Reference phones are parked: run `?stress=150` at 4× CPU throttle in headless Chromium during the fly-out; average FPS within 2 FPS and frame-time p95 within +1 ms of a normal wave (the 9.x budget). The reference-phone wording of AC 12 stays, parked.
+15. **Placeholders now, photoreal later (X9).** The crew sprite and the helicopter stay code-drawn placeholders in this story. They are listed in 9.1's inventory as a photoreal group, picked with 9.4 (characters) or 9.2 (city); 9.2's proposal page checks its looks at this story's 0.6× zoom-out.
+
 ## Tasks
 
 - [ ] `render/cameraDirector.ts` + tests (AC 1–7, 9).
@@ -47,6 +52,7 @@ so that the extraction plays like a short film.
 - [ ] Dawn sweep (AC 6), crew sprite (AC 8).
 - [ ] Fog and darkness at zoom-out (AC 5, 11).
 - [ ] Playwright screenshot script (AC 13).
+- [ ] Headless 4× CPU fly-out measure (AC 14).
 
 ## Dev Notes
 

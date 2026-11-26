@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-26-2026 (correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed, 8.13 added)
+# last_updated: 11-26-2026 (correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed, 8.13 added; designer "ok" to §6: 7.13 added)
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -170,7 +170,7 @@ development_status:
   epic-6-retrospective: done  # 2026-11-25, headless (auto-accepted overnight); action items A1–A12, §10 brief lines for the Network pass and Epic 7
 
   # Epic 7: Accounts and meta-progression
-  epic-7: done  # all 12 stories on master 2026-11-25; story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
+  epic-7: in-progress  # reopened 2026-11-26 for 7.13 (retro E7-A6 leftovers). Earlier: all 12 stories on master 2026-11-25; story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
   7-1-progress-saved-on-the-server: done  # 2026-11-25: PostgreSQL/PGlite + repos, guest accounts (__Host-tdg cookie + localStorage), ticket bound to the token, account at join, deploy/backups; review 1M/6L + 1 narrow re-review, pg client crash fix
   7-2-earn-and-bank-supplies: done  # 2026-11-25: Supplies banked once per (run, account) in boundedTransaction (status always = committed), RW1 Lumen Results panel, practice earns nothing; review 1M/5L + 2 narrow re-reviews + main-session check (cap)
   7-3-unlock-screen: done  # 2026-11-25: 14 unlocks, /account/unlock in boundedTransaction, PH1 Lumen hub; review 3M/7L + 2 narrow re-reviews; merged with 7.9 (one progress object, B17/B18)
@@ -183,6 +183,7 @@ development_status:
   7-10-survivor-editor: done  # landed 2026-11-25 after light review; built 2026-11-25 on story-7-10 (layout ED1+LK2+LS1; D1–D7 + B1–B14 auto-accepted, docs/epic-7-story-decisions-looks.md); awaiting light review + beat-the-rule on POST /account/look
   7-11-milestone-items: done  # landed 2026-11-25 after 2 narrow re-reviews; MERGED into 7.7+7.11+7.12 (story-7-12)
   7-12-surprise-loot-bag: done  # landed 2026-11-25 after 2 narrow re-reviews; merged 7.7+7.11+7.12 built on story-7-12 (one review)
+  7-13-epic-7-leftovers: backlog  # added 2026-11-26 (designer "ok" to E7-A6): 7.6 B18/B19 (already in code: verify + tests) and 7.11 D8 "Wear it" on Results; F12 kept as built, B11 dropped, 7.10 AC 12 runs in 10.9
   epic-7-retrospective: done  # 2026-11-26, headless; epic-7-retro-2026-11-26.md, actions E7-A1–A8
 
   # Epic 8: Real-life resilience
