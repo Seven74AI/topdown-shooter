@@ -68,6 +68,12 @@ let stageBefore = new Uint8Array(0);
 let mapOnly = new Uint8Array(0);
 /** H1 (re-review round 1): a trial flood's region (a candidate wall lifted). */
 let trial = new Uint8Array(0);
+/** Re-review round 2: the 0-1 search's buffers (each vertex enters a level queue at most twice). */
+let bfsDist = new Int32Array(0);
+let bfsPrev = new Int32Array(0);
+let bfsDone = new Uint8Array(0);
+let bfsCur = new Int32Array(0);
+let bfsNext = new Int32Array(0);
 let stageCols = 0;
 /** The map-only region's key (it changes only with the map's obstacles). */
 let mapOnlyObstacles = -1;
@@ -109,6 +115,11 @@ function ensure(n: number): void {
   stageBefore.set(kept.subarray(0, Math.min(kept.length, n)));
   mapOnly = new Uint8Array(n);
   trial = new Uint8Array(n);
+  bfsDist = new Int32Array(n);
+  bfsPrev = new Int32Array(n);
+  bfsDone = new Uint8Array(n);
+  bfsCur = new Int32Array(2 * n);
+  bfsNext = new Int32Array(2 * n);
 }
 
 /** Clears the bits of every vertex / edge the box comes within `r` of (strictly, like every clearance test). */
@@ -136,6 +147,7 @@ function rasterize(layer: Uint8Array, b: Readonly<MapBox | Box>, r: number): voi
 /** The map-solid layer for this World (rebuilt when the World, its obstacles or the body radius change). */
 function buildBase(world: Readonly<World>, r: number): void {
   const { widthM, heightM } = world.map;
+  mapOnlyObstacles = -1; // review round 2 LOW-2: the map-only region follows the radius and the World too
   cols = Math.floor(widthM / BUILD_GRID_M + 1e-9) + 1;
   rows = Math.floor(heightM / BUILD_GRID_M + 1e-9) + 1;
   ensure(cols * rows);
@@ -354,7 +366,9 @@ export function captureStageRegion(world: Readonly<World>): void {
  * clear borders BOTH the pocket and the current main region (within `player.radiusM + BUILD_GRID_M` of a
  * vertex of each: only such a wall can close a lattice step between them; H1-b: a turret inside the pocket
  * or a barricade far from it never qualifies): of those, highest id first, the first whose removal alone
- * joins the pocket back (a trial flood), else the highest. Null when nothing is cut. The decay system
+ * joins the pocket back (a trial flood). Re-review round 2: if none does (a wall two pieces thick, two
+ * walls apart), the highest-id wall on the cheapest way back (`cheapestPathWall`). Null when nothing is cut,
+ * or (`stageSealUnresolved` > 0) when nothing can be found. The decay system
  * clears it and asks again, so the order is fixed on every copy that runs it. Per pass: the walls layer
  * and one flood of it (main region, then the pocket from its seeds: disjoint), a scan of each wall's
  * neighbourhood, and a trial flood per candidate tried (usually one). Build starts only.
@@ -401,19 +415,98 @@ export function stageCutWall(world: Readonly<World>): Building | null {
       queue[qt++] = v - cols;
     }
   }
-  // The wall to clear: among the walls bordering both the pocket and the main region (highest id first),
-  // the first whose removal alone joins the pocket back (a trial flood without it: a corner piece hidden
-  // behind its neighbours opens nothing); if none does alone, the highest such wall.
+  // Fast path: among the walls bordering both the pocket and the main region (highest id first), the first
+  // whose removal alone joins the pocket back (a trial flood without it: a corner piece hidden behind its
+  // neighbours opens nothing).
+  stageUnresolved = 0;
   const reach = r + BUILD_GRID_M;
   const list = world.buildings.list;
-  let fallback: Building | null = null;
   for (let k = list.length - 1; k >= 0; k--) {
     const b = list[k] as Building; // the list is sorted by id: candidates come highest first
     if (!b.solid || !bordersMark(b, pocket, 1, reach) || !bordersMark(b, before, 1, reach)) continue;
-    fallback ??= b;
     if (rejoinsWithout(world, b, r, pocket)) return b;
   }
-  return fallback;
+  // Re-review round 2 HIGH-1: no single wall reopens it (a wall two or more pieces thick, or two walls
+  // apart): the cheapest way back through the walls.
+  const b = cheapestPathWall(world, r, pocket);
+  if (b === null) stageUnresolved = qt;
+  return b;
+}
+
+/**
+ * Re-review round 2 HIGH-1: a 0-1 breadth-first search on the map-only layer from the pocket to the
+ * current main region. A lattice step the walls layer also allows costs 0; one only walls block costs 1.
+ * Returns the highest-id wall that blocks a step of the cheapest way found (each costly step's vertex or
+ * segment comes within `player.radiusM` of it), or null. Clearing it and asking again walks the fewest
+ * walls that reopen the pocket. Buffers are module scratch (`ensure`); no allocation per call.
+ */
+function cheapestPathWall(world: Readonly<World>, r: number, pocket: Uint8Array): Building | null {
+  const n = cols * rows;
+  bfsDist.fill(0x3fffffff, 0, n);
+  bfsDone.fill(0, 0, n);
+  let curLen = 0;
+  for (let v = 0; v < n; v++) {
+    if (pocket[v] !== 1) continue; // every pocket vertex starts at cost 0 (the trial floods reused `queue`)
+    bfsDist[v] = 0;
+    bfsPrev[v] = -1;
+    bfsCur[curLen++] = v;
+  }
+  let target = -1;
+  let level = 0;
+  while (curLen > 0 && target < 0) {
+    let nextLen = 0;
+    for (let k = 0; k < curLen && target < 0; k++) {
+      const v = bfsCur[k] as number;
+      if (bfsDone[v] === 1 || (bfsDist[v] as number) !== level) continue;
+      bfsDone[v] = 1;
+      if (before[v] === 1) {
+        target = v;
+        break;
+      }
+      const i = v % cols;
+      for (let d = 0; d < 4; d++) {
+        const u = d === 0 ? (i + 1 < cols ? v + 1 : -1) : d === 1 ? (i > 0 ? v - 1 : -1) : d === 2 ? (v + cols < n ? v + cols : -1) : v - cols;
+        if (u < 0 || bfsDone[u] === 1 || !joined(base, v, u)) continue;
+        const cost = joined(walls, v, u) ? 0 : 1;
+        const nd = level + cost;
+        if (nd >= (bfsDist[u] as number)) continue;
+        bfsDist[u] = nd;
+        bfsPrev[u] = v;
+        if (cost === 0) bfsCur[curLen++] = u;
+        else bfsNext[nextLen++] = u;
+      }
+    }
+    if (target >= 0) break;
+    const t = bfsCur;
+    bfsCur = bfsNext;
+    bfsNext = t;
+    curLen = nextLen;
+    level++;
+  }
+  if (target < 0) return null;
+  // The highest-id wall that blocks a costly step of the way.
+  const list = world.buildings.list;
+  let best: Building | null = null;
+  for (let v = target; bfsPrev[v] !== -1 && v >= 0; v = bfsPrev[v] as number) {
+    const u = bfsPrev[v] as number;
+    if (joined(walls, u, v)) continue;
+    const x0 = (Math.min(u, v) % cols) * BUILD_GRID_M;
+    const y0 = Math.floor(Math.min(u, v) / cols) * BUILD_GRID_M;
+    const x1 = (Math.max(u, v) % cols) * BUILD_GRID_M;
+    const y1 = Math.floor(Math.max(u, v) / cols) * BUILD_GRID_M;
+    for (let k = list.length - 1; k >= 0; k--) {
+      const b = list[k] as Building;
+      if (!b.solid || (best !== null && b.id <= best.id)) continue;
+      if (segmentNearBox(Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1), r, b)) best = b;
+    }
+  }
+  return best;
+}
+
+/** Re-review round 2: the seed count of the last `stageCutWall` that found a cut it could not resolve (0 = none). */
+let stageUnresolved = 0;
+export function stageSealUnresolved(): number {
+  return stageUnresolved;
 }
 
 /** The main region of the walls layer without wall `w` reaches a vertex of the pocket (one flood, into `trial`). */

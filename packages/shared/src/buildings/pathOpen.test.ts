@@ -6,7 +6,7 @@ import type { SimEvent } from "../core/simEvents";
 import { createWorld, type World } from "../core/world";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { gameplayDecayMasks } from "../decay/decayState";
-import { changeDecayStage } from "../decay/decaySystem";
+import { changeDecayStage, stageSealsUnresolved } from "../decay/decaySystem";
 import type { DecayMutation, DistrictMap, MapBox } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
@@ -479,6 +479,40 @@ describe("Story 12.1 H1: a decay stage re-checks paths; walls that now seal are 
     expect(all).toEqual([[eastMiddle, "cleared"]]); // one pass, one ring wall, nothing else
     expect(ring).toContain(eastMiddle);
     expect(world.buildings.list.map((b) => b.id)).toEqual(expect.arrayContaining(far));
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
+  /** Re-review round 2 HIGH-1: area R with exit A open (a corridor y 2–4 up to `end`) holding walls at `xs`; stage 2 blocks X. */
+  function thickR(xs: number[], end: number) {
+    const solids = [box("e1", 10, 0, end, 2), box("e2", 10, 4, end, 8), box("s1", 0, 8, 4, 8.5), box("s2", 6, 8, end, 8.5)];
+    const decay: DecayMutation[] = [{ name: "x_blocked", action: "block", stage: 2, variant: -1, kind: "", target: "", radiusM: 0, minX: 4, minY: 8, maxX: 6, maxY: 8.5 }];
+    const world = setup(openMap(solids, decay));
+    const ids = xs.map((x) => put(world, "wood_barricade", x, 2, 1, "p0").id);
+    expect(verticesOutsideMainRegion(world), "stage 1: R joined through X").toBe(0);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    expect(changeDecayStage(world, 2)).toBe(true);
+    world.events.flush();
+    return { world, ids, cleared: lost(events).filter((e) => e.cause === "cleared").map((e) => e.buildingId) };
+  }
+
+  it("re-review round 2 HIGH-1: a wall two pieces thick: both pieces are cleared (highest id first), nothing is left sealed", () => {
+    const { world, ids, cleared } = thickR([10.5, 11], 11.5);
+    expect(cleared).toEqual([...ids].sort((a, b) => b - a));
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+    expect(stageSealsUnresolved(world)).toBe(0);
+  });
+
+  it("re-review round 2 HIGH-1: two walls 0.5 m apart: both cleared, nothing sealed", () => {
+    const { world, ids, cleared } = thickR([10.5, 11.5], 12);
+    expect([...cleared].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
+    expect(cleared[0]).toBe(Math.max(...ids));
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
+  it("re-review round 2 HIGH-1: a wall three pieces thick: all three cleared, nothing sealed", () => {
+    const { world, ids, cleared } = thickR([10.5, 11, 11.5], 12);
+    expect([...cleared].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
     expect(verticesOutsideMainRegion(world)).toBe(0);
   });
 

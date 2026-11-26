@@ -13,6 +13,7 @@ import {
   type RoomMethodName,
 } from "@colyseus/core";
 import {
+  stageSealsUnresolved,
   ByteRate,
   C2S,
   MAX_PLAYERS,
@@ -1979,7 +1980,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.autosavePending = "build_start"; // Story 8.4 (D10): after the tick's events (below)
       }
       else if (e.type === "run.vote_opened") this.autosavePending = "vote"; // Story 8.4 (E8-S12): the vote is a calm phase
-      else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
+      else if (e.type === "decay.stage_changed") {
+        this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
+        // Story 12.1 re-review round 2: a stage left part of the map sealed with no wall to clear: never silent.
+        const unresolved = stageSealsUnresolved(controller.world);
+        if (unresolved > 0) this.log.warn({ stage: e.stage, vertices: unresolved }, "stage_seal_unresolved");
+      }
     }
     // Story 8.4: a pending autosave (build start, vote) once the World is clean (a last shot may still be in flight).
     if (this.autosavePending !== null && this.inRun() && saveBlocker(controller.world) === null) this.autosave(this.autosavePending);

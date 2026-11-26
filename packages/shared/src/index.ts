@@ -133,7 +133,7 @@ export { flashlightOf, inFlashlightCone, type FlashlightCone } from "./player/fl
 export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
-export { changeDecayStage, clearStageSeals, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave, stageSealsCleared } from "./decay/decaySystem";
+export { changeDecayStage, clearStageSeals, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave, stageSealsCleared, stageSealsUnresolved } from "./decay/decaySystem";
 export { bulletBlockT, bulletLineClear, meleeLineClear, segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";

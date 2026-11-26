@@ -1,7 +1,7 @@
 import type { World } from "../core/world";
 import type { MapBox } from "../map/districtMap";
 import { removeBuilding, type Building } from "../buildings/buildings";
-import { captureStageRegion, stageCutWall } from "../buildings/pathOpen";
+import { captureStageRegion, stageCutWall, stageSealUnresolved } from "../buildings/pathOpen";
 import { PUSH_STUCK, circleHitsBuilding, pushOutOfBuildings, pushed } from "../buildings/collision";
 import { boxBlocked, boxOrFireBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import type { PlayerState } from "../player/player";
@@ -108,7 +108,17 @@ export function clearStageSeals(world: World): number {
     world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause: "cleared" });
   }
   stageSealsCleared.count += n;
+  // Re-review round 2: a cut no wall could be found for is never silent (the server logs it at the stage change).
+  const left = stageSealUnresolved();
+  if (left > 0) unresolvedByWorld.set(world, left);
+  else unresolvedByWorld.delete(world);
   return n;
+}
+
+/** Re-review round 2: per World, the vertices the last build start left cut off with no wall to clear (0 = none). */
+const unresolvedByWorld = new WeakMap<World, number>();
+export function stageSealsUnresolved(world: World): number {
+  return unresolvedByWorld.get(world) ?? 0;
 }
 
 /** Story 12.1 H1: a wall building stands (the stage re-check has something to do). */
