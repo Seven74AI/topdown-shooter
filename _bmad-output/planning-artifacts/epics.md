@@ -2745,7 +2745,7 @@ Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat
 - **8.9:** the rewind window was raised to 600 ms / 12 ticks (T10).
 - **8.10:** the 10 Hz far rule is off (B7); every zombie is refreshed at 20 Hz.
 - **8.11:** wire format `NET_PROTOCOL_VERSION` 3, with a 14-byte binary input.
-- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6). 8.11 B2 left it out of 8.11's scope; since 2026-11-26 (correct-course) it is **Story 8.12**, ready before the 2.10 phone test.
+- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6). 8.11 B2 left it out of 8.11's scope; since 2026-11-26 (correct-course) it is **Story 8.13**, ready before the 2.10 phone test.
 
 
 Designer decision 2026-11-24 (`sprint-change-proposal-2026-11-24-network-pass.md`), from the network audit `docs/perf/network-audit-2026-11.md` (measured: hits and picture break on a lossy 4G line; a dropped phone is out for the run). Build order: **8.8 ∥ 8.9** (different files) → **8.1** (below, extended) → **8.10** → **8.11** (optional). Numbered 8.8–8.11 so the existing 8.1–8.7 references stay valid. Then the designer's 4-phone 4G test (Story 2.10 plan) is the check, Wi-Fi phones with `&loss=1`.
@@ -3018,9 +3018,9 @@ So that we can coordinate without voice chat.
 **When** it is sent (`ping.send`, max 1 per second per player)
 **Then** every teammate sees its icon in my color pinned where I sent it for 4 s, with an edge arrow when off screen, and a short sound; a new ping replaces my previous one; pings draw above the blackout darkness
 
-### Story 8.12: Slow-line horde skip
+### Story 8.13: Slow-line horde skip
 
-(Added 2026-11-26, correct-course `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`: the owner of 8.10 B6 / retro E8-A4. Ready before the 2.10 4-phone test. Source: the 8.10 backpressure table, `8-10-half-size-horde-stream.md` (64 kbit/s: 0 skips, frames wait up to 4,720 ms in the line, because the 64 KB socket rule cannot see a queue that sits in the network).)
+(Added 2026-11-26, correct-course; named 8.12 by the designer and renumbered because 8.12 is the quick story "Disconnected players don't vote" `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`: the owner of 8.10 B6 / retro E8-A4. Ready before the 2.10 4-phone test. Source: the 8.10 backpressure table, `8-10-half-size-horde-stream.md` (64 kbit/s: 0 skips, frames wait up to 4,720 ms in the line, because the 64 KB socket rule cannot see a queue that sits in the network).)
 
 As a player on a very slow mobile line,
 I want to see where the horde is now, not where it was seconds ago,

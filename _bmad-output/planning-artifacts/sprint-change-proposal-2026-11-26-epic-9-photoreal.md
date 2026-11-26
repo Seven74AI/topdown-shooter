@@ -26,7 +26,7 @@ Inputs: `implementation-readiness-report-2026-11-26.md` (B-1/Q1–Q9, N-1–N-11
 | Item | Status | Note |
 | --- | --- | --- |
 | 1 Trigger and context | [x] | B-1 is evidenced in the readiness report §6 (code paths cited there) |
-| 2.1–2.5 Epic impact | [x] | Epic 9 re-based. Epic 10 reordered. Epics 1 and 4 closed. Epic 8 reopened for 8.12. Epic 11: Q8 is still open (§6) |
+| 2.1–2.5 Epic impact | [x] | Epic 9 re-based. Epic 10 reordered. Epics 1 and 4 closed. Epic 8 reopened for 8.13. Epic 11: Q8 is still open (§6) |
 | 3.1 GDD | [x] | Production paragraph, epic table and assumption line in `gdd.md`; Epic 9 and 10 in the GDD `epics.md`; a new `decision-log.md` entry |
 | 3.2 Architecture | [x] | Only the Asset Management paragraph (the pipeline). The Asset-loading row (A:172) already described 9.14 |
 | 3.3 UX | [N/A] | No standalone UX doc. 9.7 now routes UI art through a proposal pick, starting from Lumen LF5 |
@@ -46,12 +46,12 @@ Inputs: `implementation-readiness-report-2026-11-26.md` (B-1/Q1–Q9, N-1–N-11
   - 9.5, 9.6, 9.8 and 10.2 each state that they depend on 10.1.
 - **Epics 1 and 4:** closed. 1.11, 1.12 and 4.10 are done, each with a "folded into 10.x" note.
 - **Epic 2:** unchanged. 2.10 stays parked in review.
-- **Epic 8:** new Story 8.12 (backlog). The epic goes back to in-progress.
+- **Epic 8:** new Story 8.13 (backlog). The epic goes back to in-progress.
 
 ### Technical impact
 
 - None now (docs only).
-- Later stories keep today's rules: no simulation, net, balance or digest change, except new `controls.fx` caps, and 8.12 may need a `NET_PROTOCOL_VERSION` bump.
+- Later stories keep today's rules: no simulation, net, balance or digest change, except new `controls.fx` caps, and 8.13 may need a `NET_PROTOCOL_VERSION` bump.
 
 ## 3. Recommended approach
 
@@ -61,7 +61,7 @@ Inputs: `implementation-readiness-report-2026-11-26.md` (B-1/Q1–Q9, N-1–N-11
 - **Risk:**
   - Each art group now waits on a designer pick, the same cadence as 9.11–9.14.
   - The first-load budget has to be tracked per atlas. 9.1 records the headroom.
-- **Timeline:** 10.1 moves to the front. 8.12 slots before the 2.10 phone night.
+- **Timeline:** 10.1 moves to the front. 8.13 slots before the 2.10 phone night.
 
 ## 4. Detailed change proposals (applied)
 
@@ -141,9 +141,11 @@ The Epic 9 line in the epic list and the Photoreal pass intro's overlap sentence
 - sprint-status:
   - `epic-1: done`, `epic-4: done`;
   - 1.11, 1.12 and 4.10 are `done`, each with a "folded into 10.x" comment;
-  - 2.10 stays `review` with the comment "PARKED; 8.12 lands before it".
+  - 2.10 stays `review` with the comment "PARKED; 8.13 lands before it".
 
-### 4.4 Story 8.12: Slow-line horde skip (new, Epic 8)
+### 4.4 Story 8.13: Slow-line horde skip (new, Epic 8)
+
+**Renumbered:** the designer named this story 8.12, but master already uses 8.12 for the quick story "Disconnected players don't vote" (`8-12-disconnected-players-dont-vote.md`, ready-for-dev, added 2026-11-25 in party mode). To avoid two stories with one key, the slow-line story is **8.13**. Scope and placement are as decided.
 
 New story in epics.md, placed after 8.7. The Epic 8 as-built "Still owed" line now points to it. ACs:
 - A per-phone latency signal (an existing round trip, or a tiny ack plus a `NET_PROTOCOL_VERSION` bump). When the queued horde frames get older than a named threshold, the server skips the stale frames and sends a keyframe. Patches and events are never dropped.
@@ -154,8 +156,8 @@ New story in epics.md, placed after 8.7. The Epic 8 as-built "Still owed" line n
 - The existing net tests stay green, and the 8.8 and 8.9 lossy-line numbers do not get worse.
 
 Tracking:
-- sprint-status: `8-12-slow-line-horde-skip: backlog`; `epic-8: in-progress`.
-- `deferred-work.md`: the 8.10 B6 line names 8.12 as its owner.
+- sprint-status: `8-13-slow-line-horde-skip: backlog`; `epic-8: in-progress`.
+- `deferred-work.md`: the 8.10 B6 line names 8.13 as its owner.
 
 ### 4.5 GDD (`gdds/gdd-topdown-shooter-2026-11-21/`)
 
@@ -182,14 +184,14 @@ The Asset-loading row (A:172) and the tree (A:321) already describe 9.14 and are
 - **Scope: Moderate.** Routed to the main session (story writer / scrum master), then the builders.
 - **Main session:**
   1. Write the 10.1 story file first (with the E7-A8 deletion AC and the E7-A5 shape owner for `progress.settings`).
-  2. Write the 8.12 story file and land it before the 2.10 phone night (with E8-A2 and E8-A5).
+  2. Write the 8.13 story file and land it before the 2.10 phone night (with E8-A2 and E8-A5).
   3. Write Epic 9 story files only after the matching proposal page has a designer pick: 9.1 any time; 9.2, 9.3 and 9.4 after their picks; 9.5, 9.6 and 9.8 after 10.1 is done.
   4. Refresh `docs/playtests/milestone-1.md` to the 10-wave game before the first 10.9 night.
 - **Designer:** proposal-page picks for 9.2–9.7. Answer the open questions in §6.
 - **Success criteria:**
   - every Epic 9 story file cites the intro's budgets and the designer's pick;
   - 10.1 lands before 9.5, 9.6, 9.8 and 10.2;
-  - 8.12's 64 kbit/s row reads ≤ 1,000 ms before 2.10 runs;
+  - 8.13's 64 kbit/s row reads ≤ 1,000 ms before 2.10 runs;
   - sprint-status matches epics.md: every story heading has a key, and every key changed or added here has a heading (checked for this commit; 6.13 and 6.14 have no `### Story` heading, which is older than this commit).
 
 ## 6. Open questions (proposed, not applied)
@@ -199,7 +201,7 @@ The Asset-loading row (A:172) and the tree (A:321) already describe 9.14 and are
 | **Q4** (readiness) | 10.5: safe areas are mostly built. Narrow its safe-area AC? | **Yes.** Change the AC to "verified on one notched iPhone and one Android with rounded corners, and `hudLayout.test.ts` gains cases with a non-zero top inset (≥ 47 px) at 568 × 320 and 844 × 390". Keep the manifest, icons, Add-to-Home-Screen and the browser matrix as the main work |
 | **Q5** (readiness) | 10.8: start the balance changelog now, and change "settle" to "re-check"? | **Yes to both.** Create `docs/balance/changelog.md` now as a docs task, back-filled with Epic 5 B1–B12 and 9.13 B28 (balance hash 1728716985 → 3587910981). Every balance change from now on adds a line. Reword the 10.8 AC to "re-check 15 × N, `loot.runChance` 0.2 and the cap of 6 against real runs and bot runs; change them only with a changelog reason" |
 | **Q8** (readiness) | 11.6 (Random-city art): reuse the 9.14 fixed photo-atlas frames by kind? | **Yes.** Pick frames by kind without stretching (`drawFrame` stretches today). Add the size variants a generated city needs with `npm run art:street-props`. Use code drawings only for generated buildings and ground, and when 9.2 lands, its building and ground atlas the same way. Decide it when 9.2's pick is made, because 9.2 sets the building and ground pipeline |
-| **E8-A9** (retro) | Designer review of the rule changes accepted overnight: 8.9 B7 and B9, 8.10 B7 (overrides D1), 8.1 B15, B16 and B19, and the 8.3 B14 accepted risk | **Confirm all of them as built**, recorded in `docs/network-pass-decisions.md` / `docs/epic-8-story-decisions.md`, with one exception: re-check **8.10 B7** (the far rule is off, so every zombie updates at 20 Hz) on the 2.10 phone night. If 4G bandwidth is fine there, confirm it; if not, 8.12's skip is the first lever, before turning the far rule back on. Do the review on the 2.10 night, as the retro suggests |
+| **E8-A9** (retro) | Designer review of the rule changes accepted overnight: 8.9 B7 and B9, 8.10 B7 (overrides D1), 8.1 B15, B16 and B19, and the 8.3 B14 accepted risk | **Confirm all of them as built**, recorded in `docs/network-pass-decisions.md` / `docs/epic-8-story-decisions.md`, with one exception: re-check **8.10 B7** (the far rule is off, so every zombie updates at 20 Hz) on the 2.10 phone night. If 4G bandwidth is fine there, confirm it; if not, 8.13's skip is the first lever, before turning the far rule back on. Do the review on the 2.10 night, as the retro suggests |
 | **E7-A6** (retro) | The Epic 7 picks still owed: 7.3 F12 (condensed font; "Not enough" under the price), 7.4 B11 (a second borrowed card through a paid reroll), 7.6 B18/B19 ("That name is taken" on Save; the guest-progress warning on login), 7.11 D8 "Wear it", and 7.10 AC 12 (a 30-second editor playtest) | **F12:** keep as built. **B11:** drop; one borrowed card keeps the deck rule simple. **B18/B19:** build both; both are small and prevent lost progress. **D8:** build it (one button on the loot reveal). **AC 12:** run it inside the first 10.9 game night. Record the answers in `docs/epic-7-story-decisions-*.md` before 10.9 |
 | — | 9.5's blood cap: 300 (AC) or 200 (code)? (N-7) | Written into 9.5 as "300 if the stress test holds, otherwise 200, with the reason recorded". No designer call is needed unless they want gore density as a pick on the 9.5 proposal page |
 
