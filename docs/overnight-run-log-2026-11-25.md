@@ -213,3 +213,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 07:58 Retros Epic 7 + 8: epic-7/8-retro-2026-11-26.md (c0251bc).
 - 08:33 Correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed by folding, 8.13 slow-line skip, 8.12 + Epic 12 added to epics.md (3627d27). Designer "ok" to every recommendation, applied in dfcbebc.
 - 08:40 PR #26 copy-chain audit (E8-A2) merged 4421603f: no gap left besides #21's owner; review clean (6/6 mutants killed); master CI green.
+- 09:28 8.12 disconnected players don't vote, PR #29 merged a1763cb8 (fresh 3-layer review: lows only → fixed → main-session check; CI green).

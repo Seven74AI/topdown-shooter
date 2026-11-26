@@ -7,6 +7,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import { snapshotWorld } from "../core/worldSnapshot";
 import { NEUTRAL_INPUT } from "../net/input";
 import { downPlayer } from "../player/downed";
+import { holdPlayer, returnPlayer } from "../player/hold";
 import { addPlayer, removePlayer } from "../player/player";
 import { spawnZombie } from "../zombies/zombiePool";
 import { throwConsumable } from "../combat/grenades";
@@ -15,6 +16,7 @@ import { igniteMolotov } from "../hazards/molotov";
 import { AREA_KIND, spawnArea } from "../hazards/areaPool";
 import {
   castVote,
+  countVotes,
   endRun,
   isEvacWave,
   openEvacVote,
@@ -143,13 +145,13 @@ describe("Story 6.11: everyone votes, Stay needs a real majority (F1, F3, D1)", 
     }
   });
 
-  it("a downed player votes too (F1)", () => {
+  it("Story 8.12 (reverses 6.11 F1): a downed player doesn't count; the standing one decides alone", () => {
     const { world, players } = setup(["p0", "p1"]);
     toVoteAfter(world);
     downPlayer(world, players[1]!);
     castVote(world, "p0", "stay");
-    castVote(world, "p1", "stay");
-    run(world, HOLD_TICKS + 1);
+    castVote(world, "p1", "extract"); // not counted
+    run(world, HOLD_TICKS + 1); // everyone who counts voted: ends after the hold
     expect(world.run.phase).toBe("build");
     expect(world.run.endless).toBe(true);
   });
@@ -379,5 +381,173 @@ describe("Story 6.12: endless — the next votes and the lost ending (F4, F7)", 
     downPlayer(b.world, b.players[0]!);
     run(b.world, 2);
     expect(b.world.run.ending).toBe("wiped");
+  });
+});
+
+describe("Story 8.12: only connected, standing players vote (reverses 8.1 review M2)", () => {
+  type Seat = EvacChoice | null | "held" | "downed-extract" | "downed-stay" | "out-extract";
+  /** One full vote through the real run: each seat votes, then is held / downed / out as named; returns the tally event. */
+  function vote(seats: readonly Seat[], endEarly = false) {
+    const ids = seats.map((_, i) => `p${i}`);
+    const { world, players, events } = setup(ids);
+    toVoteAfter(world);
+    seats.forEach((s, i) => {
+      const id = ids[i] as string;
+      const p = players[i]!;
+      if (s === "stay" || s === "extract") castVote(world, id, s);
+      else if (s === "held") holdPlayer(world, id);
+      else if (s === "downed-extract" || s === "downed-stay") {
+        castVote(world, id, s === "downed-stay" ? "stay" : "extract"); // voted while standing, then went down
+        downPlayer(world, p);
+      } else if (s === "out-extract") {
+        castVote(world, id, "extract");
+        p.status = "out"; // dead (spectating)
+      }
+    });
+    run(world, endEarly ? HOLD_TICKS + 1 : VOTE_TICKS + 1);
+    const resolved = ofType(events, "run.vote_resolved") as Extract<SimEvent, { type: "run.vote_resolved" }>[];
+    expect(resolved.length, JSON.stringify(seats)).toBe(1);
+    return { world, r: resolved[0]! };
+  }
+
+  it("the AC 1 table: held, downed and out seats leave the count; a tie is Extract", () => {
+    const table: [readonly Seat[], EvacChoice, number][] = [
+      // seats, result, players counted
+      [["stay", "stay", "extract", "held"], "stay", 3],
+      [["stay", "stay", "held", "held"], "stay", 2],
+      [["stay", "extract", "extract", "held"], "extract", 3],
+      [["stay", "stay", "extract", "extract"], "extract", 4],
+      [["stay", "stay", null], "stay", 3],
+      [["stay", "stay", "extract", "downed-extract"], "stay", 3],
+      [["stay", "extract", "downed-stay", "downed-stay"], "extract", 2],
+      [["stay", "stay", "extract", "out-extract"], "stay", 3],
+      [["stay", "held", "downed-extract", null], "extract", 2], // 1 of 2: not more than half
+    ];
+    for (const [seats, want, counted] of table) {
+      const { world, r } = vote(seats);
+      expect(r.choice, JSON.stringify(seats)).toBe(want);
+      expect(r.stay + r.extract + r.silent, JSON.stringify(seats)).toBe(counted);
+      expect(world.run.phase, JSON.stringify(seats)).toBe(want === "stay" ? "build" : "results");
+    }
+  });
+
+  it("AC 2: the vote ends early once every counted player voted (held and downed seats skipped)", () => {
+    const { world } = vote(["stay", "stay", "held", "downed-extract"], true);
+    expect(world.run.endless).toBe(true);
+    expect(world.run.phase).toBe("build");
+  });
+
+  it("AC 2 (review L2): a silent DOWNED player doesn't hold the early end — 2 Stay + 1 downed silent ends after the hold beat", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "stay");
+    downPlayer(world, players[2]!); // never votes
+    run(world, HOLD_TICKS - 1);
+    expect(world.run.phase).toBe("vote");
+    run(world, 1);
+    expect(world.run.phase).toBe("build"); // without the countsInVote skip in everyoneVoted it waits the full timer
+  });
+
+  it("AC 2: a silent standing player still holds the timer open", () => {
+    const { world } = setup(["p0", "p1", "p2"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    holdPlayer(world, "p2");
+    run(world, HOLD_TICKS + 5);
+    expect(world.run.phase).toBe("vote");
+    expect(world.run.voteTicksLeft).toBe(VOTE_TICKS - HOLD_TICKS - 5);
+  });
+
+  it("AC 3: a seat that returns mid-vote counts again from that tick, silent (= Extract) until it votes", () => {
+    // a: 2 seats, 1 Stay + 1 held (its earlier Stay cleared by the hold) → ends early, Stay.
+    // b: the same, but the seat returns 5 ticks into the hold beat: silent, 1 of 2 → Extract (the beat isn't re-extended, D2).
+    // c: 3 seats, 1 Stay + 1 Extract + 1 held; the seat returns and votes Stay → 2 of 3 → Stay.
+    const a = setup(["p0", "p1"]);
+    toVoteAfter(a.world);
+    castVote(a.world, "p0", "stay");
+    castVote(a.world, "p1", "stay"); // cleared by the hold (pressed while gone)
+    holdPlayer(a.world, "p1");
+    expect(countVotes(a.world)).toEqual({ extract: 0, stay: 1, silent: 0 });
+    run(a.world, HOLD_TICKS + 1);
+    expect(a.world.run.phase).toBe("build"); // ended early (everyone who counts voted) → Stay
+    // The same, with the seat back inside the hold beat:
+
+    const b = setup(["p0", "p1"]);
+    toVoteAfter(b.world);
+    castVote(b.world, "p0", "stay");
+    castVote(b.world, "p1", "stay");
+    holdPlayer(b.world, "p1");
+    run(b.world, 5);
+    expect(returnPlayer(b.world, "p1")).toBe(true);
+    expect(b.world.players.get("p1")?.vote).toBe(VOTE_NONE); // starts silent
+    expect(countVotes(b.world)).toEqual({ extract: 0, stay: 1, silent: 1 });
+    // 5 ticks ago everyone who counted (p0) had voted, so the 1 s hold beat started; a return never re-extends it
+    // (6.11 F4: the timer only shortens, decision 8.12 D2), but the silent returner still counts at the resolve.
+    expect(b.world.run.voteTicksLeft).toBe(HOLD_TICKS - 5);
+    run(b.world, HOLD_TICKS - 5);
+    const r = ofType(b.events, "run.vote_resolved")[0] as Extract<SimEvent, { type: "run.vote_resolved" }>;
+    expect(r).toEqual({ type: "run.vote_resolved", choice: "extract", extract: 0, stay: 1, silent: 1 }); // 1 of 2
+
+    // The returner votes Stay: counts at resolve.
+    const c = setup(["p0", "p1", "p2"]);
+    toVoteAfter(c.world);
+    castVote(c.world, "p0", "stay");
+    castVote(c.world, "p1", "extract");
+    holdPlayer(c.world, "p2");
+    run(c.world, 10);
+    returnPlayer(c.world, "p2");
+    castVote(c.world, "p2", "stay");
+    run(c.world, HOLD_TICKS + 1);
+    const rc = ofType(c.events, "run.vote_resolved")[0] as Extract<SimEvent, { type: "run.vote_resolved" }>;
+    expect(rc).toEqual({ type: "run.vote_resolved", choice: "stay", extract: 1, stay: 2, silent: 0 });
+  });
+
+  it("the threshold recomputes when someone drops mid-vote: 2 Stay + 2 Extract (tie, Extract) → one Extract voter drops → Stay", () => {
+    const { world, events } = setup(["p0", "p1", "p2", "p3"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "stay");
+    castVote(world, "p2", "extract");
+    run(world, 10);
+    expect(world.run.phase).toBe("vote"); // p3 silent
+    holdPlayer(world, "p3"); // the silent one drops: now everyone who counts has voted, 2 of 3 Stay
+    run(world, HOLD_TICKS + 1);
+    const r = ofType(events, "run.vote_resolved")[0] as Extract<SimEvent, { type: "run.vote_resolved" }>;
+    expect(r).toEqual({ type: "run.vote_resolved", choice: "stay", extract: 1, stay: 2, silent: 0 });
+  });
+
+  it("guard for the future (status is frozen during the vote today: no down or revive runs in phase vote): a player standing again before the resolve counts with the choice they made", () => {
+    const { world, players, events } = setup(["p0", "p1", "p2"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "extract");
+    castVote(world, "p2", "extract");
+    downPlayer(world, players[2]!);
+    expect(countVotes(world)).toEqual({ extract: 1, stay: 1, silent: 0 });
+    players[2]!.status = "alive"; // revived (the revive path is downed.test.ts's)
+    run(world, HOLD_TICKS + 1);
+    const r = ofType(events, "run.vote_resolved")[0] as Extract<SimEvent, { type: "run.vote_resolved" }>;
+    expect(r).toEqual({ type: "run.vote_resolved", choice: "extract", extract: 2, stay: 1, silent: 0 });
+  });
+
+  it("AC 4: nobody counts (every seat held) → the timer runs out → Extract", () => {
+    const { world, events } = setup(["p0", "p1"]);
+    toVoteAfter(world);
+    castVote(world, "p0", "stay");
+    holdPlayer(world, "p0");
+    holdPlayer(world, "p1");
+    run(world, VOTE_TICKS - 1);
+    expect(world.run.phase).toBe("vote"); // no early end with nobody counting
+    run(world, 2);
+    const r = ofType(events, "run.vote_resolved")[0] as Extract<SimEvent, { type: "run.vote_resolved" }>;
+    expect(r).toEqual({ type: "run.vote_resolved", choice: "extract", extract: 0, stay: 0, silent: 0 });
+    expect(world.run.ending).toBe("extracted");
+  });
+
+  it("AC 4: nobody counts (one held, one downed who voted Stay) → Extract", () => {
+    const { world, r } = vote(["held", "downed-stay"]);
+    expect(r).toEqual({ type: "run.vote_resolved", choice: "extract", extract: 0, stay: 0, silent: 0 });
+    expect(world.run.ending).toBe("extracted");
   });
 });

@@ -30,3 +30,4 @@ One triage of the follow-ups that lived only in story files and the run log (Epi
 - **PR #26 review nits (owner: next builder touching syncState tests):**
   - The syncState trap test sets trapState with a hand-written version++ instead of calling bearTrap setState. Reword the describe, or call the real writer.
   - The loot-bag pin test puts the bag out with Object.assign instead of `drop`.
+- **Pre-existing (from the 8.12 review):** a seat whose hold ran out before the first Stay is a remembered seat, outside world.players and heldPlayers. It never gets earnedAtEvac, so earnedBeforeEndless shows 0 for it. Owner: the next builder touching evac/endless earnings.

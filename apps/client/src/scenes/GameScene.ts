@@ -20,6 +20,7 @@ import {
   ZOMBIE_POOL_CAPACITY,
   activeSlot,
   addPlayer,
+  countsInVote,
   buildingStats,
   isFlame,
   hasMagazine,
@@ -410,7 +411,7 @@ export class GameScene extends Phaser.Scene {
     const o = this.votePlayers[this.voteCount++] as VotePlayerIn;
     o.slot = h.playerInfo(id).slot;
     o.vote = p.vote;
-    o.standing = p.status === "alive";
+    o.standing = countsInVote(p); // Story 8.12: downed and out players don't vote
     o.mine = id === h.localPlayerId;
   };
   private bossMusic = false;
@@ -788,6 +789,8 @@ export class GameScene extends Phaser.Scene {
       // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
       const h = this.host;
       if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
+      const me = h.world.players.get(h.localPlayerId);
+      if (!me || !countsInVote(me)) return; // Story 8.12 (AC 6): downed / out — the buttons are disabled
       this.voteSend.want(this.voteReq.tap(choice, this.time.now)); // review M1: paced in updateVote
     });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
@@ -1198,7 +1201,7 @@ export class GameScene extends Phaser.Scene {
     this.voteCollectHost = host;
     host.world.players.forEach(this.collectVoter);
     this.voteCollectHost = null;
-    // Story 8.1 RR1-M1: held seats are silent chips, as the server counts them (no false result line, no false urgency).
+    // Story 8.1 RR1-M1 / 8.12: held seats are dimmed "not voting" chips, left out of the count as the server does.
     if (host.heldSeatSlots) this.voteCount = addHeldVoters(this.votePlayers, this.voteCount, host.heldSeatSlots());
     // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
     // a change of mind goes out at once even with the bucket empty.
