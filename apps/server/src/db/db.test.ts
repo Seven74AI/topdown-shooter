@@ -33,10 +33,10 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 
 describe("migrations (Story 7.1 AC 2)", () => {
-  it("the committed SQL creates exactly these tables: accounts and progress (7.1), run_rewards (7.2), device_tokens (7.6), saved_runs + saved_run_players (8.4)", () => {
+  it("the committed SQL creates exactly these tables: accounts and progress (7.1), run_rewards (7.2), device_tokens (7.6), saved_runs + saved_run_players (8.4), paid_bags (10.1 review L6)", () => {
     const files = readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql"));
     const creates = files.flatMap((f) => [...readFileSync(join(MIGRATIONS_FOLDER, f), "utf8").matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1]));
-    expect(creates.sort()).toEqual(["accounts", "device_tokens", "progress", "run_rewards", "saved_run_players", "saved_runs"]);
+    expect(creates.sort()).toEqual(["accounts", "device_tokens", "paid_bags", "progress", "run_rewards", "saved_run_players", "saved_runs"]);
   });
 
   it("applies once, and a second run is a no-op (same tables, one recorded migration, rows kept)", async () => {
@@ -45,7 +45,7 @@ describe("migrations (Story 7.1 AC 2)", () => {
     await accountsRepo(database).createGuest(HASH_A, "Ana");
     await migrateDb({ kind: "pglite", db });
     const tables = await rows<{ table_name: string }>(db, sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`);
-    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "device_tokens", "progress", "run_rewards", "saved_run_players", "saved_runs"]);
+    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "device_tokens", "paid_bags", "progress", "run_rewards", "saved_run_players", "saved_runs"]);
     const applied = await rows<{ n: number }>(db, sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
     expect(applied[0]?.n).toBe(readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql")).length);
     const accounts = await rows<{ n: number }>(db, sql`select count(*)::int as n from accounts`);
@@ -71,7 +71,7 @@ describe("repositories (Story 7.1 AC 8)", () => {
     expect(await accounts.findByTokenHash(HASH_B)).toBeNull();
     await accounts.setDisplayName(made.id, "Bea");
     expect((await accounts.findByTokenHash(HASH_A))?.displayName).toBe("Bea");
-    expect(await progressRepo(database).get(made.id)).toEqual({ accountId: made.id, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null, cosmetics: [], stats: { revives: 0, kills: 0, barricades: 0, runs: 0 } }); // + Story 7.11
+    expect(await progressRepo(database).get(made.id)).toEqual({ accountId: made.id, supplies: 0, lifetimeSupplies: 0, unlocks: [], training: {}, districts: [], look: null, cosmetics: [], stats: { revives: 0, kills: 0, barricades: 0, runs: 0 }, settings: null }); // + Story 7.11, 10.1
   });
 
   it("two createGuest calls for one token at once give one account (no duplicate, no error)", async () => {

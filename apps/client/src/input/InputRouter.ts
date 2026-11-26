@@ -3,6 +3,7 @@ import { applyLobLength, mouseLobDistance, touchLobDistance } from "./lobAim";
 import { KeyboardMouse } from "./KeyboardMouse";
 import { keyAction } from "./keyMap";
 import { selectSource, type InputSource, type SourceEvent } from "./selectSource";
+import { getSettings } from "../settings/settings";
 import type { TouchSticks } from "./TouchSticks";
 
 export type MutablePlayerInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
@@ -162,7 +163,9 @@ export class InputRouter {
     out.aimY = aim.y;
     if (lob) applyLobLength(out, lob, touchLobDistance(lob, aim.deflection, this.sticks.aimDeadZoneFrac));
     out.fire = aim.fire && !throwing;
-    out.isMouse = false;
+    // Story 10.1 (B6): aim assist off rides the input's "no assist" bit (FR4's mouse bit): the server and the client
+    // mirror skip assist on it; nothing else reads it. No protocol change.
+    out.isMouse = !getSettings().aimAssist;
     return out;
   }
 }

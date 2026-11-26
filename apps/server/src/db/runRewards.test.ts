@@ -165,14 +165,14 @@ describe("Story 7.2: banking a run (progressRepo.addSupplies)", () => {
     expect(await repo.get(acct.id)).toMatchObject({ supplies: 200, lifetimeSupplies: 200 });
   });
 
-  it("an account with no progress row gets one (empty) before the bank; an unknown account is refused (foreign key)", async () => {
+  it("an account with no progress row gets one (empty) before the bank; an unknown (deleted) account is a quiet no-op (Story 10.1 review M3; was a foreign-key error)", async () => {
     const database = fresh();
     const acct = await account(database);
     const db = await database.db();
     await db.execute(sql`delete from progress where account_id = ${acct.id}`);
     const repo = progressRepo(database);
     expect((await repo.addSupplies(RUN_A, acct.id, pays(30))).newTotal).toBe(30);
-    await expect(repo.addSupplies(RUN_A, "99999999-9999-4999-8999-999999999999", pays(30))).rejects.toThrow();
+    expect(await repo.addSupplies(RUN_A, "99999999-9999-4999-8999-999999999999", pays(30))).toEqual({ banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false, noAccount: true });
   });
 
   it("a negative payout is clamped to 0 (a balance never goes down through a bank)", async () => {

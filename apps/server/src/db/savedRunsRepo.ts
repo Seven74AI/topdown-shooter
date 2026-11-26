@@ -8,7 +8,8 @@
  * last autosave) makes it 'saved' for 7 days; `claim` is the only way back to 'open' (one conditional UPDATE: S3 — two
  * resumes race, one wins); `deleteRun` when the run is lost mid-wave or finished; `releaseOpenOnBoot` after a crash.
  */
-import { and, desc, eq, gt, inArray, lt, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, notExists, sql } from "drizzle-orm";
+import { scrubSeats } from "./scrubSeats";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 import type { Database } from "./client";
 import { accounts, runRewards, savedRunPlayers, savedRuns } from "./schema";
@@ -81,12 +82,29 @@ export interface SavedRunsRepo {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isRunId = (s: unknown): s is string => typeof s === "string" && UUID.test(s);
 
+/**
+ * The linked accounts that exist (a made-up or deleted account is not among them). Story 10.1 re-review round 2: the
+ * account rows are locked FOR KEY SHARE in id order BEFORE the run row is written (LOCK ORDER in `accountsRepo.ts`:
+ * accounts before saved_runs, like a delete and a merge), so a delete never waits on this save's run row while this save
+ * waits on its account row; an account deleted first reads as gone (scrubbed, not linked: no 23503).
+ */
+async function knownAccounts(tx: Tx, links: readonly SaveLink[]): Promise<Set<string>> {
+  const wanted = links.filter((l) => isRunId(l.accountId));
+  if (wanted.length === 0) return new Set();
+  const rows = await tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(inArray(accounts.id, wanted.map((l) => l.accountId)))
+    .orderBy(asc(accounts.id))
+    .for("key share");
+  return new Set(rows.map((r) => r.id));
+}
+
 /** The links whose account exists (a made-up or deleted account is skipped, never a failed save). */
-async function writeLinks(tx: Tx, id: string, links: readonly SaveLink[]): Promise<void> {
+async function writeLinks(tx: Tx, id: string, links: readonly SaveLink[], known: ReadonlySet<string>): Promise<void> {
   await tx.delete(savedRunPlayers).where(eq(savedRunPlayers.savedRunId, id));
   const wanted = links.filter((l) => isRunId(l.accountId));
   if (wanted.length === 0) return;
-  const known = new Set((await tx.select({ id: accounts.id }).from(accounts).where(inArray(accounts.id, wanted.map((l) => l.accountId)))).map((r) => r.id));
   const rows = wanted.filter((l, i) => known.has(l.accountId) && wanted.findIndex((x) => x.accountId === l.accountId) === i).map((l) => ({ savedRunId: id, accountId: l.accountId, seatKey: l.seatKey }));
   if (rows.length > 0) await tx.insert(savedRunPlayers).values(rows);
 }
@@ -96,7 +114,14 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
   /** Insert or overwrite while this room holds the row (or nobody does yet). */
   const put = (op: string, s: SaveRow, status: "open" | "saved", expiresAt: Date | null): Promise<boolean> =>
     write(op, async (tx) => {
-      const values = { district: s.district, seed: s.seed, snapshot: s.snapshot, schemaVersion: s.schemaVersion, wave: s.wave, names: [...s.names], status, roomCode: status === "open" ? s.roomCode : null, updatedAt: sql`now()` };
+      // LOCK ORDER (`accountsRepo.ts`): the linked accounts (KEY SHARE, id order) before the run row. Story 10.1 re-review L5-live: a seat whose account was deleted (Delete my progress) while this room remembered it
+      // is scrubbed before it is written, like the delete scrubbed it (one helper), so an autosave never writes it back.
+      const known = await knownAccounts(tx, s.links);
+      const gone = new Set(s.links.filter((l) => isRunId(l.accountId) && !known.has(l.accountId)).map((l) => l.accountId));
+      const scrubbed = gone.size > 0 ? scrubSeats(s.snapshot, s.names, gone) : null;
+      const snapshot = scrubbed?.snapshot ?? s.snapshot;
+      const names = scrubbed?.names ?? [...s.names];
+      const values = { district: s.district, seed: s.seed, snapshot, schemaVersion: s.schemaVersion, wave: s.wave, names, status, roomCode: status === "open" ? s.roomCode : null, updatedAt: sql`now()` };
       // Review L: an autosave never touches the expiry or saved_at (a claimed run keeps both); a resumable save sets them.
       const ends = status === "saved" ? { expiresAt, savedAt: sql`now()` } : {};
       const done = await tx
@@ -105,7 +130,7 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
         .onConflictDoUpdate({ target: savedRuns.id, set: { ...values, ...ends }, setWhere: sql`${savedRuns.status} = 'open' and ${savedRuns.roomCode} = ${s.roomCode}` })
         .returning({ id: savedRuns.id });
       if (done.length === 0) return false;
-      await writeLinks(tx, s.id, s.links);
+      await writeLinks(tx, s.id, s.links, known);
       return true;
     });
   return {

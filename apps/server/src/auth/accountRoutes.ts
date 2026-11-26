@@ -14,6 +14,11 @@ import {
   ACCOUNT_TRAINING_PATH,
   ACCOUNT_UNLOCK_PATH,
   ACCOUNT_UPGRADE_PATH,
+  ACCOUNT_SETTINGS_PATH,
+  ACCOUNT_DELETE_PATH,
+  SETTINGS_MAX_BODY_BYTES,
+  settingsSaveRequestSchema,
+  deleteRequestSchema,
   GUEST_COOKIE,
   LOOK_SAVE_MAX_BODY_BYTES,
   accountSessionRequestSchema,
@@ -33,6 +38,7 @@ import { buyUnlock, refused, unlockIpAllowed, type UnlockDeps } from "./unlock";
 import { actionIpAllowed, logIn, logOut, loginIpAllowed, recoverAccount, upgradeAccount, type AccountAuthDeps, type AuthOutcome } from "./accountAuth";
 import { buyTraining, trainIpAllowed, trainRefused, type TrainDeps } from "./train";
 import { lookIpAllowed, saveLook, type LookDeps } from "../meta/look";
+import { deleteMyProgress, ipAllowed, saveSettings, type DeleteDeps, type SettingsDeps } from "./accountDelete";
 
 export interface AccountRouteDeps extends GuestSessionDeps {
   allowedOrigins: readonly string[];
@@ -44,6 +50,10 @@ export interface AccountRouteDeps extends GuestSessionDeps {
   auth: Omit<AccountAuthDeps, "accounts" | "logGate" | "sessionSecret">;
   /** Story 7.10: `POST /account/look`. */
   look: Omit<LookDeps, "accounts" | "logGate">;
+  /** Story 10.1: `POST /account/settings` (omitted in older tests: the route answers 503). */
+  settings?: Omit<SettingsDeps, "accounts" | "logGate">;
+  /** Story 10.1: `POST /account/delete`. */
+  remove?: Omit<DeleteDeps, "accounts" | "logGate">;
 }
 
 /** Story 7.10 (AC 11): the body size: the declared length, else the parsed body re-serialised. */
@@ -219,7 +229,42 @@ export function createAccountRoutes(deps: AccountRouteDeps) {
     if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
     return out.body;
   });
-  return { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook };
+
+  /**
+   * Story 10.1 (AC 6; B10): `POST /account/settings` `{ settings }` (≤ 1 KB). The cookie names the account; 200 answers
+   * `{ ok: true, settings }` (what was stored); 400 bad body, 401 no account, 403 foreign Origin, 413 over 1 KB, 429 over
+   * the limits, 503 save server down.
+   */
+  const accountSettings = createEndpoint(ACCOUNT_SETTINGS_PATH, { method: "POST" }, async (ctx) => {
+    const ip = guard(ctx);
+    const headers = ctx.request?.headers ?? (ctx.headers ? new Headers(ctx.headers) : undefined);
+    if (!deps.settings) throw ctx.error(503, { message: "save_unavailable" });
+    if (!ipAllowed(ip, deps.settings.ipLimiter, deps.logGate, "settings")) throw ctx.error(429, { message: "rate_limited" });
+    if (bodyBytes(headers, ctx.body) > SETTINGS_MAX_BODY_BYTES) throw ctx.error(413, { message: "too_large" });
+    const body = settingsSaveRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) return badBody(ctx);
+    const out = await saveSettings({ cookieToken: ctx.getCookie(GUEST_COOKIE), settings: body.data.settings, ip }, { ...deps.settings, accounts: deps.accounts, logGate: deps.logGate });
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    return out.body;
+  });
+
+  /**
+   * Story 10.1 (AC 7–10; E7-A8; B11–B15): `POST /account/delete` `{ password? }`. 200 `{ ok: true, kind }` and the cookie
+   * is cleared (Max-Age 0); 400 bad body, 401 no account / wrong password, 403 foreign Origin, 409 in a room, 429 over
+   * the limits, 503 save server down.
+   */
+  const accountDelete = createEndpoint(ACCOUNT_DELETE_PATH, { method: "POST" }, async (ctx) => {
+    const ip = guard(ctx);
+    if (!deps.remove) throw ctx.error(503, { message: "save_unavailable" });
+    if (!ipAllowed(ip, deps.remove.ipLimiter, deps.logGate, "delete")) throw ctx.error(429, { message: "rate_limited" });
+    const body = deleteRequestSchema.safeParse(ctx.body ?? {});
+    if (!body.success) return badBody(ctx);
+    const out = await deleteMyProgress({ cookieToken: ctx.getCookie(GUEST_COOKIE), password: body.data.password, ip }, { ...deps.remove, accounts: deps.accounts, logGate: deps.logGate });
+    if (out.status !== 200) throw ctx.error(out.status, { message: out.error });
+    ctx.setCookie(GUEST_COOKIE, "", { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: 0 });
+    return out.body;
+  });
+  return { accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook, accountSettings, accountDelete };
 }
 
 /** The `__Host-tdg` cookie (HttpOnly, Secure, SameSite=Lax, Path=/, no Domain, 1 year). */
