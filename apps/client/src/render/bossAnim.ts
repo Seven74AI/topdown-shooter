@@ -32,7 +32,7 @@ export const BOSS_ANIM = {
     stunPeriodS: 1.0,
     /** The roar: an inhale of `roarInhale` over the first `roarInhaleS`, held after. */
     roarInhale: 0.02,
-    roarInhaleS: 0.3,
+    roarInhaleS: 0.2,
   },
   beat: {
     /** Enraged, standing still: the heart's clock (s); walking, the beat lands on every `everySteps` footfall. */
@@ -63,8 +63,10 @@ export const BOSS_ANIM = {
     enragedFloor: 0.75,
     calm: 1,
     stun: 0.3,
-    /** The roar: the eyes snap red at this time (s); the rage comes in from then to the roar's end. */
-    roarSnapS: 0.3,
+    /** The roar: the eyes snap red at this time (s) — 0, with the sim's push and its shock ring (R3, parent 2026-11-26) —
+     *  and the rage (veins lit, skin calm → enraged) comes in over `roarRageS` from then. */
+    roarSnapS: 0,
+    roarRageS: 1.2,
   },
 } as const;
 
@@ -247,7 +249,7 @@ export class BossAnim {
       return o;
     }
     if (i.state === BOSS_STATE.ROAR) {
-      const rage = i.enraged ? 1 : clamp01((this.stateS - E.roarSnapS) / Math.max(1e-6, this.times.roarS - E.roarSnapS));
+      const rage = i.enraged ? 1 : clamp01((this.stateS - E.roarSnapS) / E.roarRageS);
       o.enragedMix = rage;
       o.glow = rage * (G.ember + G.roarWave);
       o.eyes = 1;

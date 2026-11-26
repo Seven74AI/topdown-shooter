@@ -767,7 +767,7 @@ export class BossView {
     if (b.state === BOSS_STATE.ROAR) {
       if (!this.roarDust && this.anim.stateTime >= BOSS_ANIM.eyes.roarSnapS) {
         this.roarDust = true;
-        d.burst(D.roar, x, y); // blown off as the roar comes out
+        d.burst(D.roar, x, y); // blown off as the roar comes out, with the shock ring
       }
     } else this.roarDust = false;
   }

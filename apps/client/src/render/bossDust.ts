@@ -29,7 +29,7 @@ export const BOSS_DUST = {
   throwCrumbs: { n: 8, everyS: 0.08, fromP: 0.3, r: 0.07, lifeS: 0.4 },
   /** The chunk's landing. */
   throwLanding: { n: 12, speed: 2, r: 0.4, lifeS: 0.5 },
-  /** The roar: dust blown off (at the roar's 0.3 s). */
+  /** The roar: dust blown off (at its start, with the shock ring). */
   roar: { n: 22, speed: 4.5, r: 0.3, lifeS: 0.5 },
   /** Death: it hits the ground (at `atShare` of the collapse). */
   death: { n: 24, speed: 2.2, r: 0.55, lifeS: 0.7, atShare: 2 / 3 },

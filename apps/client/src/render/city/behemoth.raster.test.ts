@@ -89,10 +89,14 @@ describe("Story 9.15: the take C Behemoth", () => {
     }
   });
 
-  it("G2 A: the warning frames are the page's k 0.5 pictures (charge_b = charge_a: the drawing is at its full crouch by then; throw_b is the lift at 90 %)", () => {
-    expect(diff(frame(0, BOSS_FRAME.chargeB), frame(0, BOSS_FRAME.charge))).toHaveLength(0);
-    expect(diff(frame(0, BOSS_FRAME.throwB), frame(0, BOSS_FRAME.throw)).length).toBeGreaterThan(50);
-    for (const i of [BOSS_FRAME.chargeB, BOSS_FRAME.throwB]) expect(diff(frame(0, i), frame(0, BOSS_FRAME.walkA)).length).toBeGreaterThan(400);
+  it("G2 A: the warning frames are their own pictures (half-way, then the full pose)", () => {
+    for (const [half, full] of [
+      [BOSS_FRAME.chargeB, BOSS_FRAME.charge],
+      [BOSS_FRAME.throwB, BOSS_FRAME.throw],
+    ] as const) {
+      expect(diff(frame(0, half), frame(0, full)).length).toBeGreaterThan(400);
+      expect(diff(frame(0, half), frame(0, BOSS_FRAME.walkA)).length).toBeGreaterThan(400);
+    }
   });
 
   it("B3: body frames have no eyes, the outline frames keep theirs", () => {

@@ -40,13 +40,14 @@ export const BOSS_POSES: readonly BossPoseSpec[] = [
   { pose: "slam", k: 0.5, ph: 0, name: "slam_b" },
   { pose: "slam", k: 1, ph: 0, name: "slam_c" },
   { pose: "slamHit", k: 0, ph: 0, name: "slamhit_a" },
-  // Story 9.15 (G2 A): the first half of the warning, as the approved page's action player (`boss4.ts › EXTRA_FRAMES`:
-  // charge_h / throw_h at k 0.5). The charge drawing is already at its full crouch at k 0.5 (`e = min(1, 2k)`), so this
-  // picture equals charge_a (as on the page); the throw's k 0.5 is its lift at 90 % (`e = min(1, 1.8k)`)
-  { pose: "charge", k: 0.5, ph: 0, name: "charge_b" },
+  // Story 9.15 (G2 A): the first half of the warning, half-way into the pose. k is the pose's own progress: the charge
+  // reaches its full crouch at k 0.5 (`e = min(1, 2k)`), the throw its lift at k 0.56 (`e = min(1, 1.8k)`), so a
+  // literal k 0.5 would be (nearly) the same picture as the k 1 frame; these are the half-way pictures (e = 0.5), as
+  // the approved page's `boss4.ts › EXTRA_FRAMES` (charge_h k 0.25, throw_h k 0.28)
+  { pose: "charge", k: 0.25, ph: 0, name: "charge_b" },
   { pose: "charge", k: 1, ph: 0, name: "charge_a" },
   { pose: "rush", k: 1, ph: 0, name: "rush_a" },
-  { pose: "throw", k: 0.5, ph: 0, name: "throw_b" },
+  { pose: "throw", k: 0.5 / 1.8, ph: 0, name: "throw_b" },
   { pose: "throw", k: 1, ph: 0, name: "throw_a" },
   { pose: "stun", k: 0, ph: 0, name: "stun_a" },
   { pose: "roar", k: 0, ph: 0, name: "roar_a" },

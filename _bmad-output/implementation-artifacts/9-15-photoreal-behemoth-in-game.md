@@ -81,8 +81,8 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
    - **Charge + stun**: breath held, the heart races through the warning, eyes 100 %, steady 60 % glow through the
      rush with a dust trail; crash burst; stun: vein glow OFF, eyes 30 %, slow heavy breaths.
    - **Throw**: normal beat during the lift, a beat ON the release, crumbs falling from the chunk while lifted.
-   - **Roar**: eyes snap red at 0.3 s, veins light and the skin crossfades calm → enraged over 0.3–1.5 s
-     (`enrage.roarS`), roar dust 0.3–0.8 s, big inhale 0–0.3 s.
+   - **Roar**: with the shock ring at 0 s (where the sim pushes) the eyes snap red, the roar dust blows off, and the
+     veins light / the skin crossfades calm → enraged over 0–1.2 s; the inhale over 0–0.2 s (B10; the plan said 0.3 s).
    - **Death**: a last weak beat, glow out by 0.4 s, eyes out first, big dust puff as it hits the ground (2nd half of
      `death.collapseS`).
    - Dust FX are pooled sprites from a code texture through `addGeneratedTexture`; deterministic (no `Math.random`).
@@ -162,23 +162,25 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
   being "ready" (the plain atlas shows) and are baked again. Saves ~11 MB of CPU copies.
 - **B8 Crop.** Every relit picture is drawn cropped to its opaque box (`setCrop`): the 7 m frame is mostly empty and the
   full-quad additive layers cost −2.2 FPS in the headless software renderer; −0.8 after the crop.
-- **B9 Warning frames at k 0.5** (the page's action player, `boss4.ts › EXTRA_FRAMES`, the parent's spec 2026-11-26):
-  `charge_b` = charge k 0.5, `throw_b` = throw k 0.5. The charge drawing is at its full crouch by k 0.5
-  (`e = min(1, 2k)`), so `charge_b` is the same picture as `charge_a` (as on the page; a test pins it); `throw_b` is the
-  lift at 90 %. A real half-way charge picture would be k 0.25 (e = 0.5), if the designer wants one.
+- **B9 Half-way warning frames.** `charge_b` is baked at the charge's k 0.25 and `throw_b` at the throw's k 0.28, not a
+  literal k 0.5: the pose drawing reaches its full charge at k 0.5 (`e = min(1, 2k)`) and nearly its full lift (0.9) at
+  k 0.5 (`e = min(1, 1.8k)`), so k 0.5 would have been the same picture as `charge_a` (the identical-frame bug the
+  decomposition warned about). These are the pictures half-way into each pose (e = 0.5); a test diffs them. Accepted by
+  the parent 2026-11-26, the page's `EXTRA_FRAMES` fixed to match (charge_h k 0.25, throw_h k 0.28).
 - **B12 The action player is the spec** (parent, 2026-11-26): `bossAnim.ts` follows `planAt` (walk dip 1 % back over
   0.12 s + a 0.4 % rise per step; ember 0.25; racing beats slam 0 / 0.55 / 0.9 / 1.1 s, charge 0 / 0.4 / 0.7 / 0.9 s;
   slam flash 0.15 s and a 1 % exhale; throw swell 1.2 % and out over 0.4 s; stun 0.6 % breaths a second; roar inhale
-  2 %, rage over 0.3 s → the roar's end; death's last beat 0.4 → 0 by 0.4 s; eyes fall back over 0.25 s) and
+  2 % over 0.2 s, rage over 0–1.2 s from the shock ring (B10); death's last beat 0.4 → 0 by 0.4 s; eyes fall back over 0.25 s) and
   `bossDust.ts` follows `puffsFor` (counts, speeds, radii, lives; discs growing to 2.6 r, fading linearly). The vein
   glow pulses as a whole layer (the page's strip steps over 0.6 s become one fall over 0.6 s, B4).
 - **B13 Endless**: once a Behemoth's body is cleared (build start), the next Behemoth's look is predicted from the run
   seed (`behemoth number + 1`, the previous look; both replicated online) and baked during the build phase and waves; a
   wrong prediction re-bakes at arrival (plain frames meanwhile). The sheets hold one look, so the next look is not baked
   during the fight itself (that would replace the frames in use).
-- **B10 Roar shock ring at 0 s.** The plan's dope sheet put the 5 m shock ring at 0.3 s with the eye snap; the sim pushes
-  players at the roar's first tick, so the ring stays on the push (readability of the push). Eyes snap, veins light and
-  the roar dust start at 0.3 s as planned.
+- **B10 The roar starts with the shock ring at 0 s** (parent 2026-11-26, R3 "release together"; the page's commit "roar
+  starts with the sim's shock ring"): the sim pushes players at the roar's first tick, so the eyes snap red, the roar
+  dust blows off and the veins light / skin crossfades calm → enraged over 0–1.2 s from that moment, with the swell over
+  0–0.2 s. (The plan's 0.3 s had assumed the ring at 0.3 s.)
 - **B11 Reused dust textures.** The dust and grit sprites are `atlas_fx › fx_dust_a / fx_grit_a` (the Ruins dust's code
   textures, through `addGeneratedTexture`), tinted the boss puff colour; no new texture.
 
@@ -224,7 +226,7 @@ Claude (9.15 builder session)
   B1 / B2 / B7 / B8. Bake 2.9–3.9 s in the worker at 1×.
 - AC 3: walk at 0.25 / 0.75, death skin as hex; `behemoth.raster.test.ts` (walk frames differ only round the arms,
   death head / spine not black, the kit's `shade` returns rgb()).
-- AC 4: `warningPoseIndex`, `throwLiftProgress` (B9).
+- AC 4: `warningPoseIndex`, `throwLiftProgress`; half-way frames at k 0.25 / 0.28 (B9).
 - AC 5: enraged frames (13) + vein glow pictures (13 + the death glow); the vein layer pulses as a WHOLE layer (B4, the
   travelling wave not done: 8 steps × 13 frames ≈ 26 MB); eyes as two ADD sprites (B3), enraged floor 75 %.
 - AC 6: `bossAnim.ts` (`BOSS_ANIM` visual config; durations from `world.balance.boss`), `bossDust.ts`; the plan's

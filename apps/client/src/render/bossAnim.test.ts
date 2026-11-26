@@ -150,20 +150,19 @@ describe("Story 9.15: the action plan", () => {
     expect(a.out.glow).toBe(1);
   });
 
-  it("roar: yellow eyes until 0.3 s then red; the veins and skin go calm → enraged over 0.3–1.5 s", () => {
+  it("roar: with the shock ring at 0 s the eyes snap red; the veins and skin go calm → enraged over 0–1.2 s; the swell over 0.2 s", () => {
     const a = new BossAnim(times);
     const i = input();
     i.state = BOSS_STATE.ROAR;
-    const t1 = play(a, i, 0.2);
-    expect(t1.red).toBe(false);
-    expect(t1.mix).toBe(0);
-    const t2 = play(a, i, 0.6); // 0.8 s
-    expect(t2.red).toBe(true);
-    expect(t2.mix).toBeGreaterThan(0.3);
-    expect(t2.mix).toBeLessThan(0.6);
-    const t3 = play(a, i, 0.7); // 1.5 s
-    expect(t3.mix).toBeCloseTo(1, 1);
-    expect(t3.glow).toBeCloseTo(BOSS_ANIM.glow.ember + BOSS_ANIM.glow.roarWave, 1);
+    const t0 = play(a, i, DT);
+    expect(t0.red).toBe(true);
+    const t1 = play(a, i, 0.2 - DT);
+    expect(t1.breath).toBeCloseTo(1 + BOSS_ANIM.breath.roarInhale, 2);
+    const t2 = play(a, i, 0.4); // 0.6 s
+    expect(t2.mix).toBeCloseTo(0.5, 1);
+    const t3 = play(a, i, 0.62); // just past 1.2 s
+    expect(t3.mix).toBeCloseTo(1, 2);
+    expect(t3.glow).toBeCloseTo(BOSS_ANIM.glow.ember + BOSS_ANIM.glow.roarWave, 2);
   });
 
   it("death: eyes out at once, a last weak beat, the glow out by 0.4 s (only if it died enraged)", () => {
