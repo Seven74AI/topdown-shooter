@@ -549,3 +549,7 @@ Master had built 8.11 ([PR #19](https://github.com/Seven74AI/topdown-shooter/pul
 - **9.14 story file** (written on master) differs from what this report assumed: props ship as a **pre-rendered image atlas** (B1), and only the sawhorse police lines stand; cars and the bus stay flat. The epics 9.14 ACs from §7 were rewritten to match, and the art rule in the GDD (*Production*), FR82 and *Additional Requirements › Assets* now names this exception. The architecture's asset-loading row is left to the 9.14 builder (its AC 2 updates it).
 
 No other new inconsistencies found.
+
+## 9. Merge with master's 2026-11-26 work
+
+Master gained a second readiness check (`implementation-readiness-report-2026-11-26.md`), a correct-course (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`), Story 8.12, Epic 12, and built 9.14. Master's planning docs were taken as the base. This report's fixes were re-applied only where master didn't already cover them. Already covered by master, so not re-applied: 10.1 before 9.5/9.6/9.8 (Q3), the photoreal art pipeline in the GDD *Production* and FR82, 10.8's "re-check" wording, 10.10's BU-1 record, and the sprint-status dependency notes. 9.13 and 9.14 are done, so their §7 ACs became short "as built" notes. New: account deletion (master's 10.1 AC) also clears the account id from `problem_reports` and `run_result_players`.
