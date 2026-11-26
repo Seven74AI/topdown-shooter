@@ -55,7 +55,7 @@ A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4
 | Build phase, placement grid, buildings | medium | Buildings and Defenses |
 | Economy, wallets, roguelike shop (6 cards from unlocked pool, floor, reroll) | medium | Item and Upgrade System, Economy |
 | Lobby (share link + code), guest play, host migration | medium | Multiplayer Considerations |
-| Run persistence: reconnect (2 min), save & resume (7 days, host required), join mid-run | high | Run Structure, Multiplayer Considerations |
+| Run persistence: reconnect (2 min), save & resume (7 days, any account from the run: Epic 8 D11, superseding "host required"), join mid-run | high | Run Structure, Multiplayer Considerations |
 | Accounts and meta-progression (Supplies, unlocks, Training) | low–medium | Player Progression |
 | Seeded randomness for reproducible runs | low | Run Structure |
 | Audio: decay ambience, adaptive music, positional cues | low–medium | Audio and Music |
@@ -158,10 +158,10 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Horde sync | **Custom compact binary horde stream** from day one, interest-managed per client; Colyseus schema for everything else | @colyseus/schema 5.0 | The horde is the bandwidth risk; optimize it first (user choice) |
 | Hit validation | Server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half their round-trip time (capped at 150 ms); the server rewinds zombies to what the shooter saw (≤ 12 ticks / 600 ms, Story 8.9 T10 on top of Story 8.8's 500 ms; was ≤ 6 ticks / 300 ms in Story 2.12), with spread keyed to the input seq; boss hits are not rewound (they use the player's newest server position) | — | Runners made reversed hits obvious (11–20 % at 150 ms); rewind brings them to 0.3–1.8 % |
 | Simulation structure | Shared, engine-free TypeScript simulation package; data-oriented entity storage (struct-of-arrays for zombies and projectiles); uniform spatial hash grid (2 m cells) | TypeScript 6.0 | Same rules on server and client prediction; fast enough for 150+ zombies on one core |
-| Run state machine | Explicit server-side state machine: Lobby → Build → Wave → EvacVote → (Endless loop ↔ EvacVote) → Results; Paused (saved) as a side state | — | Clear phase ownership; save points only in Build |
+| Run state machine | Explicit server-side state machine: Lobby → Build → Wave → EvacVote → (Endless loop ↔ EvacVote) → Results; Paused (saved) as a side state | — | Clear phase ownership; save points only in calm phases: Build and the evacuation vote (E8-S12, Story 8.4–8.6) |
 | Persistence | **Single PostgreSQL** for accounts, meta-progression and saved runs | PostgreSQL 18 · pg 8.23 · Drizzle ORM 0.45 | One reliable store; user choice. 18 chosen over the brand-new 19.0 for maturity |
 | Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase start and last tick for crash recovery; **Save and quit**, a server stop or everyone leaving in a Build phase makes it resumable for 7 days by any account that was in the run (Epic 8 D10–D13) | — | Matches GDD; snapshots only at calm points |
-| Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
+| Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state; seat identity is one `seatKey()` (`guest:` / `acct:`, `apps/server/src/run/lobby.ts`); close codes 4020 seat kept, 4021 taken over, 4022 removed, 4023 run saved (`packages/shared/src/net/reconnect.ts`) | Colyseus 0.18 | GDD 2-minute rule |
 | Accounts | Guest = random 32-byte device token, kept in a 1-year HttpOnly cookie and a `localStorage` copy (Epic 7 D9), stored hashed → server session; account HTTP API in `apps/server/src/app.ts` (session, upgrade, login, recovery, unlock, training, look); the client gets a short-lived session ticket from it and sends the ticket in the Colyseus join options; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP on 127.0.0.1:8080 + static client, behind the Cloudflare Tunnel that terminates HTTPS/WSS) · game server · PostgreSQL; game at https://hordes.sevend.io; Hermes deploys (`docs/deploy.md`) | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
 | Maps | Districts authored in **Tiled** (JSON export) **or generated in shared code from a city seed (Random city, ADR-06, Epic 11)**; both produce the same `DistrictMap` (collision, cover, spawns, hazards, events, decay groups with `pick N`); one layer group per decay stage, toggled by the decay system; map anchors (boss entries, evac pad, event spots) are map data in the `events` layer, not balance names | Tiled map format | Hand-made maps with data-driven decay; generated cities reuse the same engine |
@@ -197,13 +197,13 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 
 ### Data Persistence
 
-- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, recovery code hash, guest token hash, display name, created), `progress` (account id, supplies, lifetime supplies, unlocks, training levels, districts; `look` from Story 7.9; `cosmetics`, `stats` from Story 7.11), `saved_runs` + `saved_run_players` (Story 8.4). Each story's migration adds only its own columns.
+- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, recovery code hash, guest token hash, display name, created), `progress` (account id, supplies, lifetime supplies, unlocks, training levels, districts; `look` from Story 7.9; `cosmetics`, `stats` from Story 7.11), `saved_runs` + `saved_run_players` (Story 8.4); also `device_tokens` (Story 7.6, `0003_accounts_devices`) and `run_rewards` (Story 7.2, one row per player per run). Migrations so far: `0000_init` … `0005_saved_runs` in `apps/server/drizzle/`. Each story's migration adds only its own columns.
 - **Migrations:** Drizzle Kit, versioned in the repo.
-- **What is not persisted:** live wave state; a run can only be saved and resumed from a Build phase.
+- **What is not persisted:** live wave state; a run can only be saved and resumed from a calm phase: a Build phase or the evacuation vote (E8-S12). The save format is `packages/shared/src/save/` (`SAVE_SCHEMA_VERSION`, currently 1, with a migration step per bump and a coverage test; E8-S1).
 
 ### Asset Management
 
-Texture atlases per district and per character set; audio sprites for SFX; ambience loops and music streamed. Art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture` (Story 4.13: Android wipes canvases in the background); AI/vector images are references only. Epic 9 polishes the code-drawn art and the audio without hiring (code/procedural or licensed/free sounds).
+Texture atlases per district and per character set; audio sprites for SFX; ambience loops and music streamed. Art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture` (Story 4.13: Android wipes canvases in the background); AI/vector images are references only. Epic 9 polishes the code-drawn art and the audio without hiring (code/procedural or licensed/free sounds). *(Updated by the photoreal pass, `docs/art/photoreal-decisions.md`: 9.11 and 9.13 relight the code drawings at load in a Web Worker. Since 9.14 the street props and vehicles ship as one pre-rendered image atlas, `render/city/streetProps.webp`, rendered offline from the approved code; see Asset loading. When the image is late or fails, the code drawings are the fallback.)*
 
 ### Architecture Decision Records
 
@@ -350,8 +350,8 @@ topdown-shooter/
 │           ├── math/                   # vectors, swept collision, quantization helpers
 │           ├── config/
 │           │   ├── constants.ts
-│           │   └── balance/            # weapons.json, zombies.json, buildings.json, items.json,
-│           │                           # waves.json, economy.json, decay.json, events.json, boss.json
+│           │   └── balance/            # weapons, zombies, buildings, combat, consumables, gear, shop, loot,
+│           │                           # waves, economy, decay, events, boss, player, controls, bots (.json); progression.json + cosmetics.json sit one level up in config/
 │           ├── player/                 # movement, health, downed/revive, loadout
 │           ├── combat/                 # weapons, projectiles, melee arcs, damage, friendly fire
 │           ├── zombies/                # zombie storage (SoA), AI behaviors per type, telegraphs
@@ -395,7 +395,7 @@ Tests live next to the code they test: `foo.ts` → `foo.test.ts`.
 | Economy and shop deck | `packages/shared/src/economy` | Wallets, rewards, card draw with floor |
 | Decay | `packages/shared/src/decay` | Stage changes, map mutations, hazards, light state |
 | District maps | `packages/shared/src/map` + `apps/client/public/assets/maps` | Collision/cover from Tiled data |
-| Run state machine, save/resume | `apps/server/src/run` | Phases, snapshots, reconnect, mid-run join |
+| Run state machine, save/resume | `packages/shared/src/run` (state machine), `packages/shared/src/save` (save format), `apps/server/src/run` (rooms, snapshots, reconnect, mid-run join) | Phases, snapshots, reconnect, mid-run join |
 | Horde stream | `packages/shared/src/net` (format) · `apps/server/src/net` (encode) · `apps/client/src/net` (decode) | Compact per-client zombie updates |
 | Prediction and interpolation | `apps/client/src/net` | Local player prediction, remote buffers |
 | Rendering, lighting, blackout | `apps/client/src/render` | Views of simulation state only |
@@ -471,7 +471,7 @@ export function applyDecayStage(world: World, stage: DecayStage, plan: DecayPlan
 
 #### 2. Horde Stream (interest-managed binary sync)
 
-**Purpose:** send up to 150 zombies per client within ~30 KB/s.
+**Purpose:** send up to 150 zombies per client within ~30 KB/s. *(Original design; as built by Story 8.10, the stream is keyframes + deltas with a horde budget ≤ 16 KB/s, and every zombie is refreshed at 20 Hz: see Networking › Horde stream.)*
 
 **Components:** `hordeFormat` (`shared/net`: record layout, quantization), `HordeEncoder` (`server/net`: per-client view culling + encoding each tick), `HordeDecoder` + `InterpolationBuffer` (`client/net`).
 
@@ -523,7 +523,7 @@ world.zombies.kill(id, killerId);              // frees the slot, emits zombie.k
 
 ### State Patterns
 
-- **Run phases:** explicit state machine on the server (`run/runStateMachine.ts`); transitions only through named functions (`startWave`, `endWave`, `openEvacVote`…).
+- **Run phases:** explicit state machine (`packages/shared/src/run/runStateMachine.ts`, run by the server); transitions only through named functions (`startWave`, `endWave`, `openEvacVote`…).
 - **Zombie behavior:** small per-type state machines stored as a `u8` state in the pool (`chase`, `flank`, `keepDistance`, `windup`, `attack`, `swell`); no behavior trees in v1.
 - **Player state:** `alive | downed | out` with timers (`reviveProgressS`, `downedTimeLeftS`).
 
@@ -575,9 +575,9 @@ const world = createWorld({ balance, seed, district });
 
 - **Transport:** HTTPS and WSS only, terminated at the Cloudflare edge (Caddy is plain HTTP on 127.0.0.1 behind the tunnel); WebSocket origin check against the game's subdomain.
 - **Accounts:** Argon2id password hashes; guest tokens stored hashed; rate limits on login (5/min per IP) and room creation (10/min per IP).
-- **Input hardening:** inbound message size limit of 1 KB (clients never send binary), server-side input rate cap (25/s per client), zod validation.
+- **Input hardening:** inbound message size limit of 1 KB (`MAX_CLIENT_MESSAGE_BYTES`; the only binary client message is the 14-byte input since Story 8.11), server-side input rate cap (25/s per client), zod validation.
 - **Backups:** nightly `pg_dump` container, 14 days kept, copied off the VPS; restore tested once per milestone.
-- **Deploys:** graceful shutdown autosaves every running room's last Build snapshot; Caddy serves `index.html` with no-cache and hashed assets with long cache; CI typechecks, lints, tests and builds the Docker images.
+- **Deploys:** graceful shutdown autosaves every running room's last Build snapshot; Caddy serves `index.html` with no-cache and hashed assets with long cache; CI typechecks, lints, tests and builds the Docker images. *(As built 2026-11-25, `.github/workflows/ci.yml` + `docs/ci.md`: code reaches master only through a PR. CI runs the jobs `static` (typecheck + lint), `release` (build + cheat scan), `test` (4 shards) and `docker` in parallel. The required check is `gate`, which passes only when all four pass. Docs-only changes (`docs/**`, `_bmad/**`, `_bmad-output/**`, `.claude/**`, `*.md`) skip CI and go straight to master. Push runs happen on master only. The ruleset `master gate` blocks force pushes.)*
 - **Run stats:** `run_results` table (district, wave reached, extracted, loadouts per player) for the success metrics.
 
 ### Development Environment
@@ -586,7 +586,7 @@ const world = createWorld({ balance, seed, district });
 - **Epic 1 local mode:** before networking exists, the client runs the shared World in the browser behind a `SimHost` interface; Epic 2 swaps in the networked host without changing scenes.
 - Context7 MCP for current Phaser/Colyseus/Vite documentation.
 
-**Prerequisites:** Node.js 26 LTS, npm, Docker + Docker Compose (for local PostgreSQL and the deploy stack), Tiled 1.11+ for map editing, Git.
+**Prerequisites:** Node.js 26 LTS, npm, Docker + Docker Compose (for the deploy stack and an optional local PostgreSQL; without `DATABASE_URL` outside production the server uses an in-process PGlite database, which dev and tests use), Tiled 1.11+ for map editing, Git.
 
 **Setup commands:**
 

@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-25-2026 19:12
+# last_updated: 11-26-2026 (readiness check: comments only)
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -40,9 +40,11 @@
 #   Epic 8 needs Story 7.1 (accounts).
 # - Stories marked "human" are playtests or specs run by the designer; mark them done by hand.
 # - Epic 9 is a polish pass of the code-drawn art and audio; nobody is hired (GDD, designer 2026-11-23).
+#   Since the photoreal pass (9.11–9.14, 2026-11-25) art is relit code drawings baked in a worker, plus one
+#   pre-rendered street-props atlas (9.14 B1): docs/art/photoreal-decisions.md. 9.1–9.10 predate it (readiness 2026-11-26).
 
 generated: 11-21-2026 18:20
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -61,7 +63,7 @@ development_status:
   1-8-two-weapon-slots-smg-and-hunting-rifle: done
   1-9-machete-melee: done
   1-10-keyboard-and-mouse-on-desktop: done
-  1-11-performance-overlay-and-150-walker-stress-test: review
+  1-11-performance-overlay-and-150-walker-stress-test: review  # human: only AC 3's reference-phone rows are open (docs/perf/epic-1-stress.md); 10.2 covers the same phones
   1-12-melee-and-controls-playtest-on-real-phones: review  # human: playtest/spec, not a dev-agent story
   epic-1-retrospective: optional
 
@@ -211,7 +213,7 @@ development_status:
   9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
-  9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); builder after 9.13 merges (spriteAtlas.ts overlap)
+  9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); PR #22 merged 2026-11-26 00:19 (1fbf310e); open follow-ups FU1 (a late download failure never settles), FU2 in the story file
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish

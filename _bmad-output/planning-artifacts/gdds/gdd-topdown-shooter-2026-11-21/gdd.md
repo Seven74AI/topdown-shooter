@@ -85,7 +85,7 @@ Numbers for each are in the sections below.
 - **Reload:** automatic when the magazine is empty.
 - **Open risk:** melee under twin-stick worked in browser probes but needs a playtest on real phones (Epic 1).
 - **Desktop (bonus):** WASD to move, mouse to aim, hold left click to fire, Q to swap.
-- **Build phase:** pick a building in the build bar, carry its ghost and drag to place it ("B · Carry + drag", 0.5 m lattice); the ghost turns red at once when blocked and green only after 250 ms clear. Weapons, upgrades, gear and consumables come from the shop. Details in *Buildings and Defenses* and `docs/ideas/building-ux/ux-spec.md`.
+- **Build phase:** pick a building (since Story 10.10: the bottom-right **Build** button opens a panel of every unlocked type, and the last-placed building sits next to it as a one-tap quick tile; layout BU-1 = B), carry its ghost carry its ghost and drag to place it ("B · Carry + drag", 0.5 m lattice); the ghost turns red at once when blocked and green only after 250 ms clear. Weapons, upgrades, gear and consumables come from the shop. Details in *Buildings and Defenses* and `docs/ideas/building-ux/ux-spec.md`.
 
 ## Shooter Specific Design
 ### Weapon Systems
@@ -152,9 +152,9 @@ Numbers for each are in the sections below.
 - **Mode:** online co-op, 2–4 players, each on their own device. No local split-screen.
 - **Lobby:** the host picks a district (Downtown, or Random city from Epic 11) and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
-- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 100 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
+- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and max(their own start money, 100 + 60 % of the team's average earnings so far), where the average counts only seats in the fight (E8-J1, E8-J2), and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
 - **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. A player who drops while downed is out for that wave. After 2 minutes their seat is still remembered for the rest of the run. If nobody is connected, the fight freezes for up to 2 minutes. Host (Start, Save and quit, Remove player) moves at once to the longest-connected player when the host leaves or drops.
-- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any account that was in the run (at most 3 saves per account). Everyone leaving mid-wave loses the run; a server restart or everyone leaving in a build phase keeps it.
+- **Pause and resume:** during a build phase or the evacuation vote (E8-S12) the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any account that was in the run (at most 3 saves per account). Everyone leaving mid-wave loses the run; a server restart or everyone leaving in a build phase keeps it.
 - **Communication:** a ping button with 4 quick messages (Help! · Over here · Big one! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
 - **Fairness and feel:** all players see the same horde; the server decides hits. Your own movement, aiming and muzzle flash respond instantly on your device; at 150 ms latency, fewer than 1 shot in 20 that looks like a hit on your screen is reversed.
 - **Not in v1:** matchmaking with strangers, voice chat, PvP (parked for a later mode).
@@ -320,7 +320,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **UI:** HUD, shop cards, lobby, evacuation vote, pings, unlock screen.
 - **Audio:** ~30 weapon sounds, ~20 zombie sounds, 5 ambience loops (one per decay stage), 3 music tracks (wave, build, boss).
 - **Budget:** total download for first play under 15 MB; music streams after the game starts.
-**Production:** all art is drawn in game code (Canvas 2D, baked into atlases with `category_name_variant` frames, each texture registered through `addGeneratedTexture`); AI and vector images are references only. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is a polish pass of the code-drawn art and of the audio, done without a hired artist or sound designer.
+**Production:** all art is drawn in game code (Canvas 2D, baked into atlases with `category_name_variant` frames, each texture registered through `addGeneratedTexture`); AI and vector images are references only. Sound comes from code/procedural generation or licensed/free libraries. **Nobody is hired:** Epic 9 is a polish pass of the code-drawn art and of the audio, done without a hired artist or sound designer. *(Photoreal pass, designer 2026-11-24/25, `docs/art/photoreal-decisions.md`: the things you build (9.11) and the characters (9.13) are the code drawings, relit at load in a Web Worker. The street props and vehicles (9.14) are rendered offline from the approved code into one pre-made image atlas, with the code drawings as the fallback. Red marks danger in play: the boss and zombie silhouettes behind walls (9.12).)*
 
 ## Development Epics
 ### Epic Structure
@@ -360,7 +360,7 @@ This is a game for a group of friends, so success is simple and honest.
 ## Assumptions and Dependencies
 - **A game server is required** (real-time co-op, saved runs, accounts); hosting has an ongoing cost [ASSUMPTION: acceptable given the budget].
 - Mobile browsers on the reference phones can run 150 animated zombies with lighting at the target frame rate; the first milestone must prove it.
-- No artist or sound designer is hired. Art is drawn in game code and sound comes from code/procedural generation or licensed/free libraries; Epic 9 polishes both.
+- No artist or sound designer is hired. Art is drawn in game code and sound comes from code/procedural generation or licensed/free libraries; Epic 9 polishes both. (Since 9.14 the street props are a pre-rendered image made from the approved code; see *Production* above.)
 - Development is done by the designer with AI assistance through BMAD.
 
 ## Open Items Index

@@ -72,11 +72,11 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epic 3 (wallets for catch-up currency); can run in parallel with Epics 5–7.
 - **Playable result:** a player's phone dies mid-run, they rejoin with their gear; a run is saved and resumed the next day.
 - **Out:** matchmaking, voice chat.
-- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume with host · ping button and markers.
+- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume by any account from the run (Epic 8 D11; "with host" superseded) · ping button and markers.
 
 ## Epic 9 — Dead City art and audio
 - **Goal:** a polish pass of the code-drawn art and of the audio, made without hiring anybody (designer, 2026-11-23).
-- **In:** polish of the code-drawn district art in 5 decay states (one night, dawn only on Extract), character and zombie animations (keeping the picked looks), dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds. Art stays drawn in game code (baked atlases, `addGeneratedTexture`); sound comes from code/procedural generation or licensed/free libraries.
+- **In:** polish of the code-drawn district art in 5 decay states (one night, dawn only on Extract), character and zombie animations (keeping the picked looks), dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds. Art stays drawn in game code (baked atlases, `addGeneratedTexture`; since the photoreal pass 9.11–9.14 it is relit in a worker, and the street props ship as a pre-rendered atlas: `docs/art/photoreal-decisions.md`); sound comes from code/procedural generation or licensed/free libraries.
 - **Depends on:** Epic 4 for structure; runs in parallel from there.
 - **Playable result:** the game looks and sounds like Dead City.
 - **Out:** new districts' art; hiring an artist or sound designer.
@@ -89,3 +89,8 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Playable result:** v1, ready for weekly game nights.
 - **Out:** new content.
 - **High-level stories:** reference-phone performance pass · memory and battery pass · quality settings and gore toggle · load time and music streaming · economy and wave balance pass · home-screen install and safe areas · run stats · friend-group playtests.
+
+## Epic 11 — Random city (post-v1)
+- **Goal:** the host can pick Random city: a new 70 × 70 m city generated from rules on every run, shareable by its city code (designer 2026-11-24, `sprint-change-proposal-2026-11-24-random-city.md`).
+- **Depends on:** Epic 6, Story 7.7, Story 8.4, Story 10.7; built after Epic 10.
+- **High-level stories:** 11.1–11.7 in `_bmad-output/planning-artifacts/epics.md` › Epic 11 (added to this summary by the readiness check 2026-11-26).
