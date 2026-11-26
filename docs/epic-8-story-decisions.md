@@ -165,7 +165,7 @@ Designer "ok" 2026-11-26 to the E8-A9 recommendation (`_bmad-output/planning-art
 | --- | --- | --- |
 | 8.9 B7 | Starved ticks +41–61 % on the lossy line (0 server skips, 0 lost shots) | **Confirmed** |
 | 8.9 B9 | At most 1.2 freezes per 30 s on every 1 % lossy row | **Confirmed** |
-| 8.10 B7 | The 10 Hz far rule is off (overrides 8.10 D1): every zombie refreshed at 20 Hz | **Confirmed, with a re-check in Story 8.13** on the capped-line netsim (phones are parked): if the 64 and 128 kbit/s rows hold, B7 stands; if not, 8.13's skip is the first lever, before turning the far rule back on (8.13 AC in `epics.md`) |
+| 8.10 B7 | The 10 Hz far rule is off (overrides 8.10 D1): every zombie refreshed at 20 Hz | **Confirmed, with a re-check in Story 8.13** on the capped-line netsim (phones are parked): if the 64 and 128 kbit/s rows hold, B7 stands; if not, 8.13's skip is the first lever, before turning the far rule back on (8.13 AC in `epics.md`). **Re-checked in 8.13 (2026-11-26): holds** — 64 kbit/s ≤ 774 ms, 128 kbit/s 0 skips, far rule off |
 | 8.1 B15 | A returning player is teleported next to a teammate with 2 s protection at most once per wave | **Confirmed** |
 | 8.1 B16 | A dropped body stays 3 s mid-wave, still and hittable | **Confirmed** |
 | 8.1 B19 | Solo drop with B16's 3 s body: the dropping body counts as present | **Confirmed** |
