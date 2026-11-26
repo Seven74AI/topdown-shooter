@@ -27,56 +27,65 @@ const SEEDS = [1, 2, 3];
 const TEAM_SIZES = [2, 3, 4];
 
 describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seeded)", () => {
-  it("every run really runs to Results; logs survival by wave and each player's earnings", () => {
-    const lines: string[] = [];
-    const runs: HeadlessRunLog[] = [];
-    const spits0 = { spits: spitStats.spits, hits: spitStats.spitHits, acid: spitStats.acidHits };
-    for (const players of TEAM_SIZES) {
-      let weapons = 0;
-      let buildings = 0;
-      for (const seed of SEEDS) {
-        const r = runHeadless({ balance, seed, players });
-        runs.push(r);
-        expect(r.timedOut).toBe(false);
-        expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
-        expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
-        expect(r.waves.length).toBe(r.reached);
-        expect(r.waves[0]?.size).toBe(Math.round(balance.waves.zombiesPerWave * (balance.waves.playerCountScale[players - 1] as number)));
-        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(balance.waves.runWaves);
-        for (let i = 0; i < players; i++) {
-          expect(r.earned[i]).toBeGreaterThan(0);
-          expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
+  describe("every run really runs to Results; logs survival by wave and each player's earnings", () => {
+    // E8-A8 (no test over 30 s; was 20–24 s in CI, close): the same run in 3 parts, one per team size — the body is a
+    // generator that yields after each team size, and each part resumes it (same seeds, order and checks).
+    function* steps(): Generator<void, void, void> {
+      const lines: string[] = [];
+      const runs: HeadlessRunLog[] = [];
+      const spits0 = { spits: spitStats.spits, hits: spitStats.spitHits, acid: spitStats.acidHits };
+      for (const players of TEAM_SIZES) {
+        let weapons = 0;
+        let buildings = 0;
+        for (const seed of SEEDS) {
+          const r = runHeadless({ balance, seed, players });
+          runs.push(r);
+          expect(r.timedOut).toBe(false);
+          expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
+          expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
+          expect(r.waves.length).toBe(r.reached);
+          expect(r.waves[0]?.size).toBe(Math.round(balance.waves.zombiesPerWave * (balance.waves.playerCountScale[players - 1] as number)));
+          if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(balance.waves.runWaves);
+          for (let i = 0; i < players; i++) {
+            expect(r.earned[i]).toBeGreaterThan(0);
+            expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
+          }
+          expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss + r.earnedBy.event).toBe(r.earned.reduce((a, b) => a + b, 0)); // 6.10's survivor "event" pay, as in tenWaveSim (it came up here once FX-B1 changed the runs)
+          weapons += r.purchases.reduce((a, p) => a + p.length, 0);
+          buildings += r.buildingsPlaced.reduce((a, b) => a + b, 0);
+          lines.push(formatRunLine(r));
         }
-        expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss + r.earnedBy.event).toBe(r.earned.reduce((a, b) => a + b, 0)); // 6.10's survivor "event" pay, as in tenWaveSim (it came up here once FX-B1 changed the runs)
-        weapons += r.purchases.reduce((a, p) => a + p.length, 0);
-        buildings += r.buildingsPlaced.reduce((a, b) => a + b, 0);
-        lines.push(formatRunLine(r));
+        expect(weapons).toBeGreaterThan(0); // the bots really shopped …
+        expect(buildings).toBeGreaterThan(0); // … and built
+        if (players !== TEAM_SIZES[TEAM_SIZES.length - 1]) yield; // E8-A8: one test part ends here
       }
-      expect(weapons).toBeGreaterThan(0); // the bots really shopped …
-      expect(buildings).toBeGreaterThan(0); // … and built
+      // Story 5.6 (liveness): Spitters (waves 4–5) really spat and hit in the runs that got there; every such wave ended (extracted runs above).
+      const spits = spitStats.spits - spits0.spits;
+      const spitHits = spitStats.spitHits - spits0.hits;
+      const acidHits = spitStats.acidHits - spits0.acid;
+      const reached4 = runs.filter((r) => r.reached >= 4).length;
+      expect(reached4).toBeGreaterThan(0);
+      expect(spits).toBeGreaterThan(reached4);
+      expect(spitHits).toBeGreaterThanOrEqual(1);
+      lines.push(`Story 5.6: ${reached4} runs reached wave 4; ${spits} spits, ${spitHits} spit hits, ${acidHits} acid puddle hits`);
+      // AC 5: at least one full 5-wave run with 4 bots (its earnings are the comparison with the GDD).
+      expect(runs.some((r) => r.players === 4 && (r.ending === "extracted"))).toBe(true);
+      const summary = TEAM_SIZES.map((n) => {
+        const rs = runs.filter((r) => r.players === n);
+        const earned = rs.flatMap((r) => r.earned);
+        const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
+        const byWave = [1, 2, 3, 4, 5, 6].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
+        return `${n}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
+      });
+      (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+        `[five-wave sim] GDD target cut to 5 waves: earned ≈ 650–790 per player\n${lines.join("\n")}\n${summary.join("\n")}`,
+      );
     }
-    // Story 5.6 (liveness): Spitters (waves 4–5) really spat and hit in the runs that got there; every such wave ended (extracted runs above).
-    const spits = spitStats.spits - spits0.spits;
-    const spitHits = spitStats.spitHits - spits0.hits;
-    const acidHits = spitStats.acidHits - spits0.acid;
-    const reached4 = runs.filter((r) => r.reached >= 4).length;
-    expect(reached4).toBeGreaterThan(0);
-    expect(spits).toBeGreaterThan(reached4);
-    expect(spitHits).toBeGreaterThanOrEqual(1);
-    lines.push(`Story 5.6: ${reached4} runs reached wave 4; ${spits} spits, ${spitHits} spit hits, ${acidHits} acid puddle hits`);
-    // AC 5: at least one full 5-wave run with 4 bots (its earnings are the comparison with the GDD).
-    expect(runs.some((r) => r.players === 4 && (r.ending === "extracted"))).toBe(true);
-    const summary = TEAM_SIZES.map((n) => {
-      const rs = runs.filter((r) => r.players === n);
-      const earned = rs.flatMap((r) => r.earned);
-      const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
-      const byWave = [1, 2, 3, 4, 5, 6].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
-      return `${n}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
-    });
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
-      `[five-wave sim] GDD target cut to 5 waves: earned ≈ 650–790 per player\n${lines.join("\n")}\n${summary.join("\n")}`,
-    );
-  }, 180_000);
+    const parts = steps();
+    it.each(Array.from({ length: 3 }, (_, i) => i + 1))("part %i of 3", (part) => {
+      expect(parts.next().done, "the run reached this part's end (and no further)").toBe(part === 3);
+    }, 120_000);
+  });
 });
 
 describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", () => {
