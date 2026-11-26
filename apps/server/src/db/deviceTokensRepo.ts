@@ -129,7 +129,8 @@ export function deviceTokensRepo(database: Database, opts: BoundedOptions = {}):
             .where(eq(accounts.id, input.accountId))
             .for("update");
           const t = target[0];
-          if (!t) throw new Error("account missing at login");
+          // Story 10.1 review L4: the account was deleted between the verify and this transaction: a wrong login now.
+          if (!t) return { outcome: "stale_credentials" };
           if (input.credentials) {
             // A reset: only if the recovery hash is still the one that was verified (two resets, one code: one wins).
             if (t.recoveryCodeHash !== input.credentials.expectRecoveryHash) return { outcome: "stale_credentials" };

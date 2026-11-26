@@ -1,9 +1,9 @@
-import { getSettings, subscribeSettings } from "../settings/settings";
 /**
  * Placeholder sounds synthesized with the Web Audio API (no files yet). Names follow the asset rule
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
  * user gesture: call `unlockAudio()` from the first touch.
  */
+import { getSettings, subscribeSettings } from "../settings/settings";
 export type SfxName =
   | "weapon_pistol_fire"
   | "weapon_shotgun_fire"
@@ -97,6 +97,7 @@ const BLOATER_SWELL_SFX_S = 1.0;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
+let unsubVolume: (() => void) | null = null;
 let noise: AudioBuffer | null = null;
 let lastHitAt = -1;
 let lastTurretAt = -1;
@@ -112,7 +113,9 @@ function context(): AudioContext | null {
   master.gain.value = sfxMasterGain(getSettings().sfxVolume);
   master.connect(ctx.destination);
   // Story 10.1 (B8): the Effects volume applies at once (the boss loop rides this master too until 9.8's music bus).
-  subscribeSettings((s) => {
+  // Review nit: the unsubscribe is kept (one listener per page; a second context replaces it).
+  unsubVolume?.();
+  unsubVolume = subscribeSettings((s) => {
     if (master) master.gain.value = sfxMasterGain(s.sfxVolume);
   });
   noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate);

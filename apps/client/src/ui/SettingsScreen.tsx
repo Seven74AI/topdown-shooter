@@ -17,6 +17,8 @@ export function SettingsScreen() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Review nit: the server said the phone is an account (wrong_password) although this phone thought it a guest. */
+  const [askPassword, setAskPassword] = useState(false);
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => accountStore.subscribe(setAccount), []);
   const view = screen.kind === "settings" ? screen.view : null;
@@ -24,13 +26,14 @@ export function SettingsScreen() {
     setPassword("");
     setError(null);
     setBusy(false);
+    setAskPassword(false);
   }, [view]);
   if (screen.kind !== "settings") return null;
   const back = () => uiStore.set(screen.view === "delete" ? { kind: "settings", view: "main" } : { kind: "start" });
 
   if (screen.view === "delete") {
     const username = account.username;
-    const needsPassword = username !== null;
+    const needsPassword = username !== null || askPassword;
     const ready = !busy && (!needsPassword || password.length > 0);
     const confirm = async () => {
       if (!ready) return;
@@ -40,6 +43,7 @@ export function SettingsScreen() {
       if (r.kind === "ok") return resetPhoneAfterDelete();
       setBusy(false);
       setError(r.text);
+      if (r.code === "wrong_password" || r.code === "invalid_body") setAskPassword(true);
     };
     return (
       <div class="menu ph ac--modal st-modal" role="dialog" aria-modal="true" aria-labelledby="st-delete-title" data-testid="settings-delete">

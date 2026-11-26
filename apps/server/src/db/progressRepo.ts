@@ -4,7 +4,7 @@
  */
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Database } from "./client";
-import { accounts, progress, runRewards, type LifetimeStatsRow } from "./schema";
+import { accounts, paidBags, progress, runRewards, type LifetimeStatsRow } from "./schema";
 import { PROGRESSION, parseStoredSettings, type StoredPlayerSettings } from "@topdown/shared";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
 
@@ -66,7 +66,9 @@ async function oneBagPerRun(tx: Tx, runId: string, accountId: string, grant: Gra
     .from(runRewards)
     .where(and(eq(runRewards.runId, runId), sql`${runRewards.accountId} <> ${accountId}`, sql`jsonb_exists(${runRewards.breakdown}, 'loot')`))
     .limit(1);
-  if (other.length === 0) return grant;
+  // Story 10.1 review L6: a deleted account's bag row is gone, but its marker stays (`paid_bags`): never a second bag.
+  const deletedFinder = other.length > 0 ? [] : await tx.select({ x: sql`1` }).from(paidBags).where(eq(paidBags.runId, runId)).limit(1);
+  if (other.length === 0 && deletedFinder.length === 0) return grant;
   const { loot: _paid, ...rest } = grant.breakdown;
   void _paid;
   return { ...grant, cosmetics: grant.cosmetics.filter((k) => k !== loot.key), breakdown: rest };
@@ -330,7 +332,10 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bank
             .from(accounts)
             .where(eq(accounts.id, accountId))
             .for("no key update");
-          const payee = acc[0]?.mergedInto ?? accountId;
+          // Story 10.1 review M3: the seat's account was deleted (Delete my progress) while its run went on: nobody to pay.
+          // A quiet no-op (never an FK error, a `supplies_bank_failed` line or a hand-grant request on every retry).
+          if (acc[0] === undefined) return { banked: false, supplies: 0, newTotal: 0, breakdown: {}, nudge: false };
+          const payee = acc[0].mergedInto ?? accountId;
           await tx.insert(progress).values({ accountId: payee }).onConflictDoNothing(); // a missing row is an empty one
           const locked = await tx
             .select({ supplies: progress.supplies, lifetimeSupplies: progress.lifetimeSupplies, cosmetics: progress.cosmetics, stats: progress.stats, districts: progress.districts })

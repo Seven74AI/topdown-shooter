@@ -1,9 +1,9 @@
-import { getSettings } from "../settings/settings";
 import type { LobRange, PlayerInput } from "@topdown/shared";
 import { applyLobLength, mouseLobDistance, touchLobDistance } from "./lobAim";
 import { KeyboardMouse } from "./KeyboardMouse";
 import { keyAction } from "./keyMap";
 import { selectSource, type InputSource, type SourceEvent } from "./selectSource";
+import { getSettings } from "../settings/settings";
 import type { TouchSticks } from "./TouchSticks";
 
 export type MutablePlayerInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };

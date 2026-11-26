@@ -7,7 +7,7 @@ import { z } from "zod";
 import { guestTokenSchema } from "./messages";
 import { LOOK_CODE_MAX } from "../config/cosmetics";
 import commonPasswords from "../config/commonPasswords.json" with { type: "json" };
-import { playerSettingsSchema } from "../config/playerSettings";
+import { incomingSettingsSchema, playerSettingsSchema } from "../config/playerSettings";
 
 export const ACCOUNT_SESSION_PATH = "/account/session";
 /**
@@ -43,7 +43,7 @@ export const progressViewSchema = z.object({
    * Story 10.1 (AC 6): the account's synced settings (only the changed fields; null = none synced yet). Optional: unlock
    * answers and older servers don't carry it.
    */
-  settings: playerSettingsSchema.nullable().optional(),
+  settings: z.union([z.null(), incomingSettingsSchema]).optional(),
 });
 export type ProgressView = z.infer<typeof progressViewSchema>;
 
@@ -243,7 +243,7 @@ export type LookSaveResponse = z.infer<typeof lookSaveResponseSchema>;
 export const ACCOUNT_SETTINGS_PATH = "/account/settings";
 export const settingsSaveRequestSchema = z.object({ settings: playerSettingsSchema }).strict();
 export type SettingsSaveRequest = z.infer<typeof settingsSaveRequestSchema>;
-export const settingsSaveResponseSchema = z.object({ ok: z.literal(true), settings: playerSettingsSchema });
+export const settingsSaveResponseSchema = z.object({ ok: z.literal(true), settings: incomingSettingsSchema });
 export type SettingsSaveResponse = z.infer<typeof settingsSaveResponseSchema>;
 
 /**

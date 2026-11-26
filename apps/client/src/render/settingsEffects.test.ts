@@ -1,5 +1,3 @@
-import screenFog from "./fog/screenFog.ts?raw";
-import darkness from "./darkness/darknessPlan.ts?raw";
 import city from "./city/CityView.ts?raw";
 import fog from "./fog/FogView.ts?raw";
 import { afterEach, describe, expect, it } from "vitest";
@@ -46,12 +44,10 @@ describe("Story 10.1 effect settings", () => {
     expect(off.join(" ")).toMatch(/globalCompositeOperation=multiply drawImage\(5\)/);
   });
 
-  it("B4 / AC 2: Fog detail only switches the drifting texture; ScreenFog (what the fog hides) never reads the settings", () => {
+  it("B4: Fog detail only switches the drifting texture (what the fog hides: render/fog/fog.test.ts, review L7)", () => {
     expect(fogNoiseOn(false, "full")).toBe(true);
     expect(fogNoiseOn(false, "plain")).toBe(false);
     expect(fogNoiseOn(true, "full")).toBe(false); // ?fx=low still forces the plain haze
-    expect(screenFog).not.toMatch(/from ["'][^"']*settings|getSettings/);
-    expect(darkness).not.toMatch(/from ["'][^"']*settings|getSettings/);
   });
 
   it("AC 4: CityView and FogView read the live setting every frame (never copied at create)", () => {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PLAYER_SETTINGS_DEFAULTS } from "@topdown/shared";
 import { PLAYER_STORAGE_KEYS, resetPhoneAfterDelete } from "./deleteProgress";
-import { SETTINGS_KEY, SETTINGS_PENDING_KEY, getSettings, resetSettingsCache, saveSettings } from "../settings/settings";
+import { SETTINGS_KEY, SETTINGS_PENDING_KEY, getSettings, resetSettingsCache, saveSettings, setSettingsPending } from "../settings/settings";
 
 describe("Story 10.1 (AC 10, B15): after a delete the phone forgets the player and reloads", () => {
   afterEach(() => {
@@ -20,6 +20,7 @@ describe("Story 10.1 (AC 10, B15): after a delete the phone forgets the player a
     ]);
     vi.stubGlobal("localStorage", { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) });
     saveSettings({ rain: "off" });
+    setSettingsPending("mo_42");
     expect(m.has(SETTINGS_KEY) && m.has(SETTINGS_PENDING_KEY)).toBe(true);
     const reload = vi.fn();
     resetPhoneAfterDelete(() => globalThis.localStorage, reload);

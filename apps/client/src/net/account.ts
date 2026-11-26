@@ -8,6 +8,7 @@
  * without a ticket (P3: unsaved play, never a refused join).
  */
 import {
+  ACCOUNT_DELETE_PATH, // Story 10.1
   ACCOUNT_ERRORS,
   ACCOUNT_LOGIN_PATH,
   ACCOUNT_LOGOUT_PATH,
@@ -33,6 +34,8 @@ import {
   type TrainResponse,
   type TrainingBoostId,
   type UnlockResponse,
+  deleteResponseSchema,
+  type DeleteResponse,
 } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
 import { deviceLook, type DeviceLookStore } from "./deviceLook";
@@ -41,7 +44,6 @@ import { UNLOCK_TIMEOUT_MS } from "./unlockTiming";
 import { accountStore } from "./accountStore";
 import { progressStore } from "./progressStore";
 import { acceptSessionSettings } from "./settingsSync";
-import { ACCOUNT_DELETE_PATH, deleteResponseSchema, type DeleteResponse } from "@topdown/shared";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
 
@@ -232,7 +234,14 @@ export type AccountCall<T> = { kind: "ok"; body: T } | { kind: "error"; code: Ac
 /** Argon2 on the server + one transaction: a little longer than the session call. */
 export const ACCOUNT_ACTION_TIMEOUT_MS = 8000;
 
-const errorOf = (code: AccountErrorCode): { kind: "error"; code: AccountErrorCode; text: string } => ({ kind: "error", code, text: ACCOUNT_ERRORS[code] });
+/** Story 10.1 review L9: a logged-in phone whose cookie names no account any more: deleted or logged out elsewhere. */
+export const ACCOUNT_GONE_TEXT = "This account was deleted or logged out on another phone. You're playing as a guest now.";
+
+const errorOf = (code: AccountErrorCode): { kind: "error"; code: AccountErrorCode; text: string } => ({
+  kind: "error",
+  code,
+  text: code === "no_account" && accountStore.get().username !== null ? ACCOUNT_GONE_TEXT : ACCOUNT_ERRORS[code],
+});
 
 async function action<T>(path: string, body: unknown, parse: (raw: unknown) => T | null, over: Partial<AccountDeps>): Promise<AccountCall<T>> {
   const deps = { ...defaults(), url: () => `${serverUrl()}${path}`, timeoutMs: ACCOUNT_ACTION_TIMEOUT_MS, ...over };
@@ -297,6 +306,7 @@ export async function recoverAccount(username: string, code: string, newPassword
 }
 
 export async function logOutAccount(over: Partial<AccountDeps> = {}): Promise<AccountCall<DeviceSessionResponse>> {
+  accountStore.expectGuest(); // Story 10.1 review L9: my own log-out is not "the account went away"
   const r = await action(ACCOUNT_LOGOUT_PATH, {}, (raw) => deviceSessionResponseSchema.safeParse(raw).data ?? null, over);
   if (r.kind === "ok") adopt(r.body, over.tokens ?? guestTokens);
   return r;

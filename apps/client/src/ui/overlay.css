@@ -3609,3 +3609,9 @@ button.lobby__district {
     gap: 6px;
   }
 }
+/* Review nit: the greyed Delete button keeps readable text (not a 40 % fade of red on dark). */
+.st-delete .btn--danger:disabled {
+  opacity: 1;
+  background: #4a2a2a;
+  color: #d9c3c3;
+}

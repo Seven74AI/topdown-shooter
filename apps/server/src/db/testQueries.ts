@@ -37,3 +37,10 @@ export async function accountFootprintForTest(database: Database, accountIds: re
     savedRuns: await one(sql`select count(*)::int as n from saved_runs where id in (${runIds})`),
   };
 }
+
+/** Story 10.1 review L5 (tests only): a saved run's snapshot and list names. */
+export async function savedRunForTest(database: Database, id: string): Promise<{ snapshot: Record<string, unknown>; names: { name: string; slot: number }[] } | null> {
+  const db = await database.db();
+  const r = ((await db.execute(sql`select snapshot, names from saved_runs where id = ${id}::uuid`)) as unknown as { rows: { snapshot: Record<string, unknown>; names: { name: string; slot: number }[] }[] }).rows[0];
+  return r ?? null;
+}

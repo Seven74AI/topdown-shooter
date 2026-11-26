@@ -3,7 +3,7 @@ import { GAME_TITLE, ROOM_CODE_LENGTH, isRoomCode, playerNameSchema } from "@top
 import { openProgress, uiStore, type UiScreen } from "./uiState";
 import { filterCodeInput } from "./codeInput";
 import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
-import { accountSession, prefillName } from "../net/account";
+import { ACCOUNT_GONE_TEXT, accountSession, prefillName } from "../net/account";
 import { syncPendingLookOnce } from "../net/lookSave";
 import { rewardsStore } from "../net/rewardsStore";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
@@ -154,6 +154,15 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
       {/* Story 7.6 (AC 9, AC1): the thin account line, top right. */}
       <AccountLineView line={accountLine(account)} from={screen} />
       <h1 id="start-title">{GAME_TITLE}</h1>
+      {/* Story 10.1 review L9: this phone's account was deleted (or logged out) on another phone. */}
+      {account.gone ? (
+        <p class="menu__banked st-gone" role="status" data-testid="account-gone">
+          {ACCOUNT_GONE_TEXT}
+          <button type="button" class="btn btn--small btn--secondary" onClick={() => accountStore.dismissGone()}>
+            OK
+          </button>
+        </p>
+      ) : null}
       {banked ? (
         <p class="menu__banked" role="status" data-testid="banked-line">
           {banked}

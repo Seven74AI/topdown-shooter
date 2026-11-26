@@ -131,6 +131,16 @@ export const savedRunPlayers = pgTable("saved_run_players", {
   seatKey: text("seat_key").notNull(),
 }, (t) => [primaryKey({ name: "saved_run_players_pk", columns: [t.savedRunId, t.accountId] }), index("saved_run_players_account_idx").on(t.accountId)]);
 
+/**
+ * Story 10.1 review L6: the runs whose loot bag was paid to an account that was later deleted (Delete my progress drops
+ * its `run_rewards` rows, which were the "bag already paid" proof). One row per run, no account, no personal data;
+ * `oneBagPerRun` reads it next to the other accounts' rows.
+ */
+export const paidBags = pgTable("paid_bags", {
+  runId: uuid("run_id").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Story 7.11: `progress.stats`. */
 export interface LifetimeStatsRow {
   revives: number;

@@ -87,3 +87,9 @@ export function parseStoredSettings(raw: unknown): StoredPlayerSettings {
   }
   return out as StoredPlayerSettings;
 }
+
+/**
+ * Story 10.1 review nit: settings coming FROM the server (session answer, save answer), parsed field by field: a newer
+ * server's value this build doesn't know (a new enum, a new key) is dropped, never a failed session parse.
+ */
+export const incomingSettingsSchema = z.unknown().transform((v) => parseStoredSettings(v));

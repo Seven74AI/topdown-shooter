@@ -61,13 +61,14 @@ export async function saveSettings(
   if (token === null) return fail(401, "no_account");
   try {
     const account = await deps.accounts.findByTokenHash(hashGuestToken(token));
-    if (account === null) return fail(401, "no_account");
+    // Review L1: only a logged-in account syncs (the AC); a guest's settings stay on its phone.
+    if (account === null || account.username === null) return fail(401, "no_account");
     if (!deps.accountLimiter.allow(account.id)) {
       gateWarn(deps.logGate, `settings_acct:${account.id}`, input.ip, "settings_rate_limited");
       return fail(429, "rate_limited");
     }
     const stored = await deps.progress.saveSettings(account.id, input.settings);
-    log.info({ accountId: account.id, fields: Object.keys(stored).length }, "settings_saved");
+    log.debug({ fields: Object.keys(stored).length }, "settings_saved"); // review nit: debug, no id
     return { status: 200, body: { ok: true, settings: stored } };
   } catch {
     return fail(503, "save_unavailable"); // logged as db_error by the repository
@@ -85,6 +86,8 @@ export async function deleteMyProgress(input: { cookieToken: string | null | und
     if (account === null) return fail(401, "no_account");
     let expectHash: string | null = null;
     if (account.username !== null) {
+      // Review nit: an account's delete without a password is a bad body, answered before any Argon2 work.
+      if (input.password === undefined || input.password === "") return fail(400, "invalid_body");
       const name = account.username.toLowerCase();
       if (deps.nameLimiter.blocked(name, input.ip)) {
         gateWarn(deps.logGate, "delete_name", input.ip, "delete_rate_limited");
@@ -105,9 +108,11 @@ export async function deleteMyProgress(input: { cookieToken: string | null | und
     try {
       // Re-checked after the marks (7.6 L2): no seat can attach to any of these tokens from here on.
       if ([...hashes].some(inRoom)) return fail(409, "in_room");
-      const r = await deps.accounts.deleteAccount(tokenHash, account.id, expectHash);
+      const r = await deps.accounts.deleteAccount(tokenHash, account.id, expectHash, hashes);
       if (r.outcome === "gone") return fail(401, "no_account");
       if (r.outcome === "stale_credentials") return fail(401, "wrong_password");
+      if (r.outcome === "new_device") return fail(409, "in_room"); // review M2: a login landed meanwhile; try again
+
       log.info({ kind: r.kind, guests: r.guests, savedRunsDeleted: r.savedRunsDeleted, seatsRemoved: r.seatsRemoved }, "account_deleted");
       return { status: 200, body: { ok: true, kind: r.kind } };
     } finally {

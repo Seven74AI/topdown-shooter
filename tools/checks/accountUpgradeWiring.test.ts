@@ -70,7 +70,7 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
   it("the bank sends the nudge and pays a merged guest's account; login merges through meta/merge.ts", () => {
     expect(read(`${SRV}meta/banking.ts`)).toMatch(/return r\.nudge \? \{ \.\.\.m, nudge: true \} : m;/);
     const p = read(`${SRV}db/progressRepo.ts`);
-    expect(p).toMatch(/const payee = acc\[0\]\?\.mergedInto \?\? accountId;/);
+    expect(p).toMatch(/const payee = acc\[0\]\??\.mergedInto \?\? accountId;/); // 10.1 review M3: a deleted account returns before this line
     expect(p).toMatch(/\.for\("no key update"\)/);
     expect(read(`${SRV}db/deviceTokensRepo.ts`)).toMatch(/const \{ row, refunds \} = mergeProgress\(a as unknown as MergeRow, g as unknown as MergeRow\);/);
   });

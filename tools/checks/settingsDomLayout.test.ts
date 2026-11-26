@@ -51,6 +51,10 @@ const CASES = [
   { name: "Delete confirm, guest", screen: { kind: "settings", view: "delete" }, sel: "[data-testid=settings-delete]", user: null, says: "Saved games", controls: 2 },
   { name: "Delete confirm, account", screen: { kind: "settings", view: "delete" }, sel: "[data-testid=settings-delete]", user: "Bartholomew_Long", says: "The account Bartholomew_Long", controls: 3 },
   { name: "in-run Settings", screen: { kind: "playing", menu: "settings", online: true }, sel: "[data-testid=settings-menu]", user: null, says: "Delete my progress is on the start screen", controls: 11 },
+  // Review nit: the phone thought it was a guest; the server says wrong_password → the password field appears.
+  { name: "Delete confirm after wrong_password", screen: { kind: "settings", view: "delete" }, sel: "[data-testid=settings-delete]", user: null, says: "Wrong password", controls: 3, wrongPassword: true },
+  // Review L9: the start screen says this phone's account went away elsewhere.
+  { name: "start screen, account gone", screen: { kind: "start" }, sel: "[data-testid=account-gone]", user: "gone", says: "This account was deleted or logged out on another phone", controls: 1 },
 ];
 
 let server: { listen(): Promise<unknown>; close(): Promise<void>; resolvedUrls: { local: string[] } | null } | null = null;
@@ -91,11 +95,18 @@ describe.skipIf(!pw)("Story 10.1 (AC 11): Settings in a real browser", () => {
           `(async (k) => {
           const ui = await import("/src/ui/uiState.ts");
           const acc = await import("/src/net/accountStore.ts");
-          acc.accountStore.accept(k.user);
-          ui.uiStore.set({ kind: "start" });
+          if (k.user === "gone") { acc.accountStore.accept("mo_42"); acc.accountStore.accept(null); } else acc.accountStore.accept(k.user);
+          ui.uiStore.set({ kind: "lobby", code: "ABCD" });
           await new Promise((r) => setTimeout(r, 50));
           ui.uiStore.set(k.screen);
           await new Promise((r) => setTimeout(r, 300));
+          if (k.wrongPassword) {
+            const realFetch = window.__realFetch || (window.__realFetch = window.fetch);
+            window.fetch = (u, o) => (String(u).endsWith("/account/delete") ? Promise.resolve(new Response(JSON.stringify({ message: "wrong_password" }), { status: 401 })) : realFetch(u, o));
+            document.querySelector("[data-testid=settings-delete-confirm]").click();
+            await new Promise((r) => setTimeout(r, 300));
+            window.fetch = realFetch;
+          }
           const root = document.querySelector(k.sel);
           if (!root) return { found: false, out: [], overlaps: [], minFont: 99, small: [], controls: 0, text: "" };
           const W = innerWidth, H = innerHeight;
@@ -121,6 +132,7 @@ describe.skipIf(!pw)("Story 10.1 (AC 11): Settings in a real browser", () => {
           const minFont = Math.min(...texts.map((e) => parseFloat(getComputedStyle(e).fontSize)));
           const small = controls.filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).map((b) => b.textContent || b.type);
           const text = root.textContent;
+          acc.accountStore.dismissGone();
           ui.uiStore.set({ kind: "start" });
           return { found: true, out, overlaps, minFont, small, controls: controls.length, text };
         })(${JSON.stringify({ ...c, inset: INSET })})`,

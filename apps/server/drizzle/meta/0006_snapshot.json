@@ -1,5 +1,5 @@
 {
-  "id": "27c23f1a-9a7a-4d9b-b8f2-f6a2c00bfc58",
+  "id": "0e6890a3-7d4b-496a-a3df-173175a6e325",
   "prevId": "55b5fbce-4d86-4e35-ba72-66b02662b58d",
   "version": "7",
   "dialect": "postgresql",
@@ -180,6 +180,32 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paid_bags": {
+      "name": "paid_bags",
+      "schema": "",
+      "columns": {
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

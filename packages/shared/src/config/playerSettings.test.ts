@@ -35,3 +35,11 @@ describe("Story 10.1: the player settings schema (B1, B2)", () => {
     expect(progressViewSchema.parse({ supplies: 0, lifetimeSupplies: 0, unlocks: [] }).settings).toBeUndefined();
   });
 });
+
+describe("Story 10.1 review nit: settings from a newer server never break the session parse", () => {
+  it("an unknown enum value or key is dropped field by field; the rest of the session still parses", () => {
+    const v = progressViewSchema.parse({ supplies: 0, lifetimeSupplies: 0, unlocks: [], settings: { rain: "storm", glow: "low", hdr: true } });
+    expect(v.settings).toEqual({ glow: "low" });
+    expect(progressViewSchema.parse({ supplies: 0, lifetimeSupplies: 0, unlocks: [], settings: "junk" }).settings).toEqual({});
+  });
+});

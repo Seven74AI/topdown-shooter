@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PLAYER_SETTINGS_DEFAULTS } from "@topdown/shared";
-import { SETTINGS_KEY, clearSettings, getSettings, getStoredSettings, replaceStoredSettings, resetSettingsCache, saveSettings, setSettingsDefaults, setSettingsPending, settingsPending, subscribeSettings } from "./settings";
+import { SETTINGS_KEY, clearSettings, getSettings, getStoredSettings, replaceStoredSettings, resetSettingsCache, saveSettings, setSettingsDefaults, setSettingsPending, settingsPendingFor, subscribeSettings } from "./settings";
 
 /** A Map-backed localStorage. */
 function memStorage(init: Record<string, string> = {}) {
@@ -30,7 +30,8 @@ describe("settings (Story 10.1 store; 5.23 / full-speed fields kept)", () => {
     expect(getSettings()).toEqual(PLAYER_SETTINGS_DEFAULTS);
     saveSettings({ alwaysFullSpeed: true, rain: "off" });
     expect(getSettings()).toMatchObject({ alwaysFullSpeed: true, rain: "off" });
-    expect(settingsPending()).toBe(true);
+    setSettingsPending("mo_42");
+    expect(settingsPendingFor()).toBe("mo_42");
     clearSettings();
     expect(getSettings()).toEqual(PLAYER_SETTINGS_DEFAULTS);
   });
@@ -62,22 +63,26 @@ describe("settings (Story 10.1 store; 5.23 / full-speed fields kept)", () => {
     expect(seen).toEqual(["40/full", "100/off", "80/off"]);
     expect(getSettings()).not.toBe(a);
   });
-  it("B9: a change marks pending (in storage); adopting the account's copy does not", () => {
+  it("B9 / review M1: the pending mark names its username, survives a reload, and an old \"1\" mark reads as none", () => {
     const st = memStorage();
     vi.stubGlobal("localStorage", st);
-    replaceStoredSettings({ rain: "off" });
-    expect(settingsPending()).toBe(false);
     saveSettings({ rain: "light" });
-    expect(st.map.get("topdown-shooter.settings.pending")).toBe("1");
+    expect(settingsPendingFor()).toBeNull(); // saving alone never marks (the sync marks logged-in changes)
+    setSettingsPending("mo_42");
+    expect(st.map.get("topdown-shooter.settings.pending")).toBe("mo_42");
     resetSettingsCache();
-    expect(settingsPending()).toBe(true); // survives a reload
-    setSettingsPending(false);
+    expect(settingsPendingFor()).toBe("mo_42");
+    setSettingsPending(null);
     expect(st.map.has("topdown-shooter.settings.pending")).toBe(false);
+    st.map.set("topdown-shooter.settings.pending", "1");
+    resetSettingsCache();
+    expect(settingsPendingFor()).toBeNull();
   });
   it("AC 10: clearSettings removes the stored value and the pending mark", () => {
     const st = memStorage();
     vi.stubGlobal("localStorage", st);
     saveSettings({ rain: "off" });
+    setSettingsPending("mo_42");
     clearSettings();
     expect(st.map.has(SETTINGS_KEY)).toBe(false);
     expect(st.map.has("topdown-shooter.settings.pending")).toBe(false);

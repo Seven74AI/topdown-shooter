@@ -461,6 +461,7 @@ export {
 // Story 10.1: the player settings (one schema for the store, the sync body and progress.settings).
 export {
   playerSettingsSchema,
+  incomingSettingsSchema,
   PLAYER_SETTINGS_DEFAULTS,
   RAIN_LEVEL_K,
   GLOW_LEVEL_K,

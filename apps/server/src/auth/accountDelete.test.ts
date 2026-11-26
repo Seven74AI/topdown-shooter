@@ -5,7 +5,9 @@ import { type Database, openPglite } from "../db/client";
 import { progressRepo } from "../db/progressRepo";
 import { accountsRepo } from "../db/accountsRepo";
 import { savedRunsRepo } from "../db/savedRunsRepo";
-import { accountFootprintForTest } from "../db/testQueries";
+import { accountFootprintForTest, savedRunForTest } from "../db/testQueries";
+import { DELETED_SEAT_NAME, scrubSeats } from "../db/accountsRepo";
+import { deviceTokensRepo } from "../db/deviceTokensRepo";
 import { log } from "../ops/logger";
 import { RunRoom, serverBalance } from "../rooms/RunRoom";
 import { hashGuestToken } from "../run/lobby";
@@ -178,7 +180,7 @@ describe("Story 10.1 AC 8–10 (E7-A8): POST /account/delete", () => {
 
     const wrong = await post("/account/delete", { password: "wrong pass" }, { cookie: a.token });
     expect(wrong).toMatchObject({ status: 401, body: { message: "wrong_password" } });
-    expect((await post("/account/delete", {}, { cookie: a.token })).body).toEqual({ message: "wrong_password" });
+    expect((await post("/account/delete", {}, { cookie: a.token })).body).toEqual({ message: "invalid_body" }); // review nit: no password = bad body
     expect((await accountFootprintForTest(database, [a.id])).accounts).toBeGreaterThan(0);
 
     const lines: string[] = [];
@@ -268,5 +270,100 @@ describe("Story 10.1: the two new routes refuse a foreign Origin like every acco
     } finally {
       await booted.colyseus.shutdown();
     }
+  });
+});
+
+describe("Story 10.1 review fixes (server)", () => {
+  it("L1: a guest's /account/settings → 401 (only a logged-in account syncs); nothing stored", async () => {
+    const g = await guest();
+    expect((await post("/account/settings", { settings: { rain: "off" } }, { cookie: g.token })).status).toBe(401);
+    const s = accountSessionResponseSchema.parse((await post("/account/session", {}, { cookie: g.token })).body);
+    if (!s.saved) throw new Error("expected saved");
+    expect(s.progress?.settings).toBeNull();
+  });
+
+  it("nit: an account's delete with no password → 400 before any Argon2 verify; nothing deleted", async () => {
+    const a = await account();
+    expect(await post("/account/delete", {}, { cookie: a.token })).toMatchObject({ status: 400, body: { message: "invalid_body" } });
+    expect((await accountFootprintForTest(database, [a.id])).accounts).toBe(1);
+  });
+
+  it("M2: a login that lands after the room check (an unchecked, unmarked device) → 409 in_room, nothing deleted", async () => {
+    const a = await account();
+    const real = accountsRepo(database);
+    let raced: string | null = null;
+    const accounts = {
+      ...real,
+      deleteAccount: async (...args: Parameters<typeof real.deleteAccount>) => {
+        // between the route's room check and the transaction, another phone logs in
+        raced = deviceSessionResponseSchema.parse((await post("/account/login", { username: a.username, password: PASSWORD })).body).deviceToken;
+        return real.deleteAccount(...args);
+      },
+    };
+    const deps = { accounts, ipLimiter: new SlidingWindowLimiter(5, 60_000), nameLimiter: new NameFailureLimiter(10, 60_000), logGate: new SlidingWindowLimiter(1, 60_000), inRoom: () => false };
+    expect(await deleteMyProgress({ cookieToken: a.token, password: PASSWORD, ip: "10.9.9.8" }, deps)).toEqual({ status: 409, error: "in_room" });
+    expect(raced).not.toBeNull();
+    expect((await accountFootprintForTest(database, [a.id])).deviceTokens).toBe(2);
+    // the retry (both devices now checked) deletes
+    expect(await deleteMyProgress({ cookieToken: a.token, password: PASSWORD, ip: "10.9.9.8" }, { ...deps, accounts: real })).toEqual({ status: 200, body: { ok: true, kind: "account" } });
+  });
+
+  it("L4: a login whose account was deleted after the password check answers stale (401), never 503", async () => {
+    const a = await account();
+    const devices = deviceTokensRepo(database);
+    expect((await post("/account/delete", { password: PASSWORD }, { cookie: a.token })).status).toBe(200);
+    expect(await devices.logIn({ oldTokenHash: null, newTokenHash: hashGuestToken("ee".repeat(16)), accountId: a.id, expectPasswordHash: "x" })).toEqual({ outcome: "stale_credentials" });
+  });
+
+  it("M3: a bank for a deleted account's seat is a quiet no-op (no FK error, no supplies_bank_failed)", async () => {
+    const g = await guest();
+    expect((await post("/account/delete", {}, { cookie: g.token })).status).toBe(200);
+    const errors: string[] = [];
+    vi.spyOn(log, "error").mockImplementation(((...args: unknown[]) => void errors.push(JSON.stringify(args))) as never);
+    const r = await progressRepo(database).addSupplies(crypto.randomUUID(), g.id, () => ({ supplies: 40, breakdown: {} }));
+    expect(r).toMatchObject({ banked: false, supplies: 0 });
+    expect(errors).toEqual([]);
+    expect(await accountFootprintForTest(database, [g.id])).toMatchObject({ accounts: 0, progress: 0, runRewards: 0 });
+  });
+
+  it("L5: in a shared saved run my seat is scrubbed (no account id, no matchable key, neutral name); the other seat is untouched", async () => {
+    const a = await account();
+    const other = await account();
+    const run = crypto.randomUUID();
+    const snapshot = { schemaVersion: 1, wave: 3, seats: [{ seatKey: `acct:${a.id}`, accountId: a.id, name: "Ana Real", slot: 0 }, { seatKey: `acct:${other.id}`, accountId: other.id, name: "Bo", slot: 1 }], bannedSeats: [] };
+    expect(await savedRunsRepo(database).upsertOpen({ ...saveRow(run, [a.id, other.id]), roomCode: "DELV", snapshot, names: [{ name: "Ana Real", slot: 0 }, { name: "Bo", slot: 1 }] })).toBe(true);
+    expect((await post("/account/delete", { password: PASSWORD }, { cookie: a.token })).status).toBe(200);
+    const after = await savedRunForTest(database, run);
+    expect(after?.names).toEqual([{ name: DELETED_SEAT_NAME, slot: 0 }, { name: "Bo", slot: 1 }]);
+    const seats = after?.snapshot.seats as Record<string, unknown>[];
+    expect(seats[0]).toEqual({ seatKey: "deleted:0", accountId: null, name: DELETED_SEAT_NAME, slot: 0 });
+    expect(seats[1]).toEqual(snapshot.seats[1]);
+    expect(JSON.stringify(after)).not.toContain(a.id);
+    expect(JSON.stringify(after)).not.toContain("Ana Real");
+  });
+
+  it("L5 (pure): scrubSeats also clears a ban of my seat and returns null when no seat is mine", () => {
+    const mine = new Set(["m1"]);
+    const out = scrubSeats({ seats: [{ seatKey: "acct:m1", accountId: "m1", name: "Me", slot: 2 }], bannedSeats: [{ seatKey: "acct:m1", guestTokenHash: "abc" }] }, [{ name: "Me", slot: 2 }], mine);
+    expect(out?.snapshot.bannedSeats).toEqual([{ seatKey: "deleted", guestTokenHash: "" }]);
+    expect(scrubSeats({ seats: [{ seatKey: "acct:x", accountId: "x", name: "X", slot: 0 }] }, [], mine)).toBeNull();
+  });
+
+  it("L6: deleting the account that found a run's bag never lets another account of that run be paid a second bag", async () => {
+    const finder = await account();
+    const other = await account();
+    const run = crypto.randomUUID();
+    const repo = progressRepo(database);
+    const meta = (key: string) => ({
+      statsDelta: { revives: 0, kills: 1, barricades: 0, runs: 1 },
+      grant: () => ({ cosmetics: [key], districts: [], breakdown: { loot: { key } } }),
+    });
+    const first = await repo.addSupplies(run, finder.id, () => ({ supplies: 10, breakdown: {} }), meta("hat:red"));
+    expect(first.breakdown.loot).toEqual({ key: "hat:red" });
+    expect((await post("/account/delete", { password: PASSWORD }, { cookie: finder.token })).status).toBe(200);
+    const second = await repo.addSupplies(run, other.id, () => ({ supplies: 10, breakdown: {} }), meta("hat:blue"));
+    expect(second.banked).toBe(true);
+    expect(second.breakdown.loot).toBeUndefined();
+    expect((await repo.get(other.id))?.cosmetics).not.toContain("hat:blue");
   });
 });

@@ -7,20 +7,22 @@
  *   defaults per device class (`setSettingsDefaults`) without overwriting a choice.
  * - Readers call `getSettings()` when they need a value (cached object, no allocation) or `subscribeSettings` to react
  *   at once (volumes, the performance overlay). Every change applies without a reload (AC 4).
- * - Account sync (`net/settingsSync.ts`, B9): a change marks the settings pending; the sync clears the mark.
+ * - Account sync (`net/settingsSync.ts`, B9): a change made while LOGGED IN marks the settings pending for that username
+ *   (review M1: a guest's change or another account's never overwrites this account); the sync clears the mark.
  */
 import { PLAYER_SETTINGS_DEFAULTS, parseStoredSettings, type PlayerSettings, type StoredPlayerSettings } from "@topdown/shared";
 
 export type { PlayerSettings, StoredPlayerSettings } from "@topdown/shared";
 
 export const SETTINGS_KEY = "topdown-shooter.settings";
-/** B9: "1" while a change has not reached the account yet. */
+/** B9 (review M1): the username whose change has not reached its account yet (absent = nothing pending). */
 export const SETTINGS_PENDING_KEY = "topdown-shooter.settings.pending";
 
 let defaults: PlayerSettings = { ...PLAYER_SETTINGS_DEFAULTS };
 let stored: StoredPlayerSettings | null = null;
 let cached: PlayerSettings | null = null;
-let pendingMemory: boolean | null = null;
+/** undefined = read storage; null = nothing pending; a string = pending for that username. */
+let pendingMemory: string | null | undefined = undefined;
 const listeners = new Set<(s: PlayerSettings) => void>();
 
 function storage(): Storage | undefined {
@@ -65,11 +67,10 @@ export function getStoredSettings(): StoredPlayerSettings {
   return { ...readStored() };
 }
 
-/** The player changed `patch`: stored, applied at once, and marked pending for the account sync. */
+/** The player changed `patch`: stored and applied at once (the account sync marks it pending when logged in). */
 export function saveSettings(patch: StoredPlayerSettings): void {
   const clean = parseStoredSettings(patch);
   writeStored({ ...readStored(), ...clean });
-  setSettingsPending(true);
 }
 
 /** B9: the account's copy replaces this phone's (a session / login answer with no change pending here). */
@@ -91,19 +92,22 @@ export function subscribeSettings(listener: (s: PlayerSettings) => void): () => 
   return () => listeners.delete(listener);
 }
 
-export function settingsPending(): boolean {
-  if (pendingMemory !== null) return pendingMemory;
+/** Review M1: the username whose change is not on its account yet, or null. An old "1" mark (no owner) reads as none. */
+export function settingsPendingFor(): string | null {
+  if (pendingMemory !== undefined) return pendingMemory;
   try {
-    return storage()?.getItem(SETTINGS_PENDING_KEY) === "1";
+    const v = storage()?.getItem(SETTINGS_PENDING_KEY) ?? null;
+    return v === null || v === "1" || v === "" ? null : v;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export function setSettingsPending(on: boolean): void {
-  pendingMemory = on;
+/** Marks the settings pending for `username` (a logged-in change), or clears the mark (null). */
+export function setSettingsPending(username: string | null): void {
+  pendingMemory = username;
   try {
-    if (on) storage()?.setItem(SETTINGS_PENDING_KEY, "1");
+    if (username !== null) storage()?.setItem(SETTINGS_PENDING_KEY, username);
     else storage()?.removeItem(SETTINGS_PENDING_KEY);
   } catch {
     // storage unavailable: the mark lives for this page
@@ -117,7 +121,7 @@ export function clearSettings(): void {
   } catch {
     // nothing stored
   }
-  setSettingsPending(false);
+  setSettingsPending(null);
   writeStored({});
   try {
     storage()?.removeItem(SETTINGS_KEY);
@@ -130,7 +134,7 @@ export function clearSettings(): void {
 export function resetSettingsCache(): void {
   cached = null;
   stored = null;
-  pendingMemory = null;
+  pendingMemory = undefined;
   defaults = { ...PLAYER_SETTINGS_DEFAULTS };
   listeners.clear();
 }
