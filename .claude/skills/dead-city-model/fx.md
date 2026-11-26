@@ -9,6 +9,10 @@ own file so it merges cleanly with Story 9.15's `SKILL.md` (PR #34). Everything 
 - Group 5 = **FX** (picked "A: FX (Recommended)" over icons).
 - **The Behemoth's warning art is in group 5** ("In. I'm curious to see how they would look like. So add them
   too."): slam countdown disc, throw ring, charge lane, CRASH mark, P1 warning display, ground damage.
+- Picks: **take A for every element** ("All A version. Blood A too."), with two changes:
+  - CS-A gets more blood ("id like more blood");
+  - fire on cars is rethought ("The fire cant be a circle if the car is a rectangle. Circle may represent the heat.
+    But flames in a perfect circle look weird"): FI-A is declined and FI-B is proposed.
 - Decisions per element live in `docs/art/photoreal-decisions.md` › "FX (photoreal group 5)".
 
 ## FX 2. One idea for the whole family (applies SKILL.md section 1 to a group of effects)
@@ -62,3 +66,35 @@ own file so it merges cleanly with Story 9.15's `SKILL.md` (PR #34). Everything 
   - a decomposition drawer: textures, the frames the game shows and when, consecutive-frame diffs (identical frames
     flagged), the part inspector, peak sprites, performance.
 - **Picks by code:** `${element}-A` / `-B` (MZ-A, EX1-B, SD-A …).
+
+## FX 4. Goal first, per effect (designer 2026-11-26)
+
+> "Just to be sure, did you really follow model and fix skill? Because it look like you didn't follow the concept of
+> picking a goal: 'show player a car is burning + zone where they get damaged.' And then think of elements needed, and
+> then how they compose with each other to attend the goal."
+
+SKILL.md section 5 (goal first) applies to every effect, before any drawing. The group's shared idea (FX 2) is not a
+goal; each effect needs its own. Write these on the card's brief, in this order:
+
+1. **Goal:** what the player must read, in one sentence, from the game's rule. For example: "this car is burning" +
+   "inside this circle you get hurt (2 m, 10/s in 0.5 s pulses)".
+2. **Elements, each with one job toward the goal.** Name the read each element serves. An element with no job is
+   cut.
+3. **Composition:**
+   - where each element may and may not appear (flames only on the fuel; the circle only from heat);
+   - the brightness order;
+   - one clock (flicker, damage tick);
+   - what may cross the edge (smoke) and what may not (bright flame).
+4. Only then draw. Check the composed result against the goal at game size.
+
+Lessons:
+- **A take that swaps pictures on today's emitter is not a rethink.** It inherits today's geometry and its mistakes.
+  FI-A kept Story 4.11's ring of edge flames: flames in a perfect circle round a rectangular car.
+- **Separate the read from the thing.**
+  - A zone the game computes as a circle can be shown by a quality that really is round (heat on the ground, a light
+    pool, a line).
+  - The visible source keeps the real object's shape (the car, the pool).
+- **Additive light saturates.** Many overlapping added flames clip to lemon yellow, which reads green next to orange.
+  Use fewer, fainter flames where they stack, and darken the base under them (burnt-out cabin soot) so the added
+  light reads amber.
+
