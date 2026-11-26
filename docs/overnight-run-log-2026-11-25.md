@@ -218,3 +218,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 10:44 10.1 Settings + account deletion, PR #30 merged c5273e15 (fresh 3-layer review → 2 narrow re-reviews → main-session check of the lock-order fixes; real-PG races 0 errors; CI green).
 - 10:53 Master CI green on c5273e15 (#30).
 - 11:17 CI infra PR #28 merged 39781be5 (E7-A1 postgres job, 41-test floor; E7-A3 migration journal check; E8-A8 no test or file over 30 s, slowest-15 summary, ~30 tests split, timings refreshed). Light review clean (1 low + 1 nit fixed, main-session check). CI 4:32.
+- 11:24 Master CI green on 39781be5 (#28; first master run with the postgres job and the 30 s guard, 3:45).
