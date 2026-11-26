@@ -156,3 +156,14 @@ Questions the build met that the story and E8-S/R leave open. Each takes the GDS
 | **8.6-B11** | Review L: the saved-games route's rate key. | The router's context has no resolved IP in this Colyseus version, so the key is `X-Real-IP` (set by Caddy), like the other account routes; `X-Forwarded-For` is no longer read. | — |
 
 - **8.7 B16 note (final re-review, 2026-11-25):** with everything under the semi-transparent HUD, a ping icon that sits under a mode control (build bar, Ready, vote panel) counts as SEEN, so it shows through the HUD and gets no edge arrow (M1's icon check uses only the 8 wave control rects).
+
+## Story 8.12: only connected, standing players vote (designer 2026-11-25)
+
+Reverses 8.1 review M2 / RR1-M1 for the vote (the `earnedAtEvac` banking part of M2 stays). Who counts: connected (not held) and `alive`, taken at the tick the vote resolves. Builder decisions, **auto-accepted (designer 2026-11-26)**:
+
+| Code | What it changes in play | Taken | Alternative |
+|---|---|---|---|
+| **8.12 D1** | A downed or out player taps a vote (an old client, or a tap in flight as they go down). | The server still stores the choice (`castVote` unchanged); it simply doesn't count unless they stand again before the vote resolves. The panel disables their buttons and the scene drops their taps. | Refuse the vote on the server too. |
+| **8.12 D2** | A seat returns during the 1 s "everyone voted" beat. | The beat is never extended (6.11 F4: the timer only shortens). The returner counts at the resolve, silent = Extract unless they tap in time. | Re-open the full timer when a counted player appears. |
+| **8.12 D3** | Nobody counts (all held, downed or out). | No early end: the timer runs out, then Extract. | End at once as Extract. |
+| **8.12 D4** | How held seats show in the panel. | Kept as dimmed chips (AC 6's second option), now reading "not voting" like downed and out players; left out of the result line, `allIn` and `voteUrgent`. | Hide them. |

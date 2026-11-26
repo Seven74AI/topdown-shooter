@@ -526,23 +526,26 @@ describe("Story 8.1 review H3: held seats count where a run-long number is fixed
   });
 });
 
-describe("Story 8.1 review M2: a held seat is a silent vote (6.11 D1: silent = Extract)", () => {
-  it("4 seats, 2 Stay + 2 held → Extract (not Stay); the vote doesn't end early while a seat is held", () => {
+describe("Story 8.12 (reverses 8.1 review M2): a held seat doesn't count in the vote", () => {
+  it("4 seats, 2 Stay + 2 held → Stay; the held seats aren't silent votes", () => {
     const { world } = setup(["p0", "p1", "p2", "p3"]);
     world.run.phase = "vote";
     castVote(world, "p0", "stay");
     castVote(world, "p1", "stay");
     holdPlayer(world, "p2");
     holdPlayer(world, "p3");
-    expect(countVotes(world)).toMatchObject({ stay: 2, silent: 2 });
+    expect(countVotes(world)).toEqual({ extract: 0, stay: 2, silent: 0 });
     resolveEvacVote(world);
-    expect(world.run.ending).toBe("extracted");
+    expect(world.run.endless).toBe(true);
+    expect(world.run.phase).toBe("build");
   });
 
-  it("3 Stay of 4 with 1 held → Stay, and the held seat's earnedAtEvac is set too", () => {
+  it("4 seats, 1 held, 2 Stay + 1 Extract → Stay, and the held seat's earnedAtEvac is still set (AC 5)", () => {
     const { world, players } = setup(["p0", "p1", "p2", "p3"]);
     world.run.phase = "vote";
-    for (const id of ["p0", "p1", "p2"]) castVote(world, id, "stay");
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "stay");
+    castVote(world, "p2", "extract");
     const held = players[3] as PlayerState;
     held.earned = 555;
     holdPlayer(world, "p3");
@@ -550,10 +553,21 @@ describe("Story 8.1 review M2: a held seat is a silent vote (6.11 D1: silent = E
     expect(world.run.endless).toBe(true);
     expect(held.earnedAtEvac).toBe(555);
   });
+
+  it("4 seats, 1 held, 1 Stay + 2 Extract → Extract", () => {
+    const { world } = setup(["p0", "p1", "p2", "p3"]);
+    world.run.phase = "vote";
+    castVote(world, "p0", "stay");
+    castVote(world, "p1", "extract");
+    castVote(world, "p2", "extract");
+    holdPlayer(world, "p3");
+    resolveEvacVote(world);
+    expect(world.run.ending).toBe("extracted");
+  });
 });
 
 describe("Story 8.1 RR1-N1/N3: the held-seat rules really wired", () => {
-  it("N1: all present voted but a seat is held → the vote is not shortened (still open after allVotedHoldS); without the hold it would be", () => {
+  it("N1, as 8.12 AC 2 changed it: all present voted and a seat is held → the vote IS shortened, as without the hold", () => {
     for (const held of [true, false]) {
       const { world } = setup(["p0", "p1", "p2"], null); // the run system (in the `waves` slot) counts the vote down
       startBuild(world);
@@ -564,7 +578,7 @@ describe("Story 8.1 RR1-N1/N3: the held-seat rules really wired", () => {
       castVote(world, "p1", "stay");
       if (!held) castVote(world, "p2", "stay");
       run(world, ticksFor(balance.waves.evac.allVotedHoldS) + 2);
-      expect([held, world.run.phase]).toEqual([held, held ? "vote" : "build"]);
+      expect([held, world.run.phase]).toEqual([held, "build"]);
     }
   });
 

@@ -228,25 +228,35 @@ export function castVote(world: World, playerId: string, choice: EvacChoice): vo
   p.vote = choice === "stay" ? VOTE_STAY : VOTE_EXTRACT;
 }
 
-/** Story 6.11: the tally of the players in the run (module-level scratch: no allocation per tick). */
+/**
+ * Story 8.12 (AC 0): who counts in the vote — a connected (in `world.players`, not held) player who is
+ * standing (`alive`). Downed and out players don't count; a held seat isn't in `world.players` at all.
+ * Taken when the vote resolves, so a revive or a return before then counts again.
+ */
+export const countsInVote = (p: Readonly<PlayerState>): boolean => p.status === "alive";
+
+/** Story 6.11 / 8.12: the tally of the players who count (module-level scratch: no allocation per tick). */
 export const voteTally = { extract: 0, stay: 0, silent: 0 };
 const tallyOne = (p: PlayerState): void => {
+  if (!countsInVote(p)) return;
   if (p.vote === VOTE_STAY) voteTally.stay++;
   else if (p.vote === VOTE_EXTRACT) voteTally.extract++;
   else voteTally.silent++;
 };
 
-/** Counts the votes of every player in the World into `voteTally` (and returns it). */
+/**
+ * Counts the votes of the players who count (`countsInVote`) into `voteTally` (and returns it).
+ * Story 8.12 reverses 8.1 review M2: held seats, downed and out players are not in the tally at all.
+ */
 export function countVotes(world: World): typeof voteTally {
   voteTally.extract = 0;
   voteTally.stay = 0;
   voteTally.silent = 0;
   world.players.forEach(tallyOne);
-  voteTally.silent += world.heldPlayers.size; // Story 8.1 review M2: a held seat is silent (6.11 D1: silent = Extract)
   return voteTally;
 }
 
-/** Story 6.11 (F3, D1): Stay only when MORE than half of the players in the run voted Stay; ties, silence → Extract. */
+/** Story 6.11 (F3, D1): Stay only when MORE than half of the players who count voted Stay; ties, silence, nobody → Extract. */
 export function voteOutcome(stay: number, players: number): EvacChoice {
   return players > 0 && stay * 2 > players ? "stay" : "extract";
 }
@@ -264,7 +274,7 @@ const markHeldEvac = (h: { readonly player: PlayerState }): void => markEvac(h.p
 export function resolveEvacVote(world: World): void {
   expectPhase(world, "resolveEvacVote", "vote");
   const t = countVotes(world);
-  const choice = voteOutcome(t.stay, world.players.size + world.heldPlayers.size); // review M2: held seats count (silent)
+  const choice = voteOutcome(t.stay, t.extract + t.stay + t.silent); // Story 8.12: only connected, standing players count
   world.events.emit({ type: "run.vote_resolved", choice, extract: t.extract, stay: t.stay, silent: t.silent });
   const run = world.run;
   run.voteTicksLeft = 0;
@@ -276,22 +286,26 @@ export function resolveEvacVote(world: World): void {
   }
   if (!run.endless) {
     world.players.forEach(markEvac);
-    world.heldPlayers.forEach(markHeldEvac); // review M2: a held seat at the first Stay keeps its pre-endless earnings too
+    world.heldPlayers.forEach(markHeldEvac); // 8.1 review M2 (kept by 8.12 AC 5): a held seat at the first Stay keeps its pre-endless earnings too
   }
   run.endless = true;
   startBuild(world);
 }
 
 let allVoted = true;
+let voters = 0;
 const checkVoted = (p: PlayerState): void => {
+  if (!countsInVote(p)) return;
+  voters++;
   if (p.vote === VOTE_NONE) allVoted = false;
 };
 
+/** Story 8.12 (AC 2): every player who counts has voted (held, downed and out are skipped); nobody counting → false (the timer runs). */
 function everyoneVoted(world: World): boolean {
-  if (world.players.size === 0 || world.heldPlayers.size > 0) return false; // review M2: a held seat hasn't voted (silent)
   allVoted = true;
+  voters = 0;
   world.players.forEach(checkVoted);
-  return allVoted;
+  return voters > 0 && allVoted;
 }
 
 /**

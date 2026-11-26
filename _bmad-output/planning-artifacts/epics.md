@@ -119,7 +119,7 @@ FR65: Each run has a seed that drives its random choices (which cars burn, which
 
 **Win, evacuation and endless**
 
-FR66: After the Behemoth dies, the team votes for 15 s: majority wins; a tie or no votes means extract.
+FR66: After the Behemoth dies, the team votes for 15 s: a majority of the connected, standing players wins; a tie or no counted votes means extract (Story 8.12: disconnected, downed and dead players don't count).
 FR67: Extract wins the run and keeps all rewards (the helicopter lifts off into 4 s of dawn, then Results); Stay starts endless waves in the collapsed city.
 FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave before each evacuation vote (15, 20, 25…) with +25% HP each time; one event on each even endless wave without a Behemoth; a wipe before extracting loses rewards earned after wave 10.
 
@@ -2323,11 +2323,11 @@ So that we choose together how much to risk.
 
 **Given** wave 10 cleared after the Behemoth's death
 **When** the helicopter lands on the intersection (6 m pad, searchlight)
-**Then** every player, downed and out players included, sees Extract and Stay buttons and a 15 s countdown, and every vote shows live in its slot colour; nothing else moves during the vote (FR66)
+**Then** every player, downed and out players included, sees Extract and Stay buttons and a 15 s countdown, and every vote shows live in its slot colour; nothing else moves during the vote (FR66) *(as built by Story 8.12: downed and out players see the buttons disabled and their chip reads "not voting")*
 
 **Given** the votes
 **When** the countdown ends, or 1 s after everyone has voted (6.11 D3)
-**Then** Stay wins only if more than half of the whole team voted Stay; silent players count as Extract, so a tie or no votes means Extract (6.11 D1)
+**Then** Stay wins only if more than half of the whole team voted Stay; silent players count as Extract, so a tie or no votes means Extract (6.11 D1) *(as built by Story 8.12: "the whole team" is the connected, standing players)*
 
 **Given** Extract
 **When** chosen

@@ -10,9 +10,9 @@ export const VOTE_PENDING_MS = 1500;
 
 export interface VoteChip {
   readonly slot: number;
-  /** 0 none, 1 extract, 2 stay (mine: the pending choice when one is in flight). */
+  /** 0 none, 1 extract, 2 stay (mine: the pending choice when one is in flight); always 0 for a chip that isn't voting. */
   readonly vote: number;
-  /** Downed or out: drawn dimmed, still votes (F1). */
+  /** Story 8.12 (AC 6): downed, out or a held seat — drawn dimmed, marked "not voting", left out of the result line. */
   readonly dimmed: boolean;
   readonly mine: boolean;
 }
@@ -28,15 +28,18 @@ export interface VoteView {
   readonly mine: number;
   /** My choice is not confirmed by the server yet. */
   readonly pending: boolean;
-  /** Everyone voted: the result line ("EXTRACT · 3 – 1") during the hold beat; "" otherwise. */
+  /** Everyone who counts voted: the result line ("EXTRACT · 3 – 1") during the hold beat; "" otherwise. */
   readonly result: string;
+  /** Story 8.12 (AC 6): I count in the vote (connected and standing): false greys out and disables both buttons. */
+  readonly canVote: boolean;
 }
 
-export const CLOSED_VOTE: VoteView = { open: false, ringFrac: 0, secondsLeft: 0, chips: [], mine: VOTE_NONE, pending: false, result: "" };
+export const CLOSED_VOTE: VoteView = { open: false, ringFrac: 0, secondsLeft: 0, chips: [], mine: VOTE_NONE, pending: false, result: "", canVote: false };
 
 export interface VotePlayerIn {
   slot: number;
   vote: number;
+  /** Story 8.12: counts in the vote (`countsInVote`: alive; a held seat is never standing). False = "not voting". */
   standing: boolean;
   mine: boolean;
 }
@@ -93,10 +96,10 @@ export class VoteRequest {
 }
 
 /**
- * Story 8.1 re-review RR1-M1: held seats join the vote panel as silent, dimmed chips (the server counts
- * a held seat as silent = Extract and waits the whole timer for it, 6.11 D1 / review M2), so the
- * panel's result line, `allIn` and `voteUrgent` agree with the server. Writes after `players[count)`
- * (preallocated by the caller; extra slots beyond its length are ignored) and returns the new count.
+ * Story 8.1 RR1-M1, as Story 8.12 (AC 6) changed it: held seats join the vote panel as dimmed "not
+ * voting" chips (`standing` false). The server leaves a held seat out of the vote, so they are left
+ * out of the result line, `allIn` and `voteUrgent` too. Writes after `players[count)` (preallocated by
+ * the caller; extra slots beyond its length are ignored) and returns the new count.
  */
 export function addHeldVoters(players: VotePlayerIn[], count: number, heldSlots: readonly number[]): number {
   let n = count;
@@ -112,33 +115,40 @@ export function addHeldVoters(players: VotePlayerIn[], count: number, heldSlots:
   return n;
 }
 
-/** Story 6.11 (EX1): "EXTRACT · 3 – 1" (choice, then extract – stay counts; silent players count as Extract, F3). */
+/**
+ * Story 6.11 (EX1): "EXTRACT · 3 – 1" (choice, then extract – stay counts; silent players count as
+ * Extract, F3). Story 8.12: only the players who count (`standing`), as the server's `resolveEvacVote`.
+ */
 export function voteResultLine(players: readonly VotePlayerIn[], mineShown: number): string {
   let stay = 0;
   let extract = 0;
   for (const p of players) {
+    if (!p.standing) continue;
     const v = p.mine ? mineShown : p.vote;
     if (v === VOTE_STAY) stay++;
     else extract++;
   }
-  return `${voteOutcome(stay, players.length) === "stay" ? "STAY" : "EXTRACT"} · ${extract} – ${stay}`;
+  return `${voteOutcome(stay, stay + extract) === "stay" ? "STAY" : "EXTRACT"} · ${extract} – ${stay}`;
 }
 
 /** The panel from the server's truth and my shown vote. Pure; allocates — the scene calls it only when `voteFrameKey` changed (review L8). */
 export function voteView(open: boolean, ticksLeft: number, totalTicks: number, tickRateHz: number, players: readonly VotePlayerIn[], mineShown: number, pending: boolean): VoteView {
   if (!open) return CLOSED_VOTE;
   const sorted = [...players].sort((a, b) => a.slot - b.slot);
-  const chips = sorted.map((p) => ({ slot: p.slot, vote: p.mine ? mineShown : p.vote, dimmed: !p.standing, mine: p.mine }));
-  const allIn = chips.length > 0 && chips.every((c) => c.vote !== VOTE_NONE);
+  const chips = sorted.map((p) => ({ slot: p.slot, vote: !p.standing ? VOTE_NONE : p.mine ? mineShown : p.vote, dimmed: !p.standing, mine: p.mine }));
+  const counted = chips.filter((c) => !c.dimmed);
+  const allIn = counted.length > 0 && counted.every((c) => c.vote !== VOTE_NONE); // Story 8.12: as the server's `everyoneVoted`
+  const me = sorted.find((p) => p.mine);
   const left = Math.max(0, ticksLeft);
   return {
     open,
     ringFrac: totalTicks > 0 ? Math.min(1, left / totalTicks) : 0,
     secondsLeft: Math.ceil(left / tickRateHz),
     chips,
-    mine: mineShown,
+    mine: me !== undefined && !me.standing ? VOTE_NONE : mineShown, // Story 8.12: down or out, no button shows pressed
     pending,
     result: allIn && !pending ? voteResultLine(sorted, mineShown) : "",
+    canVote: me !== undefined && me.standing,
   };
 }
 
@@ -157,7 +167,7 @@ class VoteStore {
 
   /** Publishes when something visible changed (the ring's seconds, chips, result): not every frame. */
   set(view: VoteView): void {
-    const key = view.open ? `${view.secondsLeft}|${Math.round(view.ringFrac * 60)}|${view.mine}|${view.pending}|${view.result}|${view.chips.map((c) => `${c.slot}${c.vote}${c.dimmed ? 1 : 0}`).join(",")}` : "closed";
+    const key = view.open ? `${view.secondsLeft}|${Math.round(view.ringFrac * 60)}|${view.mine}|${view.pending}|${view.result}|${view.canVote}|${view.chips.map((c) => `${c.slot}${c.vote}${c.dimmed ? 1 : 0}`).join(",")}` : "closed";
     if (key === this.key) return;
     this.key = key;
     this.view = view;
@@ -228,12 +238,20 @@ export const VOTE_URGENT_GAP_MS = 100;
 /** Re-review 2 (RR2-L2): how far below zero an urgent send may take the bucket (one borrowed token). */
 export const VOTE_URGENT_DEBT = 1;
 
-/** Re-review 2 (N3): the vote is about to end — its last `VOTE_URGENT_MS`, or everyone has voted (the 1 s hold). */
+/**
+ * Re-review 2 (N3): the vote is about to end — its last `VOTE_URGENT_MS`, or everyone who counts has
+ * voted (the 1 s hold; Story 8.12: "not voting" players skipped, nobody counting is not urgent, as the server).
+ */
 export function voteUrgent(voteTicksLeft: number, tickRateHz: number, players: readonly VotePlayerIn[], count: number): boolean {
   if ((voteTicksLeft * 1000) / tickRateHz <= VOTE_URGENT_MS) return true;
-  if (count === 0) return false;
-  for (let i = 0; i < count; i++) if ((players[i] as VotePlayerIn).vote === VOTE_NONE) return false;
-  return true;
+  let voters = 0;
+  for (let i = 0; i < count; i++) {
+    const p = players[i] as VotePlayerIn;
+    if (!p.standing) continue;
+    if (p.vote === VOTE_NONE) return false;
+    voters++;
+  }
+  return voters > 0;
 }
 
 export class VoteSender {
