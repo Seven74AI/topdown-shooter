@@ -77,7 +77,7 @@ describe("POST /account/session (Story 7.1 AC 4)", () => {
     const body = accountSessionResponseSchema.parse(r.body);
     if (!body.saved) throw new Error("expected saved");
     expect(body.deviceToken).toMatch(/^[0-9a-f]{32}$/);
-    expect(body.account).toEqual({ displayName: "", username: null });
+    expect(body.account).toEqual({ displayName: "", username: null, admin: false });
     const accountId = ticketAccount(body.ticket);
     expect(accountId).not.toBeNull();
     // Review M1: the ticket is bound to the token it was issued with, and to no other.

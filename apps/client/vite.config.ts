@@ -1,6 +1,9 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
+/** The cheat panel's lazy entry module name (Story 10.11). */
+const ADMIN_CHUNK = "adminTools";
+
 export default defineConfig({
   // GitHub Pages serves under /topdown-shooter/; the VPS (Story 2.2) serves at /.
   // Do not use "./": share links at /j/<code> (Story 2.1) would break relative asset paths.
@@ -15,6 +18,14 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1600,
     // The asset gallery (/gallery.html) is a second page so the designer can review every code-drawn asset.
-    rollupOptions: { input: { main: resolve(import.meta.dirname, "index.html"), gallery: resolve(import.meta.dirname, "gallery.html") } },
+    rollupOptions: {
+      input: { main: resolve(import.meta.dirname, "index.html"), gallery: resolve(import.meta.dirname, "gallery.html") },
+      // Story 10.11 (AC 8): the admin-only cheat panel (`src/debug/adminTools.ts`) gets one fixed, neutral name,
+      // `assets/admin-tools-<hash>.{js,css}`, which the release cheat scan exempts (and checks exists). Others: Vite's defaults.
+      output: {
+        chunkFileNames: (c) => (c.name === ADMIN_CHUNK ? "assets/admin-tools-[hash].js" : "assets/[name]-[hash].js"),
+        assetFileNames: (a) => (a.names.includes(`${ADMIN_CHUNK}.css`) ? "assets/admin-tools-[hash][extname]" : "assets/[name]-[hash][extname]"),
+      },
+    },
   }, // Phaser alone is ~1.38 MB min / ~362 KB gzip
 });

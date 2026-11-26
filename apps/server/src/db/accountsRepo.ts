@@ -3,7 +3,7 @@
  * Every call: async, 2 s timeout, `db_error {op}` on failure (`withDbTimeout`). Story 7.6: a device is found through
  * `device_tokens` (one account, several devices); usernames, password and recovery-code hashes.
  */
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Database } from "./client";
 import { accounts, deviceTokens, paidBags, progress, runRewards, savedRunPlayers, savedRuns } from "./schema";
 import { DB_TIMEOUT_MS, withDbTimeout } from "./timeout";
@@ -29,6 +29,13 @@ export interface Account {
   id: string;
   displayName: string;
   username: string | null;
+  /** Story 10.11 (AD-1): the `is_admin` mark (absent in test fakes = false). Only `isAdminAccount` reads it. */
+  isAdmin?: boolean;
+}
+
+/** Story 10.11 (AC 2): the session's `account.admin`: only a registered account (a username) with the mark. */
+export function isAdminAccount(a: Pick<Account, "username" | "isAdmin">): boolean {
+  return a.username !== null && a.isAdmin === true;
 }
 
 /** Story 7.6: what a login / reset checks (hashes stay inside the auth code, never logged or sent). */
@@ -91,7 +98,7 @@ export interface AccountsRepo {
   deleteAccount(tokenHash: string, expectAccountId: string, expectPasswordHash: string | null, checkedHashes: ReadonlySet<string>): Promise<DeleteAccountResult>;
 }
 
-const columns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
+const columns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username, isAdmin: accounts.isAdmin };
 
 /** A unique-index violation (PostgreSQL 23505), as pg or PGlite report it (maybe wrapped by Drizzle). */
 export function isUniqueViolation(e: unknown): boolean {
@@ -251,6 +258,47 @@ export function accountsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Acc
           throw e;
         }
       }),
+  };
+}
+
+/** Story 10.11 (AC 1): the operator command's reads and writes of the admin mark (`adminCli.ts`; never a route). */
+export interface AdminsRepo {
+  /** Marks / unmarks the REGISTERED account with this lower-cased username; null = no such account (a guest has none). */
+  setAdmin(usernameLower: string, admin: boolean): Promise<{ accountId: string } | null>;
+  /** Every admin, by username. */
+  listAdmins(): Promise<{ accountId: string; username: string }[]>;
+}
+
+export function adminsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): AdminsRepo {
+  return {
+    setAdmin: (usernameLower, admin) =>
+      withDbTimeout(
+        "accounts.setAdmin",
+        async () => {
+          const db = await database.db();
+          const rows = await db
+            .update(accounts)
+            .set({ isAdmin: admin })
+            .where(and(eq(accounts.usernameLower, usernameLower), isNotNull(accounts.username)))
+            .returning({ accountId: accounts.id });
+          return rows[0] ?? null;
+        },
+        timeoutMs,
+      ),
+    listAdmins: () =>
+      withDbTimeout(
+        "accounts.listAdmins",
+        async () => {
+          const db = await database.db();
+          const rows = await db
+            .select({ accountId: accounts.id, username: accounts.username })
+            .from(accounts)
+            .where(and(eq(accounts.isAdmin, true), isNotNull(accounts.username)))
+            .orderBy(asc(accounts.usernameLower));
+          return rows.flatMap((r) => (r.username === null ? [] : [{ accountId: r.accountId, username: r.username }]));
+        },
+        timeoutMs,
+      ),
   };
 }
 
