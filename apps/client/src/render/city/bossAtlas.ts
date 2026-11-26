@@ -1,14 +1,14 @@
 import type * as Phaser from "phaser";
 import { addGeneratedTexture } from "./canvasTexture";
 import { packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
-import { BEHEMOTH_LOOK_IDS, BH_FRAME_HALF_M, drawBehemoth, type BehemothPose } from "./behemothArt";
+import { BEHEMOTH_LOOK_IDS, BH_EYE_CALM_RGB, BH_EYE_CORE_R, BH_EYE_ENRAGED_RGB, BH_EYE_HALO_CALM, BH_EYE_HALO_ENRAGED, BH_EYE_HALO_R, drawBehemoth } from "./behemothArt";
+import { BOSS_FRAME_PX, BOSS_POSES, BOSS_PX_PER_M, drawBossBody } from "./bossFrames";
 import { drawGroundDamage } from "./groundDamageArt";
 
 /**
- * Story 6.5 (T0, brief 12 / 20): the Behemoth's atlas (`boss_<look>_<pose>_<variant>`: 4 looks × 13
- * frames ≤ 2048²) and its FX textures (the baked glowing slam telegraph `boss_tele_disc`, the slam's ground
- * damage decal). Every one
- * is drawn in code through `addGeneratedTexture` with its redraw callback (Android Chrome wipes
+ * Story 6.5 (T0, brief 12 / 20): the Behemoth's plain atlas (`boss_<look>_<pose>_<variant>`: 4 looks × 16 body
+ * frames = 2048², Story 9.15; the outline frames in `boss_outline`; the relit pictures in `bossRelit.ts`) and its FX
+ * textures (the baked glowing slam telegraph `boss_tele_disc`, the slam's ground damage decal). Every one is drawn in code through `addGeneratedTexture` with its redraw callback (Android Chrome wipes
  * canvases in the background; `noUnregisteredTextures.test.ts`).
  */
 export const BOSS_ATLAS = "boss_atlas";
@@ -17,39 +17,24 @@ export const BOSS_FX = "boss_fx";
 export const BOSS_TELE = "boss_tele_disc";
 export const BOSS_TELE_PX = 512;
 
-/** Frame size (px) of one boss pose: 252 px over 7 m = 36 px per metre. Frames pack 8 × 8 in 2048². */
-export const BOSS_FRAME_PX = 252;
-export const BOSS_PX_PER_M = BOSS_FRAME_PX / (2 * BH_FRAME_HALF_M);
-
-/** The frames of one look, in order: [pose, progress k, walk phase, frame variant]. */
-const POSE_FRAMES: readonly (readonly [BehemothPose | "outline", number, number, string, boolean])[] = [
-  ["walk", 0, 0, "walk_a", false],
-  ["walk", 0, 0.5, "walk_b", false],
-  ["slam", 0.15, 0, "slam_a", false],
-  ["slam", 0.5, 0, "slam_b", false],
-  ["slam", 1, 0, "slam_c", false],
-  ["slamHit", 0, 0, "slamhit_a", false],
-  ["charge", 1, 0, "charge_a", false],
-  ["rush", 1, 0, "rush_a", false],
-  ["throw", 1, 0, "throw_a", false],
-  ["stun", 0, 0, "stun_a", false],
-  ["roar", 0, 0, "roar_a", false],
-  ["dead", 0.35, 0, "dead_a", false], // Story 6.7: the collapse (3 frames by progress)
-  ["dead", 0.7, 0, "dead_b", false],
-  ["dead", 1, 0, "dead_c", false],
-  ["outline", 0, 0, "outline_a", false], // the overlay above the darkness: normal eyes
-  ["outline", 0, 0, "outline_b", true], // enraged (red eyes, 6.7 sets the flag)
-];
+/** Story 9.15: the frame list, sizes and indices live in the worker-safe `bossFrames.ts` (the relit bake uses them too). */
+export { BOSS_FRAME, BOSS_FRAME_PX, BOSS_PX_PER_M } from "./bossFrames";
+/** Story 9.15 (B2): the outline + eyes overlay frames (above the darkness, 6.3) have their own texture, so the plain atlas
+ *  keeps 4 looks × 16 body frames = 8 × 8 in 2048² with the two new warning poses. */
+export const BOSS_OUTLINE = "boss_outline";
 
 const lookKey = (look: number): string => (BEHEMOTH_LOOK_IDS[look] ?? "BH1").toLowerCase();
 
-/** Frame names per look (built once: the view never builds strings per frame). */
-export const BOSS_FRAMES: readonly (readonly string[])[] = BEHEMOTH_LOOK_IDS.map((_, l) => POSE_FRAMES.map((f) => `boss_${lookKey(l)}_${f[3]}`));
-/** Index of each pose frame in `BOSS_FRAMES[look]`. */
-export const BOSS_FRAME = { walkA: 0, walkB: 1, slamA: 2, slamB: 3, slamC: 4, slamHit: 5, charge: 6, rush: 7, throw: 8, stun: 9, roar: 10, deadA: 11, deadB: 12, deadC: 13, outline: 14, outlineEnraged: 15 } as const;
+/** Body frame names per look (built once: the view never builds strings per frame), indexed by `BOSS_FRAME`. */
+export const BOSS_FRAMES: readonly (readonly string[])[] = BEHEMOTH_LOOK_IDS.map((_, l) => BOSS_POSES.map((f) => `boss_${lookKey(l)}_${f.name}`));
+/** The outline frames per look: [normal eyes, enraged (red) eyes]. */
+export const BOSS_OUTLINE_FRAMES: readonly (readonly [string, string])[] = BEHEMOTH_LOOK_IDS.map((_, l) => [`boss_${lookKey(l)}_outline_a`, `boss_${lookKey(l)}_outline_b`] as const);
 
 export function bossSpecs(): FrameSpec[] {
   return BOSS_FRAMES.flat().map((name) => ({ name, w: BOSS_FRAME_PX, h: BOSS_FRAME_PX }));
+}
+export function bossOutlineSpecs(): FrameSpec[] {
+  return BOSS_OUTLINE_FRAMES.flat().map((name) => ({ name, w: BOSS_FRAME_PX, h: BOSS_FRAME_PX }));
 }
 
 /** FX frames (one texture). Asset fixes round 5: the skull, edge disc and icons became the P1 warning display (`hudWarnArt.ts`). */
@@ -174,9 +159,19 @@ function drawBossFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   for (let l = 0; l < BOSS_FRAMES.length; l++) {
     const i = (BOSS_FRAMES[l] as readonly string[]).indexOf(f.name);
     if (i < 0) continue;
-    const [pose, k, ph, , enraged] = POSE_FRAMES[i] as (typeof POSE_FRAMES)[number];
+    // Story 9.15: the plain take C picture (the relit one replaces it once baked); no eyes (B3: the eye layer)
+    g.translate(f.x, f.y);
+    drawBossBody(g, BOSS_FRAME_PX, BOSS_PX_PER_M, l, i, false);
+    return;
+  }
+}
+
+function drawOutlineFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
+  for (let l = 0; l < BOSS_OUTLINE_FRAMES.length; l++) {
+    const i = (BOSS_OUTLINE_FRAMES[l] as readonly string[]).indexOf(f.name);
+    if (i < 0) continue;
     g.translate(f.x + f.w / 2, f.y + f.h / 2);
-    drawBehemoth(g, BOSS_PX_PER_M, l, pose, k, enraged, ph);
+    drawBehemoth(g, BOSS_PX_PER_M, l, "outline", 0, i === 1);
     return;
   }
 }
@@ -369,12 +364,23 @@ function register(scene: Phaser.Scene, key: string, specs: FrameSpec[], draw: (g
 /** Creates the boss textures once per game (idempotent; textures outlive scene restarts). `holeFrac` = body radius / slam radius. */
 export function ensureBossTextures(scene: Phaser.Scene, holeFrac = 2 / 4.5): void {
   register(scene, BOSS_ATLAS, bossSpecs(), drawBossFrame);
+  register(scene, BOSS_OUTLINE, bossOutlineSpecs(), drawOutlineFrame);
   register(scene, BOSS_FX, bossFxSpecs(), drawFxFrame);
   if (!scene.textures.exists(BOSS_TELE)) {
     const canvas = document.createElement("canvas");
     canvas.width = BOSS_TELE_PX;
     canvas.height = BOSS_TELE_PX;
     addGeneratedTexture(scene, BOSS_TELE, canvas, (g) => drawTeleDisc(g, holeFrac));
+  }
+  // Story 9.15 (B3): the eye layer (an eye's halo + core, calm yellow and enraged red), drawn additively by the view
+  if (!scene.textures.exists(BOSS_EYES)) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2 * BOSS_EYE_PX;
+    canvas.height = BOSS_EYE_PX;
+    addGeneratedTexture(scene, BOSS_EYES, canvas, drawEyeFrames, (t) => {
+      t.add(BOSS_EYE_FRAMES[0], 0, 0, 0, BOSS_EYE_PX, BOSS_EYE_PX);
+      t.add(BOSS_EYE_FRAMES[1], 0, BOSS_EYE_PX, 0, BOSS_EYE_PX, BOSS_EYE_PX);
+    });
   }
   // Story 6.6: the throw's landing ring (the same hatched disc, no body hole) and the charge lane strip.
   if (!scene.textures.exists(BOSS_RING)) {
@@ -388,6 +394,34 @@ export function ensureBossTextures(scene: Phaser.Scene, holeFrac = 2 / 4.5): voi
     canvas.width = BOSS_LANE_W_PX;
     canvas.height = BOSS_LANE_H_PX;
     addGeneratedTexture(scene, BOSS_LANE, canvas, drawLane);
+  }
+}
+
+/** Story 9.15 (B3): the eye layer's texture: [calm, enraged] frames of `BOSS_EYE_PX`, an eye's halo filling the frame. */
+export const BOSS_EYES = "boss_eyes";
+export const BOSS_EYE_FRAMES = ["boss_eye_calm", "boss_eye_enraged"] as const;
+export const BOSS_EYE_PX = 32;
+/** The eye frame's side in metres (the halo's diameter at the 4 m body: `BH_EYE_HALO_R` × r × 2). */
+export const BOSS_EYE_M = 2 * BH_EYE_HALO_R * 2;
+
+/** The body frames' eyes (`behemothArt.ts › drawEyes`: halo 0.4 / 0.7, core), one per frame, at full level. */
+function drawEyeFrames(g: CanvasRenderingContext2D): void {
+  const n = BOSS_EYE_PX;
+  const R = n / 2;
+  for (let f = 0; f < 2; f++) {
+    const rgb = f === 1 ? BH_EYE_ENRAGED_RGB : BH_EYE_CALM_RGB;
+    const a = f === 1 ? BH_EYE_HALO_ENRAGED : BH_EYE_HALO_CALM;
+    const cx = f * n + R;
+    const gr = g.createRadialGradient(cx, R, 0, cx, R, R);
+    gr.addColorStop(0, `rgba(${rgb},${a})`);
+    gr.addColorStop(0.3, `rgba(${rgb},${a * 0.5})`);
+    gr.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = gr;
+    g.fillRect(f * n, 0, n, n);
+    g.fillStyle = `rgb(${rgb})`;
+    g.beginPath();
+    g.arc(cx, R, (R * BH_EYE_CORE_R) / BH_EYE_HALO_R, 0, Math.PI * 2);
+    g.fill();
   }
 }
 

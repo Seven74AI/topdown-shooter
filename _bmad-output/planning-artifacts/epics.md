@@ -358,7 +358,31 @@ Real life doesn't break a run: a bad 4G line doesn't spoil hits or the picture (
 The game looks and sounds like Dead City: a photoreal pass of the art (district in 5 decay states, animations, a photoreal Behemoth, gore and dismemberment, effects, UI art), each group picked by the designer on a proposal page and put into the game through the 9.11–9.14 pipeline (relit code drawings baked in a worker, or a pre-rendered atlas), and of the audio (ambience per stage, adaptive music, weapon and zombie sounds). Nobody is hired: sounds are procedural or from licensed/free libraries (designer, 2026-11-23; photoreal direction 2026-11-26).
 **FRs covered:** FR82, FR83, FR84 (polished sounds), FR85, FR86
 
-### Epic 10: Performance and polish
+#### Story 9.15: Photoreal Behemoth in the game
+
+*(Added 2026-11-26: the Behemoth part of 9.4, after the designer's picks for photoreal group 4: take C, G2 A, G3 E2, G4 A and the action plan.)*
+
+As a player fighting the Behemoth,
+I want it in the approved photoreal look, alive and acting out each attack,
+So that I read every attack earlier and see at a glance when it is enraged, helpless or dead.
+
+**Acceptance Criteria:**
+
+**Given** the approved take C model and action plan (`docs/art/photoreal-4/compare.html`, `docs/art/photoreal-decisions.md`)
+**When** the Behemoth is drawn
+**Then** it uses take C relit like 9.13 (worker bake, the plain drawing as fallback, no blank frame), with every pose, the outline + eyes frames and every telegraph unchanged, the walk frames really different and no black death frames
+
+**Given** a charge or throw warning, the enrage and the boss's actions
+**When** they play
+**Then** the charge and throw poses show by progress (G2 A), the enraged body glows on its heartbeat with the eyes as their own layer (G3 E2), it breathes and the sheen drifts (G4 A), and the action plan's timing (`boss4.ts › planAt`, `puffsFor`) drives breath, beats, eyes, glow and dust
+
+**Given** `?stress=150` and a boss scene
+**When** measured the 9.13 way
+**Then** stress is within 2 FPS and +1 ms p95 of master at 1× and 4× CPU, the boss scene is measured and recorded, and the world digest is unchanged
+
+(Story file `9-15-photoreal-behemoth-in-game.md`. 9.4 keeps the zombies' attack and death animations; the Behemoth's telegraph art is unchanged by 9.15.)
+
+## Epic 10: Performance and polish
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
 **FRs covered:** FR87, FR88 · NFR1, NFR2, NFR3, NFR6, NFR7, NFR8, NFR9
 
@@ -3264,15 +3288,15 @@ So that I can read my teammates' roles and state at a glance.
 
 ### Story 9.4: Zombie and Behemoth animations
 
-*(Re-based 2026-11-26, correct-course: attack and death animations, plus a photoreal Behemoth. Walk loops for Walker, Runner and Crawler, breathing, glow, Bloater veins and Spitter drips are done in 9.13.)*
+*(Re-based 2026-11-26, correct-course: attack and death animations, plus a photoreal Behemoth — the Behemoth part moved to Story 9.15 the same day. Walk loops for Walker, Runner and Crawler, breathing, glow, Bloater veins and Spitter drips are done in 9.13.)*
 
 As a player,
-I want every zombie to attack and die visibly, and the Behemoth to match the rest,
+I want every zombie to attack and die visibly,
 So that I can read the fight in the crowd and the dark.
 
 **Acceptance Criteria:**
 
-**Given** proposal pages for the attack and death animations and for a photoreal Behemoth (relit like 9.13, keeping its silhouette and every telegraph)
+**Given** proposal pages for the attack and death animations
 **When** the designer picks
 **Then** the picks are recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
 
@@ -3282,9 +3306,7 @@ So that I can read the fight in the crowd and the dark.
 **And** death animations are client-only, pooled and capped (a `controls.fx` cap, `?fx=low` halves it); beyond the cap a zombie vanishes with today's splat
 **And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
-**Given** the Behemoth
-**When** it is drawn
-**Then** it uses the approved photoreal look (worker relight, code drawing as fallback) for its walk, slam, charge, throw, stun / roar and enrage poses, and its telegraphs (ring, hatching, P1 warning display) read the same as today on the readability sheet
+*(The photoreal Behemoth AC moved to Story 9.15, merged 2026-11-26 as PR #34; 9.15's "Covers from 9.4" section lists what it took. 9.4 keeps the attack and death animations of the six zombie types.)*
 
 **Given** 150 animated zombies in view, with deaths at the cap
 **When** the `?stress=150` test runs the 9.13 way

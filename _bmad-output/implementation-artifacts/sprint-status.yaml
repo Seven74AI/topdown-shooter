@@ -211,7 +211,7 @@ development_status:
   9-1-art-and-audio-asset-spec: backlog  # spec: look ids kept + pipeline per group + budgets
   9-2-downtown-in-five-decay-states: backlog  # buildings, ground, decay props only (cars/barriers/sandbags done in 9.14); proposal pick first
   9-3-survivor-animations: backlog  # weapon-family, reload, downed poses on the 9.13 bodies; proposal pick first
-  9-4-zombie-and-behemoth-animations: backlog  # attack + death animations, photoreal Behemoth; proposal pick first
+  9-4-zombie-and-behemoth-animations: backlog  # attack + death animations of the zombies; proposal pick first (its Behemoth part moved to 9.15, 2026-11-26)
   9-5-gore-and-dismemberment: backlog  # photoreal via proposal pick; depends on 10.1 (gore setting)
   9-6-effects: backlog  # photoreal via proposal pick; depends on 10.1 (quality settings)
   9-7-ui-art: backlog  # photoreal via proposal pick, from Lumen LF5
@@ -222,6 +222,7 @@ development_status:
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
   9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); PR #22 merged 2026-11-26 00:19 (1fbf310e); open follow-ups FU1 (a late download failure never settles), FU2 in the story file
+  9-15-photoreal-behemoth-in-game: in-progress  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan (docs/art/photoreal-decisions.md, Behemoth row); builder session story-9-15
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
