@@ -1,4 +1,5 @@
 import { loadBalance, loadDevBalance, type Balance } from "@topdown/shared";
+import { soloDevAllowed, soloUrlOptions } from "./soloDevSwitches";
 import { urlOptions } from "./urlOptions";
 
 let cached: Balance | null = null;
@@ -28,14 +29,20 @@ export function soloOverrides(dev: boolean, o: { zombieDamageScale: number | nul
   return dev ? { ...o, shopAll: o.shopAll ?? false } : { zombieDamageScale: null, startingWallet: o.startingWallet, shopAll: false }; // Story 5.11: ?shopall dev-only
 }
 
-let soloCached: Balance | null = null;
+/** Story 10.11: one cache per `dev` value (an admin's mark can arrive or go between two solo starts). */
+const soloCached = new Map<boolean, Balance>();
 
-/** The balance a solo (offline) run plays: `clientBalance()` plus the release-safe `?wallet`. */
-export function soloBalance(): Balance {
-  if (!soloCached) {
-    const { zombieDamageScale, startingWallet, shopAll } = urlOptions();
-    const o = soloOverrides(import.meta.env.DEV, { zombieDamageScale, startingWallet, shopAll });
-    soloCached = o.zombieDamageScale === null && o.startingWallet === null && !o.shopAll ? clientBalance() : loadDevBalance(o);
+/**
+ * The balance a solo (offline) run plays: `clientBalance()` plus the release-safe `?wallet`. Story 10.11 (AD-4): `dev`
+ * = the dev switches are on for this solo run (a dev build, or an admin's production build: `soloDevAllowed()`).
+ */
+export function soloBalance(dev: boolean = soloDevAllowed()): Balance {
+  let b = soloCached.get(dev);
+  if (!b) {
+    const { zombieDamageScale, startingWallet, shopAll } = soloUrlOptions(dev);
+    const o = soloOverrides(dev, { zombieDamageScale, startingWallet, shopAll });
+    b = o.zombieDamageScale === null && o.startingWallet === null && !o.shopAll ? clientBalance() : loadDevBalance(o);
+    soloCached.set(dev, b);
   }
-  return soloCached;
+  return b;
 }
