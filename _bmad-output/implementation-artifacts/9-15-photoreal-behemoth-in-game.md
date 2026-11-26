@@ -1,6 +1,6 @@
 # Story 9.15: Photoreal Behemoth in game
 
-Status: review
+Status: done
 
 <!-- Written 2026-11-26 by the 9.15 builder (gds-create-story) from the real code, the approved proposal
      (docs/art/photoreal-4) and the parent session's brief. Epic 9 is photoreal; the Behemoth part of 9.4 moved here. -->
@@ -298,3 +298,6 @@ only. Every finding fixed minimally (or noted, as asked):
 - **N2** (the roar's glow peaks at 0.85 × rage, the page's slow wave summed differently) and **N4** (the death puff reads
   as a bright near-solid blob for ~0.3 s: 24 puffs of `puffsFor` overlapping) — no code change, left for the
   designer's eye in the game (not tuned here on purpose).
+
+## Main session close-out (2026-11-26)
+- Merged as 4362482a (PR #34, from the photoreal session: review approved, two narrow re-reviews). Master CI green. Marked done by the main session (designer 2026-11-26). Story 9.4 trimmed to the zombie attack and death animations.
