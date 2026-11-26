@@ -132,6 +132,11 @@ export const HORDE_LINE_RESUME_MS = 100;
 export const HORDE_LINE_CONFIRM_MS = 100;
 /** The base (the line's round trip with nothing queued) is the lowest age of this many 1-second buckets. */
 export const HORDE_LINE_BASE_WINDOW_S = 10;
+/**
+ * Story 8.13 review M1 (a): the freeze cap. While a phone's frames are skipped, it still gets a keyframe at least this
+ * often (ms): whatever the reason for the skip, its horde never stands still longer than this.
+ */
+export const HORDE_LINE_MAX_GAP_MS = 1000;
 /** With no new ack for this long (a hidden tab, a long stall), the skip ends: the 64 KB socket rule takes over. */
 export const HORDE_LINE_SIGNAL_STALE_MS = 2000;
 /** Largest frame in bytes. */

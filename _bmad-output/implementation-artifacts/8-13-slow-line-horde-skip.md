@@ -106,6 +106,8 @@ All on this cloud container (4 cores, load 0.0–0.3 during the runs, one run at
 
 The replay moved 8.2 → 8.9 KB/s on master between 8.10 and today (stories merged since: same 8.9 with and without this branch); this story adds 0 %: a phone that sends no ack (the replay, the harness, an old flow) gets exactly the 8.10 stream.
 
+**AC 5 check (review L3):** +0 % vs master (8.9 KB/s); the 8.2 baseline moved with stories since 8.10. (The AC's wording is unchanged.)
+
 ### Model test (`apps/server/src/net/hordeLineSkip.test.ts`, seeded)
 
 130 zombies in 10 s rushes (1.2 × the 64 kbit/s line), 120 s per row: control without acks queues > 1.5 s; with the skip ≤ 1,000 ms on the 0.2 / 0.4 s rows and ≤ 1,100 ms on the 1 s row (its worst moment is a 1 s down stall followed by a 1 s up stall: 2 s with no new ack; the bot row reads 383 ms); 128 kbit/s and uncapped with 0.2 / 0.4 / 1 s stalls: 0 skips. Mutations: `HORDE_LINE_CONFIRM_MS = 0` fails the 128 kbit/s test (a stall's late ack skips); `HORDE_LINE_TREND_MAX = 0` fails the 64 kbit/s test (> 1,000 ms); removing any wiring line fails `tools/checks/hordeLineAckWiring.test.ts`.
@@ -133,11 +135,43 @@ Builder session (cloud), 2026-11-26.
 ### File List
 
 - `packages/shared/src/net/input.ts`, `input.test.ts`, `messages.ts`, `hordeFormat.ts`, `packages/shared/src/index.ts`
-- `apps/server/src/net/hordeEncoder.ts`, `apps/server/src/net/hordeLineSkip.test.ts` (new), `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/net/hordeEncoder.ts`, `apps/server/src/net/hordeLineSkip.test.ts` (new), `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/rooms/RunRoom.lineSkip.test.ts` (new, review L2), `apps/server/src/net/hordeEncoder.test.ts`, `apps/server/src/rooms/RunRoom.test.ts`
+- `tools/checks/hordeLineAckWiring.test.ts` (new), `tools/bots/onePacket.test.ts`, `_bmad-output/planning-artifacts/epics.md` (review N1)
 - `apps/client/src/sim/NetSimHost.ts`
 - `tools/bots/botClient.ts`, `tools/bots/run.ts`
 - docs: this file, `docs/perf/network-pass-2026-11.md`, `docs/perf/epic-2-network.md`, `docs/network-pass-decisions.md`, `docs/epic-8-story-decisions.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+Fresh-agent review (separate cloud session) on PR #32 head `b3516e0`, 2026-11-26: **no high**, 1 medium, 3 lows, 1 nit. All fixed in this builder session.
+
+| # | Sev | Finding | Fix | Test that fails without it |
+| --- | --- | --- | --- | --- |
+| M1 | medium | `hordeEncoder.ts` `ack`: the ack age is down + phone + **up**, so an upload-only delay set off the skip, and skipping cannot drain it (reviewer's probe: clean downstream with upload 0 → 800 ms: 248 ticks skipped back to back, 12.4 s with no horde; a steady upload ramp: 1,124 of 1,200 ticks) | (b) every input also times the upload: `arrival − seq × 50 ms` above its own 10 s minimum (`windowMin`, the same window as the down base) is the input's upload wait, taken off the ack's wait (and off the trend's horizon), so only a **downstream** queue skips (`ack(client, ackLow, nowMs, seq)`; RunRoom passes `input.seq`, also on the rate-dropped path). (a) **Freeze cap** `HORDE_LINE_MAX_GAP_MS` = 1,000 ms (shared config in `hordeFormat.ts`): while skipping, a keyframe goes out at least once a second (`HordeStats.lineCapKeys`, in `horde_stats`) | `hordeLineSkip.test.ts > review M1 … > upload-only lag (a ramp 0 → 800 ms, a 600 ms step) on a clean downstream and at 128 kbit/s: 0 skips` (fails with the upload term removed; its control, the same ramp with no `seq`, skips > 100 ticks); `> a downstream queue still skips with upload lag on top`; `> the freeze cap: …` (fails with the cap at 1e9; so does the stale-signal test, which now counts the cap keyframes) |
+| L1 | low | Mutants `HORDE_LINE_SKIP_MS` 300 → 200 and `HORDE_LINE_CONFIRM_MS` 100 → 50 survived | Edge tests on the recorded values as numbers: a down wait held at 250 ms never skips, 350 ms does; an over-limit ack sequence is not slow at 99 ms, slow at 100 ms. The 128 kbit/s and uncapped upload rows assert `maxLineWaitMs` < 150 ms (half the limit). On the stall rows a single late ack after a 1 s stall still reads up to ~1 s (filtered by the confirm), so that assert is on the stall-free rows only | `> review L1 … > a steady wait just under …` (kills SKIP 200 and 400), `> over the limit: not slow at 99 ms …` (kills CONFIRM 50, also an inline 50 with the constant unchanged) |
+| L2 | low | No live-room test of the ack | `apps/server/src/rooms/RunRoom.lineSkip.test.ts` (bootTestServer, solo run in build): acks 1.5 s behind with inputs on time → `lineSlow`; ack bytes without flag 16 → `invalid` (guard), nothing reaches the encoder | fails with the `horde.ack` call removed from `onInput` (`ackTick` stays −1) |
+| L3 | low | AC 5 says "+5 % of 8.2 KB/s" but master read 8.9 before this story | Recorded in Measurements › Encoder bandwidth: "+0 % vs master (8.9 KB/s); the 8.2 baseline moved with stories since 8.10". AC unchanged | docs |
+| N1 | nit | `epics.md` Story 12.2 still said "whichever … lands first takes 4" | `epics.md:3958` "8.13 took protocol 4; the next of 12.2 or Epic 11 takes 5" (and the Epic 11 readiness note: "4 since Story 8.13"); the same in the `messages.ts` comment | docs |
+
+Mutation runs (model file, after the fixes): no upload term → 1 fail; cap 1e9 → 2 fails; SKIP 200 → 2; SKIP 400 → 1; CONFIRM 50 → 1; confirm inline 50 → 2; unmutated 9/9 green.
+
+### Re-measured after the review fixes (M1 b + the 1 s freeze cap)
+
+Same method, server rebuilt from the fixed tree (`PORT=4167`), one run at a time, load 0.1–0.3, 13:17–13:27.
+
+| Cap | Stall | Longest wait: first build | **After the fixes** | Frames skipped (4 phones) | Freeze-cap keyframes per phone (`lineCapKeys`) | Server's down-wait reading, max per phone | Decode errors | Horde KB/s per phone |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 64 kbit/s | 0.2 s | 674 ms | **658 ms** | 709 of 5,212 (14 %) | 2 / 1 / 0 / 4 | 74–614 ms | 0 | 3.6 |
+| 64 kbit/s | 0.4 s | 774 ms | **655 ms** | 1,150 of 7,472 (15 %) | 4 / 1 / 2 / 1 | 482–671 ms | 0 | 3.8 |
+| 64 kbit/s | 1 s | 383 ms | **609 ms** | 273 of 7,004 (4 %) | 1 / 1 / 1 / 1 | 578–1,024 ms | 0 | 3.3 |
+| 128 kbit/s | 0.2 / 0.4 / 1 s | 192 / 191 / 191 ms | **191 / 191 / 191 ms** | **0 / 0 / 0** | 0 | 30–127 / 58–277 / 523–880 ms | 0 | 4.7 / 5.2 / 5.2 |
+| clean (localhost) | — | 0 | 0 | **0** | 0 | 10–19 ms | 0 | 5.1 |
+
+- **64 kbit/s targets still met with the cap** (AC 4): every row ≤ 658 ms. The 1 s cap keyframe does not re-queue the line past the target: it fired 1–4 times per phone per wave (most skip episodes end within a second), and the longest waits are no higher than before the cap (1 s row 383 → 609 ms is within the run-to-run spread of these 70 s runs: 1 s stalls land at random; the cap's keyframe is ~0.4 KB, 50 ms of that line).
+- Fewer frames skipped than the first build (26 / 20 / 0.5 % → 14 / 15 / 4 %): the upload part of the ack age no longer counts.
+- 128 kbit/s: the stall rows' readings up to 880 ms are single late acks after 1 s stalls, filtered by the confirm (0 skips); the stall-free model rows read < 150 ms (L1).
+
 ## Change Log
 
 - 2026-11-26: story file created (gds-create-story) and built (gds-dev-story) in the builder session; status review.
+- 2026-11-26: review fixes M1 (upload wait taken off; 1 s freeze cap), L1–L3, N1; bot rows re-measured; status review (M1 to a narrow re-review).

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ClientState } from "@colyseus/core";
 import {
   HORDE_LINE_CONFIRM_MS,
+  HORDE_LINE_MAX_GAP_MS,
   HORDE_LINE_SIGNAL_STALE_MS,
   HORDE_LINE_SKIP_MS,
   HordeStreamDecoder,
@@ -41,6 +42,8 @@ interface LineCase {
   seed: number;
   /** false: the phone sends no ack (the 8.10 server: only the 64 KB socket rule), the control. */
   acks?: boolean;
+  /** Review M1: extra upload delay (ms) of the input sent at tick t (an upload-only queue); default none. */
+  upExtraMs?: (t: number) => number;
 }
 
 interface LineResult {
@@ -54,6 +57,8 @@ interface LineResult {
   stallsUp: number;
   stallsDown: number;
   lineSlowTicks: number;
+  /** Review M1 (a): the longest the server went without sending this phone a horde frame (ms). */
+  maxFrameGapMs: number;
 }
 
 interface DownItem {
@@ -108,19 +113,20 @@ function runLine(c: LineCase): LineResult {
   const oneWay = (): number => c.rttMs / 2 + (rng.next() - 0.5) * c.jitterMs;
   const stalled = (): boolean => c.lossPct > 0 && rng.next() * 100 < c.lossPct;
   const down: DownItem[] = [];
-  const up: { at: number; ack: number }[] = [];
+  const up: { at: number; ack: number; seq: number }[] = [];
+  let lastFrameAt = 0;
   let wireFreeAt = 0;
   let downLastAt = 0;
   let upLastAt = 0;
   let newestTick = -1;
-  const r: LineResult = { stats, maxQueueMs: 0, decodeErrors: 0, framesDecoded: 0, keysAfterSkip: 0, maxKeyErrCm: 0, stallsUp: 0, stallsDown: 0, lineSlowTicks: 0 };
+  const r: LineResult = { stats, maxQueueMs: 0, decodeErrors: 0, framesDecoded: 0, keysAfterSkip: 0, maxKeyErrCm: 0, stallsUp: 0, stallsDown: 0, lineSlowTicks: 0, maxFrameGapMs: 0 };
   let skippedSinceSent = false;
   for (let t = 1; t <= c.ticks; t++) {
     const now = t * TICK_MS;
     // The server: inputs that arrived by now, in order, then the tick.
     while (up.length > 0 && (up[0] as { at: number }).at <= now) {
-      const u = up.shift() as { at: number; ack: number };
-      if (c.acks !== false) enc.ack(client, u.ack, u.at);
+      const u = up.shift() as { at: number; ack: number; seq: number };
+      if (c.acks !== false) enc.ack(client, u.ack, u.at, u.seq);
     }
     wander(world, t);
     enc.prepare(world, now);
@@ -129,6 +135,10 @@ function runLine(c: LineCase): LineResult {
     enc.send(world, client, stats, 24, 16);
     if (enc.stateFor(client).lineSlow) r.lineSlowTicks++;
     const horde = client.last as Uint8Array | null;
+    if (horde) {
+      r.maxFrameGapMs = Math.max(r.maxFrameGapMs, now - lastFrameAt);
+      lastFrameAt = now;
+    }
     const key = horde !== null && enc.lastWasKey;
     if (key) {
       const m = new Map<number, { x: number; y: number }>();
@@ -182,8 +192,9 @@ function runLine(c: LineCase): LineResult {
       upDelay += c.stallMs;
       r.stallsUp++;
     }
+    upDelay += c.upExtraMs?.(t) ?? 0;
     upLastAt = Math.max(upLastAt, phoneAt + upDelay);
-    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK });
+    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK, seq: t });
   }
   return r;
 }
@@ -303,7 +314,9 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
     }
     expect(quiet * TICK_MS).toBeGreaterThan(HORDE_LINE_SIGNAL_STALE_MS);
     expect(quiet * TICK_MS).toBeLessThanOrEqual(HORDE_LINE_SIGNAL_STALE_MS + 2 * TICK_MS);
-    expect(sent.length).toBe(before + 1);
+    // Review M1 (a): while it waited, the freeze cap still sent a keyframe every second; then the skip ended with one.
+    expect(stats.lineCapKeys).toBeGreaterThanOrEqual(1);
+    expect(sent.length).toBe(before + stats.lineCapKeys + 1);
     expect(enc.lastWasKey).toBe(true);
     // Lagging again, then a reset (Story 8.1's attach): the line state is forgotten.
     for (let k = 0; k < 30; k++) tick(3 + 20);
@@ -311,5 +324,124 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
     enc.resetHordeStream(client);
     expect(st.lineSlow).toBe(false);
     expect(st.ackTick).toBe(-1);
+  });
+
+  describe("review M1: the upload's own wait is not a reason to skip; the freeze cap", () => {
+    const ramp = (t: number): number => Math.min(800, Math.max(0, ((t - 200) / 100) * 800)); // 0 → 800 ms in 5 s from 10 s, then held
+    const step = (t: number): number => (t >= 600 ? 600 : 0); // +600 ms at 30 s
+    it("upload-only lag (a ramp 0 → 800 ms, a 600 ms step) on a clean downstream and at 128 kbit/s: 0 skips", () => {
+      for (const [name, upExtraMs, kbps] of [
+        ["ramp, no cap", ramp, 0],
+        ["step, no cap", step, 0],
+        ["ramp, 128 kbit/s", ramp, 128],
+        ["step, 128 kbit/s", step, 128],
+      ] as const) {
+        const r = runLine({ ...base, kbps, stallMs: 200, lossPct: 0, seed: 11, upExtraMs });
+        const label = `${name}: ${JSON.stringify({ ...r, stats: undefined, ...r.stats })}`;
+        expect(r.stats.framesSkipped, label).toBe(0);
+        expect(r.stats.maxLineWaitMs, label).toBeLessThan(HORDE_LINE_SKIP_MS / 2); // the down wait read: well under the limit
+      }
+      // The control: the same ramp with the whole ack age counted (what the review found) does skip.
+      const enc = new HordeEncoder();
+      const c = {};
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {} } });
+      let slow = 0;
+      for (let t = 0; t < 1200; t++) {
+        world.tick = t;
+        enc.prepare(world, t * TICK_MS);
+        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS + 10 + ramp(t)); // no seq: no upload measurement
+        if (enc.stateFor(c).lineSlow) slow++;
+      }
+      expect(slow).toBeGreaterThan(100);
+    });
+
+    it("a downstream queue still skips with upload lag on top (64 kbit/s + the ramp): waits bounded, 0 decode errors", () => {
+      const r = runLine({ ...base, kbps: 64, stallMs: 200, seed: 1, upExtraMs: ramp });
+      const label = JSON.stringify({ ...r, stats: undefined, ...r.stats });
+      expect(r.stats.lineSkipped, label).toBeGreaterThan(0);
+      expect(r.maxQueueMs, label).toBeLessThanOrEqual(1000);
+      expect(r.decodeErrors, label).toBe(0);
+    });
+
+    it("the freeze cap: while skipping, a keyframe at least every HORDE_LINE_MAX_GAP_MS (64 kbit/s rows and a phone that never catches up)", () => {
+      for (const [stallMs, seed] of [
+        [200, 1],
+        [1000, 3],
+      ] as const) {
+        const r = runLine({ ...base, kbps: 64, stallMs, seed });
+        const label = `stall ${stallMs}: ${JSON.stringify({ ...r, stats: undefined, ...r.stats })}`;
+        expect(r.maxFrameGapMs, label).toBeLessThanOrEqual(HORDE_LINE_MAX_GAP_MS + TICK_MS);
+      }
+      // Acks that always read 1 s late (nothing ever drains): the skip holds, but a keyframe goes out every second.
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {} } });
+      addPlayer(world, "p0", 24, 16);
+      spawnZombie(world, "walker", 25, 16);
+      const enc = new HordeEncoder();
+      const sentAt: number[] = [];
+      const client = { state: ClientState.JOINED as number, ref: { bufferedAmount: 0 }, sendBytes: () => sentAt.push(world.tick) };
+      const stats = newHordeStats();
+      for (let t = 1; t <= 230; t++) {
+        world.tick = t;
+        enc.prepare(world, t * TICK_MS);
+        if (t > 23) enc.ack(client, t - 23, t * TICK_MS);
+        else if (t > 3) enc.ack(client, t - 3, t * TICK_MS);
+        enc.send(world, client, stats, 24, 16);
+      }
+      expect(stats.lineSkipped).toBeGreaterThan(150); // until the 10 s base learns the new delay
+      expect(stats.lineCapKeys).toBeGreaterThanOrEqual(8);
+      for (let i = 1; i < sentAt.length; i++) expect(((sentAt[i] as number) - (sentAt[i - 1] as number)) * TICK_MS).toBeLessThanOrEqual(HORDE_LINE_MAX_GAP_MS);
+    });
+  });
+
+  describe("review L1: the limit and the confirm time at their edges", () => {
+    /**
+     * A line whose down wait rises to `waitMs` at 2.5 ms per tick (slow enough that the trend adds < 25 ms) and holds it
+     * for 3 s; the phone sends each input when its ack's tick lands (`seq` = arrival / 50 ms: the upload never waits).
+     * Returns true if the skip ever started.
+     */
+    const steady = (waitMs: number): boolean => {
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {} } });
+      const enc = new HordeEncoder();
+      const c = {};
+      const lag = 4; // ticks: a 200 ms round trip as the base
+      let slow = false;
+      for (let t = 0; t < 100 + waitMs / 2.5 + 60; t++) {
+        world.tick = t;
+        enc.prepare(world, t * TICK_MS);
+        const w = Math.min(waitMs, Math.max(0, (t - 100) * 2.5));
+        const at = t * TICK_MS + w;
+        if (t >= lag) enc.ack(c, t - lag, at, at / TICK_MS);
+        if (enc.stateFor(c).lineSlow) slow = true;
+      }
+      return slow;
+    };
+    it("a steady wait just under HORDE_LINE_SKIP_MS never skips; just over it does", () => {
+      // The recorded values (decision 8.13 D2: 300 ms), as numbers: a changed constant must fail here.
+      expect(HORDE_LINE_SKIP_MS).toBe(300);
+      expect(steady(250)).toBe(false);
+      expect(steady(350)).toBe(true);
+    });
+    it("over the limit: not slow at 99 ms of acks, slow at 100 ms (HORDE_LINE_CONFIRM_MS)", () => {
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {} } });
+      const enc = new HordeEncoder();
+      const c = {};
+      for (let t = 0; t < 100; t++) {
+        world.tick = t;
+        enc.prepare(world, t * TICK_MS);
+        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS, t);
+      }
+      world.tick = 120;
+      enc.prepare(world, 120 * TICK_MS);
+      const t0 = 120 * TICK_MS;
+      const st = enc.stateFor(c);
+      // Acks 500 ms late (well over the limit) at t0, t0 + 99, then t0 + 100; each input sent as its ack landed (seq = arrival / 50 ms: no upload wait).
+      enc.ack(c, 106, t0, t0 / TICK_MS);
+      expect(st.lineSlow).toBe(false);
+      enc.ack(c, 107, t0 + 99, (t0 + 99) / TICK_MS);
+      expect(st.lineSlow).toBe(false);
+      expect(HORDE_LINE_CONFIRM_MS).toBe(100);
+      enc.ack(c, 108, t0 + 100, (t0 + 100) / TICK_MS); // the recorded 100 ms (D2), as a number
+      expect(st.lineSlow).toBe(true);
+    });
   });
 });

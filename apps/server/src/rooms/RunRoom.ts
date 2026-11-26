@@ -2109,6 +2109,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       s.bytesSent = 0;
       s.lineSkipped = 0; // Story 8.13
       s.maxLineWaitMs = 0;
+      s.lineCapKeys = 0;
     }
     this.slowTicks?.takeWindow();
     this.slowPatches?.takeWindow();
@@ -2161,13 +2162,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private logHordeStats(wave: number): void {
     for (const [playerId, s] of this.hordeStats) {
       const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
-      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes, lineSkipped: s.lineSkipped, maxLineWaitMs: Math.round(s.maxLineWaitMs) }, "horde_stats");
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes, lineSkipped: s.lineSkipped, maxLineWaitMs: Math.round(s.maxLineWaitMs), lineCapKeys: s.lineCapKeys }, "horde_stats");
       s.framesSent = 0;
       s.framesSkipped = 0;
       s.keyframes = 0;
       s.bytesSent = 0;
       s.lineSkipped = 0; // Story 8.13
       s.maxLineWaitMs = 0;
+      s.lineCapKeys = 0;
     }
   }
 
@@ -2646,7 +2648,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 8.11: the dropped binary input is decoded (seq, edges); one that doesn't decode carries nothing.
     if (member && message instanceof Uint8Array && decodeInput(message, this.rateDroppedIn)) {
       this.controller?.rateDroppedInput(member.playerId, this.rateDroppedIn);
-      this.horde?.ack(client, decodeInputAck(message), performance.now()); // Story 8.13: its ack still times the line
+      this.horde?.ack(client, decodeInputAck(message), performance.now(), this.rateDroppedIn.seq); // Story 8.13: its ack still times the line
     }
   }
 
@@ -2654,7 +2656,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     if (!member) return;
     // Story 8.13: the newest tick this phone has received times the line to it (the slow-line horde skip).
-    this.horde?.ack(client, this.inputAck, performance.now());
+    this.horde?.ack(client, this.inputAck, performance.now(), input.seq);
     this.inputAck = -1;
     // Story 8.1 (AC 2): inputs again on the same socket after a quiet hold: the seat returns (F4) first.
     // A late input made while the line was down (F7: `isStaleInput`) is no sign of life.

@@ -175,6 +175,8 @@ Branch `story-8-13` on master `d8ffaee`. Change: every input carries the newest 
 | 128 kbit/s | 0.2 / 0.4 / 1 s | 158 / 159 / 159 ms | 191 ms (0.2 s) | 192 / 191 / 191 ms | **0** | 0 |
 | no cap (lossy 1 % × 0.2 s) / clean | — | — | — | — | **0** / **0** | 0 |
 
+**After the review fixes** (M1: the upload's own wait no longer counts; a keyframe at least once a second while skipping): 64 kbit/s 658 / 655 / 609 ms with 14 / 15 / 4 % of frames skipped, 1–4 freeze-cap keyframes per phone per wave; 128 kbit/s 191 ms and clean: 0 skips.
+
 Encoder bandwidth unchanged: audit replay 8.9 KB/s on master and on the branch (8.2 when 8.10 shipped; later stories moved it), stampede test unchanged; per 100 zombies in view the bots' horde KB/s is the same with and without the ack (7.1–7.3). **8.10 B7 (every zombie at 20 Hz) holds:** both capped rows meet their targets with the far rule off.
 
 ## 8.11 One packet per tick

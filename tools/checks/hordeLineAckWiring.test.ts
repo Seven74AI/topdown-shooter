@@ -14,9 +14,9 @@ describe("Story 8.13: the slow-line ack is wired end to end", () => {
     const src = code("apps", "server", "src", "rooms", "RunRoom.ts");
     expect(src).toMatch(/this\.inputAck = decodeInputAck\(b\)/);
     const onInput = src.slice(src.indexOf("onInput(client: RunClient, input: PlayerInput)"));
-    expect(onInput.slice(0, 400)).toMatch(/this\.horde\?\.ack\(client, this\.inputAck, performance\.now\(\)\)/);
+    expect(onInput.slice(0, 400)).toMatch(/this\.horde\?\.ack\(client, this\.inputAck, performance\.now\(\), input\.seq\)/);
     const dropped = src.slice(src.indexOf("onInputRateDropped(client: RunClient"));
-    expect(dropped.slice(0, 600)).toMatch(/this\.horde\?\.ack\(client, decodeInputAck\(message\), performance\.now\(\)\)/);
+    expect(dropped.slice(0, 600)).toMatch(/this\.horde\?\.ack\(client, decodeInputAck\(message\), performance\.now\(\), this\.rateDroppedIn\.seq\)/);
   });
 
   it("the phone and the bots send the newest tick they received as the ack", () => {
