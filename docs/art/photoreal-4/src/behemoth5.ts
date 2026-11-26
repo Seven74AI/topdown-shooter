@@ -18,6 +18,18 @@ type Path = (c: G) => void;
 const { lerp, mulberry, shade, R, E, blobPath, fillP, strokeP, rivet, part, polyTex, skinTex, clothTex, drawLimb, fist } = artKit;
 const TAU = Math.PI * 2;
 
+/**
+ * Element inspector (the page's "decomposed" section): one element of the model is drawn in flat cyan so its
+ * place can be checked in every pose. null = normal drawing.
+ */
+export type ModelElement = "muscles" | "splits" | "veins" | "clothes" | "impacts" | "head" | "glow";
+let HL: ModelElement | null = null;
+export function setHighlight(e: ModelElement | null): void {
+  HL = e;
+}
+export const HL_COLOUR = "#00ffff";
+const hl = (e: ModelElement): boolean => HL === e;
+
 export const BEHEMOTH_LOOK_IDS = ["BH1", "BH2", "BH3", "BH4"] as const;
 type LookKind = "proto" | "worker" | "growth" | "riot";
 const LOOKS: readonly { look: LookKind; skin: string }[] = [
@@ -74,6 +86,13 @@ function lump(c: G, x: number, y: number, rx: number, ry: number, col: string, s
   part(c, (q) => blobPath(q, x, y, rx, ry, seed, 0.06, 40), { base: col, lit: "radial", box: [x - rx, y - ry, x + rx, y + ry], tex: skinTex(seed, 0.8), hi, lo: 0.6, rim: 0.3, inner: 0.35, line: 1.6 });
 }
 function rebar(c: G, x1: number, y1: number, x2: number, y2: number): void {
+  if (hl("impacts")) {
+    strokeP(c, (q) => {
+      q.moveTo(x1, y1);
+      q.lineTo(x2, y2);
+    }, HL_COLOUR, 0.08);
+    return;
+  }
   const seg: Path = (q) => {
     q.moveTo(x1, y1);
     q.lineTo(x2, y2);
@@ -103,6 +122,13 @@ function throwChunk(c: G): void {
 /** A soft-edged lump that reads as a muscle under the skin (a colour step the relight turns into a volume). */
 function muscle(c: G, x: number, y: number, rx: number, ry: number, rot: number, col: string, seed: number): void {
   void seed;
+  if (hl("muscles")) {
+    c.save();
+    c.globalCompositeOperation = "source-atop";
+    strokeP(c, (q) => E(q, x, y, rx, ry, rot), HL_COLOUR, 0.035);
+    c.restore();
+    return;
+  }
   c.save();
   c.globalCompositeOperation = "source-atop";
   c.translate(x, y);
@@ -158,6 +184,13 @@ function striations(c: G, x: number, y: number, rx: number, ry: number, rot: num
 
 /** A long scar closed with staples. */
 function stapledScar(c: G, x1: number, y1: number, x2: number, y2: number, seed: number): void {
+  if (hl("splits") || hl("head")) {
+    strokeP(c, (q) => {
+      q.moveTo(x1, y1);
+      q.lineTo(x2, y2);
+    }, HL_COLOUR, 0.1);
+    return;
+  }
   const rnd = mulberry(seed);
   const mx = (x1 + x2) / 2 + (rnd() - 0.5) * 0.15;
   const my = (y1 + y2) / 2 + (rnd() - 0.5) * 0.15;
@@ -187,6 +220,10 @@ function stapledScar(c: G, x1: number, y1: number, x2: number, y2: number, seed:
 }
 /** A chunk of concrete grown into the hide, with a ring of torn, bloody skin. */
 function fusedRubble(c: G, x: number, y: number, s: number, seed: number): void {
+  if (hl("impacts")) {
+    fillP(c, (q) => E(q, x, y, s, s), HL_COLOUR);
+    return;
+  }
   const rnd = mulberry(seed);
   const pts: number[] = [];
   for (let i = 0; i < 7; i++) {
@@ -272,9 +309,65 @@ function guidedVein(c: G, x0: number, y0: number, tx: number, ty: number, seed: 
       c.translate(-ww * 0.4, -ww * 0.4);
       strokeP(c, path, enr ? "rgba(255,140,100,0.22)" : "rgba(178,190,158,0.2)", ww * 0.55);
       c.restore();
+      if (hl("veins")) {
+        strokeP(c, path, HL_COLOUR, ww * 1.4);
+        continue;
+      }
       strokeP(c, path, enr ? "rgba(74,14,9,0.85)" : "rgba(26,34,24,0.38)", ww);
-      if (enr) strokeP(c, path, GLOW_MARKER, ww * 0.5);
+      if (enr) strokeP(c, path, hl("glow") ? HL_COLOUR : GLOW_MARKER, ww * 0.5);
     }
+  }
+  c.restore();
+}
+
+/**
+ * A vein along a limb bone from A to B: the SAME pattern in every pose. Its points live in the bone's own frame
+ * (u along 0–1, v across in metres), drawn from the seed alone, then mapped onto the bone; a vein grown from the
+ * pose's geometry (\`guidedVein\`) changes shape between the two walk frames and flickers at every step.
+ */
+function limbVein(c: G, ax: number, ay: number, bx: number, by: number, seed: number, enr: boolean, w = 0.028): void {
+  const rnd = mulberry(seed);
+  const len = Math.hypot(bx - ax, by - ay) || 1;
+  const ux = (bx - ax) / len;
+  const uy = (by - ay) / len;
+  const at = (u: number, v: number): [number, number] => [ax + ux * u * len - uy * v, ay + uy * u * len + ux * v];
+  const STEPS = 18;
+  const lines: { pts: number[]; w: number }[] = [];
+  let v = (rnd() - 0.5) * 0.06;
+  const main: number[] = [];
+  for (let i = 0; i <= STEPS; i++) {
+    v = Math.max(-0.09, Math.min(0.09, v + (rnd() - 0.5) * 0.035));
+    main.push(...at(i / STEPS, v));
+    if (i > 2 && i < STEPS - 3 && rnd() < 0.12) {
+      // a short branch, fixed in the bone's frame too
+      const side = rnd() < 0.5 ? -1 : 1;
+      const br: number[] = [];
+      let bv = v;
+      for (let j = 0; j < 5; j++) {
+        bv += side * (0.018 + rnd() * 0.012);
+        br.push(...at((i + j * 0.6) / STEPS, bv));
+      }
+      lines.push({ pts: br, w: w * 0.6 });
+    }
+  }
+  lines.push({ pts: main, w });
+  c.save();
+  c.globalCompositeOperation = "source-atop";
+  for (const ln of lines) {
+    const path: Path = (q) => {
+      q.moveTo(ln.pts[0] as number, ln.pts[1] as number);
+      for (let i = 2; i < ln.pts.length; i += 2) q.lineTo(ln.pts[i] as number, ln.pts[i + 1] as number);
+    };
+    if (hl("veins")) {
+      strokeP(c, path, HL_COLOUR, ln.w * 1.4);
+      continue;
+    }
+    c.save();
+    c.translate(-ln.w * 0.4, -ln.w * 0.4);
+    strokeP(c, path, enr ? "rgba(255,140,100,0.22)" : "rgba(178,190,158,0.2)", ln.w * 0.55);
+    c.restore();
+    strokeP(c, path, enr ? "rgba(74,14,9,0.85)" : "rgba(26,34,24,0.38)", ln.w);
+    if (enr) strokeP(c, path, hl("glow") ? HL_COLOUR : GLOW_MARKER, ln.w * 0.5);
   }
   c.restore();
 }
@@ -297,15 +390,27 @@ function split(c: G, x: number, y: number, len: number, ang: number, enr: boolea
     q.moveTo(-len * 0.35, s * h * 2.2);
     q.quadraticCurveTo(0, s * h * 3, len * 0.35, s * h * 2.2);
   }, "rgba(190,175,160,0.14)", len * 0.05);
+  if (hl("splits")) {
+    fillP(c, (q) => lens(q, 1.35), HL_COLOUR);
+    c.restore();
+    return;
+  }
   fillP(c, (q) => lens(q, 1.35), "rgba(28,8,6,0.9)"); // the torn rim
   fillP(c, (q) => lens(q, 1), enr ? "#7e2016" : "#4e1610"); // raw flesh (dark when calm: it is a wound, not a light)
-  fillP(c, (q) => lens(q, 0.45), enr ? GLOW_MARKER : "#2a0a07"); // the deep seam (glows enraged)
+  fillP(c, (q) => lens(q, 0.45), enr ? (hl("glow") ? HL_COLOUR : GLOW_MARKER) : "#2a0a07"); // the deep seam (glows enraged)
   c.restore();
 }
 
 /** Grit and dust: a soft pale patch, no hard specks (the relight draws a crease round every hard-edged speck, so
  *  specks read as dotted marks). Concrete dust on BH2, grit on every look's knuckles. */
 function dust(c: G, x: number, y: number, rad: number, n: number, seed: number, a = 0.5): void {
+  if (hl("impacts")) {
+    c.save();
+    c.globalCompositeOperation = "source-atop";
+    strokeP(c, (q) => E(q, x, y, rad * 0.6, rad * 0.6), HL_COLOUR, 0.03);
+    c.restore();
+    return;
+  }
   const rnd = mulberry(seed);
   c.save();
   c.globalCompositeOperation = "source-atop";
@@ -401,8 +506,8 @@ function limbAnatomy(c: G, p: readonly number[], s: number, skin: string, enr: b
   // one vein from the shoulder joint to the elbow, on to the wrist (continues the shoulder's)
   const bx = lerp(ax, ex, 0.55) + Math.cos(ua + s * Math.PI / 2) * 0.08;
   const by = lerp(ay, ey, 0.55) + Math.sin(ua + s * Math.PI / 2) * 0.08;
-  guidedVein(c, lerp(ax, ex, 0.08), lerp(ay, ey, 0.08), bx, by, seed + 2, enr, 0.03);
-  guidedVein(c, lerp(ex, fx, 0.0), lerp(ey, fy, 0.0), lerp(ex, fx, 0.92), lerp(ey, fy, 0.92), seed + 3, enr, 0.026);
+  limbVein(c, lerp(ax, ex, 0.08), lerp(ay, ey, 0.08), ex, ey, seed + 2, enr, 0.03);
+  limbVein(c, ex, ey, lerp(ex, fx, 0.92), lerp(ey, fy, 0.92), seed + 3, enr, 0.026);
   split(c, bx, by, 0.16, ua + Math.PI / 2, enr); // the biceps peak tore
   c.restore();
 }
@@ -423,9 +528,10 @@ function strain(c: G, r: number, col: string): void {
 /** Head: brow ridge over deep eye sockets, jaw; teeth only with the mouth open (they don't read when closed). */
 function headAnatomy(c: G, r: number, skin: string, look: LookKind, roar: boolean): void {
   part(c, (q) => blobPath(q, 0.1 * r, 0, 0.09 * r, 0.22 * r, 271, 0.08, 24), { base: shade(skin, -0.08), lit: "top", box: [0.01 * r, -0.22 * r, 0.19 * r, 0.22 * r], tex: skinTex(271, 0.6), hi: 0.3, lo: 0.5, rim: 0.25, line: 1 });
+  if (hl("head")) fillP(c, (q) => blobPath(q, 0.1 * r, 0, 0.09 * r, 0.22 * r, 271, 0.08, 24), HL_COLOUR);
   if (look === "proto") stapledScar(c, -0.2 * r, -0.12 * r, 0.02 * r, -0.2 * r, 273); // the lab opened the skull
   if (roar) {
-    for (const yy of [-1, 1]) fillP(c, (q) => E(q, 0.2 * r, yy * 0.05 * r, 0.035 * r, 0.075 * r), "#d8cfb2");
+    for (const yy of [-1, 1]) fillP(c, (q) => E(q, 0.2 * r, yy * 0.05 * r, 0.035 * r, 0.075 * r), hl("head") ? HL_COLOUR : "#d8cfb2");
   }
 }
 
@@ -441,16 +547,25 @@ function impacts(c: G, r: number, look: LookKind): void {
     const entries: [number, number][] = [[-0.45, -0.42], [-0.2, 0.45]];
     if (look !== "riot") entries.push([-0.62, 0.16]);
     for (const [x, y] of entries) {
-      fillP(c, (q) => blobPath(q, x * r, y * r, 0.08 * r, 0.07 * r, 259, 0.4, 20), "#3e0e0a");
+      fillP(c, (q) => blobPath(q, x * r, y * r, 0.08 * r, 0.07 * r, 259, 0.4, 20), hl("impacts") ? HL_COLOUR : "#3e0e0a");
+      if (hl("impacts")) continue;
       fillP(c, (q) => blobPath(q, x * r, y * r, 0.045 * r, 0.04 * r, 261, 0.3, 20), "#7e1a13");
     }
   }
 }
 
+/** "rgb(r,g,b)" → "#rrggbb" (the kit's \`shade()\` returns rgb() but reads only hex). */
+function hexOf(rgb: string): string {
+  const m = rgb.match(/\d+/g) ?? ["0", "0", "0"];
+  return "#" + m.slice(0, 3).map((v) => Number(v).toString(16).padStart(2, "0")).join("");
+}
+
 /** The pose drawing (reference units, metres, facing +x). `k` = pose progress 0–1, `ph` = walk phase 0–1. */
 function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind, skin: string, enr: boolean, ph: number): void {
   // Story 6.7: the collapse darkens the body as it sags (the corpse reads as no longer a threat).
-  const skinC = pose === "dead" ? shade(skin, -0.3 * k) : enr ? "#7d6a5e" : skin;
+  // the collapse darkens the skin; kept as hex: \`shade()\` reads only "#rrggbb", and its "rgb()" result fed back
+  // into \`shade()\` (head, spine strip, muscles) turned those parts black in every death frame (today's game too)
+  const skinC = pose === "dead" ? hexOf(shade(skin, -0.3 * k)) : enr ? "#7d6a5e" : skin;
   const sh = 0.12 * r;
   const sy = 0.82 * r;
   let A: number[];
@@ -527,7 +642,7 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
       drawLimb(c, [sh, s * sy, ex, ey, fx, fy], [0.5 * r, 0.44 * r, 0.38 * r], skinC, 51 + s * 7, { knobs: false });
       limbAnatomy(c, [sh, s * sy, ex, ey, fx, fy], s, skinC, enr, 281 + s * 11);
       if (look === "riot" && s < 0) {
-        fillP(c, (q) => E(q, lerp(ex, fx, 0.7), lerp(ey, fy, 0.7), 0.2 * r, 0.24 * r), "#1d1f22");
+        fillP(c, (q) => E(q, lerp(ex, fx, 0.7), lerp(ey, fy, 0.7), 0.2 * r, 0.24 * r), hl("clothes") ? HL_COLOUR : "#1d1f22");
         strokeP(c, (q) => E(q, lerp(ex, fx, 0.7), lerp(ey, fy, 0.7), 0.2 * r, 0.24 * r), "#8a8d92", 0.04);
       }
       const fa = Math.atan2(fy - ey, fx - ex);
@@ -562,6 +677,7 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
     };
     const col = look === "worker" ? "#d2861c" : "#2a2f37";
     part(c, torn, { base: col, lit: "radial", box: [-0.9 * r, -0.7 * r, 0.3 * r, 0.7 * r], tex: clothTex(81, look === "worker" ? "60,40,10" : "60,30,20"), hi: 0.3, lo: 0.55, rim: 0.25, inner: 0.3, line: 1.4 });
+    if (hl("clothes")) fillP(c, torn, HL_COLOUR);
     c.save();
     c.beginPath();
     torn(c);
@@ -619,6 +735,10 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
     c.restore();
     for (const s of [-1, 1]) part(c, (q) => blobPath(q, 0.14 * r, s * 0.62 * r, 0.32 * r, 0.28 * r, 99 + s, 0.05, 30), { base: "#2a2d32", lit: "radial", box: [-0.2 * r, s * 0.62 * r - 0.3 * r, 0.46 * r, s * 0.62 * r + 0.3 * r], tex: polyTex(98), hi: 0.45, lo: 0.5, rim: 0.4, line: 1.4 });
     for (let i = 0; i < 6; i++) rivet(c, -0.78 * r + i * 0.14 * r, (i % 2 ? 1 : -1) * 0.46 * r, 0.03 * r, "#7d8086");
+    if (hl("clothes")) {
+      fillP(c, (q) => R(q, -0.86 * r, -0.52 * r, 0.86 * r, 1.04 * r, 0.18 * r), HL_COLOUR);
+      for (const s of [-1, 1]) fillP(c, (q) => blobPath(q, 0.14 * r, s * 0.62 * r, 0.32 * r, 0.28 * r, 99 + s, 0.05, 30), HL_COLOUR);
+    }
   }
   if (look !== "growth") {
     rebar(c, -0.45 * r, -0.42 * r, -0.95 * r, -0.72 * r);
@@ -658,6 +778,10 @@ function behemoth(c: G, r: number, pose: BehemothPose, k: number, look: LookKind
       },
       { base: "#d9b21f", lit: "radial", box: [-0.29 * r, -0.26 * r, 0.05 * r, 0.26 * r], hi: 0.5, lo: 0.45, rim: 0.35, line: 1.3 },
     );
+    if (hl("clothes")) fillP(c, (q) => {
+      q.ellipse(-0.04 * r, 0, 0.25 * r, 0.26 * r, 0, Math.PI * 0.62, Math.PI * 1.38);
+      q.closePath();
+    }, HL_COLOUR);
   }
   fillP(c, (q) => E(q, 0.08 * r, 0, 0.08 * r, 0.2 * r), shade(skinC, -0.38));
   headAnatomy(c, r, skinC, look, pose === "roar");

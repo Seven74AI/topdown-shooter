@@ -104,7 +104,46 @@ The relight turns colour regions into volumes and colour edges into creases. So:
 - In-game caps apply (`maxCharacterAnim` 12, sheen 6, Bloater FX 6, drips 8; `?fx=low` halves them);
   additive layers are never tinted by the hit flash; deterministic (no `Math.random`).
 
-## 6. Into the game
+## 6. Decompose actions and animation (designer 2026-11-26)
+
+> "Decorticate actions and animation, to verify that each element composing the whole model is behaving
+> correctly."
+
+Do this for every model before it is picked, on its proposal page (the Behemoth's: `docs/art/photoreal-4`,
+section "Actions and animation, decomposed", code in `src/boss4.ts › decomposed`):
+
+1. **Start from the game, not the page.** Read the model's frame list (e.g. `bossAtlas.ts › POSE_FRAMES`) and
+   the view that picks frames (e.g. `BossView.ts`). For every frame write *when it shows*. Flag frames that are
+   baked but never shown, and states that hold an unexpected frame (the Behemoth's charge and throw warnings
+   held a walk frame; its charge and throw poses were never seen).
+2. **Check the active state exists in the game.** A look's "enraged" / "windup" / "swell" variant drawn on the
+   page may never be baked (the Behemoth's body was only ever baked calm). Say so before designing for it.
+3. **Compare page animation with game animation.** The page may animate more than the game (breathing, sheen,
+   glow pulse) or blend what the game swaps. Show what the game really does.
+4. **Diff consecutive frames** (walk A vs B, and so on) and mark every pixel that changes: only the moving part
+   and what is on it may change. Identical frames are a bug: a swing of `sin(phase)` baked at phases 0 and 0.5
+   is zero both times (the Behemoth never walked); bake at 0.25 / 0.75.
+5. **Element inspector**: draw each element alone in flat cyan, the rest greyed, in every frame and every look
+   (a `setHighlight(element)` switch in the drawing). Check each element: sits where the brief says, moves with
+   its part, is covered by what lies on it, never floats, never lands on clothes or armour.
+6. **Rhythm step by step**: lay out the glow / pulse cycle in steps with its values (the Behemoth: 8 steps of
+   0.15 s, eye brightness per step).
+7. Write the findings on the page (game bugs found, fixed in the take, checked and fine) and in the decisions
+   doc; ask the designer about game-side changes (they change what the game shows).
+
+Lessons:
+
+- **Detail on a moving part lives in that part's own frame.** Points are made once from the seed in the bone's
+  coordinates (along 0–1, across in metres) and mapped onto each pose. Detail regrown from each pose's
+  geometry changes shape between frames and flickers at every step (`behemoth5.ts › limbVein`).
+- **Check derived colours.** The kit's `shade()` reads only `#rrggbb` but returns `rgb()`: shading a shaded
+  colour gives black (every Behemoth death frame had a black head and spine). Convert back to hex.
+- **The active state reads at least as strongly as the calm one** at every moment of its pulse (the enraged
+  eyes dropped to 35 % between beats, dimmer than calm; the floor is now 75 %).
+- In a pose where one part covers another (the raised slam arms over the torso), the covered detail may vanish;
+  check the pose's tell still reads.
+
+## 7. Into the game
 
 - Characters: baked in a Web Worker at load (Story 9.13): plain drawing first, relit frames replace it; sheets
   ≤ 2048², one upload per frame, 4 ms a frame; no blank frames. Static art: pre-rendered atlas (Story 9.14).
@@ -113,12 +152,14 @@ The relight turns colour regions into volumes and colour edges into creases. So:
   mask filters (≈25 % FPS).
 - Verify in a real browser (Playwright, preinstalled Chromium); say what wasn't verified.
 
-## 7. Checklist before showing a take
+## 8. Checklist before showing a take
 
 - [ ] Brief written: one idea, each element's reason and place.
 - [ ] Nothing on clothes/armour that belongs to skin; nothing floating; nothing duplicated by another system.
 - [ ] One light; one glow system and rhythm; colours keep their meanings.
 - [ ] Frame, poses, outline frames, warnings unchanged.
 - [ ] All looks × calm/active × every pose checked at 2×, frozen and animated; no console errors.
+- [ ] Actions and animation decomposed (section 6): game frames and when they show, consecutive-frame diffs,
+      element inspector, rhythm steps; findings written on the page.
 - [ ] Reads at game scale (look at it small).
 - [ ] Page published, decisions doc updated, the designer asked for a code.

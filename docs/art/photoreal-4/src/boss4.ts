@@ -6,7 +6,7 @@
  */
 import { drawBehemoth as drawToday } from "../../../../apps/client/src/render/city/behemothArt";
 import { relightCharSteps, sheenStep, sheenStrip, sheenSide } from "../../../../apps/client/src/render/city/charRelight";
-import { drawBehemoth as drawOneModel } from "./behemoth5";
+import { drawBehemoth as drawOneModel, setHighlight, HL_COLOUR, type ModelElement } from "./behemoth5";
 import { drawBehemoth, setDetail, setVeinMode, BEHEMOTH_LOOK_IDS, BH_R_M, type BehemothPose } from "./behemoth4";
 
 const N = 336; // frame px (7 m)
@@ -47,6 +47,9 @@ type Take = "now" | "a" | "b" | "v2" | "v3" | "mix" | "c";
 const VEIN_STEPS = 8;
 /** One pulse every 1.2 s: a heartbeat, slower and heavier than the Bloaters'. */
 const VEIN_PERIOD_S = 1.2;
+/** Take C, enraged: the eyes never drop below this between beats (at 0.35 they were dimmer than the calm eyes for
+ *  most of the beat: an enraged boss must read at least as strongly as a calm one). */
+const EYE_FLOOR = 0.75;
 /** V3's steady glow (no pulse): about take B's static red. */
 const STEADY_GLOW = 0.6;
 /** The pulse's wave front: a bright beat at radius (or path length) d at time t. */
@@ -202,7 +205,7 @@ function drawAnim(a: Anim, t: number): void {
       const k = sheenStep(t);
       g.drawImage(top.sheen, k * h, 0, h, h, 0, 0, N, N);
     }
-    const pulse = a.take === "c" && enraged ? 0.35 + 0.65 * beat(0, t, 1) : 0.55 + 0.45 * Math.sin(t * (enraged ? 5 : 2.2));
+    const pulse = a.take === "c" && enraged ? EYE_FLOOR + (1 - EYE_FLOOR) * beat(0, t, 1) : 0.55 + 0.45 * Math.sin(t * (enraged ? 5 : 2.2));
     if (top.glow) {
       g.globalAlpha = 0.6 + 0.4 * pulse;
       g.drawImage(top.glow, 0, 0);
@@ -256,9 +259,12 @@ async function main(): Promise<void> {
       fig.insertAdjacentHTML("beforeend", `<figcaption>${CAPTION[t]}</figcaption>`);
       sides.append(fig);
       await idle();
-      const normal: [Pic, Pic] = [pic(t, v, "walk", 0, false, 0), pic(t, v, "walk", 0, false, 0.5)];
+      // the game bakes the walk at phases 0 and 0.5, where the arm swing (sin) is 0 both times: today's two walk frames
+      // are the same picture. Take C uses 0.25 / 0.75 (the full swing); "now" and the previous pick stay as today.
+      const [p0, p1] = t === "c" ? [0.25, 0.75] : [0, 0.5];
+      const normal: [Pic, Pic] = [pic(t, v, "walk", 0, false, p0), pic(t, v, "walk", 0, false, p1)];
       await idle();
-      const enr: [Pic, Pic] = [pic(t, v, "walk", 0, true, 0), pic(t, v, "walk", 0, true, 0.5)];
+      const enr: [Pic, Pic] = [pic(t, v, "walk", 0, true, p0), pic(t, v, "walk", 0, true, p1)];
       const a: Anim = { canvas: c, take: t, frames: { normal, enraged: enr }, v };
       anims.push(a);
       drawAnim(a, 0);
@@ -311,7 +317,214 @@ async function main(): Promise<void> {
       tr.append(td);
     }
   }
+  await decomposed();
   (window as unknown as { done: boolean }).done = true;
+}
+
+/* ---------------- Actions and animation, decomposed (take C) ----------------
+ * Designer 2026-11-26: "decorticate actions and animation, to verify that each element composing the whole model
+ * is behaving correctly". The game's own frame list (`render/city/bossAtlas.ts › POSE_FRAMES`) and when
+ * `render/BossView.ts` shows each one.
+ */
+const GAME_FRAMES: readonly { name: string; pose: BehemothPose; k: number; ph: number; when: string; shown: boolean }[] = [
+  { name: "walk_a", pose: "walk", k: 0, ph: 0.25, when: "walking: swapped with walk_b every 0.65 m; also held while a charge or throw is warned. Fixed: baked at phase 0.25 (today 0 = no swing)", shown: true },
+  { name: "walk_b", pose: "walk", k: 0, ph: 0.75, when: "walking (the other step). Fixed: phase 0.75 (today 0.5 = the same picture as walk_a)", shown: true },
+  { name: "slam_a", pose: "slam", k: 0.15, ph: 0, when: "slam warning, first third", shown: true },
+  { name: "slam_b", pose: "slam", k: 0.5, ph: 0, when: "slam warning, second third", shown: true },
+  { name: "slam_c", pose: "slam", k: 1, ph: 0, when: "slam warning, last third", shown: true },
+  { name: "slamhit_a", pose: "slamHit", k: 0, ph: 0, when: "the slam lands (a moment after)", shown: true },
+  { name: "charge_a", pose: "charge", k: 1, ph: 0, when: "baked but never shown today (the charge warning holds a walk frame)", shown: false },
+  { name: "rush_a", pose: "rush", k: 1, ph: 0, when: "the charge run", shown: true },
+  { name: "throw_a", pose: "throw", k: 1, ph: 0, when: "baked but never shown today (the throw warning holds a walk frame)", shown: false },
+  { name: "stun_a", pose: "stun", k: 0, ph: 0, when: "stunned after crashing into something (2 s)", shown: true },
+  { name: "roar_a", pose: "roar", k: 0, ph: 0, when: "the enrage roar", shown: true },
+  { name: "dead_a", pose: "dead", k: 0.35, ph: 0, when: "death, first third of the collapse", shown: true },
+  { name: "dead_b", pose: "dead", k: 0.7, ph: 0, when: "death, second third", shown: true },
+  { name: "dead_c", pose: "dead", k: 1, ph: 0, when: "dead (stays, grey-tinted)", shown: true },
+];
+const ELEMENTS: readonly [ModelElement, string][] = [
+  ["muscles", "Muscle masses"],
+  ["splits", "Skin splits (and BH1's stapled one)"],
+  ["veins", "Veins"],
+  ["clothes", "Clothes and armour"],
+  ["impacts", "Impacts: rebar, concrete, grit, blood"],
+  ["head", "Head: brow, scar, teeth"],
+  ["glow", "Enraged glow (marker)"],
+];
+const SMALL = 132;
+function plainC(v: number, pose: BehemothPose, k: number, ph: number, enr: boolean, e: ModelElement | null): HTMLCanvasElement {
+  const c = make(N, N);
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.translate(N / 2, N / 2);
+  setHighlight(e);
+  drawOneModel(g, PXM, v, pose, k, enr, ph);
+  setHighlight(null);
+  if (e) {
+    // everything but the element: grey and dim, so the cyan reads
+    const img = g.getImageData(0, 0, N, N);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i] as number;
+      const gg = d[i + 1] as number;
+      const b = d[i + 2] as number;
+      const isHl = gg > 200 && b > 200 && r < 90;
+      if (isHl) continue;
+      const l = (r * 0.3 + gg * 0.55 + b * 0.15) * 0.55;
+      d[i] = d[i + 1] = d[i + 2] = l;
+    }
+    g.putImageData(img, 0, 0);
+  }
+  return c;
+}
+function cell(src: HTMLCanvasElement, label?: string, dim = false): HTMLTableCellElement {
+  const td = document.createElement("td");
+  const c = make(N, N);
+  const g = c.getContext("2d")!;
+  g.drawImage(street, 0, 0);
+  g.globalAlpha = dim ? 0.55 : 1;
+  g.drawImage(src, 0, 0);
+  c.style.width = c.style.height = `${SMALL}px`;
+  td.append(c);
+  if (label) td.insertAdjacentHTML("beforeend", `<div class="cap">${label}</div>`);
+  return td;
+}
+function relitC(v: number, f: (typeof GAME_FRAMES)[number], enr: boolean): HTMLCanvasElement {
+  const p = pic("c", v, f.pose, f.k, enr, f.ph);
+  const c = make(N, N);
+  const g = c.getContext("2d")!;
+  g.drawImage(p.base, 0, 0);
+  g.globalCompositeOperation = "lighter";
+  if (p.glow) g.drawImage(p.glow, 0, 0);
+  if (p.veins) g.drawImage(p.veins, 0, 0, N, N, 0, 0, N, N);
+  return c;
+}
+async function decomposed(): Promise<void> {
+  const main = document.querySelector("main")!;
+  const sec = document.createElement("section");
+  sec.innerHTML = `<h2>Actions and animation, decomposed (take C)</h2>
+  <p>Every frame the game bakes for the boss, in the order it uses them, and when each one shows. Then each element of the model alone (cyan) in every frame, the two walk frames side by side, and the heartbeat step by step.</p>
+  <div class="card"><h3>What the breakdown found</h3><ol class="finds">
+    <li><b>Today's walk never moves</b> (game bug): the two walk frames are baked at phases 0 and 0.5, where the arm swing is zero both times, so they are the same picture. Take C bakes 0.25 / 0.75: the arms swing.</li>
+    <li><b>Today's death frames have a black head and spine</b> (game bug): the darkened dead skin was made in a colour format the shading can't read. Fixed in take C.</li>
+    <li><b>The charge and throw poses are never shown</b> (⚠ above): during their warnings the body holds a walk frame; only the rush switches pose. The arms are the tell, so showing them would make both attacks easier to read.</li>
+    <li><b>The body is never drawn enraged in the game</b>: all body frames are baked calm; only the outline frame in the dark gets red eyes. Take C's rage (glowing veins and splits on the heartbeat) needs enraged frames or a glow layer on top.</li>
+    <li><b>No idle animation in the game</b>: the boss has no breathing, sheen or glow pulse; the page animates more than the game does.</li>
+    <li>Fixed in take C: <b>arm veins flickered between the walk steps</b> (they were regrown from each pose; now fixed to the arm), and <b>the enraged eyes dropped to 35 %</b> between beats, dimmer than calm eyes (now never below 75 %).</li>
+    <li>Checked and fine: splits, veins and glow stay on skin in every frame and look; clothes, armour, pads and the riot cuff cover them; concrete and grit move with shoulders and fists; the raised slam arms cover the torso (the tell stays the arms); no glow when dead.</li>
+  </ol></div>
+  <div class="card poses"><table id="dc-frames"></table></div>
+  <h2>Each element alone</h2>
+  <p>The element in cyan, the rest greyed. Check it sits where the brief says, moves with its part, and is covered by what lies on it. <span class="controls" id="dc-looks"></span></p>
+  <div class="card poses"><table id="dc-elements"></table></div>
+  <h2>The walk: two frames</h2>
+  <p>The game swaps walk_a and walk_b every 0.65 m (no blend). Red marks every pixel that changes between them: only the arms and what is on them should move.</p>
+  <div class="card poses"><table id="dc-walk"></table></div>
+  <h2>The heartbeat, step by step</h2>
+  <p>Enraged, one beat every 1.2 s runs out from the neck along the veins into the splits; the eyes peak at the start of each beat. 8 steps of 0.15 s.</p>
+  <div class="card poses"><table id="dc-beat"></table></div>`;
+  main.append(sec);
+  // 1. the game's frames, calm and enraged
+  const tf = document.getElementById("dc-frames")!;
+  const head = document.createElement("tr");
+  head.innerHTML = "<th></th>" + GAME_FRAMES.map((f) => `<th title="${f.when}">${f.name}${f.shown ? "" : " ⚠"}</th>`).join("");
+  tf.append(head);
+  for (const enr of [false, true]) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th>${enr ? "Enraged (not baked today)" : "Calm (baked)"}</th>`;
+    tf.append(tr);
+    for (const f of GAME_FRAMES) {
+      await idle();
+      tr.append(cell(relitC(0, f, enr && f.pose !== "dead"), undefined, !f.shown));
+    }
+  }
+  const whenRow = document.createElement("tr");
+  whenRow.innerHTML = "<th>When</th>" + GAME_FRAMES.map((f) => `<td class="cap wide">${f.when}</td>`).join("");
+  tf.append(whenRow);
+  // 2. the element inspector, per look
+  const looksHost = document.getElementById("dc-looks")!;
+  const te = document.getElementById("dc-elements")!;
+  let busy = 0;
+  const drawElements = async (v: number): Promise<void> => {
+    const my = ++busy;
+    te.textContent = "";
+    const h = document.createElement("tr");
+    h.innerHTML = "<th></th>" + GAME_FRAMES.map((f) => `<th>${f.name}</th>`).join("");
+    te.append(h);
+    for (const [e, label] of ELEMENTS) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<th>${label}</th>`;
+      te.append(tr);
+      for (const f of GAME_FRAMES) {
+        await idle();
+        if (my !== busy) return;
+        tr.append(cell(plainC(v, f.pose, f.k, f.ph, e === "glow" && f.pose !== "dead", e)));
+      }
+    }
+  };
+  for (let v = 0; v < 4; v++) {
+    const b = document.createElement("button");
+    b.textContent = BEHEMOTH_LOOK_IDS[v] as string;
+    b.setAttribute("aria-pressed", String(v === 0));
+    b.addEventListener("click", () => {
+      for (const x of looksHost.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+      void drawElements(v);
+    });
+    looksHost.append(b);
+  }
+  await drawElements(0);
+  // 3. the walk: walk_a, walk_b, and the pixels that change
+  const tw = document.getElementById("dc-walk")!;
+  for (let v = 0; v < 4; v++) {
+    await idle();
+    const a = relitC(v, GAME_FRAMES[0]!, false);
+    const b = relitC(v, GAME_FRAMES[1]!, false);
+    const diff = make(N, N);
+    const dg = diff.getContext("2d")!;
+    const da = a.getContext("2d")!.getImageData(0, 0, N, N).data;
+    const db = b.getContext("2d")!.getImageData(0, 0, N, N).data;
+    dg.drawImage(a, 0, 0);
+    dg.fillStyle = "rgba(0,0,0,0.55)";
+    dg.fillRect(0, 0, N, N);
+    const out = dg.getImageData(0, 0, N, N);
+    for (let i = 0; i < da.length; i += 4) {
+      const dd = Math.abs((da[i] as number) - (db[i] as number)) + Math.abs((da[i + 1] as number) - (db[i + 1] as number)) + Math.abs((da[i + 2] as number) - (db[i + 2] as number)) + Math.abs((da[i + 3] as number) - (db[i + 3] as number));
+      if (dd > 40) {
+        out.data[i] = 255;
+        out.data[i + 1] = 40;
+        out.data[i + 2] = 40;
+        out.data[i + 3] = 255;
+      }
+    }
+    dg.putImageData(out, 0, 0);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th>${BEHEMOTH_LOOK_IDS[v]}</th>`;
+    tr.append(cell(a, "walk_a"), cell(b, "walk_b"), cell(diff, "what changes"));
+    tw.append(tr);
+  }
+  // 4. the heartbeat: the 8 steps of the vein strip, with the eye pulse value
+  const tb = document.getElementById("dc-beat")!;
+  for (let v = 0; v < 4; v++) {
+    await idle();
+    const p = pic("c", v, "walk", 0, true, 0.25);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th>${BEHEMOTH_LOOK_IDS[v]}</th>`;
+    for (let s = 0; s < VEIN_STEPS; s++) {
+      const c = make(N, N);
+      const g = c.getContext("2d")!;
+      g.drawImage(p.base, 0, 0);
+      g.globalCompositeOperation = "lighter";
+      const t = (s / VEIN_STEPS) * VEIN_PERIOD_S;
+      const eye = EYE_FLOOR + (1 - EYE_FLOOR) * beat(0, t, 1);
+      if (p.glow) {
+        g.globalAlpha = 0.6 + 0.4 * eye;
+        g.drawImage(p.glow, 0, 0);
+        g.globalAlpha = 1;
+      }
+      if (p.veins) g.drawImage(p.veins, s * N, 0, N, N, 0, 0, N, N);
+      tr.append(cell(c, `${(t).toFixed(2)} s · eyes ${Math.round(eye * 100)} %`));
+    }
+    tb.append(tr);
+  }
 }
 
 const animBtn = document.getElementById("anim")!;

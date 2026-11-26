@@ -40,7 +40,13 @@ figure:not(.now) figcaption { color: var(--accent); }
 .poses th { font: 600 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 4px 8px 4px 0; white-space: nowrap; }
 .poses td { padding: 2px; }
 .poses canvas { width: 132px; height: 132px; display: block; border-radius: 4px; }
+.poses .cap { font: 500 11px var(--font-body); color: var(--muted); max-width: 132px; padding-top: 3px; }
+.poses .cap.wide { vertical-align: top; }
+#dc-looks button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; cursor: pointer; margin-left: 6px; }
+#dc-looks button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
 #loading { color: var(--muted); font-size: 14px; }
+.finds { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.5; font-size: 14px; display: flex; flex-direction: column; gap: 6px; max-width: 90ch; }
+.finds b { color: var(--fg); font-weight: 600; }
 .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
 .controls button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
 .controls button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }
