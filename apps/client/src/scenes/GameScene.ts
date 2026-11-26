@@ -284,6 +284,7 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
+    view.noBlink = this.host?.world.run.phase === "extract"; // Story 12.2: protected, but no blink
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     view.setAboveDark(this.blackoutNow); // Story 6.3 (F5): one depth change when a blackout starts or ends
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.

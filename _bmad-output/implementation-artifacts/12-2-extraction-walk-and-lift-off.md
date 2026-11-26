@@ -1,11 +1,12 @@
 ---
-baseline_commit: e13f439
+baseline_commit: c1eaaa8
 ---
 
 # Story 12.2: Extraction: walk to the helicopter and lift off
 
-Status: ready-for-dev
+Status: review
 
+<!-- 2026-11-26: re-checked against master c1eaaa8 (12.1 + 12.4 PR #33, 8.12 vote rule, 8.13 protocol 4 / input format 2, 6.11 extract). See "Code moved since the story was written" below. -->
 <!-- Quick story 2026-11-25 from the party-mode session on cinematics. Needs 12.1 (buildings never close a path) and 8.12 (vote counting). The camera work is 12.3; this story already looks right with the normal camera. -->
 
 ## Story
@@ -65,18 +66,106 @@ Added 2026-11-26 (clashes X6, X7, X8; designer "ok" 2026-11-26, `sprint-change-p
 
 ## Tasks
 
-- [ ] `packages/shared/src/run/runStateMachine.ts`: `"extract"` phase, `startExtract`, phase tick, `endRun` from `extract` (AC 1, 2, 9).
-- [ ] `packages/shared/src/run/extract.ts` (new): autopilot, boarding, timeout, horde (AC 5–10).
-- [ ] Balance: `evac.walkTimeoutS`, `evac.flyOutS`, `evac.flyOutHorde` in `balanceSchema.ts` and `waves.json`.
-- [ ] Server: `RunRoom.onTick` steps the `extract` phase; drop inputs (AC 3); copy chain (AC 15).
-- [ ] Client: hide the action controls and stop sending input; `heliPose` fly-out (AC 11); Results timing (AC 12).
-- [ ] Tests (AC 16).
-- [ ] `NET_PROTOCOL_VERSION` bump; FR67 and 6.11 as-built note at landing (AC 17).
-- [ ] Coverage exclusions, vote-save resume test, copy-chain tests (AC 18).
-- [ ] Milestone counters test (AC 19).
+- [x] `packages/shared/src/run/runStateMachine.ts`: `"extract"` phase, `startExtract`, phase tick, `endRun` from `extract` (AC 1, 2, 9).
+- [x] `packages/shared/src/run/extract.ts` (new): autopilot, boarding, timeout, horde (AC 5–10).
+- [x] Balance: `evac.descendS`, `evac.walkTimeoutS`, `evac.liftBeatS`, `evac.flyOutS`, `evac.flyOutHorde` in `balanceSchema.ts` and `waves.json`.
+- [x] Server: `RunRoom.step` steps the `extract` phase; drop inputs (AC 3); copy chain (AC 15).
+- [x] Client: hide the action controls and stop sending input; `heliPose` fly-out (AC 11); Results timing (AC 12).
+- [x] Tests (AC 16).
+- [x] `NET_PROTOCOL_VERSION` 4 → 5; FR67 and 6.11 as-built note (AC 17).
+- [x] Coverage exclusion, vote-save resume test, copy-chain tests (AC 18).
+- [x] Milestone counters test (AC 19).
 
 ## Dev Notes
 
 - Today `resolveEvacVote` calls `endRun` in the same tick (runStateMachine.ts), and the helicopter does a 4 s climb (`EXTRACT_FLY_S`), entirely on the client.
 - Party-session reasoning for driving the walk in the sim rather than as a client animation: every phone sees the same walk, and replays and trailers (later) get it for free.
 - Decisions CN-3 and CN-4 are recommended defaults; the designer can change them.
+
+### Code moved since the story was written (re-checked 2026-11-26 on master c1eaaa8)
+
+- **8.12 (vote rule):** `countsInVote` = standing players only; held, downed and out seats don't count. Unchanged by 12.2;
+  the extract stands the downed up AFTER the vote resolved, so the tally is the vote's truth.
+- **8.13 (protocol 4, input format 2):** `NET_PROTOCOL_VERSION` was 4 → 12.2 takes **5** (X6). The 18-byte binary
+  input is untouched (the client simply sends none during `extract`).
+- **12.1 (path rule):** `buildings/pathOpen.ts` owns the 0.5 m body-sized lattice seeded at the `evac_pad`. The walk
+  uses that same lattice (`walkDistanceFrom`, new export) instead of the zombie flow field the story named: it is the
+  exact graph 12.1 guarantees is joined to the pad (a zombie field is cell-based and inflated differently).
+- **12.4:** no overlap (decay refunds).
+- **6.11 as built:** `run.extracted` ended the run in the room (`RunRoom.step`) and solo (`GameScene`). Both now end on
+  the new `run.extract_done`; `run.extracted` still marks the decision at the vote.
+
+## Dev Agent Record
+
+### Decisions (auto-accepted: designer 2026-11-26 "follow recommendations")
+
+- **CN-3** (recommended default, kept): a downed survivor stands up where they lie (HP = the revive's `reviveHpFrac`, or
+  more) and walks. *auto-accepted (designer 2026-11-26: follow recommendations)*
+- **CN-4** (recommended default, kept): out players and held seats are boarded at the phase start (a seat that drops
+  mid-walk boards on its own too). *auto-accepted (designer 2026-11-26: follow recommendations)*
+- **D-12.2-1 Where the sim state lives (X7):** the extraction state is `world.extract` (`ExtractState`: `boarded` set,
+  `liftedAtTick`, timers), not new `PlayerState` / `RunState` fields. `WORLD_SAVE_PLAN.extract` excludes it ("phase
+  extract is never saved"), so the save's shape, `SAVE_SCHEMA_VERSION` and the migrations stay as they are (the X7
+  "coverage exclusion" route). The wire still carries `boarded` per player and `liftedAtTick` (AC 15).
+  *auto-accepted (designer 2026-11-26: follow recommendations)*
+- **D-12.2-2 Landing gate:** the descent's 2 s became balance (`evac.descendS`, counted from the vote's opening by
+  `extract.landTicksLeft`); the client's `DESCEND_S` stays 2 (a test keeps them equal). A vote resumed from a save starts
+  with the helicopter already landed. *auto-accepted*
+- **D-12.2-3 Horde target:** boarded bodies wait at the pad centre (not drawn), so the existing chase field (seeded at
+  standing players) heads to the pad — no extra pad field for zombies. Nobody can be hurt (protection), and nothing
+  fires in `extract` (no combat, buildings, hazards, decay or loot system runs), so no kill can happen: no kills in run
+  stats or milestones by construction (X8). *auto-accepted*
+- **D-12.2-4 Horde numbers:** `flyOutHorde` = 40 Walkers at 8/s (all out in 5 s of the 8 s fly-out), round-robin over
+  the open wave spawn points. *auto-accepted (a placeholder for 12.3's shot; ask below)*
+- **D-12.2-5 "Extracted all four" milestone (7.11):** `runFacts` counts who stood when the extraction began
+  (`extract.standingAtStart`), so CN-3's stand-up doesn't hand out the milestone a downed player at the vote didn't
+  earn (was: standing at Results). *auto-accepted*
+- **D-12.2-6 Joins:** a new seat joining during `extract` is refused (`run_started`), never a waiting joiner (AC 13).
+  *auto-accepted*
+- **D-12.2-7 Leavers (AC 12):** a consented Leave during `extract` banks `extracted`. Everyone dropping during `extract`
+  falls into the existing "all gone mid-run" path (banks, save dropped): rare, left as is. *auto-accepted*
+- **D-12.2-8 Shutdown during `extract`:** `saveBlocker` refuses an extract capture, so a server stop mid-extraction
+  falls back to the last autosave (the vote's, E8-S12) like a mid-wave stop: the team resumes at the vote and votes
+  again. Nothing was banked yet. *auto-accepted*
+
+### Implementation notes
+
+- Phase step (`core/world.ts › step`): `extract` runs `extractInputs` (autopilot, in place of the input system), the
+  player system, then — after the lift-off only — `updatePathing` + the zombie slot, then the run slot
+  (`updateExtract`: protection, boarding, cut, beat, lift-off, horde, end) and the economy.
+- Autopilot: steer at a carrot 4 lattice steps (2 m) down `walkDistanceFrom`'s field; within 4 steps of the pad, at
+  the pad centre. Unit move, `movePlayers` applies normal walk speed (sqrt only).
+- `snapshotWorld` gains `extract` only once it started (every run without one keeps its digest; the carCorner golden
+  moved only for `balance.version`, see its comment).
+- Client: `NetSimHost` sends no input and draws my survivor from the interpolation ring during `extract`; mirrors
+  `boarded` and `liftedAtTick` into its `world.extract`. `GameScene` hides boarded bodies (and their names/arrows),
+  keeps the camera on my boarded body at the pad, hides every action control (`m.voting` true, `m.extracting` for the
+  top line "Wave 10 · Extraction"), no protection blink. `HeliView` waits on the pad and flies out from the server's
+  lift-off tick over `flyOutS`, east to 6 m past the map edge (`flyOutDxM`); a late phone jumps into the fly-out.
+- Results online: `onlineFlow` now sees `extract → results`; the dawn still plays (live) after the fly-out.
+
+### File list
+
+Shared: `run/extract.ts` (new), `run/runStateMachine.ts`, `core/world.ts`, `core/worldSnapshot.ts`, `core/simEvents.ts`,
+`buildings/pathOpen.ts`, `config/balanceSchema.ts`, `config/balance/waves.json`, `net/netEvents.ts`, `net/stateView.ts`,
+`net/messages.ts`, `save/runSave.ts`, `index.ts`. Server: `rooms/RunRoom.ts`, `rooms/schema/RunState.ts`,
+`rooms/schema/syncState.ts`, `run/RunController.ts`, `meta/runMeta.ts`. Client: `sim/NetSimHost.ts`,
+`scenes/GameScene.ts`, `scenes/HudScene.ts`, `scenes/hudModel.ts`, `scenes/pingFrame.ts`, `render/heliPose.ts`,
+`render/HeliView.ts`, `render/PlayerView.ts`, `net/onlineFlow.ts`, `net/lobbyStore.ts`, `net/fakeRoom.ts`,
+`input/menuInput.ts`, `ui/connectionModel.ts`, `ui/waitingView.ts`. Tests: `run/extract.test.ts`,
+`save/extractResume.test.ts`, `rooms/schema/syncState.extract.test.ts`, `sim/NetSimHost.extract.test.ts`, the replay
+test, and updates to the vote / state machine / net events / room / carCorner / wiring tests.
+
+### Notes for the merge (12.3 hooks)
+
+- Timeline for the camera director: phase `"extract"` start (the `run.extracted` event, or `state.phase`),
+  `player.boarded { playerId }` (net kind 68), `run.extract_cut` (69), `run.lifted { tick }` (70, = `liftedAtTick` in
+  state), `run.extract_done { wave }` (71, Results the same tick). Solo reads the same from `world.extract`
+  (`boarded`, `liftedAtTick`, `cut`, `ticks`, `padX/padY`).
+- Helicopter pose: `heliPose(nowS, openedAtS, leftAtS, extract, out, flyS, flyDxM)` with `flyS = evac.flyOutS`,
+  `flyDxM = flyOutDxM(map, padX)`; `HeliView.left(nowS, true, flyS)` is called from `GameScene.updateVote` off
+  `world.extract.liftedAtTick` (works for a woken phone).
+- Camera: `GameScene` centres on my body (at the pad once boarded) — replace that block (search "Story 12.2: aboard").
+- HUD: `hudModel.extracting` is true for the whole phase (the director can hide the rest of the HUD from it).
+- Out players / held seats are boarded at tick 0 of the phase (the crew "pull-in" visual is 12.3's).
+- Net kinds used: 68–71. NET_PROTOCOL_VERSION = 5 (Epic 11 takes 6).
