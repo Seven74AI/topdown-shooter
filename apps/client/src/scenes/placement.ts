@@ -256,6 +256,8 @@ export class Placement {
   pocketCount = 0;
   pocketCols = 0;
   pocketCellM = BUILD_GRID_M;
+  /** Review L5: `world.buildings.wallVersion` the pocket was copied at (a new wall redraws it even when its first vertex and size match). */
+  private pocketWallVersion = -1;
   /** Scene clock (ms) of the last frame the preview was blocked (review L1: valid needs `reasonHoldMs` of continuous clear). */
   shownSinceMs = 0;
   /** +1 whenever the shown error/reason changes (views redraw on it; no string per frame). */
@@ -751,7 +753,8 @@ export class Placement {
     if (this.resting && !this.stillResting(world, ownerId)) this.resting = false;
     const e = this.active ? this.error : null;
     if (e !== null) {
-      if (!this.sameAsShown(e)) {
+      const stalePocket = this.hasReason && this.reason.cause === "seals_path" && this.pocketWallVersion !== world.buildings.wallVersion; // review L5
+      if (!this.sameAsShown(e) || stalePocket) {
         this.shownError = e;
         this.shownHasReason = this.hasReason;
         const r = this.reason;
@@ -760,7 +763,7 @@ export class Placement {
         s.index = r.index;
         s.id = r.id;
         s.playerId = r.playerId;
-        if (this.hasReason && r.cause === "seals_path") this.copyPocket();
+        if (this.hasReason && r.cause === "seals_path") this.copyPocket(world.buildings.wallVersion);
         this.shownVersion++;
       }
       this.shownSinceMs = nowMs; // review L1: every blocked frame restarts the hold
@@ -772,7 +775,8 @@ export class Placement {
   }
 
   /** Story 12.1: `sealedPocket` (just filled by `blockReason`) into this placement's buffer. */
-  private copyPocket(): void {
+  private copyPocket(wallVersion: number): void {
+    this.pocketWallVersion = wallVersion;
     const n = sealedPocket.count;
     if (this.pocketCells.length < n) this.pocketCells = new Int32Array(Math.max(n, this.pocketCells.length * 2)); // grows only
     this.pocketCells.set(sealedPocket.cells.subarray(0, n));

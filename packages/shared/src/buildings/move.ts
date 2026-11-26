@@ -51,7 +51,10 @@ export function moveError(world: Readonly<World>, playerId: string, req: MoveReq
   const stats = buildingStats(world.balance, b.type);
   if (!stats || !isRotation(req.rot) || !Number.isInteger(req.gx) || !Number.isInteger(req.gy)) return "blocked";
   if (footprintBlocked(world, footprint(stats, req.gx, req.gy, req.rot, scratch), b.id)) return "blocked";
-  if (b.solid && sealsPath(world, scratch, b.id)) return "seals_path"; // Story 12.1 (AC 3)
+  // Story 12.1 (AC 3). Review M1: not for the spot it already has (a pick-up asks there, and a move there
+  // changes nothing): a wall of an old save's sealed fort can still be picked up and moved out.
+  const same = req.gx === b.gx && req.gy === b.gy && req.rot === b.rot;
+  if (b.solid && !same && sealsPath(world, scratch, b.id)) return "seals_path";
   return null;
 }
 

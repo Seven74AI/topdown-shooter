@@ -15,7 +15,7 @@ import { startBuild } from "../run/runStateMachine";
 import { addBuildingAt, blockReason, buildingStats, createBlockReason, footprint, footprintBlocked, placeBuilding, placementError, type Box, type BuildingRotation } from "./buildings";
 import { escapeAreaOpen } from "./collision";
 import { moveBuilding, moveError } from "./move";
-import { inMainRegion, resetPathOpenCache, sealedPocket, sealsPath } from "./pathOpen";
+import { inMainRegion, resetPathOpenCache, sealedPocket, verticesOutsideMainRegion } from "./pathOpen";
 
 /** Story 12.1: buildings never close a path (no forts). */
 const balance = loadBalance();
@@ -182,62 +182,97 @@ describe("Story 12.1: moves and chains (AC 3, 4)", () => {
 /**
  * AC 8 (in the style of `blockReason.test.ts`): random Downtown layouts (every legal decay mask, stages
  * 1–3) on a server World and a client mirror built the same way; for many candidate spots of every
- * wall type and rotation, the client's preview (`blockReason(…, wall)` — cached, asked repeatedly,
- * interleaved with the other World) equals the server's `placementError` after a cold cache.
+ * wall type and rotation (half of them right next to a building, where seals happen), the client's
+ * preview (`blockReason(…, wall)` — cached, asked twice, interleaved with the other World) equals the
+ * server's `placementError` after a cold cache. Review L4: moves too (`moveError`, client warm vs server
+ * cold), and every 100 spots a wall lands on both Worlds, so the client's warm cache crosses a
+ * `wallVersion` change; across the layouts some answers really are `seals_path`.
  */
 describe("Story 12.1 (AC 8): the client's preview equals the server's answer", () => {
   const MASKS = gameplayDecayMasks(DOWNTOWN_MAP);
   const WALLS = ["wood_barricade", "auto_turret", "floodlight", "med_station"].filter((t) => buildingStats(balance, t)?.solid);
+  let sealedTotal = 0;
+  let moveSealedTotal = 0;
   function layout(seed: number): World {
-    const rng = createRng(seed * 7919 + 3);
     const world = createWorld({ balance, seed, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
     world.decay.variants = MASKS[seed % MASKS.length] as number;
     applyDecayStage(world, 1 + (seed % 3), world.decay.variants);
     addPlayer(world, "p0", 1, 1).wallet = 100_000;
     world.run.phase = "build";
     const b: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    const id0 = 1000 * seed;
-    let id = id0;
-    const rng2 = createRng(seed * 31 + 1);
+    let id = 1000 * seed;
+    const rng = createRng(seed * 31 + 1);
     for (let tries = 0; tries < 400 && world.buildings.list.length < 24; tries++) {
-      const type = WALLS[rng2.int(0, WALLS.length - 1)] as string;
+      const type = WALLS[rng.int(0, WALLS.length - 1)] as string;
       const stats = buildingStats(balance, type);
       if (!stats) continue;
-      const rot = rng2.int(0, 3) as BuildingRotation;
-      const gx = rng2.int(0, 96);
-      const gy = rng2.int(0, 64);
+      const rot = rng.int(0, 3) as BuildingRotation;
+      const gx = rng.int(0, 96);
+      const gy = rng.int(0, 64);
       if (footprintBlocked(world, footprint(stats, gx, gy, rot, b))) continue;
       addBuildingAt(world, { id: id++, type, ownerId: "p9", gx, gy, rot, hp: stats.hp });
     }
-    void rng;
     return world;
   }
-  it.each([1, 2, 3, 4, 5, 6])("layout %i: 600 spots", (seed) => {
+  it.each([1, 2, 3, 4, 5, 6])("layout %i: 600 spots, 60 moves, a wall every 100 spots", (seed) => {
     const server = layout(seed);
     const client = layout(seed);
     const rng = createRng(seed * 104729 + 11);
     const out = createBlockReason();
-    let sealed = 0;
     let checked = 0;
+    let extraId = 900_000 + seed * 100;
     for (let k = 0; k < 600; k++) {
+      if (k > 0 && k % 100 === 0) {
+        // A wall lands on both Worlds (the client's cache must follow wallVersion).
+        for (let t = 0; t < 50; t++) {
+          const r = { type: "wood_barricade", gx: rng.int(0, 96), gy: rng.int(0, 64), rot: rng.int(0, 3) };
+          const stats = buildingStats(balance, r.type);
+          if (!stats || footprintBlocked(server, footprint(stats, r.gx, r.gy, r.rot, scratchBox))) continue;
+          for (const w of [server, client]) addBuildingAt(w, { id: extraId, type: r.type, ownerId: "p9", gx: r.gx, gy: r.gy, rot: r.rot as BuildingRotation, hp: stats.hp });
+          extraId++;
+          break;
+        }
+      }
       const type = WALLS[rng.int(0, WALLS.length - 1)] as string;
       const stats = buildingStats(balance, type);
       if (!stats) continue;
-      const r = { type, gx: rng.int(0, 96), gy: rng.int(0, 64), rot: rng.int(0, 3) };
-      const fb = footprint(stats, r.gx, r.gy, r.rot, scratchBox);
+      const list = server.buildings.list;
+      const near = rng.int(0, 1) === 1 ? list[rng.int(0, list.length - 1)] : undefined;
+      const r = { type, gx: near ? near.gx + rng.int(-4, 4) : rng.int(0, 96), gy: near ? near.gy + rng.int(-4, 4) : rng.int(0, 64), rot: rng.int(0, 3) };
+      const at = `layout ${seed} ${type} ${r.gx},${r.gy} r${r.rot}`;
       // The client asks twice (a ghost held still: the second answer is the cache's), the server once, cold.
-      const c1 = blockReason(client, "p0", fb, 0, out, true)?.cause ?? null;
+      const c1 = blockReason(client, "p0", footprint(stats, r.gx, r.gy, r.rot, scratchBox), 0, out, true)?.cause ?? null;
       const c2 = blockReason(client, "p0", footprint(stats, r.gx, r.gy, r.rot, scratchBox), 0, out, true)?.cause ?? null;
       resetPathOpenCache();
       const s = placementError(server, "p0", r);
-      expect(c2, `layout ${seed} ${type} ${r.gx},${r.gy} r${r.rot}`).toBe(c1);
-      expect(c1 === "seals_path", `layout ${seed} ${type} ${r.gx},${r.gy} r${r.rot}`).toBe(s === "seals_path");
-      expect(c1 === null, `layout ${seed} ${type} ${r.gx},${r.gy} r${r.rot}`).toBe(s === null || s === "limit"); // the cap isn't the spot's
-      if (s === "seals_path") sealed++;
+      expect(c2, at).toBe(c1);
+      expect(c1 === "seals_path", at).toBe(s === "seals_path");
+      expect(c1 === null, at).toBe(s === null || s === "limit"); // the cap isn't the spot's
+      if (s === "seals_path") sealedTotal++;
       checked++;
+      if (k % 10 === 0) {
+        // A move of a random building (lent to p0 on both Worlds): client warm vs server cold.
+        const idx = rng.int(0, list.length - 1);
+        const bs = list[idx];
+        const bc = client.buildings.list[idx];
+        if (!bs || !bc) continue;
+        const m = { id: bs.id, gx: bs.gx + rng.int(-4, 4), gy: bs.gy + rng.int(-4, 4), rot: rng.int(0, 3) };
+        bs.ownerId = "p0";
+        bc.ownerId = "p0";
+        const mc = moveError(client, "p0", m);
+        resetPathOpenCache();
+        const ms = moveError(server, "p0", m);
+        bs.ownerId = "p9";
+        bc.ownerId = "p9";
+        expect(mc, `${at} move ${m.id}`).toBe(ms);
+        if (ms === "seals_path") moveSealedTotal++;
+      }
     }
     expect(checked).toBeGreaterThan(500);
-    void sealed; // a random spot rarely seals a pocket: liveness is the rule tests' job
+  });
+  it("liveness: the layouts above really gave seals_path answers, for placements and for moves", () => {
+    expect(sealedTotal).toBeGreaterThan(0);
+    expect(moveSealedTotal).toBeGreaterThan(0);
   });
 });
 
@@ -316,4 +351,23 @@ describe("Story 12.1 (AC 6): new cover clears buildings within one player body (
   });
 });
 
-void sealsPath;
+
+/** Review L3: a map loads with every free lattice vertex in the pad's region (Epic 11's generated maps will run the same check). */
+describe("Story 12.1 review L3: Downtown has no free vertex outside the main region", () => {
+  it("every stage 1–5, every legal decay mask: 0 vertices outside the pad's region", () => {
+    const masks = gameplayDecayMasks(DOWNTOWN_MAP);
+    const bad: string[] = [];
+    let checked = 0;
+    for (let stage = 1; stage <= 5; stage++) {
+      for (const mask of masks) {
+        const world = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+        applyDecayStage(world, stage, mask);
+        const n = verticesOutsideMainRegion(world);
+        checked++;
+        if (n > 0 && bad.length < 8) bad.push(`stage ${stage} mask ${mask}: ${n}`);
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    expect(bad).toEqual([]);
+  });
+});

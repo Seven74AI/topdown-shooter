@@ -40,7 +40,7 @@ export const NET_EVENT_KIND = {
   MONEY_EARNED: 19,
   BUILD_STARTED: 20, // Story 3.1
   BUILDING_PLACED: 21, // Story 3.4
-  BUILDING_DESTROYED: 22, // Story 3.5
+  BUILDING_DESTROYED: 22, // Story 3.5; Stories 12.1 / 12.4: an optional 8th field, the decay-loss cause (index + 1)
   TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
   // 25 was RUN_HELD_OUT (Story 3.10; replaced by Story 6.11's vote): never reuse a kind number.

@@ -85,7 +85,7 @@ Now "building gone, wallet unchanged": `decay/decay.test.ts` (the 0.5 check → 
 | god, 4 bots, seed 3 | 31 / player → 31 → **0** | 2,416 → 2,504 → 2,504 | 1,142 → 1,210 → 1,216 |
 | mortal, 1–4 bots × seeds 1–3 (12 runs) | 125 total → 125 → **0** | — | — |
 
-The refund was worth at most ~1 % of a player's end-of-run money; seed 3's earnings move because of 12.1's margin (one bot barricade cleared), not the refund. For 10.8: the 2,500–3,000 earnings target is unaffected (earnings never counted refunds). Logged in `docs/balance/changelog.md`.
+The refund was worth at most ~1 % of a player's end-of-run money. Seed 3's earnings move because of 12.1's margin (one bot barricade cleared), not the refund. Its wallet goes up by 6 per player without the refund (review L6): bot p1 misses the 125 refund before wave 6, so it can't afford body armor I at wave 7, keeps those 150 and ends 25 higher (2,001 → 2,026; the other three bots are unchanged). For 10.8: the 2,500–3,000 earnings target is unaffected (earnings never counted refunds). Logged in `docs/balance/changelog.md`.
 
 ### Docs (AC 8, 9, 10)
 

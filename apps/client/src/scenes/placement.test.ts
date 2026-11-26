@@ -1191,6 +1191,14 @@ describe("Story 12.1 (AC 7): a wall that would seal a pocket", () => {
       const y = Math.floor(v / p.pocketCols) * p.pocketCellM;
       expect(x > 6 && x < 10 && y > 6 && y < 10).toBe(true);
     }
+    // Review L5: a wall added elsewhere (same pocket: same first vertex and size) still refreshes the shown pocket.
+    const shownBefore = p.shownVersion;
+    addBuildingAt(world, { id: 99, type: WOOD, ownerId: "old", gx: 60, gy: 40, rot: 0, hp });
+    p.check(world, "me");
+    p.explain(world, "me", 16);
+    expect(p.shownReason.cause).toBe("seals_path");
+    expect(p.pocketCount).toBe(49);
+    expect(p.shownVersion).toBe(shownBefore + 1);
     // One step east the piece would overlap the ring: "blocked", not seals_path.
     p.gx = 17;
     p.check(world, "me");

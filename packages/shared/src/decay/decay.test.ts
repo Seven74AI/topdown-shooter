@@ -361,8 +361,6 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
 
   it("buildings on newly blocked cells are destroyed (cause collapse) and, since Story 12.4, nothing is refunded; others stay", () => {
     const w = downtownRun();
-    const wood = buildingStats(balance, "wood_barricade") as { price: number };
-    const turret = buildingStats(balance, "auto_turret") as { price: number };
     const car = chosenCar(w);
     // Legal at stage 1: on the dumpster's cells, on the coming car, and one far away.
     const onDumpster = placeBuilding(w, "p0", { type: "wood_barricade", gx: 76, gy: 53, rot: 0 });
@@ -382,8 +380,6 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     expect(p0.wallet - before.w0).toBe(0);
     expect(p1.wallet - before.w1).toBe(0);
     expect([p0.earned, p1.earned]).toEqual([before.e0, before.e1]);
-    void wood;
-    void turret;
     step(w, TICK_DT_S);
     off();
     expect(w.decay.stage).toBe(2);

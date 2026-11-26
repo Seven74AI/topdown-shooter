@@ -24,7 +24,12 @@ export const COVER_WORDS: Readonly<Record<CoverKind, string>> = Object.freeze({
 });
 
 const WALL = "a wall";
-/** Story 12.1 (AC 7): a wall that would close off part of the map (the reason line, the refusal toast, a refused move). */
+/**
+ * Story 12.1 (AC 7): a wall that would close off part of the map (the reason line, the refusal toast, a
+ * refused move). Review L2 (12.1 D6, accepted): the ghost's preview judges the seal without my pending
+ * placements (5.18), so a chained Place can look valid and still come back as this toast: the server
+ * judges each placement in arrival order (AC 4).
+ */
 export const SEALS_PATH_TEXT = "Leave a way through";
 /** Story 6.2 (F3): every `rubble_*` box (the collapsed alley, the street piles): one prefix rule. */
 export const RUBBLE_WORD = "rubble";

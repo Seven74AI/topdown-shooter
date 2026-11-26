@@ -303,8 +303,9 @@ export function sealsPath(world: Readonly<World>, box: Readonly<Box>, exceptId =
 }
 
 /**
- * Tests (AC 13 escape agreement, AC 16 timing): the main region of the World as it stands (no new
- * box): whether vertex (i, j) is in it. Rebuilds the caches like `sealsPath`.
+ * Tests (AC 13's escape agreement): whether lattice vertex (i, j) is in the main region of the World as
+ * it stands (no new box). Rebuilds the map layer only if stale, but redoes the before-flood on EVERY
+ * call (tests only: never per frame).
  */
 export function inMainRegion(world: Readonly<World>, i: number, j: number): boolean {
   const r = world.balance.player.radiusM;
@@ -314,7 +315,21 @@ export function inMainRegion(world: Readonly<World>, i: number, j: number): bool
   return before[j * cols + i] === 1;
 }
 
-/** Tests: drop every cache (a timing loop measuring the cold path). */
+/**
+ * Story 12.1 review L3 (map checks, Epic 11's generated maps): free vertices of the World as it stands
+ * that are NOT in the main region (a nook the grid reads as closed, or a sealed pocket). A map should
+ * load with 0: otherwise part of it is unreachable from the pad for a player before anyone builds.
+ */
+export function verticesOutsideMainRegion(world: Readonly<World>): number {
+  const r = world.balance.player.radiusM;
+  if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
+  buildBefore(world, r, 0);
+  let n = 0;
+  for (let v = 0; v < cols * rows; v++) if (((walls[v] as number) & FREE) !== 0 && before[v] === 0) n++;
+  return n;
+}
+
+/** Tests and `tools/sims/pathOpenBench.ts`: drop every cache (the AC 8 fuzz's cold server answer; the bench's fully cold path). */
 export function resetPathOpenCache(): void {
   baseWorld = null;
   baseObstacles = -1;
