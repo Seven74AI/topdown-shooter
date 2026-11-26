@@ -4,7 +4,7 @@ baseline_commit: 8932065
 
 # Story 12.4: No refund for buildings lost to decay
 
-Status: review
+Status: done
 
 <!-- Quick story 2026-11-25 from a designer decision in the party-mode session. Changes FR58 ("destroyed with a 50% refund") and Story 6.2 review L4 ("50 % back of what was paid"). Small: one rule, a balance key and the tests that pin the old amount. -->
 

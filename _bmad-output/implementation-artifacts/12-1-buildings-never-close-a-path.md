@@ -4,7 +4,7 @@ baseline_commit: 1729ac5
 
 # Story 12.1: Buildings never close a path (no forts)
 
-Status: review
+Status: done
 
 <!-- Quick story 2026-11-25 from a designer decision in the party-mode session on cinematics. A building rule for every phase, and a prerequisite for 12.2 (the extraction walk always has a path). Rewritten the same day: walls stay solid; placement prevents the fort. -->
 
@@ -225,3 +225,8 @@ Modified: `packages/shared/src/buildings/{buildings,move,collision}.ts`, `packag
 ### Change Log
 
 - 2026-11-26: built (branch `story-12-1`, with 12.4).
+
+## Main session close-out (2026-11-26)
+- Review path: fresh 3-layer review (H1 needs-designer, M1–M3, L1–L7) → designer H1 = A (re-check paths after each decay stage) → re-review round 1 (H1-a high, H1-b medium, golden low) → round 2 (HIGH-1, thick walls) → fresh re-review of HIGH-1 (cap exception: no new high; MEDIUM-1 + 2 lows) → main-session check of d0c864a (LOW-A/B; docstring).
+- **MEDIUM-1, designer 2026-11-26: A, accepted.** On some thick layouts the stage re-check clears 1–2 more walls than the minimum (about 8 % of random thick fuzz layouts; no refund). A seal never survives.
+- Merged as 73b8bea0 (PR #33). CI green.
