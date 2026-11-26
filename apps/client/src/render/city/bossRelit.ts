@@ -125,7 +125,10 @@ export function requestBossLookIn(b: BossBake, look: number): void {
   b.job = null;
   b.inFlight = [];
   b.arrived.length = 0;
-  for (const s of b.sheets.values()) s.pending.length = 0;
+  for (const s of b.sheets.values()) {
+    s.pending.length = 0;
+    s.probe = null; // re-review M1: the old look's pixel may be empty in the new one; the next landing sets a fresh one
+  }
   b.queue = bossJobs();
   b.idle = false;
   b.stats.startMs = performance.now();
@@ -138,6 +141,7 @@ export function sheetWiped(b: BossBake, key: string): number {
   const s = b.sheets.get(key);
   if (!s || b.look < 0) return 0;
   s.pending.length = 0;
+  s.probe = null; // re-review M1: no stale check until its next picture lands
   let n = 0;
   for (const j of bossJobs()) {
     const f = jobFrames(j);
@@ -394,9 +398,6 @@ export function ensureBossRelit(scene: Phaser.Scene, opts: { readonly worker?: b
     return;
   }
   const b = newBossBake(makeCanvas, (spec) => gameSheet(scene, spec, b));
-  b.onProbe = (s) => {
-    if (s.probe) textureRegistry.setIntactCheck(s.spec.key, s.probe);
-  };
   bake = b;
   if (opts.worker !== false && workerBakeAvailable()) {
     b.useWorker = true;
@@ -432,6 +433,8 @@ function gameSheet(scene: Phaser.Scene, spec: BossSheetSpec, b: BossBake): BossS
           }
         },
       );
+  // review L1 / re-review M1: one check per sheet, reading whatever probe the sheet has now (none: nothing to check)
+  if (s.tex) textureRegistry.setIntactCheck(spec.key, () => s.probe?.() ?? true);
   return s;
 }
 

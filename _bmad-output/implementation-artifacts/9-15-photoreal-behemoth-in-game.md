@@ -277,10 +277,16 @@ Claude (9.15 builder session)
 only. Every finding fixed minimally (or noted, as asked):
 
 - **L1** relit sheets had no wipe check (registered while empty: `probeFor` found no opaque pixel). Fixed: once a sheet's
-  first picture lands, `setProbe` gives it a check reading its most opaque pixel and registers it
-  (`textureRegistry.setIntactCheck`, new), so `allIntact()` catches a wiped canvas → rebuild → `sheetWiped` re-bakes,
-  the plain atlas meanwhile. Test: `behemoth.raster.test.ts` "review L1" (every sheet probed, an emptied canvas fails
+  first picture lands, `setProbe` gives it a probe reading its most opaque pixel; each sheet registers one check
+  (`textureRegistry.setIntactCheck`, new) that reads whatever probe the sheet has (`s.probe?.() ?? true`), so
+  `allIntact()` catches a wiped canvas → rebuild → `sheetWiped` re-bakes, the plain atlas meanwhile. Test: `behemoth.raster.test.ts` "review L1" (every sheet probed, an emptied canvas fails
   it, the registry reports it). B7 recorded as an accepted change to AC 2.
+- **Re-review 1 (narrow, the fix commits):** N1, N3, L2, L3 clean; **M1** in the L1 fix: a probe was set once and never
+  cleared, so after a look change (the next endless Behemoth, a new run, a wrong prediction) the old look's pixel could
+  be empty in the new look and `allIntact()` stay false for good (a full texture rebuild and boss re-bake on every tab
+  return). Fixed: the registered check reads the sheet's current probe; a look change clears every sheet's probe and
+  `sheetWiped` clears that sheet's, so the next landing sets a fresh one. Test "re-review M1" (look 0 → look 2: every
+  probe fresh and passing; a wiped sheet has none until its next picture lands).
 - **L2** AC 6 said the slam glow builds 0.4 → 0.8; the code follows `planAt` (racing beats over the ember). AC text
   amended (B12).
 - **L3** story text (E8-A3): AC 6 notes now say roar snap 0 s / crossfade 0–1.2 s; T1 / B3 name `behemothHeadM` +

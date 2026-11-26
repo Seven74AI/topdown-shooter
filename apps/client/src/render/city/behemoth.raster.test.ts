@@ -219,6 +219,21 @@ describe("Story 9.15: the relit bake (main thread, worker answers, wipes)", () =
     expect(reg.allIntact()).toBe(false);
   });
 
+  it("re-review M1: a look change and a wipe clear the probes; the next landings set fresh ones that pass", () => {
+    const b = newBossBake(make, sheetOf);
+    requestBossLookIn(b, 0);
+    for (let i = 0; i < 4000 && pumpBossBakeIn(b, 1000); i++);
+    requestBossLookIn(b, 2);
+    for (const s of b.sheets.values()) expect(s.probe).toBeNull();
+    for (let i = 0; i < 4000 && pumpBossBakeIn(b, 1000); i++);
+    for (const s of b.sheets.values()) expect(s.probe?.(), s.spec.key).toBe(true);
+    const key = bossSheetSpecs()[2]?.key as string;
+    sheetWiped(b, key);
+    expect(b.sheets.get(key)?.probe).toBeNull(); // the registered check (probe?.() ?? true) passes meanwhile
+    for (let i = 0; i < 4000 && pumpBossBakeIn(b, 1000); i++);
+    expect(b.sheets.get(key)?.probe?.()).toBe(true);
+  });
+
   it("a wiped sheet's pictures are not ready any more and are baked again", () => {
     const b = newBossBake(make, sheetOf);
     requestBossLookIn(b, 0);
