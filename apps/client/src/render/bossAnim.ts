@@ -28,7 +28,7 @@ export const BOSS_ANIM = {
     /** Roar: the big inhale over the first `roarInhaleS`, held after. */
     roarInhaleS: 0.3,
     roarInhale: 0.03,
-    /** After the slam hit: the held breath let out over the recovery (from this much over 1). */
+    /** After the slam hit (and the throw, which swells this much with the lift): the breath let out over the recovery. */
     exhale: 0.03,
   },
   beat: {
@@ -216,10 +216,11 @@ export class BossAnim {
     const B = A.breath;
     let breath = 1;
     if (i.state === BOSS_STATE.WALK) breath = this.sinceStepS < B.standS ? stepBreath(i.stepPhase) : 1 + B.idleAmp * Math.sin((this.clockS / B.idlePeriodS) * Math.PI * 2);
+    else if (telegraph && i.attackKind === BOSS_ATTACK.THROW) breath = 1 + B.exhale * clamp01(i.progress); // swells with the lift
     else if (i.state === BOSS_STATE.RECOVER) breath = 1 + B.exhale * (1 - clamp01(this.stateS / this.times.slamRecoverS));
     else if (i.state === BOSS_STATE.STUN) breath = 1 + B.stunAmp * Math.sin((this.stateS / B.stunPeriodS) * Math.PI * 2);
     else if (i.state === BOSS_STATE.ROAR) breath = 1 + B.roarInhale * clamp01(this.stateS / B.roarInhaleS);
-    // telegraph / rush: breath held (1); dead: none
+    // slam / charge warning, rush: breath held (1); dead: none
     o.breath = breath;
     // glow, eyes
     const G = A.glow;

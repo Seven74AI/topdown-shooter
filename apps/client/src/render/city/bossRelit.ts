@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { addGeneratedTexture } from "./canvasTexture";
 import { SHEEN_STEPS } from "./charRelight";
-import { BOSS_SHEEN_SHEET, bossBakeSteps, bossJobId, bossJobs, bossSheetOf, jobFrames, type BossBaked, type BossJob, type BossSheetSpec } from "./bossFrames";
+import { BOSS_SHEEN_SHEET, bossBakeSteps, bossJobId, bossJobs, bossSheetOf, bossSheetSpecs, jobFrames, type BossBaked, type BossJob, type BossSheetSpec } from "./bossFrames";
 
 /**
  * Story 9.15 (AC 2, B1, B2): the Behemoth's relit pictures in the game, as the characters' (9.13 `charactersAtlas.ts`):
@@ -65,10 +65,12 @@ export interface BossBake {
   readonly sheets: Map<string, BossSheet>;
   /** Frames (bodies, veins, sheen strips) whose pixels are on the GPU. */
   readonly ready: Set<string>;
+  /** Each landed picture's opaque box (sheen: per step frame), for `setCrop`. */
+  readonly crops: Map<string, readonly [number, number, number, number]>;
   readonly make: (w: number, h: number) => HTMLCanvasElement;
   /** Makes a sheet (the game's registers a texture; tests pass a plain one). */
   makeSheet: (spec: BossSheetSpec) => BossSheet;
-  readonly stats: { startMs: number; doneMs: number; landed: number; fromWorker: number; onMain: number; maxPumpMs: number; worker: boolean };
+  readonly stats: { startMs: number; doneMs: number; landed: number; fromWorker: number; onMain: number; maxPumpMs: number; maxLandMs: number; maxSheetMs: number; maxUploadMs: number; worker: boolean };
 }
 
 const makeCanvas = (w: number, h: number): HTMLCanvasElement => {
@@ -94,9 +96,10 @@ export function newBossBake(make: (w: number, h: number) => HTMLCanvasElement, m
     lastPump: 0,
     sheets: new Map(),
     ready: new Set(),
+    crops: new Map(),
     make,
     makeSheet: makeSheet ?? ((spec) => plainSheet(spec, make)),
-    stats: { startMs: 0, doneMs: 0, landed: 0, fromWorker: 0, onMain: 0, maxPumpMs: 0, worker: false },
+    stats: { startMs: 0, doneMs: 0, landed: 0, fromWorker: 0, onMain: 0, maxPumpMs: 0, maxLandMs: 0, maxSheetMs: 0, maxUploadMs: 0, worker: false },
   };
 }
 function plainSheet(spec: BossSheetSpec, make: (w: number, h: number) => HTMLCanvasElement): BossSheet {
@@ -109,6 +112,7 @@ export function requestBossLookIn(b: BossBake, look: number): void {
   b.look = look;
   b.gen++;
   b.ready.clear();
+  b.crops.clear();
   b.job?.steps.return({ body: null, vein: null, sheen: null });
   b.job = null;
   b.inFlight = [];
@@ -140,12 +144,35 @@ export function sheetWiped(b: BossBake, key: string): number {
   return n;
 }
 
-function put(s: BossSheet, name: string, img: ImageData): void {
+function put(b: BossBake, s: BossSheet, name: string, img: ImageData): void {
   const f = s.spec.frames.get(name);
   if (!f) return;
   (s.canvas.getContext("2d") as CanvasRenderingContext2D).putImageData(img, f.x, f.y, 0, 0, Math.min(f.w, img.width), Math.min(f.h, img.height));
   s.dirty = true;
   s.pending.push(name);
+  // the opaque box of each picture (a sheen strip: of each step), for the view's crop (B8: no fill of empty margins)
+  if (s.spec.key === BOSS_SHEEN_SHEET) for (let k = 0; k < SHEEN_STEPS; k++) b.crops.set(`${name}${k}`, opaqueBox(img, k * f.h, f.h, f.h));
+  else b.crops.set(name, opaqueBox(img, 0, f.w, f.h));
+}
+/** The box (x, y, w, h in the picture) of the pixels with any alpha in the `w × h` region at `x0` of `img`. */
+export function opaqueBox(img: ImageData, x0: number, w: number, h: number): readonly [number, number, number, number] {
+  let minX = w;
+  let minY = h;
+  let maxX = -1;
+  let maxY = -1;
+  const W = img.width;
+  const d = img.data;
+  for (let y = 0; y < h && y < img.height; y++) {
+    for (let x = 0; x < w; x++) {
+      if ((d[(y * W + x0 + x) * 4 + 3] as number) === 0) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return [0, 0, 1, 1];
+  return [minX, minY, maxX - minX + 1, maxY - minY + 1];
 }
 const isPixels = (p: Pic): p is ImageData => !("getContext" in p);
 function toPixels(p: Pic): ImageData {
@@ -180,11 +207,11 @@ function land(b: BossBake, a: Arrived): number {
     if (!spec) continue;
     let s = b.sheets.get(spec.key);
     if (!s) {
-      s = b.makeSheet(spec);
+      s = b.makeSheet(spec); // (made by the pump before any landing; kept for safety)
       b.sheets.set(spec.key, s);
       made++;
     }
-    put(s, name, toPixels(pic));
+    put(b, s, name, toPixels(pic));
   }
   for (const [, pic] of pics) if (pic && !isPixels(pic)) pic.width = 0;
   b.stats.landed++;
@@ -198,6 +225,18 @@ function land(b: BossBake, a: Arrived): number {
 export function pumpBossBakeIn(b: BossBake, budgetMs: number, now: () => number = () => performance.now()): boolean {
   if (b.look < 0) return false;
   const t0 = now();
+  // the sheets are made first, one a frame and nothing else that frame (making one is a GPU upload: 9.13 review M3);
+  // the worker keeps baking meanwhile and its pictures wait in `arrived`
+  if (b.sheets.size < bossSheetSpecs().length) {
+    for (const spec of bossSheetSpecs()) {
+      if (b.sheets.has(spec.key)) continue;
+      b.sheets.set(spec.key, b.makeSheet(spec));
+      break;
+    }
+    b.stats.maxSheetMs = Math.max(b.stats.maxSheetMs, now() - t0);
+    if (b.useWorker && b.queue.length > 0) sendToWorker(b);
+    return true;
+  }
   let uploads = 0;
   let landedNow = 0;
   // at least one landing a frame, more within half the budget; one GPU upload a frame (a new sheet is one)
@@ -208,6 +247,7 @@ export function pumpBossBakeIn(b: BossBake, budgetMs: number, now: () => number 
     uploads += land(b, a);
     landedNow++;
   }
+  b.stats.maxLandMs = Math.max(b.stats.maxLandMs, now() - t0);
   if (b.lastPump > 0 && t0 - b.lastPump > 1000) b.workerDeadline += t0 - b.lastPump; // a frozen tab isn't a silent worker
   b.lastPump = t0;
   if (b.worker) {
@@ -237,7 +277,9 @@ export function pumpBossBakeIn(b: BossBake, budgetMs: number, now: () => number 
     for (const s of b.sheets.values()) {
       if (!s.dirty) continue;
       s.dirty = false;
+      const tu = now();
       s.tex?.refresh();
+      b.stats.maxUploadMs = Math.max(b.stats.maxUploadMs, now() - tu);
       for (const n of s.pending.splice(0)) b.ready.add(n);
       break;
     }
@@ -376,6 +418,10 @@ export function finishBossRelitNow(): void {
 /** Frame `name` of the look in play is relit and on the GPU. */
 export function bossRelitReady(name: string): boolean {
   return bake?.ready.has(name) ?? false;
+}
+/** Relit frame `name`'s opaque box (x, y, w, h in the frame), or undefined. */
+export function bossRelitCrop(name: string): readonly [number, number, number, number] | undefined {
+  return bake?.crops.get(name);
 }
 /** The texture key holding relit frame `name` (for `setTexture`). */
 export function bossRelitKey(name: string): string {

@@ -175,11 +175,21 @@ Lessons:
   eyes dropped to 35 % between beats, dimmer than calm; the floor is now 75 %).
 - In a pose where one part covers another (the raised slam arms over the torso), the covered detail may vanish;
   check the pose's tell still reads.
+- **A pose's `k` is the pose's own progress, not the state's.** Many poses reach their full shape before k 1 (the
+  Behemoth's charge at k 0.5: `e = min(1, 2k)`; the throw at k 0.56). A "half-way" frame baked at k 0.5 was the same
+  picture as k 1 (Story 9.15): bake the in-between at the k where the pose is half done (e = 0.5), and diff it.
 
 ## 7. Into the game
 
 - Characters: baked in a Web Worker at load (Story 9.13): plain drawing first, relit frames replace it; sheets
   ≤ 2048², one upload per frame, 4 ms a frame; no blank frames. Static art: pre-rendered atlas (Story 9.14).
+- A unique model (the Behemoth, Story 9.15): bake only the look in play (predicted from the run seed, after the
+  characters' bake), in small 512² sheets; the plain drawing shows until the relit picture's sheet is uploaded.
+- Levels the plan changes in play (eyes dim when stunned, snap red at the roar) are **their own layer** (the eyes as
+  two additive sprites), not baked into the body; a glow from the marker is one additive picture per frame whose
+  alpha the view pulses (a travelling wave would need a strip per frame: 8 × the memory).
+- Visual animation numbers live in a client config (`render/bossAnim.ts › BOSS_ANIM`), not the balance JSON: they
+  never touch play, and a balance change moves `balance.version`.
 - Every code texture through `addGeneratedTexture`; every `ensure…()` builder covered by the gallery.
 - Performance: within 2 FPS and +1 ms p95 of master at `?stress=150`; no per-frame allocation; no canvas
   mask filters (≈25 % FPS).

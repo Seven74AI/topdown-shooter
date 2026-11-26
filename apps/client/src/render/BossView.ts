@@ -29,7 +29,7 @@ import {
 import { ABOVE_DARK, aboveDarkness } from "./darkness/aboveDark";
 import { BH_EYE_AHEAD_R, BH_EYE_SIDE_R, BH_R_M, behemothHeadM, type BhPoint } from "./city/behemothArt";
 import { BOSS_POSES, bossHasEnraged, bossHasSheen, relitBodyName, relitSheenName, relitSheenStrip, relitVeinName } from "./city/bossFrames";
-import { bossRelitKey, bossRelitLook, bossRelitReady, ensureBossRelit, pumpBossRelit, requestBossLook } from "./city/bossRelit";
+import { bossRelitCrop, bossRelitKey, bossRelitLook, bossRelitReady, ensureBossRelit, pumpBossRelit, requestBossLook } from "./city/bossRelit";
 import { SHEEN_STEPS, sheenStep } from "./city/charRelight";
 import { charBakeProgress } from "./city/charactersAtlas";
 import { ATLAS_FX, FX_DUST, FX_GRIT } from "./city/spriteAtlas";
@@ -251,6 +251,8 @@ export class BossView {
   private predLook = 0;
   private bakeAllowed = false;
   private frameNo = 0;
+  /** `?fx=low`: no sheen, half the dust (as the characters' caps halve). */
+  private readonly lowFx = urlOptions().lowFx;
   private lastDt = 0;
 
   constructor(
@@ -270,7 +272,7 @@ export class BossView {
     this.vein = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 2 * LAYER_DZ).setVisible(false);
     this.sheen = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 3 * LAYER_DZ).setVisible(false);
     for (let i = 0; i < 2; i++) this.eyes.push(scene.add.image(0, 0, BOSS_EYES, BOSS_EYE_FRAMES[0]).setDisplaySize(BOSS_EYE_M, BOSS_EYE_M).setBlendMode(BLEND_ADD).setDepth(BODY_DEPTH + 4 * LAYER_DZ).setVisible(false));
-    const nDust = urlOptions().lowFx ? Math.floor(BOSS_DUST.pool / 2) : BOSS_DUST.pool;
+    const nDust = this.lowFx ? Math.floor(BOSS_DUST.pool / 2) : BOSS_DUST.pool;
     this.dust = new BossDust(nDust);
     for (let i = 0; i < nDust; i++) this.dustImgs.push(scene.add.image(0, 0, ATLAS_FX, FX_DUST).setTint(PUFF_COLOR).setDepth(BODY_DEPTH + DUST_DZ).setVisible(false));
     this.anim = new BossAnim({ slamRecoverS: b.slam.recoverS, roarS: b.enrage.roarS });
@@ -557,7 +559,7 @@ export class BossView {
     const enr = an.enragedMix >= 1 && bossHasEnraged(f);
     this.pick(f, enr, frames);
     const side = (BOSS_FRAME_PX / BOSS_PX_PER_M) * an.breath;
-    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) this.body.setTexture(this.pickKey, this.pickName);
+    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) BossView.setPicture(this.body, this.pickKey, this.pickName);
     this.body.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     if (this.flashS > 0) this.body.setTint(HIT_TINT);
     else this.body.clearTint();
@@ -569,7 +571,7 @@ export class BossView {
     // readable on top of it in the light (in the dark the outline + eyes frame is already above).
     const over = !this.dark && (this.laneSlot.strip.visible || (this.ringSlot.disc.visible && Math.hypot(this.ringSlot.cx - drawX, this.ringSlot.cy - drawY) < this.ringSlot.r + this.world.balance.boss.radiusM));
     if (over) {
-      if (this.bodyTop.texture.key !== this.pickKey || this.bodyTop.frame.name !== this.pickName) this.bodyTop.setTexture(this.pickKey, this.pickName);
+      if (this.bodyTop.texture.key !== this.pickKey || this.bodyTop.frame.name !== this.pickName) BossView.setPicture(this.bodyTop, this.pickKey, this.pickName);
       this.bodyTop.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setAlpha(alpha).setVisible(true);
       if (this.flashS > 0) this.bodyTop.setTint(HIT_TINT);
       else this.bodyTop.clearTint();
@@ -614,10 +616,21 @@ export class BossView {
     this.pickKey = bossRelitKey(this.pickName);
   }
 
-  /** Puts `img` on relit frame `name` (its own sheet). */
+  /** Puts `img` on relit frame `name` (its own sheet), cropped to the picture's opaque box (B8). */
   private static setRelit(img: Phaser.GameObjects.Image, name: string): void {
     const key = bossRelitKey(name);
-    if (img.texture.key !== key || img.frame.name !== name) img.setTexture(key, name);
+    if (img.texture.key !== key || img.frame.name !== name) BossView.setPicture(img, key, name);
+  }
+
+  /**
+   * Story 9.15 (B8): `img` shows frame `name` of texture `key`; a relit picture is cropped to its opaque box (the 7 m
+   * frame is mostly empty: no fill for the margins, which counted in the software renderer), a plain one is not.
+   */
+  private static setPicture(img: Phaser.GameObjects.Image, key: string, name: string): void {
+    img.setTexture(key, name);
+    const c = key === BOSS_ATLAS ? undefined : bossRelitCrop(name);
+    if (c) img.setCrop(c[0], c[1], c[2], c[3]);
+    else img.setCrop();
   }
 
   private setLayerDepth(over: boolean): void {
@@ -655,7 +668,7 @@ export class BossView {
     } else if (this.vein.visible) this.vein.setVisible(false);
     // the sheen drifting over the glossy parts (the walk, the picture shown)
     const strips = RELIT_SHEEN_STRIP[f];
-    const sOn = strips !== null && strips !== undefined && this.pickKey !== BOSS_ATLAS && bossRelitReady(strips[this.pickEnr ? 1 : 0]);
+    const sOn = !this.lowFx && strips !== null && strips !== undefined && this.pickKey !== BOSS_ATLAS && bossRelitReady(strips[this.pickEnr ? 1 : 0]);
     if (sOn) {
       const name = ((RELIT_SHEEN[f] as readonly (readonly string[])[])[this.pickEnr ? 1 : 0] as readonly string[])[sheenStep(this.clockS)] as string;
       BossView.setRelit(this.sheen, name);
@@ -788,7 +801,7 @@ export class BossView {
     const frames = BOSS_FRAMES[b.look % BOSS_FRAMES.length] as readonly string[];
     const f = BOSS_FRAME.deadA + deathFrameIndex(this.deadS, collapseS);
     this.pick(f, false, frames);
-    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) this.body.setTexture(this.pickKey, this.pickName);
+    if (this.body.texture.key !== this.pickKey || this.body.frame.name !== this.pickName) BossView.setPicture(this.body, this.pickKey, this.pickName);
     const side = BOSS_FRAME_PX / BOSS_PX_PER_M;
     this.body.setDisplaySize(side, side).setPosition(drawX, drawY).setRotation(b.facing).setTint(DEAD_TINT).setAlpha(1).setVisible(true);
     if (this.bodyTop.visible) this.bodyTop.setVisible(false);
