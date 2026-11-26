@@ -50,6 +50,39 @@ and the asset review in `docs/art/asset-review.md`.
 - **The Behemoth's warning art is IN group 5** (designer 2026-11-26: "In. I'm curious to see how they would look
   like. So add them too."): slam countdown disc, throw ring, charge lane, CRASH mark, P1 warning display, ground damage.
   Every take keeps what each warning tells, its size and its timing.
-- Proposal page: `docs/art/photoreal-5/compare.html` (source `src/`, build `node docs/art/photoreal-5/src/build.mjs`).
-  **Waiting for the designer's codes.**
+- Proposal page: `docs/art/photoreal-5/compare.html` (Artifact https://claude.ai/artifact/NNKM2WsZNgH1WCxZ2QTwjV;
+  source `src/`, build `node docs/art/photoreal-5/src/build.mjs`). 29 element cards in 4 families, each with Now (the
+  game's own paint code through `textureShim.ts`, or the view's numbers for shapes), takes A (and B where a real
+  choice exists), stills at the key moments, game size, an action plan, and a decomposition drawer (textures, frames
+  and diffs, part inspector, peak sprites, performance):
+  - gunfire: MZ (A/B), SG, TR, HT, BL (A/B), BT, ML, CS, BF;
+  - fire: EX1, EX2, GR, MO, FI, FS, BX (A/B);
+  - matter: AC (A/B), GA, EV, RD, PD, RN (A/B), BD;
+  - warnings: SD, TH, CL, CR, P1, GD (each A/B).
+- Game findings written on the cards (for the build story):
+  - muzzle flash in normal blend, lighting nothing; SMG / rifle / turret reuse the pistol size;
+  - four different blood colours, one close to the warning red; one splat size for every zombie;
+  - `?fx=low` misses explosions, the Bloater pool, event vapour, flare smoke, stampede dust and place dust;
+  - the acid puddle pops off at 35 %; its highlight rotates with the sprite;
+  - the Molotov rag flame is untinted (white); its ring pops off while the flames fade;
+  - debris and chunks have no shadows;
+  - destroyed metal and police barricades throw wood puffs;
+  - place dust shrinks as it spreads;
+  - `fx_grit_a` reads as a white speck;
+  - the CRASH word is hidden under the boss, and the amber mark fades 0.3 s after the stop although the stun lasts 2 s;
+  - the slam disc is one 9.1 m full-disc additive quad;
+  - the crack decal is baked below game resolution (28 px/m);
+  - `fx_floodpool_a` is the floodlight light pool, not water.
+- Overlaps:
+  - `fx_dust_a` is shared with Story 9.15's `bossDust.ts`: redrawing it restyles the boss dust;
+  - BX's gas cloud follows GA's pick;
+  - blood here, dismemberment stays in Story 9.5.
+- **Waiting for the designer's codes** and the open questions on the page:
+  - MZ-A vs MZ-B (how much light a shot throws);
+  - BL-A vs BL-B (glossy pool vs matte spatter), AC-A vs AC-B (puddle glow), RN-A vs RN-B (wet street);
+  - new mark pools (hit drops, splinters, gun smoke);
+  - EX1's amber edge ring and EX2's white shock ring (colour meanings);
+  - CRASH: amber for the whole 2 s stun, drawn above the body;
+  - TH-B: the chunk's shadow as the clock;
+  - HT-A: a direction on `zombie.hit`.
 

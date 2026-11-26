@@ -161,7 +161,8 @@ async function buildCard(card: FxCard, host: HTMLElement): Promise<void> {
     await idle();
     const fig = document.createElement("figure");
     fig.className = look.code === "now" ? "now" : "";
-    const zoom = make(ZOOM_W, Math.round(ZOOM_W * aspect));
+    const zw0 = Math.max(ZOOM_W, Math.round(card.viewM * GAME_PXM * 1.5)); // always bigger than game size
+    const zoom = make(zw0, Math.round(zw0 * aspect));
     const sw = Math.round(card.viewM * GAME_PXM);
     const small = make(sw, Math.round(sw * aspect));
     const row = document.createElement("div");
