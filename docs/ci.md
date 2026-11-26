@@ -14,7 +14,7 @@ Push runs on `master` only; every pull request runs; changes only under `docs/**
 | `static` | `npm ci`, typecheck, lint | ~2 min |
 | `release` | `npm run release:check`: client build + `REQUIRE_DIST=1` cheat scan (Story 1.11). A cheat-string leak fails here in about a minute. | ~1–2 min |
 | `test (shard i/4)` | 4-shard matrix, `fail-fast: false`. Each shard runs `npx vitest run $(node tools/ci/shard.mjs i 4)` and uploads its JSON report as the `test-report-i` artifact. | see the PR |
-| `postgres` | Epic 7 retro E7-A1: a `postgres:16` service; runs `realPostgres*.test.ts` + `realPg.test.ts` with `TEST_DATABASE_URL` set, one file at a time (they share the database), then `tools/ci/check-all-passed.mjs` fails the job if any of the 32+ tests skipped. The test shards still skip these files (no URL there). | ~2 min |
+| `postgres` | Epic 7 retro E7-A1: a `postgres:16` service; runs `realPostgres*.test.ts` + `realPg.test.ts` with `TEST_DATABASE_URL` set, one file at a time (they share the database), then `tools/ci/check-all-passed.mjs` fails the job unless at least 41 tests ran and every one passed (`ci.yml`: the floor is its argument; raise it when you add real-PostgreSQL tests, so a dropped file can't pass silently). The test shards still skip these files (no URL there). | ~2 min |
 | `docker` | buildx images with the GitHub Actions layer cache (`type=gha`, one scope per target, `load: true`), Caddyfile check, compose smoke test with throwaway secrets | ~3–6 min |
 | `gate` | `needs` all five, `if: always()`; fails unless every one of them is `success` | seconds |
 

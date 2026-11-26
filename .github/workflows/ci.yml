@@ -136,7 +136,7 @@ jobs:
       - name: Real-PostgreSQL tests
         run: npx vitest run --no-file-parallelism --reporter=default --reporter=json --outputFile.json=reports/test-report-postgres.json apps/server/src/db/realPostgres apps/server/src/db/realPg.test.ts
       - name: They ran (passed, not skipped)
-        run: node tools/ci/check-all-passed.mjs reports/test-report-postgres.json 32
+        run: node tools/ci/check-all-passed.mjs reports/test-report-postgres.json 41
       - name: Slowest tests (job summary); fails if one took over 30 s
         if: always()
         run: node tools/ci/slowest.mjs reports/test-report-postgres.json
