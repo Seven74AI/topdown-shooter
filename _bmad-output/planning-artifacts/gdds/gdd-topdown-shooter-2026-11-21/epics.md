@@ -72,7 +72,7 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Depends on:** Epic 3 (wallets for catch-up currency); can run in parallel with Epics 5–7.
 - **Playable result:** a player's phone dies mid-run, they rejoin with their gear; a run is saved and resumed the next day.
 - **Out:** matchmaking, voice chat.
-- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume by any account from the run (Epic 8 D11; "with host" superseded) · ping button and markers.
+- **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume by any account from the run (Epic 8 D11; "with host" superseded) · ping button and markers · (2026-11-25/26) only connected, standing players vote (8.12) · slow-line horde skip (8.13).
 
 ## Epic 9 — Dead City art and audio
 - **Goal:** a photoreal pass of the art and a polish pass of the audio, made without hiring anybody (designer, 2026-11-23; photoreal direction 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`).
@@ -96,3 +96,9 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Goal:** the host can pick Random city: a new 70 × 70 m city generated from rules on every run, shareable by its city code (designer 2026-11-24, `sprint-change-proposal-2026-11-24-random-city.md`).
 - **Depends on:** Epic 6, Story 7.7, Story 8.4, Story 10.7; built after Epic 10.
 - **High-level stories:** 11.1–11.7 in `_bmad-output/planning-artifacts/epics.md` › Epic 11 (added to this summary by the readiness check 2026-11-26).
+
+## Epic 12 — Extraction cinematic
+- **Goal:** a won run ends like a film (party-mode session 2026-11-25, designer decisions; added to this summary by the correct-course 2026-11-26).
+- **In:** no building can seal a pocket of the map (12.1), no refund for decay losses (12.4), an extraction phase where survivors walk to the helicopter, board and fly out over a horde (12.2), a cinematic camera with letterbox, zoom-out, dawn sweep and fade (12.3). With Story 8.12: only connected, standing players vote.
+- **Depends on:** Epic 6 (vote, pad, helicopter), Story 8.12; lands before the Epic 10 frame-rate pass, balance pass and playtests.
+- **High-level stories:** 12.1–12.4 in `_bmad-output/planning-artifacts/epics.md` › Epic 12.

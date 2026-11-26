@@ -45,4 +45,6 @@
 - Epic 9 is photoreal: 9.1–9.10 are re-based on the 9.11–9.14 pipeline (proposal-page pick, worker relight or pre-rendered atlas, code drawing as fallback). FR82 now reads "photoreal looks … relit at load in a Web Worker or pre-rendered offline from the approved code". Supersedes the 2026-11-23 "polish pass of the code-drawn art" wording.
 - Epic 10 starts with 10.1 (settings), which 9.5, 9.6, 9.8 and 10.2 need; 10.1 also gets account and progress deletion (retro E7-A8).
 - Story 1.11's phone FPS check goes into 10.2; 1.12 and 4.10 go into the 10.9 game nights. Epics 1 and 4 are closed. 2.10 stays parked.
-- 8.10 B6 becomes Story 8.13 "Slow-line horde skip" (named 8.12 by the designer; renumbered because 8.12 is the evac-vote quick story), before the 2.10 phone test; Epic 8 is open again for it.
+- All real-phone testing stays parked (designer 2026-11-25, HANDOFF §5.2): phone ACs are kept but marked parked; no story waits on a phone night; headless measures are the buildable part.
+- Story 8.12 and Epic 12 (party-mode session 2026-11-25) are copied into epics.md as written.
+- 8.10 B6 becomes Story 8.13 "Slow-line horde skip" (named 8.12 by the designer; renumbered because 8.12 is the evac-vote quick story), a small story in the normal build order, before any real-device network test; Epic 8 is open again for it.

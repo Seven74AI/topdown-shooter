@@ -5,7 +5,7 @@
 
 ## From the 2026-11-26 readiness check
 - **9.14 FU1:** a street-props image download that FAILS after Boot has shut down never settles, because Phaser's LoaderPlugin.shutdown calls removeAllListeners. The state stays "loading", so every run silently uses the code props (B8) and the warning never prints. Fix: hear failure on the game TextureManager or the XHR, not the scene loader.
-- **8.10 B6:** RTT-based horde skip + keyframe on very slow lines (64 kbit/s queues frames up to 4.7 s). Owner: **Story 8.13** "Slow-line horde skip" (correct-course 2026-11-26), before the 2.10 phone test.
+- **8.10 B6:** RTT-based horde skip + keyframe on very slow lines (64 kbit/s queues frames up to 4.7 s). Owner: **Story 8.13** "Slow-line horde skip" (correct-course 2026-11-26), normal build order, before any real-device network test.
 - **Pending-kill zombie unhittable** idea (readiness Q9): log only.
 - **N-1 — closed 2026-11-26 (Epic 8 retro E8-A5, docs part):** `docs/perf/epic-2-network.md` refreshed to the Network pass numbers (section "Network pass update (2026-11-26)"). `REVERSED_HIT_SLACK_MS` = 300 still fits the 600 ms rewind: the slack is the client counter's wait for the server's answer (RTT + render delay + 300 ms), and rewinding further does not delay that answer. The margin beyond RTT is 400 ms (clean) / 550 ms (lossy) against a normal need of about 150 ms. A late answer can only over-count. No code change. What is left is the phone test itself (2.10, designer).
 

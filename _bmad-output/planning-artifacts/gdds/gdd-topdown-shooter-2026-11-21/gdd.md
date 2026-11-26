@@ -339,6 +339,7 @@ Detailed breakdown in [epics.md](epics.md). Every epic ends in something playabl
 | 9 | Dead City art and audio | Photoreal look and polished sound (no hiring) |
 | 10 | Performance and polish | v1 for weekly game nights |
 | 11 | Random city (post-v1) | A new generated city every run, next to Downtown |
+| 12 | Extraction cinematic | No forts, no decay refunds, the walk to the helicopter and a fly-out film |
 
 **Sequence:** 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10 (v1) → 11 (post-v1). Epic 8 can start after 3 and run alongside 5–7; Epic 9 runs alongside from Epic 4.
 

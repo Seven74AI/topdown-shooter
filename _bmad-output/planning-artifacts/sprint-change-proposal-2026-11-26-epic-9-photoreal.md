@@ -2,7 +2,7 @@
 
 Mode: batch (headless; run by a correct-course session per HANDOFF.md with `gds-correct-course`, `bmad-build` not used). Scope: **Moderate** (backlog reorganisation: 10 stories re-based, 1 story added, 3 stories folded, 2 epics closed, 1 epic reopened; planning text only, no code).
 
-Approval: the **designer's decisions of 2026-11-26** (sent to this session by the main session) are applied as written. Six items the designer has **not** decided are proposed only (§6, open questions), each with a recommendation.
+Approval: the **designer's decisions of 2026-11-26** (sent to this session by the main session) are applied as written. Two follow-ups from the main session are also applied: **all real-phone testing stays parked** (designer 2026-11-25, HANDOFF §5.2; §4.7), and **Story 8.12 and Epic 12** (party-mode session 2026-11-25, PR #25) are copied into epics.md as written (§4.8). Items the designer has **not** decided are proposed only (§6), each with a recommendation.
 
 Inputs: `implementation-readiness-report-2026-11-26.md` (B-1/Q1–Q9, N-1–N-11), `implementation-artifacts/epic-7-retro-2026-11-26.md` (E7-A1–A8), `implementation-artifacts/epic-8-retro-2026-11-26.md` (E8-A1–A10), `docs/art/photoreal-decisions.md`, the 9.13 and 9.14 story files, `docs/perf/epic-9-street-props.md`, `apps/client/src/audio/ambience.ts`.
 
@@ -61,7 +61,7 @@ Inputs: `implementation-readiness-report-2026-11-26.md` (B-1/Q1–Q9, N-1–N-11
 - **Risk:**
   - Each art group now waits on a designer pick, the same cadence as 9.11–9.14.
   - The first-load budget has to be tracked per atlas. 9.1 records the headroom.
-- **Timeline:** 10.1 moves to the front. 8.13 slots before the 2.10 phone night.
+- **Timeline:** 10.1 moves to the front. 8.13 is a small story in the normal build order. Epic 12 (with 8.12) lands before 10.2, 10.8 and 10.9. No story waits on a phone night.
 
 ## 4. Detailed change proposals (applied)
 
@@ -126,7 +126,7 @@ The Epic 9 line in the epic list and the Photoreal pass intro's overlap sentence
   - the guest token, cookie and stored settings are cleared, and the next open is a fresh guest with 0 Supplies;
   - tests prove the username can be registered again and the old token is refused;
   - the endpoint needs the session (plus the password for an account) and is rate-limited.
-- **10.2:** "depends on 10.1" added to the quality-settings AC. **New AC from 1.11 AC 3:** 150 Walkers in god mode for 60 s on the iPhone 12 class and Pixel 5 class phones fill the empty rows of `docs/perf/epic-1-stress.md`, with the bottleneck for any miss.
+- **10.2:** "depends on 10.1" added to the quality-settings AC. **New AC from 1.11 AC 3:** 150 Walkers in god mode for 60 s on the iPhone 12 class and Pixel 5 class phones fill the empty rows of `docs/perf/epic-1-stress.md`, with the bottleneck for any miss. This AC is marked parked (§4.7).
 - **10.9:**
   - OLD: "if the 4.10 Milestone 1 playtest never ran, its checks … run in the first game night".
   - NEW: the first game night runs both folded checks:
@@ -141,7 +141,7 @@ The Epic 9 line in the epic list and the Photoreal pass intro's overlap sentence
 - sprint-status:
   - `epic-1: done`, `epic-4: done`;
   - 1.11, 1.12 and 4.10 are `done`, each with a "folded into 10.x" comment;
-  - 2.10 stays `review` with the comment "PARKED; 8.13 lands before it".
+  - 2.10 stays `review` with the comment "PARKED (designer 2026-11-25: all real-phone testing parked)".
 
 ### 4.4 Story 8.13: Slow-line horde skip (new, Epic 8)
 
@@ -179,31 +179,78 @@ Only the **Asset Management** paragraph is changed. OLD: "Epic 9 polishes the co
 
 The Asset-loading row (A:172) and the tree (A:321) already describe 9.14 and are unchanged.
 
+### 4.7 Real-phone testing parked (main-session follow-up, designer 2026-11-25)
+
+The designer parked all real-phone testing (HANDOFF §5.2: "forget the real phone test for now"). That covers 2.10, the Mi 11i FPS rows, the 4.13 app-switch check, 4.10, and the phone parts of 10.2, 10.3, 10.5 and 10.9. Applied:
+
+- **No phone night** is scheduled, and no story waits on one.
+- **8.13:** "ready before the 2.10 phone test" → "a small story in the normal build order; land it before any real-device network test" (epics.md, the Epic 8 as-built line, sprint-status, `deferred-work.md`, decision log).
+- **10.2:** the phone ACs are kept, marked *parked*, including the folded 1.11 AC 3. New buildable AC: headless Chromium at 844 × 390 DPR 2, 1× and 4× CPU, `?stress=150` in a wave 9 blackout, measured the 9.13 way into `docs/perf/epic-10-fps.md`. At 4× the average must be ≥ 30 FPS, or the bottleneck is named and the class's default quality is lowered until it is.
+- **10.3:** the phone ACs are kept, marked *parked*. New buildable AC: a headless 10-wave solo or bot run samples the JS heap (CDP) and GPU texture memory at each build phase, with ≤ 5 % growth per wave after wave 2. 4× CPU main-thread busy time per minute is recorded as the battery proxy.
+- **10.5:** the real notched-phone AC and the real iOS Safari / Android Chrome runs are *parked*. Playwright device emulation with insets plus `hudLayout.test.ts` is the buildable safe-area check. Desktop Chrome, Firefox, WebKit and Edge run through Playwright now.
+- **10.9:** the per-phone measurements (4.10's rows) and the phone-specific checks (1.12 "on their own phones") are *parked*. The game nights themselves run on whatever devices the group uses.
+- **Epic 10 intro:** one line states the parking rule.
+- **Retro targets:**
+  - E7-A2 (deploy and restore drill, no phone part) → "before the first accounts release".
+  - E8-A2 → normal order.
+  - E8-A4 → done (Story 8.13).
+  - E8-A5: the doc and constant check now; the 4-phone test and the Mi 11i sheet "when phone testing resumes".
+  - E8-A9 → "before the first Epic 10 story" (no phone part).
+
+### 4.8 Story 8.12 and Epic 12 copied into the plan (main-session follow-up)
+
+PR #25 (`9bf596bf`, a designer party-mode session, 2026-11-25) added the story files 8-12 and 12-1…12-4, ready-for-dev, but no epics.md text. Applied **without changing scope**:
+
+- **epics.md:**
+  - Story 8.12 "Only standing, connected players vote", placed before 8.13.
+  - A new **Epic 12: Extraction cinematic** section (intro with the build order 8.12 → 12.1 (+ 12.4) → 12.2 → 12.3; Stories 12.1–12.4 condensed from their files, which stay the full spec).
+  - An Epic 12 entry in the epic list, with "FRs touched: FR58, FR66, FR67".
+- **GDD:** an Epic 12 section in the GDD's `epics.md`; 8.12 and 8.13 in the Epic 8 high-level stories; row 12 in the `gdd.md` epic table; a decision-log line.
+- **Not changed (left to the stories):** FR58's "50 % refund" wording (12.4 AC 8 owns it), and FR66 / FR67 and 6.11's ACs (see the questions in §6).
+
 ## 5. Implementation handoff
 
 - **Scope: Moderate.** Routed to the main session (story writer / scrum master), then the builders.
 - **Main session:**
   1. Write the 10.1 story file first (with the E7-A8 deletion AC and the E7-A5 shape owner for `progress.settings`).
-  2. Write the 8.13 story file and land it before the 2.10 phone night (with E8-A2 and E8-A5).
-  3. Write Epic 9 story files only after the matching proposal page has a designer pick: 9.1 any time; 9.2, 9.3 and 9.4 after their picks; 9.5, 9.6 and 9.8 after 10.1 is done.
-  4. Refresh `docs/playtests/milestone-1.md` to the 10-wave game before the first 10.9 night.
+  2. Write the 8.13 story file; it is a small story in the normal build order, landed before any real-device network test.
+  3. Build 8.12 → 12.1 (+ 12.4) → 12.2 → 12.3 from their story files once the §6 Epic 12 questions are answered (or their recommendations accepted).
+  4. Write Epic 9 story files only after the matching proposal page has a designer pick: 9.1 any time; 9.2, 9.3 and 9.4 after their picks; 9.5, 9.6 and 9.8 after 10.1 is done.
+  5. Refresh `docs/playtests/milestone-1.md` to the 10-wave game before the first 10.9 night.
 - **Designer:** proposal-page picks for 9.2–9.7. Answer the open questions in §6.
 - **Success criteria:**
   - every Epic 9 story file cites the intro's budgets and the designer's pick;
   - 10.1 lands before 9.5, 9.6, 9.8 and 10.2;
-  - 8.13's 64 kbit/s row reads ≤ 1,000 ms before 2.10 runs;
+  - 8.13's 64 kbit/s netsim row reads ≤ 1,000 ms;
+  - no story is held back by a phone-only AC;
   - sprint-status matches epics.md: every story heading has a key, and every key changed or added here has a heading (checked for this commit; 6.13 and 6.14 have no `### Story` heading, which is older than this commit).
 
 ## 6. Open questions (proposed, not applied)
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| **Q4** (readiness) | 10.5: safe areas are mostly built. Narrow its safe-area AC? | **Yes.** Change the AC to "verified on one notched iPhone and one Android with rounded corners, and `hudLayout.test.ts` gains cases with a non-zero top inset (≥ 47 px) at 568 × 320 and 844 × 390". Keep the manifest, icons, Add-to-Home-Screen and the browser matrix as the main work |
+| **Q4** (readiness) | 10.5: safe areas are mostly built. Narrow its safe-area AC? | **Yes.** Change the buildable AC to "`hudLayout.test.ts` gains cases with a non-zero top inset (≥ 47 px) at 568 × 320 and 844 × 390, plus one Playwright run with iPhone and Pixel device emulation". The real notched-phone check stays parked (§4.7). Keep the manifest, icons, Add-to-Home-Screen and the browser matrix as the main work |
 | **Q5** (readiness) | 10.8: start the balance changelog now, and change "settle" to "re-check"? | **Yes to both.** Create `docs/balance/changelog.md` now as a docs task, back-filled with Epic 5 B1–B12 and 9.13 B28 (balance hash 1728716985 → 3587910981). Every balance change from now on adds a line. Reword the 10.8 AC to "re-check 15 × N, `loot.runChance` 0.2 and the cap of 6 against real runs and bot runs; change them only with a changelog reason" |
 | **Q8** (readiness) | 11.6 (Random-city art): reuse the 9.14 fixed photo-atlas frames by kind? | **Yes.** Pick frames by kind without stretching (`drawFrame` stretches today). Add the size variants a generated city needs with `npm run art:street-props`. Use code drawings only for generated buildings and ground, and when 9.2 lands, its building and ground atlas the same way. Decide it when 9.2's pick is made, because 9.2 sets the building and ground pipeline |
-| **E8-A9** (retro) | Designer review of the rule changes accepted overnight: 8.9 B7 and B9, 8.10 B7 (overrides D1), 8.1 B15, B16 and B19, and the 8.3 B14 accepted risk | **Confirm all of them as built**, recorded in `docs/network-pass-decisions.md` / `docs/epic-8-story-decisions.md`, with one exception: re-check **8.10 B7** (the far rule is off, so every zombie updates at 20 Hz) on the 2.10 phone night. If 4G bandwidth is fine there, confirm it; if not, 8.13's skip is the first lever, before turning the far rule back on. Do the review on the 2.10 night, as the retro suggests |
+| **E8-A9** (retro) | Designer review of the rule changes accepted overnight: 8.9 B7 and B9, 8.10 B7 (overrides D1), 8.1 B15, B16 and B19, and the 8.3 B14 accepted risk | **Confirm all of them as built**, recorded in `docs/network-pass-decisions.md` / `docs/epic-8-story-decisions.md`, with one exception: re-check **8.10 B7** (the far rule is off, so every zombie updates at 20 Hz) on 8.13's capped-line netsim rather than on phones, since phone testing is parked. If the 64 and 128 kbit/s rows hold, confirm it; if not, 8.13's skip is the first lever, before turning the far rule back on. Do the review before the first Epic 10 story |
 | **E7-A6** (retro) | The Epic 7 picks still owed: 7.3 F12 (condensed font; "Not enough" under the price), 7.4 B11 (a second borrowed card through a paid reroll), 7.6 B18/B19 ("That name is taken" on Save; the guest-progress warning on login), 7.11 D8 "Wear it", and 7.10 AC 12 (a 30-second editor playtest) | **F12:** keep as built. **B11:** drop; one borrowed card keeps the deck rule simple. **B18/B19:** build both; both are small and prevent lost progress. **D8:** build it (one button on the loot reveal). **AC 12:** run it inside the first 10.9 game night. Record the answers in `docs/epic-7-story-decisions-*.md` before 10.9 |
 | — | 9.5's blood cap: 300 (AC) or 200 (code)? (N-7) | Written into 9.5 as "300 if the stress test holds, otherwise 200, with the reason recorded". No designer call is needed unless they want gore density as a pick on the 9.5 proposal page |
+
+### Epic 12 and 8.12 clashes and overlaps (main-session follow-up; checked against the code and the plan)
+
+| # | Clash or overlap | Recommendation |
+| --- | --- | --- |
+| **X1** | **8.12 vs 6.11 / FR66.** 6.11's AC (epics.md) says every player, "downed and out players included", sees the vote buttons, and Stay needs "more than half of the **whole team**". FR66 says "majority wins". 8.12 gives downed and out players disabled buttons and counts only connected, alive players. It also reverses 8.1 review M2 (a held seat as a silent Extract vote), which the 8.1 risk note guarded against: a phone that drops for a few seconds can let the rest switch to endless | **Keep 8.12 as the designer decided.** When 8.12 lands, add an as-built note to 6.11 and reword FR66 to "a majority of the connected, standing players; a tie or no counted votes means Extract". Add 8.12 to the E8-A9 review list, so the M2 reversal is confirmed together with 8.1 B15/B16/B19 |
+| **X2** | **12.4 vs FR58, 4.5, 6.2 and the architecture.** The "50 % refund" is written in FR58 (E:111), Story 4.5's ACs (E:1362, :1371), Story 6.2's rubble AC (E:2088, "the usual 50 % refund (FR53)"), `game-architecture.md:460` and the HANDOFF Epic 4 summary. In code it is `decay.buildingRefundShare` (0.5) in `decaySystem.ts:56,67`. 12.4 AC 8 updates only FR58. The Epic 10.8 target (2,500–3,000 earned per player) may move | **Widen 12.4's doc AC** to every listed place: as-built notes on 4.5 and 6.2, the architecture rule line and the HANDOFF line. Land 12.4 **before 10.8**, and log the end-of-run money change in `docs/balance/changelog.md` (Q5) |
+| **X3** | **12.1 vs the escape and collision work (PRs #12 and #18, `spec-fix-escape-narrow-openings.md`).** `pushOutOfBuildings › escapeInside` already has a fine-grid flood fill that prefers open ground over a sealed pocket, and `collision.test.ts` / `relocationPinned.test.ts` pin "sealed fort" and "murder hole" cases. 12.1 adds a second flood fill (`pathOpen.ts`) at player clearance. Old forts still load (12.1 AC 10), so the escape logic stays needed | **One shared rasteriser:** 12.1 builds `pathOpen.ts` on the same grid and clearance helper as the escape fill (or the flow-field rasteriser its dev notes name), so the two can't disagree about what a gap is. Keep the sealed-fort escape tests (saves and replays can hold forts), and add one test that a placement 12.1 accepts never produces a pocket the escape would call sealed |
+| **X4** | **12.1 vs the 5.x placement rules and zombie behaviour.** The new `"seals_path"` refusal joins the 5.17 block reasons, the 5.18 pending chain, 5.20 undo and 5.24 moves (12.1 covers 5.18 and 5.24). Undo or take-back of a piece is never refused (it can only open a path). But every fort now has a ≥ 0.8 m gap, so zombies of player size go through it instead of breaking walls (3.5). The flow field treats buildings as costly, not closed. Barricades become funnels, and 6.13's wide-body stall fix is tested only on gaps, not on forced gaps. The designer said "zombies don't matter here" | **Accept,** but measure it: before and after 12.1, run the 10-wave bot sim (bots build around the pad) and record wall damage taken, zombies through gaps and team wipes, as input for 10.8. Add the 6.13 wide-body case "Brute at a 0.8 m forced gap" to 12.1's tests |
+| **X5** | **12.1 dev and art checks.** `?stress=5&stressbuild=fort` (`debug/stressScenario.ts:364`) lays a **closed** fort, used for the 9.11 / 9.12 look checks and readability sheet item 63. 12.1 makes that layout illegal in play | **Keep the dev fort** as a debug-only layout that bypasses the placement check (it never reaches the server), and add a comment pointing to 12.1 AC 10 |
+| **X6** | **12.2 vs 6.11 extract and FR67.** FR67 and 6.11 say "the helicopter lifts off into 4 s of dawn, then Results". `heliPose.ts` has `EXTRACT_FLY_S = 4` and `DESCEND_S = 2`, all on the client; today `resolveEvacVote` calls `endRun` in the same tick. 12.2 adds a new `RunPhase` "extract" (`runStateMachine.ts:43`), sim-driven, plus new synced fields (`phase`, `boarded`, `liftedAtTick`, in `RunState.ts:160`). An older client would not know the phase | **Keep 12.2.** When it lands, reword FR67 to "Extract wins the run: the survivors walk to the helicopter and fly out (≤ 20 s), then Results", and add an as-built note to 6.11. **Bump `NET_PROTOCOL_VERSION`** for the new phase and fields (3 → 4), so an old tab gets "please reload". Whichever of 12.2, 8.13 and Epic 11 lands first takes 4, and the next one takes 5 |
+| **X7** | **12.2 vs saves and the copy chain (Epic 8 rules).** 12.2 says `extract` is never saved, but the Epic 8 rule is that every new run field is saved or excluded with a reason by `runSave.coverage.test.ts`. 8.4–8.6 S12 autosaves the vote, and a resume opens into the vote. Retro E8-A2 asks for a "sent, changed, synced" test per copied field | **Add to 12.2's tasks:** coverage-test exclusions for `boarded` and `liftedAtTick` with the reason "phase extract is never saved", a test that a save taken in the vote and resumed still runs the extraction, and E8-A2-style copy-chain tests for the three synced fields |
+| **X8** | **12.2's fly-out horde vs 10.7 run stats and Epic 7 milestones.** "No kills counted in run stats or milestones." 10.7 is not built yet, and milestones count kills today | **10.7 must exclude the fly-out horde.** Add one line to 10.7's AC ("kills during `extract` are not counted"), and give 12.2 a test that milestone counters do not move during `extract` |
+| **X9** | **12.3 vs Epic 9 photoreal.** The crew sprite is "code-drawn, one simple figure". The helicopter is not in any photoreal group (`docs/art/photoreal-decisions.md`). The 0.6× zoom-out shows about 40 × 22.5 m with 9.2's buildings and ground, so 9.2's atlases must look right zoomed out, and the darkness and fog layers must cover the wider view | **Build 12.3 with code-drawn placeholders now**, then add the crew and the helicopter to 9.1's inventory as a photoreal group picked with 9.4 (characters) or 9.2 (city). Add "looks right at 0.6× zoom" to 9.2's proposal page |
+| **X10** | **12.1 and 12.3 performance ACs name reference phones** (12.1 AC 9 "< 1 ms … on a reference phone"; 12.3 AC 12 "on the Epic 10 reference phones"), which are parked | **Measure them headless:** 12.1 at 4× CPU throttle (< 1 ms per check on Downtown, and record the time on a 140 × 140-cell grid for Epic 11's 70 × 70 m maps); 12.3 with `?stress=150` at 4× CPU during the fly-out, within the 9.x budget (2 FPS, +1 ms p95 of a normal wave). Keep the phone wording as parked |
+| **X11** | **Order of Epic 12 vs Epics 9 and 10.** | **8.12 → 12.1 (+ 12.4) → 12.2 → 12.3**, after or alongside 10.1, and **before 10.2** (the frame-rate pass should measure the fly-out), **10.8** (12.4 moves the money) and **10.9** (the playtests should play the final ending). Epic 9 has no hard tie: 12.3 uses placeholders (X9). Epic 11 needs 12.1's check on generated maps, and every generated city's `evac_pad` must sit in the main walkable region |
 
 ## 7. Files changed (this commit, docs only)
 
@@ -214,4 +261,5 @@ The Asset-loading row (A:172) and the tree (A:321) already describe 9.14 and are
 - `_bmad-output/implementation-artifacts/1-11-performance-overlay-and-150-walker-stress-test.md`
 - `_bmad-output/implementation-artifacts/1-12-melee-and-controls-playtest-on-real-phones.md`
 - `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/epic-7-retro-2026-11-26.md`, `epic-8-retro-2026-11-26.md` (action targets only, §4.7)
 - this proposal

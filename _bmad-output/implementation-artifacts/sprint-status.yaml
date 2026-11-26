@@ -44,7 +44,9 @@
 #   Nobody is hired. 9.5, 9.6 and 9.8 depend on 10.1 (settings).
 # - Epic 10 order: 10.1 first (9.5, 9.6, 9.8, 10.2 depend on it), then 10.2–10.7 → 10.8 → 10.9.
 # - Folded 2026-11-26: 1.11 AC 3 → 10.2; 1.12 and 4.10 → 10.9 game nights. Epics 1 and 4 closed. 2.10 stays parked.
-# - 8.13 Slow-line horde skip (8.10 B6) added under Epic 8, before the 2.10 phone test (named 8.12 by the designer; 8.12 was taken).
+# - ALL real-phone testing is parked (designer 2026-11-25, HANDOFF §5.2): phone ACs kept but marked parked; no story waits on a phone night.
+# - 8.13 Slow-line horde skip (8.10 B6) added under Epic 8, normal build order, before any real-device network test (named 8.12 by the designer; 8.12 was taken).
+# - 8.12 and Epic 12 are in epics.md since 2026-11-26. Order: 8.12 -> 12.1 (+12.4) -> 12.2 -> 12.3, before 10.2 / 10.8 / 10.9.
 
 generated: 11-21-2026 18:20
 last_updated: 2026-11-26
@@ -81,7 +83,7 @@ development_status:
   2-7-server-confirmed-hits: done
   2-8-downed-revive-and-team-wipe: done
   2-9-player-rings-and-teammate-arrows: done
-  2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story. PARKED (designer); 8.13 lands before it
+  2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story. PARKED (designer 2026-11-25: all real-phone testing parked)
   2-11-in-run-menu: done
   2-12-rewound-hit-testing: done  # 2.10 AC 3 follow-up: netsim 5.3 % reversed kiting Walkers, 28.9 % kiting Runners (3.8) at 150 ms: build now (decision 2026-11-22)
   epic-2-retrospective: done
@@ -200,7 +202,7 @@ development_status:
   8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
   8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
-  8-13-slow-line-horde-skip: backlog  # added 2026-11-26 (correct-course; 8.10 B6 / E8-A4; designer named it 8.12, renumbered because master's 8.12 is the evac-vote quick story): RTT-based horde skip + keyframe at 64 kbit/s; ready before the 2.10 phone test
+  8-13-slow-line-horde-skip: backlog  # added 2026-11-26 (correct-course; 8.10 B6 / E8-A4; designer named it 8.12, renumbered because master's 8.12 is the evac-vote quick story): RTT-based horde skip + keyframe at 64 kbit/s; normal build order, before any real-device network test
   epic-8-retrospective: done  # 2026-11-26, headless; epic-8-retro-2026-11-26.md, actions E8-A1–A10
 
   # Epic 9: Dead City art and audio
@@ -224,14 +226,14 @@ development_status:
   # Epic 10: Performance and polish
   epic-10: backlog
   10-1-settings-screen: backlog  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
-  10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; absorbs 1.11 AC 3 (phone FPS rows)
-  10-3-memory-and-battery-pass: backlog
+  10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; buildable part = headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked
+  10-3-memory-and-battery-pass: backlog  # buildable part = headless 10-wave heap/CPU run; phone ACs parked
   10-4-fast-loading: backlog
-  10-5-home-screen-install-and-every-supported-browser: backlog
+  10-5-home-screen-install-and-every-supported-browser: backlog  # real-phone notch + iOS/Android checks parked; desktop browsers via Playwright
   10-6-report-a-problem: backlog
   10-7-run-stats: backlog
   10-8-balance-pass: backlog
-  10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night)
+  10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night); per-phone measurements parked
   10-10-build-button: done  # PR #20 merged 2026-11-25 (6861275e) after review (1 important) + 2 narrow re-reviews + main-session check; layout B; added 2026-11-25 (designer: hybrid Build button); BU-1 = B (designer 2026-11-25); built on branch story-10-10 (PR), B-codes 10.10-B1…B12 in the story file
   epic-10-retrospective: optional
 

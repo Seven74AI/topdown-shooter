@@ -364,6 +364,10 @@ Every technical target is met on the reference phones; quality settings, home-sc
 
 ### Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
+
+### Epic 12: Extraction cinematic
+A won run ends like a film: no building can seal a pocket of the map, decay losses are not refunded, and on Extract the survivors walk to the helicopter, board and fly out over the horde into the sunrise (party-mode session 2026-11-25, quick stories 12.1–12.4; with Story 8.12, only connected, standing players vote).
+**FRs touched:** FR58 (no refund), FR66, FR67
 **FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
 
 ## Epic 1: Core combat on one phone
@@ -638,7 +642,7 @@ So that I can test or play without a phone.
 
 ### Story 1.11: Performance overlay and 150-Walker stress test
 
-*(Done 2026-11-26, folded into 10.2 (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): AC 1 and 2 are built; AC 3's reference-phone rows (iPhone 12 class, Pixel 5 class) are measured by Story 10.2 on the same phones.)*
+*(Done 2026-11-26, folded into 10.2 (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): AC 1 and 2 are built; AC 3's reference-phone rows (iPhone 12 class, Pixel 5 class) are measured by Story 10.2 on the same phones, which is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2).)*
 
 As the designer,
 I want an on-screen readout of frame rate and load, and a way to spawn 150 Walkers in view,
@@ -2745,7 +2749,7 @@ Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat
 - **8.9:** the rewind window was raised to 600 ms / 12 ticks (T10).
 - **8.10:** the 10 Hz far rule is off (B7); every zombie is refreshed at 20 Hz.
 - **8.11:** wire format `NET_PROTOCOL_VERSION` 3, with a 14-byte binary input.
-- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6). 8.11 B2 left it out of 8.11's scope; since 2026-11-26 (correct-course) it is **Story 8.13**, ready before the 2.10 phone test.
+- **Still owed:** the RTT-based horde skip on a 64 kbit/s line (8.10 B6). 8.11 B2 left it out of 8.11's scope; since 2026-11-26 (correct-course) it is **Story 8.13**, a small story in the normal build order, landed before any real-device network test.
 
 
 Designer decision 2026-11-24 (`sprint-change-proposal-2026-11-24-network-pass.md`), from the network audit `docs/perf/network-audit-2026-11.md` (measured: hits and picture break on a lossy 4G line; a dropped phone is out for the run). Build order: **8.8 ∥ 8.9** (different files) → **8.1** (below, extended) → **8.10** → **8.11** (optional). Numbered 8.8–8.11 so the existing 8.1–8.7 references stay valid. Then the designer's 4-phone 4G test (Story 2.10 plan) is the check, Wi-Fi phones with `&loss=1`.
@@ -3018,9 +3022,34 @@ So that we can coordinate without voice chat.
 **When** it is sent (`ping.send`, max 1 per second per player)
 **Then** every teammate sees its icon in my color pinned where I sent it for 4 s, with an edge arrow when off screen, and a short sound; a new ping replaces my previous one; pings draw above the blackout darkness
 
+### Story 8.12: Only standing, connected players vote
+
+(Quick story 2026-11-25, party-mode session, designer decision; story file `8-12-disconnected-players-dont-vote.md` (ready-for-dev) is the full spec. Copied into epics.md by the correct-course of 2026-11-26 without scope change. It deliberately **reverses Story 8.1 review M2 / RR1-M1** (a held seat counted as a silent = Extract vote) and narrows 6.11's "whole team" count.)
+
+As a player in a co-op run,
+I want the evacuation vote to count only the players who are actually connected and standing,
+So that a teammate who dropped can't tip the vote to Extract against the players who are still here.
+
+**Acceptance Criteria:**
+
+**Given** the vote resolves
+**When** the votes are counted
+**Then** only players who are connected (not in `world.heldPlayers`) and alive (`status === "alive"`) count; downed and out players don't; the count is taken at the resolving tick, so a revived player counts again with the choice they made (or silent)
+**And** `resolveEvacVote` uses `voteOutcome(t.stay, <counted players>)` and `countVotes` no longer adds held seats to `silent`; connected silent players still count as Extract (6.11 D1), a tie is Extract, and nobody counted means Extract
+**And** the story's table holds, e.g. 4 seats, 1 held, 2 Stay + 1 Extract → Stay; 4 connected, 2 downed, 1 Stay + 1 Extract → Extract (tie)
+
+**Given** every counted player has voted
+**When** held, downed or out players have not
+**Then** the vote still ends `allVotedHoldS` later (6.11 F4); a seat returning during the vote counts from that tick, starting silent
+
+**Given** the vote panel
+**When** it shows
+**Then** downed and out players' chips read "not voting" with disabled buttons, held seats are hidden or dimmed "not voting" and left out of the result line, `allIn` and `voteUrgent`, and the result line matches the server's outcome
+**And** `markHeldEvac` earnings are unchanged (8.1 M2's banking fix stays), and the replay digest test passes
+
 ### Story 8.13: Slow-line horde skip
 
-(Added 2026-11-26, correct-course; named 8.12 by the designer and renumbered because 8.12 is the quick story "Disconnected players don't vote" `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`: the owner of 8.10 B6 / retro E8-A4. Ready before the 2.10 4-phone test. Source: the 8.10 backpressure table, `8-10-half-size-horde-stream.md` (64 kbit/s: 0 skips, frames wait up to 4,720 ms in the line, because the 64 KB socket rule cannot see a queue that sits in the network).)
+(Added 2026-11-26, correct-course; named 8.12 by the designer and renumbered because 8.12 is the quick story "Disconnected players don't vote" `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`: the owner of 8.10 B6 / retro E8-A4. A small story in the normal build order; land it before any real-device network test (real-phone testing is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)). Source: the 8.10 backpressure table, `8-10-half-size-horde-stream.md` (64 kbit/s: 0 skips, frames wait up to 4,720 ms in the line, because the 64 KB socket rule cannot see a queue that sits in the network).)
 
 As a player on a very slow mobile line,
 I want to see where the horde is now, not where it was seconds ago,
@@ -3360,7 +3389,7 @@ So that the whole street matches.
 
 Every technical target is met on the reference phones; quality settings, home-screen install, problem reports, run stats, a balance pass and friend-group playtests deliver v1 for weekly game nights.
 
-**Order (designer, 2026-11-26, correct-course):** **10.1 first**: 9.5, 9.6, 9.8 and 10.2 depend on its settings. Then 10.2–10.7 → 10.8 → 10.9. 10.2 absorbs 1.11 AC 3; 10.9's game nights absorb 1.12 and 4.10 (Epics 1 and 4 are closed).
+**Order (designer, 2026-11-26, correct-course):** **10.1 first**: 9.5, 9.6, 9.8 and 10.2 depend on its settings. Then 10.2–10.7 → 10.8 → 10.9. 10.2 absorbs 1.11 AC 3; 10.9's game nights absorb 1.12 and 4.10 (Epics 1 and 4 are closed). **All real-phone testing is parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**: the phone ACs of 10.2, 10.3, 10.5 and 10.9 are kept but marked parked, no story waits on them, and the simulated or headless measures (`?stress=150`, CDP CPU and network throttling, Playwright browsers and device emulation) are the buildable part. Epic 12 (extraction cinematic) lands before 10.2, 10.8 and 10.9 (see Epic 12).
 
 ### Story 10.1: Settings screen
 
@@ -3398,7 +3427,13 @@ So that nothing stutters when it matters.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11i
+*(Correct-course 2026-11-26: the real-phone ACs below are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**. The buildable part is the headless one: Chromium at 844 × 390 DPR 2 with CDP CPU throttling 1× and 4× (the Mi 11i stand-in used by 7.9 / 9.13), measured the 9.13 way.)*
+
+**Given** headless Chromium at 844 × 390 DPR 2 with 1× and 4× CPU throttling
+**When** `?stress=150` runs a wave 9 blackout with all 150 alive zombies in view at default settings (8 s warm-up, 12 s count, two rounds)
+**Then** the average and 1 % low FPS and frame-time p95 are recorded in `docs/perf/epic-10-fps.md` with every optimization made, and at 4× the average is ≥ 30 FPS, or the bottleneck is named and the default quality settings for that class are lowered until it is
+
+**Given** *(parked)* an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11i
 **When** a full wave 9 blackout is played with all 150 alive zombies in one player's view at default settings
 **Then** FPS averages 60 and never stays below 30 (NFR1)
 **And** the measurements and every optimization made are recorded in `docs/perf/epic-10-fps.md`
@@ -3407,7 +3442,7 @@ So that nothing stutters when it matters.
 **When** quality settings are lowered
 **Then** the target is met, and the default settings for that device class are adjusted if needed (this uses Story 10.1's quality settings: **depends on 10.1**)
 
-**Given** god mode and 150 Walkers spawned inside the camera view (Story 1.11 AC 3, folded in here 2026-11-26)
+**Given** *(parked)* god mode and 150 Walkers spawned inside the camera view (Story 1.11 AC 3, folded in here 2026-11-26)
 **When** the scene runs for 60 s on the iPhone 12 class and Pixel 5 class phones
 **Then** the average and minimum FPS fill the empty reference-phone rows of `docs/perf/epic-1-stress.md` (target 60 FPS, never below 30, NFR1), with the measured bottleneck (rendering vs simulation) for any miss
 
@@ -3419,11 +3454,17 @@ So that we can play a whole evening.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12 in Safari
+*(Correct-course 2026-11-26: the real-phone ACs below are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**. The buildable part: a headless Chromium solo or bot run of all 10 waves.)*
+
+**Given** headless Chromium running a full 10-wave solo run (bots or a scripted player) at 844 × 390
+**When** the JS heap (CDP `Performance.getMetrics`) and GPU texture memory are sampled at each build phase
+**Then** neither grows from wave to wave by more than 5 % after wave 2, the peak is recorded, and 4× CPU-throttled main-thread busy time per minute is recorded as the battery proxy, in `docs/perf/epic-10-memory-battery.md`
+
+**Given** *(parked)* an iPhone 12 in Safari
 **When** a full 10-wave run is played
 **Then** the tab stays under 300 MB throughout, with no growth from wave to wave (NFR2)
 
-**Given** the reference phones at 100% charge
+**Given** *(parked)* the reference phones at 100% charge
 **When** a 20-minute run is played at default settings
 **Then** battery use is under 15% (NFR7)
 **And** results are recorded in `docs/perf/epic-10-memory-battery.md`
@@ -3462,11 +3503,11 @@ So that it feels like an app.
 **When** I choose "Add to Home Screen" on iOS or "Install" on Android
 **Then** the game opens fullscreen in landscape from the icon
 
-**Given** a phone with a notch or rounded corners
+**Given** *(parked: parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2))* a real phone with a notch or rounded corners
 **When** the game runs
-**Then** HUD and controls stay inside the safe areas
+**Then** HUD and controls stay inside the safe areas (until then: Playwright device emulation with safe-area insets plus `hudLayout.test.ts` are the buildable check)
 
-**Given** Safari on iOS 16+, Chrome on Android 10+, and current desktop Chrome, Firefox, Safari and Edge
+**Given** current desktop Chrome, Firefox, Safari (WebKit) and Edge, run through Playwright now, and *(parked)* real Safari on iOS 16+ and Chrome on Android 10+
 **When** a smoke test (lobby, one wave, shop, build) runs on each
 **Then** it passes, and the results are recorded in `docs/qa/browsers.md` (NFR8)
 
@@ -3530,11 +3571,13 @@ So that we know it's ready for every week.
 
 **Acceptance Criteria:**
 
+*(Correct-course 2026-11-26: the per-phone measurements and phone-specific checks below (4.10's per-phone rows, 1.12 "on their own phones") are **parked (designer 2026-11-25: all real-phone testing is parked, HANDOFF §5.2)**; the game nights themselves run on whatever devices the group uses and are not held back.)*
+
 **Given** the release build
 **When** the friend group plays at least 3 game nights
 **Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
 **And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
-**And** the first game night also runs the folded checks (correct-course 2026-11-26): **4.10**: FPS, bandwidth and reversed hits for each phone in `docs/perf/milestone-1.md` against NFR1, NFR3–NFR5, and feedback on fun, difficulty, economy, building and decay, from `docs/playtests/milestone-1.md` refreshed first to the 10-wave game (current earnings, the Behemoth, events, the evacuation vote, the Build button); **1.12**: at least 3 people's feedback on move stick, aim stick, auto-fire, aim assist, swap and melee in `docs/playtests/epic-1-controls.md`, with the melee-under-twin-stick decision (keep, tune or change) recorded and each issue fixed by tuning or turned into a story
+**And** the first game night also runs the folded checks (correct-course 2026-11-26): **4.10**: *(per-phone rows parked)* FPS, bandwidth and reversed hits for each phone in `docs/perf/milestone-1.md` against NFR1, NFR3–NFR5, and feedback on fun, difficulty, economy, building and decay, from `docs/playtests/milestone-1.md` refreshed first to the 10-wave game (current earnings, the Behemoth, events, the evacuation vote, the Build button); **1.12**: at least 3 people's feedback on move stick, aim stick, auto-fire, aim assist, swap and melee in `docs/playtests/epic-1-controls.md`, with the melee-under-twin-stick decision (keep, tune or change) recorded and each issue fixed by tuning or turned into a story
 
 **Given** every NFR
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
@@ -3751,3 +3794,88 @@ So that we can play the same streets again or send them to friends.
 **Given** a saved run (Story 8.4) and run stats (Story 10.7)
 **When** a Random city run is saved or recorded
 **Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
+
+## Epic 12: Extraction cinematic
+
+(Added to epics.md by the correct-course of 2026-11-26 from the story files written in the party-mode session of 2026-11-25 (designer decisions; PR #25, `9bf596bf`). The story files are the full spec; the ACs below are copied without scope change. Open clashes with the rest of the plan are listed as needs-designer questions in `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6.)
+
+A won run ends like a film: buildings can never seal a pocket of the map (no forts), decay losses are not refunded, and when Extract wins the survivors walk to the helicopter, board and fly out over the horde into the sunrise. Build order: **8.12** (vote counting) → **12.1** → **12.2** → **12.3**; **12.4** with or right after 12.1 (12.1 AC 6 already assumes no refund). Changes FR58 (no refund, 12.4) and FR66 / FR67 (who votes, 8.12; the extraction walk and fly-out replace "4 s of dawn, then Results", 12.2 / 12.3).
+
+### Story 12.1: Buildings never close a path (no forts)
+
+(Story file `12-1-buildings-never-close-a-path.md`, ready-for-dev.)
+
+As a player,
+I want the game to refuse a building that would wall off part of the map,
+So that my team can't build a sealed fort, and there's always a way through for every survivor.
+
+**Acceptance Criteria:**
+
+**Given** a placement or a move (5.24) of a wall-type building
+**When** the shared check runs (a flood fill on the 0.5 m nav grid at player clearance, `player.radiusM` 0.4 m)
+**Then** it is refused with `"seals_path"` if any free cell would no longer connect to the main walkable region (the one holding `evac_pad`); a gap narrower than a player counts as closed; floor types (spike trap, mine, bear trap) are never refused
+**And** walls stay solid for players, zombies and bullets; chained and pending placements (5.18) are checked in arrival order; the client ghost and the server agree (fuzz test); the ghost shows "Leave a way through" and highlights the pocket it would close
+**And** the check allocates nothing per call, is cached on the client per (cell, rotation, `buildings.version`), and costs < 1 ms per check on Downtown
+
+**Given** a decay stage adds solid cover (4.2 `minStage`, a 4.8 wreck or rubble)
+**When** `destroyBlockedBuildings` runs at the build start
+**Then** every wall-type building closer than 0.8 m (one player body) to the new cover is destroyed with no refund (12.4), in building-id order, with the owner toast "Your barricade was cleared by the collapse"
+**And** saves and replays that already hold a sealed fort still load; bots handle `"seals_path"`
+
+### Story 12.2: Extraction: walk to the helicopter and lift off
+
+(Story file `12-2-extraction-walk-and-lift-off.md`, ready-for-dev. Needs 12.1 and 8.12.)
+
+As a team that just voted to extract,
+I want our survivors to walk to the helicopter on their own, climb in and fly off over the horde,
+So that the end of a won run feels like an ending, not a cut to a menu.
+
+**Acceptance Criteria:**
+
+**Given** Extract wins the vote (any way, after wave 10 or an endless evacuation)
+**When** `resolveEvacVote` decides it
+**Then** the run enters a new phase `"extract"` between `vote` and `results` (`run.ending` is still fixed at the vote); player inputs except pings are dropped, every player is protected, and fire, acid and spit pools are cleared
+**And** each standing player is walked by a sim autopilot at walk speed to the pad along a pad-seeded flow field (buildings as walls); downed players stand up and walk; out players and held seats board at the phase start
+
+**Given** the helicopter has landed
+**When** a player is within `evac.padRadiusM` (3 m) of the pad
+**Then** they board (`player.boarded`); after `evac.walkTimeoutS` (8 s) the rest are boarded with `run.extract_cut`
+
+**Given** everyone has boarded
+**When** a 0.5 s beat has passed
+**Then** `run.lifted` is emitted, the sim keeps stepping for `evac.flyOutS` (8 s) while an extraction horde (`evac.flyOutHorde.count`, `.perS`; not a wave, no bounty, no stats) runs at the pad and the helicopter flies to the east edge (`heliPose`, from `liftedAtTick`), then `endRun` (extracted) banks rewards and Results show
+**And** joiners are not admitted and nothing is saved during `extract`; solo runs the same phase; `run.phase`, `boarded` and `liftedAtTick` go through the full copy chain; replay digest and bots handle the phase
+
+### Story 12.3: Extraction cinematic camera
+
+(Story file `12-3-extraction-cinematic-camera.md`, ready-for-dev. Needs 12.2. Client only.)
+
+As a player who just won a run,
+I want the camera to frame our walk to the helicopter, then follow it over the horde into the sunrise,
+So that the extraction plays like a short film.
+
+**Acceptance Criteria:**
+
+**Given** the `extract` phase
+**When** it plays
+**Then** a pure, data-driven camera director (`render/cameraDirector.ts`, shot list keyed to timeline events) replaces the player-follow camera: 8 % letterbox bars ease in over 0.6 s, the camera frames all walkers plus the pad (3 m margin) with no jumps, the HUD hides except pings, the bars go to 12 % when the last player boards, and a timeout cut fades through black (0.3 s)
+**And** at lift-off the camera follows the helicopter and zooms out to 0.6× over 3 s (never past 1.0×), fog lifts, the DW1 dawn sweeps west from the east edge, a crew sprite helps boarding, and the screen fades to white before the view reaches the map edge, then Results
+
+**Given** any phone
+**When** it plays or wakes late
+**Then** every timing comes from server ticks, a late phone goes straight to Results, the sequence is ≤ 20 s with no skip, bars and fades work at 568×320, 640×360, 800×360 and 844×390, darkness and fog cover the zoomed-out view, and the fly-out holds the frame budget (debug overlay)
+
+### Story 12.4: No refund for buildings lost to decay
+
+(Story file `12-4-no-refund-for-decay-losses.md`, ready-for-dev. Changes FR58 and Story 6.2 review L4.)
+
+As the designer,
+I want buildings destroyed by the city's decay to be simply lost,
+So that building next to crumbling parts of the city is a real gamble.
+
+**Acceptance Criteria:**
+
+**Given** the decay system destroys a building (new stage cover, FR58; a fire lit at the build start, 4.8 M2; within 0.8 m of new cover, 12.1 AC 6)
+**When** it is destroyed
+**Then** `building.destroyed` is emitted and no money goes back (no `refundMoney`, no `money.earned` reason `refund` from decay), and the owner sees "Lost to the collapse" or "Lost to the fire" with no amount
+**And** `decay.buildingRefundShare` is removed from `balanceSchema.ts` and `decay.json` (the schema rejects an old override), selling / take-back (5.20) is unchanged, economy sims and bot seeds are re-checked, and any end-of-run money change is noted for 10.8
