@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, decodeInput, encodeInput, playerInputSchema, quantizeInput, type PlayerInput } from "./input";
+import { INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, ackTickFrom, decodeInput, decodeInputAck, encodeInput, playerInputSchema, quantizeInput, type PlayerInput } from "./input";
 import { createRng } from "../core/rng";
 
 describe("PlayerInput.viewTick (Story 2.12)", () => {
@@ -24,8 +24,8 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
   };
   const rng = createRng(811);
 
-  it("is 14 bytes; random inputs round-trip to their 1/127 steps, and quantising twice changes nothing", () => {
-    expect(INPUT_BYTES).toBe(14);
+  it("is 16 bytes (Story 8.13: 14 + the 2-byte tick ack); random inputs round-trip to their 1/127 steps, and quantising twice changes nothing", () => {
+    expect(INPUT_BYTES).toBe(16);
     for (let n = 0; n < 5000; n++) {
       const s = () => rng.next() * 2 - 1;
       const i: PlayerInput = {
@@ -99,7 +99,10 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
       expect(decodeInput(bad(at, 0x81), out()), `−127 at ${at}`).toBe(true);
       expect(decodeInput(bad(at, 0x7f), out()), `127 at ${at}`).toBe(true);
     }
-    for (let bit = 4; bit < 8; bit++) expect(decodeInput(bad(9, 1 << bit), out()), `flag bit ${bit}`).toBe(false);
+    for (let bit = 5; bit < 8; bit++) expect(decodeInput(bad(9, 1 << bit), out()), `flag bit ${bit}`).toBe(false);
+    // Story 8.13: without the ack flag, the ack bytes must be 0 (nothing extra).
+    expect(decodeInput(bad(14, 1), out())).toBe(false);
+    expect(decodeInput(bad(15, 1), out())).toBe(false);
     const vt = (u32: number): Uint8Array => {
       const b = good.slice();
       new DataView(b.buffer).setUint32(10, u32, true);
@@ -117,13 +120,14 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
     for (let n = 0; n < 20000; n++) {
       for (let i = 0; i < INPUT_BYTES; i++) b[i] = Math.floor(rng.next() * 256);
       if (n % 2 === 0) b[0] = INPUT_FORMAT;
-      if (n % 4 === 0) b[9] = (b[9] as number) & 0x0f;
+      if (n % 4 === 0) b[9] = (b[9] as number) & 0x1f;
       if (n % 8 === 0) b[13] = (b[13] as number) & 0x7f;
+      if (n % 16 === 0) b[14] = b[15] = 0;
       const d = out();
       if (!decodeInput(b, d)) continue;
       accepted++;
       expect(playerInputSchema.safeParse(d).success).toBe(true);
-      encodeInput(d, again);
+      encodeInput(d, again, decodeInputAck(b));
       expect(again).toEqual(b);
     }
     expect(accepted).toBeGreaterThan(500); // liveness: the fuzz really reached the accept path
@@ -136,5 +140,42 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
     const d = out();
     expect(decodeInput(big.subarray(13, 13 + INPUT_BYTES), d)).toBe(true);
     expect([d.seq, d.aimX, d.viewTick]).toEqual([42, 1, 900]);
+  });
+
+  describe("Story 8.13: the tick ack (bytes 14–15)", () => {
+    it("round-trips the low 16 bits; −1 / NaN = none (flag off, bytes 0); the decoded input is the same with or without it", () => {
+      const b = new Uint8Array(INPUT_BYTES);
+      for (const tick of [0, 1, 255, 256, 65535, 65536, 70000, 2 ** 31]) {
+        encodeInput({ ...NEUTRAL_INPUT, seq: 3 }, b, tick);
+        expect(decodeInput(b, out())).toBe(true);
+        expect(decodeInputAck(b), `${tick}`).toBe(tick & 0xffff);
+      }
+      for (const none of [-1, Number.NaN]) {
+        encodeInput({ ...NEUTRAL_INPUT, seq: 3 }, b, none);
+        expect(decodeInput(b, out())).toBe(true);
+        expect(decodeInputAck(b)).toBe(-1);
+        expect([b[14], b[15]]).toEqual([0, 0]);
+      }
+      const a = out();
+      const c = out();
+      encodeInput({ ...NEUTRAL_INPUT, seq: 9, fire: true, viewTick: 400 }, b, 1234);
+      decodeInput(b, a);
+      encodeInput({ ...NEUTRAL_INPUT, seq: 9, fire: true, viewTick: 400 }, b);
+      decodeInput(b, c);
+      expect(a).toEqual(c);
+      expect(decodeInputAck(new Uint8Array(14))).toBe(-1); // wrong length: none
+    });
+
+    it("ackTickFrom: the newest tick ≤ now with those low bits; never from the future; none before tick 0", () => {
+      expect(ackTickFrom(-1, 100)).toBe(-1);
+      expect(ackTickFrom(95, 100)).toBe(95);
+      expect(ackTickFrom(100, 100)).toBe(100);
+      expect(ackTickFrom(101, 100)).toBe(-1); // would be 101 − 65,536 < 0
+      expect(ackTickFrom(70000 & 0xffff, 70010)).toBe(70000);
+      expect(ackTickFrom(65530, 65540)).toBe(65530); // across the wrap
+      expect(ackTickFrom(3, 65540)).toBe(65539); // low 3 = 65,536 + 3
+      expect(ackTickFrom(5, 65540)).toBe(5); // low 5 > now's low 4: 65,535 ticks back
+      for (let now = 0; now < 200000; now += 997) for (const back of [0, 1, 20, 300, 65535]) if (now - back >= 0) expect(ackTickFrom((now - back) & 0xffff, now)).toBe(now - back);
+    });
   });
 });

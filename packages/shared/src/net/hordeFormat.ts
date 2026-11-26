@@ -103,6 +103,37 @@ export const HORDE_MISSING_TICKS = 3;
 export const HORDE_VIEW_MARGIN_M = 4;
 /** A client whose socket holds more than this skips horde frames until it drains (AC 4). */
 export const HORDE_BACKPRESSURE_BYTES = 64 * 1024;
+
+// ── Story 8.13: the slow-line skip (decision 8.13 D1–D3). The phone acks the newest server tick it has received in
+// every input (`encodeInput`'s ack); the server times each new ack against when it wrote that tick: the age. The
+// lowest age of the last HORDE_LINE_BASE_WINDOW_S is the line's own round trip; anything above it is time spent
+// waiting in the line (a slow line's queue, which the 64 KB socket rule cannot see: 8.10 B6). ──
+
+/**
+ * Horde frames to a phone are skipped while its frames wait more than this in the line (ms above its base). Measured
+ * (Story 8.13 table): a 128 kbit/s line waits ≤ 159 ms plus ±20 ms jitter and ≤ 50 ms of input sampling, so 300 ms
+ * never trips there; a 64 kbit/s queue is caught before it passes ~1 s (we learn a wait only when its frame lands).
+ */
+export const HORDE_LINE_SKIP_MS = 300;
+/**
+ * We learn a frame's wait only when it lands (wait + round trip later), so on a filling line the reading lags: the
+ * skip compares HORDE_LINE_SKIP_MS with the wait projected to now, `wait + trend × age`, the trend being how fast the
+ * wait grew per ms of send time over at least HORDE_LINE_TREND_SPAN_MS of acked ticks (clamped to 0 … this).
+ */
+export const HORDE_LINE_TREND_MAX = 2;
+/** The trend is measured over acks whose ticks were written at least this far apart (ms): jitter averages out. */
+export const HORDE_LINE_TREND_SPAN_MS = 200;
+/** Skipping stops (a keyframe follows) once the wait is back under this (ms above base): the line has caught up. */
+export const HORDE_LINE_RESUME_MS = 100;
+/**
+ * The wait must stay over HORDE_LINE_SKIP_MS for this long (ms of ack arrivals) before skipping starts: the inputs of
+ * a burst after an upstream stall land together, the first ones carrying old acks, so one late ack is no queue.
+ */
+export const HORDE_LINE_CONFIRM_MS = 100;
+/** The base (the line's round trip with nothing queued) is the lowest age of this many 1-second buckets. */
+export const HORDE_LINE_BASE_WINDOW_S = 10;
+/** With no new ack for this long (a hidden tab, a long stall), the skip ends: the 64 KB socket rule takes over. */
+export const HORDE_LINE_SIGNAL_STALE_MS = 2000;
 /** Largest frame in bytes. */
 export const HORDE_MAX_FRAME_BYTES = HORDE_HEADER_BYTES + HORDE_RECORD_BYTES * HORDE_MAX_RECORDS;
 

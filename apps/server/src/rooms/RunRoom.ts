@@ -48,6 +48,7 @@ import {
   BYTES,
   NEUTRAL_INPUT,
   decodeInput,
+  decodeInputAck,
   runStartSchema,
   shopBuySchema,
   shopRerollSchema,
@@ -411,7 +412,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.11: the decoded binary input (reused; `RunController.queueInput` copies it), and a rate-dropped one's. */
   private readonly inputIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
   private readonly rateDroppedIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
-  private readonly inputParser = bytesParser(decodeInput, this.inputIn);
+  /** Story 8.13: the tick ack of the input `inputParser` decoded last (`decodeInputAck`; read in `onInput`). */
+  private inputAck = -1;
+  private readonly inputParser = bytesParser((b: Uint8Array, out: typeof this.inputIn): boolean => {
+    if (!decodeInput(b, out)) return false;
+    this.inputAck = decodeInputAck(b);
+    return true;
+  }, this.inputIn);
   /** Story 7.2: this run's bank (`meta/banking.ts`; made at Start with the run id), null outside a run. */
   bank: RunBank | null = null;
   /** Story 7.2: the bank's one retry delay (tests shorten it on a live room, like `holdS`). */
@@ -2100,6 +2107,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       s.framesSkipped = 0;
       s.keyframes = 0;
       s.bytesSent = 0;
+      s.lineSkipped = 0; // Story 8.13
+      s.maxLineWaitMs = 0;
     }
     this.slowTicks?.takeWindow();
     this.slowPatches?.takeWindow();
@@ -2152,11 +2161,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private logHordeStats(wave: number): void {
     for (const [playerId, s] of this.hordeStats) {
       const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
-      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes }, "horde_stats");
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes, lineSkipped: s.lineSkipped, maxLineWaitMs: Math.round(s.maxLineWaitMs) }, "horde_stats");
       s.framesSent = 0;
       s.framesSkipped = 0;
       s.keyframes = 0;
       s.bytesSent = 0;
+      s.lineSkipped = 0; // Story 8.13
+      s.maxLineWaitMs = 0;
     }
   }
 
@@ -2633,12 +2644,18 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   onInputRateDropped(client: RunClient, message: unknown): void {
     const member = this.members.get(client.sessionId);
     // Story 8.11: the dropped binary input is decoded (seq, edges); one that doesn't decode carries nothing.
-    if (member && message instanceof Uint8Array && decodeInput(message, this.rateDroppedIn)) this.controller?.rateDroppedInput(member.playerId, this.rateDroppedIn);
+    if (member && message instanceof Uint8Array && decodeInput(message, this.rateDroppedIn)) {
+      this.controller?.rateDroppedInput(member.playerId, this.rateDroppedIn);
+      this.horde?.ack(client, decodeInputAck(message), performance.now()); // Story 8.13: its ack still times the line
+    }
   }
 
   onInput(client: RunClient, input: PlayerInput): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
+    // Story 8.13: the newest tick this phone has received times the line to it (the slow-line horde skip).
+    this.horde?.ack(client, this.inputAck, performance.now());
+    this.inputAck = -1;
     // Story 8.1 (AC 2): inputs again on the same socket after a quiet hold: the seat returns (F4) first.
     // A late input made while the line was down (F7: `isStaleInput`) is no sign of life.
     if (this.holds.get(member.playerId)?.reason === "quiet" && this.controller && !this.controller.isStaleInput(input)) this.endHold(member, "input");

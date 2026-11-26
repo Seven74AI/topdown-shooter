@@ -848,9 +848,10 @@ export class NetSimHost implements SimHost {
       buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
-      // Story 8.11 (AC 3): the 14-byte binary input; `buf` is rounded to what the server decodes (1/127 stick steps)
+      // Story 8.11 (AC 3): the binary input (16 bytes since 8.13); `buf` is rounded to what the server decodes (1/127 stick steps)
       // BEFORE the predictor and the fire clock see it, so the predicted and the server's moves use the same values.
-      encodeInput(buf, this.sendBytes);
+      // Story 8.13: + the newest server tick received (a patch or a horde frame): the server times its line to me with it.
+      encodeInput(buf, this.sendBytes, Math.max(this.snapshots.latestTick, this.horde.latestTick));
       decodeInput(this.sendBytes, buf);
       room.sendBytes(BYTES.INPUT, this.sendBytes); // copied synchronously: the bytes can be reused
       // Story 2.6: my survivor moves now, not a round trip later. Story 5.2: with the weapon state the

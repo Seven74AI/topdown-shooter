@@ -84,7 +84,7 @@ export {
   type ShopStream,
   type StreamName,
 } from "./core/seedStreams";
-export { INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, VIEW_TICK_SCALE, decodeInput, encodeInput, playerInputSchema, quantizeInput, viewTickOfInput, type PlayerInput } from "./net/input";
+export { INPUT_ACK_MASK, INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, VIEW_TICK_SCALE, ackTickFrom, decodeInput, decodeInputAck, encodeInput, playerInputSchema, quantizeInput, viewTickOfInput, type PlayerInput } from "./net/input";
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export {
   COVER_KINDS,
@@ -183,6 +183,13 @@ export {
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,
+  HORDE_LINE_BASE_WINDOW_S,
+  HORDE_LINE_CONFIRM_MS,
+  HORDE_LINE_RESUME_MS,
+  HORDE_LINE_SIGNAL_STALE_MS,
+  HORDE_LINE_SKIP_MS,
+  HORDE_LINE_TREND_MAX,
+  HORDE_LINE_TREND_SPAN_MS,
   HORDE_CHG_FAR,
   HORDE_CHG_HEADING,
   HORDE_CHG_MASK,
