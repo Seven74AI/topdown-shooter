@@ -42,6 +42,24 @@ describe("Story 6.4 ScreenFog: what my screen shows (F3, F6; D2, D10)", () => {
     expect(ruins.visibility(20, 40)).toBe(1);
   });
 
+  it("Story 12.3 (AC 5): the fog lifts over the fly-out (the horde shows through), gone at 1; a boarded body casts no beam", () => {
+    const w = world(5);
+    const mate = addPlayer(w, "mate", 20, 30);
+    mate.facingX = 1;
+    mate.facingY = 0;
+    const fog = new ScreenFog();
+    fog.update(w, 20, 16, () => undefined, 0.5);
+    expect(fog.on).toBe(true);
+    expect(fog.visibility(20, 16 + 10.1)).toBeCloseTo(0.5, 9);
+    fog.update(w, 20, 16, () => undefined, 1);
+    expect(fog.on).toBe(false);
+    expect(fog.visibility(20, 40)).toBe(1);
+    w.extract.boarded.add("mate");
+    fog.update(w, 20, 16, () => undefined, 0);
+    expect(fog.beamsNow).toBe(1);
+    expect(fog.visibility(27, 30)).toBe(0); // the beam from the pad is gone
+  });
+
   it("every STANDING survivor's beam reveals (a teammate's too, D2); a downed one's does not", () => {
     const w = world(5);
     const mate = addPlayer(w, "mate", 20, 30);

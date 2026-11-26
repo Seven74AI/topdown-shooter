@@ -102,6 +102,19 @@ describe("Story 6.11: the vote in the run cycle", () => {
     expect(u.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock });
   });
 
+  it("Story 12.3: Results after the extraction phase (the fly-out seen live) show the card at once (no 4 s dawn on top)", () => {
+    const t = setup();
+    t.phase("build");
+    t.phase("wave");
+    t.phase("vote");
+    t.phase("extract");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 400;
+    clock = 1000 + 400 * 50;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ kind: "results", ending: "extracted", dawnEndsAtMs: clock });
+  });
+
   it("review M2: a page frozen across the extract (the backlog delivers vote → results 5 s late) gets no dawn; 1 s late plays the rest", () => {
     clock = 1000;
     const t = setup();

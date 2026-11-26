@@ -125,7 +125,9 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       // ticks between them (a backlog that lands > 1 s after an unlock has every sample equally late,
       // so its age reads 0, but the two patches arrive together).
       const sawVoteRun = now - voteSeenAtMs >= (st.tick - voteTick) * TICK_MS - VOTE_SEEN_SLACK_MS;
-      const live = (last === "vote" || last === "extract") && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown && sawVoteRun;
+      // Story 12.3: after the extraction phase the fly-out (dawn sweep, fade to white) WAS the dawn: the card at once,
+      // live or late. Only Results straight from the vote (no extraction seen) still play the 4 s dawn.
+      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown && sawVoteRun;
       const mySlot = deps.mySlot?.();
       deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS), ...(mySlot === undefined ? {} : { mySlot }) });
     } else if (phase === "lobby") {

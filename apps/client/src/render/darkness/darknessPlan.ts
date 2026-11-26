@@ -278,6 +278,7 @@ const addPlayer = (p: PlayerState, id: string): void => {
   const y = d ? d.y : p.y;
   const fx = d ? d.facingX : p.facingX;
   const fy = d ? d.facingY : p.facingY;
+  if (world.extract.boarded.has(id)) return; // Story 12.3: aboard, the body is gone (no glow or cone from the pad)
   plan.addSurvivor(x, y, fx, fy, p.status, flashlightOf(world.balance, p.gear), b.glowM, id === inp.localId);
   // D4: a flame jet lights `flameLightM` round the middle of the jet while it fires.
   if (p.status === "alive" && inp.flamingOf(id) !== "") {
