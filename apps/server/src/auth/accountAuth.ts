@@ -25,7 +25,7 @@ import {
   type RecoverResponse,
   type UpgradeResponse,
 } from "@topdown/shared";
-import type { AccountsRepo } from "../db/accountsRepo";
+import { type AccountsRepo, isAdminAccount } from "../db/accountsRepo";
 import type { DeviceTokensRepo, LogInResult } from "../db/deviceTokensRepo";
 import { ipKey, type NameFailureLimiter, type SlidingWindowLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
@@ -132,7 +132,7 @@ function sessionOf(r: Extract<LogInResult, { outcome: "ok" }>, token: string, de
     saved: true,
     deviceToken: token,
     ticket: signTicket(r.account.id, hashGuestToken(token), deps.sessionSecret, (deps.now ?? Date.now)()),
-    account: { displayName: r.account.displayName, username: r.account.username },
+    account: { displayName: r.account.displayName, username: r.account.username, admin: isAdminAccount(r.account) }, // Story 10.11 (AC 2)
     progress: { ...toView(r.progress), look: canonicalLook(r.progress.look) }, // Story 7.9: like the session reply
   };
 }
@@ -259,7 +259,7 @@ export async function logOut(input: { cookieToken: string | null | undefined; ip
         saved: true,
         deviceToken: fresh,
         ticket: signTicket(r.account.id, hashGuestToken(fresh), deps.sessionSecret, (deps.now ?? Date.now)()),
-        account: { displayName: r.account.displayName, username: null },
+        account: { displayName: r.account.displayName, username: null, admin: false }, // Story 10.11: a new guest is never an admin
         progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null },
       };
       return { status: 200, body, deviceToken: fresh };

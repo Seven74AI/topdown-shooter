@@ -198,7 +198,7 @@ describe("Story 10.1 AC 8–10 (E7-A8): POST /account/delete", () => {
     expect(JSON.parse(line)[0]).toEqual({ kind: "account", guests: 1, savedRunsDeleted: 1, seatsRemoved: 1 });
     for (const secret of [a.id, phone.id, a.username, a.token, li.deviceToken, hashGuestToken(li.deviceToken), "10.101."]) expect(line).not.toContain(secret);
     // Every device of the account is gone (the first phone's cookie too).
-    expect((await post("/account/session", {}, { cookie: a.token })).body.account).toEqual({ displayName: "", username: null });
+    expect((await post("/account/session", {}, { cookie: a.token })).body.account).toEqual({ displayName: "", username: null, admin: false });
   });
 
   it("the deleted account's username can be registered again; the old login is refused", async () => {

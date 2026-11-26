@@ -53,7 +53,9 @@ export const accountSessionResponseSchema = z.discriminatedUnion("saved", [
     deviceToken: guestTokenSchema,
     ticket: sessionTicketSchema,
     // Review F10: not strict either (7.6 adds account fields): an unknown field is dropped, never a rejected reply.
-    account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable() }),
+    // Story 10.11 (AC 2): `admin` = the player's OWN admin mark (the cheat panel in production); optional, so an older
+    // server's reply still validates (absent = not an admin).
+    account: z.object({ displayName: z.string().max(64), username: z.string().max(64).nullable(), admin: z.boolean().optional() }),
     /**
      * Story 7.3 (AC 4) + 7.9: the account's progress (Supplies, bought unlocks, the canonical look code), from ONE
      * repository read. null when that read failed (the account is still found: the ticket is good; the client keeps

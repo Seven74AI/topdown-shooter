@@ -15,7 +15,7 @@ describe("account gone (review L9)", () => {
     expect(st.m.get(LAST_USERNAME_KEY)).toBe("mo_42");
     const after = new AccountStore(() => st); // the next page load
     after.accept(null);
-    expect(after.get()).toEqual({ known: true, username: null, gone: true });
+    expect(after.get()).toEqual({ known: true, username: null, admin: false, gone: true });
     after.dismissGone();
     expect(after.get().gone).toBeUndefined();
     after.accept(null);

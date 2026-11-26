@@ -9,7 +9,7 @@
  * Never logs a token or a hash.
  */
 import { catalogueParts, decodeLook, encodeLook, guestTokenSchema, type AccountSessionResponse, type ProgressView } from "@topdown/shared";
-import type { AccountsRepo } from "../db/accountsRepo";
+import { type Account, type AccountsRepo, isAdminAccount } from "../db/accountsRepo";
 import type { ProgressRepo } from "../db/progressRepo";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
@@ -136,11 +136,11 @@ export function canonicalLook(stored: string | null | undefined): string | null 
   return stored === null || stored === undefined ? null : encodeLook(decodeLook(stored, ANY_PART).look);
 }
 
-function saved(token: string, account: { id: string; displayName: string; username: string | null }, secret: string, nowMs: number): AccountSessionResponse {
+function saved(token: string, account: Account, secret: string, nowMs: number): AccountSessionResponse {
   return {
     saved: true,
     deviceToken: token,
     ticket: signTicket(account.id, hashGuestToken(token), secret, nowMs),
-    account: { displayName: account.displayName, username: account.username },
+    account: { displayName: account.displayName, username: account.username, admin: isAdminAccount(account) }, // Story 10.11 (AC 2)
   };
 }

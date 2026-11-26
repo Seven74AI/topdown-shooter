@@ -28,6 +28,11 @@ export const accounts = pgTable("accounts", {
   mergedInto: uuid("merged_into").references((): AnyPgColumn => accounts.id),
   /** Story 7.6 (AC 10, D9): the one-time Results "Save my progress" line was sent. */
   saveNudged: boolean("save_nudged").notNull().default(false),
+  /**
+   * Story 10.11 (AD-1): an admin (the dev cheat panel in a production build). Set only by the operator command
+   * (`npm run admin`, `adminCli.ts`), and only on an account with a username; a session reports it as `account.admin`.
+   */
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
