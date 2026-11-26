@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { addGeneratedTexture } from "./canvasTexture";
+import { textureRegistry } from "../gfx/textureRegistry";
 import { SHEEN_STEPS } from "./charRelight";
 import { BOSS_SHEEN_SHEET, bossBakeSteps, bossJobId, bossJobs, bossSheetOf, bossSheetSpecs, jobFrames, type BossBaked, type BossJob, type BossSheetSpec } from "./bossFrames";
 
@@ -49,6 +50,8 @@ export interface BossSheet {
   dirty: boolean;
   /** Frames written since the last upload: ready once it is done. */
   readonly pending: string[];
+  /** Review L1: the wipe check, set once the first picture lands (reads a known opaque pixel of the canvas). */
+  probe: (() => boolean) | null;
 }
 export interface BossBake {
   /** The look baked (−1: none asked for yet). */
@@ -65,11 +68,15 @@ export interface BossBake {
   readonly sheets: Map<string, BossSheet>;
   /** Frames (bodies, veins, sheen strips) whose pixels are on the GPU. */
   readonly ready: Set<string>;
+  /** Nothing left to do after the last pump (cleared by a new look or a wiped sheet). */
+  idle: boolean;
   /** Each landed picture's opaque box (sheen: per step frame), for `setCrop`. */
   readonly crops: Map<string, readonly [number, number, number, number]>;
   readonly make: (w: number, h: number) => HTMLCanvasElement;
   /** Makes a sheet (the game's registers a texture; tests pass a plain one). */
   makeSheet: (spec: BossSheetSpec) => BossSheet;
+  /** A sheet got its wipe check (the game's registers it with the texture registry). */
+  onProbe?: (s: BossSheet) => void;
   readonly stats: { startMs: number; doneMs: number; landed: number; fromWorker: number; onMain: number; maxPumpMs: number; maxLandMs: number; maxSheetMs: number; maxUploadMs: number; worker: boolean };
 }
 
@@ -96,6 +103,7 @@ export function newBossBake(make: (w: number, h: number) => HTMLCanvasElement, m
     lastPump: 0,
     sheets: new Map(),
     ready: new Set(),
+    idle: false,
     crops: new Map(),
     make,
     makeSheet: makeSheet ?? ((spec) => plainSheet(spec, make)),
@@ -103,7 +111,7 @@ export function newBossBake(make: (w: number, h: number) => HTMLCanvasElement, m
   };
 }
 function plainSheet(spec: BossSheetSpec, make: (w: number, h: number) => HTMLCanvasElement): BossSheet {
-  return { spec, canvas: make(spec.w, spec.h), tex: null, dirty: false, pending: [] };
+  return { spec, canvas: make(spec.w, spec.h), tex: null, dirty: false, pending: [], probe: null };
 }
 
 /** Asks for `look`'s relit pictures. Another look than the one baked starts over (a new generation). */
@@ -119,6 +127,7 @@ export function requestBossLookIn(b: BossBake, look: number): void {
   b.arrived.length = 0;
   for (const s of b.sheets.values()) s.pending.length = 0;
   b.queue = bossJobs();
+  b.idle = false;
   b.stats.startMs = performance.now();
   b.stats.doneMs = 0;
   if (b.useWorker) sendToWorker(b);
@@ -140,6 +149,7 @@ export function sheetWiped(b: BossBake, key: string): number {
     b.queue.push(j);
     n++;
   }
+  if (n > 0) b.idle = false;
   if (n > 0 && b.useWorker) sendToWorker(b);
   return n;
 }
@@ -153,6 +163,30 @@ function put(b: BossBake, s: BossSheet, name: string, img: ImageData): void {
   // the opaque box of each picture (a sheen strip: of each step), for the view's crop (B8: no fill of empty margins)
   if (s.spec.key === BOSS_SHEEN_SHEET) for (let k = 0; k < SHEEN_STEPS; k++) b.crops.set(`${name}${k}`, opaqueBox(img, k * f.h, f.h, f.h));
   else b.crops.set(name, opaqueBox(img, 0, f.w, f.h));
+  if (!s.probe) setProbe(b, s, f.x, f.y, img);
+}
+
+/**
+ * Review L1: once a sheet holds a picture, its wipe check reads its most opaque pixel (`textureRegistry.allIntact`:
+ * a canvas the browser emptied in the background reads transparent there → the graphics guard rebuilds, `sheetWiped`
+ * re-bakes, the plain atlas shows meanwhile). The sheets are registered while empty, so they get it now.
+ */
+function setProbe(b: BossBake, s: BossSheet, fx: number, fy: number, img: ImageData): void {
+  const d = img.data;
+  let best = -1;
+  let bestA = 0;
+  for (let i = 3; i < d.length; i += 4) {
+    if ((d[i] as number) <= bestA) continue;
+    bestA = d[i] as number;
+    best = i >> 2;
+    if (bestA === 255) break;
+  }
+  if (best < 0) return; // an empty picture: the next one sets it
+  const x = fx + (best % img.width);
+  const y = fy + Math.floor(best / img.width);
+  const g = s.canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
+  s.probe = () => s.canvas.width > 0 && (g.getImageData(x, y, 1, 1).data[3] as number) > 0;
+  b.onProbe?.(s);
 }
 /** The box (x, y, w, h in the picture) of the pixels with any alpha in the `w × h` region at `x0` of `img`. */
 export function opaqueBox(img: ImageData, x0: number, w: number, h: number): readonly [number, number, number, number] {
@@ -224,6 +258,8 @@ function land(b: BossBake, a: Arrived): number {
  */
 export function pumpBossBakeIn(b: BossBake, budgetMs: number, now: () => number = () => performance.now()): boolean {
   if (b.look < 0) return false;
+  // review N1: the bake is over and nothing came back: nothing to walk (no iterator per frame)
+  if (b.idle && b.queue.length === 0 && b.job === null && b.inFlight.length === 0 && b.arrived.length === 0) return false;
   const t0 = now();
   // the sheets are made first, one a frame and nothing else that frame (making one is a GPU upload: 9.13 review M3);
   // the worker keeps baking meanwhile and its pictures wait in `arrived`
@@ -287,6 +323,7 @@ export function pumpBossBakeIn(b: BossBake, budgetMs: number, now: () => number 
   let dirty = false;
   for (const s of b.sheets.values()) if (s.dirty || s.pending.length > 0) dirty = true;
   const busy = dirty || b.job !== null || b.queue.length > 0 || b.inFlight.length > 0 || b.arrived.length > 0;
+  b.idle = !busy && b.worker === null;
   if (!busy && b.stats.doneMs === 0 && b.stats.landed > 0) b.stats.doneMs = now();
   b.stats.maxPumpMs = Math.max(b.stats.maxPumpMs, now() - t0);
   return busy;
@@ -357,6 +394,9 @@ export function ensureBossRelit(scene: Phaser.Scene, opts: { readonly worker?: b
     return;
   }
   const b = newBossBake(makeCanvas, (spec) => gameSheet(scene, spec, b));
+  b.onProbe = (s) => {
+    if (s.probe) textureRegistry.setIntactCheck(s.spec.key, s.probe);
+  };
   bake = b;
   if (opts.worker !== false && workerBakeAvailable()) {
     b.useWorker = true;
@@ -369,7 +409,7 @@ export function ensureBossRelit(scene: Phaser.Scene, opts: { readonly worker?: b
 function gameSheet(scene: Phaser.Scene, spec: BossSheetSpec, b: BossBake): BossSheet {
   const canvas = makeCanvas(spec.w, spec.h);
   let first = true;
-  const s: BossSheet = { spec, canvas, tex: null, dirty: false, pending: [] };
+  const s: BossSheet = { spec, canvas, tex: null, dirty: false, pending: [], probe: null };
   const existing = scene.textures.exists(spec.key);
   s.tex = existing
     ? null

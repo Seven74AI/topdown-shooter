@@ -506,7 +506,8 @@ export class BossView {
         this.lock.setVisible(false);
         this.hideLayers();
       }
-      if (b.state === BOSS_STATE.NONE) {
+      if (b.state === BOSS_STATE.NONE || b.state === BOSS_STATE.WARNING) {
+        // review N3: a new Behemoth starts clean even when its warning follows the last one's death without a NONE
         this.anim.reset();
         this.dust.clear();
       }

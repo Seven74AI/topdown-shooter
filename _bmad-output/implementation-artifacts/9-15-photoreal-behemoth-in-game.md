@@ -58,8 +58,9 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
    supersampled, the page's volume scale `RF = 0.7`, seed `901 + look × 7`) in a Web Worker (main-thread resumable
    fallback under `BAKE_MS_PER_FRAME`), the plain take C drawing showing first and the relit pictures replacing it as
    they land (one sheet upload per frame, landing at most half the frame budget); no blank frame ever (a frame not
-   landed shows its plain picture); every sheet ≤ 2048²; kept pictures as pixels with a sentinel restore check, layers
-   re-baked after a lost context (9.13 B18 / B26).
+   landed shows its plain picture); every sheet ≤ 2048²; after a lost context or a wiped canvas the relit pictures are
+   baked again (accepted change, B7: no kept pixels; each relit sheet has a wipe check reading a known pixel once its
+   first picture lands, review L1).
 3. **Bug fixes, tested.** (a) `walk_a` / `walk_b` baked at phases 0.25 / 0.75 and a test proves the two pictures
    differ (and differ only around the arms); (b) the death frames have no black head / spine: a test reads the head
    and spine pixels of `dead_a…c` and finds skin colour, and `hexOf(shade(...))` round-trips.
@@ -75,7 +76,8 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
    - **Walk**: breath rides the steps (dip ~1 % at each footfall, rise through the step); enraged beat on every 3rd
      footfall (≈ 1.15 s); standing still, the beat keeps the 1.2 s clock.
    - **Slam**: breath held through the warning, the heart races (beats at 0, 0.55, 0.9, 1.1 s of the 1.2 s warning,
-     i.e. at those fractions of `slam.telegraphS`), glow building 0.4 → 0.8, eyes 75 → 100 %; on the hit everything
+     i.e. at those fractions of `slam.telegraphS`) over the 0.25 ember (the action player's `planAt`, B12; amended from
+     "glow building 0.4 → 0.8", review L2), eyes 75 → 100 %; on the hit everything
      peaks together (glow, eyes, dust puff from the fists, grit off the shoulders after it) then exhales back over
      `slam.recoverS`.
    - **Charge + stun**: breath held, the heart races through the warning, eyes 100 %, steady 60 % glow through the
@@ -98,14 +100,15 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
 ## Tasks / Subtasks
 
 - [x] T1 Art (AC 1, 3): port `behemoth5.ts` into `behemothArt.ts` (no inspector; `GLOW_MARKER` exported; `hexOf`);
-  export the eye positions per pose (`behemothEyes(pose, k)`) for the eye layer; an option to draw a body frame without
-  the eye glow halo (the eye layer draws it); outline frames unchanged.
+  export the head's position per pose (`behemothHeadM(pose, k)`; the eyes sit `BH_EYE_AHEAD_R` ahead and `BH_EYE_SIDE_R`
+  either side) for the eye layer; an option to draw a body frame without its eyes (the eye layer draws them); outline
+  frames unchanged.
 - [x] T2 Frames (AC 2, 4, 5): `bossAtlas.ts › POSE_FRAMES` walk phases 0.25 / 0.75, new `charge_b`, `throw_b`; the
   plain atlas keeps 16 body frames per look (4 × 16 = 64 = 8 × 8 in 2048²) — the two outline frames per look move to
   their own small texture `boss_outline` (8 frames).
 - [x] T3 Bake (AC 2, 5): `render/city/bossFrames.ts` (pure, worker-safe: the relit frame list of one look, `bakeSteps`:
-  draw ×2 → marker → relight → vein glow + sheen), `bossBakeWorker.ts`, `bossRelit.ts` (one sheet `boss_relit` for the
-  look in play, kept pixels, pump, worker timeout / fallback, restore registration, landed set per look).
+  draw ×2 → marker → relight → vein glow + sheen), `bossBakeWorker.ts`, `bossRelit.ts` (the look in play in 11 sheets
+  `bossr_s0…s10` of 512² + `bossr_sheen`, pump, worker timeout / fallback, wipe check and re-bake, ready set per look).
 - [x] T4 View (AC 4–7): `BossView` frame choice by progress for charge / throw; a second body image for the roar
   crossfade; layers (eyes ×2, veins, sheen) pooled; `bossAnim.ts` (pure: breath, beat scheduler, eye / glow levels per
   state and time; the visual config); dust pool (`bossDust.ts`, pure state + one Graphics-free sprite pool).
@@ -146,10 +149,11 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
   or missing prediction re-bakes at arrival). The bake starts after the characters' bake is done (or a fallback
   delay), long before wave 10; until it lands the plain take C frames show (no blank frame).
 - **B2 Sheets.** Plain `boss_atlas`: 4 looks × 16 body frames (14 + `charge_b`, `throw_b`) = 64 = 8 × 8 at 252 px in
-  2048²; the 8 outline frames move to `boss_outline`. Relit `boss_relit` (one look): 16 calm + 13 enraged bodies + 13
-  vein glows + 1 death glow + sheen strips for the four walk frames (calm / enraged), ≤ 2048².
-- **B3 Eyes as sprites.** The body frames are baked with the eye cores but no eye halo; the eye glow (core + halo) is
-  two pooled ADD sprites at the pose's eye positions (`behemothEyes`), so the plan's eye levels (30 % stunned, out at
+  2048²; the 8 outline frames move to `boss_outline`. Relit (one look): 16 calm + 13 enraged bodies + 13 vein glows
+  + 1 death glow in 11 sheets `bossr_s0…bossr_s10` of 512² (4 frames each), and the four walk frames' sheen strips
+  (calm / enraged) in `bossr_sheen` (1008 × 504).
+- **B3 Eyes as sprites.** The body frames are baked without eyes; the eyes (core + halo) are two pooled ADD sprites at
+  the pose's eye positions (`behemothHeadM` + `BH_EYE_AHEAD_R` / `BH_EYE_SIDE_R`), so the plan's eye levels (30 % stunned, out at
   death, snap red at the roar) are exact. The outline frames keep their own eyes.
 - **B4 Vein glow.** One glow picture per enraged frame (whole-layer alpha on the beat). The travelling wave is not
   baked (8 steps × 13 frames ≈ 26 MB): reported as not done unless memory allows a cheap version.
@@ -181,8 +185,8 @@ damage decals, the thrown chunks and crater). 9.4 keeps the zombies' attack and 
   starts with the sim's shock ring"): the sim pushes players at the roar's first tick, so the eyes snap red, the roar
   dust blows off and the veins light / skin crossfades calm → enraged over 0–1.2 s from that moment, with the swell over
   0–0.2 s. (The plan's 0.3 s had assumed the ring at 0.3 s.)
-- **B11 Reused dust textures.** The dust and grit sprites are `atlas_fx › fx_dust_a / fx_grit_a` (the Ruins dust's code
-  textures, through `addGeneratedTexture`), tinted the boss puff colour; no new texture.
+- **B11 Reused dust texture.** Every puff is `atlas_fx › fx_dust_a` (the Ruins dust's soft code texture, through
+  `addGeneratedTexture`), tinted the boss puff colour; no new texture (the page draws grit as small soft discs too).
 
 ### Guardrails (AGENTS.md § 5)
 
@@ -231,7 +235,7 @@ Claude (9.15 builder session)
   travelling wave not done: 8 steps × 13 frames ≈ 26 MB); eyes as two ADD sprites (B3), enraged floor 75 %.
 - AC 6: `bossAnim.ts` (`BOSS_ANIM` visual config; durations from `world.balance.boss`), `bossDust.ts`; the plan's
   moments tested in `bossAnim.test.ts` (beat every 3rd footfall, slam's racing beats at 0 / 0.55 / 0.9 / 1.1 s and the
-  peak on the hit, charge / rush / stun levels, throw release beat, roar snap at 0.3 s and the 0.3–1.5 s crossfade,
+  peak on the hit, charge / rush / stun levels, throw release beat, roar snap at 0 s and the 0–1.2 s crossfade (B10),
   death's last beat out by 0.4 s). The view never touches the sim (no shared-package change).
 - AC 7: breath on every state as planned (walk dips 1 % per footfall, slam / charge held, throw swells with the lift,
   exhale in the recovery, dazed stun breaths, roar inhale); sheen on the walk frames (B6); additive layers never tinted
@@ -266,3 +270,25 @@ Claude (9.15 builder session)
 - docs/art/photoreal-4/src/behemothNow.ts (new), docs/art/photoreal-4/src/boss4.ts, docs/art/photoreal-4/compare.html
 - docs/art/9-15/** (stills), docs/playtests/milestone-1/readability-sheet.md, docs/perf/epic-9-behemoth.md,
   docs/art/photoreal-decisions.md, .claude/skills/dead-city-model/SKILL.md
+
+## Senior Developer Review (AI)
+
+**Review 1** (fresh agent, separate cloud session, PR #34 on the merged tree, 2026-11-26): **APPROVE**, lows and nits
+only. Every finding fixed minimally (or noted, as asked):
+
+- **L1** relit sheets had no wipe check (registered while empty: `probeFor` found no opaque pixel). Fixed: once a sheet's
+  first picture lands, `setProbe` gives it a check reading its most opaque pixel and registers it
+  (`textureRegistry.setIntactCheck`, new), so `allIntact()` catches a wiped canvas → rebuild → `sheetWiped` re-bakes,
+  the plain atlas meanwhile. Test: `behemoth.raster.test.ts` "review L1" (every sheet probed, an emptied canvas fails
+  it, the registry reports it). B7 recorded as an accepted change to AC 2.
+- **L2** AC 6 said the slam glow builds 0.4 → 0.8; the code follows `planAt` (racing beats over the ember). AC text
+  amended (B12).
+- **L3** story text (E8-A3): AC 6 notes now say roar snap 0 s / crossfade 0–1.2 s; T1 / B3 name `behemothHeadM` +
+  `BH_EYE_AHEAD_R` / `BH_EYE_SIDE_R`; B11 says only `fx_dust_a` is reused; B2 / T3 name the sheets `bossr_s0…s10` +
+  `bossr_sheen`.
+- **N1** `pumpBossBakeIn` walked the sheets every frame after the bake: it now returns at once when idle (cleared by a
+  new look or a wiped sheet).
+- **N3** `BossAnim` / the dust reset only on NONE: now also in WARNING (a new Behemoth after a death without NONE).
+- **N2** (the roar's glow peaks at 0.85 × rage, the page's slow wave summed differently) and **N4** (the death puff reads
+  as a bright near-solid blob for ~0.3 s: 24 puffs of `puffsFor` overlapping) — no code change, left for the
+  designer's eye in the game (not tuned here on purpose).

@@ -163,7 +163,7 @@ describe("Story 9.15: the take C Behemoth", () => {
 });
 
 describe("Story 9.15: the relit bake (main thread, worker answers, wipes)", () => {
-  const sheetOf = (spec: Parameters<typeof newBossBake>[1] extends ((s: infer S) => unknown) | undefined ? S : never) => ({ spec, canvas: make(spec.w, spec.h), tex: null, dirty: false, pending: [] as string[] });
+  const sheetOf = (spec: Parameters<typeof newBossBake>[1] extends ((s: infer S) => unknown) | undefined ? S : never) => ({ spec, canvas: make(spec.w, spec.h), tex: null, dirty: false, pending: [] as string[], probe: null as (() => boolean) | null });
 
   it("one job's steps are small (no whole-picture step beyond the drawing) and give body, glow, sheen", () => {
     const units: number[] = [];
@@ -197,6 +197,26 @@ describe("Story 9.15: the relit bake (main thread, worker answers, wipes)", () =
     requestBossLookIn(b, 3);
     expect(b.ready.size).toBe(0);
     expect(b.queue).toHaveLength(bossJobs().length);
+  });
+
+  it("review L1: each sheet gets a wipe check once its first picture lands (registered through onProbe); an emptied canvas fails it", async () => {
+    const b = newBossBake(make, sheetOf);
+    const probed: string[] = [];
+    b.onProbe = (s) => probed.push(s.spec.key);
+    requestBossLookIn(b, 0);
+    for (let i = 0; i < 4000 && pumpBossBakeIn(b, 1000); i++);
+    expect(probed.sort()).toEqual(bossSheetSpecs().map((s) => s.key).sort());
+    for (const s of b.sheets.values()) expect(s.probe?.()).toBe(true);
+    const s = b.sheets.get(bossSheetSpecs()[0]?.key as string);
+    if (!s) throw new Error("no sheet");
+    (s.canvas.getContext("2d") as CanvasRenderingContext2D).clearRect(0, 0, s.canvas.width, s.canvas.height); // what a wipe does: the pixels are gone
+    expect(s.probe?.()).toBe(false);
+    const { RebuildPhase, TextureRegistry } = await import("../gfx/textureRegistry");
+    const reg = new TextureRegistry(() => undefined);
+    reg.register("k", RebuildPhase.cache, () => undefined);
+    expect(reg.allIntact()).toBe(true);
+    reg.setIntactCheck("k", s.probe as () => boolean);
+    expect(reg.allIntact()).toBe(false);
   });
 
   it("a wiped sheet's pictures are not ready any more and are baked again", () => {
