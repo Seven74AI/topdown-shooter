@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-26-2026 (readiness check: comments only)
+# last_updated: 11-26-2026 (Epic 7 + Epic 8 retros done)
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -178,7 +178,7 @@ development_status:
   7-10-survivor-editor: done  # landed 2026-11-25 after light review; built 2026-11-25 on story-7-10 (layout ED1+LK2+LS1; D1–D7 + B1–B14 auto-accepted, docs/epic-7-story-decisions-looks.md); awaiting light review + beat-the-rule on POST /account/look
   7-11-milestone-items: done  # landed 2026-11-25 after 2 narrow re-reviews; MERGED into 7.7+7.11+7.12 (story-7-12)
   7-12-surprise-loot-bag: done  # landed 2026-11-25 after 2 narrow re-reviews; merged 7.7+7.11+7.12 built on story-7-12 (one review)
-  epic-7-retrospective: optional
+  epic-7-retrospective: done  # 2026-11-26, headless; epic-7-retro-2026-11-26.md, actions E7-A1–A8
 
   # Epic 8: Real-life resilience
   epic-8: done  # Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
@@ -196,7 +196,7 @@ development_status:
   8-5-save-and-quit: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
-  epic-8-retrospective: optional
+  epic-8-retrospective: done  # 2026-11-26, headless; epic-8-retro-2026-11-26.md, actions E8-A1–A10
 
   # Epic 9: Dead City art and audio
   epic-9: in-progress  # 2026-11-25: photoreal pass (9.11–9.14), see docs/art/photoreal-decisions.md
