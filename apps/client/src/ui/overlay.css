@@ -1102,6 +1102,12 @@ p.in-run-menu__title {
   opacity: 0.35;
 }
 
+/* Story 8.12 (AC 6): downed or out, I don't vote. */
+.evac__btn:disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
 .evac__ring {
   flex: none;
 }

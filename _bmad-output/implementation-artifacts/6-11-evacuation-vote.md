@@ -50,6 +50,8 @@ Most relevant here: **28 (one run flow: the vote is a new phase with tested tran
 
 ### Fairness rules (player-visible; brief line 3; each is tested)
 
+> **As built, changed by Story 8.12 (designer 2026-11-25; sprint change proposal 2026-11-26 §6 X1):** only **connected, standing** players count. A held (disconnected) seat, a downed player and an out (dead) player are left out of the count: F1's "downed or out too" and F3 / F4's "players in the run" now mean "connected players with `status` alive", counted at the tick the vote resolves. Downed and out players see the buttons disabled and their chip reads "not voting". Silence still means Extract for a connected, standing player (D1), a tie is Extract, and nobody counted is Extract. FR66 was reworded to match. Tests: `run/evacVote.test.ts` › "Story 8.12".
+
 - **F1 "Everyone in the run votes, downed or out too."** Every player in the World when the vote opens gets the Extract and Stay buttons, standing, downed or out (FR66). A player who left the run is not counted.
 - **F2 "Every vote is visible to everyone, live."** Each player's choice shows at once in their slot colour on every phone (chips above the buttons); a player can change their vote until the vote ends (6.11 D2).
 - **F3 "Stay needs a real majority; silence means Extract."** The team stays only if **more than half of the players in the run** voted Stay. A tie, no votes, or a player who didn't vote counts toward Extract (6.11 D1). Examples: 4 players, 2 Stay / 2 Extract → Extract; 2 Stay / 0 Extract / 2 silent → Extract; 3 Stay → Stay; solo: Stay only if you tap Stay.

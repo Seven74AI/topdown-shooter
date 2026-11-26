@@ -281,6 +281,7 @@ export {
 } from "./waves/waveDirector";
 export {
   castVote,
+  countsInVote,
   countVotes,
   endRun,
   endWave,
