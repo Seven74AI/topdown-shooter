@@ -738,26 +738,22 @@ const PLAN: readonly ActionPlan[] = [
     lengthS: 1.5,
     timing: "Roar 1.5 s at half health, the 5 m shock ring.",
     lanes: {
-      pose: [
-        { t0: 0, t1: 0.3, label: "roar (inhale)" },
-        { t0: 0.3, t1: 1.5, label: "roar (mouth open)" },
-      ],
+      pose: [{ t0: 0, t1: 1.5, label: "roar (mouth open)" }],
       torso: [
-        { t0: 0, t1: 0.3, label: "big inhale", nw: true },
-        { t0: 0.3, t1: 1.5, label: "swollen 1.08" },
+        { t0: 0, t1: 0.2, label: "swells", nw: true },
+        { t0: 0.2, t1: 1.5, label: "swollen 1.08" },
       ],
       eyes: [
-        { t0: 0, t1: 0.3, label: "yellow" },
-        { t0: 0.3, t1: 0.4, label: "SNAP to red", key: true, nw: true },
-        { t0: 0.4, t1: 1.5, label: "red 100 %" },
+        { t0: 0, t1: 0.1, label: "SNAP to red", key: true, nw: true },
+        { t0: 0.1, t1: 1.5, label: "red 100 %" },
       ],
-      glow: [{ t0: 0.3, t1: 1.5, label: "the veins light from the neck outward (one slow wave); the skin flushes calm → enraged", nw: true }],
+      glow: [{ t0: 0, t1: 1.2, label: "the veins light from the neck outward (one slow wave); the skin flushes calm → enraged", nw: true }],
       clothes: [{ t0: 0, t1: 1.5, label: "still" }],
-      dust: [{ t0: 0.3, t1: 0.8, label: "dust blown off by the roar", nw: true }],
-      fx: [{ t0: 0.3, t1: 0.8, label: "shock ring (5 m push)", key: true }],
+      dust: [{ t0: 0, t1: 0.5, label: "dust blown off by the roar", nw: true }],
+      fx: [{ t0: 0, t1: 0.5, label: "shock ring (5 m push, at 0 s: the sim's moment)", key: true }],
     },
     moments: [
-      { t: 0.1, frame: "roar_a", enr: false, glow: 0, eyes: 1, note: "inhale, still calm" },
+      { t: 0.05, frame: "roar_a", enr: false, glow: 0, eyes: 1, note: "the roar: ring, eyes snap" },
       { t: 0.8, frame: "roar_a", enr: true, glow: 0.5, eyes: 1, note: "the change spreads" },
       { t: 1.5, frame: "roar_a", enr: true, glow: 1, eyes: 1, note: "fully enraged" },
     ],
@@ -896,8 +892,10 @@ interface FramePair {
   enr: Pic;
 }
 const EXTRA_FRAMES: readonly { name: string; pose: BehemothPose; k: number; ph: number }[] = [
-  { name: "charge_h", pose: "charge", k: 0.5, ph: 0 }, // G2 A: the charge warning, crouching
-  { name: "throw_h", pose: "throw", k: 0.5, ph: 0 }, // G2 A: the throw lift, half way
+  // G2 A: the half-way warning frames. The pose eases fully by k 0.5 (charge: min(1, 2k); throw: min(1, 1.8k)), so
+  // half-way is k 0.25 / 0.28 (k 0.5 gave the same picture as charge_a: found by the 9.15 build)
+  { name: "charge_h", pose: "charge", k: 0.25, ph: 0 },
+  { name: "throw_h", pose: "throw", k: 0.28, ph: 0 },
 ];
 const pairsByLook = new Map<number, Map<string, FramePair>>();
 async function framePairs(v: number, onProgress: (k: number) => void): Promise<Map<string, FramePair>> {
@@ -978,8 +976,9 @@ function planAt(a: PlayerAction, t: number, enr: boolean): PlayState {
     if (enr) st.sinceBeat = beatsBefore(t, [0, 1.0, 2.2]);
   } else if (a === "roar") {
     st.frame = "roar_a";
-    st.rage = t < 0.3 ? 0 : Math.min(1, (t - 0.3) / 1.2);
-    st.scale = t < 0.3 ? 1 + 0.02 * (t / 0.3) : 1.02;
+    // the sim pushes at 0 s (the shock ring), so the eyes snap and the change starts there too (R3: release together)
+    st.rage = Math.min(1, t / 1.2);
+    st.scale = 1 + 0.02 * Math.min(1, t / 0.2);
     st.eyes = 1;
     st.ember = 0.25 * st.rage;
   } else {
@@ -1025,7 +1024,7 @@ function puffsFor(a: PlayerAction, enr: boolean): Puff[] {
     for (let i = 0; i < 8; i++) out.push({ t0: 0.3 + i * 0.08, x: (rnd() - 0.4) * 0.6, y: (rnd() - 0.5) * 0.6, vx: (rnd() - 0.5) * 0.3, vy: (rnd() - 0.5) * 0.3, r: 0.07, life: 0.4 }); // crumbs from the chunk
     burst(1.8, 6.0, 0, 12, 2, 0.4, 0.5); // the landing
   } else if (a === "roar") {
-    burst(0.3, 0, 0, 22, 4.5, 0.3, 0.5); // dust blown off
+    burst(0, 0, 0, 22, 4.5, 0.3, 0.5); // dust blown off
   } else if (a === "death") {
     burst(1.0, -0.2, 0.3, 24, 2.2, 0.55, 0.7); // it hits the ground
   }
@@ -1102,8 +1101,8 @@ function drawPlayer(g: CanvasRenderingContext2D, pairs: Map<string, FramePair>, 
     g.lineWidth = 2;
     g.stroke();
   }
-  if (a === "roar" && t >= 0.3 && t < 0.8) {
-    const k = (t - 0.3) / 0.5;
+  if (a === "roar" && t < 0.5) {
+    const k = t / 0.5;
     g.strokeStyle = `rgba(255,59,48,${0.9 * (1 - k)})`;
     g.lineWidth = 6;
     g.beginPath();
@@ -1139,7 +1138,7 @@ function drawPlayer(g: CanvasRenderingContext2D, pairs: Map<string, FramePair>, 
   }
   g.globalCompositeOperation = "lighter";
   // eyes (the relight's glow layer); in the roar they snap from yellow to red at 0.3 s
-  const eyeP = a === "roar" ? (t < 0.3 ? calmP : enrP) : st.rage > 0.5 ? enrP : calmP;
+  const eyeP = a === "roar" ? enrP : st.rage > 0.5 ? enrP : calmP;
   if (eyeP.glow && st.eyes > 0) {
     g.globalAlpha = Math.min(1, st.eyes);
     g.drawImage(eyeP.glow, -half, -half, FRAME_PX, FRAME_PX);
@@ -1154,8 +1153,8 @@ function drawPlayer(g: CanvasRenderingContext2D, pairs: Map<string, FramePair>, 
     };
     if (st.ember > 0) stepDraw(4, st.ember / 0.25);
     if (st.flash > 0) for (const s of [0, 1, 2, 3]) stepDraw(s, 1);
-    if (a === "roar" && t >= 0.3) {
-      const k = Math.min(4, ((t - 0.3) / 1.2) * 4);
+    if (a === "roar") {
+      const k = Math.min(4, (t / 1.2) * 4);
       for (let s = 0; s < Math.floor(k); s++) stepDraw(s, 0.6);
     }
     if (st.sinceBeat !== Infinity) {
