@@ -1,6 +1,6 @@
 # Story 9.14: Photoreal street props and vehicles in the game
 
-Status: review
+Status: done
 
 ## Story
 
