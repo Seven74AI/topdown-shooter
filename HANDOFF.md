@@ -44,6 +44,10 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 3. How we work (keep doing this)
 
+**Standing rules from the Epic 8 retro (2026-11-26, `epic-8-retro-2026-11-26.md` §8):**
+- **E8-A1:** a red test gets a deterministic repro (force the tick order, pin the seed, run under load) before anyone may call it flaky, and every "flaky" label goes into `_bmad-output/implementation-artifacts/deferred-work.md` with an owner.
+- **E8-A3:** reviewers check every "now copies/does X" claim in a task line or "Notes for the merge" against the diff (a diff citation or a probe per claim, listed in the review).
+
 **Session 9 lessons (keep):**
 1. Starting stories by real file overlap (not by round) and 3–4 builders at once cut Epic 6 round 2–3 from ~8 h planned to ~6 h actual; the fix stage (review → fix → re-review) is now the longest block.
 2. Re-reviews keep finding NEW issues created by fixes (6.11 vote taps: 3 rounds; 6.8 event arrow: 4 rounds; 6.9 pair arrow: 2). Rule kept: every behaviour-changing fix gets a narrow re-review. Tell builders: keep a fix minimal; measure with stateful sweeps (0.01°) and oscillation, not whole-degree samples.
