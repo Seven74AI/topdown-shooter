@@ -1,6 +1,6 @@
 # Story 9.15: Photoreal Behemoth in game
 
-Status: review
+Status: done
 
 <!-- Written 2026-11-26 by the 9.15 builder (gds-create-story) from the real code, the approved proposal
      (docs/art/photoreal-4) and the parent session's brief. Epic 9 is photoreal; the Behemoth part of 9.4 moved here. -->
@@ -298,3 +298,11 @@ only. Every finding fixed minimally (or noted, as asked):
 - **N2** (the roar's glow peaks at 0.85 × rage, the page's slow wave summed differently) and **N4** (the death puff reads
   as a bright near-solid blob for ~0.3 s: 24 puffs of `puffsFor` overlapping) — no code change, left for the
   designer's eye in the game (not tuned here on purpose).
+
+## Merge (main session, 2026-11-26)
+
+- PR #34 merged with a merge commit (`4362482a`) after CI green on `ab3a07e` (master `71bbe8e` merged in; only `deferred-work.md` conflicted, both entries kept).
+- Review: approved (LOW-1..3, NIT-1..4). Re-review 1 found M1 (wipe probes went stale on a look change); fixed in `9f7f579`. Re-review 2: clean (one optional wiring-assertion nit, not added).
+- Open for the designer, in the game: the death dust puff reads as a bright near-solid blob for ~0.3 s (N4); the roar's whole-layer glow peaks at 0.85 x rage, unlike the page's travelling wave (N2, B4).
+- Not verified: a real phone, a real GPU, an online session, a real Android background wipe, the dark outline frames in a blackout wave.
+

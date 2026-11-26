@@ -222,7 +222,7 @@ development_status:
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
   9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); PR #22 merged 2026-11-26 00:19 (1fbf310e); open follow-ups FU1 (a late download failure never settles), FU2 in the story file
-  9-15-photoreal-behemoth-in-game: in-progress  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan (docs/art/photoreal-decisions.md, Behemoth row); builder session story-9-15
+  9-15-photoreal-behemoth-in-game: done  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan; PR #34 merged 4362482a; review approved (3L 4N), re-review 1 found M1 (stale wipe probes) fixed, re-review 2 clean; phone / GPU / online not verified; designer to eye the death puff (N4) and roar glow peak (N2)
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
