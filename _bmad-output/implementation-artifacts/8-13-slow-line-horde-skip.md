@@ -153,6 +153,8 @@ Fresh-agent review (separate cloud session) on PR #32 head `b3516e0`, 2026-11-26
 | L3 | low | AC 5 says "+5 % of 8.2 KB/s" but master read 8.9 before this story | Recorded in Measurements › Encoder bandwidth: "+0 % vs master (8.9 KB/s); the 8.2 baseline moved with stories since 8.10". AC unchanged | docs |
 | N1 | nit | `epics.md` Story 12.2 still said "whichever … lands first takes 4" | `epics.md:3958` "8.13 took protocol 4; the next of 12.2 or Epic 11 takes 5" (and the Epic 11 readiness note: "4 since Story 8.13"); the same in the `messages.ts` comment | docs |
 
+Gate after the fixes: `gate:fast` green (4,919 unit tests), `test:slow` green (740).
+
 Mutation runs (model file, after the fixes): no upload term → 1 fail; cap 1e9 → 2 fails; SKIP 200 → 2; SKIP 400 → 1; CONFIRM 50 → 1; confirm inline 50 → 2; unmutated 9/9 green.
 
 ### Re-measured after the review fixes (M1 b + the 1 s freeze cap)
