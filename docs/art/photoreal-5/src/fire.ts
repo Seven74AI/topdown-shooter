@@ -11,6 +11,7 @@
  * real scorch mark, light pools. Take B only where there is a real choice (BX-B: glowing bile).
  */
 import { BlastParticles, Explosions, BLAST_TIMES, P_DEBRIS, P_DUST, P_EMBER, P_FLAME, P_SMOKE, type BlastLook, type ParticleDraw as BlastDraw } from "../../../../apps/client/src/render/grenadeFx";
+import { fiCarLook, approvedCar, drawCar as drawApprovedCar } from "./fire-car";
 import { CarFire, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, smokeDraw, type ParticleDraw as FireDraw } from "../../../../apps/client/src/render/city/fireParticles";
 import { FLAME_TINTS, SMOKE_PALETTES } from "../../../../apps/client/src/render/city/fireSprites";
 import { FlameJets, FLAME_STYLE, TORCH_BLUE, type JetDraw } from "../../../../apps/client/src/render/flameJet";
@@ -1015,32 +1016,53 @@ export const cards: FxCard[] = [
   {
     id: "fi",
     code: "FI",
-    name: "Fire: burning wreck (fire-lab D)",
+    name: "Fire: burning car",
     family: "fire",
-    brief: "<b>Light from fuel, matter from soot.</b> Fire-lab D's particles and wind kept as picked (4.12). The flames are light: their colour comes from their temperature, so the white-hot core sits where the fuel is (on the car) and cools to amber and red-brown at the tips. The smoke is matter: soot lit by the street's light from the upper left, warm underneath while the fire lights it. The pool of light flickers on the street, and soot blackens the ground under the wreck (the mark).",
+    brief: `<b>Goal first</b> (designer 2026-11-26: "show player a car is burning + zone where they get damaged"). Two reads: <b>1. this car is burning</b>, <b>2. inside this circle you get hurt</b> (2 m, 10 damage/s in 0.5 s pulses).
+<br><b>Elements, each with one job:</b><ul>
+<li><b>The wreck</b> (approved, Story 9.14): the fuel. Read 1.</li>
+<li><b>Flames on the car's fuel</b>, in the car's own shape: the cabin (seats, plastics: tallest, densest), the engine bay, the four tyres (small), a fuel pool leaking under the rear (low, wide). They lean downwind. Never a circle. Read 1.</li>
+<li><b>Heat on the ground</b> = the circle: a warm glow, strongest at the car, that ends exactly at the damage edge, and a thin heat line on that edge. No flame draws the circle. Read 2.</li>
+<li><b>The damage pulse</b>: the heat line brightens a little on each 0.5 s damage tick. Read 2.</li>
+<li><b>Light from the flames</b>: a flickering pool on the car; its flicker also drives the ground glow. Read 1.</li>
+<li><b>Black smoke</b> from the cabin and engine, downwind, thin where it leaves the flames: you see the fire from far away. Read 1.</li>
+<li><b>Embers</b> from the cabin, downwind: it's alive.</li>
+<li><b>The mark</b>: soot burnt into the asphalt under the car, the fuel stain. What stays.</li></ul>
+<b>How they compose:</b> flames only inside the car and the pool; the circle only from heat; brightness: cabin &gt; engine &gt; pool &gt; tyres &gt; ground glow &gt; heat line; the bright flame never passes the damage edge (the car is 4.5 m, the zone 4 m wide, so the bumpers stick out 0.25 m: their flames are held inside); one flicker for flames, car light and ground glow; the heat line moves only with the damage tick; smoke may cross the edge (it doesn't burn).`,
     game: "<code>city/FireView.ts</code> + <code>fireParticles.ts › CarFire</code> (car mode), atlas <code>atlas_firefx</code> (white masks tinted with 16 ramp steps; smoke 6 tones), light <code>fx_firelight</code> 2R at 0.13 × flicker; ring by <code>CityView</code> (2 px orange line + 5 px glow, <code>fireRing.ts</code>). Caps per fire: 110 flames, 26 smoke, 24 embers (half with <code>?fx=low</code>). Burning survivors and zombies (<code>BurnView</code>, <code>FlameView.zombies</code>) use the same frames.",
-    perf: `Now: a car fire ≈ 60–80 flames + edge flames + embers additive, ≈ 20 smoke. FI-A: the same counts (same sims), plus 1 normal-blend soot mark per fire; the light pool's alpha is higher, same size (2R = 4 m). Textures shared with the other fire cards. A applies to <code>BurnView</code> and burning zombies with no new textures. ${ADDNOTE}`,
-    findings: ["Checked and fine: flames stay in the ring (edge rule); smoke thins near the source so it never hides the core; embers dim past the ring.", "Today's tints make the whole flame one colour per step (a multiply tint on a white mask): the core and the tips of one flame are the same colour. A colours each flame by its local heat (white core, amber body, red-brown tips)."],
+    perf: `Now: a car fire ≈ 60–80 flames + 49 edge flames + embers additive, ≈ 20 smoke (caps 110 / 26 / 24, half with <code>?fx=low</code>; the 49 edge slots are never halved). FI-B: 54 flames (cabin 18, engine 14, tyres 8, pool 14) + 12 embers + 3 glows (heat, heat line, car light) additive, 14 smoke, 3 marks: about 85 sprites, under half of today's ≈ 200, and <code>?fx=low</code> halves all of it (27 flames, 6 embers, 7 smoke). The heat glow and line are the largest additive: one 4.2 m square each, cropped to the circle. New textures: heat 192², heat line 256², soot mark 160 × 96, fuel pool 96² (≈ 470 KB); flames, smoke, embers and light shared with take A. ${ADDNOTE}`,
+    findings: [
+      "<b>FI-A declined</b> (designer 2026-11-26: \"The fire cant be a circle if the car is a rectangle… flames in a perfect circle look weird\"). FI-A was the same particle code with new pictures, so it kept today's ring of flames. That ring comes from Story 4.11's edge rule (\"most of the zone's flames are spawned right at the edge, so a clear ring of flames marks it\"). FI-B keeps the rule's real job (the bright flame never passes the damage edge) but marks the edge with heat, not flames.",
+      "The car (4.5 m) is longer than the zone (4 m across): its bumpers stick out 0.25 m, and the zone doesn't follow the car's shape. FI-B keeps the circle (the sim's <code>circleInFire</code>) and holds the flames inside it.",
+      "Burning survivors and zombies, and the Molotov pool, use the same fire code (BurnView, MolotovView). FI-B is only the car. The Molotov's flames also make a ring at the edge (MO-A): worth the same goal-first pass.",
+      "Checked and fine: smoke thins near the source so it never hides the flames; embers stop at the source's downwind side; the heat ends at exactly R (2 m).",
+    ],
     lengthS: 3,
     gapS: 0,
-    keyT: [0, 0.5, 1.5, 2.5],
+    keyT: [0, 0.25, 1.5, 2.5],
     viewM: 7,
-    under: (g, _t, st) => {
-      const car = G.burntCar();
-      sprite(g, car, X(st, 0), Y(st, 0), 4.6, st.pxm, 0.35, 0.8);
-    },
-    looks: [fiLook("now"), fiLook("A")],
+    under: (g, _t, st) => drawApprovedCar(g, st), // the approved Story 9.14 wreck (as the game shows it since 9.14)
+    looks: [fiLook("now"), fiCarLook()],
     plan: {
-      goal: "A steady hazard you can read in the dark: where it burns (the ring), and that it's alive (flicker, smoke).",
-      timing: "Continuous: decay.json fire radius 2 m, damage 10/s every 0.5 s, lasts 2 waves. Flame life 0.24–0.7 s, smoke 3–4.2 s, embers 0.7–1.4 s; wind (0.55, 0.32).",
-      lengthS: 3,
+      goal: "This car is burning (flames on its own shape, smoke you see from far), and inside this circle you get hurt (heat that ends exactly at the edge, ticking with the damage).",
+      timing: "Continuous: decay.json fire radius 2 m, damage 10/s in 0.5 s pulses, lasts 2 waves. FI-B: flame life 0.35–0.9 s by source, smoke 3.2–4.2 s, embers 1–1.6 s; wind (0.55, 0.32) as the game's.",
+      lengthS: 2,
       lanes: {
-        light: [{ t0: 0, t1: 3, label: "pool flickers (fireFlicker), A: stronger" }],
-        core: [{ t0: 0, t1: 3, label: "flames: heat-coloured core on the car (A)", nw: true }],
-        matter: [{ t0: 0, t1: 3, label: "embers rise and drift" }],
-        smoke: [{ t0: 0, t1: 3, label: "soot downwind, lit top-left (A)", nw: true }],
-        mark: [{ t0: 0, t1: 3, label: "soot under the wreck (A)", nw: true }],
-        game: [{ t0: 0, t1: 3, label: "damage every 0.5 s inside 2 m" }],
+        light: [
+          { t0: 0, t1: 2, label: "car light + ground glow: one flicker (fireFlicker)", nw: true },
+        ],
+        core: [
+          { t0: 0, t1: 2, label: "flames on cabin > engine > pool > tyres, downwind; never on the circle", nw: true },
+        ],
+        matter: [{ t0: 0, t1: 2, label: "embers from the cabin, downwind" }],
+        smoke: [{ t0: 0, t1: 2, label: "black smoke from cabin + engine, downwind, thin at the flames", nw: true }],
+        mark: [{ t0: 0, t1: 2, label: "soot under the car, fuel stain", nw: true }],
+        game: [
+          { t0: 0, t1: 0.25, label: "tick: heat line up", key: true, nw: true },
+          { t0: 0.5, t1: 0.75, label: "tick", key: true, nw: true },
+          { t0: 1, t1: 1.25, label: "tick", key: true, nw: true },
+          { t0: 1.5, t1: 1.75, label: "tick", key: true, nw: true },
+        ],
       },
     },
   },
