@@ -182,3 +182,5 @@ Reverses 8.1 review M2 / RR1-M1 for the vote (the `earnedAtEvac` banking part of
 | **8.12 D2** | A seat returns during the 1 s "everyone voted" beat. | The beat is never extended (6.11 F4: the timer only shortens). The returner counts at the resolve, silent = Extract unless they tap in time. | Re-open the full timer when a counted player appears. |
 | **8.12 D3** | Nobody counts (all held, downed or out). | No early end: the timer runs out, then Extract. | End at once as Extract. |
 | **8.12 D4** | How held seats show in the panel. | Kept as dimmed chips (AC 6's second option), now reading "not voting" like downed and out players; left out of the result line, `allIn` and `voteUrgent`. | Hide them. |
+
+- **8.12 L4 (designer 2026-11-26): A, leave it.** A connection blip during the 1 s "everyone voted" beat clears that vote; the returner counts as silent. Votes are not kept across a hold.
