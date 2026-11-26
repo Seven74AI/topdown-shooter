@@ -1769,7 +1769,7 @@ export const cards: FxCard[] = [
     keyT: [0.5, 1.0, 1.4, 1.82, 2.3],
     viewM: 17,
     aspect: 0.56,
-    under: (g, t, st) => boss(g, st, t < THROW_LEN ? "throw_a" : "walk_a", TB),
+    under: (g, t, st) => boss(g, st, t < LIFT_S ? "throw_a" : "walk_a", TB), // the throw pose (chunk overhead) during the lift only; in flight the game shows the walk frame
     looks: [thNow, thTakeA, thTakeB, GL.TH],
     plan: {
       goal: "Something heavy is coming down HERE: where (the ring) and when (the closing ring, then the falling chunk).",
