@@ -558,7 +558,7 @@ const world = createWorld({ balance, seed, district });
 - **Capacity and joins:** `maxClients = 4`; `onAuth` accepts new players only during Lobby and Build phases.
 - **Host:** `hostSlot` in schema; when the host leaves or drops, it moves at once to the longest-connected player and never moves back. Host only gates Start, Save and quit and Remove player. Saved runs belong to every account in the run (`saved_run_players`); any of them can resume (Epic 8 D8, D13).
 - **Pings:** `ping.send` (rate-limited to 1 per second per player) → broadcast `ping.placed`.
-- **Evacuation vote:** 15 s; majority wins; a tie or no votes = extract.
+- **Evacuation vote:** 15 s; a majority of the connected, standing players wins; a tie or no counted votes = extract (Story 8.12).
 
 ### Client Platform Budgets
 
