@@ -198,6 +198,15 @@ Headless Chromium, mobile emulation, dpr 2, Practice solo (`?wallet=5000`), Vite
 - **LOW-2** fixed: `buildBase` resets the map-only region's key, so a radius change (or a new World) never reuses it. No failing test: in a run a World's radius never changes (the balance is per World), so the stale case can't be reached without mutating a frozen World.
 - **Timing** re-run (`tools/sims/pathOpenBench.ts`, 100 walls, ring sealed by the stage, 1 cleared per start; fresh container, load ≈ 0.7–0.8), 4× CPU over four runs: median 8.6–12.5 ms, max 11.6–20.3 ms. The median stays under 15 ms; single outliers exceed it (30 build starts per run). This case takes the fast path; the 0-1 search runs only when no single wall reopens the pocket.
 
+### HIGH-1 re-review (2026-11-26: no new high; 1 medium on hold, 2 low)
+
+- Result: 400 fuzz cases plus hand cases, no seal survives, no false wall picks.
+- **MEDIUM-1** (on hold for the designer): on some thick layouts the cheapest-path search clears more walls than needed (33 / 400 fuzz cases, up to 4 where 2 would do), because its cost counts blocked lattice steps, not buildings. Options: accept, approximate (each wall counted once along the path), exact (minimum vertex cut). Not started.
+- **LOW-A** fixed: `stageCutWall` resets the unresolved count at its top, before every early return (it is process-global; a stale count leaked across Worlds). Test: a forced unresolved cut (`stageCutTestHooks.noWall`), then another World's check reads 0 (288 without the fix).
+- **LOW-B** fixed: `decayMutate` deletes the World's unresolved count first, so a later build start (or one with no walls, where the re-check doesn't run) never re-logs an old `stage_seal_unresolved`. Test: forced unresolved, walls removed, next build start → 0 (288 without the fix).
+- `cheapestPathWall`'s doc no longer claims "fewest walls" (it is the shortest crossing in lattice steps; MEDIUM-1).
+- Main-session check (log-only lows, per the re-review cap).
+
 ### Follow-ups
 
 - **For 10.8 (balance pass):** in the 10-wave bot sim, 4 bots seed 3 went from extracting to a team wipe in wave 10. 12.1's 0.8 m margin cleared one bot barricade at the stage-3 build start, and the run diverged from there. Re-check bot survival with 12.1's rules in force.

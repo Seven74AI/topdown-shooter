@@ -374,6 +374,7 @@ export function captureStageRegion(world: Readonly<World>): void {
  * neighbourhood, and a trial flood per candidate tried (usually one). Build starts only.
  */
 export function stageCutWall(world: Readonly<World>): Building | null {
+  stageUnresolved = 0; // HIGH-1 re-review LOW-A: before every early return (process-global: never a stale count)
   const r = world.balance.player.radiusM;
   if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
   if (cols !== stageCols || rows !== stageRows) return null; // no capture for this map
@@ -418,7 +419,6 @@ export function stageCutWall(world: Readonly<World>): Building | null {
   // Fast path: among the walls bordering both the pocket and the main region (highest id first), the first
   // whose removal alone joins the pocket back (a trial flood without it: a corner piece hidden behind its
   // neighbours opens nothing).
-  stageUnresolved = 0;
   const reach = r + BUILD_GRID_M;
   const list = world.buildings.list;
   for (let k = list.length - 1; k >= 0; k--) {
@@ -428,7 +428,7 @@ export function stageCutWall(world: Readonly<World>): Building | null {
   }
   // Re-review round 2 HIGH-1: no single wall reopens it (a wall two or more pieces thick, or two walls
   // apart): the cheapest way back through the walls.
-  const b = cheapestPathWall(world, r, pocket);
+  const b = stageCutTestHooks.noWall ? null : cheapestPathWall(world, r, pocket);
   if (b === null) stageUnresolved = qt;
   return b;
 }
@@ -437,8 +437,10 @@ export function stageCutWall(world: Readonly<World>): Building | null {
  * Re-review round 2 HIGH-1: a 0-1 breadth-first search on the map-only layer from the pocket to the
  * current main region. A lattice step the walls layer also allows costs 0; one only walls block costs 1.
  * Returns the highest-id wall that blocks a step of the cheapest way found (each costly step's vertex or
- * segment comes within `player.radiusM` of it), or null. Clearing it and asking again walks the fewest
- * walls that reopen the pocket. Buffers are module scratch (`ensure`); no allocation per call.
+ * segment comes within `player.radiusM` of it), or null. The cost counts blocked lattice STEPS, not buildings,
+ * so the way found is the shortest crossing through walls, not always the fewest walls (HIGH-1 re-review: a
+ * thick layout can lose 4 where 2 would do; MEDIUM-1 waits on the designer). Clearing it and asking again
+ * reopens the pocket. Buffers are module scratch (`ensure`); no allocation per call.
  */
 function cheapestPathWall(world: Readonly<World>, r: number, pocket: Uint8Array): Building | null {
   const n = cols * rows;
@@ -502,6 +504,9 @@ function cheapestPathWall(world: Readonly<World>, r: number, pocket: Uint8Array)
   }
   return best;
 }
+
+/** Tests only (HIGH-1 re-review LOW-A/B): `noWall` makes the cheapest-path search find nothing, to force an unresolved cut. */
+export const stageCutTestHooks = { noWall: false };
 
 /** Re-review round 2: the seed count of the last `stageCutWall` that found a cut it could not resolve (0 = none). */
 let stageUnresolved = 0;

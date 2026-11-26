@@ -6,16 +6,16 @@ import type { SimEvent } from "../core/simEvents";
 import { createWorld, type World } from "../core/world";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { gameplayDecayMasks } from "../decay/decayState";
-import { changeDecayStage, stageSealsUnresolved } from "../decay/decaySystem";
+import { changeDecayStage, decayMutate, stageSealsUnresolved } from "../decay/decaySystem";
 import type { DecayMutation, DistrictMap, MapBox } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
 import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
-import { addBuildingAt, blockReason, buildingStats, createBlockReason, footprint, footprintBlocked, placeBuilding, placementError, type Box, type BuildingRotation } from "./buildings";
+import { addBuildingAt, blockReason, removeBuilding, buildingStats, createBlockReason, footprint, footprintBlocked, placeBuilding, placementError, type Box, type BuildingRotation } from "./buildings";
 import { escapeAreaOpen } from "./collision";
 import { moveBuilding, moveError } from "./move";
-import { inMainRegion, resetPathOpenCache, sealedPocket, verticesOutsideMainRegion } from "./pathOpen";
+import { inMainRegion, resetPathOpenCache, sealedPocket, stageCutTestHooks, stageCutWall, stageSealUnresolved, verticesOutsideMainRegion } from "./pathOpen";
 
 /** Story 12.1: buildings never close a path (no forts). */
 const balance = loadBalance();
@@ -514,6 +514,36 @@ describe("Story 12.1 H1: a decay stage re-checks paths; walls that now seal are 
     const { world, ids, cleared } = thickR([10.5, 11, 11.5], 12);
     expect([...cleared].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
     expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
+  it("HIGH-1 re-review LOW-A: an unresolved count (forced) never leaks into another World's check", () => {
+    stageCutTestHooks.noWall = true;
+    let world: World;
+    try {
+      world = thickR([10.5, 11], 11.5).world; // a thick wall: no single wall reopens it, and the forced search finds none
+    } finally {
+      stageCutTestHooks.noWall = false;
+    }
+    expect(stageSealsUnresolved(world), "liveness: the forced cut really went unresolved").toBeGreaterThan(0);
+    expect(stageSealUnresolved()).toBeGreaterThan(0);
+    // Another World with nothing cut (no capture for it: an early return) reads 0, not the stale count.
+    const other = setup();
+    expect(stageCutWall(other)).toBeNull();
+    expect(stageSealUnresolved()).toBe(0);
+  });
+
+  it("HIGH-1 re-review LOW-B: the next build start (here with no walls left) clears the World's unresolved count", () => {
+    stageCutTestHooks.noWall = true;
+    let world: World;
+    try {
+      world = thickR([10.5, 11], 11.5).world;
+    } finally {
+      stageCutTestHooks.noWall = false;
+    }
+    expect(stageSealsUnresolved(world)).toBeGreaterThan(0);
+    for (const b of [...world.buildings.list]) removeBuilding(world, b.id);
+    decayMutate(world, 3); // no walls: the re-check doesn't run, and no old count may be re-logged
+    expect(stageSealsUnresolved(world)).toBe(0);
   });
 
   it("a stage that seals nothing clears nothing (a wall 1 m from new cover stays)", () => {

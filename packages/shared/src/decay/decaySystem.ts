@@ -308,6 +308,7 @@ export function relocateBodies(world: World): void {
  * when nothing changes (then nothing else happens: only the burn clocks restart, re-review L2).
  */
 export function decayMutate(world: World, stage: number): boolean {
+  unresolvedByWorld.delete(world); // HIGH-1 re-review LOW-B: a later stage (or one with no walls) never re-logs an old one
   resetBurnClocks(world); // re-review L2: every build start (also when nothing else changes)
   resetRelocated(); // fix re-review L2: no stale counts after a build start that changes nothing
   const coming = world.waves.number + 1;
