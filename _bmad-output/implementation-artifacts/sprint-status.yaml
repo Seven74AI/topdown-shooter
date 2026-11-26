@@ -196,6 +196,7 @@ development_status:
   8-5-save-and-quit: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
+  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
   epic-8-retrospective: done  # 2026-11-26, headless; epic-8-retro-2026-11-26.md, actions E8-A1–A10
 
   # Epic 9: Dead City art and audio
@@ -241,3 +242,12 @@ development_status:
   11-6-art-drawn-by-type: backlog
   11-7-pick-random-city-share-its-code: backlog
   epic-11-retrospective: optional
+
+  # Epic 12: Extraction cinematic (party-mode session 2026-11-25, designer decisions; quick stories)
+  # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
+  epic-12: in-progress
+  12-1-buildings-never-close-a-path: ready-for-dev  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
+  12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
+  12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
+  12-4-no-refund-for-decay-losses: ready-for-dev  # designer 2026-11-25 "bad luck": buildings lost to decay (stage cover, fire, 12.1 margin) give no money back; FR58 changed
+  epic-12-retrospective: optional
