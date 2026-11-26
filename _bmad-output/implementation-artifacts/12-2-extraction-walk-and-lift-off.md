@@ -4,7 +4,7 @@ baseline_commit: c1eaaa8
 
 # Story 12.2: Extraction: walk to the helicopter and lift off
 
-Status: review
+Status: done
 
 <!-- 2026-11-26: re-checked against master c1eaaa8 (12.1 + 12.4 PR #33, 8.12 vote rule, 8.13 protocol 4 / input format 2, 6.11 extract). See "Code moved since the story was written" below. -->
 <!-- Quick story 2026-11-25 from the party-mode session on cinematics. Needs 12.1 (buildings never close a path) and 8.12 (vote counting). The camera work is 12.3; this story already looks right with the normal camera. -->
@@ -191,3 +191,7 @@ for H1 and M1. Timings, who boards and the horde size are with the designer: unc
 | nit | — | `flyOutHorde.type` any zombie; dry weapon ticks for skipped inputs in `extract`; test hooks; PlayerView field placement. | Schema `type: z.enum(["walker"])`; `RunController` drops skipped inputs in `extract`; hooks cleared in `afterEach` / `finally`; `noBlink` moved to the fields. | — |
 
 Left for 12.3 (noted): the flashlight cone of a body walking to (or waiting at) the pad.
+
+## Main session close-out (2026-11-26)
+- Fresh 3-layer review (H1 empty room in extract banks quit; M1 all-four judged at Results; L1–L8) → fixed in b024d1e → narrow re-review: no findings. CI green. Merged as e5aef083 (PR #36). Protocol 5.
+- **Open with the designer (balance only, tunable later):** timings (walk cap 8 s, beat 0.5 s, fly-out 8 s), downed survivors walk (CN-3), fly-out horde of 40 Walkers. Merged as built.
