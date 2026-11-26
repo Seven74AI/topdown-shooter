@@ -30,6 +30,8 @@ const balance = loadBalance();
 const TICK_MS = TICK_DT_S * 1000;
 /** The state patch + events of a tick in the 8.11 one-packet write (bytes; about the 8.10 audit's 2 KB/s). */
 const PATCH_BYTES = 80;
+/** The phone's own clock is offset from the server's (any value: only differences count). Chosen so that arrival − send time sits ~25 ms below a 16-bit wrap: an upload delay crosses it (the unwrap is exercised). */
+const PHONE_CLOCK_MS = 65536 * 3 + 100;
 
 interface LineCase {
   kbps: number; // 0 = no cap
@@ -44,6 +46,8 @@ interface LineCase {
   acks?: boolean;
   /** Review M1: extra upload delay (ms) of the input sent at tick t (an upload-only queue); default none. */
   upExtraMs?: (t: number) => number;
+  /** Re-review M1b-R1: whether the phone sends an input at tick t (default every tick; 8.9 pacing sends 0.9×, a hitch drops steps). */
+  sends?: (t: number) => boolean;
 }
 
 interface LineResult {
@@ -113,7 +117,7 @@ function runLine(c: LineCase): LineResult {
   const oneWay = (): number => c.rttMs / 2 + (rng.next() - 0.5) * c.jitterMs;
   const stalled = (): boolean => c.lossPct > 0 && rng.next() * 100 < c.lossPct;
   const down: DownItem[] = [];
-  const up: { at: number; ack: number; seq: number }[] = [];
+  const up: { at: number; ack: number; sendMs: number }[] = [];
   let lastFrameAt = 0;
   let wireFreeAt = 0;
   let downLastAt = 0;
@@ -125,8 +129,8 @@ function runLine(c: LineCase): LineResult {
     const now = t * TICK_MS;
     // The server: inputs that arrived by now, in order, then the tick.
     while (up.length > 0 && (up[0] as { at: number }).at <= now) {
-      const u = up.shift() as { at: number; ack: number; seq: number };
-      if (c.acks !== false) enc.ack(client, u.ack, u.at, u.seq);
+      const u = up.shift() as { at: number; ack: number; sendMs: number };
+      if (c.acks !== false) enc.ack(client, u.ack, u.at, u.sendMs & INPUT_ACK_MASK);
     }
     wander(world, t);
     enc.prepare(world, now);
@@ -193,8 +197,9 @@ function runLine(c: LineCase): LineResult {
       r.stallsUp++;
     }
     upDelay += c.upExtraMs?.(t) ?? 0;
+    if (c.sends && !c.sends(t)) continue; // no input this tick (the phone's clock: 0.9× pacing, dropped steps)
     upLastAt = Math.max(upLastAt, phoneAt + upDelay);
-    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK, seq: t });
+    up.push({ at: upLastAt, ack: newestTick < 0 ? -1 : newestTick & INPUT_ACK_MASK, sendMs: Math.floor(phoneAt + PHONE_CLOCK_MS) });
   }
   return r;
 }
@@ -349,10 +354,26 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
       for (let t = 0; t < 1200; t++) {
         world.tick = t;
         enc.prepare(world, t * TICK_MS);
-        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS + 10 + ramp(t)); // no seq: no upload measurement
+        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS + 10 + ramp(t)); // no send time: no upload measurement
         if (enc.stateFor(c).lineSlow) slow++;
       }
       expect(slow).toBeGreaterThan(100);
+    });
+
+    it("re-review M1b-R1: the phone's step clock does not matter (0.9× pacing, 3 steps dropped every 2 s): the 64 kbit/s row stays ≤ 1,000 ms; send times across a 16-bit wrap", () => {
+      for (const [name, sends] of [
+        ["0.9× pacing", (t: number) => t % 10 !== 9],
+        ["3 steps dropped every 2 s", (t: number) => t % 40 >= 3],
+      ] as const) {
+        const r = runLine({ ...base, kbps: 64, stallMs: 200, seed: 1, sends });
+        const label = `${name}: ${JSON.stringify({ ...r, stats: undefined, ...r.stats })}`;
+        expect(r.stats.lineSkipped, label).toBeGreaterThan(0);
+        expect(r.maxQueueMs, label).toBeLessThanOrEqual(1000);
+        expect(r.decodeErrors, label).toBe(0);
+      }
+      // The phone's clock crosses 65,536 ms (PHONE_CLOCK_MS is set just before a wrap): an upload ramp still gives 0 skips.
+      const wrapped = runLine({ ...base, kbps: 0, stallMs: 200, lossPct: 0, seed: 12, upExtraMs: ramp, sends: (t) => t % 10 !== 9 });
+      expect(wrapped.stats.framesSkipped, JSON.stringify(wrapped.stats)).toBe(0);
     });
 
     it("a downstream queue still skips with upload lag on top (64 kbit/s + the ramp): waits bounded, 0 decode errors", () => {
@@ -410,7 +431,7 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
         enc.prepare(world, t * TICK_MS);
         const w = Math.min(waitMs, Math.max(0, (t - 100) * 2.5));
         const at = t * TICK_MS + w;
-        if (t >= lag) enc.ack(c, t - lag, at, at / TICK_MS);
+        if (t >= lag) enc.ack(c, t - lag, at, at & INPUT_ACK_MASK); // sent as it arrives: no upload wait
         if (enc.stateFor(c).lineSlow) slow = true;
       }
       return slow;
@@ -428,19 +449,19 @@ describe("Story 8.13: the slow-line horde skip (model of the capped line)", () =
       for (let t = 0; t < 100; t++) {
         world.tick = t;
         enc.prepare(world, t * TICK_MS);
-        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS, t);
+        if (t >= 4) enc.ack(c, t - 4, t * TICK_MS, (t * TICK_MS) & INPUT_ACK_MASK);
       }
       world.tick = 120;
       enc.prepare(world, 120 * TICK_MS);
       const t0 = 120 * TICK_MS;
       const st = enc.stateFor(c);
-      // Acks 500 ms late (well over the limit) at t0, t0 + 99, then t0 + 100; each input sent as its ack landed (seq = arrival / 50 ms: no upload wait).
-      enc.ack(c, 106, t0, t0 / TICK_MS);
+      // Acks 500 ms late (well over the limit) at t0, t0 + 99, then t0 + 100; each input sent as it arrives (no upload wait).
+      enc.ack(c, 106, t0, t0 & INPUT_ACK_MASK);
       expect(st.lineSlow).toBe(false);
-      enc.ack(c, 107, t0 + 99, (t0 + 99) / TICK_MS);
+      enc.ack(c, 107, t0 + 99, (t0 + 99) & INPUT_ACK_MASK);
       expect(st.lineSlow).toBe(false);
       expect(HORDE_LINE_CONFIRM_MS).toBe(100);
-      enc.ack(c, 108, t0 + 100, (t0 + 100) / TICK_MS); // the recorded 100 ms (D2), as a number
+      enc.ack(c, 108, t0 + 100, (t0 + 100) & INPUT_ACK_MASK); // the recorded 100 ms (D2), as a number
       expect(st.lineSlow).toBe(true);
     });
   });

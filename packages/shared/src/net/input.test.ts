@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, ackTickFrom, decodeInput, decodeInputAck, encodeInput, playerInputSchema, quantizeInput, type PlayerInput } from "./input";
+import { INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, ackTickFrom, decodeInput, decodeInputAck, decodeInputSendMs, encodeInput, playerInputSchema, quantizeInput, type PlayerInput } from "./input";
 import { createRng } from "../core/rng";
 
 describe("PlayerInput.viewTick (Story 2.12)", () => {
@@ -24,8 +24,8 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
   };
   const rng = createRng(811);
 
-  it("is 16 bytes (Story 8.13: 14 + the 2-byte tick ack); random inputs round-trip to their 1/127 steps, and quantising twice changes nothing", () => {
-    expect(INPUT_BYTES).toBe(16);
+  it("is 18 bytes (Story 8.13: 14 + the 2-byte tick ack + the 2-byte send time); random inputs round-trip to their 1/127 steps, and quantising twice changes nothing", () => {
+    expect(INPUT_BYTES).toBe(18);
     for (let n = 0; n < 5000; n++) {
       const s = () => rng.next() * 2 - 1;
       const i: PlayerInput = {
@@ -103,6 +103,8 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
     // Story 8.13: without the ack flag, the ack bytes must be 0 (nothing extra).
     expect(decodeInput(bad(14, 1), out())).toBe(false);
     expect(decodeInput(bad(15, 1), out())).toBe(false);
+    expect(decodeInput(bad(16, 1), out())).toBe(false); // re-review M1b-R1: the send time too
+    expect(decodeInput(bad(17, 1), out())).toBe(false);
     const vt = (u32: number): Uint8Array => {
       const b = good.slice();
       new DataView(b.buffer).setUint32(10, u32, true);
@@ -122,12 +124,12 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
       if (n % 2 === 0) b[0] = INPUT_FORMAT;
       if (n % 4 === 0) b[9] = (b[9] as number) & 0x1f;
       if (n % 8 === 0) b[13] = (b[13] as number) & 0x7f;
-      if (n % 16 === 0) b[14] = b[15] = 0;
+      if (n % 16 === 0) b[14] = b[15] = b[16] = b[17] = 0;
       const d = out();
       if (!decodeInput(b, d)) continue;
       accepted++;
       expect(playerInputSchema.safeParse(d).success).toBe(true);
-      encodeInput(d, again, decodeInputAck(b));
+      encodeInput(d, again, decodeInputAck(b), decodeInputSendMs(b));
       expect(again).toEqual(b);
     }
     expect(accepted).toBeGreaterThan(500); // liveness: the fuzz really reached the accept path
@@ -154,7 +156,8 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
         encodeInput({ ...NEUTRAL_INPUT, seq: 3 }, b, none);
         expect(decodeInput(b, out())).toBe(true);
         expect(decodeInputAck(b)).toBe(-1);
-        expect([b[14], b[15]]).toEqual([0, 0]);
+        expect([b[14], b[15], b[16], b[17]]).toEqual([0, 0, 0, 0]);
+        expect(decodeInputSendMs(b)).toBe(-1);
       }
       const a = out();
       const c = out();
@@ -164,6 +167,14 @@ describe("Story 8.11 binary input (F2: exactly as strict as the schema)", () => 
       decodeInput(b, c);
       expect(a).toEqual(c);
       expect(decodeInputAck(new Uint8Array(14))).toBe(-1); // wrong length: none
+      // Re-review M1b-R1: the send time's low 16 bits, wrapping; NaN → 0.
+      for (const ms of [0, 1, 65535, 65536, 65537, 123456.7, 2 ** 40 + 5]) {
+        encodeInput({ ...NEUTRAL_INPUT, seq: 3 }, b, 10, ms);
+        expect(decodeInput(b, out())).toBe(true);
+        expect(decodeInputSendMs(b), `${ms}`).toBe(Math.floor(ms) % 65536);
+      }
+      encodeInput({ ...NEUTRAL_INPUT, seq: 3 }, b, 10, Number.NaN);
+      expect(decodeInputSendMs(b)).toBe(0);
     });
 
     it("ackTickFrom: the newest tick ≤ now with those low bits; never from the future; none before tick 0", () => {

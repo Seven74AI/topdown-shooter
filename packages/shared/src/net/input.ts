@@ -63,6 +63,8 @@ export const NEUTRAL_INPUT: PlayerInput = Object.freeze({
  *   [10..13] viewTick + 1, u32 little-endian (0 = −1, none; above 2³¹ + 1 is refused)
  *   [14..15] Story 8.13: the newest server tick the phone has received (a patch or a horde frame), its low 16 bits,
  *            u16 little-endian; only meaningful with flag 16 (`ack`) set, else 0 (anything else is refused)
+ *   [16..17] Story 8.13 re-review M1b-R1: the phone's clock when it SENT this input (ms, low 16 bits: wraps every
+ *            65.5 s), u16 little-endian; with flag 16 only, else 0 (refused otherwise)
  *
  * `decodeInput` accepts exactly what `playerInputSchema` accepts (F2: seq integer ≥ 0, sticks in [−1, 1], booleans,
  * viewTick −1…2³¹, nothing extra), at 1/127 stick steps; everything else is refused (false) and never throws.
@@ -72,7 +74,7 @@ export const NEUTRAL_INPUT: PlayerInput = Object.freeze({
  * Story 8.13 (decision 8.13 D1): the ack (bytes 14–15) is NOT part of `PlayerInput` (the simulation never sees it): the
  * server reads it with `decodeInputAck` and measures how long its frames wait in the line to this phone.
  */
-export const INPUT_BYTES = 16;
+export const INPUT_BYTES = 18;
 /** The first byte of every binary input (bump with `NET_PROTOCOL_VERSION`; Story 8.13: 2 = with the tick ack). */
 export const INPUT_FORMAT = 2;
 /** Stick steps per unit (int8, decision 8.11 D4). */
@@ -85,7 +87,7 @@ const FLAG_MOUSE = 8;
 /** Story 8.13: bytes 14–15 hold the low 16 bits of the newest server tick received. */
 const FLAG_ACK = 16;
 const FLAGS_ALL = FLAG_FIRE | FLAG_SWAP | FLAG_CONSUMABLE | FLAG_MOUSE | FLAG_ACK;
-/** Story 8.13: the ack's 16 bits (a tick modulo 65,536: about 55 minutes of ticks). */
+/** Story 8.13: the ack's 16 bits (a tick modulo 65,536: about 55 minutes of ticks); also the send time's (ms modulo 65,536). */
 export const INPUT_ACK_MASK = 0xffff;
 const VIEW_TICK_MAX = 2 ** 31;
 
@@ -109,9 +111,10 @@ const getI8 = (b: Uint8Array, at: number): number => ((b[at] as number) << 24) >
 /**
  * Writes `input` into `out` (≥ INPUT_BYTES; preallocated by the caller: nothing is allocated). Returns INPUT_BYTES.
  * Story 8.13: `ackTick` is the newest server tick the phone has received (a patch's `tick` or a horde frame's), or −1
- * for none (before the first one).
+ * for none (before the first one); `sendMs` is the phone's clock (ms, e.g. `performance.now()`) as the input is sent,
+ * which goes with the ack (re-review M1b-R1: the server times the upload with it).
  */
-export function encodeInput(input: PlayerInput, out: Uint8Array, ackTick = -1): number {
+export function encodeInput(input: PlayerInput, out: Uint8Array, ackTick = -1, sendMs = 0): number {
   out[0] = INPUT_FORMAT;
   putU32(out, 1, input.seq >>> 0);
   out[5] = stickStep(input.moveX) & 0xff;
@@ -126,6 +129,10 @@ export function encodeInput(input: PlayerInput, out: Uint8Array, ackTick = -1): 
   const low = hasAck ? ack & INPUT_ACK_MASK : 0;
   out[14] = low & 0xff;
   out[15] = low >>> 8;
+  const sent = Math.floor(sendMs);
+  const sentLow = hasAck && sent === sent ? sent & INPUT_ACK_MASK : 0; // NaN → 0
+  out[16] = sentLow & 0xff;
+  out[17] = sentLow >>> 8;
   return INPUT_BYTES;
 }
 
@@ -144,7 +151,7 @@ export function decodeInput(b: Uint8Array, out: { -readonly [K in keyof PlayerIn
   if ((flags & ~FLAGS_ALL) !== 0) return false;
   const vt = getU32(b, 10);
   if (vt > VIEW_TICK_MAX + 1) return false;
-  if ((flags & FLAG_ACK) === 0 && (b[14] !== 0 || b[15] !== 0)) return false; // Story 8.13: nothing extra
+  if ((flags & FLAG_ACK) === 0 && (b[14] !== 0 || b[15] !== 0 || b[16] !== 0 || b[17] !== 0)) return false; // Story 8.13: nothing extra
   out.seq = getU32(b, 1);
   out.moveX = mx / INPUT_STICK_STEPS;
   out.moveY = my / INPUT_STICK_STEPS;
@@ -165,6 +172,15 @@ export function decodeInput(b: Uint8Array, out: { -readonly [K in keyof PlayerIn
 export function decodeInputAck(b: Uint8Array): number {
   if (b.length !== INPUT_BYTES || ((b[9] as number) & FLAG_ACK) === 0) return -1;
   return (b[14] as number) | ((b[15] as number) << 8);
+}
+
+/**
+ * Story 8.13 re-review M1b-R1: the low 16 bits of the phone's send time (ms) of a binary input `decodeInput` accepted,
+ * or −1 when it carries no ack (and so no send time).
+ */
+export function decodeInputSendMs(b: Uint8Array): number {
+  if (b.length !== INPUT_BYTES || ((b[9] as number) & FLAG_ACK) === 0) return -1;
+  return (b[16] as number) | ((b[17] as number) << 8);
 }
 
 /**

@@ -82,6 +82,8 @@ export interface HordeStats {
 
 export const newHordeStats = (): HordeStats => ({ framesSent: 0, framesSkipped: 0, bytesSent: 0, keyframes: 0, lineSkipped: 0, maxLineWaitMs: 0, lineCapKeys: 0 });
 
+/** Story 8.13 re-review M1b-R1: the phone's send time wraps at 16 bits of ms. */
+const ACK_WRAP_MS = 65536;
 /** Story 8.13: send times kept per tick (12.8 s of ticks); an ack older than that is timed from its tick number. */
 const SENT_RING = 256;
 const TICK_MS = TICK_DT_S * 1000;
@@ -134,14 +136,18 @@ export class HordeClientState {
   readonly baseSec = new Int32Array(HORDE_LINE_BASE_WINDOW_S).fill(-1);
   readonly baseMs = new Float64Array(HORDE_LINE_BASE_WINDOW_S);
   /**
-   * Review M1 (b): the upload's own wait. Per input, `arrival − seq × 50 ms` (the phone sends one per 50 ms step);
-   * its lowest value of the last HORDE_LINE_BASE_WINDOW_S seconds is the upload's base, the rest is time the input
-   * waited on the way up. The ack's wait minus it is what waited on the way DOWN (only that can a skip drain).
+   * Review M1 (b), re-review M1b-R1: the upload's own wait. Per input, `arrival − the phone's send time` (both ms, the
+   * send time's low 16 bits unwrapped against the first one: `upRef`); its lowest value of the last
+   * HORDE_LINE_BASE_WINDOW_S seconds is the upload's base (the clocks' offset + the fastest way up), the rest is time
+   * the input waited on the way up. The ack's wait minus it is what waited on the way DOWN (only that a skip drains).
+   * (Not `seq × 50 ms`: the phone's steps slow to 0.9× and drop after a hitch, which would read as upload wait.)
    */
   readonly upSec = new Int32Array(HORDE_LINE_BASE_WINDOW_S).fill(-1);
   readonly upMs = new Float64Array(HORDE_LINE_BASE_WINDOW_S);
   /** The upload wait of the newest input (ms). */
   upWaitMs = 0;
+  /** The first input's `(arrival − sendLow) mod 65,536` (NaN: none yet): later ones are read as a signed distance from it. */
+  upRef = Number.NaN;
   /** When this phone's last horde frame went out (ms; NaN: none yet): the freeze cap (review M1 a). */
   lastFrameMs = Number.NaN;
   constructor(readonly keyPhase: number) {}
@@ -156,6 +162,7 @@ export class HordeClientState {
     this.baseSec.fill(-1);
     this.upSec.fill(-1);
     this.upWaitMs = 0;
+    this.upRef = Number.NaN;
     this.projectedMs = 0;
     this.trendCount = 0;
     this.trendHead = 0;
@@ -340,15 +347,18 @@ export class HordeEncoder {
    * (its older inputs' acks, timed late, are each overtaken in the same burst, and HORDE_LINE_CONFIRM_MS of being over
    * the limit is needed before any skip). A queue in the line keeps every ack old: the wait stays up, the skip starts.
    *
-   * Review M1: the age also holds the input's way UP, which a skip cannot drain. With `seq` (the input's), the upload's
-   * own wait is measured from arrival times (`arrival − seq × 50 ms` above its 10 s minimum) and taken off, so only a
-   * downstream queue skips frames. Without `seq` (tests) the whole age counts.
+   * Review M1: the age also holds the input's way UP, which a skip cannot drain. With `sendLow` (the input's send time,
+   * `decodeInputSendMs`), the upload's own wait (`arrival − send time` above its 10 s minimum) is taken off, so only a
+   * downstream queue skips frames. Without it (−1: tests) the whole age counts.
    */
-  ack(client: object, ackLow: number, nowMs: number, seq = -1): void {
+  ack(client: object, ackLow: number, nowMs: number, sendLow = -1): void {
     const st = this.stateFor(client);
-    // Review M1 (b): every input (a new ack or not) times the upload: its wait above the upload's own base.
-    if (seq >= 0) {
-      const up = nowMs - seq * TICK_MS;
+    // Review M1 (b) / M1b-R1: every input (a new ack or not) times the upload: arrival − its send time, above the base.
+    const timed = sendLow >= 0;
+    if (timed) {
+      const d = (((nowMs - sendLow) % ACK_WRAP_MS) + ACK_WRAP_MS) % ACK_WRAP_MS;
+      if (Number.isNaN(st.upRef)) st.upRef = d;
+      const up = ((((d - st.upRef + ACK_WRAP_MS / 2) % ACK_WRAP_MS) + ACK_WRAP_MS) % ACK_WRAP_MS) - ACK_WRAP_MS / 2; // signed, ±32.8 s
       st.upWaitMs = up - windowMin(st.upSec, st.upMs, nowMs, up);
     }
     const tick = ackTickFrom(ackLow, this.tick);
@@ -358,7 +368,7 @@ export class HordeEncoder {
     const sentMs = this.sentTick[ring] === tick ? (this.sentAtMs[ring] as number) : this.nowMs - (this.tick - tick) * TICK_MS;
     const age = nowMs - sentMs;
     // The ack's wait above the line's base, minus what this input waited on the way up (review M1 b): the down wait.
-    const wait = Math.max(0, age - windowMin(st.baseSec, st.baseMs, nowMs, age) - (seq >= 0 ? st.upWaitMs : 0));
+    const wait = Math.max(0, age - windowMin(st.baseSec, st.baseMs, nowMs, age) - (timed ? st.upWaitMs : 0));
     // The trend: against the newest kept ack written at least HORDE_LINE_TREND_SPAN_MS before this one.
     let trend = 0;
     for (let k = st.trendCount - 1; k >= 0; k--) {
@@ -374,7 +384,7 @@ export class HordeEncoder {
     if (st.trendCount < TREND_SAMPLES) st.trendCount++;
     else st.trendHead = (st.trendHead + 1) % TREND_SAMPLES;
     // Projected over how long ago that frame left, minus the upload wait (review M1: its noise is no downstream growth).
-    const projected = wait + trend * Math.max(0, age - (seq >= 0 ? st.upWaitMs : 0));
+    const projected = wait + trend * Math.max(0, age - (timed ? st.upWaitMs : 0));
     st.waitMs = wait;
     st.projectedMs = projected;
     const gap = nowMs - st.ackAtMs; // NaN for the first ack

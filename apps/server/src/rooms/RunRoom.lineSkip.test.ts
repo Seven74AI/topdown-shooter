@@ -50,7 +50,7 @@ describe("Story 8.13: the slow-line ack in a live room (review L2)", () => {
     const bytes = new Uint8Array(INPUT_BYTES);
     let seq = 0;
     const send = (lagTicks: number): void => {
-      encodeInput({ ...NEUTRAL_INPUT, seq: ++seq }, bytes, Math.max(0, room.state.tick - lagTicks));
+      encodeInput({ ...NEUTRAL_INPUT, seq: ++seq }, bytes, Math.max(0, room.state.tick - lagTicks), performance.now());
       client.sendBytes(BYTES.INPUT, bytes);
     };
     for (let i = 0; i < 20; i++) {
@@ -73,11 +73,11 @@ describe("Story 8.13: the slow-line ack in a live room (review L2)", () => {
     const onInput = vi.spyOn(room, "onInput");
     const warn = vi.spyOn(room.log, "warn");
     const bad = new Uint8Array(INPUT_BYTES);
-    encodeInput({ ...NEUTRAL_INPUT, seq: 1 }, bad); // no ack: flag 16 off, bytes 14–15 zero
+    encodeInput({ ...NEUTRAL_INPUT, seq: 1 }, bad); // no ack: flag 16 off, bytes 14–17 zero
     bad[14] = 7; // …but ack bytes anyway
     const bad2 = bad.slice();
     bad2[14] = 0;
-    bad2[15] = 1;
+    bad2[17] = 1; // …or a send time
     client.sendBytes(BYTES.INPUT, bad);
     client.sendBytes(BYTES.INPUT, bad2);
     await room.waitForNextPatch();

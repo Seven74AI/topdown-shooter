@@ -84,7 +84,7 @@ export {
   type ShopStream,
   type StreamName,
 } from "./core/seedStreams";
-export { INPUT_ACK_MASK, INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, VIEW_TICK_SCALE, ackTickFrom, decodeInput, decodeInputAck, encodeInput, playerInputSchema, quantizeInput, viewTickOfInput, type PlayerInput } from "./net/input";
+export { INPUT_ACK_MASK, INPUT_BYTES, INPUT_FORMAT, INPUT_STICK_STEPS, NEUTRAL_INPUT, VIEW_TICK_SCALE, ackTickFrom, decodeInput, decodeInputAck, decodeInputSendMs, encodeInput, playerInputSchema, quantizeInput, viewTickOfInput, type PlayerInput } from "./net/input";
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export {
   COVER_KINDS,

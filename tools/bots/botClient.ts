@@ -648,7 +648,7 @@ export class BotClient {
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
     if (this.link !== "ok") return; // Story 8.1 (F7): nothing sent while the link is down (and nothing late)
     // Story 8.11 (brief 20): the phone's binary input; Story 8.13: with the newest server tick received, like the phone.
-    encodeInput(this.input, this.inputBytes, SEND_ACK ? Math.max(state.tick, this.horde.tick) : -1);
+    encodeInput(this.input, this.inputBytes, SEND_ACK ? Math.max(state.tick, this.horde.tick) : -1, performance.now());
     this.room.sendBytes(BYTES.INPUT, this.inputBytes);
   }
 

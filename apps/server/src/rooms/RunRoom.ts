@@ -49,6 +49,7 @@ import {
   NEUTRAL_INPUT,
   decodeInput,
   decodeInputAck,
+  decodeInputSendMs,
   runStartSchema,
   shopBuySchema,
   shopRerollSchema,
@@ -414,9 +415,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private readonly rateDroppedIn: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
   /** Story 8.13: the tick ack of the input `inputParser` decoded last (`decodeInputAck`; read in `onInput`). */
   private inputAck = -1;
+  /** Story 8.13 re-review M1b-R1: the send time (ms, low 16 bits) of the same input (`decodeInputSendMs`). */
+  private inputSendMs = -1;
   private readonly inputParser = bytesParser((b: Uint8Array, out: typeof this.inputIn): boolean => {
     if (!decodeInput(b, out)) return false;
     this.inputAck = decodeInputAck(b);
+    this.inputSendMs = decodeInputSendMs(b);
     return true;
   }, this.inputIn);
   /** Story 7.2: this run's bank (`meta/banking.ts`; made at Start with the run id), null outside a run. */
@@ -2648,7 +2652,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 8.11: the dropped binary input is decoded (seq, edges); one that doesn't decode carries nothing.
     if (member && message instanceof Uint8Array && decodeInput(message, this.rateDroppedIn)) {
       this.controller?.rateDroppedInput(member.playerId, this.rateDroppedIn);
-      this.horde?.ack(client, decodeInputAck(message), performance.now(), this.rateDroppedIn.seq); // Story 8.13: its ack still times the line
+      this.horde?.ack(client, decodeInputAck(message), performance.now(), decodeInputSendMs(message)); // Story 8.13: its ack still times the line
     }
   }
 
@@ -2656,8 +2660,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     if (!member) return;
     // Story 8.13: the newest tick this phone has received times the line to it (the slow-line horde skip).
-    this.horde?.ack(client, this.inputAck, performance.now(), input.seq);
+    this.horde?.ack(client, this.inputAck, performance.now(), this.inputSendMs);
     this.inputAck = -1;
+    this.inputSendMs = -1;
     // Story 8.1 (AC 2): inputs again on the same socket after a quiet hold: the seat returns (F4) first.
     // A late input made while the line was down (F7: `isStaleInput`) is no sign of life.
     if (this.holds.get(member.playerId)?.reason === "quiet" && this.controller && !this.controller.isStaleInput(input)) this.endHold(member, "input");

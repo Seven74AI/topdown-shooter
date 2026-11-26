@@ -17,7 +17,7 @@ Sources: `docs/perf/network-pass-2026-11.md` (one section per story), the story 
 | 8.1 | Reconnect within 2 minutes: the survivor is held, and the seat comes back with HP, wallet and weapons | Back about 0.05 s (clean) / 0.3 s (lossy) after an 8 s cut. The phone shows "reconnecting" after 3.1 s |
 | 8.10 | Horde stream as per-client keyframes + deltas (`NET_PROTOCOL_VERSION` 2). As shipped every zombie stays at 20 Hz (B7) | Audit replay 18.6 → 8.2 KB/s; stampede (180 in one view) 28.2 → 13.5 KB/s worst second. Bots, horde per phone 8.6–12.6 → 2.6–5.5 KB/s as shipped. New horde budget ≤ 16 KB/s |
 | 8.11 | One packet per tick; a 14-byte binary input (`NET_PROTOCOL_VERSION` 3) | Down writes per phone 46 → 20 per s. Input upload 2.3 → 0.31 KB/s. Exactly one tick per patch. Server tick avg 1.26–1.30 → 0.87–1.02 ms |
-| 8.13 | Slow-line horde skip: the input carries a 2-byte tick ack (16 B, `NET_PROTOCOL_VERSION` 4); the server skips a phone's horde frames while they wait > 300 ms in the line, then sends a keyframe | Bots, 64 kbit/s with 0.2 / 0.4 / 1 s stalls: longest wait ≈ 8 s → 674 / 774 / 383 ms, 0 decode errors. 128 kbit/s and clean: 0 skips. Encoder replay unchanged (8.9 KB/s on master and after) |
+| 8.13 | Slow-line horde skip: the input carries a 2-byte tick ack and a 2-byte send time (18 B, `NET_PROTOCOL_VERSION` 4); the server skips a phone's horde frames while they wait > 300 ms in the line, then sends a keyframe | Bots, 64 kbit/s with 0.2 / 0.4 / 1 s stalls: longest wait ≈ 8 s → 674 / 774 / 383 ms, 0 decode errors. 128 kbit/s and clean: 0 skips. Encoder replay unchanged (8.9 KB/s on master and after) |
 
 ### What this means for the 4-phone test
 
