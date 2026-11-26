@@ -50,6 +50,13 @@
       "when": 1795685398855,
       "tag": "0006_progress_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795702746683,
+      "tag": "0007_admin",
+      "breakpoints": true
     }
   ]
 }

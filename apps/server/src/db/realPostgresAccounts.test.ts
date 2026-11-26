@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
-import { accountsRepo } from "./accountsRepo";
+import { accountsRepo, adminsRepo } from "./accountsRepo";
 import { openPostgres, type Database } from "./client";
 import { deviceTokensRepo } from "./deviceTokensRepo";
 import { migrateDb } from "./migrate";
@@ -128,5 +128,19 @@ describe.skipIf(!URL)("Story 7.6: accounts on real PostgreSQL (TEST_DATABASE_URL
       [1, 2].map((i) => devices.logIn({ oldTokenHash: null, newTokenHash: hex(), accountId: acct.id, credentials: { expectRecoveryHash: "r", passwordHash: `p${i}`, recoveryCodeHash: `r${i}` } })),
     );
     expect(rs.map((r) => r.outcome).sort()).toEqual(["ok", "stale_credentials"]);
+  });
+
+  it("Story 10.11 (AC 1): is_admin defaults to false; setAdmin marks only a registered account (case-blind); a guest is never matched", async () => {
+    const n = name();
+    const a = await device(0, n);
+    const g = await device(0);
+    expect((await accountsRepo(database).findByTokenHash(a.token))?.isAdmin).toBe(false);
+    expect((await accountsRepo(database).findByTokenHash(g.token))?.isAdmin).toBe(false);
+    expect(await adminsRepo(database).setAdmin(n.toUpperCase().toLowerCase(), true)).toEqual({ accountId: a.id });
+    expect((await accountsRepo(database).findByTokenHash(a.token))?.isAdmin).toBe(true);
+    expect((await adminsRepo(database).listAdmins()).some((x) => x.accountId === a.id && x.username === n)).toBe(true);
+    expect(await adminsRepo(database).setAdmin("no_such_user_1011", true)).toBeNull();
+    expect(await adminsRepo(database).setAdmin(n, false)).toEqual({ accountId: a.id });
+    expect((await adminsRepo(database).listAdmins()).some((x) => x.accountId === a.id)).toBe(false);
   });
 });

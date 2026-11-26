@@ -59,7 +59,7 @@ export interface DeviceTokensRepo {
   logOut(oldTokenHash: string, newTokenHash: string): Promise<{ outcome: "ok"; account: Account; previousAccountId: string } | { outcome: "not_logged_in" }>;
 }
 
-const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
+const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username, isAdmin: accounts.isAdmin }; // Story 10.11: + isAdmin
 const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look" | "cosmetics" | "stats" | "settings">): Progress => ({
   accountId: r.accountId,
   supplies: r.supplies,

@@ -3,6 +3,8 @@ import { GAME_TITLE } from "@topdown/shared";
 import { dpr } from "../display";
 import { uiStore } from "../ui/uiState";
 import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
+import { urlHasDevSwitch } from "../debug/soloDevSwitches";
+import { accountSession } from "../net/account";
 import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
@@ -75,7 +77,15 @@ export class BootScene extends Phaser.Scene {
       this.titleTimer = null;
       if (this.starting) return; // review NEW-1: a start was taken during the title (a resumed seat): keep its screen
       // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
-      if (skipsStartScreen(urlOptions())) return this.startSolo();
+      if (skipsStartScreen(urlOptions())) {
+        // Story 10.11 (AD-4): a production direct link with a dev switch waits for the session (≤ 3 s, the account
+        // fetch's own timeout) so an admin's first run honours it; every other link starts at once, as before.
+        if (!import.meta.env.DEV && urlHasDevSwitch(location.search)) {
+          void accountSession().finally(() => this.startSolo());
+          return;
+        }
+        return this.startSolo();
+      }
       uiStore.handle("startSolo", () => this.startSolo());
       uiStore.handle("startOnline", (session) => this.startOnline(session));
       uiStore.set(error ? { kind: "start", error } : { kind: "start" });
