@@ -40,3 +40,26 @@
 - Bodies behind standing walls show as a pulsing silhouette, pick C (9.12). Red now marks danger in play (the boss and zombies), not only the boss.
 - Build-phase UI: a hybrid Build button plus a quick tile for the last-placed building (Story 10.10, BU-1 = B, 2026-11-25).
 
+## 2026-11-26 — Epic 9 photoreal, Epic 10 order (designer; correct-course `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`)
+
+- Epic 9 is photoreal: 9.1–9.10 are re-based on the 9.11–9.14 pipeline (proposal-page pick, worker relight or pre-rendered atlas, code drawing as fallback). FR82 now reads "photoreal looks … relit at load in a Web Worker or pre-rendered offline from the approved code". Supersedes the 2026-11-23 "polish pass of the code-drawn art" wording.
+- Epic 10 starts with 10.1 (settings), which 9.5, 9.6, 9.8 and 10.2 need; 10.1 also gets account and progress deletion (retro E7-A8).
+- Story 1.11's phone FPS check goes into 10.2; 1.12 and 4.10 go into the 10.9 game nights. Epics 1 and 4 are closed. 2.10 stays parked.
+- All real-phone testing stays parked (designer 2026-11-25, HANDOFF §5.2): phone ACs are kept but marked parked; no story waits on a phone night; headless measures are the buildable part.
+- Story 8.12 and Epic 12 (party-mode session 2026-11-25) are copied into epics.md as written.
+- 8.10 B6 becomes Story 8.13 "Slow-line horde skip" (named 8.12 by the designer; renumbered because 8.12 is the evac-vote quick story), a small story in the normal build order, before any real-device network test; Epic 8 is open again for it.
+
+## 2026-11-26 — Open questions and Epic 12 clashes (designer "ok" to every recommendation; `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` §6)
+
+- **Q4:** Story 10.5's safe-area AC is narrowed to `hudLayout.test.ts` top-inset cases (≥ 47 px at 568 × 320 and 844 × 390) plus one Playwright run with iPhone and Pixel emulation; the real notched-phone check stays parked.
+- **Q5:** `docs/balance/changelog.md` exists from 2026-11-26 (back-filled with Epic 5 B1–B12 and 9.13 B28); every balance change adds a line. 10.8 "re-checks" 15 × N, `loot.runChance` 0.2 and the cap of 6 and changes them only with a changelog reason.
+- **Q8:** Random-city art (11.6) reuses the 9.14 photo-atlas frames by kind, without stretching; size variants come from `npm run art:street-props`; generated buildings and ground stay code drawings until 9.2's atlas, which follows 9.2's pick.
+- **E8-A9:** the overnight Epic 8 rule changes (8.9 B7/B9, 8.1 B15/B16/B19, 8.3-B14) are confirmed as built; 8.10 B7 (far rule off) is re-checked on Story 8.13's capped-line netsim.
+- **E7-A6:** 7.3 F12 kept as built; 7.4 B11 dropped; 7.6 B18/B19 and 7.11 D8 "Wear it" become **Story 7.13 Epic 7 leftovers**; 7.10 AC 12 (30-second editor check) runs in 10.9's first game night.
+- **X1:** Story 8.12 stands (only connected, standing players vote; reverses 8.1 M2). When it lands, FR66 reads "a majority of the connected, standing players; a tie or no counted votes means Extract", and 6.11 gets an as-built note.
+- **X2:** 12.4 updates every place the 50 % decay refund is written (FR58, 4.5, 6.2, architecture, HANDOFF), lands before 10.8 and logs the money change in the balance changelog. *Supersedes the 2026-11-21 architecture rule "destroyed with a 50% refund" once 12.4 lands.*
+- **X3–X5:** 12.1 shares one rasteriser with the escape fill, keeps the sealed-fort escape tests, measures bot-sim wall damage before and after, adds a Brute forced-gap test, and keeps the debug fort.
+- **X6–X8:** 12.2 bumps `NET_PROTOCOL_VERSION` (whichever of 12.2, 8.13 and Epic 11 lands first takes 4); FR67 is reworded when it lands; save coverage and copy-chain tests for the new fields; fly-out kills count in neither milestones nor 10.7's run stats.
+- **X9:** 12.3 uses code-drawn placeholders for the crew and the helicopter; they join 9.1's inventory as a photoreal group; 9.2's proposal page checks looks at the 0.6× zoom-out.
+- **X10:** 12.1's and 12.3's reference-phone performance ACs are measured headless at 4× CPU (phones parked).
+- **X11:** order 8.12 → 12.1 (+ 12.4) → 12.2 → 12.3, after or alongside 10.1 and before 10.2, 10.8 and 10.9; Epic 11 runs 12.1's check on generated maps, with the `evac_pad` in the main walkable region.

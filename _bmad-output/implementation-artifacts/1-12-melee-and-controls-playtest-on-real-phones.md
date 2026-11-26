@@ -4,7 +4,9 @@ baseline_commit: 81f6c1d1911bb75a2e788b59f509344895b82f57
 
 # Story 1.12: Melee and controls playtest on real phones
 
-Status: review
+Status: done
+
+> Folded into 10.9 (correct-course 2026-11-26, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md`): the controls feedback (`docs/playtests/epic-1-controls.md`) and the melee-under-twin-stick decision are collected in the first 10.9 game night.
 
 <!-- Human story: the playtest is run by the designer and friends. The dev agent prepares the build and the form, then applies the tuning decisions. -->
 
