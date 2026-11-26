@@ -146,3 +146,39 @@ Claude (builder session, `gds-dev-story`), 2026-11-26.
 ### Change Log
 
 - 2026-11-26: Story 10.11 built (status → review).
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh cloud session, `gds-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor), 2026-11-26.
+**Tree:** `story-10-11` @ `d49685f` merged locally with master `4362482` (not pushed). Clean merge.
+**Verdict: APPROVED.** No high and no medium findings. Two lows (test coverage) and one nit, none blocking. None changes behaviour.
+
+### Checks run
+
+- `npm run release:check` on the merged tree: build + scan 5/5 passed.
+- `npm run test:changed` (3 workers): 588 files / 5704 tests passed, 6 files / 47 tests skipped (real-PG without `TEST_DATABASE_URL`, release scan without `REQUIRE_DIST`). The real-PostgreSQL case is left to the CI `postgres` job.
+- `drizzle-kit generate` on the merged tree: "No schema changes" (0007 matches `schema.ts`). Journal `when` values increase (…398855 → 1795702746683); `0007_snapshot.prevId` = `0006_snapshot.id`; snapshot has `is_admin boolean NOT NULL DEFAULT false`.
+- Release scan probes (`CHEAT_SCAN_DIR` on copies of the real dist): `/* God mode */` added to `consumableIcons-*.js` → "contains none … outside the admin-tools chunk" fails and names that file. Deleting `admin-tools-*.js` → the liveness test fails. The real dist passes.
+- `apps/client/dist` by hand: `admin-tools-ex9huHj7.js` (9.9 KB) + `admin-tools-CpbeoIXb.css` are the only files that hold cheat strings. `grep -r "__game\|__gfx" dist` finds nothing. `index.html` doesn't name `admin-tools`. `main-*.js` reaches it only through `import("./admin-tools-….js")` inside `installAdminGate`'s loader (dynamic import, no static import or modulepreload). The admin chunk imports from `main-*` / `urlOptions-*`, never the other way.
+- No browser run: the builder's Playwright checks (a)–(d) cover it, and the code paths below confirm them statically.
+
+### Security / boundary probes (E8-A3: each claim checked against the diff)
+
+| Claim | Evidence |
+| --- | --- |
+| `admin` only in the player's own session replies | `grep -rln "isAdmin\|is_admin\|\.admin\b" apps/server/src packages/shared/src` (non-test): only `schema.ts`, `accountsRepo.ts`, `deviceTokensRepo.ts` (select columns), `guestSession.ts` `saved()`, `accountAuth.ts` `sessionOf()` + logout. No hit in `run/`, rooms, lobby or netEvents. No `...account` spread or account object logged anywhere in `apps/server/src`. Test "never in another device's session" (`adminSession.test.ts:132`). |
+| Guest can never be admin | `isAdminAccount` = `username !== null && isAdmin === true` (`accountsRepo.ts`). `setAdmin` filters `isNotNull(username)`. Logout guest is hard-coded `admin: false` (`accountAuth.ts:262`). Client `accept()` forces false without a username (`accountStore.ts`). Upgrade → `accept(name, false)`. |
+| A forged or old client gains nothing | The server never reads a client admin claim (no route takes it). The shared schema field is optional (`account.ts` shared), so an old server's reply → `undefined` → false. A client that forces its own store only unlocks Practice-only tools: Practice pays nothing, and no message is sent. |
+| Online lock (B5) | Every control except Perf overlay and Collision / grid view gets `disabled={locked}`, and each handler checks `!locked`: spawn ×2, skip wave, leave last 5, Behemoth, 2× force event, loadout, +money, damage building, god mode, seed input. Decay, blackout and Restart were already `online`-disabled. Backtick only toggles `open`. `PRACTICE_ONLY_ONLINE = !import.meta.env.DEV`, so dev builds are unchanged. |
+| Losing admin (B2/B3) | `adminGate.apply` → `panel.setVisible(false)` → the panel renders `null`, the key listener is removed (effect on `[visible]`), `setOpen(false)` runs and `dropCheatState` turns off grid view + god mode. Logout/login go through `adopt()`. `saved:false` → `dropAdmin()`. Failed fetch / non-200 → `return null` before any store write (no change, as B3 says). Account delete reloads the page (`deleteProgress.ts`). Race test `adminPlayers.test.ts:81`. |
+| AD-4 solo only | `GameScene.create` (one synchronous call): `soloDev = !session && soloDevAllowed()`; online uses `urlOptions()` + `clientBalance()`. `connection.ts:45-48` and `LobbyScreen` are untouched (still `urlOptions()` = `import.meta.env.DEV`). `soloBalance` cache is a `Map<boolean, Balance>` keyed on `dev`. `soloUrlOptions` returns `urlOptions()` when `!dev`. `practicePool.ts:32-33` reads `opts.unlocks/training` from the solo opts. Test `adminPlayers.test.ts:148`. |
+| B4 wait | Only `!DEV && skipsStartScreen && urlHasDevSwitch(search)`. `accountSession()` never throws (everything sits inside `try`, the 3 s `AbortController` also covers `res.json()`), so `.finally(startSolo)` always runs within ~3 s, offline too. `startGame` keeps its `this.starting` guard. Normal players (no dev key in the URL) and dev builds take the old path unchanged. |
+| CLI / privacy | `account_admin {accountId, admin}` is the only log line. `admin_command_failed {err}` holds a DB error message (no player data). Usernames go only to the operator's stdout. Exit 1 for an unknown name, 2 for usage. The docs command mirrors `deploy.sh:69`'s migrate line (`run --rm --no-deps server node --import tsx …`; `deploy/.env` supplies `GIT_SHA`). |
+
+### Findings
+
+1. **[low] No automated test of the production online lock (AC 4 / B5).** `apps/client/src/debug/DevCheats.tsx:51` `PRACTICE_ONLY_ONLINE = !import.meta.env.DEV` is always false under vitest, and no test renders the panel with `locked`. *Failure scenario:* a later story adds a panel control without `disabled={locked}` and a `!locked` guard. Admins can then use it online against the mirror world, and only a manual browser check would catch it. *Minimal fix:* let `mountDevCheats(game, visible, { practiceOnlyOnline = !import.meta.env.DEV } = {})` pass the flag as a prop, then add a DOM test with a fake online Game scene. The test asserts that every `button/select/input` in `.dev-cheats` is disabled except the two view checkboxes, and that "Practice only" shows once.
+2. **[low] The real-PG case's "case-blind" step is a no-op.** `apps/server/src/db/realPostgresAccounts.test.ts:139` passes `n.toUpperCase().toLowerCase()`, which equals `n`. Case-blind matching is really done (and tested) in `runAdminCommand` (PGlite, `adminSession.test.ts:66`). *Fix:* pass `n` and drop "case-blind" from the test title, or have the case call `runAdminCommand(["add", n.toUpperCase()], adminsRepo(database), …)`.
+3. **[nit] `ADMIN_CHUNK` exempts any `assets/admin-tools-*` path at any depth** (`tools/checks/noCheatsInRelease.test.ts:42`, `(^|[\\/])assets[\\/]`). Today only the root `assets/` holds such files. If you want it tighter, anchor it to `join(DIST, "assets")`. Optional.
+
+No other issue found. AC 1–9 are met (AC 7's browser part rests on the builder's Playwright run plus the static check above).
