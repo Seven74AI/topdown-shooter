@@ -25,7 +25,7 @@ so that building next to crumbling parts of the city is a real gamble.
    - A building under new cover from a decay stage (FR58).
    - A building a fire lit at the build start overlaps (Story 4.8 review M2).
    - A building within 0.8 m of new cover (Story 12.1 AC 6).
-3. **The balance key goes.** Remove `decay.buildingRefundShare` from `balanceSchema.ts` and `decay.json` (decision CN-6, recommended), rather than setting it to 0. That way nobody turns the refund back on by accident with an override. The schema rejects the key if an old override still sets it.
+3. **The balance key goes.** Remove `decay.buildingRefundShare` from `balanceSchema.ts` and `decay.json` (CN-6, accepted by the designer 2026-11-26), rather than setting it to 0. That way nobody turns the refund back on by accident with an override. The schema rejects the key if an old override still sets it.
 4. **Unchanged:** selling and taking back a building (5.20, `building.sold.refund`), and buildings destroyed by zombies, the Behemoth or explosions (no refund today either).
 5. **The player knows.** The owner sees a toast when decay destroys their building: **"Lost to the collapse"** (stage cover) or **"Lost to the fire"** (fire). It shows no amount. Story 12.1's toast text loses its refund amount.
 6. **Bots and sims.** Economy sims (`economy/tenWaveSim.test.ts`, `shopSim.test.ts`) and bot seeds whose numbers move are re-checked or re-recorded. Note any change in end-of-run money in the dev notes for the balance pass (10.8).
@@ -44,4 +44,4 @@ so that building next to crumbling parts of the city is a real gamble.
 ## Dev Notes
 
 - Today: `refundMoney(world, b.ownerId, Math.floor(paid * share))` with `share = 0.5` of everything paid, upgrades included (Story 6.2 review L4).
-- CN-6 is a recommended default: removing the key rather than setting it to 0.
+- CN-6 settled: remove the key, not 0.
