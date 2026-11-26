@@ -76,7 +76,43 @@ so that a bad signal costs me detail, not my life.
 
 ## Measurements
 
-MEASUREMENTS_PLACEHOLDER
+All on this cloud container (4 cores, load 0.0–0.3 during the runs, one run at a time), branch `story-8-13` on master `d8ffaee`. **Bots and the model only: no real phone, no real 4G (parked).** Server: `PORT=4167 ALLOW_TEST_SCENARIOS=1 node --import tsx apps/server/src/index.ts`; each row: `npm run bots -- --url http://localhost:4167 --count 4 --scenario net150 --until-wave 4 --hold-fire 45 --lag 150 --jitter 20 --loss 1 --stall S --kbps K` (the 8.10 T8 method, wave 4, ~70 s each). "Before" = the same build with `BOTS_NO_ACK=1` (D4: the server then behaves as on master); the 8.10 T8 column is the 8.10 story's table. Longest wait = `bots_line.maxDownQueueMs` (the capped queue, beyond the one-way delay); skips and the server's own wait reading from `horde_stats` (`lineSkipped`, `maxLineWaitMs`).
+
+### Capped line (AC 4, 5, 8)
+
+| Cap | Stall | Longest wait: 8.10 T8 | Before (no ack) | **After** | Horde frames skipped (4 phones) | Decode errors | Horde KB/s per phone before → after | RTT (bots) before → after |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 64 kbit/s | 0.2 s | 4,720 ms | 8,155 ms | **674 ms** | 1,480 of 5,700 (26 %) | 0 | 4.2 → 3.4 | 985 → 178 ms |
+| 64 kbit/s | 0.4 s | 4,680 ms | 7,909 ms | **774 ms** | 1,142 of 5,716 (20 %) | 0 | 3.5 → 3.7 | 191 → 227 ms |
+| 64 kbit/s | 1 s | 1,883 ms | 8,150 ms | **383 ms** | 32 of 6,920 (0.5 %) | 0 | 3.7 → 2.3 | 470 → 327 ms |
+| 128 kbit/s | 0.2 s | 158 ms | 191 ms | **192 ms** | **0** | 0 | 4.0 → 4.6 | 165 → 166 ms |
+| 128 kbit/s | 0.4 s | 159 ms | — | **191 ms** | **0** | 0 | → 4.1 | → 189 ms |
+| 128 kbit/s | 1 s | 159 ms | — | **191 ms** | **0** | 0 | → 4.8 | → 267 ms |
+| no cap, lossy (1 % × 0.2 s) | 0.2 s | — | — | 0 | **0** | 0 | → 4.6 | → 159 ms |
+| clean (localhost) | — | — | — | 0 | **0** (before 0) | 0 | 3.8 → 6.0 | 1 → 1 ms |
+
+- **64 kbit/s: every row ≤ 1,000 ms (AC 4)**, 0 decode errors. Before is worse than 8.10's T8 (≈ 8 s): the no-ack build queues until the cap's 64 KB pause (8 s of that line) and that pause kicked in 1–7 times per run; the 64 KB socket rule still never skipped a frame (B6's finding, unchanged). The cost of the fix is detail: on the 0.2 and 0.4 s rows a fifth to a quarter of the horde frames are skipped (the phone sees the horde at ~15 Hz with a keyframe after each gap) instead of seeing it 8 s late.
+- **The server's own reading** (`maxLineWaitMs`, ack-based) peaked at 505–1,016 ms per phone on the 64 kbit/s rows and at 109–1,023 ms on the 128 kbit/s rows: the high 128 kbit/s readings are single late acks after 1 s stalls, filtered by the confirm rule (D2), so 0 skips.
+- **Horde KB/s per phone (AC 5)** moves with what the bots happen to see (zombies in view 30–85 between runs); per 100 zombies in view it is the same before and after: clean 7.2 → 7.1, 128 kbit/s 7.3 → 7.3 KB/s. The encoder's own numbers are unchanged because no frame changes without an ack (the next table).
+- **Keyframes after a skip match the world (AC 4):** pinned in the model test (below): the phone's positions after every keyframe that follows a skip are within 0.5 cm (the cm grid) of the world at that tick, at 64 kbit/s with 0.2 / 0.4 / 1 s stalls. The bots decode every frame with 0 errors (`hordeDecodeErrors`).
+- **B7 holds (AC 8):** both the 64 and 128 kbit/s rows meet their targets with the far rule off (every zombie at 20 Hz); `HORDE_NEAR_M` stays `Infinity`. Confirmed in `docs/network-pass-decisions.md`.
+
+### Encoder bandwidth (AC 5)
+
+| Case | 8.10 as shipped | master `d8ffaee` today | After (this branch) |
+| --- | --- | --- | --- |
+| Audit replay, `npx tsx tools/netaudit/hordeEncodings.ts 600` | 8.2 KB/s | 8.9 KB/s (0 mismatches) | **8.9 KB/s** (0 mismatches, keyframes 1.0/s) |
+| Stampede, 180 in one view (`eventBandwidth.test.ts`, bound ≤ 15 KB/s) | 13.5 KB/s | passes | **passes** (unchanged test) |
+
+The replay moved 8.2 → 8.9 KB/s on master between 8.10 and today (stories merged since: same 8.9 with and without this branch); this story adds 0 %: a phone that sends no ack (the replay, the harness, an old flow) gets exactly the 8.10 stream.
+
+### Model test (`apps/server/src/net/hordeLineSkip.test.ts`, seeded)
+
+130 zombies in 10 s rushes (1.2 × the 64 kbit/s line), 120 s per row: control without acks queues > 1.5 s; with the skip ≤ 1,000 ms on the 0.2 / 0.4 s rows and ≤ 1,100 ms on the 1 s row (its worst moment is a 1 s down stall followed by a 1 s up stall: 2 s with no new ack; the bot row reads 383 ms); 128 kbit/s and uncapped with 0.2 / 0.4 / 1 s stalls: 0 skips. Mutations: `HORDE_LINE_CONFIRM_MS = 0` fails the 128 kbit/s test (a stall's late ack skips); `HORDE_LINE_TREND_MAX = 0` fails the 64 kbit/s test (> 1,000 ms); removing any wiring line fails `tools/checks/hordeLineAckWiring.test.ts`.
+
+### 8.8 / 8.9 numbers (AC 7)
+
+The hits harness (`tools/netsim/hitsSim.ts`) and `smoothRun` drive the room without an ack, so the line skip never runs there: reversed hits and freezes are the same code path as master. Their tests pass unchanged (`npm run test:slow`, below).
 
 ## Dev Agent Record
 

@@ -196,7 +196,7 @@ describe("RunRoom", () => {
     const stick = good.slice();
     stick[5] = 0x80; // moveX −128/127 < −1
     const extra = good.slice();
-    extra[9] = 0x10; // an unknown flag bit
+    extra[9] = 0x20; // an unknown flag bit (Story 8.13: 0x10 is the tick ack now)
     client.sendBytes(BYTES.INPUT, good.subarray(0, 13)); // short
     client.sendBytes(BYTES.INPUT, new Uint8Array([...good, 0])); // long
     client.sendBytes(BYTES.INPUT, stick);
