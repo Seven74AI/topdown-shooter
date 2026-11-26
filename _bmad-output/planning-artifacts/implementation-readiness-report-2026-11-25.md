@@ -125,7 +125,7 @@ FR57: Hazards damage or slow what is inside them: fire zones (10 dmg/s to everyt
 
 **City decay**
 
-FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed with a 50% refund.
+FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed with a 50% refund. *(Changed by Story 12.4, 2026-11-26: no refund; see epics.md FR58.)*
 FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it darkens each stage), parked cars along curbs, lit shops.
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
 FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).

@@ -47,7 +47,7 @@ export function damageNearestBuilding(world: World, x: number, y: number, fracti
 /**
  * Dev cheat (Story 4.2, solo only; Story 4.5: merged into the decay engine): moves the run to decay
  * stage 1–5 through the DecaySystem's own path (`changeDecayStage`: the map's mutations, cover and
- * spawn points by `minStage`, building refunds, push-outs, flow fields rebuilt, `decay.stage_changed`
+ * spawn points by `minStage`, building losses (no refund since Story 12.4), push-outs, flow fields rebuilt, `decay.stage_changed`
  * and its banner) — the same code a build start runs. Online the server owns the stage.
  * Review L1: only in a build phase (or the lobby), like a real decay change — never mid-wave; in any
  * other phase nothing happens (the panel disables the control: `decayCheatAllowed`). The next build

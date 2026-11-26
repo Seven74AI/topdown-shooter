@@ -2,10 +2,19 @@ import type { EventKind, EventOutcome } from "../events/eventState";
 
 /**
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
- * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
+ * Story 4.5 appends "refund" (then a building a decay stage destroyed: 50 % back; Story 12.4: decay never refunds, so today only selling and take-back, 5.20, pay it).
  */
 export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss", "event"] as const; // Story 6.7: + "boss"; 6.10: + "event" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];
+
+/**
+ * Story 12.1 / 12.4: why the DECAY system destroyed a building (`building.destroyed.cause`; absent for
+ * every other loss: zombies, the Behemoth, blasts). `collapse` = under new cover, `fire` = a fire lit at
+ * the build start, `cleared` = within one player body of new cover (12.1 AC 6). The owner's toast reads
+ * it. Append only: the wire sends the index + 1 (0 / absent = none).
+ */
+export const BUILDING_LOSS_CAUSES = ["collapse", "fire", "cleared"] as const;
+export type BuildingLossCause = (typeof BUILDING_LOSS_CAUSES)[number];
 
 /**
  * `player.damaged.sourceZombieId` below 0: not a zombie's bite. Story 4.8: -1 = a fire pulse (the
@@ -90,7 +99,7 @@ export type SimEvent =
   /** Story 3.4: `ownerId` placed a building (min corner on lattice point gx, gy in 0.5 m units; rotation 0–3). */
   | { type: "building.placed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number; /** Story 5.23: client only (never on the wire): seconds since it happened, set by NetSimHost on drain (a woken tab plays no feel). */ ageS?: number }
   /** Story 3.5: zombies broke a building (it is already removed; position for the debris FX). */
-  | { type: "building.destroyed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
+  | { type: "building.destroyed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number; cause?: BuildingLossCause }
   /** Story 3.7: `playerId` repaired building `buildingId` to full HP for `cost`; (x, y) = its footprint's centre in metres. */
   | { type: "building.repaired"; buildingId: number; playerId: string; cost: number; x: number; y: number }
   /**

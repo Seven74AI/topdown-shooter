@@ -133,7 +133,7 @@ export { flashlightOf, inFlashlightCone, type FlashlightCone } from "./player/fl
 export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
-export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
+export { changeDecayStage, clearStageSeals, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave, stageSealsCleared, stageSealsUnresolved } from "./decay/decaySystem";
 export { bulletBlockT, bulletLineClear, meleeLineClear, segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";
@@ -628,6 +628,8 @@ export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, 
 // Story 5.9: walls vs floor, upgrades, spike traps, mines, the shared blast.
 export { setBuildingType, resetBuildSpend } from "./buildings/buildings";
 export { MOVE_ERRORS, moveBuilding, moveError, type MoveError, type MoveRequest } from "./buildings/move"; // Story 5.22
+export { BUILDING_LOSS_CAUSES, type BuildingLossCause } from "./core/simEvents"; // Story 12.1 / 12.4
+export { sealedPocket, sealsPath } from "./buildings/pathOpen"; // Story 12.1
 export { GHOST_VIEW_MARGIN_M, ghostError, type GhostError, type GhostRequest } from "./buildings/ghost"; // Story 5.24
 export { SELL_ERRORS, sellBuilding, sellError, sellRefund, sellRefundFor, type SellError, type Sold } from "./buildings/sell"; // Story 5.20
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";

@@ -221,3 +221,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 11:24 Master CI green on 39781be5 (#28; first master run with the postgres job and the 30 s guard, 3:45).
 - 14:38 8.13 slow-line horde skip, PR #32 merged 572c3fd9 (fresh 3-layer review → 2 narrow re-reviews → main-session check; protocol 4; 64 kbit/s longest wait 8 s → ≤ 0.65 s in bots; CI green).
 - 14:46 Master CI green on 572c3fd9 (#32, protocol 4).
+- 17:10 12.1 + 12.4 PR #33 merged 73b8bea0 (fresh review → H1 = A by the designer → 2 re-reviews + 1 cap-exception re-review for a new high → main-session check; MEDIUM-1 over-clear accepted by the designer, A).

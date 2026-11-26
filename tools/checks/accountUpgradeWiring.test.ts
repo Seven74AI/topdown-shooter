@@ -41,8 +41,8 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
 
   it("every session answer feeds the account line; a login/reset/logout adopts the new token and drops the old ticket", () => {
     const a = read("apps/client/src/net/account.ts");
-    expect(a).toMatch(/if \(parsed\.data\.saved\) \{\s*accountStore\.accept\(parsed\.data\.account\.username\);[^\n]*\n\s*if \(parsed\.data\.progress\) progressStore\.accept\(parsed\.data\.progress\);/);
-    expect(a).toMatch(/tokens\.set\(s\.deviceToken\);\s*forgetTicket\(\);\s*accountStore\.accept\(s\.account\.username\);\s*if \(s\.progress\) \{\s*progressStore\.accept\(s\.progress\);[\s\S]{0,160}deviceLook\.(set|markSynced)\(s\.progress\.look \?\? null\);/);
+    expect(a).toMatch(/if \(parsed\.data\.saved\) \{\s*accountStore\.accept\(parsed\.data\.account\.username, parsed\.data\.account\.admin\);[^\n]*\n\s*if \(parsed\.data\.progress\) progressStore\.accept\(parsed\.data\.progress\);/);
+    expect(a).toMatch(/tokens\.set\(s\.deviceToken\);\s*forgetTicket\(\);\s*accountStore\.accept\(s\.account\.username, s\.account\.admin\);[^\n]*\n\s*if \(s\.progress\) \{\s*progressStore\.accept\(s\.progress\);[\s\S]{0,160}deviceLook\.(set|markSynced)\(s\.progress\.look \?\? null\);/);
     for (const fn of ["logInAccount", "recoverAccount", "logOutAccount"]) expect(a).toMatch(new RegExp(`export async function ${fn}[\\s\\S]*?if \\(r\\.kind === "ok"\\) adopt\\(r\\.body, over\\.tokens \\?\\? guestTokens\\);`));
   });
 

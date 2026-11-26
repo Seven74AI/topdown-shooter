@@ -89,7 +89,7 @@ export function earn(world: World, playerId: string, amount: number, reason: Mon
 }
 
 /**
- * Story 4.5: gives `amount` back to a player's wallet (a building a decay stage destroyed) and
+ * Story 4.5: gives `amount` back to a player's wallet (Story 5.20: a sold or taken-back building; Story 12.4: never decay) and
  * emits `money.earned` with reason `refund`. Not counted in `earned` (money returned, not income).
  * Nothing for an unknown player (left the run) or an amount ≤ 0.
  */

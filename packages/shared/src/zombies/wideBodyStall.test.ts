@@ -7,6 +7,7 @@ import { ticksFor } from "../core/time";
 import { createWorld, step } from "../core/world";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { DOWNTOWN_MAP } from "../map/downtown";
+import { PLACEHOLDER_MAP } from "../map/placeholderMap";
 import { snapshotPathing } from "./flowField";
 import { addPlayer, type PlayerState } from "../player/player";
 import { STILL_S, runTrial, type WideTrial } from "./wideBody.testkit";
@@ -322,5 +323,38 @@ describe("Story 6.13: a wide body shut out of a barricade box never stalls (6.8 
     expect(PATH.wideStuckS).toBe(2);
     expect(PATH.wideStuckProgressM).toBe(0.25);
     expect(PATH.wideStuckReachM).toBe(2.5);
+  });
+});
+
+/**
+ * Story 12.1 (AC 14, X4): since 12.1 a box always keeps a way out a player fits, so zombies of a player's
+ * size can use it too. A Brute (1.2 m) can't: here campers sit in a barricade box whose only mouth is a
+ * FORCED 0.8 m gap (exactly a player's body) between a map wall and the east barricade, built with no
+ * checks (12.1's grid reads 0.8 m as closed between a building and a solid; this is the narrowest gap a
+ * player could have). The Brute must not stall at the mouth: it breaks a barricade within 45 s and never
+ * stands still longer than `STILL_S`.
+ */
+describe("Story 12.1 (AC 14): a Brute at a forced 0.8 m gap", () => {
+  it("never squeezes through, never stalls: it attacks a barricade of the box within 45 s", () => {
+    // Inside [30, 34] × [20, 24]; north: the map wall [29.5, 33.2] × [19.2, 20]; east wall x [34, 34.5] from y 18:
+    // the mouth is x (33.2, 34) — 0.8 m — at y (19.2, 20), open to the north.
+    const map = { ...PLACEHOLDER_MAP, solids: [{ name: "wall_n", minX: 29.5, minY: 19.2, maxX: 33.2, maxY: 20 }] };
+    const world = createWorld({ balance, seed: 7, map, systems: { waves: () => {} } });
+    world.debug.godMode = true;
+    let id = 1;
+    const hp = buildingStats(balance, "wood_barricade")?.hp ?? 0;
+    const walls: [number, number, BuildingRotation][] = [[29.5, 20, 1], [29.5, 22, 1], [30, 24, 0], [32, 24, 0], [34, 18, 1], [34, 20, 1], [34, 22, 1]];
+    for (const [x, y, rot] of walls) expect(addBuildingAt(world, { id: id++, type: "wood_barricade", ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot, hp })).not.toBeNull();
+    const p = addPlayer(world, "p0", 32, 22.5);
+    p.hp = 1e9;
+    p.maxHp = 1e9;
+    // A player fits the mouth (centre at x 33.6 touches both sides, never overlaps): it is a real way through.
+    expect(segmentHitsBuildings(world, 33.6, 18.5, 33.6, 21, balance.player.radiusM)).toBe(false);
+    const zid = spawnZombie(world, "brute", 33.6, 14);
+    const t: WideTrial = { world, id: zid, type: "brute", rush: false, players: [p], closed: false, label: "Brute, forced 0.8 m gap" };
+    const r = runTrial(t, ticksFor(45));
+    expect(r.outcome, `@${r.atTick}, still ${r.longestStill}`).toBe("building");
+    expect(r.inBox).toBeNull(); // never inside a box (it didn't squeeze)
+    expect(r.longestStill).toBeLessThanOrEqual(ticksFor(STILL_S));
   });
 });

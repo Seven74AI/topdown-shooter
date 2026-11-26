@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UPGRADE_ERRORS, addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, setBuildingType, startBuild, startWave, upgradeBuilding, type Building, type World } from "@topdown/shared";
+import { UPGRADE_ERRORS, addBuildingAt, addPlayer, buildingStats, createWorld, loadBalance, placeBuilding, removeBuilding, setBuildingType, startBuild, startWave, upgradeBuilding, type Building, type World } from "@topdown/shared";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 
 const balance = loadBalance();
@@ -225,6 +225,23 @@ describe("Story 5.21 / 5.22: the action bar's button sets (F3)", () => {
     p.tap(world, p0.x, p0.y);
     p.update(world, "p1", true, names);
     expect([p.id, p.moveErrorNow]).toEqual([r.value.id, null]);
+  });
+
+  it("Story 12.1 review M1: a wall of an old save's sealed fort can be picked up (its own spot is never a seals_path)", () => {
+    const { world } = setup();
+    const hp = buildingStats(balance, "wood_barricade")?.hp ?? 1;
+    let id = 100;
+    // A closed ring round [6, 10] × [6, 10] from an old save (no checks); its north-east piece is p1's.
+    for (const [x, y, rot] of [[6, 5.5, 0], [6, 10, 0], [8, 10, 0], [5.5, 5.5, 1], [5.5, 7.5, 1], [5.5, 9.5, 1], [10, 5.5, 1], [10, 7.5, 1], [10, 9.5, 1]] as const) {
+      addBuildingAt(world, { id: id++, type: "wood_barricade", ownerId: "old", gx: x * 2, gy: y * 2, rot, hp });
+    }
+    const mine = addBuildingAt(world, { id, type: "wood_barricade", ownerId: "p1", gx: 16, gy: 11, rot: 0, hp });
+    if (!mine) throw new Error("piece");
+    const p = new RepairPanel();
+    p.tap(world, (mine.minX + mine.maxX) / 2, (mine.minY + mine.maxY) / 2);
+    p.update(world, "p1", true, names);
+    expect([p.id, p.moveErrorNow]).toEqual([mine.id, null]);
+    expect(p.pressMove()).toBe(mine.id);
   });
 
   it("barReason: the first refusal among Upgrade, Repair (not full HP: the label says it), Sell, Move", () => {

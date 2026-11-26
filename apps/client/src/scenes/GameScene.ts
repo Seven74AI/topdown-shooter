@@ -130,7 +130,7 @@ import { PlaceFxView } from "../render/PlaceFxView";
 import { routeBuildKeys, type BuildKeysOut } from "./buildKeys";
 import { PLACED_HAPTIC_MS, PlacedSoundPicker, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
 import { vibrate } from "../audio/haptics";
-import { placementHintText, type HintContext } from "./blockText";
+import { decayLossText, placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
 import { BUILDING_TAP_TOLERANCE_M, RepairPanel, moveRefusalText, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
 import { PendingMoves } from "./pendingMove";
@@ -178,6 +178,7 @@ import { SurvivorLookTextures, syncViewLook } from "../render/SurvivorLookTextur
 import { DevLooks } from "../render/devLooks";
 import { deviceLook } from "../net/deviceLook";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
+import { soloDevAllowed, soloUrlOptions } from "../debug/soloDevSwitches";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
@@ -319,8 +320,10 @@ export class GameScene extends Phaser.Scene {
     // Review L7: online, bake only once the mirror has the server's decay stage (no stage-1 bake, then a repaint).
     const host = this.host;
     if (host instanceof NetSimHost && !host.decaySynced) return;
-    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, urlOptions().devLayer);
+    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, this.devLayerOpt);
   };
+  /** `?devlayer` for this run (Story 10.11: solo reads it for admins too; set at each create). */
+  private devLayerOpt: ReturnType<typeof urlOptions>["devLayer"] = null;
   private readonly layerPoolOf = (): SurvivorLayerPool => (this.layerPool ??= new SurvivorLayerPool(this));
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
@@ -661,11 +664,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.mode = session ? "online" : "solo";
-    const opts = urlOptions();
+    // Story 10.11 (AD-4): a solo run reads the dev link switches for dev builds AND admins (read at each solo start);
+    // online keeps the dev-build-only `urlOptions()` (the server must run the matching DEV_* env).
+    const soloDev = !session && soloDevAllowed();
+    const opts = session ? urlOptions() : soloUrlOptions(soloDev);
+    this.devLayerOpt = opts.devLayer;
     // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
     // always plays the bundled balance: the server checked that version at join. Solo: `?wallet`
     // works in release builds too (designer 2026-11-23, soloBalance).
-    const balance: Balance = session ? clientBalance() : opts.tune ? tunedBalance() : soloBalance();
+    const balance: Balance = session ? clientBalance() : opts.tune ? tunedBalance() : soloBalance(soloDev);
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
@@ -844,7 +851,8 @@ export class GameScene extends Phaser.Scene {
     this.layerPool = null; // Story 7.8: its sprites died with the old scene
     this.lookTextures = new SurvivorLookTextures(this); // Story 7.9: drops a previous run's leftover bodies
     // Story 7.9 (AC 14): ?devlooks=N — N − 1 survivors with random starter looks beside mine (views only, dev builds).
-    this.devLooks = urlOptions().devLooks > 1 ? new DevLooks(urlOptions().devLooks - 1, () => new PlayerView(this, this.playerRadiusM), this.syncLook) : null;
+    const devLooks = (this.mode === "solo" ? soloUrlOptions() : urlOptions()).devLooks; // Story 10.11: admins in solo too
+    this.devLooks = devLooks > 1 ? new DevLooks(devLooks - 1, () => new PlayerView(this, this.playerRadiusM), this.syncLook) : null;
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     this.flameView = new FlameView(this, balance, urlOptions().lowFx); // Story 5.4
@@ -2233,6 +2241,9 @@ export class GameScene extends Phaser.Scene {
         // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
+      } else if (e.type === "building.destroyed") {
+        // Stories 12.1 (AC 6) / 12.4 (AC 5): my building lost to the decay: a toast, no amount (no refund).
+        if (e.cause !== undefined && e.ownerId === localId) this.toasts.pushUnique(decayLossText(e.cause, e.buildingType));
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave

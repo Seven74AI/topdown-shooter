@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, addPlayer, bundledBalanceFiles, withOverrides, buildingTypeIds, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
+import { NEUTRAL_INPUT, addBuildingAt, addPlayer, bundledBalanceFiles, withOverrides, buildingTypeIds, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
 import { CHAIN_MONEY_TEXT, Placement, autoRot, carryDistance, chainOffset, placeGate, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
 import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
 import type { MutablePlayerInput } from "../input/InputRouter";
@@ -1158,5 +1158,50 @@ describe("Story 5.22 (in 5.21): moving my building in the hand", () => {
     expect([p.error, p.pendingOverlap]).toEqual(["blocked", true]);
     p.start(balance, WOOD, 20, 16, 0, -1);
     expect([p.moveId, p.price]).toEqual([0, 40]);
+  });
+});
+
+describe("Story 12.1 (AC 7): a wall that would seal a pocket", () => {
+  it("shows seals_path with its reason, and copies the pocket (the inside of the ring) for the soft red fill", () => {
+    const balance = loadBalance();
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    addPlayer(world, "me", 40, 28).wallet = 10_000;
+    world.run.phase = "build";
+    const hp = buildingStats(balance, WOOD)?.hp ?? 1;
+    let id = 1;
+    // A ring round [6, 10] × [6, 10] but for its north piece [8, 10] (built with no checks).
+    for (const [x, y, rot] of [[6, 5.5, 0], [6, 10, 0], [8, 10, 0], [5.5, 5.5, 1], [5.5, 7.5, 1], [5.5, 9.5, 1], [10, 5.5, 1], [10, 7.5, 1], [10, 9.5, 1]] as const) {
+      addBuildingAt(world, { id: id++, type: WOOD, ownerId: "old", gx: x * 2, gy: y * 2, rot, hp });
+    }
+    const p = new Placement();
+    expect(p.start(balance, WOOD, 9, 4, 0, -1)).toBe(true);
+    p.gx = 16;
+    p.gy = 11;
+    p.rot = 0;
+    expect(p.check(world, "me")).toBe(false);
+    expect(p.error).toBe("seals_path");
+    p.explain(world, "me", 0);
+    expect(p.shownError).toBe("seals_path");
+    expect(p.shownHasReason).toBe(true);
+    expect(p.shownReason.cause).toBe("seals_path");
+    expect(p.pocketCount).toBe(49);
+    for (let k = 0; k < p.pocketCount; k++) {
+      const v = p.pocketCells[k] as number;
+      const x = (v % p.pocketCols) * p.pocketCellM;
+      const y = Math.floor(v / p.pocketCols) * p.pocketCellM;
+      expect(x > 6 && x < 10 && y > 6 && y < 10).toBe(true);
+    }
+    // Review L5: a wall added elsewhere (same pocket: same first vertex and size) still refreshes the shown pocket.
+    const shownBefore = p.shownVersion;
+    addBuildingAt(world, { id: 99, type: WOOD, ownerId: "old", gx: 60, gy: 40, rot: 0, hp });
+    p.check(world, "me");
+    p.explain(world, "me", 16);
+    expect(p.shownReason.cause).toBe("seals_path");
+    expect(p.pocketCount).toBe(49);
+    expect(p.shownVersion).toBe(shownBefore + 1);
+    // One step east the piece would overlap the ring: "blocked", not seals_path.
+    p.gx = 17;
+    p.check(world, "me");
+    expect(p.error).toBe("blocked");
   });
 });

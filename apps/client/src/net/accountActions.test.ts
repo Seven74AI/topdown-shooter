@@ -29,7 +29,7 @@ describe("Story 7.6: account actions (net/account.ts)", () => {
     expect(init.credentials).toBe("same-origin");
     expect(JSON.parse(init.body as string)).toEqual({ username: "mo_42", password: "pw pw pw pw" });
     expect(s.data[GUEST_TOKEN_KEY]).toBe(NEW);
-    expect(accountStore.get()).toEqual({ known: true, username: "mo_42" });
+    expect(accountStore.get()).toEqual({ known: true, username: "mo_42", admin: false });
     expect(progressStore.get().progress?.supplies).toBe(770);
     const next = reply({ saved: true, deviceToken: NEW, ticket: "fresh.ticket", account: { displayName: "", username: "mo_42" } });
     expect(await recoveryTicket({ fetch: next, url: () => "/x", tokens })).toBe("fresh.ticket"); // not the old one
@@ -68,7 +68,7 @@ describe("Story 7.6: account actions (net/account.ts)", () => {
     const out = await logOutAccount({ fetch: reply(session(null, 0)), url: () => "/x", tokens });
     expect(out.kind).toBe("ok");
     expect(s.data[GUEST_TOKEN_KEY]).toBe(NEW);
-    expect(accountStore.get()).toEqual({ known: true, username: null });
+    expect(accountStore.get()).toEqual({ known: true, username: null, admin: false });
     expect(progressStore.get().progress?.supplies).toBe(0);
   });
 });

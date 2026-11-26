@@ -108,7 +108,7 @@ FR57: Hazards damage or slow what is inside them: fire zones (10 dmg/s to everyt
 
 **City decay**
 
-FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed with a 50% refund.
+FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed. (Story 12.4, designer 2026-11-25 "bad luck": no refund; was "with a 50% refund".)
 FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it darkens each stage), parked cars along curbs, lit shops.
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
 FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).
@@ -1440,6 +1440,7 @@ So that wave 5 doesn't play like wave 1.
 **Given** a building on a cell that becomes blocked
 **When** the stage is applied
 **Then** the building is destroyed and its owner is refunded 50% of its price
+*(As built, Story 12.4, 2026-11-26: no refund; the building is simply lost and the owner sees "Lost to the collapse". Story 12.1 AC 6 also clears walls within 0.8 m of new cover.)*
 
 **Given** `decay.stage_changed` on the client
 **When** it arrives
@@ -1448,7 +1449,7 @@ So that wave 5 doesn't play like wave 1.
 
 **Given** the decay engine
 **When** Vitest runs
-**Then** tests cover stage timing, each mutation action, building destruction with refund, and same-seed variation choices
+**Then** tests cover stage timing, each mutation action, building destruction with refund, and same-seed variation choices *(as built, Story 12.4: destruction with no refund)*
 
 ### Story 4.6: Evening
 
@@ -2183,7 +2184,7 @@ So that the map squeezes us as the city breaks.
 **Given** the build phase before wave 7
 **When** stage 4 is applied
 **Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
-**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53) *(as built, Story 12.4, 2026-11-26: no refund, FR58)*
 **And** rubble also stops melee and shields blasts (like cars); lobbed rounds (launcher, grenade, molotov) fly over it, because rubble is not `building: true`
 **And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
@@ -3992,6 +3993,7 @@ So that my team can't build a sealed fort, and there's always a way through for 
 **Given** a decay stage adds solid cover (4.2 `minStage`, a 4.8 wreck or rubble)
 **When** `destroyBlockedBuildings` runs at the build start
 **Then** every wall-type building closer than 0.8 m (one player body) to the new cover is destroyed with no refund (12.4), in building-id order, with the owner toast "Your barricade was cleared by the collapse"
+**And** a decay stage re-checks paths; walls that now seal are cleared (review H1, designer-decided 2026-11-26: A): a spot that was in the main region before the stage, is still free and is now cut off by walls (the map alone still joins it) gets the walls nearest it cleared, highest id first, same cause, toast and no refund
 **And** saves and replays that already hold a sealed fort still load; bots handle `"seals_path"`
 
 ### Story 12.2: Extraction: walk to the helicopter and lift off

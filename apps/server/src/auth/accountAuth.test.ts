@@ -101,7 +101,7 @@ describe("Story 7.6: Save my progress (POST /account/upgrade)", () => {
     expect(body.recoveryCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
     const s = await post("/account/session", {}, { cookie: g.token });
     expect(readTicket(s.body.ticket, SECRET)?.accountId).toBe(g.id);
-    expect(s.body.account).toEqual({ displayName: "", username: name });
+    expect(s.body.account).toEqual({ displayName: "", username: name, admin: false });
     expect(s.body.progress).toMatchObject({ supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"] });
     // The password and the code both work (they were stored as hashes that verify).
     expect((await post("/account/login", { username: name, password: PASSWORD })).status).toBe(200);
@@ -278,7 +278,7 @@ describe("Story 7.6: forgot password (POST /account/recover)", () => {
     expect(reset.status).toBe(200);
     const after = await post("/account/session", {}, { cookie: thiefToken });
     expect(readTicket(after.body.ticket, SECRET)?.accountId).not.toBe(a.id);
-    expect(after.body.account).toEqual({ displayName: "", username: null });
+    expect(after.body.account).toEqual({ displayName: "", username: null, admin: false });
     expect(after.body.progress).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
     // the account's first phone (from the upgrade) is logged out too; the resetting phone is the account
     expect(readTicket((await post("/account/session", {}, { cookie: a.token })).body.ticket, SECRET)?.accountId).not.toBe(a.id);
@@ -303,7 +303,7 @@ describe("Story 7.6: log out (POST /account/logout)", () => {
     expect(r.status).toBe(200);
     const body = deviceSessionResponseSchema.parse(r.body);
     expect(r.token).toBe(body.deviceToken);
-    expect(body.account).toEqual({ displayName: "", username: null });
+    expect(body.account).toEqual({ displayName: "", username: null, admin: false });
     expect(body.progress).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
     const newId = readTicket(body.ticket, SECRET)?.accountId;
     expect(newId).not.toBe(a.id);
@@ -452,7 +452,7 @@ describe("Story 7.6 re-review RR2: a seat reserved before an account switch neve
     expect(await consume(reservation)).toBeNull();
     await new Promise((r) => setTimeout(r, 100)); // a (wrong) display-name save would be async
     const owner = await post("/account/session", {}, { cookie: String(reset.body.deviceToken) });
-    expect(owner.body.account).toEqual({ displayName: "", username: a.username });
+    expect(owner.body.account).toEqual({ displayName: "", username: a.username, admin: false });
   });
 
   it("E7: a guest reserves a seat, logs in on the same phone, then connects → the seat is unsaved (not the dead token's retired guest)", async () => {

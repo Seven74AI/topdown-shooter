@@ -541,7 +541,7 @@ describe("Story 4.8 review fixes", () => {
     expect(relocated.outOfFire).toBe(0); // the fire step ran before the return and left the downed body alone
   });
 
-  it("M2: at ignition, a building overlapping a new zone is destroyed with a 50 % refund (same path as blocked cells); one placed into the fire later burns", () => {
+  it("M2: at ignition, a building overlapping a new zone is destroyed (cause fire; Story 12.4: no refund, was 50 %); one placed into the fire later burns", () => {
     const wood = buildingStats(balance, "wood_barricade");
     if (!wood) throw new Error("wood");
     let placed: Building | null = null;
@@ -552,14 +552,13 @@ describe("Story 4.8 review fixes", () => {
     expect(placed).not.toBeNull();
     expect(w.buildings.list).toEqual([]);
     step(w, TICK_DT_S); // deliver the build start's events
-    expect(events.filter((e) => e.type === "building.destroyed").map((e) => (e as { buildingId: number }).buildingId)).toEqual([1]);
-    const refunds = events.filter((e): e is Extract<SimEvent, { type: "money.earned" }> => e.type === "money.earned" && e.reason === "refund");
-    expect(refunds.map((e) => [e.playerId, e.amount])).toEqual([["far", Math.floor(wood.price * balance.decay.buildingRefundShare)]]);
-    // Placed into the fire afterwards: no refund, it burns (D6).
+    expect(events.filter((e) => e.type === "building.destroyed").map((e) => [(e as { buildingId: number }).buildingId, (e as { cause?: string }).cause])).toEqual([[1, "fire"]]);
+    expect(events.filter((e) => e.type === "money.earned" && e.reason === "refund")).toEqual([]); // Story 12.4
+    // Placed into the fire afterwards: it burns (D6).
     const later = placeInFire(w, "wood_barricade", 2, w.decay.fires.find((g) => g.target === "street_car_west") as FireRecordLike, []);
     for (let t = 0; t < PULSE_TICKS; t++) step(w, TICK_DT_S);
     expect(later.hp).toBe(wood.hp - 5);
-    expect(events.filter((e) => e.type === "money.earned" && e.reason === "refund")).toHaveLength(1);
+    expect(events.filter((e) => e.type === "money.earned" && e.reason === "refund")).toHaveLength(0);
   });
 
   it("L4: stepping out on every pulse tick doesn't dodge: 360 of 400 ticks in fire = 36 hits (the body's own burn clock)", () => {

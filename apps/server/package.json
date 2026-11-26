@@ -7,7 +7,8 @@
     "start": "node --import tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrateCli.ts"
+    "db:migrate": "tsx src/db/migrateCli.ts",
+    "admin": "tsx src/db/adminCli.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.29",

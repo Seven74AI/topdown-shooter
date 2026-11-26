@@ -1,8 +1,8 @@
 import type { World } from "../core/world";
 import type { MapBox } from "../map/districtMap";
-import { buildingStats, removeBuilding, type Building } from "../buildings/buildings";
+import { removeBuilding, type Building } from "../buildings/buildings";
+import { captureStageRegion, stageCutWall, stageSealUnresolved } from "../buildings/pathOpen";
 import { PUSH_STUCK, circleHitsBuilding, pushOutOfBuildings, pushed } from "../buildings/collision";
-import { refundMoney } from "../economy/economy";
 import { boxBlocked, boxOrFireBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import type { PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
@@ -21,10 +21,11 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
  *
  *   1. the mutations (`applyDecayStage`: obstacle lists, nav walls, fires); Story 4.8: fires whose
  *      `durationWaves` are over go out here too (`fireExpiry`), and newly lit ones get their end wave;
- *   2. every building that overlaps a solid is destroyed (`building.destroyed`) and its owner gets
- *      `floor(paid × decay.buildingRefundShare)` back (`money.earned`, reason `refund`; Story 6.2
- *      review L4: `paid` = the price plus every upgrade step, 5.20's bookkeeping);
- *      (Story 4.8 review M2: also every building a fire lit now overlaps, same refund);
+ *   2. every building that overlaps a solid is destroyed (`building.destroyed`); Story 12.4 (designer
+ *      2026-11-25, "bad luck"): no money goes back (FR58 had a 50 % refund until then);
+ *      (Story 4.8 review M2: also every building a fire lit now overlaps; Story 12.1 AC 6: every wall
+ *      within one player body of new cover); Story 12.1 H1: then walls that now seal part of the old
+ *      main region are cleared (`clearStageSeals`);
  *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`); Story 4.8
  *      review M1: then every standing player inside a fire lit now is moved just outside it
  *      (`moveOutOfNewFires`);
@@ -36,6 +37,25 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
 /** Scratch spot (build starts only; synchronous). */
 const spot = { x: 0, y: 0 };
 
+/**
+ * Story 12.1 (AC 6): the solids active before this build start's mutations (`decayMutate` copies them
+ * just before `applyDecayStage`), so step 2 can tell the NEW cover. Map boxes and cover are stable
+ * objects (`fillObstacles` reuses them), so "new" = not in this list. Build starts only: no per-tick cost.
+ */
+const solidsBefore: MapBox[] = [];
+
+/** Story 12.1 (AC 6): the box comes closer than `margin` to a solid that is not in `before` (new cover). */
+function nearNewSolid(solids: readonly MapBox[], before: readonly MapBox[], b: Building, margin: number): boolean {
+  for (let i = 0; i < solids.length; i++) {
+    const s = solids[i] as MapBox;
+    if (before.includes(s)) continue;
+    const dx = Math.max(0, s.minX - b.maxX, b.minX - s.maxX);
+    const dy = Math.max(0, s.minY - b.maxY, b.minY - s.maxY);
+    if (dx * dx + dy * dy < margin * margin) return true;
+  }
+  return false;
+}
+
 /** The box overlaps an obstacle solid (strictly: touching is fine, like placement). */
 function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
   for (let i = 0; i < solids.length; i++) {
@@ -46,28 +66,70 @@ function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
 }
 
 /**
- * Step 2: buildings on newly blocked cells are destroyed and refunded (FR58). Story 4.8 review M2:
+ * Step 2: buildings on newly blocked cells are destroyed (FR58; Story 12.4: no refund, the building is
+ * simply lost: no `money.earned`, every cause below). Story 4.8 review M2:
  * so are buildings a fire lit at this build start overlaps (`newFires`; a building placed into a
- * fire later burns instead, D6). Returns how many.
+ * fire later burns instead, D6). Story 12.1 (AC 6): with `before` (the solids active before this
+ * build start), so is every WALL whose box comes closer than one player body (2 × `player.radiusM`)
+ * to a solid that is new (not in `before`), even if it would not seal a path: a building never
+ * squeezes a gap below player width against new cover. Floor types never block, so only overlap
+ * removes them. The event carries the cause (`collapse`: under
+ * new cover, `fire`, `cleared`: the margin) for the owner's toast. Same order (id, descending walk
+ * of the id-sorted list) on every copy. Returns how many.
  */
-export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = []): number {
+export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = [], before: readonly MapBox[] | null = null): number {
   const list = world.buildings.list;
   const solids = world.obstacles.solids;
-  const share = world.balance.decay.buildingRefundShare;
+  const margin = 2 * world.balance.player.radiusM;
   let n = 0;
   for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
-    if (!overlapsSolid(solids, b) && !buildingInFires(newFires, b)) continue;
+    const cause = overlapsSolid(solids, b) ? "collapse" : buildingInFires(newFires, b) ? "fire" : before !== null && b.solid && nearNewSolid(solids, before, b, margin) ? "cleared" : null;
+    if (cause === null) continue;
     if (!removeBuilding(world, b.id)) continue;
     n++;
-    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
-    // Story 6.2 review L4 (designer intent "50 % back"): half of what the player PAID for it — its
-    // price and every upgrade step (5.20 bookkeeping, `paid`) — not the base price.
-    const paid = Number.isFinite(b.paid) && b.paid > 0 ? b.paid : (buildingStats(world.balance, b.type)?.price ?? 0);
-    refundMoney(world, b.ownerId, Math.floor(paid * share));
+    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause });
+    // Story 12.4 (CN-6): no refund for any decay loss (Story 6.2 review L4's "50 % of what was paid" is gone).
   }
   return n;
 }
+
+/**
+ * Story 12.1 H1 (designer 2026-11-26: A): a stage must not finish a seal the walls started. After step 2,
+ * while the stage cut part of the old main region off by walls (the map alone still joins it), the wall
+ * `stageCutWall` names (highest id first) is cleared: `building.destroyed`, cause `cleared`, no refund
+ * (12.4). Returns how many. Server and solo (the DecaySystem); copies follow the removal.
+ */
+export function clearStageSeals(world: World): number {
+  let n = 0;
+  for (let b = stageCutWall(world); b !== null; b = stageCutWall(world)) {
+    if (!removeBuilding(world, b.id)) break;
+    n++;
+    world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, cause: "cleared" });
+  }
+  stageSealsCleared.count += n;
+  // Re-review round 2: a cut no wall could be found for is never silent (the server logs it at the stage change).
+  const left = stageSealUnresolved();
+  if (left > 0) unresolvedByWorld.set(world, left);
+  else unresolvedByWorld.delete(world);
+  return n;
+}
+
+/** Re-review round 2: per World, the vertices the last build start left cut off with no wall to clear (0 = none). */
+const unresolvedByWorld = new WeakMap<World, number>();
+export function stageSealsUnresolved(world: World): number {
+  return unresolvedByWorld.get(world) ?? 0;
+}
+
+/** Story 12.1 H1: a wall building stands (the stage re-check has something to do). */
+function hasWall(world: Readonly<World>): boolean {
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) return true;
+  return false;
+}
+
+/** Story 12.1 H1: walls the stage re-check cleared (process-global diagnostic for sims and tests; not simulation state). */
+export const stageSealsCleared = { count: 0 };
 
 function placePlayer(p: PlayerState, x: number, y: number): void {
   p.x = x;
@@ -246,14 +308,22 @@ export function relocateBodies(world: World): void {
  * when nothing changes (then nothing else happens: only the burn clocks restart, re-review L2).
  */
 export function decayMutate(world: World, stage: number): boolean {
+  unresolvedByWorld.delete(world); // HIGH-1 re-review LOW-B: a later stage (or one with no walls) never re-logs an old one
   resetBurnClocks(world); // re-review L2: every build start (also when nothing else changes)
   resetRelocated(); // fix re-review L2: no stale counts after a build start that changes nothing
   const coming = world.waves.number + 1;
+  solidsBefore.length = 0;
+  for (let i = 0; i < world.obstacles.solids.length; i++) solidsBefore.push(world.obstacles.solids[i] as MapBox); // Story 12.1 (AC 6)
+  // Story 12.1 H1: the main region before the mutations — only when a wall stands (without one nothing can seal,
+  // and most build starts of tests and runs have none: no flood then).
+  const walls = hasWall(world);
+  if (walls) captureStageRegion(world);
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave
   lightNewFires(world, world.decay.stage, coming);
   if (!changed) return false;
-  destroyBlockedBuildings(world, lit);
+  destroyBlockedBuildings(world, lit, solidsBefore);
+  if (walls) clearStageSeals(world);
   relocateBodies(world);
   moveOutOfNewFires(world, lit);
   return true;

@@ -72,6 +72,11 @@ describe("Story 4.6 Evening: lit shop fronts", () => {
     const wood = buildingStats(balance, "wood_barricade");
     if (!wood) throw new Error("wood");
     const box = { minX: 0, minY: 0, maxX: 0, maxY: 0 } as Box;
+    // Story 12.1 (AC 6): a wall within one player body of cover a later stage adds is cleared, so the good spot keeps
+    // 2 × player.radiusM from every box any stage can add (block / add mutations, later cover).
+    const margin = 2 * balance.player.radiusM;
+    const later = [...DT.decay.filter((m) => m.action === "block" || m.action === "add"), ...DT.cover.filter((c) => c.minStage > 1)];
+    const nearLater = (b: Box): boolean => later.some((s) => Math.max(0, s.minX - b.maxX, b.minX - s.maxX) ** 2 + Math.max(0, s.minY - b.maxY, b.minY - s.maxY) ** 2 < margin * margin);
     let survived = 0;
     for (const mask of gameplayDecayMasks(DT)) {
       const w = run();
@@ -84,6 +89,7 @@ describe("Story 4.6 Evening: lit shop fronts", () => {
             for (const rot of [0, 1] as const) {
               const fp = footprint(wood, gx, gy, rot, box);
               if (fp.minX < f.minX || fp.maxX > f.maxX || fp.minY < f.minY || fp.maxY > f.maxY) continue; // fully inside the strip
+              if (nearLater(fp)) continue; // Story 12.1: not next to cover a later stage adds
               if (placementError(w, "p0", { type: "wood_barricade", gx, gy, rot }) !== null) continue;
               const r = placeBuilding(w, "p0", { type: "wood_barricade", gx, gy, rot });
               if (r.ok) {
