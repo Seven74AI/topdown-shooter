@@ -365,6 +365,10 @@ export function keepStressMolotovs(world: World, playerId: string, cx: number, c
  * north wall wood (rot 2, its braced inside toward the camera), the west and east walls reinforced (rot 1 / 3), the
  * south wall metal (rot 0, its outside toward the camera). The corner squares stay open (the corner pieces fill
  * them). Returns how many were laid.
+ * Story 12.1 (AC 15, X5): a debug-only layout. It is laid with `addBuildingAt` and only `footprintBlocked`
+ * (no `placementError`, so no `seals_path`), never reaches the server, and stays closed for the 9.11 /
+ * 9.12 look checks and readability sheet item 63: a sealed fort is still a legal World (old saves and
+ * replays can hold one, 12.1 AC 10); only new placements and moves are refused.
  */
 export function placeStressFort(world: World, ownerId: string, cx: number, cy: number): number {
   const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };

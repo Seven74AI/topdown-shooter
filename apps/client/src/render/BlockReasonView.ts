@@ -14,6 +14,9 @@ import { dashedCircle, zombieAlive } from "./dashes";
  *   building, the spawn's circle (dashed, stronger), my or the teammate's ring (round the body as
  *   drawn), the zombie (a circle at the check's radius), or the map's edge for "off the street".
  *   Redrawn only when the culprit or its position changes (> 1 cm); nothing per frame otherwise.
+ * - **Pocket** (Story 12.1 AC 7, CN-2): for "Leave a way through", a soft red fill over the cells the
+ *   wall would cut off (`Placement.pocketCells`: lattice vertices, one 0.5 m square each), drawn once
+ *   per shown reason.
  *
  * Graphics only (no texture, brief 20).
  */
@@ -24,6 +27,8 @@ const SPAWN_EDGE_M = 0.05;
 const SPAWN_DASH_M = 0.3;
 const CULPRIT_LINE_M = 0.06;
 const CULPRIT_ALPHA = 0.95;
+/** Story 12.1 (CN-2): the pocket's soft fill. */
+const POCKET_ALPHA = 0.28;
 /** The culprit's circle sits this far outside a body (the slot ring is at radius + 0.15). */
 const BODY_RING_GAP_M = 0.15;
 /** A moving culprit (a body) is redrawn when it moved more than this (m). */
@@ -72,7 +77,8 @@ export class BlockReasonView {
 
   private drawCulprit(world: Readonly<World>, p: Placement, drawnAt: DrawnAt): void {
     const g = this.culprit;
-    const show = p.active && p.shownError === "blocked" && p.shownHasReason && !p.resting; // Story 5.23 (AC 7): no culprit while resting
+    const sealed = p.active && p.shownError === "seals_path" && p.shownHasReason; // Story 12.1 (AC 7)
+    const show = sealed || (p.active && p.shownError === "blocked" && p.shownHasReason && !p.resting); // Story 5.23 (AC 7): no culprit while resting
     if (!show) {
       if (g.visible) g.clear().setVisible(false);
       this.shownVersion = -1;
@@ -137,6 +143,17 @@ export class BlockReasonView {
       case "zombie":
         if (Number.isFinite(x)) g.strokeCircle(x, y, radius);
         break;
+      case "seals_path": {
+        // Story 12.1 (CN-2): each cut-off vertex as a 0.5 m square round it.
+        const c = p.pocketCellM;
+        const cols = p.pocketCols;
+        g.fillStyle(RED, POCKET_ALPHA);
+        for (let k = 0; k < p.pocketCount; k++) {
+          const v = p.pocketCells[k] as number;
+          g.fillRect((v % cols) * c - c / 2, Math.floor(v / cols) * c - c / 2, c, c);
+        }
+        break;
+      }
     }
   }
 

@@ -130,7 +130,7 @@ import { PlaceFxView } from "../render/PlaceFxView";
 import { routeBuildKeys, type BuildKeysOut } from "./buildKeys";
 import { PLACED_HAPTIC_MS, PlacedSoundPicker, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
 import { vibrate } from "../audio/haptics";
-import { placementHintText, type HintContext } from "./blockText";
+import { decayLossText, placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
 import { BUILDING_TAP_TOLERANCE_M, RepairPanel, moveRefusalText, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
 import { PendingMoves } from "./pendingMove";
@@ -2241,6 +2241,9 @@ export class GameScene extends Phaser.Scene {
         // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
+      } else if (e.type === "building.destroyed") {
+        // Stories 12.1 (AC 6) / 12.4 (AC 5): my building lost to the decay: a toast, no amount (no refund).
+        if (e.cause !== undefined && e.ownerId === localId) this.toasts.pushUnique(decayLossText(e.cause, e.buildingType));
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave

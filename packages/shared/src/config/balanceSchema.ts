@@ -1089,8 +1089,7 @@ export const decaySchema = z
       .refine((s) => s.every((v, i) => i === 0 || v >= (s[i - 1] as number)), "stages never go back"),
     /** Banner name per stage, stage 1 first (exactly 5). */
     stageNames: z.array(z.string().min(1).max(24)).length(5),
-    /** A building destroyed by a stage change refunds this share of its price to its owner, rounded down (FR58: 50 %). */
-    buildingRefundShare: z.number().min(0).max(1),
+    // Story 12.4 (CN-6): `buildingRefundShare` is gone (decay losses are never refunded); `.strict()` rejects an old override that still sets it.
     /** Rings (spawnOffsetM apart) searched for a free spot when a stage puts a solid on a body. */
     relocateSearchRings: z.number().int().min(1).max(64),
     /**
