@@ -1,7 +1,8 @@
 import { getTableColumns } from "drizzle-orm";
 import { PROGRESSION, findUnlock, trainingSpent } from "@topdown/shared";
 import { describe, expect, it } from "vitest";
-import { MERGE_RULES, mergeProgress, type MergeRow } from "../meta/merge";
+import { ACCOUNT_TABLE_MERGES, MERGE_RULES, mergeProgress, type MergeRow } from "../meta/merge";
+import * as schema from "./schema";
 import { progress } from "./schema";
 
 /** Story 7.6 (AC 6, A2; D1, D2, D11): the merge-writers list and the merge rules. */
@@ -27,6 +28,18 @@ describe("merge-writers list (Story 7.6 AC 6)", () => {
 
   it("a column with no rule makes the merge throw (never silently dropped)", () => {
     expect(() => mergeProgress(row({ accountId: "a", savedRun: ["x"] }), row({ accountId: "g" }))).toThrow(/progress\.savedRun has no merge rule/); // a future column (7.11 gave cosmetics its rule)
+  });
+});
+
+describe("Review M6: every table keyed by an account has a merge rule", () => {
+  it("tables with an accountId column (read from the Drizzle schema) are all in ACCOUNT_TABLE_MERGES", () => {
+    const keyed = Object.entries(schema)
+      .filter(([, t]) => typeof t === "object" && t !== null && Symbol.for("drizzle:IsDrizzleTable") in (t as object))
+      .filter(([, t]) => "accountId" in getTableColumns(t as never))
+      .map(([name]) => name)
+      .sort();
+    expect(keyed).toContain("savedRunPlayers"); // liveness
+    expect(Object.keys(ACCOUNT_TABLE_MERGES).sort()).toEqual(keyed);
   });
 });
 

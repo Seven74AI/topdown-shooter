@@ -21,6 +21,10 @@ import { hashGuestToken } from "../run/lobby";
  * or a local `postgres`), e.g. `TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/t72 npx vitest run realPostgres`.
  * From the review's probe (`_bmad-output/implementation-artifacts/7-2-review-probes/realPostgres.probe.ts.txt`).
  */
+/**
+ * Review nit (Stories 8.4–8.6): the real-PostgreSQL files share one scratch database and each migrates it; run them
+ * one file at a time: `TEST_DATABASE_URL=… npx vitest run realPostgres --no-file-parallelism` (CI skips them).
+ */
 const URL = process.env.TEST_DATABASE_URL;
 log.level = process.env.LOG_LEVEL ?? "silent";
 let database: Database;

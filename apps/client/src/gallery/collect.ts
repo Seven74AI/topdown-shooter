@@ -1,6 +1,8 @@
 import * as Phaser from "phaser";
 import { ensureAtlases } from "../render/city/spriteAtlas";
+import { loadStreetProps } from "../render/city/streetPropsAtlas";
 import { ensureBuildingsAtlas, pumpBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { ensureCharacterSheets, pumpCharacters } from "../render/city/charactersAtlas";
 import { ensureBuildIcons } from "../render/city/buildIcons";
 import { ensureBlastFxAtlas } from "../render/city/blastFxAtlas";
 import { ensureBossTextures } from "../render/city/bossAtlas";
@@ -8,6 +10,7 @@ import { ensureConsumableIcons, CONSUMABLE_ICON_FRAMES, consumableIconUrl } from
 import { ensureFireFxAtlas } from "../render/city/fireFxAtlas";
 import { ensureGearIcons, GEAR_ICON_FRAMES, gearIconUrl } from "../render/city/gearIcons";
 import { ensureThrowFxAtlas } from "../render/city/throwArt";
+import { ensurePingAtlas } from "../render/pingArt";
 import { ensureHudWarnTextures } from "../render/city/hudWarnArt";
 import { ensureHeliAtlas } from "../render/city/heliArt";
 import { ensureEventTextures } from "../render/city/eventArt";
@@ -35,11 +38,17 @@ export async function collectAssets(): Promise<Asset[]> {
   await Promise.all([document.fonts.load('700 20px Oswald'), document.fonts.load('600 20px Oswald')]).catch(() => undefined);
   return new Promise((resolve, reject) => {
     class Collect extends Phaser.Scene {
+      // Story 9.14: the street props atlas image, loaded before the downtown atlas is cut (as the game's Boot scene)
+      preload(): void {
+        loadStreetProps(this, false);
+      }
       create(): void {
         try {
           ensureAtlases(this);
           ensureBuildingsAtlas(this, { worker: false }); // baked on the spot below, not in a worker
           pumpBuildingsAtlas(Infinity, Infinity); // the relit pictures, all of them, before the frames are cut
+          ensureCharacterSheets(this, { worker: false }); // Story 9.13: the relit characters (walk loops, glow, sheen, veins), baked on the spot
+          pumpCharacters(Infinity, Infinity);
           ensureBuildIcons(this);
           ensureBlastFxAtlas(this);
           ensureBossTextures(this);
@@ -47,6 +56,7 @@ export async function collectAssets(): Promise<Asset[]> {
           ensureFireFxAtlas(this);
           ensureGearIcons(this);
           ensureThrowFxAtlas(this);
+          ensurePingAtlas(this); // Story 8.7: the four ping icons, their words, the button glyph, the edge arrow tip
           ensureHudWarnTextures(this);
           ensureHeliAtlas(this);
           ensureEventTextures(this);

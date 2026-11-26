@@ -17,8 +17,7 @@ export const RUN_ROOM_NAME = "run";
 
 /** Client → server: imperative `domain.verb` (architecture › Naming). */
 export const C2S = {
-  /** PlayerInput (net/input.ts), 20/s (Story 2.4). */
-  INPUT_SEND: "input.send",
+  // Story 8.11: the input (20/s, Story 2.4) is the binary `BYTES.INPUT` now (net/input.ts › encodeInput), no longer "input.send".
   /** `{ ready: boolean }` (Story 2.3). */
   LOBBY_SET_READY: "lobby.set_ready",
   /** `{}`, host only (Story 2.3). */
@@ -77,6 +76,12 @@ export const C2S = {
    * the host, for a playable district some member has unlocked; anything else is logged and ignored.
    */
   LOBBY_DISTRICT: "lobby.district",
+  // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
+  /**
+   * `{ kind }` (Story 8.7, D15): "ping where I am". Only the kind: the server stamps the sender's own position and slot
+   * (P1). Build, wave and vote, standing or downed (E8-P4); its own 1/s bucket (E8-P5); dropped silently otherwise.
+   */
+  PING_SEND: "ping.send",
   // ── Story 8.3 (host remove) ──
   /**
    * `{ playerId }` (Story 8.3, H2/H3, Epic 8 D9): the host removes a player (connected, reconnecting, waiting or a
@@ -84,6 +89,9 @@ export const C2S = {
    * unknown id) is logged and ignored. "other" bucket.
    */
   HOST_REMOVE: "host.remove",
+  // ── Stories 8.4–8.6 (save and resume) ──
+  /** `{}` (Story 8.5, D12): the host saves the run and quits — build phase or vote only. "other" bucket. */
+  RUN_SAVE_QUIT: "run.save_quit",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -142,9 +150,17 @@ export const S2C = {
   RUN_STARTED: "run.started",
   /** `{ from }` (Story 7.7 R3): the picked district's last holder left the lobby; the pick went back to Downtown. */
   LOBBY_DISTRICT_RESET: "lobby.district_reset",
+  // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
+  /** `PingShown` `[slot, kindIdx, x, y, tick]` to every player, the sender too (Story 8.7): a teammate's ping (never World state, P5). */
+  PING_SHOWN: "ping.shown",
   // ── Story 8.3 (host remove) ──
   /** `{}` (Story 8.3, H3): to the removed player only, right before the server closes their socket with 4022. */
   PLAYER_REMOVED: "player.removed",
+  // ── Stories 8.4–8.6 (save and resume) ──
+  /** `{ expiresAt }` (Story 8.5): the run is saved; every socket closes with 4023 right after ("Run saved" screen). */
+  RUN_SAVED: "run.saved",
+  /** `{}` (Story 8.5, E8-S8): to the host only: the save failed; the room stays open and play goes on. */
+  RUN_SAVE_FAILED: "run.save_failed",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -153,10 +169,13 @@ export type S2CType = (typeof S2C)[keyof typeof S2C];
  * stream). Sent in the join options; a client with another (or none: a tab from before 8.10) is
  * refused at join as `update_required` ("A new version is out. Please reload.").
  */
-export const NET_PROTOCOL_VERSION = 2;
+export const NET_PROTOCOL_VERSION = 3; // Story 8.11: 3 = the binary input (`BYTES.INPUT`, net/input.ts)
 
-/** Binary messages use numeric types (1 byte on the wire instead of a string). */
-export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
+/**
+ * Binary messages use numeric types (1 byte on the wire instead of a string). Story 2.5: `HORDE_FRAME` (server →
+ * phone). Story 8.11: `INPUT` (phone → server, `encodeInput`/`decodeInput`; replaces the msgpack `input.send`).
+ */
+export const BYTES = { HORDE_FRAME: 1, INPUT: 2 } as const;
 
 /** `RunState.phase` (Story 3.1: the run state machine's phases, `run/runStateMachine.ts`). */
 export type { RunPhase } from "../run/runStateMachine";
@@ -171,7 +190,7 @@ export type { RunPhase } from "../run/runStateMachine";
  * or kept for a teammate's held or remembered seat (J3, decision E8-J3). Story 8.3: `removed` — the host removed this
  * seat from the room (H3, decision E8-H2: for the room's lifetime).
  */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed";
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined" | "seat_kept" | "update_required" | "run_full" | "removed" | "save_busy" | "save_gone" | "save_unavailable" | "save_too_old";
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
@@ -207,7 +226,10 @@ export const playerNameSchema = z
 /** Options sent with `client.create` / `client.joinById`; checked in `RunRoom.onAuth`. */
 export const joinOptionsSchema = z
   .object({
-    intent: z.enum(["create", "join"]),
+    /** Story 8.6: "resume" creates a room for a saved run (`savedRunId`, the caller's ticket must be linked to it). */
+    intent: z.enum(["create", "join", "resume"]),
+    /** Story 8.6: the saved run to resume (its run id). Only with intent "resume". */
+    savedRunId: z.string().uuid().optional(),
     name: playerNameSchema,
     /** `balance.version` of the client; must equal the server's (AC 4). */
     balanceVersion: z.string().min(1).max(16),
@@ -546,7 +568,7 @@ export const runRewardsSchema = z
     /** Story 7.12: my find — "Found in wave N: <name>", or Collector (`key` null). */
     loot: z.object({ wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
     /** Story 7.12 (D1): a teammate's find, on everyone else's Results ("Ana found: Traffic cone"). */
-    teamLoot: z.object({ playerId: z.string().max(4), wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
+    teamLoot: z.object({ playerId: z.string().max(4), seatId: z.string().max(16).optional(), wave: z.number().int().min(0).max(0xffff), key: z.string().max(32).nullable(), name: z.string().max(32) }).strict().optional(),
     /** Story 7.7: districts this run unlocked ("Unlocked: District 2"). */
     newDistricts: z.array(z.object({ id: z.string().max(32), name: z.string().max(24) }).strict()).max(8).optional(),
   })
@@ -585,9 +607,61 @@ export interface PlayerLeft {
   reason: PlayerLeftReason;
 }
 
+// ── Story 8.7: pings (kept in one block for the 8.2+8.3 merge) ───────────────────────────────────────────────────
+
+/** Story 8.7 (FR76, D15): the four pings, in wire order (`PingShown` carries the index). Labels: `PING_LABELS`. */
+export const PING_KINDS = ["help", "here", "big", "ready"] as const;
+export type PingKind = (typeof PING_KINDS)[number];
+/** Story 8.7 (AC 1): the words under each icon ("Big one!" covers the Brute and the Behemoth). */
+export const PING_LABELS: Readonly<Record<PingKind, string>> = { help: "Help!", here: "Over here", big: "Big one!", ready: "Ready" };
+
+/** `ping.send` (Story 8.7, P1): only the kind, strict — a position or a slot in the payload makes the message invalid. */
+export const pingSendSchema = z.object({ kind: z.enum(PING_KINDS) }).strict();
+export type PingSend = z.infer<typeof pingSendSchema>;
+
+/**
+ * `ping.shown` payload (Story 8.7, AC 5), to everyone: `[slot, kindIdx, xDm, yDm, tick]` — the sender's slot and the
+ * sender's SERVER position at the tick the ping arrived, in whole decimetres (0.1 m), both stamped by the server (P1);
+ * `tick16` = that tick & 0xffff (review L1: always 3 B; the client unwraps it against its own tick estimate).
+ * An array of integers like `building.ghosted` (decision 8.7 B1): 24 B per message on the wire (msgpack floats would
+ * be 36 B), so 4 pings/s cost a phone ≤ 96 B/s.
+ */
+export type PingShown = [slot: number, kindIdx: number, xDm: number, yDm: number, tick16: number];
+
+/** Story 8.7 (D15): a ping stays on every screen this long (frame clock, ms). */
+export const PING_SHOW_MS = 4000;
+/**
+ * Story 8.7 (AC 4, E8-P5; review M4): the client's own cooldown after a send. The server bucket is 1/s, burst 1; 1200 ms
+ * leaves 200 ms for send jitter (a frame's quantisation, ±100 ms of line jitter), so an honest ping is never dropped.
+ */
+export const PING_COOLDOWN_MS = 1200;
 // ── Story 8.3 (host remove) ──
 /** `host.remove` (Story 8.3): the seat to remove, by player id (`p0`–`p3`). */
 export const hostRemoveSchema = z.object({ playerId: z.string().regex(/^p[0-3]$/) }).strict();
 export type HostRemove = z.infer<typeof hostRemoveSchema>;
 /** `player.removed` payload (Story 8.3): nothing (the reason is the message itself). */
 export type PlayerRemoved = Record<string, never>;
+
+// ── Stories 8.4–8.6 (save and resume) ──
+/** `run.save_quit` (Story 8.5): nothing. */
+export const runSaveQuitSchema = z.object({}).strict();
+/** `run.saved` payload (Story 8.5): when the save stops being resumable (ISO time). */
+export interface RunSaved {
+  expiresAt: string;
+}
+/**
+ * `run.save_failed` payload (Story 8.5, E8-S8; review M4: every refusal answers): `failed` = the write failed, the rest
+ * are refusals (`not_host`, `not_now` = not a build phase or the vote, `saving` = already saving, `no_database`).
+ */
+export interface RunSaveFailed {
+  reason: "failed" | "not_host" | "not_now" | "saving" | "no_database";
+}
+/** Story 8.6: one row of `GET /api/saved-runs` (D13: newest first, at most 3). */
+export interface SavedRunSummary {
+  id: string;
+  district: string;
+  wave: number;
+  names: { name: string; slot: number }[];
+  savedAt: string;
+  expiresAt: string;
+}

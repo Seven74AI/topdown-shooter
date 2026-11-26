@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { ACTION_IDS, layoutActionBar, newActionBarLayout } from "./actionBar";
-import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
-import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
+import { PANEL_CELLS, layoutBuildCluster, layoutBuildPanel, newBuildClusterLayout, newBuildPanelLayout, readyClearLeft, readyLeftX } from "./buildBar";
+import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
 import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { LOOT_FOUND_MINE } from "../render/lootBagCue";
-import { WIDEST_LOOT_LINE, layoutLootLine } from "./hudTopLayout";
-import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
+import { WIDEST_LOOT_LINE, layoutLootLine, layoutPingButton } from "./hudTopLayout";
+import { layoutPingWheel, newPingChipRects } from "./pingWheel";
+import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, WIDEST_WAVE_LINE_COMPACT, fitWaveText, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
 import { EVENT_ARROW_CSS_PX } from "../render/EventView";
 import { PAIR_GAP_CSS_PX, createPairHold, placeSecondEventArrow } from "../render/eventArrowPair";
 import { layoutEvacVote } from "../ui/voteModel"; // its CSS twin is cross-checked in tools/checks/evacVoteCss.test.ts
 import { HELD_CHIPS, leaveRect } from "../ui/connectionModel"; // its CSS twin is cross-checked in tools/checks/heldChipsCss.test.ts
-import { BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
+import { BOSS_BAR_GAP_CSS_PX, BOSS_BAR_NAME_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
  * EPIC 6 BRIEF line 31 — THE ONE HUD LAYOUT TEST (created by Story 6.3). Every on-screen control, in
@@ -69,24 +70,55 @@ function heldChipsBox(): Box {
   return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
 }
 
+/** Story 8.7 (AC 2): the ping button, left of ☰ (HudScene draws it from `layoutPingButton`). */
+function pingBtn(w: number): Box {
+  return { id: "ping", ...layoutPingButton(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) };
+}
+/** Story 8.7 (AC 3, B5): the open wheel's four chips (HudScene draws and hit-tests them from `layoutPingWheel`). */
+function pingChips(w: number, column = false): Box[] {
+  return layoutPingWheel(w, INSET, K, newPingChipRects(), column).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
+}
+
 /** Every mode's pressable controls. */
 function modes(w: number, h: number): Record<string, Box[]> {
-  const bar = layoutBuildBar(w, h, INSET.right, INSET.bottom, K, newBuildBarLayout());
-  const tiles: Box[] = Array.from({ length: BUILD_BAR_SLOTS }, (_, s) => ({ id: `tile${s}`, x: bar.x[s] as number, y: bar.y[s] as number, w: bar.tile, h: bar.tile }));
+  // Story 10.10 (BU-1 = B): the closed Build cluster (quick tile + Build + Shop chip; BU-3's short list uses the same
+  // two tile spots) and the open 3 × 3 panel (cells 0–7 + Close on Build's spot).
+  const cl = layoutBuildCluster(w, h, INSET.right, INSET.bottom, K, newBuildClusterLayout());
+  const pn = layoutBuildPanel(w, h, INSET.right, INSET.bottom, K, newBuildPanelLayout(), INSET.top);
+  const cluster: Box[] = [
+    { id: "quick", x: cl.quickX, y: cl.quickY, w: cl.tile, h: cl.tile },
+    { id: "build", x: cl.buildX, y: cl.buildY, w: cl.tile, h: cl.tile },
+    { id: "shopchip", x: cl.chipX, y: cl.chipY, w: cl.chip, h: cl.chip },
+  ];
+  const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: s === PANEL_CELLS - 1 ? "build" : `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile })); // the 9th cell is Close (the `build` button)
   const wave = layoutRightButtons(w, h, INSET.right, INSET.bottom, K, false, 0, 0, newRightButtonsLayout());
-  const row = layoutRightButtons(w, h, INSET.right, INSET.bottom, K, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);
+  const row = layoutRowAboveCluster(w, h, INSET.right, INSET.bottom, K, cl.top, cl.right, newRightButtonsLayout());
   const rw = READY_BUTTON_W_CSS_PX * K;
   const rh = READY_BUTTON_H_CSS_PX * K;
-  const ready: Box = { id: "ready", x: readyLeftX(w, rw, bar.left, K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
-  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, bar.left, bar.top, bar.countX, K, false, { x: 0, y: 0, size: 0 });
-  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, bar.left, bar.top, bar.countX, K, true, { x: 0, y: 0, size: 0 });
+  const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
+  const undoBar = layoutUndoChip(w, h, INSET.right, INSET.bottom, K, { x: 0, y: 0, size: 0 });
+  const undoHand = layoutUndoChip(w, h, INSET.right, INSET.bottom, K, { x: 0, y: 0, size: 0 });
   const hand = layoutHandCluster(w, h, INSET.right, INSET.bottom, K, newHandLayout(), INSET.top);
   const act = layoutActionBar(w, h, INSET.right, INSET.bottom, K, ACTION_IDS.map(() => true), newActionBarLayout());
   const sq = (id: string, x: number, y: number, s: number): Box => ({ id, x, y, w: s, h: s });
   return {
     // Story 6.5: the boss bar (top centre, shown in a wave while the Behemoth walks).
-    wave: [menu(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
-    build: [menu(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 8.7: the ping button shows in wave, build and vote (and while downed); never holding, with a building
+    // selected (the action bar: decision 8.7 B9) or reconnecting.
+    wave: [menu(w), pingBtn(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
+    build: [menu(w), pingBtn(w), ...cluster, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 10.10 (BU-3): 1–2 unlocked types — the tiles on the quick tile's and Build's spots, the Shop chip, no panel.
+    build_short: [menu(w), pingBtn(w), { ...(cluster[0] as Box), id: "quick" }, { ...(cluster[1] as Box), id: "quick2" }, cluster[2] as Box, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
+    // Story 10.10 (AC 5): the panel open — the cells and Close; 5.12's row and ↶ hide under its card; Ready stays.
+    build_open: [menu(w), pingBtn(w), ...cells, ready],
+    // Story 8.7 (B5 amended, designer 2026-11-25): the wheel open — swap and the build bar hide; quick-use STAYS, so
+    // the chips stand in one column (wave, build); in the vote (no quick-use) they are the 2 × 2 block.
+    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w, true), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
+    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w, true), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size), sq("consumable", row.consX, row.consY, row.size)],
+    ping_wheel_vote: (() => {
+      const v = layoutEvacVote(w, h, INSET.bottom);
+      return [menu(w), pingBtn(w), ...pingChips(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+    })(),
     holding: [
       menu(w),
       sq("place", hand.place.x, hand.place.y, hand.place.size),
@@ -97,10 +129,12 @@ function modes(w: number, h: number): Record<string, Box[]> {
     ],
     // Story 8.1 (D2, D4): the reconnecting / seat-kept panel is modal (it covers the HUD): its one control, Leave.
     reconnecting: [{ id: "link_leave", ...leaveRect(w, h, INSET.right, INSET.bottom) }],
+    // Story 8.2 (J4): a waiting late joiner has only ☰ (no ping button: Story 8.7 P4).
+    waiting: [menu(w)],
     // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
     vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
-      return [menu(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+      return [menu(w), pingBtn(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
     })(),
     selected: [menu(w), ...act.rects.filter((r) => r.visible).map((r, i) => ({ id: `action_${ACTION_IDS[i]}`, x: r.x, y: r.y, w: r.w, h: r.h }))],
   };
@@ -143,17 +177,19 @@ const TOLERANCE_PX = 0.5;
  * arrows) must come in clean, and fixing one of these means deleting its line.
  */
 const KNOWN_LIST: [string, number][] = [
-  ["568x320 build tile0: within 48 px of the centre", 3],
-  ["568x320 build tile1: within 48 px of the centre", 40.11],
-  ["568x320 build ready: in the move-stick half", 120],
+  // Story 10.10: the 4 × 2 grid's "568x320 build tile0 / tile1" and "640x360 build tile0" lines are gone (the Build
+  // cluster and panel keep the survivor's 48 px), and Ready came back toward 40 px left of centre (was 120 / 84; now 46 / 40). Re-review 1: ↶'s one spot (above ⟳, both modes) removed the "568x320 holding undo: in the move-stick half" line too.
+  ["568x320 build ready: in the move-stick half", 46],
+  ["568x320 build_short ready: in the move-stick half", 46],
+  ["568x320 build_open ready: in the move-stick half", 46],
   ["568x320 holding rotate: within 48 px of the centre", 35.23],
   ["568x320 holding chip: within 48 px of the centre", 41.19],
-  ["568x320 holding undo: in the move-stick half", 30],
   ["568x320 selected action_move: within 48 px of the centre", 36.06],
   ["568x320 selected action_move: in the move-stick half", 73],
   ["568x320 selected action_upgrade: within 48 px of the centre", 12],
-  ["640x360 build tile0: within 48 px of the centre", 25.94],
-  ["640x360 build ready: in the move-stick half", 84],
+  ["640x360 build ready: in the move-stick half", 40],
+  ["640x360 build_short ready: in the move-stick half", 40],
+  ["640x360 build_open ready: in the move-stick half", 40],
   ["640x360 holding chip: within 48 px of the centre", 45.18],
   ["640x360 selected action_move: within 48 px of the centre", 19],
   ["640x360 selected action_move: in the move-stick half", 37],
@@ -163,6 +199,11 @@ const KNOWN_LIST: [string, number][] = [
   // silent default and can be changed (D2).
   ["568x320 vote vote_extract: in the move-stick half", 118],
   ["640x360 vote vote_extract: in the move-stick half", 118],
+  // Story 8.7: the same baseline lines in the open-wheel modes (the wheel leaves Ready and the vote buttons where they are).
+  ["568x320 ping_wheel_build ready: in the move-stick half", 46],
+  ["640x360 ping_wheel_build ready: in the move-stick half", 40],
+  ["568x320 ping_wheel_vote vote_extract: in the move-stick half", 118],
+  ["640x360 ping_wheel_vote vote_extract: in the move-stick half", 118],
 ];
 const KNOWN_AS_BUILT = new Map<string, number>(KNOWN_LIST);
 
@@ -170,7 +211,7 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   for (const [w, h] of SIZES) {
     it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => {
       const m = modes(w, h);
-      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" ? 1 : 3); // liveness (8.1's modal panel has one control)
+      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" || mode === "waiting" ? 1 : 3); // liveness (8.1's modal panel has one control; 8.2's waiting joiner only ☰)
       const v = violations(w, h);
       expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
       for (const [k, now] of v) {
@@ -258,12 +299,18 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
       expect(boss.y + boss.h, "the boss bar stays in the upper third").toBeLessThan(h / 3);
       // The drawn wave text (a 10-wave line, an endless line, the widest one) stays inside its rect.
       const wave = top[4]!;
+      // Story 8.7 (B3): beside the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
+      // Its width here: the full width × the compact/full length ratio of the widest strings (same font, same digits).
+      const ratio = WIDEST_WAVE_LINE_COMPACT.length / WIDEST_WAVE_LINE.length;
       for (const textW of [150, 200, 261.5]) {
-        const at = placeWaveText(w, INSET, K, textW, { x: 0, scale: 1 });
-        expect(at.x - (textW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
-        expect(at.x + (textW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
+        const at = fitWaveText(w, INSET, K, textW, textW * ratio, { x: 0, scale: 1, compact: false });
+        const drawnW = at.compact ? textW * ratio : textW;
+        expect(at.x - (drawnW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
+        expect(at.x + (drawnW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
         expect(at.scale, "the wave line never under 11 px (16 px × 11/16)").toBeGreaterThanOrEqual(11 / 16);
+        if (w >= 640) expect(at.compact, `${w} px: the full line fits`).toBe(false);
       }
+      expect(placeWaveText(w, INSET, K, 150, { x: 0, scale: 1 }).scale, "a usual line needs no compact form").toBeGreaterThan(0.85);
       expect(waveLine({ wave: 10, remaining: 400, buildSecs: -1, endless: false, voting: false }).length).toBeLessThan(WIDEST_WAVE_LINE.length);
       // Banners: short / wide / the wrap width, 1–3 lines, with and without the boss bar.
       const wrap = bannerWrapWidth(w, INSET, K);
@@ -828,5 +875,248 @@ describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () 
       }
       expect(checked).toBe(2 * 720);
     });
+  }
+});
+
+/**
+ * Story 8.7 (P6): the ping button and the open wheel at 568 × 320, 640 × 360, 800 × 360, 844 × 390, 1280 × 720 and
+ * 1920 × 1080, and under a 20 px top inset: inside the safe area, off every other control of the modes they show in,
+ * clear of the survivor's 48 px, in the right half; the chips ≥ 44 px and apart.
+ */
+describe("Story 8.7: the ping button and wheel at every test size", () => {
+  for (const [w, h] of [...SIZES, [800, 360], [844, 390], [1280, 720], [1920, 1080]] as const) {
+    it(`${w} × ${h}`, () => {
+      const m = modes(w, h);
+      let checked = 0;
+      for (const [mode, boxes] of Object.entries(m)) {
+        const mine = boxes.filter((b) => b.id === "ping" || b.id.startsWith("ping_chip"));
+        if (mode === "holding" || mode === "reconnecting" || mode === "selected" || mode === "waiting") {
+          expect(mine, `${mode}: no ping button`).toEqual([]);
+          continue;
+        }
+        expect(mine.length, mode).toBe(mode.startsWith("ping_wheel") ? 5 : 1);
+        for (const b of mine) {
+          expect(b.x, `${mode} ${b.id} left`).toBeGreaterThanOrEqual(INSET.left);
+          expect(b.x + b.w, `${mode} ${b.id} right`).toBeLessThanOrEqual(w - INSET.right + 1e-6);
+          expect(b.y + b.h, `${mode} ${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom);
+          expect(Math.min(b.w, b.h), `${b.id} ≥ 44 px`).toBeGreaterThanOrEqual(44);
+          expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${mode} ${b.id}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+          expect(b.x + b.w / 2, `${mode} ${b.id}: right half`).toBeGreaterThan(w / 2);
+          for (const o of boxes) if (o !== b) expect(overlaps(b, o), `${w}x${h} ${mode}: ${b.id} overlaps ${o.id}`).toBe(false);
+          checked++;
+        }
+      }
+      expect(checked).toBe(3 + 2 + 3 * 5); // liveness: wave, build, vote, Story 10.10's build_short + build_open, and the three open-wheel modes
+      // B5 amended (designer 2026-11-25): wheel open, quick-use visible, no overlap — in a wave and in a build phase
+      for (const mode of ["ping_wheel_wave", "ping_wheel_build"]) {
+        const boxes = m[mode] as Box[];
+        const cons = boxes.find((b) => b.id === "consumable");
+        expect(cons, `${mode}: quick-use shown`).toBeDefined();
+        for (const c of boxes.filter((b) => b.id.startsWith("ping_chip"))) expect(overlaps(c, cons as Box), `${w}x${h} ${mode}: ${c.id} on quick-use`).toBe(false);
+      }
+      // the band: the ping button keeps off the wave line and the boss bar keeps its 12 px gap to it
+      const r0 = { x: 0, y: 0, w: 0, h: 0 };
+      const wl = layoutWaveLine(w, INSET, K, { ...r0 });
+      const p = pingBtn(w);
+      expect(wl.x + wl.w, "wave line ends a band gap before the ping button").toBeLessThanOrEqual(p.x - 6 + 1e-6);
+      const boss = bossBar(w);
+      expect(overlaps(boss, p)).toBe(false);
+      expect(p.x - (boss.x + boss.w), "review L4: the boss bar keeps its 12 px gap to the ping button").toBeGreaterThanOrEqual(BOSS_BAR_GAP_CSS_PX - 1e-6);
+      // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
+      const top = { ...INSET, top: 20 };
+      for (const c of [...layoutPingWheel(w, top, K, newPingChipRects()), ...layoutPingWheel(w, top, K, newPingChipRects(), true)]) {
+        expect(c.y + c.h).toBeLessThanOrEqual(h - top.bottom);
+        expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+      }
+    });
+  }
+});
+
+describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 1920 × 1080, with and without insets", () => {
+  const BUILD_SIZES: readonly [number, number][] = [
+    [568, 320],
+    [640, 360],
+    [800, 360],
+    [844, 390],
+    [1024, 768],
+    [1920, 1080],
+  ];
+  const INSETS = [
+    { left: 0, right: 0, top: 0, bottom: 0 },
+    { left: 44, right: 44, top: 0, bottom: 21 },
+    { left: 44, right: 44, top: 20, bottom: 21 }, // review 7: a top inset too (the card keeps 12 px under ping / ☰)
+    { left: 0, right: 0, top: 20, bottom: 0 }, // re-review 2: the row's clamp under ping / ☰ with a top inset
+  ] as const;
+  const gapOf = (a: Box, b: Box): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+  /**
+   * Re-review 1 (option B): the one layout where 5.12's row can't keep 12 px — 568 × 320 with 44/21 insets: between ping
+   * and ↶'s one spot (above ⟳) there are 69 px for a 64 px row. Nothing overlaps; these gaps are exact.
+   */
+  const TIGHT_GAPS = new Map<string, number>([
+    ["568x320 44/21/0 closed: undo / consumable", 5],
+    ["568x320 44/21/0 closed: consumable / ping", 0],
+    ["568x320 44/21/0 closed: swap / ping", 0],
+    ["568x320 44/21/0 closed: swap / menu", 0],
+    // re-review 2: a 20 px top inset — the row clamped under ping / ☰ (0 px), 6 px above ↶
+    ["568x320 0/0/20 closed: undo / consumable", 6],
+    ["568x320 0/0/20 closed: consumable / ping", 0],
+    ["568x320 0/0/20 closed: swap / ping", 0],
+    ["568x320 0/0/20 closed: swap / menu", 0],
+  ]);
+  /**
+   * Re-review 2: the one layout where the closed cluster cannot fit at all — 568 × 320 with 44/21 side / bottom insets AND a
+   * 20 px top inset (no phone has a landscape top inset at that size): between ping (bottom 80) and ↶'s one spot (top 129)
+   * there are 49 px for the 64 px row, so it would overlap one of them. Only its open panel is checked (review 7's case).
+   */
+  const CLOSED_INFEASIBLE = new Set(["568x320 44/21/20"]);
+  for (const [w, h] of BUILD_SIZES) {
+    for (const ins of INSETS) {
+      it(`${w} × ${h}, insets ${ins.right}/${ins.bottom}/top ${ins.top}: inside the safe area, ≥ 48 px from the survivor, in the right half, no overlap, ≥ 12 px between separate controls (8 px inside a tile group); the open card ≥ 12 px from ping / ☰`, () => {
+        const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
+        const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
+        const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout(), ins.top);
+        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
+        const ms = MENU_BUTTON_CSS_PX;
+        const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: ms, h: ms };
+        const ping: Box = { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) };
+        const rw = READY_BUTTON_W_CSS_PX;
+        const rh = READY_BUTTON_H_CSS_PX;
+        const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh };
+        // groups: boxes in one group may sit 8 px apart (the tiles); separate groups keep 12 px.
+        const closed: Box[][] = [
+          [
+            { id: "quick", x: cl.quickX, y: cl.quickY, w: cl.tile, h: cl.tile },
+            { id: "build", x: cl.buildX, y: cl.buildY, w: cl.tile, h: cl.tile },
+          ],
+          [{ id: "shopchip", x: cl.chipX, y: cl.chipY, w: cl.chip, h: cl.chip }],
+          [{ id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size }],
+          [{ id: "consumable", x: row.consX, y: row.consY, w: row.size, h: row.size }],
+          [{ id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size }],
+          [ready],
+          [ping],
+          [menuBox],
+        ];
+        const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: s === PANEL_CELLS - 1 ? "build" : `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile }));
+        const open: Box[][] = [cells, [ready], [ping], [menuBox]];
+        const mine = new Set(["quick", "build", "shopchip", "undo", "consumable", "swap", ...cells.map((c) => c.id)]);
+        const layoutKey = `${w}x${h} ${ins.right}/${ins.bottom}/${ins.top}`;
+        for (const [mode, groups] of (CLOSED_INFEASIBLE.has(layoutKey) ? [["open", open]] : [
+          ["closed", closed],
+          ["open", open],
+        ]) as [string, Box[][]][]) {
+          const all = groups.flat();
+          for (const b of all) {
+            if (!mine.has(b.id)) continue; // Ready, ping and ☰ have their own checks (Ready's move-half line is the 5.15 baseline)
+            const tag = `${w}x${h} ${ins.right}/${ins.bottom} ${mode} ${b.id}`;
+            expect(b.x, `${tag}: left`).toBeGreaterThanOrEqual(ins.left - 1e-6);
+            expect(b.x + b.w, `${tag}: right`).toBeLessThanOrEqual(w - ins.right + 1e-6);
+            expect(b.y, `${tag}: top`).toBeGreaterThanOrEqual(ins.top - 1e-6);
+            expect(b.y + b.h, `${tag}: bottom`).toBeLessThanOrEqual(h - ins.bottom + 1e-6);
+            expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${tag}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
+            expect(b.x + b.w / 2, `${tag}: move-stick half`).toBeGreaterThan(w / 2);
+            expect(Math.min(b.w, b.h), `${tag}: ≥ 48 px`).toBeGreaterThanOrEqual(48);
+          }
+          for (let i = 0; i < groups.length; i++) {
+            const gi = groups[i] as Box[];
+            for (let a = 0; a < gi.length; a++) for (let b = a + 1; b < gi.length; b++) expect(gapOf(gi[a] as Box, gi[b] as Box), `${w}x${h} ${mode}: ${gi[a]!.id} / ${gi[b]!.id}`).toBeGreaterThanOrEqual(8 - 1e-6);
+            for (let j = i + 1; j < groups.length; j++) {
+              for (const a of gi) {
+                for (const b of groups[j] as Box[]) {
+                  const tag = `${layoutKey} ${mode}: ${a.id} / ${b.id}`;
+                  const tight = TIGHT_GAPS.get(tag);
+                  if (tight !== undefined) expect(gapOf(a, b), `${tag} (listed tight gap)`).toBeCloseTo(tight, 3);
+                  else expect(gapOf(a, b), tag).toBeGreaterThanOrEqual(12 - 1e-6);
+                }
+              }
+            }
+          }
+        }
+        // The card behind the cells (not pressable): inside the safe area, off the survivor, ≥ 12 px from ping and ☰ and Ready.
+        const card: Box = { id: "card", x: pn.cardX, y: pn.cardY, w: pn.cardW, h: pn.cardH };
+        expect(card.x + card.w).toBeLessThanOrEqual(w - ins.right + 1e-6);
+        expect(card.y + card.h).toBeLessThanOrEqual(h - ins.bottom + 1e-6);
+        expect(rectCentreGap(card.x, card.y, card.w, card.h, w / 2, h / 2), "card vs survivor").toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX - 1e-6);
+        for (const o of [ping, menuBox, ready]) expect(gapOf(card, o), `card vs ${o.id}`).toBeGreaterThanOrEqual(12 - 1e-6);
+        // BU-4: the 9th cell (Close) is on Build's own spot; the same 56 px cells wherever they fit (10.10-B3: shrunk only at 568 × 320 with 44 px insets)
+        expect(pn.x[PANEL_CELLS - 1]! + pn.tile).toBeCloseTo(cl.buildX + cl.tile);
+        expect(pn.y[PANEL_CELLS - 1]! + pn.tile).toBeCloseTo(cl.buildY + cl.tile);
+        if (!(w === 568 && ins.right === 44) && !(h <= 320 && ins.top > 0)) expect(pn.tile).toBe(56);
+      });
+    }
+  }
+});
+
+/**
+ * Story 10.10 review 1, 2: the hand cluster's Place and ✕ (holding) against every pressable rect of the
+ * closed Build cluster (hands empty) — a Place / ✕ tap that ends the hold must not land on a control
+ * that acts at once. ↶, Ready, ping and ☰ never intersect Place or ✕ at any size and inset. The tiles
+ * (quick, Build, Shop chip) do, as the 5.16 grid did: 5.18's quiet window drops their presses (Q2,
+ * `stepBuildBar`, `dropQuietPresses`). 5.12's row keeps clear of both wherever the survivor's 48 px
+ * allows; on the narrow screens listed it sits under ✕'s spot and is quiet-gated too.
+ */
+describe("Story 10.10 review 1, 2 + re-review 1: holding-mode Place / ⟳ / ✕ vs the closed cluster (cross-mode)", () => {
+  const ROW_UNDER_CANCEL = new Set(["568x320 0/0", "568x320 44/21", "640x360 44/21"]);
+  const QUIET_GATED = new Set(["quick", "build", "shopchip"]);
+  /** Re-review 1: Ready (slid right by this story) sits under ⟳ only here; its press is quiet-gated (`dropQuietPresses`). */
+  const READY_UNDER_ROTATE = new Set(["568x320 44/21"]);
+  for (const [w, h] of [
+    [568, 320],
+    [640, 360],
+    [800, 360],
+    [844, 390],
+    [1024, 768],
+    [1920, 1080],
+  ] as const) {
+    for (const ins of [
+      { left: 0, right: 0, top: 0, bottom: 0 },
+      { left: 44, right: 44, top: 0, bottom: 21 },
+    ]) {
+      const key = `${w}x${h} ${ins.right}/${ins.bottom}${ins.top ? `/${ins.top}` : ""}`;
+      it(key, () => {
+        const hand = layoutHandCluster(w, h, ins.right, ins.bottom, 1, newHandLayout(), ins.top);
+        const cl = layoutBuildCluster(w, h, ins.right, ins.bottom, 1, newBuildClusterLayout());
+        const pn = layoutBuildPanel(w, h, ins.right, ins.bottom, 1, newBuildPanelLayout(), ins.top);
+        const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout());
+        const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
+        const rw = READY_BUTTON_W_CSS_PX;
+        const rh = READY_BUTTON_H_CSS_PX;
+        const closed: Box[] = [
+          { id: "quick", x: cl.quickX, y: cl.quickY, w: cl.tile, h: cl.tile },
+          { id: "build", x: cl.buildX, y: cl.buildY, w: cl.tile, h: cl.tile },
+          { id: "shopchip", x: cl.chipX, y: cl.chipY, w: cl.chip, h: cl.chip },
+          { id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size },
+          { id: "consumable", x: row.consX, y: row.consY, w: row.size, h: row.size },
+          { id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size },
+          { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh },
+          { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) },
+          { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX }, // re-review 2: ☰ too
+        ];
+        // re-review 2 (M): ↶'s one spot vs the open panel's cells. Only type cells (0–5 and the quick type's 7, B13) may lie
+        // over it: a pick there starts the hold, and ↶'s press is dropped within barQuietMs of it (`dropUndoAfterPick`).
+        const undoBox: Box = { id: "undo", x: undo.x, y: undo.y, w: undo.size, h: undo.size };
+        for (let c = 0; c < PANEL_CELLS - 1; c++) {
+          const cell: Box = { id: `ptile${c}`, x: pn.x[c] as number, y: pn.y[c] as number, w: pn.tile, h: pn.tile };
+          if (overlaps(cell, undoBox)) expect([0, 1, 2, 3, 4, 5, 7], `${key}: ptile${c} over ↶ must be a pick cell`).toContain(c);
+        }
+        expect(overlaps({ id: "close", x: pn.x[PANEL_CELLS - 1] as number, y: pn.y[PANEL_CELLS - 1] as number, w: pn.tile, h: pn.tile }, undoBox), `${key}: Close clear of ↶`).toBe(false);
+        const sqb = (id: string, r: { x: number; y: number; size: number }): Box => ({ id, x: r.x, y: r.y, w: r.size, h: r.size });
+        const hits: string[] = [];
+        for (const hb of [sqb("place", hand.place), sqb("rotate", hand.rotate), sqb("cancel", hand.cancel)]) { // re-review 1: ⟳ too
+          for (const b of closed) if (overlaps(hb, b)) hits.push(`${hb.id}/${b.id}`);
+        }
+        const allowed = hits.filter((x) => {
+          const id = x.split("/")[1] as string;
+          if (QUIET_GATED.has(id)) return true;
+          if (x === "rotate/ready" && READY_UNDER_ROTATE.has(key)) return true;
+          return (id === "consumable" || id === "swap") && x.startsWith("cancel/") && ROW_UNDER_CANCEL.has(key);
+        });
+        expect(hits.filter((x) => !allowed.includes(x)), `${key}: Place / ✕ on a control that acts at once`).toEqual([]);
+        // the listed narrow screens really are the fallback (and the others really are clear)
+        const rowHit = hits.some((x) => x === "cancel/consumable" || x === "cancel/swap");
+        expect(rowHit, `${key}: row under ✕`).toBe(ROW_UNDER_CANCEL.has(key));
+        expect(hits.includes("rotate/ready"), `${key}: Ready under ⟳`).toBe(READY_UNDER_ROTATE.has(key));
+        expect(hits.some((x) => x.endsWith("/undo")), `${key}: ↶ clear of Place / ⟳ / ✕`).toBe(false);
+      });
+    }
   }
 });

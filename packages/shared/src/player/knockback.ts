@@ -99,7 +99,7 @@ export function stepKnock(world: World, p: PlayerState): boolean {
   let tx: number;
   let ty: number;
   if (hasObstacles(world)) {
-    pushOutOfBuildings(world, nx, ny, r, p.x, p.y);
+    pushOutOfBuildings(world, nx, ny, r, p.x, p.y, true, true);
     tx = pushed.x;
     ty = pushed.y;
   } else {

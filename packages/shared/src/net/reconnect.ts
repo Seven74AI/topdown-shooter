@@ -235,3 +235,5 @@ export const CLOSE_TAKEN_OVER = 4021;
  * the phone shows "You were removed from this run" with OK.
  */
 export const CLOSE_REMOVED = 4022;
+/** Story 8.5 (AC 9): the host saved the run and quit. Terminal: no reconnect, no hold; the phone shows "Run saved". */
+export const CLOSE_RUN_SAVED = 4023;

@@ -1,6 +1,7 @@
 import { MAX_PLAYERS } from "@topdown/shared";
 import type { BuildTile } from "./buildBar";
 import { FIRE_HIT_QUEUE } from "../render/burnCue";
+import { newPingWheelState, type PingWheelState } from "./pingWheelState";
 
 /** Values the GameScene publishes each frame for the HUD to draw (the HUD never reads the World). */
 export interface HudModel {
@@ -49,6 +50,19 @@ export interface HudModel {
   menuPressed: boolean;
   /** ☰ is shown (a run is on screen, not on Results). */
   menuButton: boolean;
+  /**
+   * Story 8.7 (AC 2, P4, P6): the ping button is shown — online, a run on screen in a build phase, a wave or the vote,
+   * my survivor standing or downed, not holding a building, not reconnecting, menu and shop closed. Set by the GameScene.
+   */
+  pingButton: boolean;
+  /** Story 8.7: the wheel (open, its 3 s, the 1 s cooldown) and the kind picked this frame (the GameScene sends it). */
+  readonly ping: PingWheelState;
+  /** Story 8.7: my lobby slot (the wheel's discs take its colour); −1 = none. */
+  pingSlot: number;
+  /** Story 8.7 (B5 amended): the wheel's chips stand in one column (set by the HUD; frozen while the wheel is open). */
+  pingWheelColumn: boolean;
+  /** Story 8.7 review M2: a bit per slot whose ping shows as an edge arrow: that teammate's own edge arrow hides meanwhile. */
+  pingArrowSlots: number;
   /** The in-run menu is open (the HUD drops held sticks and buttons when it opens). */
   menuOpen: boolean;
   /** Story 2.11: the toast line under the wave text ("Bo left"), "" when none. */
@@ -128,6 +142,15 @@ export interface HudModel {
   buildCap: number;
   /** Set by the HUD when a building tile is tapped (its type id, "" = none); the GameScene consumes it. */
   buildPick: string;
+  /**
+   * Story 10.10: the Build panel is open (the HUD's Build / Close and a tap outside toggle it; the
+   * GameScene closes it on a pick, the shop, the menu, the ping wheel, the phase's end, downed, a selection).
+   */
+  buildPanelOpen: boolean;
+  /** Story 10.10: Build / Close was tapped this frame; the GameScene toggles the panel (not in 5.18's quiet window). */
+  buildPanelPressed: boolean;
+  /** Story 10.10 (BU-5): the quick tile's type id (`quickType`: last placed, else the first unlocked; "" = none). */
+  buildQuick: string;
   /** Set by the HUD when the build bar's Shop tile is tapped (Story 3.3's shop); the GameScene consumes it. */
   shopPressed: boolean;
   /** Story 3.7: taps on the game view select buildings now (a build phase, no placement, shop or menu). */
@@ -318,6 +341,11 @@ export const createHudModel = (): HudModel => ({
   consumablePressed: false,
   menuPressed: false,
   menuButton: false,
+  pingButton: false, // Story 8.7
+  ping: newPingWheelState(),
+  pingSlot: -1,
+  pingArrowSlots: 0,
+  pingWheelColumn: false,
   menuOpen: false,
   toastText: "",
   toastLoot: false,
@@ -358,6 +386,9 @@ export const createHudModel = (): HudModel => ({
   buildOwned: 0,
   buildCap: 0,
   buildPick: "",
+  buildPanelOpen: false,
+  buildPanelPressed: false,
+  buildQuick: "",
   shopPressed: false,
   tapsEnabled: false,
   worldTap: false,
@@ -458,9 +489,16 @@ export function fuelPercent(fuelTicks: number, stats: { readonly fuelS: number }
  * "Wave 4 in 22 s", "Wave 3   ·   Zombies 47", "Wave 13 · Endless · Zombies 300",
  * "Wave 14 · Endless · 22 s", "Wave 10 · Evac vote", "Get ready".
  */
-export function waveLine(m: { wave: number; remaining: number; buildSecs: number; endless: boolean; voting: boolean }): string {
+export function waveLine(m: { wave: number; remaining: number; buildSecs: number; endless: boolean; voting: boolean }, compact = false): string {
   // Story 6.11 / 6.12: the vote and endless lines use single-spaced dots so they fit beside the HP bar at 568 px.
-  if (m.voting) return `Wave ${m.wave} · Evac vote`;
+  // Story 8.7 (decision 8.7 B3): `compact` — where the ping button leaves the full line under 11 px (568 px wide):
+  // "Wave 12 · 350 left" (an endless wave too: its build line says "Endless"), "Endless 13 in 25 s", "Wave 10 · Vote".
+  if (m.voting) return compact ? `Wave ${m.wave} · Vote` : `Wave ${m.wave} · Evac vote`;
+  if (compact) {
+    if (m.endless && m.buildSecs >= 0) return `Endless ${m.wave + 1} in ${m.buildSecs} s`;
+    if (m.buildSecs >= 0) return `Wave ${m.wave + 1} in ${m.buildSecs} s`;
+    return m.wave > 0 ? `Wave ${m.wave} · ${m.remaining} left` : "Get ready";
+  }
   if (m.endless) return m.buildSecs >= 0 ? `Wave ${m.wave + 1} · Endless · ${m.buildSecs} s` : `Wave ${m.wave} · Endless · Zombies ${m.remaining}`;
   if (m.buildSecs >= 0) return `Wave ${m.wave + 1} in ${m.buildSecs} s`;
   return m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready";

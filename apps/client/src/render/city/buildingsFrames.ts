@@ -6,6 +6,7 @@ import { frameName, type FrameSpec } from "./atlasLayout";
 import { drawBearTrap, drawInFrame, drawMine, drawSpikeTrap, type Ctx } from "./buildingArt";
 import { CB, FRONT_BASE_Y, SIDE_C, drawCorner, drawFrontIn, drawFrontOut, drawSide, inFrameCentred, type Style } from "./barricadeArt";
 import type { CornerKind } from "../wallCorners";
+import { policeOccluderX } from "./streetPropsFrames";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
 import { crossGreen, lampWhite, ledRed, relightSteps, type Emissive, type Relit } from "./relight";
 import type { GlowKind } from "../buildingFx";
@@ -223,11 +224,12 @@ export function relitSpecs(): readonly ArtSpec[] {
 /**
  * Wall silhouettes (review L3): the part of a standing picture that actually hides what's behind it, as a share of the
  * picture's width [from, to]: a front picture's whole width; a side picture's wall strip (its props stand clear); a
- * corner's post. Null for anything that isn't a standing picture.
+ * corner's post; Story 9.14: the police lines' sawhorses and drums (`policeOccluderX`). Null for anything that isn't a
+ * standing picture.
  */
 export function wallOccluderX(frame: string): readonly [number, number] | null {
   const m = /^building_wall_(?:wood|reinforced|metal)(out|in|sidee|sidew|cnw|cne|csw|cse)\d$/.exec(frame);
-  if (!m) return null;
+  if (!m) return policeOccluderX(frame); // Story 9.14: the standing police lines
   const view = m[1] as string;
   if (view === "out" || view === "in") return [0, 1];
   if (view === "sidee" || view === "sidew") return [0.5 - 0.07 / SIDE_W_M, 0.5 + 0.07 / SIDE_W_M];

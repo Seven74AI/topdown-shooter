@@ -42,6 +42,11 @@ const visit = (s: BuildingStateView, key: string): void => {
   // Predictor's collision, the views and the light list follow).
   if (b.gx !== s.gx || b.gy !== s.gy || b.rot !== (s.rot & 3)) relocateBuilding(world, b, s.gx, s.gy, (s.rot & 3) as BuildingRotation);
   if (b.hp !== s.hp) b.hp = s.hp;
+  // Story 8.3 (E8-H3): a removed player's buildings are disowned in place (server truth).
+  if (b.ownerId !== s.owner) {
+    b.ownerId = s.owner;
+    world.buildings.version++;
+  }
 };
 
 /** Writes `buildings` into `world`. A missing map (an older server, a fake room) counts as empty. */

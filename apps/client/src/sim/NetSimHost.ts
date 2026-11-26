@@ -4,12 +4,18 @@ import { FlameCues } from "../render/flameCues";
 import {
   C2S,
   NET_EVENT_KIND,
+  BYTES,
+  INPUT_BYTES,
   NEUTRAL_INPUT,
+  decodeInput,
+  encodeInput,
   MUZZLE_OFFSET_M,
   createLobTarget,
   lobFlightTicks,
   lobTarget,
   NET_NONE,
+  PING_KINDS,
+  type PingKind,
   NO_SYSTEMS,
   TICK_DT_S,
   acidSpitOf,
@@ -55,6 +61,7 @@ import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } fro
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { MoveRefusal, NetSession } from "../net/session";
 import type { TeammateGhosts } from "../net/teammateGhosts";
+import type { PingModel } from "../render/pingModel";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
@@ -160,7 +167,7 @@ export interface NetSimHostOptions {
  *   render tick as players, written into `world.zombies` by `mirrorZombies`. A `zombie.killed`
  *   hides its net id when the render tick reaches it (the death FX plays in the same frame).
  *
- * Inputs: one `input.send` per 50 ms step with seq + 1, edge flags latched until a step takes
+ * Inputs: one binary input (`BYTES.INPUT`, Story 8.11) per 50 ms step with seq + 1, edge flags latched until a step takes
  * them, at most 5 steps per frame (the backlog after a hidden tab is dropped, never burst).
  * Events (`drainEvents`, Story 2.7 routing): 1. my local cosmetic events (shots, swings);
  * 2. my own server weapon-state events (reload, swap) on arrival, so my reload sound isn't late;
@@ -265,6 +272,8 @@ export class NetSimHost implements SimHost {
   private latchedTapFire = false;
   private seq = 0;
   private readonly sendBuf: MutableInput = { ...NEUTRAL_INPUT };
+  /** Story 8.11: `sendBuf` on the wire (`encodeInput`), reused every step. */
+  private readonly sendBytes = new Uint8Array(INPUT_BYTES);
   private drained: SimEvent[] = [];
   /** Server tick of each event drained from the queue this frame (review L1; reused). */
   private readonly drainedTicks: number[] = [];
@@ -619,6 +628,27 @@ export class NetSimHost implements SimHost {
     return this.session.inbox.ghosts;
   }
 
+  /** Story 8.7: the one `ping.send` payload, reused. */
+  private readonly pingMsg: { kind: PingKind } = { kind: "help" };
+
+  /** Story 8.7 (AC 4): `ping.send { kind }` — only the kind (P1); nothing while disposed or while the link is down. */
+  sendPing(kind: number): void {
+    const k = PING_KINDS[kind];
+    if (this.disposed || k === undefined || !this.linkUp()) return;
+    this.pingMsg.kind = k;
+    this.session.room.send(C2S.PING_SEND, this.pingMsg);
+  }
+
+  /** Story 8.7 review L2: the room's World is frozen now (8.1: nobody connected, or the 3-2-1): no ping button. */
+  get roomFrozen(): boolean {
+    return this.session.room.state?.frozen === true;
+  }
+
+  /** Story 8.7: the inbox's ping model (listened since the join). */
+  get pings(): PingModel {
+    return this.session.inbox.pings;
+  }
+
   takeRepairRefusal(): RepairError | null {
     const r = this.repairRefusal;
     this.repairRefusal = null;
@@ -818,7 +848,11 @@ export class NetSimHost implements SimHost {
       buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
-      room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
+      // Story 8.11 (AC 3): the 14-byte binary input; `buf` is rounded to what the server decodes (1/127 stick steps)
+      // BEFORE the predictor and the fire clock see it, so the predicted and the server's moves use the same values.
+      encodeInput(buf, this.sendBytes);
+      decodeInput(this.sendBytes, buf);
+      room.sendBytes(BYTES.INPUT, this.sendBytes); // copied synchronously: the bytes can be reused
       // Story 2.6: my survivor moves now, not a round trip later. Story 5.2: with the weapon state the
       // server's movement sees on this seq (the fire clock's, from the seq before: the Chainsaw slow).
       this.predictor.applyLocal(buf, this.fireClock.moveWeapon, this.fireClock.moveSwapping);

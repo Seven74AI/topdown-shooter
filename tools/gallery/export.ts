@@ -10,9 +10,10 @@ import { createServer } from "vite";
  * `tools/gallery/out/assets.json` for the review page (`tools/gallery/review-page.html`, published at the
  * URL in `docs/art/asset-review.md`).
  *
- * It also adds the approved photoreal looks that are not in the game yet (`docs/art/photoreal-1/compare.html`,
- * street props and vehicles; `docs/art/photoreal-2/take4-grey.html`, characters), from those pages' export hooks,
- * as groups of their own, so the designer can review them on the same page. Build those pages first.
+ * It also adds the approved photoreal looks that are not in the game yet (`docs/art/photoreal-3/compare.html`), from
+ * that page's export hook, as groups of their own, so the designer can review them on the same page. Build that page
+ * first. The street props and vehicles (`photoreal-1`) are in the game since Story 9.14 (`atlas_downtown`, drawn from
+ * the pre-rendered image), and the characters' take 4 since Story 9.13.
  *
  * Each asset gets a `hash` of its pixels and an `added` date. `tools/gallery/manifest.json` (committed)
  * remembers both, so the review page can mark art that is new since the first export, and art whose
@@ -48,10 +49,10 @@ try {
   await page.goto(`${url}gallery.html`);
   await page.waitForFunction(() => "__assets" in globalThis, null, { timeout: 120_000 });
   assets = await page.evaluate(() => (globalThis as unknown as { __assets: Asset[] }).__assets);
+  // Story 9.13: the relit characters' sheets (one texture per look) show as one group on the page
+  assets = assets.map((a) => (a.group.startsWith("chars_") ? { ...a, group: "characters_relit" } : a));
   // the approved photoreal looks (not in the game yet), from their pages' hooks
   for (const [file, hook, group, ready] of [
-    ["docs/art/photoreal-1/compare.html", "__photoreal", "approved_photoreal_props", "loading"],
-    ["docs/art/photoreal-2/take4-grey.html", "__take4", "approved_characters_take4", "loading"],
     ["docs/art/photoreal-3/compare.html", "__build3", "approved_buildables", "loading"],
   ] as const) {
     const path = join(ROOT, file);

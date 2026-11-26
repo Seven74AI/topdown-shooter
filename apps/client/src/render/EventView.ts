@@ -151,6 +151,7 @@ export class EventView {
     // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
     const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, controls, onEdge ? this.arrowAt : null, this.flagAt, this.flagHold);
     f.edge.visible = flagEdge;
+    this.flagShown = flagEdge; // Story 8.7
     if (!f.visible) {
       this.flagAt.side = 0;
       this.flagHold.side = 0;
@@ -167,6 +168,12 @@ export class EventView {
   edgeArrowAt(): Readonly<EventArrowPlace> | null {
     return this.arrow.visible ? this.arrowAt : null;
   }
+
+  /** Story 8.7 review M3: the 6.10 flag's edge arrow (screen px) when it shows, else null (pings keep off it). */
+  flagArrowAt(): Readonly<EventArrowPlace> | null {
+    return this.flagShown ? this.flagAt : null;
+  }
+  private flagShown = false;
 
   /** Story 7.12: this frame's HUD keep-off rects (the wave controls, the boss bar), for the bag's badge. */
   controlRects(): readonly ScreenRect[] {

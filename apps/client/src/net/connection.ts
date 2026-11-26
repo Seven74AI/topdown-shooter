@@ -67,6 +67,19 @@ export async function createGame(name: string): Promise<Result<RunConnection, st
 }
 
 /**
+ * Story 8.6 (AC 12): resumes a saved run — a new room for it, this player as host. Needs this device's session ticket
+ * (the server links the save to the account); refusals are `save_busy`, `save_gone`, `save_unavailable`.
+ */
+export async function resumeGame(savedRunId: string, name: string): Promise<Result<RunConnection, string>> {
+  try {
+    const room = await sdk().create<RunStateView>(RUN_ROOM_NAME, { ...options("resume", name, await joinAccount()), savedRunId });
+    return ok(counted(room as RunConnection));
+  } catch (e) {
+    return err(joinErrorText(e));
+  }
+}
+
+/**
  * Joins a run by its code (Story 2.3). A code that can't exist is "Game not found" without asking
  * the server. The error is player text from `joinErrorText`.
  */

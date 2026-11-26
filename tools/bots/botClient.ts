@@ -1,16 +1,21 @@
 import { Client, type Room } from "@colyseus/sdk";
 import type { Box } from "@topdown/shared";
 import { bulletBoxes, fillWireShot, type WireBuilding } from "./wireCover";
+import { WireMeter, wireRates, type WireCounts } from "./wireMeter";
 import {
   DOWNTOWN_MAP,
   MUZZLE_OFFSET_M,
   BYTES,
   ByteRate,
   C2S,
+  PING_KINDS,
   HORDE_MAX_RECORDS,
+  INPUT_BYTES,
   NEUTRAL_INPUT,
+  encodeInput,
   NET_EVENT_KIND,
   CLOSE_TAKEN_OVER,
+  CLOSE_RUN_SAVED,
   RECONNECT,
   SeatRecovery,
   Watchdog,
@@ -63,7 +68,7 @@ import {
  * One headless bot player (Story 2.10, AC 4) in a real room, through the same SDK as the phones.
  * It does not render, predict or interpolate: each 50 ms it builds a `BotView` from the newest
  * state (players) and the newest horde frame (zombies), asks the shared `botInput` policy, and
- * sends `input.send` with seq + 1. It taps Ready, answers `net.pinged`, and counts its own payload
+ * sends its binary input (`BYTES.INPUT`, Story 8.11) with seq + 1. It taps Ready, answers `net.pinged`, and counts its own payload
  * bytes both ways with the same `ByteRate` the client overlay uses. One log line per wave.
  *
  * Story 3.10: in every build phase it first shops from `bots.json › shoppingList` with the shared
@@ -88,8 +93,21 @@ export interface BotClientOptions {
    * horde builds up to the alive cap (150) before the bots thin it. Default 0.
    */
   holdFireS?: number;
+  /**
+   * Story 8.7 (AC 10): ping every this many seconds (a random kind from the bot's own seeded stream) in build phases,
+   * waves and the vote. 0 = off (default). Under 1 s the server's 1/s bucket drops the extra ones (counted there).
+   */
+  pingEveryS?: number;
   /** One JSON object per line goes here (default: stdout). */
   log?: (line: Record<string, unknown>) => void;
+  /**
+   * Stories 8.4–8.6: play as an account (`POST /account/session`, like a phone: the ticket goes with the join) with this
+   * device token (a fresh one when absent; the bot's `deviceToken` after the call). Saves need an account seat.
+   */
+  account?: boolean;
+  deviceToken?: string;
+  /** Story 8.6: create the room by resuming this saved run (needs `account`). */
+  resume?: string;
 }
 
 /** Story 8.1: the bot's link (the phone's rules: shared `Watchdog` + `SeatRecovery`, `net/reconnect.ts`). */
@@ -114,6 +132,8 @@ export interface BotWaveStats {
   kills: number;
   downs: number;
   revives: number;
+  /** Story 8.11 (T1): per-second wire numbers by kind (`wireMeter.ts › wireRates`). */
+  wire: Record<string, number | number[]>;
 }
 
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -167,6 +187,10 @@ interface PendingShop {
 
 export class BotClient {
   readonly down = new ByteRate();
+  /** Story 8.11 (T1): bytes by kind, patches per tick. */
+  readonly wireMeter = new WireMeter();
+  private wireMark: WireCounts = this.wireMeter.snapshot();
+  private waveTick0 = 0;
   readonly up = new ByteRate();
   /** Per-wave results, in order. */
   readonly waves: BotWaveStats[] = [];
@@ -175,6 +199,14 @@ export class BotClient {
   rttMs = 0;
   /** The last wave whose `wave.ended` this bot saw (0 = none yet). */
   lastEndedWave = 0;
+  /** Stories 8.4–8.6: the device token this bot joined with (an account bot resumes with it), the run id, the save. */
+  deviceToken = "";
+  runId = "";
+  /** Story 8.5 (`--save-quit-at`): no Ready once this wave ended (the build runs its timer: time to Save and quit). 0 = off. */
+  holdReadyAfterWave = 0;
+  /** Story 8.5: the server saved the run (`run.saved`, then the 4023 close). */
+  saved = false;
+  closeCode = 0;
   /** Set when the room closed under the bot (server stop, room error, kicked): `code` and reason. */
   closed: { code: number; reason: string } | null = null;
   private readonly cfg: BotConfig;
@@ -184,6 +216,7 @@ export class BotClient {
   private readonly coverBoxes: Box[] = [];
   private readonly pushWireBuilding = (b: WireBuilding): void => void this.wireBuildings.push(b);
   private readonly input: PlayerInput = { ...NEUTRAL_INPUT };
+  private readonly inputBytes = new Uint8Array(INPUT_BYTES);
   private readonly horde = new HordeView();
   private seq = 0;
   private leaving = false;
@@ -291,6 +324,7 @@ export class BotClient {
     const now = (): number => performance.now();
     configureReconnection(room.reconnection); // F7: no offline queue
     attachByteCounters(room as unknown as Parameters<typeof attachByteCounters>[0], this.down, this.up, now);
+    this.attachWireMeter(room); // Story 8.11 (T1): bytes by kind, patches and their ticks
     const heard = (): void => {
       if (this.room === room && this.link === "ok") this.watchdog.heard(now());
     };
@@ -318,6 +352,18 @@ export class BotClient {
     });
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
+    room.onMessage(S2C.RUN_STARTED, (m: { runId: string }) => {
+      this.runId = m.runId; // Story 7.2: the run id (= the save id, Story 8.4)
+    });
+    room.onMessage(S2C.RUN_REWARDS, () => {});
+    room.onMessage(S2C.RUN_SAVED, () => {
+      this.saved = true; // Story 8.5: the 4023 close follows
+      this.log({ msg: "bot_run_saved", bot: this.name, runId: this.runId });
+    });
+    room.onMessage(S2C.RUN_SAVE_FAILED, () => this.log({ msg: "bot_save_failed", bot: this.name }));
+    room.onMessage(S2C.PING_SHOWN, (m: unknown) => {
+      if (Array.isArray(m) && this.pingsSeen.length < 10_000) this.pingsSeen.push([Number(m[0]), Number(m[1])]); // Story 8.7
+    });
     room.onMessage(S2C.SHOP_BOUGHT, (m: ShopBought) => this.shopBought(m));
     room.onMessage(S2C.SHOP_OFFERED, (m: ShopOffered) => {
       const o = this.offer;
@@ -332,6 +378,8 @@ export class BotClient {
     room.onMessage(S2C.BUILDING_REPAIR_REFUSED, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
     room.onLeave((code: number, reason?: string) => {
+      if (this.room === room) this.closeCode = code;
+      if (this.room === room && (this.saved || code === CLOSE_RUN_SAVED)) return this.stopSending(); // Story 8.5: terminal
       if (this.room !== room || this.leaving) return;
       if (code === CLOSE_TAKEN_OVER && this.recovery.inFlight) return; // our own takeover: its room is adopted next
       if (code === CLOSE_TAKEN_OVER && performance.now() - this.lateAdoptedAtMs < RECONNECT.ownTakeoverMs) {
@@ -351,6 +399,21 @@ export class BotClient {
       this.timer = null;
       this.closed = { code, reason: reason ?? "" };
       this.log({ msg: "bot_room_closed", bot: this.name, code, reason: reason ?? "" });
+    });
+  }
+
+  /** Story 8.11 (T1): the wire meter sees every WebSocket message down and every frame up (`wireMeter.ts`). */
+  private attachWireMeter(room: Room<unknown, RunStateView>): void {
+    const conn = (room as unknown as { connection: { transport: unknown; send(data: Uint8Array): void } }).connection;
+    const ws = (conn.transport as { ws?: { addEventListener(t: "message", cb: (e: { data: unknown }) => void): void } } | null)?.ws;
+    ws?.addEventListener("message", (e) => this.wireMeter.down(e.data));
+    const send = conn.send;
+    conn.send = (data: Uint8Array): void => {
+      this.wireMeter.up(data);
+      send.call(conn, data);
+    };
+    room.onStateChange((s: RunStateView) => {
+      if (this.room === room) this.wireMeter.patch(s.tick, s.phase === "wave");
     });
   }
 
@@ -407,13 +470,17 @@ export class BotClient {
   /** Joins (or creates) and taps Ready. */
   static async connect(opts: BotClientOptions): Promise<BotClient> {
     const client = new Client(opts.url, opts.origin ? { headers: { Origin: opts.origin } } : undefined);
+    // Stories 8.4–8.6: an account, like a phone's (the session renews the device token and signs a ticket).
+    const session = opts.account ? await botSession(opts.url, opts.deviceToken ?? guestToken(), opts.origin) : null;
     const options: JoinOptions = {
-      intent: opts.roomId ? "join" : "create",
+      intent: opts.roomId ? "join" : opts.resume ? "resume" : "create",
       name: opts.name,
       balanceVersion: balance.version,
       mapVersion: DOWNTOWN_MAP.version,
       netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10
-      guestToken: guestToken(),
+      guestToken: session?.deviceToken ?? opts.deviceToken ?? guestToken(),
+      ...(session ? { ticket: session.ticket } : {}),
+      ...(!opts.roomId && opts.resume ? { savedRunId: opts.resume } : {}),
     };
     if (!opts.roomId && opts.scenario) options.scenario = opts.scenario;
     const room = opts.roomId
@@ -422,6 +489,8 @@ export class BotClient {
     // Story 8.1: the takeover joins the same room again with the same guest token (the seat's identity).
     const rejoin = (): Promise<Room<unknown, RunStateView>> => client.joinById<RunStateView>(room.roomId, { ...options, intent: "join" });
     const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0, rejoin);
+    bot.deviceToken = options.guestToken;
+    bot.pingEveryMs = Math.max(0, (opts.pingEveryS ?? 0) * 1000); // Story 8.7
     room.send(C2S.LOBBY_SET_READY, { ready: true });
     bot.timer = setInterval(() => bot.step(), INPUT_INTERVAL_MS);
     return bot;
@@ -434,6 +503,18 @@ export class BotClient {
   /** This bot is the room's host (slot = `hostSlot`). */
   get isHost(): boolean {
     return this.slot >= 0 && this.room.state?.hostSlot === this.slot;
+  }
+
+  /** Story 8.5: the host's Save and quit (the server checks host and phase). */
+  saveQuit(): void {
+    this.room.send(C2S.RUN_SAVE_QUIT, {});
+  }
+
+  /** Story 8.5: the room closed for good (saved): no more inputs, no recovery. */
+  private stopSending(): void {
+    this.leaving = true;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
   }
 
   /** Stops sending and leaves the room. */
@@ -452,9 +533,32 @@ export class BotClient {
   /** Story 6.11: server tick of the last evacuation vote sent. */
   private voteAtTick = -1;
 
+  /** Story 8.7: ping cadence (ms, 0 = off), its seeded kind stream, and what was sent / seen (`[slot, kindIdx]`). */
+  private pingEveryMs = 0;
+  private lastPingMs = Number.NEGATIVE_INFINITY;
+  private pingRng = 0;
+  pingsSent = 0;
+  readonly pingsSeen: [number, number][] = [];
+
+  /** Story 8.7 (AC 10): one ping when due, in build / wave / vote, a random kind from the bot's own stream (mulberry32 seeded by its name). */
+  private pingStep(phase: string): void {
+    if (this.pingEveryMs <= 0 || this.link !== "ok" || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
+    const now = performance.now();
+    if (now - this.lastPingMs < this.pingEveryMs) return;
+    this.lastPingMs = now;
+    if (this.pingRng === 0) for (let i = 0; i < this.name.length; i++) this.pingRng = (Math.imul(this.pingRng ^ this.name.charCodeAt(i), 0x01000193) | 0) || 1;
+    this.pingRng = (this.pingRng + 0x6d2b79f5) | 0;
+    let t = Math.imul(this.pingRng ^ (this.pingRng >>> 15), 1 | this.pingRng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const kind = PING_KINDS[(((t ^ (t >>> 14)) >>> 0) % PING_KINDS.length) as number] as (typeof PING_KINDS)[number];
+    this.room.send(C2S.PING_SEND, { kind });
+    this.pingsSent++;
+  }
+
   /** One input: the policy on the newest data, every 50 ms while the room fights. */
   private step(): void {
     const state = this.room.state;
+    if (state?.phase) this.pingStep(state.phase); // Story 8.7
     // Story 6.11: in the evacuation vote every bot votes Extract (once; retried like Ready if it didn't arrive).
     if (state?.players && state.phase === "vote" && this.playerId) {
       const me = state.players.get(this.playerId);
@@ -482,7 +586,7 @@ export class BotClient {
     if (state.phase === "build" && !this.shopDone) this.shopStep(state, me);
     // Once per build, retried after ~1 s if the server still hasn't got it (3.1 review: it shares
     // the 10/s "other" bucket with pongs).
-    if (state.phase === "build" && this.shopDone && !me.buildReady && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
+    if (state.phase === "build" && this.shopDone && !me.buildReady && !(this.holdReadyAfterWave > 0 && this.lastEndedWave >= this.holdReadyAfterWave) && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
       this.readyAtTick = state.tick;
       this.room.send(C2S.BUILD_SET_READY, { ready: true });
     }
@@ -534,7 +638,8 @@ export class BotClient {
     }
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
     if (this.link !== "ok") return; // Story 8.1 (F7): nothing sent while the link is down (and nothing late)
-    this.room.send(C2S.INPUT_SEND, this.input);
+    encodeInput(this.input, this.inputBytes); // Story 8.11 (brief 20): the phone's binary input
+    this.room.sendBytes(BYTES.INPUT, this.inputBytes);
   }
 
   /** Buildings of `type` this bot owns (from the state). */
@@ -711,6 +816,8 @@ export class BotClient {
     this.waveKeyframes0 = this.hordeStream.keyframes;
     this.waveHordeErrors0 = this.hordeStream.decodeErrors + this.hordeStream.brokenChain;
     this.waveKills0 = this.kills();
+    this.wireMark = this.wireMeter.snapshot();
+    this.waveTick0 = this.room.state?.tick ?? 0;
     this.downs = 0;
     this.revives = 0;
   }
@@ -740,6 +847,7 @@ export class BotClient {
       kills: this.kills() - this.waveKills0,
       downs: this.downs,
       revives: this.revives,
+      wire: wireRates(this.wireMeter.snapshot(), this.wireMark, seconds, (this.room.state?.tick ?? 0) - this.waveTick0),
     };
     this.waves.push(stats);
     this.lastEndedWave = n;
@@ -754,4 +862,16 @@ function guestToken(): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Stories 8.4–8.6: the bot's account session (7.1's `POST /account/session`): the device token back and a join ticket. */
+async function botSession(url: string, deviceToken: string, origin?: string): Promise<{ deviceToken: string; ticket: string } | null> {
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/account/session`, { method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify({ deviceToken }) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { deviceToken?: unknown; ticket?: unknown };
+    return typeof body.deviceToken === "string" && typeof body.ticket === "string" ? { deviceToken: body.deviceToken, ticket: body.ticket } : null;
+  } catch {
+    return null;
+  }
 }

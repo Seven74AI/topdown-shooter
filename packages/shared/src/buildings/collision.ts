@@ -65,7 +65,12 @@ export const PUSH_NONE = 0;
 export const PUSH_MOVED = 1;
 /** No free spot was found near the target (a slot narrower than the body): stay at `from`. */
 export const PUSH_STUCK = 2;
-export type PushResult = typeof PUSH_NONE | typeof PUSH_MOVED | typeof PUSH_STUCK;
+/**
+ * Fix bloater-car-corner: stuck, and `from` itself overlapped a solid (an illegal spot), so the body
+ * went to the nearest clear spot (`escapeInside` callers only; see `escape`).
+ */
+export const PUSH_ESCAPED = 3;
+export type PushResult = typeof PUSH_NONE | typeof PUSH_MOVED | typeof PUSH_STUCK | typeof PUSH_ESCAPED;
 
 /** Passes over every building (and the map edge) before giving up (review H1: 2–4, bounded). */
 const MAX_PASSES = 4;
@@ -122,7 +127,9 @@ function pushBox(b: BoxView, px: number, py: number, r: number, fromX: number, f
  * slides along it); a centre that ended inside a box leaves on the side of `from` (where the circle
  * was before this move, outside every box). If the passes don't settle (a slot narrower than the
  * body, between two buildings or a building and the map edge) the result is PUSH_STUCK and `pushed`
- * is `from`: the circle doesn't move this tick (review H1). Writes `pushed` for every result.
+ * is `from`: the circle doesn't move this tick (review H1). With `escapeInside`, a stuck body whose
+ * `from` is itself not legal (it overlaps a solid) goes to the nearest clear spot instead
+ * (PUSH_ESCAPED; fix bloater-car-corner). Writes `pushed` for every result.
  */
 export function pushOutOfBuildings(
   world: Readonly<World>,
@@ -133,6 +140,13 @@ export function pushOutOfBuildings(
   fromY: number,
   /** Story 6.5: false = map solids and the edge only (player buildings are not solid to the Behemoth). */
   withBuildings = true,
+  /**
+   * Fix bloater-car-corner: when stuck and `from` itself overlaps a solid, go to the nearest clear spot
+   * (PUSH_ESCAPED) instead of staying inside. Opt-in: the per-tick body moves (zombie pass 4, player
+   * movement and knockback). Decay relocation keeps its own tested fallbacks (`findFreeSpotNear`,
+   * `findBoxFreeSpot`), so its results are unchanged.
+   */
+  escapeInside = false,
 ): PushResult {
   const full = settle(world, x, y, r, fromX, fromY, withBuildings);
   if (full !== PUSH_STUCK) return full;
@@ -155,9 +169,496 @@ export function pushOutOfBuildings(
       bestD = d;
     }
   }
+  if (escapeInside && bestD <= 0 && overlapsObstacle(world, fromX, fromY, r - FROM_INSIDE_EPS_M, withBuildings) && escape(world, fromX, fromY, r, withBuildings)) {
+    pushEscapes.count++;
+    return PUSH_ESCAPED;
+  }
   pushed.x = bestX;
   pushed.y = bestY;
   return bestD > 0 ? PUSH_MOVED : PUSH_STUCK;
+}
+
+/**
+ * Fix bloater-car-corner (2026-11-25): staying at `from` is the fallback only because `from` is
+ * normally outside every box. It isn't when something put the body in a solid: the dev spawn cheats
+ * (no solid check). Before FX-B1, hit pushback was not swept either, so stacked co-op hits could also
+ * do it. A centre at the join of two touching boxes is pushed by each box's nearest face into the
+ * other; a body dropped into a gap narrower than itself overlaps both boxes. The passes never settle,
+ * and staying at `from` would keep it inside for good.
+ *
+ * So when `from` overlaps a solid by more than `FROM_INSIDE_EPS_M`, the body goes to the nearest clear
+ * spot (`escape`). The margin is far above Float32 rounding against a face, so a body legally held at a
+ * slot mouth never triggers it. The way out never crosses a box `from`'s centre is not in: a body in a
+ * slot leaves by a mouth, never through a wall (`escapeClearPath`). A thin wall the centre is already
+ * in can be left on either side (the nearer).
+ */
+const FROM_INSIDE_EPS_M = 1e-3;
+/**
+ * `escape`: fine rings `ESCAPE_FINE_STEP_M` apart up to `ESCAPE_FINE_M` (a car junction's nearest exit is
+ * 0.1–1 m away), then coarse rings `ESCAPE_COARSE_STEP_M` apart up to `ESCAPE_REACH_M` (deep in a big box
+ * against the map edge, e.g. the 7 × 6 m gas kiosk in Downtown's corner). Ring k is at an exact
+ * multiple of the step (an integer index, no running sum).
+ */
+const ESCAPE_FINE_STEP_M = 0.05;
+const ESCAPE_FINE_RINGS = 20; // 1 m
+const ESCAPE_COARSE_STEP_M = 0.25;
+const ESCAPE_COARSE_RINGS = 44; // 1 m + 11 m = 12 m
+const ESCAPE_FINE_M = ESCAPE_FINE_STEP_M * ESCAPE_FINE_RINGS;
+const ESCAPE_REACH_M = ESCAPE_FINE_M + ESCAPE_COARSE_STEP_M * ESCAPE_COARSE_RINGS;
+/**
+ * Directions per ring: 16 · 2^k (16 … 256), the fewest that keep neighbouring candidates at most one ring
+ * step apart along the ring (so "nearest" holds to about one step, at every radius). Each set is walked
+ * by rotating (1, 0) with that set's exact cos/sin literals (only × and +: identical in every engine).
+ */
+const ESCAPE_DIR_COUNTS = [16, 32, 64, 128, 256] as const;
+const ESCAPE_ROT_COS = [0.9238795325112867, 0.9807852804032304, 0.9951847266721969, 0.9987954562051724, 0.9996988186962042] as const;
+const ESCAPE_ROT_SIN = [0.3826834323650898, 0.19509032201612825, 0.0980171403295606, 0.049067674327418015, 0.024541228522912288] as const;
+/** 2π, for the ring circumference only (the direction count; never a position). */
+const TWO_PI = 6.283185307179586;
+
+/**
+ * Diagnostic: push-outs that took the `escape`. Process-global (every World in this process adds to it),
+ * read by tests as a before/after delta. Not simulation state, never snapshotted.
+ */
+export const pushEscapes = { count: 0 };
+
+/** The circle overlaps a map solid or (with `withBuildings`) a wall building. */
+function overlapsObstacle(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
+  if (!withBuildings) return false;
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (b.solid && circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
+  return false;
+}
+
+/** The boxes within reach of one escape (prefiltered once per escape; solids, then wall buildings), and whether `from`'s centre is inside each. */
+/**
+ * The boxes within reach of one escape (prefiltered once per escape: solids, then wall buildings), and
+ * whether `from`'s centre is inside each. Review N2: the arrays grow (doubling, only when an escape
+ * meets more boxes than ever before), so no box is ever dropped.
+ */
+let nearCap = 64;
+let nearMinX = new Float64Array(nearCap);
+let nearMinY = new Float64Array(nearCap);
+let nearMaxX = new Float64Array(nearCap);
+let nearMaxY = new Float64Array(nearCap);
+let nearHolds = new Uint8Array(nearCap);
+let nearCount = 0;
+
+function growNear(): void {
+  const cap = nearCap * 2;
+  const grow = (a: Float64Array): Float64Array<ArrayBuffer> => {
+    const b = new Float64Array(cap);
+    b.set(a);
+    return b;
+  };
+  nearMinX = grow(nearMinX);
+  nearMinY = grow(nearMinY);
+  nearMaxX = grow(nearMaxX);
+  nearMaxY = grow(nearMaxY);
+  const h = new Uint8Array(cap);
+  h.set(nearHolds);
+  nearHolds = h;
+  nearCap = cap;
+}
+
+/**
+ * Review M1-new (round 2): kept when the box overlaps the SQUARE |dx|, |dy| ≤ `reach` round (x, y)
+ * (Chebyshev distance), the flood window grown by the body. That square contains the escape's reach
+ * circle, so candidates and paths see every box they can touch, and the flood sees every box in its
+ * corners too (a circle filter left corner boxes out, so a big fort's corner cells read as free).
+ */
+function addNear(x: number, y: number, reach: number, b: BoxView): void {
+  const cx = Math.min(b.maxX, Math.max(b.minX, x));
+  const cy = Math.min(b.maxY, Math.max(b.minY, y));
+  if (Math.abs(x - cx) > reach || Math.abs(y - cy) > reach) return;
+  if (nearCount >= nearCap) growNear();
+  const k = nearCount++;
+  nearMinX[k] = b.minX;
+  nearMinY[k] = b.minY;
+  nearMaxX[k] = b.maxX;
+  nearMaxY[k] = b.maxY;
+  // Review L-C: against the box grown by SEAM_EPS_M, as the path test sees it (a centre on a face is in it).
+  const e = SEAM_EPS_M;
+  nearHolds[k] = x > b.minX - e && x < b.maxX + e && y > b.minY - e && y < b.maxY + e ? 1 : 0;
+}
+
+/**
+ * Dead ends (no clear spot within reach) remembered per World and obstacle versions, so a body that
+ * can't escape doesn't repeat the full search every tick (the same inputs always fail the same way, so
+ * skipping changes no result). A small ring of (x, y, r, withBuildings) keys; cleared when the World,
+ * its obstacles or its buildings change. Review N1: the World is held weakly (a disposed World is not
+ * kept alive by this cache).
+ */
+const DEAD_ENDS = 64;
+const deadX = new Float64Array(DEAD_ENDS);
+const deadY = new Float64Array(DEAD_ENDS);
+const deadR = new Float64Array(DEAD_ENDS);
+const deadB = new Uint8Array(DEAD_ENDS);
+let deadCount = 0;
+let deadNext = 0;
+let deadWorld: WeakRef<Readonly<World>> | null = null;
+let deadObstacles = -1;
+let deadBuildings = -1;
+
+function deadEndKnown(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
+  if (deadWorld?.deref() !== world || deadObstacles !== world.obstacles.version || deadBuildings !== world.buildings.version) {
+    if (deadWorld?.deref() !== world) deadWorld = new WeakRef(world); // only when the World changes (rare: never per tick)
+    deadObstacles = world.obstacles.version;
+    deadBuildings = world.buildings.version;
+    deadCount = 0;
+    deadNext = 0;
+    return false;
+  }
+  const wb = withBuildings ? 1 : 0;
+  for (let i = 0; i < deadCount; i++) if (deadX[i] === x && deadY[i] === y && deadR[i] === r && deadB[i] === wb) return true;
+  return false;
+}
+
+function rememberDeadEnd(x: number, y: number, r: number, withBuildings: boolean): void {
+  const i = deadNext;
+  deadX[i] = x;
+  deadY[i] = y;
+  deadR[i] = r;
+  deadB[i] = withBuildings ? 1 : 0;
+  deadNext = (deadNext + 1) % DEAD_ENDS;
+  if (deadCount < DEAD_ENDS) deadCount++;
+}
+
+/**
+ * Review M1 (fix escape-narrow-openings): the way out must be one the BODY can take, not only its centre.
+ * - Clearance: every point of the straight path keeps at least the clearance the body had at `from`
+ *   (r minus its overlap there; 0 for a centre inside a box). So a body that merely overlaps a wall never
+ *   squeezes through an opening narrower than itself (a 0.5 m murder hole into a fort), nor along a seam.
+ * - Seams: two touching boxes count as one wall on the centre line too (boxes grown by `SEAM_EPS_M`; the
+ *   slab test alone lets a centre slide along the shared face).
+ * - Open side first: when the start is equally near a sealed pocket (a fort's inside) and the open map,
+ *   a spot whose free area (for this body, on a `FLOOD_CELL_M` grid over the whole escape reach) reaches
+ *   the edge of that area wins (review M-A: a window round the start alone let a deep fort pass for open).
+ * - Passes (`PASSES_OPEN` / `PASSES_ENCLOSED`; reviews L-D and M2-new): a body is never frozen while a
+ *   centre-clear way out exists, a start on the open side squeezes to open ground before it settles for a
+ *   pocket, and a start in a pocket (a player in their own fort) stays in it. Clearance has
+ *   `CLEARANCE_SLACK_M` of slack (review M-B: without it a body wedged between a wall and a car went
+ *   6.75 m round instead of 0.55 m out).
+ */
+const SEAM_EPS_M = 1e-9;
+const CLEARANCE_SLACK_M = 0.02;
+const PATH_STEP_M = 0.025;
+const FLOOD_CELL_M = 0.25;
+/** Review M-A: the window covers the whole escape reach (and a cell), so a deep sealed pocket can't touch its edge and pass for open. */
+const FLOOD_HALF_M = ESCAPE_REACH_M + FLOOD_CELL_M;
+const FLOOD_N = Math.ceil((2 * FLOOD_HALF_M) / FLOOD_CELL_M); // 98 × 98 cells
+/** 0 = not computed / blocked, 1 = free, 2 = free and connected to the area's edge (open). */
+const flood = new Uint8Array(FLOOD_N * FLOOD_N);
+const floodQueue = new Int32Array(FLOOD_N * FLOOD_N);
+let floodX0 = 0;
+let floodY0 = 0;
+
+/** (px, py) lies in a box the start's centre is in. */
+function insideHeldBox(px: number, py: number): boolean {
+  for (let k = 0; k < nearCount; k++) {
+    if (nearHolds[k] !== 1) continue;
+    if (px > (nearMinX[k] as number) && px < (nearMaxX[k] as number) && py > (nearMinY[k] as number) && py < (nearMaxY[k] as number)) return true;
+  }
+  return false;
+}
+
+/** Distance from (px, py) to the nearest box within reach (0 inside one); with `skipHolds`, boxes the start's centre is in don't count. */
+function nearestBoxDistance(px: number, py: number, skipHolds = false): number {
+  let best = Infinity;
+  for (let k = 0; k < nearCount; k++) {
+    if (skipHolds && nearHolds[k] === 1) continue;
+    const cx = Math.min(nearMaxX[k] as number, Math.max(nearMinX[k] as number, px));
+    const cy = Math.min(nearMaxY[k] as number, Math.max(nearMinY[k] as number, py));
+    const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+    if (d2 < best) best = d2;
+  }
+  return best === Infinity ? Infinity : Math.sqrt(best);
+}
+
+/**
+ * The free area for a body of radius r round (x, y), and which of it is open (reaches the area's edge).
+ * Review L1 (cost): 98 × 98 circle tests against the near boxes plus one flood, about 1.4–3.9 ms per
+ * escape. That is fine while escapes happen only on illegal starts (dev spawns; 0 in real runs). If the
+ * escape ever runs in real play, cache the flood per (World, obstacle and building versions, r).
+ * Review N1 (resolution): a 0.25 m cell grid can't see a free cell through a wall, nor miss a passage
+ * the body fits, as long as 2 · minR + minWallDepth > 1.5 · √2 · FLOOD_CELL_M (= 0.53 m). Today
+ * 2 · 0.35 (Walker) + 0.5 (barricade) = 1.2 m. Keep it true if smaller bodies or thinner walls are added.
+ */
+function buildFlood(world: Readonly<World>, x: number, y: number, r: number): void {
+  const { widthM, heightM } = world.map;
+  floodX0 = x - FLOOD_HALF_M;
+  floodY0 = y - FLOOD_HALF_M;
+  for (let j = 0; j < FLOOD_N; j++) {
+    for (let i = 0; i < FLOOD_N; i++) {
+      const px = floodX0 + (i + 0.5) * FLOOD_CELL_M;
+      const py = floodY0 + (j + 0.5) * FLOOD_CELL_M;
+      const inMap = px >= r && px <= widthM - r && py >= r && py <= heightM - r;
+      flood[j * FLOOD_N + i] = inMap && escapeSpotClear(px, py, r) ? 1 : 0;
+    }
+  }
+  let qt = 0;
+  for (let j = 0; j < FLOOD_N; j++) {
+    for (let i = 0; i < FLOOD_N; i++) {
+      if (i !== 0 && j !== 0 && i !== FLOOD_N - 1 && j !== FLOOD_N - 1) continue;
+      const c = j * FLOOD_N + i;
+      if (flood[c] !== 1) continue;
+      flood[c] = 2;
+      floodQueue[qt++] = c;
+    }
+  }
+  let qh = 0;
+  while (qh < qt) {
+    const c = floodQueue[qh++] as number;
+    const i = c % FLOOD_N;
+    const j = (c - i) / FLOOD_N;
+    for (let k = 0; k < 4; k++) {
+      const ni = i + (k === 0 ? 1 : k === 1 ? -1 : 0);
+      const nj = j + (k === 2 ? 1 : k === 3 ? -1 : 0);
+      if (ni < 0 || nj < 0 || ni >= FLOOD_N || nj >= FLOOD_N) continue;
+      const n = nj * FLOOD_N + ni;
+      if (flood[n] !== 1) continue;
+      flood[n] = 2;
+      floodQueue[qt++] = n;
+    }
+  }
+}
+
+/** The spot (px, py) lies in the open part of the free area (any of the 3 × 3 cells round it; outside the area counts as open). */
+function floodOpen(px: number, py: number): boolean {
+  const ci = Math.floor((px - floodX0) / FLOOD_CELL_M);
+  const cj = Math.floor((py - floodY0) / FLOOD_CELL_M);
+  if (ci < 1 || cj < 1 || ci > FLOOD_N - 2 || cj > FLOOD_N - 2) return true;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (flood[(cj + dj) * FLOOD_N + ci + di] === 2) return true;
+  return false;
+}
+
+/** The nearest clear spot round (x, y) inside the map (fine rings, then coarse ones), into `pushed`; false if none within `ESCAPE_REACH_M`. */
+function escape(world: Readonly<World>, x: number, y: number, r: number, withBuildings: boolean): boolean {
+  if (deadEndKnown(world, x, y, r, withBuildings)) return false;
+  // Only boxes in the flood window grown by the body (a square containing the reach circle) can touch a
+  // candidate, the path to it or a flood cell.
+  const reach = FLOOD_HALF_M + r;
+  nearCount = 0;
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) addNear(x, y, reach, solids[i] as MapBox);
+  if (withBuildings) {
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) addNear(x, y, reach, list[i] as Building);
+  }
+  buildFlood(world, x, y, r);
+  const clearance = Math.min(r, nearestBoxDistance(x, y)); // r minus its overlap at `from` (0 for a centre in a box)
+  // Review M2-new (round 2): the pass order follows the start's side. Started in an enclosed pocket (a
+  // player wedged in their own sealed fort), it stays in it if it can (clearance, enclosed allowed) before
+  // any squeeze out to open ground; started on the open side, a squeeze to open ground comes first.
+  const order = startEnclosed(x, y, r, clearance) ? PASSES_ENCLOSED : PASSES_OPEN;
+  for (let k = 0; k < order.length; k++) {
+    const pass = order[k] as number;
+    const openOnly = pass === 0 || pass === 1;
+    const need = pass === 1 || pass === 3 ? 0 : clearance;
+    for (let k = 1; k <= ESCAPE_FINE_RINGS; k++) if (escapeRing(world, x, y, r, need, openOnly, k * ESCAPE_FINE_STEP_M, ESCAPE_FINE_STEP_M)) return true;
+    for (let k = 1; k <= ESCAPE_COARSE_RINGS; k++) if (escapeRing(world, x, y, r, need, openOnly, ESCAPE_FINE_M + k * ESCAPE_COARSE_STEP_M, ESCAPE_COARSE_STEP_M)) return true;
+  }
+  rememberDeadEnd(x, y, r, withBuildings);
+  return false;
+}
+
+/**
+ * The passes: 0 = clearance, open only; 1 = no clearance, open only; 2 = clearance, anywhere;
+ * 3 = no clearance, anywhere (the last resort: never frozen while any centre-clear way out exists).
+ * An open start squeezes to open ground before it settles for a pocket. An enclosed start (review M2-new)
+ * takes the nearest spot either side with clearance (final review M-B: no open-first pass, which sent a
+ * player 0.80 m out through their own fort's hole while the spot inside was 0.37 m away), then squeezing.
+ */
+const PASSES_OPEN = [0, 1, 2, 3] as const;
+const PASSES_ENCLOSED = [2, 3] as const;
+
+/**
+ * The slot a wedged start sits in, if any: the pair of near boxes it overlaps that face each other across
+ * its centre (the centre lies between them on one axis, and both boxes span the body on the other). The
+ * slot leads along the other axis. Returns the axis (0 = along x, 1 = along y) or -1 for none; the
+ * narrowest such pair wins.
+ */
+function slotAxis(x: number, y: number, r: number): number {
+  let best = Infinity;
+  let axis = -1;
+  for (let a = 0; a < nearCount; a++) {
+    const aMinX = nearMinX[a] as number;
+    const aMinY = nearMinY[a] as number;
+    const aMaxX = nearMaxX[a] as number;
+    const aMaxY = nearMaxY[a] as number;
+    if (!circleOverlapsBox(x, y, r, aMinX, aMinY, aMaxX, aMaxY)) continue;
+    for (let b = 0; b < nearCount; b++) {
+      if (b === a) continue;
+      const bMinX = nearMinX[b] as number;
+      const bMinY = nearMinY[b] as number;
+      const bMaxX = nearMaxX[b] as number;
+      const bMaxY = nearMaxY[b] as number;
+      if (!circleOverlapsBox(x, y, r, bMinX, bMinY, bMaxX, bMaxY)) continue;
+      // Facing across x (a west of the centre, b east): the slot leads along y.
+      if (aMaxX <= x && x <= bMinX && aMaxY > y - r && aMinY < y + r && bMaxY > y - r && bMinY < y + r && bMinX - aMaxX < best) {
+        best = bMinX - aMaxX;
+        axis = 1;
+      }
+      // Facing across y (a north of the centre, b south): the slot leads along x.
+      if (aMaxY <= y && y <= bMinY && aMaxX > x - r && aMinX < x + r && bMaxX > x - r && bMinX < x + r && bMinY - aMaxY < best) {
+        best = bMinY - aMaxY;
+        axis = 0;
+      }
+    }
+  }
+  return axis;
+}
+
+/**
+ * Where a slot leads: walking from the start along `axis` in direction `dir`, the first step where a free
+ * flood cell lies across the slot (within r of the line). Returns that cell's value (1 enclosed, 2 open)
+ * and writes the distance to `slotEnd.d`; 0 when the line meets a box the start isn't in, or the window
+ * ends, first.
+ */
+const slotEnd = { d: 0 };
+function walkSlot(x: number, y: number, r: number, axis: number, dir: number): number {
+  const stepM = FLOOD_CELL_M / 2;
+  const across = Math.ceil(r / FLOOD_CELL_M);
+  for (let k = 1; k * stepM <= FLOOD_HALF_M; k++) {
+    const t = k * stepM * dir;
+    const px = axis === 0 ? x + t : x;
+    const py = axis === 1 ? y + t : y;
+    for (let q = 0; q < nearCount; q++) {
+      if (nearHolds[q] === 1) continue;
+      if (px > (nearMinX[q] as number) && px < (nearMaxX[q] as number) && py > (nearMinY[q] as number) && py < (nearMaxY[q] as number)) return 0;
+    }
+    const ci = Math.floor((px - floodX0) / FLOOD_CELL_M);
+    const cj = Math.floor((py - floodY0) / FLOOD_CELL_M);
+    for (let o = -across; o <= across; o++) {
+      const i = axis === 0 ? ci : ci + o;
+      const j = axis === 1 ? cj : cj + o;
+      if (i < 0 || j < 0 || i >= FLOOD_N || j >= FLOOD_N) continue;
+      const cx = floodX0 + (i + 0.5) * FLOOD_CELL_M;
+      const cy = floodY0 + (j + 0.5) * FLOOD_CELL_M;
+      if (Math.abs(axis === 0 ? cy - y : cx - x) > r) continue;
+      const v = flood[j * FLOOD_N + i] as number;
+      if (v !== 0) {
+        slotEnd.d = k * stepM;
+        return v;
+      }
+    }
+  }
+  return 0;
+}
+
+/**
+ * The start's side. In a slot, where the slot leads (above). Otherwise the nearest free flood cell it can
+ * REACH (its centre-line path is clear and keeps the body's clearance, `escapeClearPath`) is free but not open. Final review M-A: the plain nearest cell
+ * could lie across a wall or a murder hole the body can't pass, so a player wedged in their own fort
+ * counted as outside. Chebyshev rings round its cell, scanned in a fixed order. Without a reachable free
+ * cell, the plain nearest free cell decides; without any, the start counts as open.
+ */
+function startEnclosed(x: number, y: number, r: number, clearance: number): boolean {
+  // Wedged in a slot (final review M-A / M-B): the side is where the slot leads, its nearer end. A body in
+  // the 0.3 m gap outside a fort's hole is in a slot running along the wall (to open ground); a player in
+  // the hole itself, or between their fort's wall and a crate, is in one leading into the fort.
+  const inBox = clearance <= 0;
+  const axis = inBox ? -1 : slotAxis(x, y, r); // a centre in a box is in that box, not in a slot beside it
+  if (axis >= 0) {
+    const a = walkSlot(x, y, r, axis, 1);
+    const da = slotEnd.d;
+    const b = walkSlot(x, y, r, axis, -1);
+    const db = slotEnd.d;
+    const v = a !== 0 && (b === 0 || da <= db) ? a : b;
+    if (v !== 0) return v === 1;
+  }
+  // A centre inside a box (a car the dev cheats dropped it in) has no clearance of its own: its side is
+  // where it can get out to with its whole body, past the box it is in (leaving a car through a 0.5 m
+  // murder hole is no way out, so a car against a fort wall is not inside the fort).
+  // Its side is about which pocket it can get to, not the exact spot: a flood cell's centre lies up to half a
+  // cell off where the body would stand, so the clearance on the way to it gets that much slack.
+  const sideClearance = inBox ? r : Math.max(0, clearance - FLOOD_CELL_M / 2);
+  const ci = Math.min(FLOOD_N - 1, Math.max(0, Math.floor((x - floodX0) / FLOOD_CELL_M)));
+  const cj = Math.min(FLOOD_N - 1, Math.max(0, Math.floor((y - floodY0) / FLOOD_CELL_M)));
+  let fallback = 0; // the plain nearest free cell's value (0: none seen yet)
+  for (let ring = 0; ring < FLOOD_N; ring++) {
+    for (let dj = -ring; dj <= ring; dj++) {
+      for (let di = -ring; di <= ring; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== ring) continue;
+        const i = ci + di;
+        const j = cj + dj;
+        if (i < 0 || j < 0 || i >= FLOOD_N || j >= FLOOD_N) continue;
+        const v = flood[j * FLOOD_N + i] as number;
+        if (v === 0) continue;
+        if (fallback === 0) fallback = v;
+        if (!escapeClearPath(x, y, floodX0 + (i + 0.5) * FLOOD_CELL_M, floodY0 + (j + 0.5) * FLOOD_CELL_M, sideClearance, inBox)) continue;
+        return v === 1;
+      }
+    }
+  }
+  return fallback === 1;
+}
+
+/** The first clear spot, walking the ring of radius `d` round (x, y) from +x anticlockwise, into `pushed`. */
+function escapeRing(world: Readonly<World>, x: number, y: number, r: number, clearance: number, openOnly: boolean, d: number, step: number): boolean {
+  const { widthM, heightM } = world.map;
+  let set = 0;
+  while (set < ESCAPE_DIR_COUNTS.length - 1 && (TWO_PI * d) / (ESCAPE_DIR_COUNTS[set] as number) > step) set++;
+  const n = ESCAPE_DIR_COUNTS[set] as number;
+  const rc = ESCAPE_ROT_COS[set] as number;
+  const rs = ESCAPE_ROT_SIN[set] as number;
+  let ux = 1;
+  let uy = 0;
+  for (let i = 0; i < n; i++) {
+    const px = x + ux * d;
+    const py = y + uy * d;
+    const nx = ux * rc - uy * rs;
+    uy = ux * rs + uy * rc;
+    ux = nx;
+    if (px < r || px > widthM - r || py < r || py > heightM - r) continue;
+    if (!escapeSpotClear(px, py, r) || !escapeClearPath(x, y, px, py, clearance)) continue;
+    if (openOnly && !floodOpen(px, py)) continue;
+    pushed.x = px;
+    pushed.y = py;
+    return true;
+  }
+  return false;
+}
+
+/** No box within reach overlaps the circle (px, py, r). */
+function escapeSpotClear(px: number, py: number, r: number): boolean {
+  for (let k = 0; k < nearCount; k++) if (circleOverlapsBox(px, py, r, nearMinX[k] as number, nearMinY[k] as number, nearMaxX[k] as number, nearMaxY[k] as number)) return false;
+  return true;
+}
+
+/**
+ * The way out from (x, y) to (px, py): its centre crosses no box except those `from`'s centre is already
+ * in (boxes grown by `SEAM_EPS_M`, so a shared face is a wall), and every point keeps `clearance` from
+ * every box (review M1).
+ */
+function escapeClearPath(x: number, y: number, px: number, py: number, clearance: number, skipHolds = false): boolean {
+  const dx = px - x;
+  const dy = py - y;
+  for (let k = 0; k < nearCount; k++) {
+    if (nearHolds[k] === 1) continue;
+    const e = SEAM_EPS_M;
+    if (segmentHitsBox(x, y, dx, dy, (nearMinX[k] as number) - e, (nearMinY[k] as number) - e, (nearMaxX[k] as number) + e, (nearMaxY[k] as number) + e)) return false;
+  }
+  if (clearance <= 0) return true;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const steps = Math.ceil(len / PATH_STEP_M);
+  const need = clearance - CLEARANCE_SLACK_M;
+  for (let s = 1; s < steps; s++) {
+    const t = s / steps;
+    const sx = x + dx * t;
+    const sy = y + dy * t;
+    if (skipHolds && insideHeldBox(sx, sy)) continue; // still in the box it started in: only the way on from there counts
+    if (nearestBoxDistance(sx, sy, skipHolds) < need) return false;
+  }
+  return true;
 }
 
 const NO_BUILDINGS: readonly Building[] = [];

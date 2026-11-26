@@ -197,6 +197,15 @@ Deploy a branch or sha instead: `deploy/deploy.sh origin/some-branch` or `deploy
 
 Run that command right away: after a failed `up`, the site is usually down (Caddy waits for a healthy server). On the very first deploy there is no known-good version yet; then the message points to the static-site revert below.
 
+## Saved runs (Stories 8.4–8.6)
+
+- **Migration `0005_saved_runs`** (tables `saved_runs`, `saved_run_players`) runs in `deploy.sh`'s migration step like every other one; nothing to do by hand.
+- **Saves survive deploys.** A stop or redeploy saves every run in a build phase or vote (`run_resumable {why: "shutdown"}`); a run mid-wave resumes from its last autosave (the previous build's last tick: the wave replays). Players see "Server restarting, your run is saved". The room waits at most 5 s for the write (compose `stop_grace_period: 20s`).
+- **A crash** (OOM, power cut, `kill -9`) leaves its runs `'open'`; the next start makes them resumable (`saved_runs_released {count}`) and tops up their seats' Supplies (`save_banked`).
+- **Rollback:** an older server image ignores `saved_runs` (no code reads it); a later forward deploy finds the rows as they were. The migration is additive (two new tables), so a rollback needs no down-migration.
+- Log lines: `run_saved {runId, bytes, ms, kind}`, `run_save_failed`, `run_resumable {runId, why}`, `run_resumed {runId, wave, seatsBack, newcomers}`, `run_save_deleted {why: lost|ended|pruned}`, `saved_runs_released`.
+- Saves expire after 7 days; each account keeps its newest 3 (older links are pruned at the next save).
+
 ## Database: first start, migrations, backups, restore test (Story 7.1)
 
 Progress (guest accounts, later Supplies and unlocks) lives in **PostgreSQL 18** (`postgres` service, image `postgres:18.6-alpine3.24`), on the named volume **`topdown_pgdata`**. It is never published to the host; only the server and `docker compose exec` reach it.

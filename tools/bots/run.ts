@@ -27,6 +27,8 @@
  *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
+ *   --ping-every <S>      Story 8.7: each bot pings every S seconds (a random kind from its own seeded stream);
+ *                         under 1 s the server's 1/s bucket drops the extra ones (`pingDropped` in net_stats)
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
  *   --cut-at <S>          … cut S seconds after the run started (default 30) …
  *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
@@ -36,13 +38,19 @@
  *   --late-at <W>         … bot N in the build phase before wave W (default 2) …
  *   --late-mid <W>        … and bot N+1 (if any) mid-wave W (it waits, then enters at the next build phase).
  *                         Logs `bot_waiting` / `bot_entered` and a `bots_late` line.
+ *   --account             Stories 8.4–8.6: every bot plays as an account (`/account/session`, like a phone); saves need one.
+ *   --tokens <file>       … their device tokens are read from / written to this JSON file (default .bots-tokens.json
+ *                         with --save-quit-at / --resume), so a later run resumes as the same accounts.
+ *   --save-quit-at <W>    Story 8.5: after wave W ended, the host bot taps Save and quit in that build phase; the run
+ *                         id is logged (`bots_saved {runId}`) and the bots stop (closed with 4023).
+ *   --resume <runId>      Story 8.6: the host bot resumes this saved run (a new room), the others join it; play goes on.
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
  * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
  * money earned (to compare with the GDD target), wallet, weapons bought and buildings placed. The bots
  * shop from `bots.json › shoppingList` in every build phase.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
 import { startCutLine, type CutLine } from "../netaudit/cutLine";
@@ -58,6 +66,8 @@ interface Args {
   untilWave: number;
   maxSeconds: number;
   holdFireS: number;
+  /** Story 8.7: `--ping-every <S>` (0 = off). */
+  pingEveryS: number;
   /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
   line: LineArgs | null;
   /** Story 8.1: the cut switch (bot index 1-based, start and length in seconds); 0 = off. */
@@ -68,10 +78,17 @@ interface Args {
   lateBot: number;
   lateAt: number;
   lateMid: number;
+  /** Stories 8.4–8.6: account bots, their tokens file, the Save and quit wave (0 = off), the run to resume. */
+  account: boolean;
+  tokens: string | null;
+  saveQuitAt: number;
+  resume: string | null;
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "late-bot", "late-at", "late-mid"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every", "late-bot", "late-at", "late-mid", "tokens", "save-quit-at", "resume"] as const;
+/** Flags without a value (Stories 8.4–8.6). */
+const SWITCHES = ["account"] as const;
 
 /** The usage text: this file's header comment. */
 function usage(): string {
@@ -87,6 +104,10 @@ function usage(): string {
 function parseArgs(argv: readonly string[]): Args {
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i] as string;
+    if ((SWITCHES as readonly string[]).includes(flag.slice(2)) && flag.startsWith("--")) {
+      i--; // a switch takes no value
+      continue;
+    }
     if (!flag.startsWith("--") || !(FLAGS as readonly string[]).includes(flag.slice(2))) throw new Error(`unknown option ${flag} (see --help)`);
     if (argv[i + 1] === undefined || (argv[i + 1] as string).startsWith("--")) throw new Error(`${flag} needs a value`);
   }
@@ -112,12 +133,24 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
+    pingEveryS: pingEveryOf(get("ping-every")),
     line: parseLine(get, url),
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
     cutForS: Number(get("cut-for") ?? 8),
     ...lateOf(get("late-bot"), get("late-at"), get("late-mid"), count, room !== undefined),
+    ...savesOf(get("save-quit-at"), get("resume"), get("tokens"), argv.includes("--account"), room !== undefined),
   };
+}
+
+/** Stories 8.4–8.6: `--save-quit-at` / `--resume` imply `--account` and a tokens file (the same accounts next time). */
+function savesOf(at: string | undefined, resume: string | undefined, tokens: string | undefined, account: boolean, joining: boolean): { account: boolean; tokens: string | null; saveQuitAt: number; resume: string | null } {
+  const saveQuitAt = at === undefined ? 0 : Number(at);
+  if (!Number.isInteger(saveQuitAt) || saveQuitAt < 0) throw new Error("--save-quit-at must be a wave number");
+  if (resume !== undefined && !/^[0-9a-f-]{36}$/i.test(resume)) throw new Error("--resume needs a run id (the bots_saved line's runId)");
+  if ((saveQuitAt > 0 || resume !== undefined) && joining) throw new Error("--save-quit-at / --resume need a room the bots create (no --room)");
+  const saves = saveQuitAt > 0 || resume !== undefined;
+  return { account: account || saves, tokens: tokens ?? (saves ? ".bots-tokens.json" : null), saveQuitAt, resume: resume ?? null };
 }
 
 /** Story 8.8: starts the line in front of the local --url; returns the URL the bots use instead. */
@@ -125,9 +158,64 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   if (!args.line) return { url: args.url, line: null };
   const u = new URL(args.url);
   const target = Number(u.port || (u.protocol === "https:" ? 443 : 80));
-  const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
+  const line = await startLagLine({
+    listen: 0,
+    targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""),
+    target,
+    ...args.line,
+    onConnection: () => ({
+      // Story 8.11 (T1): writes (TCP chunks) and bytes per direction, for `bots_line_wave`
+      onDown: (b) => {
+        lineWrites.down++;
+        lineWrites.downBytes += b.length;
+      },
+      onUp: (b) => {
+        lineWrites.up++;
+        lineWrites.upBytes += b.length;
+      },
+    }),
+  });
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
   return { url: lineUrl(args.url, line.port), line };
+}
+
+/** Story 8.11 (T1): every connection's chunks (one per server/client write on a local line) and bytes, both directions. */
+const lineWrites = { down: 0, up: 0, downBytes: 0, upBytes: 0 };
+
+/**
+ * Story 8.11 (T1): per wave (the host bot's phase "wave"), the line's writes and wire bytes per phone per second
+ * (`bots_line_wave`). Writes are the chunks the line read from each socket (TCP_NODELAY on both ends: one per write).
+ */
+function lineWaveWatch(bots: readonly BotClient[], log: (line: Record<string, unknown>) => void): () => void {
+  let mark: { wave: number; at: number; w: typeof lineWrites } | null = null;
+  return () => {
+    const s = bots[0]?.room.state;
+    const inWave = s?.phase === "wave";
+    if (inWave && !mark) mark = { wave: s?.wave ?? 0, at: performance.now(), w: { ...lineWrites } };
+    else if (!inWave && mark) {
+      const sec = (performance.now() - mark.at) / 1000;
+      const n = Math.max(1, bots.length);
+      const r2 = (x: number): number => Math.round(x * 100) / 100;
+      log({
+        msg: "bots_line_wave",
+        wave: mark.wave,
+        seconds: r2(sec),
+        downWritesPerPhonePerS: r2((lineWrites.down - mark.w.down) / n / sec),
+        upWritesPerPhonePerS: r2((lineWrites.up - mark.w.up) / n / sec),
+        downWireKBpsPerPhone: r2((lineWrites.downBytes - mark.w.downBytes) / 1024 / n / sec),
+        upWireKBpsPerPhone: r2((lineWrites.upBytes - mark.w.upBytes) / 1024 / n / sec),
+      });
+      mark = null;
+    }
+  };
+}
+
+/** Story 8.7 (review nit): `--ping-every` is a finite number of seconds ≥ 0 (0 = off). */
+function pingEveryOf(raw: string | undefined): number {
+  if (raw === undefined) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new Error("--ping-every must be a number of seconds ≥ 0");
+  return n;
 }
 
 /** Story 8.2: `--late-bot` must name a bot after the host (we create the room); `--late-at` / `--late-mid` are waves ≥ 1. */
@@ -164,7 +252,10 @@ async function main(): Promise<void> {
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
   const { url, line } = await startLine(args, log);
-  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, pingEveryS: args.pingEveryS, account: args.account };
+  // Stories 8.4–8.6: the bots' device tokens (the same accounts across a Save and quit and its resume).
+  const tokens: string[] = args.tokens ? readTokens(args.tokens) : [];
+  const tokenOf = (i: number): { deviceToken?: string } => (tokens[i] ? { deviceToken: tokens[i] as string } : {});
   // Story 8.1: the cut bot's line: a local TCP pass-through in front of the bots' URL (chained BEFORE 8.8's lag line when it is on).
   let cutLine: CutLine | null = null;
   const urlFor = async (bot: number): Promise<string> => {
@@ -177,16 +268,18 @@ async function main(): Promise<void> {
   };
   let roomId = args.room;
   if (!roomId) {
-    const host = await BotClient.connect({ ...base, url: await urlFor(1), name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}) });
+    const host = await BotClient.connect({ ...base, url: await urlFor(1), name: "Bot 1", ...(args.scenario ? { scenario: args.scenario } : {}), ...tokenOf(0), ...(args.resume ? { resume: args.resume } : {}) });
     bots.push(host);
     roomId = host.roomId;
     log({ msg: "room_created", roomId, scenario: args.scenario ?? null });
   }
   const lobbyCount = args.lateBot > 0 ? args.lateBot - 1 : args.count; // Story 8.2: the late bots join after the start
   for (let i = bots.length; i < lobbyCount; i++) {
-    bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId }));
+    bots.push(await BotClient.connect({ ...base, url: await urlFor(i + 1), name: `Bot ${i + 1}`, roomId, ...tokenOf(i) }));
   }
-  log({ msg: "bots_joined", roomId, count: bots.length });
+  log({ msg: "bots_joined", roomId, count: bots.length, ...(args.resume ? { resumed: args.resume } : {}) });
+  if (args.tokens) writeFileSync(args.tokens, JSON.stringify(bots.map((b) => b.deviceToken)) + "\n");
+  for (const b of bots) b.holdReadyAfterWave = args.saveQuitAt; // Story 8.5: the save build runs its timer
 
   const startedAt = performance.now();
   const timeUp = (): boolean => performance.now() - startedAt > args.maxSeconds * 1000;
@@ -243,9 +336,22 @@ async function main(): Promise<void> {
     process.exit(0);
   };
   process.on("SIGINT", () => void stop("interrupted"));
+  let saveSent = false;
+  const watchLine = line ? lineWaveWatch(bots, log) : () => {};
   for (;;) {
     await sleep(250);
+    watchLine();
     const phase = bots[0]?.room.state?.phase;
+    // Story 8.5: Save and quit in the build phase after wave --save-quit-at; the bots stop once the server closed them (4023).
+    if (args.saveQuitAt > 0 && !saveSent && phase === "build" && bots.every((b) => b.lastEndedWave >= args.saveQuitAt)) {
+      saveSent = true;
+      bots[0]?.saveQuit();
+      log({ msg: "save_quit_sent", wave: args.saveQuitAt });
+    }
+    if (saveSent && bots.every((b) => b.saved)) {
+      log({ msg: "bots_saved", runId: bots[0]?.runId, wave: args.saveQuitAt, tokens: args.tokens });
+      return stop("saved");
+    }
     if (bots.every((b) => b.lastEndedWave >= args.untilWave)) return stop(`wave ${args.untilWave} ended`);
     if (phase === "results") return stop(`run ended (${bots[0]?.room.state?.resultEnding || "wiped"})`); // Story 6.11
     const closed = bots.find((b) => b.closed)?.closed;
@@ -343,3 +449,13 @@ main().catch((e: unknown) => {
   console.error(`bots: ${errorText(e)}`);
   process.exit(1);
 });
+
+/** Stories 8.4–8.6: the tokens file (a JSON array of device tokens, bot 1 first); missing or unreadable → none. */
+function readTokens(file: string): string[] {
+  try {
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}

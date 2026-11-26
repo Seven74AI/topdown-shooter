@@ -61,7 +61,7 @@ export const movePlayers: SystemFn = (world, dtS) => {
     if (!knocked && hasObstacles(world)) {
       // Story 3.4 (+ 4.1's map solids): obstacles and the map edge together (slide along faces; a slot narrower than the
       // body is impassable: the survivor stays where it was, review H1).
-      pushOutOfBuildings(world, nx, ny, r, p.x, p.y);
+      pushOutOfBuildings(world, nx, ny, r, p.x, p.y, true, true); // fix bloater-car-corner: escape an illegal start
       p.x = pushed.x;
       p.y = pushed.y;
     } else if (!knocked) {
@@ -96,7 +96,7 @@ function bossPush(world: World, p: PlayerState): void {
   if (!pushPlayerOutOfBoss(world, p)) return;
   const r = p.radiusM;
   if (hasObstacles(world)) {
-    pushOutOfBuildings(world, p.x, p.y, r, p.prevX, p.prevY);
+    pushOutOfBuildings(world, p.x, p.y, r, p.prevX, p.prevY, true, true);
     p.x = pushed.x;
     p.y = pushed.y;
   } else {

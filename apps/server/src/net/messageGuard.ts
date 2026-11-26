@@ -1,4 +1,4 @@
-import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S } from "./limits";
+import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S, PING_PER_S } from "./limits";
 import { TokenBucket } from "./tokenBucket";
 
 /**
@@ -10,12 +10,23 @@ import { TokenBucket } from "./tokenBucket";
 export type DropReason = "invalid" | "unknown_type" | "rate" | "too_large";
 const DROP_REASONS: readonly DropReason[] = ["invalid", "unknown_type", "rate", "too_large"];
 
-/** `input.send` has its own bucket, Story 5.24's `building.ghost` too; every other type shares one. */
-export type MessageBucket = "input" | "other" | "ghost";
+/** The input (`BYTES.INPUT`, Story 8.11) has its own bucket, Story 5.24's `building.ghost` and Story 8.7's `ping.send` too; every other type shares one. */
+export type MessageBucket = "input" | "other" | "ghost" | "ping";
 
 /** The part of a zod schema the guard uses (zod's `safeParse` result fits it). */
 export interface SafeParser<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
+}
+
+/**
+ * Story 8.11 (F2): a binary message's parser for `guard`: `decode` fills the preallocated `out` (no allocation per
+ * message) and says whether the bytes are valid. Anything that is not a byte array, or that `decode` refuses, is
+ * `invalid` (dropped and counted, like a schema refusal). The handler gets `out` itself: it must copy what it keeps.
+ */
+export function bytesParser<T>(decode: (bytes: Uint8Array, out: T) => boolean, out: T): SafeParser<T> {
+  const ok = { success: true as const, data: out };
+  const bad = { success: false as const };
+  return { safeParse: (value) => (value instanceof Uint8Array && decode(value, out) ? ok : bad) };
 }
 
 export interface GuardLogger {
@@ -31,6 +42,8 @@ class ClientGuard {
   readonly input: TokenBucket;
   readonly other: TokenBucket;
   readonly ghost: TokenBucket;
+  /** Story 8.7 (E8-P5): 1/s, burst 1. */
+  readonly ping: TokenBucket;
   readonly dropped: Record<DropReason, number> = { invalid: 0, unknown_type: 0, rate: 0, too_large: 0 };
   readonly lastLogMs: Record<DropReason, number> = {
     invalid: -Infinity,
@@ -46,6 +59,7 @@ class ClientGuard {
     this.input = new TokenBucket(MAX_INPUTS_PER_S, MAX_INPUTS_PER_S, nowMs);
     this.other = new TokenBucket(MAX_OTHER_MESSAGES_PER_S, MAX_OTHER_MESSAGES_PER_S, nowMs);
     this.ghost = new TokenBucket(MAX_GHOST_MESSAGES_PER_S, MAX_GHOST_MESSAGES_PER_S, nowMs);
+    this.ping = new TokenBucket(PING_PER_S, PING_PER_S, nowMs);
   }
 }
 
@@ -94,7 +108,7 @@ export class MessageGuard<C extends GuardClient> {
       const g = this.clients.get(client.sessionId);
       if (!g) return; // not joined (or already left): nothing to deliver to
       const now = this.now();
-      if (!(bucket === "input" ? g.input : bucket === "ghost" ? g.ghost : g.other).take(now)) {
+      if (!g[bucket].take(now)) {
         onRateDrop?.(client, message);
         return this.count(g, "rate", now);
       }
