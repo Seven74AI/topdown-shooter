@@ -12,6 +12,7 @@ Standing rules for every agent working in this repo: the main session, builders 
 - Don't infer designer picks: "OK with the layout ordering" was NOT a pick of the recommended variants (session 9 mistake). Ask for codes. Ask where a decision is theirs.
 - Red IS allowed in menu screens; in-play signals keep red = boss danger.
 - Art is game code (drawn in code). Designer picks every new look from code-drawn proposals before the build. Meshy (api.meshy.ai) is connected but credits are low: references only, if at all.
+- Every model is designed as ONE coherent model, each element thought of with the others (designer 2026-11-26, "Do not just superpose things … the goal is to have a coherent model at the end"). Follow the `dead-city-model` skill (`.claude/skills/dead-city-model/SKILL.md`) for any model or art group, and add new model rules there.
 
 ## 2. Getting changes onto master
 
