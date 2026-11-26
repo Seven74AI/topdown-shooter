@@ -47,6 +47,22 @@ figure:not(.now) figcaption { color: var(--accent); }
 #loading { color: var(--muted); font-size: 14px; }
 .finds { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.5; font-size: 14px; display: flex; flex-direction: column; gap: 6px; max-width: 90ch; }
 .finds b { color: var(--fg); font-weight: 600; }
+.nw { color: #7fd38a; font-weight: 600; }
+.plan { display: flex; flex-direction: column; gap: 8px; }
+.plan .goal { color: var(--fg); }
+.plan .timing { font-size: 13px; }
+.dope { overflow-x: auto; display: flex; flex-direction: column; gap: 3px; }
+.dope .lane, .dope .ruler { display: grid; grid-template-columns: 170px minmax(560px, 1fr); align-items: center; gap: 8px; }
+.dope .lane > span { font: 600 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dope .track { position: relative; height: 26px; background: #12161a; border-radius: 4px; }
+.dope .ruler .track { height: 16px; background: none; border-bottom: 1px solid var(--line); }
+.dope .ruler i { position: absolute; top: 0; font: normal 10px var(--font-body); color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+.dope .bar { position: absolute; top: 2px; bottom: 2px; background: #2b3540; border: 1px solid #3c4955; border-radius: 3px; font: 500 11px/20px var(--font-body); color: var(--fg); padding: 0 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-left: 1px; }
+.dope .bar.nw { background: #1f3a26; border-color: #3f7a4c; }
+.dope .bar.key { background: #5a3a12; border-color: var(--accent); }
+.dope .bar.key.nw { background: #4a4a14; }
+.moments { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.moments figure canvas { width: 100%; height: auto; }
 .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
 .controls button { font: 500 13px var(--font-body); background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
 .controls button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #241703; }

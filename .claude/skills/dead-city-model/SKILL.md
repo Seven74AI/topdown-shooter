@@ -96,11 +96,44 @@ The relight turns colour regions into volumes and colour edges into creases. So:
 - Things a later layer must not paint on: draw source-atop inside a clip of the part's own shape (torso
   lumps, limb ellipses), before the clothes.
 
-## 5. Animation
+## 5. Animation: goal first, then each part, then one timeline (designer 2026-11-26)
+
+> "The goal should be determined before we animate each part. So we can then decide what each part has to do and
+> how we coordinate them all together." · "They should work taken apart, but we should also check that they
+> compose correctly with the other elements."
+
+Plan every action BEFORE animating anything, as a proposal on the page (the Behemoth's: section "Action plan",
+code in `docs/art/photoreal-4/src/boss4.ts › PLAN`, `actionPlan`), and get the designer's go:
+
+1. **List the model's actions from the game** (states and frames, see section 6 step 1), with their **real
+   durations** from the balance JSON (the Behemoth: slam warning 1.2 s + recover 0.8 s, charge warning 1.0 s,
+   rush ≤ 1 s, stun 2 s, throw lift 1.0 s + flight 0.8 s, roar 1.5 s, collapse 1.5 s, a step every 0.65 m).
+2. **Write each action's goal**: what the player must read or feel, in one sentence ("Get out of the ring NOW:
+   power builds through the warning, then everything is released at once on the hit").
+3. **Give every part a job that serves that goal**: pose/frames, torso (breath, swell), eyes, glow, clothes,
+   dust/debris, and the game's own warning FX. A part with nothing to do is told to stay still.
+4. **Put all parts on one timeline** (a dope sheet: one lane per part, bars in seconds, accents on key moments,
+   new things marked). Coordination rules that held for the Behemoth (reuse them):
+   - **Tells first**: during a warning the pose carries the read; eyes and glow only build toward the hit,
+     never pulse against the countdown.
+   - **One clock**: steps, breath and heartbeat share one rhythm (the breath rides the steps; the enraged beat
+     lands on every 3rd footfall).
+   - **Release together**: at a release (hit, crash, throw, roar) everything peaks in the same ~0.15 s (glow,
+     eyes, dust, game FX), then settles.
+   - **Weak = dim**: helpless states turn glow and eyes down; death puts them out first.
+   - **Secondary follows**: dust, falling grit and settling come after their cause.
+5. **Show the composed key moments**: at each key time, the model with every element as planned at that moment
+   (frame + glow level + eye level), so the composition is checked, not only the parts. Note what the
+   composition shows (a pose that hides another part's job, two moments that end on the same picture).
+6. Only then animate, and check each part **alone** (section 6) **and composed** (the moments, played in time).
+
+Base rules for motion:
 
 - Subtle and continuous: breathing 1–3 % scale, weight shift, glow pulses with bloom, pulses travelling along
-  lines, a sheen drifting over glossy parts. Limb motion via crossfaded frame loops.
-- One rhythm per model (the Behemoth: one beat every 1.2 s, enraged only; the eyes on the same beat).
+  lines, a sheen drifting over glossy parts. Limb motion via crossfaded frame loops (or swapped frames where the
+  game swaps).
+- One rhythm per model (the Behemoth: one beat every 1.2 s, enraged only, locked to the steps; the eyes on the
+  same beat).
 - In-game caps apply (`maxCharacterAnim` 12, sheen 6, Bloater FX 6, drips 8; `?fx=low` halves them);
   additive layers are never tinted by the hit flash; deterministic (no `Math.random`).
 
@@ -159,6 +192,7 @@ Lessons:
 - [ ] One light; one glow system and rhythm; colours keep their meanings.
 - [ ] Frame, poses, outline frames, warnings unchanged.
 - [ ] All looks × calm/active × every pose checked at 2×, frozen and animated; no console errors.
+- [ ] Action plan approved before animating (section 5): goals, each part's job, one timeline, composed moments.
 - [ ] Actions and animation decomposed (section 6): game frames and when they show, consecutive-frame diffs,
       element inspector, rhythm steps; findings written on the page.
 - [ ] Reads at game scale (look at it small).

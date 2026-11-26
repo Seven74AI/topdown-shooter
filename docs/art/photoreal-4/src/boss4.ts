@@ -318,6 +318,7 @@ async function main(): Promise<void> {
     }
   }
   await decomposed();
+  await actionPlan();
   (window as unknown as { done: boolean }).done = true;
 }
 
@@ -524,6 +525,331 @@ async function decomposed(): Promise<void> {
       tr.append(cell(c, `${(t).toFixed(2)} s · eyes ${Math.round(eye * 100)} %`));
     }
     tb.append(tr);
+  }
+}
+
+/* ---------------- Action plan: goals first, then each part's job, then one timeline (take C) ----------------
+ * Designer 2026-11-26: "they should work taken apart but we should also check that they compose correctly with the
+ * other elements. The goal should be determined before we animate each part, so we can then decide what each part
+ * has to do and how we coordinate them all together." A PROPOSAL (nothing animated yet): per action its goal, its
+ * real duration (balance `boss.json`), a dope sheet (one lane per part) and the composed key moments (every
+ * element together, as planned at that moment).
+ */
+type LaneId = "pose" | "torso" | "eyes" | "glow" | "clothes" | "dust" | "fx";
+const LANES: readonly [LaneId, string][] = [
+  ["pose", "Pose (frame)"],
+  ["torso", "Torso: breath, swell"],
+  ["eyes", "Eyes"],
+  ["glow", "Veins + splits (enraged)"],
+  ["clothes", "Clothes"],
+  ["dust", "Dust, debris"],
+  ["fx", "Game warning / FX"],
+];
+/** A bar on a lane: from t0 to t1 (s), its label; `key` = a short accent (a moment), `nw` = new in this plan. */
+interface Bar {
+  t0: number;
+  t1: number;
+  label: string;
+  key?: boolean;
+  nw?: boolean;
+}
+/** A composed key moment: the frame, enraged or not, the planned glow and eye levels (0–1). */
+interface Moment {
+  t: number;
+  frame: string;
+  enr: boolean;
+  glow: number;
+  eyes: number;
+  note: string;
+}
+interface ActionPlan {
+  id: string;
+  name: string;
+  goal: string;
+  lengthS: number;
+  timing: string;
+  lanes: Partial<Record<LaneId, Bar[]>>;
+  moments: Moment[];
+}
+const PLAN: readonly ActionPlan[] = [
+  {
+    id: "walk",
+    name: "Walk (calm, then enraged)",
+    goal: "Weight: a huge, slow thing that can't be stopped. Every step lands.",
+    lengthS: 1.0,
+    timing: "A step every 0.65 m: 0.5 s at 1.3 m/s (0.38 s enraged, × 1.3 speed). Shown: two steps.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.5, label: "walk_a (phase 0.25: the swing)", nw: true },
+        { t0: 0.5, t1: 1, label: "walk_b (phase 0.75)", nw: true },
+      ],
+      torso: [
+        { t0: 0, t1: 0.08, label: "dip 1 %", key: true, nw: true },
+        { t0: 0.08, t1: 0.5, label: "rise: the breath rides the step", nw: true },
+        { t0: 0.5, t1: 0.58, label: "dip", key: true, nw: true },
+        { t0: 0.58, t1: 1, label: "rise", nw: true },
+      ],
+      eyes: [{ t0: 0, t1: 1, label: "calm: steady yellow · enraged: red, 75 % → 100 % on the beat" }],
+      glow: [
+        { t0: 0, t1: 0.12, label: "beat", key: true, nw: true },
+        { t0: 0.12, t1: 1, label: "enraged: a beat every 3 steps (≈ 1.15 s), ON a footfall · calm: none", nw: true },
+      ],
+      clothes: [{ t0: 0, t1: 1, label: "still (strain creases drawn)" }],
+      dust: [{ t0: 0, t1: 1, label: "none (keep the walk quiet)" }],
+      fx: [{ t0: 0, t1: 1, label: "none" }],
+    },
+    moments: [
+      { t: 0, frame: "walk_a", enr: false, glow: 0, eyes: 1, note: "calm, step A" },
+      { t: 0.5, frame: "walk_b", enr: false, glow: 0, eyes: 1, note: "calm, step B" },
+      { t: 0, frame: "walk_a", enr: true, glow: 1, eyes: 1, note: "enraged, the beat on the footfall" },
+      { t: 0.5, frame: "walk_b", enr: true, glow: 0.25, eyes: 0.75, note: "enraged, between beats" },
+    ],
+  },
+  {
+    id: "slam",
+    name: "Slam",
+    goal: "Get out of the ring NOW: power builds through the warning, then everything is released at once on the hit.",
+    lengthS: 2.0,
+    timing: "Warning 1.2 s, the hit, recover 0.8 s.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.4, label: "slam_a" },
+        { t0: 0.4, t1: 0.8, label: "slam_b" },
+        { t0: 0.8, t1: 1.2, label: "slam_c" },
+        { t0: 1.2, t1: 1.5, label: "slamhit", key: true },
+        { t0: 1.5, t1: 2, label: "walk" },
+      ],
+      torso: [
+        { t0: 0, t1: 1.2, label: "swells 1.00 → 1.07, breath held", nw: true },
+        { t0: 1.2, t1: 2, label: "exhale back to 1.00", nw: true },
+      ],
+      eyes: [
+        { t0: 0, t1: 1.2, label: "75 % → 100 %, with the disc's glow", nw: true },
+        { t0: 1.2, t1: 1.35, label: "flash", key: true, nw: true },
+        { t0: 1.35, t1: 2, label: "settle" },
+      ],
+      glow: [
+        { t0: 0, t1: 1.2, label: "heart races: beats at 0, 0.55, 0.9, 1.1 s", nw: true },
+        { t0: 1.2, t1: 1.35, label: "ALL lit", key: true, nw: true },
+        { t0: 1.35, t1: 2, label: "back to the 1.2 s beat" },
+      ],
+      clothes: [{ t0: 0, t1: 1.2, label: "strain creases deepen with the swell (per frame)", nw: true }],
+      dust: [
+        { t0: 1.2, t1: 1.6, label: "puff from the fists", key: true, nw: true },
+        { t0: 1.25, t1: 1.8, label: "grit falls off the shoulders", nw: true },
+      ],
+      fx: [
+        { t0: 0, t1: 1.2, label: "glowing countdown disc, ticks light up" },
+        { t0: 1.2, t1: 2, label: "ground damage", key: true },
+      ],
+    },
+    moments: [
+      { t: 0.2, frame: "slam_a", enr: true, glow: 0.4, eyes: 0.8, note: "the warning starts" },
+      { t: 0.9, frame: "slam_c", enr: true, glow: 0.8, eyes: 0.95, note: "arms up, heart racing" },
+      { t: 1.2, frame: "slamhit_a", enr: true, glow: 1, eyes: 1, note: "THE HIT: everything peaks" },
+      { t: 1.7, frame: "walk_a", enr: true, glow: 0.25, eyes: 0.8, note: "recovering" },
+    ],
+  },
+  {
+    id: "charge",
+    name: "Charge (and the crash stun)",
+    goal: "It will run down that lane: get out of it. If it crashes, it is helpless: hit it now.",
+    lengthS: 4.0,
+    timing: "Warning 1.0 s, the rush (12 m/s, up to 1 s), then recover 1.0 s, or a 2 s stun after a crash.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.5, label: "charge, crouching (k 0.5)", nw: true },
+        { t0: 0.5, t1: 1, label: "charge_a, head down (k 1)", nw: true },
+        { t0: 1, t1: 2, label: "rush" },
+        { t0: 2, t1: 4, label: "stun (after a crash)" },
+      ],
+      torso: [
+        { t0: 0, t1: 1, label: "breath held, leaning in" },
+        { t0: 1, t1: 2, label: "no breathing" },
+        { t0: 2, t1: 4, label: "slow, heavy breaths (dazed)", nw: true },
+      ],
+      eyes: [
+        { t0: 0, t1: 2, label: "100 %, locked on the lane", nw: true },
+        { t0: 2, t1: 4, label: "30 %: dazed", nw: true },
+      ],
+      glow: [
+        { t0: 0, t1: 1, label: "heart races", nw: true },
+        { t0: 1, t1: 2, label: "steady 60 %: adrenaline", nw: true },
+        { t0: 2, t1: 4, label: "OFF: helpless (the window)", nw: true },
+      ],
+      clothes: [{ t0: 0, t1: 4, label: "still" }],
+      dust: [
+        { t0: 1, t1: 2, label: "dust trail behind it", nw: true },
+        { t0: 2, t1: 2.4, label: "crash burst", key: true, nw: true },
+      ],
+      fx: [
+        { t0: 0, t1: 1, label: "lane strip" },
+        { t0: 2, t1: 4, label: "CRASH mark (amber: your chance)" },
+      ],
+    },
+    moments: [
+      { t: 0.3, frame: "charge_a", enr: true, glow: 0.6, eyes: 1, note: "warning: head down, aimed" },
+      { t: 1.5, frame: "rush_a", enr: true, glow: 0.6, eyes: 1, note: "the rush" },
+      { t: 2.5, frame: "stun_a", enr: true, glow: 0, eyes: 0.3, note: "crashed: helpless" },
+    ],
+  },
+  {
+    id: "throw",
+    name: "Throw",
+    goal: "Something heavy is coming at THAT spot: watch the chunk go up, then move.",
+    lengthS: 2.4,
+    timing: "Lift 1.0 s, flight 0.8 s, recover 0.6 s.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.5, label: "throw, lifting (k 0.5)", nw: true },
+        { t0: 0.5, t1: 1, label: "throw_a, chunk overhead", nw: true },
+        { t0: 1, t1: 2.4, label: "walk (released)" },
+      ],
+      torso: [
+        { t0: 0, t1: 1, label: "swell with the lift", nw: true },
+        { t0: 1, t1: 1.4, label: "exhale", nw: true },
+      ],
+      eyes: [{ t0: 0, t1: 1, label: "100 %" }],
+      glow: [
+        { t0: 0, t1: 1, label: "normal beat" },
+        { t0: 1, t1: 1.15, label: "beat ON the release", key: true, nw: true },
+      ],
+      clothes: [{ t0: 0, t1: 2.4, label: "still" }],
+      dust: [
+        { t0: 0.3, t1: 1, label: "crumbs fall from the chunk", nw: true },
+        { t0: 1.8, t1: 2.2, label: "landing burst", key: true },
+      ],
+      fx: [
+        { t0: 0, t1: 1.8, label: "target ring" },
+        { t0: 1, t1: 1.8, label: "chunk in flight" },
+      ],
+    },
+    moments: [
+      { t: 0.3, frame: "throw_a", enr: false, glow: 0, eyes: 1, note: "lifting" },
+      { t: 1.0, frame: "throw_a", enr: true, glow: 1, eyes: 1, note: "release (enraged)" },
+    ],
+  },
+  {
+    id: "roar",
+    name: "Roar: the enrage",
+    goal: "It changed: angrier and faster from now on. The fight's second half starts, and you see it happen.",
+    lengthS: 1.5,
+    timing: "Roar 1.5 s at half health, the 5 m shock ring.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.3, label: "roar (inhale)" },
+        { t0: 0.3, t1: 1.5, label: "roar (mouth open)" },
+      ],
+      torso: [
+        { t0: 0, t1: 0.3, label: "big inhale", nw: true },
+        { t0: 0.3, t1: 1.5, label: "swollen 1.08" },
+      ],
+      eyes: [
+        { t0: 0, t1: 0.3, label: "yellow" },
+        { t0: 0.3, t1: 0.4, label: "SNAP to red", key: true, nw: true },
+        { t0: 0.4, t1: 1.5, label: "red 100 %" },
+      ],
+      glow: [{ t0: 0.3, t1: 1.5, label: "the veins light from the neck outward (one slow wave); the skin flushes calm → enraged", nw: true }],
+      clothes: [{ t0: 0, t1: 1.5, label: "still" }],
+      dust: [{ t0: 0.3, t1: 0.8, label: "dust blown off by the roar", nw: true }],
+      fx: [{ t0: 0.3, t1: 0.8, label: "shock ring (5 m push)", key: true }],
+    },
+    moments: [
+      { t: 0.1, frame: "roar_a", enr: false, glow: 0, eyes: 1, note: "inhale, still calm" },
+      { t: 0.8, frame: "roar_a", enr: true, glow: 0.5, eyes: 1, note: "the change spreads" },
+      { t: 1.5, frame: "roar_a", enr: true, glow: 1, eyes: 1, note: "fully enraged" },
+    ],
+  },
+  {
+    id: "death",
+    name: "Death",
+    goal: "It's over: it is no longer a threat. The heart stops first, then the body falls.",
+    lengthS: 2.0,
+    timing: "Collapse 1.5 s (three frames), then it lies there.",
+    lanes: {
+      pose: [
+        { t0: 0, t1: 0.5, label: "dead_a" },
+        { t0: 0.5, t1: 1, label: "dead_b" },
+        { t0: 1, t1: 2, label: "dead_c (stays)" },
+      ],
+      torso: [{ t0: 0, t1: 2, label: "breathing stops", nw: true }],
+      eyes: [{ t0: 0, t1: 0.05, label: "out", key: true }],
+      glow: [
+        { t0: 0, t1: 0.15, label: "last weak beat", key: true, nw: true },
+        { t0: 0.15, t1: 0.4, label: "fades out", nw: true },
+      ],
+      clothes: [{ t0: 0, t1: 2, label: "still" }],
+      dust: [{ t0: 1, t1: 1.5, label: "big dust puff as it hits the ground", key: true, nw: true }],
+      fx: [{ t0: 0, t1: 2, label: "skin darkens, grey tint" }],
+    },
+    moments: [
+      { t: 0.1, frame: "dead_a", enr: false, glow: 0, eyes: 0, note: "the heart stops" },
+      { t: 1.2, frame: "dead_c", enr: false, glow: 0, eyes: 0, note: "down" },
+    ],
+  },
+];
+const RULES: readonly [string, string][] = [
+  ["R1 Tells first", "During a warning, the pose carries the read. Eyes and glow only build toward the hit moment, never pulse against the countdown."],
+  ["R2 One clock", "Steps, breath and heartbeat share one rhythm: the breath rides the steps; enraged, the beat lands on every 3rd footfall (≈ 1.15 s)."],
+  ["R3 Release together", "At a release (slam hit, crash, throw, roar) everything peaks in the same 0.15 s: glow, eyes, dust, the game's FX. Then it settles."],
+  ["R4 Weak = dim", "Helpless reads as dim: the stun turns the glow off and the eyes to 30 %; death puts them out first, before the body falls."],
+  ["R5 Secondary follows", "Dust, falling grit and settling come after the impact that causes them, never before."],
+];
+
+function compose(v: number, frameName: string, enr: boolean, glowA: number, eyes: number): HTMLCanvasElement {
+  const f = GAME_FRAMES.find((g) => g.name === frameName) ?? (GAME_FRAMES[0] as (typeof GAME_FRAMES)[number]);
+  const p = pic("c", v, f.pose, f.k, enr, f.ph);
+  const c = make(N, N);
+  const g = c.getContext("2d")!;
+  g.drawImage(p.base, 0, 0);
+  g.globalCompositeOperation = "lighter";
+  if (p.glow) {
+    g.globalAlpha = eyes;
+    g.drawImage(p.glow, 0, 0);
+  }
+  if (p.veins && glowA > 0) {
+    g.globalAlpha = 1;
+    // glow level: the steady ember (step 4, between beats) up to a beat over the whole body
+    g.drawImage(p.veins, 4 * N, 0, N, N, 0, 0, N, N);
+    g.globalAlpha = Math.max(0, Math.min(1, (glowA - 0.25) / 0.75));
+    for (const s of [0, 1, 2]) g.drawImage(p.veins, s * N, 0, N, N, 0, 0, N, N);
+  }
+  g.globalAlpha = 1;
+  return c;
+}
+
+async function actionPlan(): Promise<void> {
+  const main = document.querySelector("main")!;
+  const sec = document.createElement("section");
+  sec.innerHTML = `<h2>Action plan: goals first (proposal, nothing animated yet)</h2>
+  <p>For every action: <b>what the player must read</b> (the goal), its real length in the game, then what each part does, on one timeline so the parts are coordinated, and the composed key moments (every element together, as planned). <span class="nw">Green</span> = new in this plan. Five rules tie the parts together:</p>
+  <div class="card"><ul class="finds">${RULES.map(([a, b]) => `<li><b>${a}.</b> ${b}</li>`).join("")}</ul></div>`;
+  main.append(sec);
+  for (const a of PLAN) {
+    const card = document.createElement("article");
+    card.className = "card plan";
+    const ticks: number[] = [];
+    for (let t = 0; t <= a.lengthS + 1e-6; t += a.lengthS > 2.5 ? 0.5 : 0.25) ticks.push(t);
+    const pct = (t: number): string => `${(t / a.lengthS) * 100}%`;
+    card.innerHTML = `<h3>${a.name}</h3><p class="goal"><b>Goal:</b> ${a.goal}</p><p class="timing">${a.timing}</p>
+      <div class="dope"><div class="ruler"><span></span><div class="track">${ticks.map((t) => `<i style="left:${pct(t)}">${Number(t.toFixed(2))} s</i>`).join("")}</div></div>
+      ${LANES.map(([id, label]) => `<div class="lane"><span>${label}</span><div class="track">${(a.lanes[id] ?? [])
+        .map((b) => `<div class="bar${b.key ? " key" : ""}${b.nw ? " nw" : ""}" style="left:${pct(b.t0)};width:calc(${pct(b.t1 - b.t0)} - 2px)" title="${b.label}">${b.label}</div>`)
+        .join("")}</div></div>`).join("")}</div>
+      <div class="moments"></div>`;
+    sec.append(card);
+    const host = card.querySelector(".moments")!;
+    for (const m of a.moments) {
+      await idle();
+      const fig = document.createElement("figure");
+      const c = make(N, N);
+      const g = c.getContext("2d")!;
+      g.drawImage(street, 0, 0);
+      g.drawImage(compose(0, m.frame, m.enr, m.glow, m.eyes), 0, 0);
+      fig.append(c);
+      fig.insertAdjacentHTML("beforeend", `<figcaption>${m.t.toFixed(1)} s · ${m.note}</figcaption>`);
+      host.append(fig);
+    }
   }
 }
 
