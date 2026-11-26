@@ -82,7 +82,18 @@ describe("Story 8.2 late bots (T8)", () => {
       expect(lines.some((l) => l.msg === "bot_waiting" && l.bot === "Bot 4")).toBe(true);
     }, 120_000);
 
-    it("step 3: bot 4 enters at the next build phase", async () => {
+    // E8-A8: the wait for the next build phase (the rest of wave 1 in real time) is split at three milestones of the same
+    // wait — a quarter, half and three quarters of the wave down — so no step takes 30 s. Until the wave ends, bot 4 stays out.
+    it.each([["a quarter", 3 / 4], ["half", 1 / 2], ["three quarters", 1 / 4]] as const)("step 3: %s of wave 1 down, bot 4 still waits outside the World", async (_, left) => {
+      expect(b4?.waited, "step 2 ran").toBe(true);
+      expect(await until(() => world.waves.remaining <= world.waves.size * left || room.state.phase !== "wave", 150_000, 250)).toBe(true);
+      if (room.state.phase === "wave") {
+        expect(world.players.has(b4.playerId)).toBe(false);
+        expect(room.state.players.get(b4.playerId)?.waiting).toBe(true);
+      }
+    }, 180_000);
+
+    it("step 4: bot 4 enters at the next build phase", async () => {
       expect(b4?.waited, "step 2 ran").toBe(true);
       // The next build phase: it enters; wave 2: it shoots.
       expect(await until(() => world.players.has(b4.playerId), 150_000, 250)).toBe(true);
@@ -90,8 +101,8 @@ describe("Story 8.2 late bots (T8)", () => {
       expect(await until(() => b4.entered, 10_000)).toBe(true);
     }, 180_000);
 
-    it("step 4: bot 4 shoots in wave 2", async () => {
-      expect(b4?.entered, "step 3 ran").toBe(true);
+    it("step 5: bot 4 shoots in wave 2", async () => {
+      expect(b4?.entered, "step 4 ran").toBe(true);
       const off = world.events.subscribe((e: SimEvent) => {
         if (e.type === "weapon.fired" && e.playerId === b4.playerId) shots++;
       });

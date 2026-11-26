@@ -129,10 +129,22 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
       expect(await until(() => (room.controller?.ackSeq(id) ?? 0) > ack, 15_000)).toBe(true);
     }, 60_000);
 
-    it("step 4: the run goes on to the next build phase; the lossy line really stalled", async () => {
-      expect(backAfterMs, "step 2 ran").toBeLessThanOrEqual(10_000);
-      // The run goes on to the next build phase.
-      const wave = world.waves.number;
+    let wave = -1;
+    // The run goes on to the next build phase. E8-A8: that wait (the rest of a wave in real time, 25–35 s) is split at
+    // three milestones of the same wait (half, three quarters and nine tenths of the wave down), so no step takes 30 s;
+    // step 5 below is the old end of it.
+    it.each([["half", 1 / 2], ["three quarters", 1 / 4], ["nine tenths", 1 / 10]] as const)("step 4: the run goes on: %s of the wave down", async (_, left) => {
+      if (wave < 0) {
+        expect(backAfterMs, "step 2 ran").toBeLessThanOrEqual(10_000);
+        wave = world.waves.number;
+      }
+      const ok = await until(() => world.waves.remaining <= world.waves.size * left || room.state.phase !== "wave", 150_000, 250);
+      expect(ok, `wave ${world.waves.number}: ${world.waves.remaining} of ${world.waves.size} left, phase ${room.state.phase}`).toBe(true);
+      expect(world.waves.number).toBe(wave);
+    }, 180_000);
+
+    it("step 5: … and on to the next build phase; the lossy line really stalled", async () => {
+      expect(wave, "step 4 ran").toBeGreaterThanOrEqual(3);
       const ended = await until(() => room.state.phase === "build" || room.state.phase === "results", 150_000, 250);
       if (!ended) console.log(JSON.stringify({ msg: "cut_test_stuck", phase: room.state.phase, frozen: room.state.frozen, wave: world.waves.number, tick: world.tick, players: [...world.players.values()].map((q) => ({ id: q.id, x: Math.round(q.x), y: Math.round(q.y), status: q.status, protect: q.protectTicks })), zombies: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => ({ x: Math.round(world.zombies.x[z] ?? 0), y: Math.round(world.zombies.y[z] ?? 0), t: world.zombies.type[z], s: world.zombies.state[z], hp: Math.round(world.zombies.hp[z] ?? 0), w: world.zombies.waveZombie[z] })), held: [...world.heldPlayers.keys()], holds: [...room.holds.keys()], remaining: world.waves.remaining, queued: world.waves.queued, bots: bots.map((b) => b.link), buildings: world.buildings.list.map((b) => ({ t: b.type, o: b.ownerId, x0: +b.minX.toFixed(1), y0: +b.minY.toFixed(1), x1: +b.maxX.toFixed(1), y1: +b.maxY.toFixed(1), hp: Math.round(b.hp), sb: b.stopsBullets })), lines: Array.from(world.zombies.aliveIds.subarray(0, world.zombies.aliveCount), (z) => [...world.players.values()].map((q) => { const zx = world.zombies.x[z] ?? 0; const zy = world.zombies.y[z] ?? 0; return `${q.id}:${Math.hypot(zx - q.x, zy - q.y).toFixed(1)}m bullet=${bulletLineClear(world, q.x, q.y, zx, zy) ? 1 : 0} spit=${shotLineClear(world, zx, zy, q.x, q.y) ? 1 : 0}`; })) }));
       expect(ended).toBe(true);
