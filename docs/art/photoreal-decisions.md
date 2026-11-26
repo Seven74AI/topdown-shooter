@@ -114,3 +114,25 @@ and the asset review in `docs/art/asset-review.md`.
   the concept of picking a goal … and then think of elements needed, and then how they compose with each other").
   The first page had one idea for the whole group, but most takes were today's emitters with new pictures, and their
   "goal" lines were written after the drawing. The rule is now in `.claude/skills/dead-city-model/fx.md` › FX 4.
+- **Goal-first redo, take -G on every card** (designer 2026-11-26: "redo everything. But keep what you did earlier.
+  So you should add a new option where you use the corrected skills", "Also redo what I already approved").
+  - Built in four cloud sessions, one per family (designer: "don't run them in the same container").
+  - Every card gets a `-G` look with its goal → elements (one job each) → composition and its own timeline, shown
+    in green on the card. FI keeps FI-B, which was already goal first, with its goal block added.
+  - Earlier looks are all kept.
+  - Main changes:
+    - MO-G: the fuel is thrown forward in a fan, the flames burn on the fuel, the 3 m zone is heat.
+    - EX1-G / EX2-G: no amber or white rings; the reach is the fireball's light front or the dust wall.
+    - BX-G: one rim is both the blast and the gas zone.
+    - SG-G: no 2.4 m cone; the pellets and dust kicks to 5 m carry the spread.
+    - BF-G: the effects follow each building's own footprint, not circles.
+    - CS-G: blood thrown out one side of the chain.
+    - BT-G: hand prints.
+    - AC-G / GA-G: the zone colour holds until the effect really ends.
+    - PD-G: dust squeezed out from under the edges.
+    - BD-G: 9.15's dust thrown away from the body only.
+    - The warnings share one language: the red edge on the boundary is also the clock; CR-G is amber for the whole
+      2 s stun, above the body.
+  - Page fixes: overlapping timeline bars now stack; the TH context shows the walk frame in flight.
+  - **Waiting for the designer's codes** (A or G per card, FI-B) and the -G questions written on the cards.
+

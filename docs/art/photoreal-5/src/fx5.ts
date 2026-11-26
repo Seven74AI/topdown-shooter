@@ -135,10 +135,20 @@ function dope(card: FxCard, plan?: ActionPlan): string {
     <div class="dope"><div class="ruler"><span></span><div class="track">${ticks.map((t) => `<i style="left:${pct(t)}">${Number(t.toFixed(2))} s</i>`).join("")}</div></div>
     ${LANES.filter(([id]) => p.lanes[id]?.length)
       .map(
-        ([id, label]) =>
-          `<div class="lane"><span>${label}</span><div class="track">${(p.lanes[id] ?? [])
-            .map((b) => `<div class="bar${b.key ? " key" : ""}${b.nw ? " nw" : ""}" style="left:${pct(b.t0)};width:calc(${pct(Math.max(0.0001, b.t1 - b.t0))} - 2px)" title="${esc(b.label)}">${b.label}</div>`)
-            .join("")}</div></div>`,
+        ([id, label]) => {
+          // overlapping bars stack in rows (a later bar never hides an earlier one)
+          const ends: number[] = [];
+          const rows = (p.lanes[id] ?? []).map((b) => {
+            let r = ends.findIndex((e) => e <= b.t0 + 1e-6);
+            if (r < 0) r = ends.push(0) - 1;
+            ends[r] = b.t1;
+            return r;
+          });
+          const n = Math.max(1, ends.length);
+          return `<div class="lane"><span>${label}</span><div class="track" style="height:${n * 24 + 2}px">${(p.lanes[id] ?? [])
+            .map((b, i) => `<div class="bar${b.key ? " key" : ""}${b.nw ? " nw" : ""}" style="left:${pct(b.t0)};width:calc(${pct(Math.max(0.0001, b.t1 - b.t0))} - 2px);top:${(rows[i] as number) * 24 + 2}px;bottom:auto;height:21px" title="${esc(b.label)}">${b.label}</div>`)
+            .join("")}</div></div>`;
+        },
       )
       .join("")}</div></div>`;
 }
