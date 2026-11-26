@@ -7,13 +7,16 @@ import { voteStore, type VoteView } from "./voteModel";
  * Story 6.11 (look EX1, architecture › UI "EvacVote"): the evacuation vote over the live game while
  * the run is in phase "vote". Title, a green EXTRACT and a red STAY button (140 × 56 px, bottom
  * centre, under the thumbs), the ring timer between them (drawn from the server's ticks, F4), and the
- * slot-coloured chips above that fill with each player's choice (downed/out dimmed, still voting).
+ * slot-coloured chips above that fill with each player's choice (Story 8.12: downed, out and held
+ * seats dimmed and marked "not voting"; my buttons disabled while I'm down or out).
  * After everyone voted: "EXTRACT · 3 – 1" for the 1 s beat. The colours are the picked look's UI
  * buttons (green / red), not map danger (the boss-only red rule is about the map, brief 24).
  */
 const RING_R = 20;
 const RING_C = 2 * Math.PI * RING_R;
 const CHIP_TEXT = ["", "⬆ EXT", "✕ STAY"];
+/** Story 8.12 (AC 6): a downed, out or held player's chip. */
+export const NOT_VOTING = "not voting";
 
 /** Story 7.2 (AC 7, S4): what each choice pays in Supplies, from `progression.json › supplies` (the bet, said plainly). */
 export function voteStakesLine(s = PROGRESSION.supplies): string {
@@ -40,7 +43,7 @@ export function EvacVote() {
               style={{ borderColor: SLOT_COLOR_CSS[c.slot], background: c.vote ? SLOT_COLOR_CSS[c.slot] : undefined, color: c.vote ? undefined : SLOT_COLOR_CSS[c.slot] }}
               data-vote={c.vote}
             >
-              {c.vote ? CHIP_TEXT[c.vote] : c.mine ? "You" : "…"}
+              {c.dimmed ? (c.mine ? "You" : NOT_VOTING) : c.vote ? CHIP_TEXT[c.vote] : c.mine ? "You" : "…"}
             </span>
           ))}
         </div>
@@ -53,9 +56,10 @@ export function EvacVote() {
             type="button"
             class={`evac__btn evac__btn--extract${v.mine === VOTE_EXTRACT ? " evac__btn--on" : ""}`}
             aria-pressed={v.mine === VOTE_EXTRACT}
+            disabled={!v.canVote}
             onPointerDown={(e) => {
               e.preventDefault();
-              voteStore.tap("extract");
+              if (v.canVote) voteStore.tap("extract");
             }}
           >
             EXTRACT
@@ -80,9 +84,10 @@ export function EvacVote() {
             type="button"
             class={`evac__btn evac__btn--stay${v.mine === VOTE_STAY ? " evac__btn--on" : ""}${done && !v.result.startsWith("STAY") ? " evac__btn--lost" : ""}`}
             aria-pressed={v.mine === VOTE_STAY}
+            disabled={!v.canVote}
             onPointerDown={(e) => {
               e.preventDefault();
-              voteStore.tap("stay");
+              if (v.canVote) voteStore.tap("stay");
             }}
           >
             STAY

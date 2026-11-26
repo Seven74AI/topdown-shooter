@@ -7,6 +7,7 @@ import { LobbyScreen } from "./LobbyScreen";
 import { ProgressScreen } from "./ProgressScreen";
 import { AccountScreen } from "./AccountScreen";
 import { SurvivorEditor } from "./SurvivorEditor";
+import { SettingsScreen } from "./SettingsScreen";
 import { RotateOverlay } from "./RotateOverlay";
 import { ServerNotice } from "./ServerNotice";
 import { ConnectionOverlay } from "./ConnectionOverlay";
@@ -30,6 +31,7 @@ export function App({ joinCode = null }: AppProps) {
       <ProgressScreen />
       <AccountScreen />
       <SurvivorEditor />
+      <SettingsScreen />
       <EvacVote />
       <ResultsScreen />
       <ShopScreen />

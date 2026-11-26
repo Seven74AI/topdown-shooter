@@ -202,7 +202,7 @@ development_status:
   8-5-save-and-quit: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: done  # merged into 8.4–8.6, PR #14; merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
-  8-12-disconnected-players-dont-vote: ready-for-dev  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
+  8-12-disconnected-players-dont-vote: done  # quick story 2026-11-25 (party mode, designer decision): only connected, alive players count in the evac vote (held, downed, out excluded), tie = Extract; reverses 8.1 review M2
   8-13-slow-line-horde-skip: backlog  # added 2026-11-26 (correct-course; 8.10 B6 / E8-A4; designer named it 8.12, renumbered because master's 8.12 is the evac-vote quick story): RTT-based horde skip + keyframe at 64 kbit/s; normal build order, before any real-device network test
   epic-8-retrospective: done  # 2026-11-26, headless; epic-8-retro-2026-11-26.md, actions E8-A1–A10
 
@@ -226,8 +226,8 @@ development_status:
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
-  epic-10: backlog
-  10-1-settings-screen: backlog  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
+  epic-10: in-progress
+  10-1-settings-screen: done  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
   10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; buildable part = headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked
   10-3-memory-and-battery-pass: backlog  # buildable part = headless 10-wave heap/CPU run; phone ACs parked
   10-4-fast-loading: backlog

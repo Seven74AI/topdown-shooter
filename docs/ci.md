@@ -14,8 +14,9 @@ Push runs on `master` only; every pull request runs; changes only under `docs/**
 | `static` | `npm ci`, typecheck, lint | ~2 min |
 | `release` | `npm run release:check`: client build + `REQUIRE_DIST=1` cheat scan (Story 1.11). A cheat-string leak fails here in about a minute. | ~1–2 min |
 | `test (shard i/4)` | 4-shard matrix, `fail-fast: false`. Each shard runs `npx vitest run $(node tools/ci/shard.mjs i 4)` and uploads its JSON report as the `test-report-i` artifact. | see the PR |
+| `postgres` | Epic 7 retro E7-A1: a `postgres:16` service; runs `realPostgres*.test.ts` + `realPg.test.ts` with `TEST_DATABASE_URL` set, one file at a time (they share the database), then `tools/ci/check-all-passed.mjs` fails the job unless at least 41 tests ran and every one passed (`ci.yml`: the floor is its argument; raise it when you add real-PostgreSQL tests, so a dropped file can't pass silently). The test shards still skip these files (no URL there). | ~2 min |
 | `docker` | buildx images with the GitHub Actions layer cache (`type=gha`, one scope per target, `load: true`), Caddyfile check, compose smoke test with throwaway secrets | ~3–6 min |
-| `gate` | `needs` all four, `if: always()`; fails unless every one of them is `success` | seconds |
+| `gate` | `needs` all five, `if: always()`; fails unless every one of them is `success` | seconds |
 
 **`gate` is the single check to require** in branch protection. A PR that only touches the paths-ignore paths gets no CI run and so no `gate`
 check; that is fine while docs / BMAD-only changes go straight to master (`AGENTS.md` §2), but such a PR would wait forever
@@ -39,6 +40,32 @@ on a required `gate`.
 
 `tools/ci/shard.test.ts` proves, against `vitest list`, that the 4 shards are disjoint, cover every file, and that
 each shard's command line selects exactly its own files.
+
+### No test over 30 s (Epic 8 retro E8-A8)
+
+Every test shard (and the `postgres` job) runs `node tools/ci/slowest.mjs <its report>` after the tests: it writes the
+**slowest 15 tests** to the job summary and **fails the job if one test took over 30 s** (a warning annotation from
+20 s, so a test is split before it reaches the limit). Split such a test per case, the way the fuzzes and sims were
+split in the E8-A8 PR: an `it.each` per seed / layout / run, the shared counters in the `describe`, then one totals test
+that first checks every case ran (`expect(casesRun).toBe(n)`) and then makes the old cross-case assertions. Real-time
+bot tests are split into their steps on one room (`tools/bots/cut.test.ts`, `lateJoin.test.ts`). A single long
+run (one fuzz layout, a trial loop) becomes a generator that yields at fixed points, and each part resumes it
+(`flame.fuzz`, `wideBody.fuzz`, `bearTrap.fuzz`, Brute reachability): the same code and checks, the last part asserts.
+Aim at ≤ ~8 s per test when run alone: a loaded CI shard ran single tests up to 6× slower than that.
+
+Time outside the tests counts too (PR #28 review): vitest's JSON report times only the tests (a file's
+`endTime − startTime` leaves out `beforeAll` / `afterAll` / `beforeEach` hooks and the module's top-level code), so
+the shards also run `tools/ci/fileTimesReporter.mjs` (`FILE_TIMES_OUT=reports/file-times-i.json`, uploaded with the
+`test-report-i` artifact). `slowest.mjs` reads those files as well and fails the job when a file's hooks plus its
+import / suite-callback time (`duration − Σ tests + collect`) is over 30 s (warning from 20 s): move that setup into
+the steps it serves, or split the file. `tools/ci/slowest.test.ts` proves both rules on fixture reports (a 31 s
+`beforeAll` fails).
+
+Why a check over the CI report, not a lower per-test timeout: `testTimeout` (30 s) is a default that the slow tests
+raise on purpose, because a timeout also fires on the builders' loaded shared boxes (load 8–16), where it would flake.
+The report check runs only on the CI runners (one machine type), reads the time vitest measured, and names every
+offender at once. The splits aim at ≤ ~8 s per test alone (≤ ~15 s on a CI shard). Locally:
+`node tools/ci/slowest.mjs reports/` over downloaded `test-report-*` artifacts, or over a local `--reporter=json` file.
 
 ### Refreshing the shard timings
 

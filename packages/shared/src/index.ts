@@ -281,6 +281,7 @@ export {
 } from "./waves/waveDirector";
 export {
   castVote,
+  countsInVote,
   countVotes,
   endRun,
   endWave,
@@ -446,7 +447,31 @@ export {
   type ProgressView,
   type UnlockRequest,
   type UnlockResponse,
+  // Story 10.1: settings sync and Delete my progress
+  ACCOUNT_SETTINGS_PATH,
+  ACCOUNT_DELETE_PATH,
+  settingsSaveRequestSchema,
+  settingsSaveResponseSchema,
+  deleteRequestSchema,
+  deleteResponseSchema,
+  type SettingsSaveRequest,
+  type SettingsSaveResponse,
+  type DeleteRequest,
+  type DeleteResponse,
 } from "./net/account";
+// Story 10.1: the player settings (one schema for the store, the sync body and progress.settings).
+export {
+  playerSettingsSchema,
+  incomingSettingsSchema,
+  PLAYER_SETTINGS_DEFAULTS,
+  RAIN_LEVEL_K,
+  GLOW_LEVEL_K,
+  SETTINGS_MAX_BODY_BYTES,
+  parseStoredSettings,
+  type PlayerSettings,
+  type StoredPlayerSettings,
+  type PlayerSettingKey,
+} from "./config/playerSettings";
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export {

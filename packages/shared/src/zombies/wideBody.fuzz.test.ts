@@ -128,33 +128,42 @@ function trial(seed: number): WideTrial | null {
 }
 
 describe("Story 6.13: wide-body fuzz round barricade boxes with 0.5 m diagonal gaps", () => {
-  it(`every Brute/Bloater reaches a player or attacks a building within ${BOUND_S} s, never stands still > ${STILL_S} s, never inside a box`, () => {
-    const bound = ticksFor(BOUND_S);
-    const stillMax = ticksFor(STILL_S);
-    const fails: string[] = [];
-    const seen = { player: 0, building: 0, bloater: 0, brute: 0, rush: 0, chase: 0, closed: 0, inner: 0, trials: 0 };
-    const net0 = wideStallStats.fired;
-    for (let seed = 1; seen.trials < TRIALS && seed < TRIALS * 4; seed++) {
-      const t = trial(seed);
-      if (!t) continue;
-      seen.trials++;
-      const r = runTrial(t, bound);
-      seen[t.type === "bloater" ? "bloater" : "brute"]++;
-      seen[t.rush ? "rush" : "chase"]++;
-      if (t.closed) seen.closed++;
-      if (t.inner) seen.inner++;
-      if (r.outcome !== "none") seen[r.outcome]++;
-      if (r.outcome === "none" || r.longestStill > stillMax || r.inBox) fails.push(`${t.label}: ${r.outcome} @${r.atTick} still ${r.longestStill} inBox ${r.inBox}`);
+  describe(`every Brute/Bloater reaches a player or attacks a building within ${BOUND_S} s, never stands still > ${STILL_S} s, never inside a box`, () => {
+    // E8-A8 (no test over 30 s; was 19 s in CI, close): the same run in 4 parts of 60 trials — the body is a generator
+    // that yields after every 60th trial, and each part resumes it (same seeds, order and checks; the last part asserts).
+    function* steps(): Generator<void, void, void> {
+      const bound = ticksFor(BOUND_S);
+      const stillMax = ticksFor(STILL_S);
+      const fails: string[] = [];
+      const seen = { player: 0, building: 0, bloater: 0, brute: 0, rush: 0, chase: 0, closed: 0, inner: 0, trials: 0 };
+      const net0 = wideStallStats.fired;
+      for (let seed = 1; seen.trials < TRIALS && seed < TRIALS * 4; seed++) {
+        const t = trial(seed);
+        if (!t) continue;
+        seen.trials++;
+        const r = runTrial(t, bound);
+        seen[t.type === "bloater" ? "bloater" : "brute"]++;
+        seen[t.rush ? "rush" : "chase"]++;
+        if (t.closed) seen.closed++;
+        if (t.inner) seen.inner++;
+        if (r.outcome !== "none") seen[r.outcome]++;
+        if (r.outcome === "none" || r.longestStill > stillMax || r.inBox) fails.push(`${t.label}: ${r.outcome} @${r.atTick} still ${r.longestStill} inBox ${r.inBox}`);
+        if (seen.trials % (TRIALS / 4) === 0 && seen.trials < TRIALS) yield; // E8-A8: one test part ends here
+      }
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[wide-body fuzz] ${JSON.stringify(seen)}; stall net fired ${wideStallStats.fired - net0}×`);
+      expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
+      expect(seen.trials).toBe(TRIALS);
+      // Liveness (brief 9): both outcomes, both types, both states, and closed boxes really happened.
+      for (const k of ["player", "building", "bloater", "brute", "rush", "chase", "closed", "inner"] as const) expect(seen[k], k).toBeGreaterThan(0);
+      // The M1 shape really came up: the stall net fired (seed 128's layout, `wideBodyStall.test.ts`), and
+      // only where a body was stuck (it fired 3× in 1,500 trials, exactly the 3 that stalled without it).
+      expect(wideStallStats.fired - net0).toBeGreaterThan(0);
     }
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[wide-body fuzz] ${JSON.stringify(seen)}; stall net fired ${wideStallStats.fired - net0}×`);
-    expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
-    expect(seen.trials).toBe(TRIALS);
-    // Liveness (brief 9): both outcomes, both types, both states, and closed boxes really happened.
-    for (const k of ["player", "building", "bloater", "brute", "rush", "chase", "closed", "inner"] as const) expect(seen[k], k).toBeGreaterThan(0);
-    // The M1 shape really came up: the stall net fired (seed 128's layout, `wideBodyStall.test.ts`), and
-    // only where a body was stuck (it fired 3× in 1,500 trials, exactly the 3 that stalled without it).
-    expect(wideStallStats.fired - net0).toBeGreaterThan(0);
-  }, 300_000);
+    const parts = steps();
+    it.each(Array.from({ length: 4 }, (_, i) => i + 1))("part %i of 4", (part) => {
+      expect(parts.next().done, "the run reached this part's end (and no further)").toBe(part === 4);
+    }, 120_000);
+  });
 });
 
 /**
@@ -281,34 +290,43 @@ function cornerTrial(seed: number): CornerTrial | null {
 }
 
 describe("Fix bloater-car-corner: concave corners of two solids × crowds of wide bodies", () => {
-  it(`${CORNER_TRIALS} corners (barricade L/T and the car L) × 40–120 Brutes/Bloaters: no body ends a tick in a solid, none stands still > ${STILL_S} s`, () => {
-    const fails: string[] = [];
-    const seen = { trials: 0, car: 0, barricades: 0, bodies: 0, inJunction: 0, bloater: 0, brute: 0, longestStill: 0, bloatersLeft: 0, bodyTicks: 0, heldTicks: 0, longestHeld: 0, notReached: 0 };
-    const esc0 = pushEscapes.count;
-    for (let seed = 1; seen.trials < CORNER_TRIALS && seed < CORNER_TRIALS * 20; seed++) {
-      const t = cornerTrial(seed);
-      if (!t) continue;
-      seen.trials++;
-      seen[t.car ? "car" : "barricades"]++;
-      seen.bodies += t.ids.length;
-      seen.inJunction += t.inJunction;
-      for (const id of t.ids) seen[t.world.zombies.type[id] === zombieTypeIndex("bloater") ? "bloater" : "brute"]++;
-      // Progress per body: it ends within 8 m of its player (the edge of a 120-body crowd round one player in a
-      // corner), or at least 1 m nearer than it started.
-      const r = runCrowd(t.world, t.ids, ticksFor(CORNER_BOUND_S), { approachOk: (s0, c) => c < 8 || c <= s0 - 1 });
-      seen.longestStill = Math.max(seen.longestStill, r.longestStill);
-      seen.bloatersLeft += r.bloatersLeft;
-      seen.bodyTicks += r.bodyTicks;
-      seen.heldTicks += r.heldTicks;
-      seen.longestHeld = Math.max(seen.longestHeld, r.longestHeld);
-      seen.notReached += r.notReached;
-      if (r.inside.length > 0 || r.longestStill > STILL_TICKS || r.farFrom.length > 0 || r.neverMoved.length > 0) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId}) | got nowhere ${r.farFrom.join(", ")} | never moved ${r.neverMoved.join(", ")}`);
+  describe(`${CORNER_TRIALS} corners (barricade L/T and the car L) × 40–120 Brutes/Bloaters: no body ends a tick in a solid, none stands still > ${STILL_S} s`, () => {
+    // E8-A8 (no test over 30 s; was 23 s in CI, close): the same run in 4 parts of 15 corners — the body is a generator
+    // that yields after every 15th corner, and each part resumes it (same seeds, order and checks; the last part asserts).
+    function* steps(): Generator<void, void, void> {
+      const fails: string[] = [];
+      const seen = { trials: 0, car: 0, barricades: 0, bodies: 0, inJunction: 0, bloater: 0, brute: 0, longestStill: 0, bloatersLeft: 0, bodyTicks: 0, heldTicks: 0, longestHeld: 0, notReached: 0 };
+      const esc0 = pushEscapes.count;
+      for (let seed = 1; seen.trials < CORNER_TRIALS && seed < CORNER_TRIALS * 20; seed++) {
+        const t = cornerTrial(seed);
+        if (!t) continue;
+        seen.trials++;
+        seen[t.car ? "car" : "barricades"]++;
+        seen.bodies += t.ids.length;
+        seen.inJunction += t.inJunction;
+        for (const id of t.ids) seen[t.world.zombies.type[id] === zombieTypeIndex("bloater") ? "bloater" : "brute"]++;
+        // Progress per body: it ends within 8 m of its player (the edge of a 120-body crowd round one player in a
+        // corner), or at least 1 m nearer than it started.
+        const r = runCrowd(t.world, t.ids, ticksFor(CORNER_BOUND_S), { approachOk: (s0, c) => c < 8 || c <= s0 - 1 });
+        seen.longestStill = Math.max(seen.longestStill, r.longestStill);
+        seen.bloatersLeft += r.bloatersLeft;
+        seen.bodyTicks += r.bodyTicks;
+        seen.heldTicks += r.heldTicks;
+        seen.longestHeld = Math.max(seen.longestHeld, r.longestHeld);
+        seen.notReached += r.notReached;
+        if (r.inside.length > 0 || r.longestStill > STILL_TICKS || r.farFrom.length > 0 || r.neverMoved.length > 0) fails.push(`${t.label}: inside ${r.inside.slice(0, 3).join("; ")} | still ${r.longestStill} (body ${r.longestStillId}) | got nowhere ${r.farFrom.join(", ")} | never moved ${r.neverMoved.join(", ")}`);
+        if (seen.trials % (CORNER_TRIALS / 4) === 0 && seen.trials < CORNER_TRIALS) yield; // E8-A8: one test part ends here
+      }
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[corner fuzz] ${JSON.stringify(seen)}; escapes ${pushEscapes.count - esc0}`);
+      expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
+      expect(seen.trials).toBe(CORNER_TRIALS);
+      for (const k of ["car", "barricades", "inJunction", "bloater", "brute"] as const) expect(seen[k], k).toBeGreaterThan(0);
+      expect(seen.heldTicks / seen.bodyTicks, "liveness: the still rule checked a real share of free body-ticks").toBeLessThan(0.95);
+      expect(pushEscapes.count - esc0, "liveness: the push-out's escape really fired").toBeGreaterThan(0);
     }
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[corner fuzz] ${JSON.stringify(seen)}; escapes ${pushEscapes.count - esc0}`);
-    expect(fails, fails.slice(0, 8).join("\n")).toEqual([]);
-    expect(seen.trials).toBe(CORNER_TRIALS);
-    for (const k of ["car", "barricades", "inJunction", "bloater", "brute"] as const) expect(seen[k], k).toBeGreaterThan(0);
-    expect(seen.heldTicks / seen.bodyTicks, "liveness: the still rule checked a real share of free body-ticks").toBeLessThan(0.95);
-    expect(pushEscapes.count - esc0, "liveness: the push-out's escape really fired").toBeGreaterThan(0);
-  }, 300_000);
+    const parts = steps();
+    it.each(Array.from({ length: 4 }, (_, i) => i + 1))("part %i of 4", (part) => {
+      expect(parts.next().done, "the run reached this part's end (and no further)").toBe(part === 4);
+    }, 120_000);
+  });
 });

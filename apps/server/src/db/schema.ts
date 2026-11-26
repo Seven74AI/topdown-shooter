@@ -67,6 +67,11 @@ export const progress = pgTable("progress", {
   cosmetics: text("cosmetics").array().notNull().default(sql`'{}'::text[]`),
   /** Story 7.11 (AC 1, 5): lifetime counters for the lifetime milestones, added under the row lock at each bank. */
   stats: jsonb("stats").$type<LifetimeStatsRow>().notNull().default(sql`'{"revives":0,"kills":0,"barricades":0,"runs":0}'::jsonb`),
+  /**
+   * Story 10.1 (AC 6): the player's synced settings (only the fields they changed: `playerSettingsSchema`); null = none
+   * synced yet. Written only by `progressRepo.saveSettings` (schema-parsed); read back with `parseStoredSettings`.
+   */
+  settings: jsonb("settings").$type<Record<string, unknown>>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Brief 18: a balance can never go below 0, whatever a later story's bank or purchase code does.
@@ -125,6 +130,16 @@ export const savedRunPlayers = pgTable("saved_run_players", {
     .references(() => accounts.id, { onDelete: "cascade" }),
   seatKey: text("seat_key").notNull(),
 }, (t) => [primaryKey({ name: "saved_run_players_pk", columns: [t.savedRunId, t.accountId] }), index("saved_run_players_account_idx").on(t.accountId)]);
+
+/**
+ * Story 10.1 review L6: the runs whose loot bag was paid to an account that was later deleted (Delete my progress drops
+ * its `run_rewards` rows, which were the "bag already paid" proof). One row per run, no account, no personal data;
+ * `oneBagPerRun` reads it next to the other accounts' rows.
+ */
+export const paidBags = pgTable("paid_bags", {
+  runId: uuid("run_id").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** Story 7.11: `progress.stats`. */
 export interface LifetimeStatsRow {

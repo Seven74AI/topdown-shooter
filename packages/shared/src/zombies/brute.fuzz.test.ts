@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
@@ -242,15 +242,20 @@ function run(seed: number) {
 }
 
 describe("Brute fuzz (Story 5.7, brief line 7): random layouts × stages × 3,000 ticks", () => {
-  it(`${LAYOUTS} layouts: no Brute or player in a box, nobody knocked into fire, no stall, walls only at the stage change`, () => {
+  describe(`${LAYOUTS} layouts: no Brute or player in a box, nobody knocked into fire, no stall, walls only at the stage change`, () => {
+    // E8-A8 (no test over 30 s): one test per layout, then the totals over all of them. Same seeds, order and assertions as
+    // the old single test; the layouts share the counters below, so the totals need every layout test above to have run
+    // (a -t filter on one layout fails them).
     const all: string[] = [];
     let knocks = 0;
     let stopped = 0;
     let buildingHits = 0;
     let hitters = 0;
     let total = 0;
-    const b0 = bruteStats.buildingHits;
-    for (let seed = 1; seed <= LAYOUTS; seed++) {
+    let b0 = 0;
+    beforeAll(() => void (b0 = bruteStats.buildingHits));
+    let casesRun = 0;
+    it.each(Array.from({ length: LAYOUTS }, (_, i) => i + 1))(`layout %i of ${LAYOUTS}`, (seed) => {
       const r = run(seed);
       all.push(...r.violations.slice(0, 3));
       if (r.players > 0) expect(r.knocks, `seed ${seed}: liveness, a knockback (${JSON.stringify({ ...r, violations: r.violations.length })})`).toBeGreaterThanOrEqual(1);
@@ -260,53 +265,67 @@ describe("Brute fuzz (Story 5.7, brief line 7): random layouts × stages × 3,00
       buildingHits += r.buildingHits;
       hitters += r.hitPlayers;
       total += r.brutes;
-    }
-    expect(hitters / total).toBeGreaterThan(0.5); // most Brutes really landed a hit
-    expect(all).toEqual([]);
-    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[brute fuzz] ${LAYOUTS} layouts: ${knocks} knockbacks, ${stopped} knock ticks stopped short, Brute building hits ${bruteStats.buildingHits - b0}, Brutes that broke in ${buildingHits}, Brutes that hit a player ${hitters}/${total}`);
-    expect(knocks).toBeGreaterThan(LAYOUTS);
-    expect(stopped).toBeGreaterThan(0); // knocks really met cover
-    expect(bruteStats.buildingHits - b0).toBeGreaterThan(0);
-  }, 600_000);
+      casesRun++;
+    }, 120_000);
+
+    it(`the ${LAYOUTS} layouts together: most Brutes landed a hit, knockbacks met cover, Brutes broke buildings`, () => {
+      expect(casesRun, "every case above ran and passed").toBe(LAYOUTS);
+      expect(hitters / total).toBeGreaterThan(0.5); // most Brutes really landed a hit
+      expect(all).toEqual([]);
+      (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[brute fuzz] ${LAYOUTS} layouts: ${knocks} knockbacks, ${stopped} knock ticks stopped short, Brute building hits ${bruteStats.buildingHits - b0}, Brutes that broke in ${buildingHits}, Brutes that hit a player ${hitters}/${total}`);
+      expect(knocks).toBeGreaterThan(LAYOUTS);
+      expect(stopped).toBeGreaterThan(0); // knocks really met cover
+      expect(bruteStats.buildingHits - b0).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("Brute reachability (Story 5.7, the 4.5 pattern with the wide field)", () => {
-  it("a lone Brute from every open spawn × every stage (1–3) × a spread of variant masks reaches the team start", () => {
-    let total = 0;
-    for (const stage of [1, 2, 3]) {
-      for (let k = 0; k < MASKS.length; k += stage === 1 ? MASKS.length : 4) {
-        const w = createWorld({ balance, seed: 4, map, systems: { waves: () => {} } });
-        w.debug.godMode = true;
-        w.decay.variants = MASKS[k] as number;
-        applyDecayStage(w, stage, w.decay.variants);
-        const at = { x: 0, y: 0 };
-        for (let slot = 0; slot < 2; slot++) {
-          teamSpawnPoint(w, slot, at);
-          addPlayer(w, `p${slot}`, at.x, at.y);
-        }
-        const states = spawnPointStates(w, new Uint8Array(map.spawnPoints.length));
-        const ids: [number, string][] = [];
-        map.spawnPoints.forEach((sp, i) => {
-          if (states[i] === SPAWN_STATE.CLOSED) return;
-          jitteredSpawn(w, sp, 0, 0.6, at);
-          ids.push([spawnZombie(w, "brute", at.x, at.y), sp.name]);
-        });
-        const reached = new Set<number>();
-        for (let t = 0; t < 20 * 120 && reached.size < ids.length; t++) {
-          step(w, TICK_DT_S);
-          const z = w.zombies;
-          for (const [id] of ids) {
-            if (reached.has(id)) continue;
-            const x = z.x[id] as number;
-            const y = z.y[id] as number;
-            for (const p of w.players.values()) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(w, x, y, p.x, p.y, 0)) reached.add(id);
+  describe("a lone Brute from every open spawn × every stage (1–3) × a spread of variant masks reaches the team start", () => {
+    // E8-A8 (no test over 30 s; was 21 s in CI, close): the same run in 3 parts, one per stage — the body is a generator
+    // that yields after each stage's last mask, and each part resumes it (same worlds, order and checks).
+    function* steps(): Generator<void, void, void> {
+      let total = 0;
+      for (const stage of [1, 2, 3]) {
+        for (let k = 0; k < MASKS.length; k += stage === 1 ? MASKS.length : 4) {
+          const w = createWorld({ balance, seed: 4, map, systems: { waves: () => {} } });
+          w.debug.godMode = true;
+          w.decay.variants = MASKS[k] as number;
+          applyDecayStage(w, stage, w.decay.variants);
+          const at = { x: 0, y: 0 };
+          for (let slot = 0; slot < 2; slot++) {
+            teamSpawnPoint(w, slot, at);
+            addPlayer(w, `p${slot}`, at.x, at.y);
           }
+          const states = spawnPointStates(w, new Uint8Array(map.spawnPoints.length));
+          const ids: [number, string][] = [];
+          map.spawnPoints.forEach((sp, i) => {
+            if (states[i] === SPAWN_STATE.CLOSED) return;
+            jitteredSpawn(w, sp, 0, 0.6, at);
+            ids.push([spawnZombie(w, "brute", at.x, at.y), sp.name]);
+          });
+          const reached = new Set<number>();
+          for (let t = 0; t < 20 * 120 && reached.size < ids.length; t++) {
+            step(w, TICK_DT_S);
+            const z = w.zombies;
+            for (const [id] of ids) {
+              if (reached.has(id)) continue;
+              const x = z.x[id] as number;
+              const y = z.y[id] as number;
+              for (const p of w.players.values()) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(w, x, y, p.x, p.y, 0)) reached.add(id);
+            }
+          }
+          const missed = ids.filter(([id]) => !reached.has(id)).map(([, n]) => n);
+          expect(missed, `stage ${stage} mask ${MASKS[k]}`).toEqual([]);
+          total += ids.length;
+          if (stage < 3 && k + (stage === 1 ? MASKS.length : 4) >= MASKS.length) yield; // E8-A8: one test part ends here
         }
-        const missed = ids.filter(([id]) => !reached.has(id)).map(([, n]) => n);
-        expect(missed, `stage ${stage} mask ${MASKS[k]}`).toEqual([]);
-        total += ids.length;
       }
+      expect(total).toBeGreaterThan(100); // liveness
     }
-    expect(total).toBeGreaterThan(100); // liveness
-  }, 600_000);
+    const parts = steps();
+    it.each(Array.from({ length: 3 }, (_, i) => i + 1))("part %i of 3", (part) => {
+      expect(parts.next().done, "the run reached this part's end (and no further)").toBe(part === 3);
+    }, 120_000);
+  });
 });

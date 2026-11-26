@@ -183,8 +183,9 @@ describe("AC 6: one string on the room state, set once", () => {
     expect([...room.members.values()].find((m) => m.playerId === "p1")?.look).toBe(STARTER); // remembered again with it
   });
 
-  it("L4: 0 B/s per tick — 4 players, 200 ticks: the look never changes in a patch, and the bytes per tick equal a run with default looks", async () => {
+  describe("L4: 0 B/s per tick — 4 players, 200 ticks: the look never changes in a patch, and the bytes per tick equal a run with default looks", () => {
     // Review L4: 4 custom looks vs 4 default looks, 200 ticks each; plus a listener on every player's `look` on a client.
+    // E8-A8 (no test over 30 s; was 21 s in CI): the two real-time runs are two steps; step 2 compares them.
     const run = async (looks: string[]): Promise<{ perTick: number; lookChanges: number }> => {
       vi.stubEnv("DEV_NO_WAVES", "1");
       const host = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "P0", token(), looks[0])));
@@ -215,13 +216,20 @@ describe("AC 6: one string on the room state, set once", () => {
       await colyseus.cleanup();
       return { perTick, lookChanges };
     };
-    const plain = await run([DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE]);
-    const custom = await run([STARTER, STARTER.replace("skin:4", "skin:7"), STARTER.replace("top:hoodie", "top:puffer"), STARTER.replace("hair:mohawk", "hair:bald")]);
-    expect(plain.perTick).toBeGreaterThan(0); // liveness: ticks were sent
-    expect(custom.lookChanges).toBe(0);
-    expect(plain.lookChanges).toBe(0);
-    expect(Math.abs(custom.perTick - plain.perTick) / plain.perTick).toBeLessThan(0.05); // same run, only the looks differ
-  }, 60_000);
+    let plain: { perTick: number; lookChanges: number } | null = null;
+    it("step 1: 4 default looks, 200 ticks", async () => {
+      plain = await run([DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE]);
+      expect(plain.perTick).toBeGreaterThan(0); // liveness: ticks were sent
+      expect(plain.lookChanges).toBe(0);
+    }, 60_000);
+    it("step 2: 4 custom looks, 200 ticks: no look change, the same bytes per tick as step 1", async () => {
+      expect(plain, "step 1 ran").not.toBeNull();
+      const base = plain as { perTick: number; lookChanges: number };
+      const custom = await run([STARTER, STARTER.replace("skin:4", "skin:7"), STARTER.replace("top:hoodie", "top:puffer"), STARTER.replace("hair:mohawk", "hair:bald")]);
+      expect(custom.lookChanges).toBe(0);
+      expect(Math.abs(custom.perTick - base.perTick) / base.perTick).toBeLessThan(0.05); // same run, only the looks differ
+    }, 60_000);
+  });
 });
 
 describe("Story 7.10 D3: lobby.set_look — my card changes for everyone before Start, never during a run", () => {

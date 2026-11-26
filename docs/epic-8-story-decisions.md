@@ -171,3 +171,16 @@ Designer "ok" 2026-11-26 to the E8-A9 recommendation (`_bmad-output/planning-art
 | 8.1 B19 | Solo drop with B16's 3 s body: the dropping body counts as present | **Confirmed** |
 | 8.3-B14 | Accepted risk: Remove + a fresh guest token can farm late-join money | **Confirmed (risk accepted)** |
 | 8.1 M2 / RR1-M1 → 8.12 | A held seat counted as a silent Extract vote; **reversed by Story 8.12** (only connected, standing players vote) | **Confirmed with the list** (clash X1): the M2 risk (a phone that drops for a few seconds lets the rest switch to endless) is accepted. 8.12 adds the 6.11 as-built note and the FR66 rewording when it lands |
+
+## Story 8.12: only connected, standing players vote (designer 2026-11-25)
+
+Reverses 8.1 review M2 / RR1-M1 for the vote (the `earnedAtEvac` banking part of M2 stays). Who counts: connected (not held) and `alive`, taken at the tick the vote resolves. Builder decisions, **auto-accepted (designer 2026-11-26)**:
+
+| Code | What it changes in play | Taken | Alternative |
+|---|---|---|---|
+| **8.12 D1** | A downed or out player taps a vote (an old client, or a tap in flight as they go down). | The server still stores the choice (`castVote` unchanged); it doesn't count. Status is frozen during the vote, so only holds and returns change who counts. The panel disables their buttons and the scene drops their taps. | Refuse the vote on the server too. |
+| **8.12 D2** | A seat returns during the 1 s "everyone voted" beat. | The beat is never extended (6.11 F4: the timer only shortens). The returner counts at the resolve, silent = Extract unless they tap in time. | Re-open the full timer when a counted player appears. |
+| **8.12 D3** | Nobody counts (all held, downed or out). | No early end: the timer runs out, then Extract. | End at once as Extract. |
+| **8.12 D4** | How held seats show in the panel. | Kept as dimmed chips (AC 6's second option), now reading "not voting" like downed and out players; left out of the result line, `allIn` and `voteUrgent`. | Hide them. |
+
+- **8.12 L4 (designer 2026-11-26): A, leave it.** A connection blip during the 1 s "everyone voted" beat clears that vote; the returner counts as silent. Votes are not kept across a hold.

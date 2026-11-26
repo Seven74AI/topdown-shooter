@@ -213,3 +213,9 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 07:58 Retros Epic 7 + 8: epic-7/8-retro-2026-11-26.md (c0251bc).
 - 08:33 Correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed by folding, 8.13 slow-line skip, 8.12 + Epic 12 added to epics.md (3627d27). Designer "ok" to every recommendation, applied in dfcbebc.
 - 08:40 PR #26 copy-chain audit (E8-A2) merged 4421603f: no gap left besides #21's owner; review clean (6/6 mutants killed); master CI green.
+- 09:28 8.12 disconnected players don't vote, PR #29 merged a1763cb8 (fresh 3-layer review: lows only → fixed → main-session check; CI green).
+- 09:36 Master CI green on a1763cb8 (#29).
+- 10:44 10.1 Settings + account deletion, PR #30 merged c5273e15 (fresh 3-layer review → 2 narrow re-reviews → main-session check of the lock-order fixes; real-PG races 0 errors; CI green).
+- 10:53 Master CI green on c5273e15 (#30).
+- 11:17 CI infra PR #28 merged 39781be5 (E7-A1 postgres job, 41-test floor; E7-A3 migration journal check; E8-A8 no test or file over 30 s, slowest-15 summary, ~30 tests split, timings refreshed). Light review clean (1 low + 1 nit fixed, main-session check). CI 4:32.
+- 11:24 Master CI green on 39781be5 (#28; first master run with the postgres job and the 30 s guard, 3:45).

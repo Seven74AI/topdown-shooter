@@ -109,6 +109,8 @@ export const MERGE_RULES = {
     const [x, y] = [o(a), o(g)];
     return { revives: int(x.revives) + int(y.revives), kills: int(x.kills) + int(y.kills), barricades: int(x.barricades) + int(y.barricades), runs: int(x.runs) + int(y.runs) };
   },
+  /** Story 10.1 (AC 6): the account's synced settings kept unless it has none (null), then the guest's. */
+  settings: (a, g) => (a !== null && typeof a === "object" ? a : g !== null && typeof g === "object" ? g : null),
 } satisfies Record<string, MergeRule>;
 
 export type MergeColumn = keyof typeof MERGE_RULES;

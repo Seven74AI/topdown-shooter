@@ -3,22 +3,22 @@ import { uiStore, type UiScreen } from "./uiState";
 import { MENU_TEXT, SAVE_TEXT, canRemoveIn, canSaveIn, menuRemoveTarget, removeConfirmText, visibleMenuItems } from "./menuItems";
 import { lobbyStore, saveQuitStore, type LobbySnapshot, type SaveQuitState } from "../net/lobbyStore";
 import { pendingPlacements } from "./pendingPlacements";
-import { getSettings, saveSettings } from "../settings/settings";
+import { SettingsPanel } from "./SettingsPanel";
+import { SETTINGS_TEXT } from "./settingsRows";
 
 /**
  * The in-run menu (Story 2.11) over the live game: a light backdrop so the danger stays visible,
  * the items of `MENU_ITEMS`, and the confirm step for Leave game. Every button goes through the
  * `menu` request; the Game scene runs the state machine and the leave (once). Story 8.3 (H2, AC 11):
  * the host's Players list (the other seats in the room state: connected, reconnecting, waiting) with
- * Remove + its confirm; Remove is greyed outside a build phase. Settings: the "Always full speed" switch
- * (saved at once; the move stick reads it every frame).
+ * Remove + its confirm; Remove is greyed outside a build phase. Settings: Story 10.1's `SettingsPanel` (every
+ * change saved and applied at once).
  */
 export function InRunMenu() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
   useEffect(() => uiStore.subscribe(setScreen), []);
   useEffect(() => lobbyStore.subscribe(setLobby), []);
-  const [, rerender] = useState(0); // the switch reads the stored setting; this only redraws after a toggle
   const [saving, setSaving] = useState<SaveQuitState>(saveQuitStore.get());
   useEffect(() => saveQuitStore.subscribe(setSaving), []);
   const [settled, setSettled] = useState(pendingPlacements.get() === 0);
@@ -97,27 +97,17 @@ export function InRunMenu() {
     );
   }
   if (screen.menu === "settings") {
-    const fullSpeed = getSettings().alwaysFullSpeed === true;
-    const toggle = (): void => {
-      saveSettings({ alwaysFullSpeed: !fullSpeed });
-      rerender((n) => n + 1);
-    };
+    // Story 10.1 (AC 1, B16): the same panel as the start screen's Settings; Delete my progress only there (no run).
     return (
-      <div class="in-run-menu in-run-menu--list" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="settings-menu">
+      <div class="in-run-menu in-run-menu--list in-run-menu--settings" role="dialog" aria-modal="true" aria-labelledby="in-run-menu-title" data-testid="settings-menu">
         <h2 id="in-run-menu-title" class="in-run-menu__title">
           {MENU_TEXT.settings}
         </h2>
-        <button type="button" role="switch" aria-checked={fullSpeed} aria-describedby="full-speed-hint" class="in-run-menu__switch" onClick={toggle}>
-          <span class="in-run-menu__switch-label">{MENU_TEXT.alwaysFullSpeed}</span>
-          <span class="in-run-menu__switch-track" aria-hidden="true">
-            <span class="in-run-menu__switch-thumb" />
-          </span>
-        </button>
-        <p id="full-speed-hint" class="in-run-menu__note">
-          {MENU_TEXT.alwaysFullSpeedHint}
-        </p>
+        {/* No autofocus on Back here: focusing it would open the long list scrolled to the bottom (☰ / Esc still close). */}
+        <SettingsPanel idPrefix="irm" />
+        <p class="in-run-menu__note st-hint">{SETTINGS_TEXT.inRunDeleteNote}</p>
         <div class="in-run-menu__items">
-          <button type="button" class="btn btn--secondary in-run-menu__back" autofocus onClick={() => uiStore.request("menu", "back")}>
+          <button type="button" class="btn btn--secondary in-run-menu__back" onClick={() => uiStore.request("menu", "back")}>
             {MENU_TEXT.back}
           </button>
         </div>

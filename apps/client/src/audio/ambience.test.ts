@@ -4,6 +4,7 @@ import {
   AMBIENCE_GAIN,
   AMBIENCE_LOOP_S,
   AmbiencePlayer,
+  ambienceVolumeGain,
   ambienceLoopData,
   AMBIENCE_LOOPS,
   ambienceLoopForStage,
@@ -181,14 +182,14 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     const f = fakeContext();
     const p = new AmbiencePlayer(() => f.ctx, () => false, null);
     p.update(1);
-    expect(f.made).toHaveLength(1 + 2 * AMBIENCE_LOOPS.length); // the bus + a gain and a source per loop
+    expect(f.made).toHaveLength(2 + 2 * AMBIENCE_LOOPS.length); // the bus + Story 10.1's volume gain + a gain and a source per loop
     p.dispose();
     const sources = f.made.filter((n) => n.started > 0);
     expect(sources).toHaveLength(AMBIENCE_LOOPS.length);
     for (const s of sources) expect(s.stopped).toBeGreaterThanOrEqual(0);
     for (const n of f.made) expect(n.disconnected, `node ${n.id}`).toBe(1);
     p.update(1); // after dispose a new start would build fresh nodes, never touch the old ones
-    expect(f.made.slice(0, 1 + 2 * AMBIENCE_LOOPS.length).every((n) => n.disconnected === 1)).toBe(true);
+    expect(f.made.slice(0, 2 + 2 * AMBIENCE_LOOPS.length).every((n) => n.disconnected === 1)).toBe(true);
   });
 
   it("nothing before the gesture; then fades the evening loop in; crossfades to panic over 3 s on stage 2; no nodes per frame; mutes while hidden", () => {
@@ -203,7 +204,7 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     p.update(1);
     expect(p.playing).toBe("evening");
     const built = f.count();
-    expect(built).toBe(1 + 2 * AMBIENCE_LOOPS.length); // bus + (source, gain) per loop, once
+    expect(built).toBe(2 + 2 * AMBIENCE_LOOPS.length); // bus + 10.1 volume gain + (source, gain) per loop, once
     expect(f.ramps.map((r) => [r.value, r.at])).toEqual(AMBIENCE_LOOPS.map((id) => [id === "evening" ? 1 : 0, 10 + AMBIENCE_CROSSFADE_S]));
     f.ramps.length = 0;
     for (let i = 0; i < 600; i++) p.update(1); // 10 s of frames
@@ -224,5 +225,26 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     expect(f.count()).toBe(built);
     p.dispose();
     expect(p.playing).toBe(null);
+  });
+});
+
+describe("Story 10.1 (B8): the Ambience volume setting", () => {
+  it("a gain after the bus follows the setting at once (0–100 → 0–1); dispose stops listening", async () => {
+    const { resetSettingsCache, saveSettings } = await import("../settings/settings");
+    resetSettingsCache();
+    saveSettings({ ambienceVolume: 60 });
+    const f = fakeContext();
+    const p = new AmbiencePlayer(() => f.ctx, () => false, null);
+    p.update(1);
+    const vol = f.made[1] as unknown as { gain: { value: number } };
+    expect(vol.gain.value).toBeCloseTo(0.6);
+    saveSettings({ ambienceVolume: 0 });
+    expect(vol.gain.value).toBe(0);
+    p.dispose();
+    saveSettings({ ambienceVolume: 100 });
+    expect(vol.gain.value).toBe(0); // not listening any more
+    expect(ambienceVolumeGain(150)).toBe(1);
+    expect(ambienceVolumeGain(-5)).toBe(0);
+    resetSettingsCache();
   });
 });

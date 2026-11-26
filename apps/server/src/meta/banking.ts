@@ -366,7 +366,8 @@ export class RunBank {
         const r = await repo.addSupplies(this.runId, accountId, pay, writes, this.deps.resumed === true || this.topUps.has(seatKeyOf(seat)));
         const b = storedBreakdown(r.breakdown, r.supplies);
         const meta = storedMeta(r.breakdown);
-        this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
+        // Story 10.1 re-review M3-log: a deleted account's seat is "no account" (logged by the repository), never "already banked".
+        if (!r.noAccount) this.deps.log.info({ runId: this.runId, accountId, total: r.supplies, ms: Math.round((now() - t0) * 10) / 10, already: !r.banked }, "supplies_banked");
         if (r.banked && (meta.newItems?.length || meta.loot || meta.newDistricts?.length)) {
           // 7.11 / 7.12 / 7.7 log lines (keys and ids only; no names a player typed)
           this.deps.log.info({ runId: this.runId, accountId, items: meta.newItems?.map((x) => x.key) ?? [], loot: meta.loot ? { wave: meta.loot.wave, collector: meta.loot.key === null } : null, districts: meta.newDistricts?.map((x) => x.id) ?? [] }, "meta_granted");
