@@ -13,6 +13,8 @@ prototype: docs/ideas/building-ux/prototype.html
 
 # Building UX rework: spec
 
+> **Note (2026-11-25):** Story 10.10 (hybrid Build button, story file `_bmad-output/implementation-artifacts/10-10-build-button.md`) replaces §4's 4 × 2 build bar with a quick tile (last-placed type) + Build button + Shop chip, and a 3 × 3 panel. Carry, drag, chain, undo and the action bar below are unchanged. Read 10.10 for the build-phase HUD layout.
+
 > **Designer decisions (2026-11-23):** carry + drag (mode B) is the design. No hold-to-paint walls. A building's menu opens only by tapping it (no walk-up select). No camera lead toward a pinned ghost. Sell refund 50 % is OK. Undo window doubled to **10 s**. Teammate ghosts (BX-10): **kept**.
 >
 > **Spine-wins rule:** where this spec and the prototype disagree, this spec wins. The prototype is there to feel the numbers on a phone. Values tagged `[ASSUMPTION]` are first guesses for the playtest to tune.

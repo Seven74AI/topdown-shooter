@@ -63,7 +63,7 @@ FR27: Zombie stats never change with waves; only counts, mix and spawn pressure 
 FR28: Wave size (4 players) grows from ≈ 40 zombies in wave 1 by ≈ 40 per wave to ≈ 400 in wave 10, with at most 150 alive at once (110 while the Behemoth lives); the rest queue at spawn points.
 FR29: Zombie types are introduced in order: W1 Walkers · W2 +Runners · W3 +Crawlers · W4 +Spitters · W5 first Brute · W6 +Bloaters · W7–9 full mix · W10 finale. Brutes are fixed, not scaled: 1 in W5–W6, 2 in W7–10.
 FR30: A wave ends when all its zombies are dead; when 5 remain they are marked on screen and rush the players.
-FR31: Zombie count and boss HP scale by player count: × 0.4 (solo), × 0.6 (2 players), × 0.8 (3), × 1.0 (4); a mid-run join rescales from the next wave. (Epic 5 balance pass B2, 2026-11-24: solo zombie count × 0.35, `waves.json › playerCountScale`; the Behemoth's solo HP stays × 0.4.) Solo is allowed, not balance-tuned.
+FR31: Zombie count and boss HP scale by player count: × 0.35 (solo zombie count, Epic 5 balance pass 2026-11-24; the solo Behemoth stays × 0.4, FR33), × 0.6 (2 players), × 0.8 (3), × 1.0 (4); a mid-run join rescales from the next wave. (Epic 5 balance pass B2, 2026-11-24: solo zombie count × 0.35, `waves.json › playerCountScale`; the Behemoth's solo HP stays × 0.4.) Solo is allowed, not balance-tuned.
 FR32: Zombies spawn at district edges (alleys, manholes, broken shop windows); decay opens more spawn points. In Random city, stage 1 spawns only at the city edges and from stage 2 points near the group open too (FR93).
 
 **The Behemoth (wave 10 boss)**
@@ -86,17 +86,17 @@ FR43: Survivor: an NPC appears and must be escorted to a safe point for a big re
 **Build phase, economy and shop**
 
 FR44: A 30 s build phase opens the run and follows every wave; it ends early when every player taps Ready.
-FR45: Each player has a personal wallet, earning kill rewards per zombie type, 50% of the reward for an assist, +25 per revive, 50% of the reward for kills by their own buildings, and a wave-clear bonus of 10 × wave number paid to every player (including downed and out players).
+FR45: Each player has a personal wallet, earning kill rewards per zombie type, 50% of the reward for an assist, +25 per revive, 50% of the reward for kills by their own buildings, and a wave-clear bonus of 15 × wave number (Epic 5 balance pass 2026-11-24; was 10 × N) paid to every player (including downed and out players).
 FR46: The shop offers consumables and upgrades for weapons the player owns, plus the 6 cards (FR47). Buildings come from the build bar (Story 5.16). A downed or out player can't buy.
 FR47: Each build phase, each player sees their own 6 random weapon and gear cards drawn from their unlocked pool, with at least 1 weapon and 1 gear card; reroll costs 20. No locking, no upgrade cards, no Pistol card, items with `inShop:false` never drawn; rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, epic ×1); no per-wave price scaling; card look C3. When the pool can't fill 6, fewer cards show and Reroll is disabled when no new draw exists.
-FR48: Gear lasts the run: Body armor I/II (+25/+50 max HP, 150/350), Running shoes (+10% speed, 150), Revive kit (its owner revives teammates in 1.5 s instead of 3 s; the fastest standing reviver in the zone counts, no stacking, no effect on the owner's own revive; 150), Tactical flashlight (wider, longer cone in blackout, 120).
+FR48: Gear lasts the run: Body armor I/II (+25/+50 max HP, 150/300), Running shoes (+10% speed, 150), Revive kit (its owner revives teammates in 1.5 s instead of 3 s; the fastest standing reviver in the zone counts, no stacking, no effect on the owner's own revive; 150), Tactical flashlight (wider, longer cone in blackout, 120).
 FR49: Consumables use one slot: Medkit (heals 50, 60), Grenades ×3 (40 dmg, 2.5 m, 80), Molotovs ×2 (3 m fire zone for 4 s, 8 dmg/s, 100). Grenades and molotovs are thrown 2–8 m on the Grenade Launcher's lob (over everything but buildings) and used in waves only; molotov fire needs a clear line from the zone centre, like acid.
 
 **Buildings**
 
-FR50: In a build phase, a player picks a building in the build bar, carries its ghost and drags to place it on a 0.5 m lattice (Stories 5.15–5.25, "B · Carry + drag"); the ghost turns red at once when blocked and green only after 250 ms clear; placement is refused where blocked.
+FR50: In a build phase, a player picks a building in the build bar, carries its ghost and drags to place it on a 0.5 m lattice (Stories 5.15–5.25, "B · Carry + drag"; picked from the hybrid Build button + last-placed quick tile, Story 10.10, layout B); the ghost turns red at once when blocked and green only after 250 ms clear; placement is refused where blocked.
 FR51: Buildings persist until destroyed, can be repaired in a build phase for 50% of their price, and are capped at 6 per player (cap reviewed in the Epic 5 balance pass).
-FR52: Building behaviors per the GDD table: Wood barricade (2 m wall, 200 HP, 40), Reinforced barricade upgrade (350 HP, +50), Metal barricade upgrade (600 HP, +70), Auto-turret (nearest zombie within 8 m, 3 dmg × 5/s, 300 HP, 250), Spike trap (2 × 2 m, 4 dmg/s and −40% speed, 300 HP, 80), Mine (proximity, 80 dmg in 2.5 m, single use, 60), Floodlight (4 m radius light, 6 m in blackout waves, 150 HP, 100; sold once Story 6.3 lands), Bear trap (Story 5.14), Med station (heals players within 2 m by 5 HP/s, 300 HP, 400).
+FR52: Building behaviors per the GDD table: Wood barricade (2 m wall, 200 HP, 40), Reinforced barricade upgrade (350 HP, +50), Metal barricade upgrade (600 HP, +70), Auto-turret (nearest zombie within 8 m, 3 dmg × 5/s, 300 HP, 250), Spike trap (2 × 2 m, 4 dmg/s and −40% speed, 300 HP, 80), Mine (proximity, 80 dmg in 2.5 m, single use, 35), Floodlight (4 m radius light, 6 m in blackout waves, 150 HP, 100; sold once Story 6.3 lands), Bear trap (Story 5.14), Med station (heals players within 2 m by 5 HP/s, 300 HP, 400).
 FR53: Every barricade tier (wood/reinforced/metal) blocks zombies, players and every bullet (own, teammates', turrets'); aim assist and turret targeting skip zombies behind one. Turrets, sandbags, police barriers and floor buildings stop no bullets. Explosions, flames, melee, acid and gas keep their own rules; zombies attack buildings blocking their path; fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings.
 
 **District, camera and cover**
@@ -137,7 +137,7 @@ FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · R
 **Meta-progression**
 
 FR77: A guest can upgrade to an account later and keep their progress.
-FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted only for waves the player was in: every player in the run when the wave ends, downed or out, but not waves before a late join or after leaving), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
+FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted only for waves the player was in: every player in the run when the wave ends, downed or out, but not waves before a late join or after leaving), +50 for killing the wave 10 Behemoth (once per run), +100 for extracting, +20 per endless wave and +50 per endless Behemoth (both kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
 FR79: New players start with the starter pool (Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, in any order, and unlocks add cards to that player's shop deck; one card per offer may be borrowed from a teammate's unlocks the player lacks.
 FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 200 → 250, reload speed up to +5%), each level costing 50 × level Supplies.
 FR81: District 2 unlocks for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has unlocked it (rule only; district 2 content is out of v1).
@@ -159,7 +159,7 @@ FR90: Random city: each run the host can play a new 70 × 70 m city generated fr
 FR91: Every generated city passes checks A–G (A never seals off an area at any stage or variant; B every spawn reaches the players; C an open start area near the middle, buildable in wave 1 and never hit by decay; D no empty 15 × 15 m square without cover; E at least 2 choke points; F no spawn path that traps zombies; G streets at least 3 m wide) and the anchor check (4 main-street ends at least 4 m clear at every stage, the helicopter pad in the start area, event spots and stampede lanes reachable), or it is rejected and regenerated.
 FR92: Random city decays by generic rules through all 5 stages (curb cars move into the road, police lines, cars burn, manholes and windows open, rubble closes 1 of 3 candidate side streets, 2 building walls open as breaches; stage 5 power out and fog), plus each landmark recipe's own stage events (gas station: gas leak from stage 2).
 FR93: Random city spawns: stage 1 only from the city edges; from stage 2 also from generated points 15–35 m from the group, never within 6 m; fights stay as dense as Downtown's (150 alive cap unchanged).
-FR94: Results of a Random city run show a city code; the host can type it in the lobby to play the same layout again (decay picks, events and shop cards stay new); a code from an older generator is refused with "This city is from an older version".
+FR94: A Random city extraction counts for the "first extraction" milestone item (M2, Story 7.11) but not for the District 2 unlock, which stays "from Downtown" (FR81; designer 2026-11-25). Results of a Random city run show a city code; the host can type it in the lobby to play the same layout again (decay picks, events and shop cards stay new); a code from an older generator is refused with "This city is from an older version"; a saved Random city run whose generator version is older can't be resumed: the Saved games list shows it with that message and only Delete (designer 2026-11-25).
 
 ### NonFunctional Requirements
 
@@ -190,15 +190,15 @@ From the architecture document:
 - **Epic 1 local mode:** the client runs the shared World in the browser behind a `SimHost` interface; Epic 2 swaps in the networked host without changing scenes.
 - **Server:** one Colyseus `RunRoom` per run owning the `Run` state machine (Lobby → Build → Wave → EvacVote → Endless ↔ EvacVote → Results; Paused side state) and the World; room id = random 4-letter code without ambiguous letters; share link `https://<subdomain>/j/<code>`; `maxClients = 4`; joins only in Lobby and Build; `hostSlot` reassigned to the longest-connected player.
 - **Networking (ADR-01):** server-authoritative; client input sampled per 50 ms step with sequence numbers; local player predicted with shared movement code and reconciled; remote entities interpolated with an adaptive 100–150 ms delay; timers count ticks inside the World.
-- **Horde stream (ADR-02):** per-client binary message per tick with zombies in the client's view + 4 m margin; 8-byte records (id u16, x u16, y u16 at 1 cm, heading u8, type+state u8) + header; freed ids held 1 s; client removes zombies missing from 3 snapshots; backpressure skips frames when `bufferedAmount` > 64 KB; budget horde ≤ 24 KB/s + schema/events ≤ 6 KB/s.
+- **Horde stream (ADR-02):** per-client binary message per tick with zombies in the client's view + 4 m margin; 8-byte records (id u16, x u16, y u16 at 1 cm, heading u8, type+state u8) + header; freed ids held 1 s; client removes zombies missing from 3 snapshots; backpressure skips frames when `bufferedAmount` > 64 KB; budget horde ≤ 24 KB/s + schema/events ≤ 6 KB/s. (Updated by the Network pass: Story 8.9 removes a zombie after 150 ms of missing time instead of 3 snapshots; Story 8.10 sends a delta stream, ≈ 8 KB/s measured.)
 - **Colyseus schema** for low-frequency state (players, wallets, loadouts, buildings, phase, timers, decay stage, votes, Behemoth, hazards, mines, Survivor, crate, aliveCount); personal shop offers sent only to their owner (`@view()` or direct message); purchases validated against the stored offer.
-- **Hit validation:** server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half RTT (capped 150 ms); projectiles are cosmetic on clients from `weapon.fired` events; the server rewinds zombies to what the shooter saw (≤ 10 ticks / 500 ms since Story 8.8; 300 ms in Story 2.12; spread keyed to the input seq); boss hits are not rewound.
+- **Hit validation:** server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half RTT (capped 150 ms); projectiles are cosmetic on clients from `weapon.fired` events; the server rewinds zombies to what the shooter saw (≤ 12 ticks / 600 ms since Story 8.9; 500 ms in Story 8.8, 300 ms in Story 2.12; spread keyed to the input seq); boss hits are not rewound.
 - **Pathfinding:** flow fields on a 0.5 m grid toward players, rebuilt (amortized) when buildings or decay change; Runners use a flanking field; separation forces on top.
 - **Maps (ADR-05):** districts authored in Tiled (JSON export); layers `stage1_evening` … `stage5_collapse`, `collision`, `cover`, `spawns`, `hazards`; per-stage mutation sets (`add | remove | ignite | block`); `DecayTimeline` + `DecaySystem` in shared (`applyDecayStage` is the single path); the map is generated by `tools/maps/buildDowntown.ts`, and visuals are drawn by `apps/client/src/render/city/*` (`DecayView` is gone); client prediction applies decay to its own map; on resume, stages are re-applied without side effects.
 - **Lighting:** darkness layer (as built in 6.3: not a RenderTexture, decision 6.3 DD1; see the architecture) at half resolution with lights cut out, rendered only when blackout is on; light state owned by the server.
 - **UI:** in-combat HUD drawn by Phaser; menus (lobby, shop, evac vote, results, unlocks, settings) as Preact HTML overlays with `pointer-events: none` except on active screens.
-- **Persistence (ADR-04):** PostgreSQL 18 + Drizzle ORM 0.45 + Drizzle Kit migrations; tables `accounts`, `progress`, `device_tokens` (7.6), `run_rewards` (7.2), `saved_runs` + `saved_run_players` (8.4) built; `run_results` planned (10.7); DB accessed only from `apps/server/src/db` repositories.
-- **Saved runs:** versioned JSON snapshot (including every PRNG state) autosaved at each Build phase for crash recovery; explicit Save and quit makes it resumable for 7 days by the host only; graceful shutdown autosaves every room.
+- **Persistence (ADR-04):** PostgreSQL 18 + Drizzle ORM 0.45 + Drizzle Kit migrations; tables `accounts`, `progress`, `device_tokens` (7.6), `run_rewards` (7.2), `saved_runs` + `saved_run_players` (8.4) built; `progress.settings` (10.1), `problem_reports` (10.6), `run_results` + `run_result_players` (10.7) planned; DB accessed only from `apps/server/src/db` repositories.
+- **Saved runs:** versioned JSON snapshot (including every PRNG state) autosaved at each Build phase for crash recovery; explicit Save and quit (or everyone leaving in a Build phase, or a server stop) makes it resumable for 7 days by any account that was in the run (Epic 8 D10–D13); graceful shutdown autosaves every room.
 - **Reconnect:** Colyseus `allowReconnection` 120 s; slot, wallet and gear held in room state.
 - **Accounts:** guest = random device token in a 1-year HttpOnly `__Host-tdg` cookie plus a localStorage copy (Epic 7 D9) → server session (stored hashed); upgrade to username + password (Argon2id via @node-rs/argon2).
 - **Hosting:** Docker Compose on the designer's European VPS: HTTPS/WSS at the existing Cloudflare Tunnel, Caddy 2.11 behind it on plain HTTP at 127.0.0.1:8080 (static client, no-cache `index.html`, long-cache hashed assets), game server, PostgreSQL; the game is at https://hordes.sevend.io; Hermes deploys; WebSocket origin check; nightly `pg_dump` kept 14 days and copied off the VPS, restore tested once per milestone.
@@ -208,7 +208,7 @@ From the architecture document:
 - **Debug tools:** performance overlay (FPS, ping, bandwidth, zombies alive/in view, tick time) also in release via Settings → Show performance; dev-only cheats (spawn, skip wave, give currency, set decay stage, trigger event, force blackout, set seed, god mode); release-safe switches: `?debug`, `?loadout`, `?lag`, and `?wallet` (solo only); collision/grid view; headless replay from seed + input log.
 - **Testing:** Vitest unit tests with fixed seeds for every GDD mechanic in `shared`; headless bot clients in `tools/bots` for load tests.
 - **Client platform budgets:** devicePixelRatio capped at 2; texture atlases ≤ 2048 × 2048; no per-frame allocation in render loops (Phaser object pools); stop rendering and audio on `visibilitychange`; web app manifest (fullscreen, landscape), `viewport-fit=cover`.
-- **Assets:** art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture`; AI/vector images are references only. SFX audio sprites, streamed music and ambience (procedural or licensed/free libraries).
+- **Assets:** art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture`; AI/vector images are references only. Exception since Story 9.14: street props and vehicles ship as an atlas pre-rendered offline from the approved code by a committed script (same frame names, repainted through `addGeneratedTexture`). SFX audio sprites, streamed music and ambience (procedural or licensed/free libraries).
 - **Audio:** three buses (music, SFX, ambience); positional volume/pan for zombie cues.
 - **Tooling:** Context7 MCP for current Phaser/Colyseus/Vite docs.
 
@@ -221,7 +221,7 @@ From the GDD epics outline (sequencing constraints):
 
 ### UX Design Requirements
 
-The building UX spec exists: `docs/ideas/building-ux/ux-spec.md` (designer picked "B · Carry + drag"), built as Stories 5.15–5.25; it replaces Story 3.4's placement input. Other menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. Touch zones, the in-run menu and minimum sizes are defined in Stories 1.8 and 2.11 (readiness review fixes). A `gds-ux` pass remains optional before Epic 9.
+The building UX spec exists: `docs/ideas/building-ux/ux-spec.md` (designer picked "B · Carry + drag"), built as Stories 5.15–5.25; it replaces Story 3.4's placement input. Other menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. Touch zones, the in-run menu and minimum sizes are defined in Stories 1.8 and 2.11 (readiness review fixes). Story 10.10 (hybrid Build button, layout B picked 2026-11-25) replaces the 5.16 build bar. A `gds-ux` pass (HUD map at 568 × 320 and 844 × 390, Results, Settings, build-phase controls) is recommended before Stories 9.7 and 10.10 (readiness check 2026-11-25, U1–U6).
 
 ### FR Coverage Map
 
@@ -320,7 +320,7 @@ FR90–FR94: Epic 11 - Random city (generator, checks, decay rules, spawns, city
 
 ## Epic List
 
-Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
+Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside; **Story 10.1 (Settings) is built before Stories 9.5, 9.6 and 9.8**, which use its gore, quality and volume settings. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones. *(Closed 2026-11-26, correct-course: 1.11 AC 3 is folded into 10.2 and 1.12 into the 10.9 game nights.)*
@@ -338,11 +338,11 @@ A team plays 5 waves (now 6 waves; 6.1 makes 10) with build phases: earning into
 2–4 players online in Downtown play 5 waves (now 6; 6.1 makes 10) through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Dead City art drawn in code, cover rules, spawn points and the run seed. *(Closed 2026-11-26, correct-course: the 4.10 playtest is folded into the 10.9 game nights.)*
 **FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
 
-## Epic 5: Full arsenal and bestiary
+### Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (7 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
 
-## Epic 6: The full run: decay, boss, events, endless
+### Epic 6: The full run: decay, boss, events, endless
 A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets two special events, votes to extract or stay, and can go endless.
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
@@ -360,7 +360,7 @@ The game looks and sounds like Dead City: a photoreal pass of the art (district 
 
 ### Epic 10: Performance and polish
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
-**FRs covered:** FR87, FR88 · NFR1, NFR2, NFR6, NFR7, NFR8
+**FRs covered:** FR87, FR88 · NFR1, NFR2, NFR3, NFR6, NFR7, NFR8, NFR9
 
 ### Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
@@ -744,6 +744,8 @@ As a friend,
 I want to open the link (or type the code), pick a name and tap Ready,
 So that I join my friends' game in seconds.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** solo waves are × 0.35 (Epic 5 balance pass), not × 0.4.
+
 **Acceptance Criteria:**
 
 **Given** a share link `/j/<code>` or a code typed on the start screen
@@ -881,6 +883,8 @@ So that all of us agree on what happened.
 As a player,
 I want to go down instead of dying, and be revived by a teammate,
 So that we survive by helping each other.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** revive radius 2.0 m centre to centre (`player.json reviveRadiusM`), not 1.2 m; the downed countdown pauses while someone revives, and the downed player's gun keeps reloading (FR10). Revived players get 30 % of max HP (`reviveHpFrac`).
 
 **Acceptance Criteria:**
 
@@ -1029,6 +1033,8 @@ As a player,
 I want to earn my own money from kills, assists, revives and cleared waves,
 So that what I buy reflects how I played and helps the team.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** a run starts with 200 (designer 2026-11-24), and the wave-clear bonus is 15 × N (Epic 5 balance pass).
+
 **Acceptance Criteria:**
 
 **Given** a new run
@@ -1089,6 +1095,8 @@ So that I can change my loadout as the run goes on.
 As a player,
 I want to place barricades on a grid during the build phase,
 So that I can close paths and shape the fight.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** placement is carry + drag on a 0.5 m lattice (Stories 5.15–5.19, then the 10.10 Build button), and every barricade tier **stops every bullet** (FR53, `stopsBullets`); projectiles no longer pass over it.
 
 **Acceptance Criteria:**
 
@@ -1280,6 +1288,8 @@ As a player,
 I want cars and the bus to stop bullets while barriers and sandbags only stop bodies,
 So that cover works the way it looks.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** melee does **not** hit through barricades or shot-blocking cover (walls, cars, bus, buildings); low cover (sandbags, barriers, traps, mines) doesn't block it (FR14, `combat/cover.ts`).
+
 **Acceptance Criteria:**
 
 **Given** cover objects with a `kind` property in the `cover` layer (`car`, `bus`, `barrier`, `sandbags`)
@@ -1349,6 +1359,8 @@ So that we can replay a run exactly to test or fix it.
 As a player,
 I want the city to change between waves as the run goes on,
 So that wave 5 doesn't play like wave 1.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** `DecayView` is gone; decay visuals are drawn by `apps/client/src/render/city/*` (architecture, client decay visuals).
 
 **Acceptance Criteria:**
 
@@ -1562,6 +1574,8 @@ As a player,
 I want heavy melee options,
 So that I can carve through the crowd up close.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** the Fire Axe swings 1.4 /s (GDD, `weapons.json`), not 1.1.
+
 **Acceptance Criteria:**
 
 **Given** the Fire Axe (30 damage, 1.1 swings/s, 2.2 m, 140° arc, 300)
@@ -1581,6 +1595,8 @@ So that I can carve through the crowd up close.
 As a player,
 I want a short-range Shotgun and a mid-long Assault Rifle,
 So that I have more ways to fill my role.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** Shotgun pellets deal 5 (8 × 5); the Assault Rifle deals 10 at 6 shots/s (GDD, `weapons.json`).
 
 **Acceptance Criteria:**
 
@@ -1618,6 +1634,8 @@ So that I can hold a choke point, while being careful of my friends.
 As a player,
 I want a Grenade Launcher that lobs explosive rounds,
 So that I can blow apart packed crowds at a distance.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** 2.5 m blast, price 700, 3–12 m lob with a landing ring; flies over cars, the bus, pumps, low walls, barriers, sandbags, barricades and turrets and is stopped only by buildings; cars and the bus still shield the blast (GDD, `weapons.json`).
 
 **Acceptance Criteria:**
 
@@ -1698,6 +1716,8 @@ As a player,
 I want stronger walls and traps,
 So that my defenses can grow with the waves.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** the mine costs 35 (GDD, `buildings.json`).
+
 **Acceptance Criteria:**
 
 **Given** one of my wood barricades in a build phase
@@ -1736,6 +1756,8 @@ As a player,
 I want gear that changes how I play for the rest of the run,
 So that my build is more than my weapons.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** Body armor II costs 300 (GDD, `gear.json`).
+
 **Acceptance Criteria:**
 
 **Given** gear bought in the shop
@@ -1752,6 +1774,8 @@ So that my build is more than my weapons.
 As a player,
 I want a quick-use slot for medkits, grenades and molotovs,
 So that I have an emergency answer.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** grenades and molotovs are thrown 2–8 m on the Grenade Launcher's lob (over everything but buildings), in waves only; a molotov's fire needs a clear line from the zone centre; the medkit also works in build phases (FR49).
 
 **Acceptance Criteria:**
 
@@ -1847,6 +1871,8 @@ As a player, I want to keep walking while I hold a building, so that I can put i
 
 ### Story 5.16: Build bar replaces the shop for buildings
 
+> **Current rule (readiness check 2026-11-25):** Story 10.10 (done, PR #20) replaced this 4 × 2 grid with the quick tile + Build button + Shop chip and a 3 × 3 panel (layout B); the money, cap and refusal rules below are unchanged.
+
 (BX-2 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
 As a player, I want my buildings under my right thumb, so that I don't open a menu for every barricade.
@@ -1922,6 +1948,8 @@ As a player, I want to nudge the ghost with my right thumb without covering it, 
 ---
 
 ### Story 5.20: Take back, sell and undo
+
+> **Current rule (readiness check 2026-11-25):** since Story 10.10 the undo chip ↶ has one spot in both modes, centre (164, 146) from the bottom-right safe-area corner (10.10-B2/B15), not "above the build bar's top-left".
 
 (BX-6 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
@@ -2059,6 +2087,8 @@ A team plays the full 10 waves from Evening to the Behemoth through Ruins and Co
 As a team,
 I want the run to last 10 waves with the full zombie mix,
 So that a run builds to a real climax.
+
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** solo waves are × 0.35 (Epic 5 balance pass); the solo Behemoth stays × 0.4.
 
 **Acceptance Criteria:**
 
@@ -2408,7 +2438,7 @@ So that every run moves me forward.
 
 **Given** a run ends (extract, wipe or quit)
 **When** Supplies are computed for each player (server only, from the run result)
-**Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
+**Then** they get +10 per wave survived, +50 if the wave 10 Behemoth was killed (once per run), +100 if the team extracted, and +20 per endless wave and +50 per endless Behemoth only if the team extracted (FR78; `progression.json` `perEndlessWave`, `endlessBehemoth`)
 **And** a wave counts only for players who were in it: in the run when it ends (playing, downed, out, or held during a short drop, Epic 8 D1); waves before a late joiner arrived, or after a player left or lost their seat, don't count; a player who quits banks the waves ended before they left (designer D2; Epic 8 note: no farming by joining at wave 9)
 **And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts
 **And** the waves each player was in are kept per seat in run state, so Epic 8 can carry them in its snapshot (note: in a run resumed on another night, Story 8.4/8.6 count each player's waves from every night once, at the run's end)
@@ -2852,7 +2882,8 @@ So that less of my data and battery goes on packet overhead.
 **Given** a server tick
 **When** it ends
 **Then** the state patch is sent from the tick itself (not its own 50 ms timer), so every patch carries exactly one tick, and the tick's horde frame, events and patch leave in one write
-**And** the input message is a compact binary form (~14 B instead of ~116 B)
+**And** the input message is a compact binary form (~14 B instead of ~116 B), decoded strictly like today's zod schema (exact length, seq integer ≥ 0, sticks in [−1, 1], flag bits only, `viewTick` in range; a malformed input is dropped and logged at `warn`, with a fuzz test), still under the 1 KB / 25 per second caps of Story 2.1
+**And** `NET_PROTOCOL_VERSION` is bumped and checked on join, so a stale cached client is refused with "Please refresh"; bots and `tools/netsim` use the new form
 **And** with 4 bots through the lossy-line proxy, down writes per phone are **≤ 25/s** (today 44–49) and input upload **≤ 0.6 KB/s** payload (today 2.1–2.5); nothing else changes (same tests green)
 
 ### Story 8.1: Reconnect within 2 minutes
@@ -3005,6 +3036,8 @@ As a player,
 I want to pick up a saved run with whoever is around,
 So that we finish what we started.
 
+> **Current rule (readiness check 2026-11-25; the code and the GDD follow it, the ACs below are kept as built history):** solo waves are × 0.35. A saved Random city run from an older generator version can't be resumed (Story 11.7).
+
 **Acceptance Criteria:**
 
 **Given** my account was in saved runs that haven't expired (at most 3 per account; a 4th drops the oldest)
@@ -3038,7 +3071,7 @@ So that we can coordinate without voice chat.
 
 **Acceptance Criteria:**
 
-**Given** the ping button (top-right or by the minimap, clear of the build bar and hand cluster; hidden while I hold a building)
+**Given** the ping button (top-right, clear of the build bar and hand cluster; hidden while I hold a building)
 **When** I tap it
 **Then** a small wheel offers Help! · Over here · Big one! · Ready (FR76, D15; "Big one!" covers the Brute and the Behemoth); on desktop the F key opens it; downed players can ping
 
@@ -3288,6 +3321,10 @@ So that the game feels finished.
 **Then** icons and card art ship as a pre-rendered atlas (9.14 way) or worker-relit frames, ≤ 2 MB per atlas, and the HTML overlays keep their Preact layouts
 **And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px, and `hudLayout.test.ts` passes at 568 × 320 … 1920 × 1080 with and without insets
 
+**Given** the Results screen, which collects lines from many stories (3.10, 4.4 seed, 6.11, 6.12, 7.2 rewards and rookie bonus, 7.5 Training, 7.6 "Save my progress", 7.7 unlock, 7.11 milestone, 7.12 loot, 10.6 Report a problem, 11.7 city code)
+**When** it is laid out
+**Then** it has one fixed order (outcome and wave → Run rewards → new items and unlocks → per-player kills and money → seed / city code → Report a problem), fits 568 × 320 without overlap (scrolls if needed), and has a layout test like the HUD's
+
 ### Story 9.8: Ambience and audio buses
 
 *(State on 2026-11-26, readiness check: per-stage procedural ambience with a 3 s crossfade already exists in `apps/client/src/audio/ambience.ts`, built by 4.6/4.7/6.2/6.4. Stage 3 reuses the Panic loop, and there is no Breakdown loop of its own. There are no buses: the ambience gain goes straight to the output, and the boss loop runs on the SFX master. The volume sliders need Story 10.1's settings screen.)*
@@ -3408,6 +3445,8 @@ So that the characters match the premium look of the rest.
 **When** the game draws survivors, Walkers, Runners, Crawlers, Spitters, Brutes and Bloaters
 **Then** they use that relit look (prepared like 9.11, no stalls), with its animations: breathing and sway, the glow pulse, Bloater veins with travelling pulses and glossy acid sacs, Spitter drips, chainsaw shake, and the new Walker / Runner / Crawler walk loops, capped and pooled for 150 zombies at the phone FPS target; survivor looks (Story 7.8) keep working
 
+(Readiness check 2026-11-25, after the build: memory was measured in `docs/perf/epic-9-characters.md` › Memory (83–111 MB JS heap on `?stress=150`, headless); the real iPhone 12 check for NFR2 stays with Story 10.3. The Behemoth's look stays with 9.4, per-weapon holding poses with 9.3, dismemberment pieces with 9.5; lobby / results / editor portraits stay plain.)
+
 ### Story 9.14: Photoreal street props and vehicles in the game (done)
 
 As a player,
@@ -3419,6 +3458,8 @@ So that the whole street matches.
 **Given** the approved street props and vehicles (`docs/art/photoreal-1/compare.html`)
 **When** the city is drawn
 **Then** cars, burnt cars, the bus, dumpster, gas pump, rubble and sandbags use that look, and the police sawhorse barriers stand (approved police set in `barricadeArt.ts`, traffic-drum corners), sorted with the bodies like the barricades
+
+(As built, story file `9-14-photoreal-street-props-in-game.md`: the props ship as an atlas pre-rendered offline from the approved code (B1); cars, the bus, dumpster, pump, rubble, sandbags and the concrete barrier stay flat in the baked ground; only the sawhorse police lines stand, with 9.12 silhouettes for bodies behind them (B3, B4). Frame names and sizes are unchanged (B2), so Story 11.6 can place them by kind.)
 
 ## Epic 10: Performance and polish
 
@@ -3440,13 +3481,16 @@ So that the game runs and feels right on my phone.
 
 **Given** the Settings screen (start screen and the in-run menu from Story 2.11)
 **When** I open it
-**Then** I can turn down or off rain, fog visuals, screen shake, film grain and light glow; switch gore to "Blood only"; toggle aim assist (on by default); set the 3 volumes; and turn on "Show performance" (FR87)
+**Then** I can turn down or off rain, fog visuals, screen shake, film grain and light glow; switch gore to "Blood only"; toggle aim assist (on by default); turn haptics off (the switch Stories 5.20 and 5.23 follow); set the 3 volumes; and turn on "Show performance" (FR87)
+**And** this story is built before Stories 9.5, 9.6 and 9.8, which read these settings
 **And** blackout darkness and the 10 m fog vision limit have no setting
 
 **Given** I change a setting
 **When** it is saved
 **Then** it applies immediately, is stored in localStorage (wrapped in try/catch, with defaults if storage fails), and is synced to my account when I'm logged in
 **And** account sync uses its own `settings` field in `progress`, added by this story's own migration (Story 7.1 doesn't create it)
+**And** the Story 7.6 guest merge rule for `settings`: the account's settings are kept; the guest's are used only if the account has none
+**And** after logging in on a device, the account's settings replace that device's local ones
 
 **Given** the Settings screen, as a guest or logged in (retro E7-A8)
 **When** I choose "Delete my progress" and confirm it on a second screen that names what goes (Supplies, unlocks, training, look, saved runs, the account if I have one)
@@ -3565,8 +3609,11 @@ So that the designer can fix what went wrong.
 
 **Given** I tap "Report a problem" (Settings or Results screen) and write an optional note
 **When** I send it
-**Then** the server stores the note, the log lines, the room id, run seed, wave, device and browser info, and logs `problem_reported`
-**And** the endpoint is rate-limited and size-limited
+**Then** the server stores the note, the log lines, the room id, run seed, wave, device and browser info in a `problem_reports` table (this story's own migration: id, account id nullable, created, note, payload JSON), and logs `problem_reported`
+**And** the endpoint takes at most 64 KB per report and a note of at most 500 characters, and accepts at most 3 reports per minute per IP and 20 per day per account (refused with "Too many reports, try again later")
+**And** reports are kept 30 days, then deleted by the nightly job; `npm run reports` lists the latest ones for the designer
+**And** the Report screen says what is sent ("your note, the last 200 log lines, your device and browser")
+**And** when an account is deleted (Story 10.1), its reports' account id is set to null in the same transaction
 
 ### Story 10.7: Run stats
 
@@ -3576,14 +3623,16 @@ So that I can check the success metrics.
 
 **Acceptance Criteria:**
 
-**Given** a migration creating only the `run_results` table (district, seed, player count, wave reached, extracted, loadout per player, started, ended)
+**Given** a migration creating only the `run_results` table (id, district, seed, player count, wave reached, extracted, started, ended, nights played) and a `run_result_players` table (run id, account id, slot, loadout, waves in)
 **When** a run ends
-**Then** a row is written (FR88)
+**Then** a row is written per run and one per player who was in it (FR88)
+**And** a run resumed over several nights writes one row when it ends (`started` = first night, `nights played` counted); a saved run that expires unresumed writes its row at expiry, marked `abandoned`; solo runs are recorded (player count 1); practice runs that earn nothing (7.2) are not
+**And** when an account is deleted (Story 10.1), its `run_result_players` rows keep the run numbers but their account id is set to null in the same transaction
 **And** kills during the `extract` phase (12.2's fly-out horde) are not counted in the run's stats (X8, designer "ok" 2026-11-26)
 
 **Given** a stats script (`npm run stats`)
 **When** I run it
-**Then** it prints: runs per week, wave reached in each group's first 3 runs, runs to first extraction, and the share of runs per loadout (flagging any loadout used in more than half of runs)
+**Then** it prints: runs per week, wave reached in each group's first 3 runs (a group = the set of accounts in a run), runs to first extraction per account, and the share of runs per loadout (flagging any loadout used in more than half of runs)
 
 ### Story 10.8: Balance pass
 
@@ -3619,6 +3668,7 @@ So that we know it's ready for every week.
 **When** the friend group plays at least 3 game nights
 **Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
 **And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
+**And** at least one first-time player is watched through their first build phase without help, and what they couldn't find (carry, drag-to-pin, long-press move, undo, the action bar, the Build panel) is noted; anything blocking becomes a hint story (readiness check 2026-11-25, U6)
 **And** the first game night also runs the folded checks (correct-course 2026-11-26): **4.10**: *(per-phone rows parked)* FPS, bandwidth and reversed hits for each phone in `docs/perf/milestone-1.md` against NFR1, NFR3–NFR5, and feedback on fun, difficulty, economy, building and decay, from `docs/playtests/milestone-1.md` refreshed first to the 10-wave game (current earnings, the Behemoth, events, the evacuation vote, the Build button); **1.12**: at least 3 people's feedback on move stick, aim stick, auto-fire, aim assist, swap and melee in `docs/playtests/epic-1-controls.md`, with the melee-under-twin-stick decision (keep, tune or change) recorded and each issue fixed by tuning or turned into a story; **7.10 AC 12** (retro E7-A6, designer "ok" 2026-11-26): a first-time player is timed from opening the survivor editor to Done (target < 30 s), written in `docs/playtests/epic-7-customization.md`
 
 **Given** every NFR
@@ -3639,6 +3689,7 @@ So that repeat placements stay instant and the screen edge stays clear.
 **When** the HUD shows
 **Then** the bottom-right shows a **Build** button and the **last-placed building** as a one-tap quick tile (today's 4 × 2 grid is gone), and Shop stays reachable (BU-2)
 **And** tapping the quick tile starts the 5.15 hold with that type in one tap, with today's money/cap refusals and toasts (5.16/5.17 unchanged)
+**And** the quick tile shows the type I last placed this run (a confirmed placement; moves, sells and take-backs don't change it). Before my first placement, and after a page reload, a reconnect, a resume or a late join, it shows the first unlocked type in balance order (BU-5). A type no longer in my unlock list falls back the same way
 
 **Given** I tap Build
 **When** the panel opens with every unlocked shop type and Shop
@@ -3668,10 +3719,12 @@ So that every run asks us to read new streets.
 **When** the generator runs
 **Then** it returns a 70 × 70 m `DistrictMap`: a street plan from rules (avenue, T junction, parallel streets, dead end…), blocks of rule-made sizes, building footprints (collision boxes with `building`), curb cars and barriers as cover, spawn points and decay groups (FR90)
 **And** it uses no randomness except its own `city` PRNG, and no `Math.random()` / `Date.now()` (architecture rules)
+**And** it uses only integer or fixed-point maths, or the shared code's own lookup tables: no `Math.sin/cos/tan/atan2/exp/log/pow/hypot/sqrt` or other functions whose results JavaScript engines may round differently (an ESLint rule bans them in `map/gen/`), so V8 (server, Android) and JavaScriptCore (iOS Safari) build the same city (readiness check Q1)
 
 **Given** the same `(citySeed, generatorVersion)`
 **When** the server, a client and a test each generate the city
 **Then** the three maps are byte-identical (same map digest)
+**And** a committed fixture of digests for 50 seeds is checked in CI, and Story 10.5's browser smoke test generates the same 50 on iOS Safari and compares
 
 **Given** any generated city
 **When** check **G** runs
@@ -3698,7 +3751,8 @@ So that a bad layout never ruins a run.
 - **D** no 15 × 15 m square without cover;
 - **E** at least 2 choke points;
 - **F** no spawn path traps zombies;
-- **G** from Story 11.1.
+- **G** from Story 11.1;
+- the players' start spots (run start, return after being out, late join) lie inside area C.
 
 **Given** the Epic 6 content on the map
 **When** the **anchor check** runs
@@ -3803,7 +3857,7 @@ So that it feels like the same game as Downtown.
 
 **Given** Downtown
 **When** screenshots of stages 1–5 are compared with before the story
-**Then** they are pixel-identical
+**Then** they are pixel-identical (baseline taken from master right before this story starts, after Story 9.14's props)
 
 **Given** the designer
 **When** the look is proposed before the build
@@ -3829,6 +3883,7 @@ So that we can play the same streets again or send them to friends.
 **Given** Results of a Random city run
 **When** shown
 **Then** it shows the city code (e.g. "City K7QX": seed + generator version, 4–5 characters, no ambiguous letters) (FR94)
+**And** `citySeed` is drawn from the code's seed space, and the code encodes the seed of the city that was actually used (after any 11.1 retries), so typing it back gives the same layout
 
 **Given** the host types a city code in the lobby
 **When** the run starts
@@ -3838,6 +3893,14 @@ So that we can play the same streets again or send them to friends.
 **Given** a saved run (Story 8.4) and run stats (Story 10.7)
 **When** a Random city run is saved or recorded
 **Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
+
+**Given** a saved Random city run whose `generatorVersion` is older than the server's (designer 2026-11-25)
+**When** the Saved games list shows it
+**Then** it reads "This city is from an older version", Resume is disabled and only Delete is offered; a test covers it
+
+**Given** a Random city extraction (designer 2026-11-25)
+**When** Story 7.2's transaction banks it
+**Then** it grants the "first extraction" milestone item (M2: `milestones.json` rule widened from `district: "downtown"` to any district) but does not unlock District 2, which stays "from Downtown" (FR81, FR94)
 
 ## Epic 12: Extraction cinematic
 
