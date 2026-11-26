@@ -2,7 +2,8 @@
  * Story 12.1 (AC 9, AC 16): the placement path check (`buildings/pathOpen.ts › sealsPath`) timed in
  * headless Chromium at 1× and 4× CPU (`Emulation.setCPUThrottlingRate`), on Downtown and on a 70 × 70 m
  * (140 × 140 cells) map: fully cold, per server placement, per new ghost spot, ghost held still (ms per
- * check, 24 walls, 400 random wood spots). Record the machine load with the numbers.
+ * check, 24 walls, 400 random wood spots), and (Story 12.1 H1) a build start whose stage seals a 100-wall ring
+ * round the pad (ms per `changeDecayStage`, the re-check included). Record the machine load with the numbers.
  *
  *   npx tsx tools/sims/pathOpenBench.ts
  */

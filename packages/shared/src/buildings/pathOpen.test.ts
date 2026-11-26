@@ -418,6 +418,70 @@ describe("Story 12.1 H1: a decay stage re-checks paths; walls that now seal are 
     expect(events.some((e) => e.type === "money.earned")).toBe(false);
   });
 
+  /** Re-review round 1 P1/P2: area R (x 0–10, y 0–8) with exits A (east, a car) and X (south); stage 2 drives the car off and blocks X. */
+  function areaR(extra: (w: World) => void = () => {}) {
+    const solids = [box("e1", 10, 0, 11.5, 2), box("e2", 10, 4, 11.5, 8), box("s1", 0, 8, 4, 8.5), box("s2", 6, 8, 11.5, 8.5)];
+    const car = { name: "c1", minX: 10, minY: 2, maxX: 11, maxY: 4, kind: "car" as const, minStage: 1 };
+    const decay: DecayMutation[] = [
+      { name: "c1_drives_off", action: "remove", stage: 2, variant: -1, kind: "", target: "c1", radiusM: 0, minX: 10, minY: 2, maxX: 11, maxY: 4 },
+      { name: "x_blocked", action: "block", stage: 2, variant: -1, kind: "", target: "", radiusM: 0, minX: 4, minY: 8, maxX: 6, maxY: 8.5 },
+    ];
+    const world = setup({ ...openMap(solids, decay), cover: [car] });
+    const wall = put(world, "wood_barricade", 11, 2, 1, "p0"); // x [11, 11.5], flush behind the car
+    extra(world);
+    expect(verticesOutsideMainRegion(world), "stage 1: R joined through X").toBe(0);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    expect(changeDecayStage(world, 2)).toBe(true);
+    world.events.flush();
+    return { world, wall, cleared: lost(events).filter((e) => e.cause === "cleared").map((e) => e.buildingId) };
+  }
+
+  it("re-review P1 (H1-a): the wall's pocket side touches only ground the stage freed (a car drove off): it is still cleared", () => {
+    const { world, wall, cleared } = areaR();
+    expect(cleared).toEqual([wall.id]);
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
+  it("re-review P2 (H1-b): a higher-id turret inside the pocket is kept; only the sealing wall goes", () => {
+    let turret = 0;
+    const { world, wall, cleared } = areaR((w) => void (turret = put(w, "auto_turret", 5, 4, 0, "p1").id));
+    expect(turret).toBeGreaterThan(wall.id);
+    expect(cleared).toEqual([wall.id]);
+    expect(world.buildings.list.map((b) => b.id)).toContain(turret);
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
+  it("re-review P3 (H1-b): a ring round the pad left with two 0.85 m gaps: the fewest ring walls (one) are cleared, the far barricades (higher ids) kept", () => {
+    // Inside [22, 28] × [14, 18]; the north wall's middle [24, 26] is open until stage 2 drops a barrier [24.85, 25.15]:
+    // two 0.85 m gaps (wider than the 0.8 m margin, closed for the grid).
+    const barrier: DecayMutation = { name: "ring_barrier", action: "add", stage: 2, variant: -1, kind: "barrier", target: "", radiusM: 0, minX: 24.85, minY: 13.5, maxX: 25.15, maxY: 14 };
+    const world = setup(openMap([], [barrier]));
+    const ring: number[] = [];
+    const add = (x: number, y: number, rot: BuildingRotation) => ring.push(put(world, "wood_barricade", x, y, rot, "old").id);
+    add(22, 13.5, 0);
+    add(26, 13.5, 0);
+    for (const x of [22, 24, 26]) add(x, 18, 0);
+    for (const y of [13.5, 15.5, 17.5]) {
+      add(21.5, y, 1);
+      add(28, y, 1);
+    }
+    // The corner pieces (y 17.5) overlap the south wall's ends: lifting one alone opens only a 0.5 m slot. The east
+    // middle piece (y 15.5) is the highest-id wall whose removal alone joins the ring's inside back.
+    const eastMiddle = world.buildings.list.find((b) => b.minX === 28 && b.minY === 15.5)?.id ?? -1;
+    const far = [put(world, "wood_barricade", 5, 25, 0, "old").id, put(world, "wood_barricade", 8, 25, 0, "old").id, put(world, "wood_barricade", 11, 25, 0, "old").id];
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    expect(changeDecayStage(world, 2)).toBe(true);
+    world.events.flush();
+    const all = lost(events).map((e) => [e.buildingId, e.cause]);
+    expect(all).toEqual([[eastMiddle, "cleared"]]); // one pass, one ring wall, nothing else
+    expect(ring).toContain(eastMiddle);
+    expect(world.buildings.list.map((b) => b.id)).toEqual(expect.arrayContaining(far));
+    expect(verticesOutsideMainRegion(world)).toBe(0);
+  });
+
   it("a stage that seals nothing clears nothing (a wall 1 m from new cover stays)", () => {
     const wreck: DecayMutation = { name: "far_wreck", action: "add", stage: 2, variant: -1, kind: "car", target: "", radiusM: 0, minX: 20, minY: 10, maxX: 22, maxY: 12 };
     const world = setup(openMap([], [wreck]));

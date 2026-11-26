@@ -66,7 +66,12 @@ let queue = new Int32Array(0);
 let stageBefore = new Uint8Array(0);
 /** H1: the map-only layer's region (no walls) after the mutations. */
 let mapOnly = new Uint8Array(0);
+/** H1 (re-review round 1): a trial flood's region (a candidate wall lifted). */
+let trial = new Uint8Array(0);
 let stageCols = 0;
+/** The map-only region's key (it changes only with the map's obstacles). */
+let mapOnlyObstacles = -1;
+let mapOnlyWorld: WeakRef<Readonly<World>> | null = null;
 let stageRows = 0;
 let cols = 0;
 let rows = 0;
@@ -103,6 +108,7 @@ function ensure(n: number): void {
   stageBefore = new Uint8Array(n);
   stageBefore.set(kept.subarray(0, Math.min(kept.length, n)));
   mapOnly = new Uint8Array(n);
+  trial = new Uint8Array(n);
 }
 
 /** Clears the bits of every vertex / edge the box comes within `r` of (strictly, like every clearance test). */
@@ -340,37 +346,108 @@ export function captureStageRegion(world: Readonly<World>): void {
 }
 
 /**
- * Story 12.1 H1 (designer A): after a decay stage's mutations (and the overlap / 0.8 m clearing), a
- * vertex that was in the main region before the stage (`captureStageRegion`), is still free, and is now
- * cut off from the main region by walls while the map alone (no walls) still joins it, is a seal the
- * stage finished. Returns the wall to clear for it: the highest-id wall within `player.radiusM +
- * BUILD_GRID_M` of a cut vertex (only such a wall can close one of its lattice steps), or null when
- * nothing is cut. The decay system clears it and asks again until null, so the order is fixed (ids
- * descending) on every copy that runs it. Build starts only.
+ * Story 12.1 H1 (designer A; re-review round 1 H1-a / H1-b): after a decay stage's mutations (and the
+ * overlap / 0.8 m clearing), the stage finished a seal when a vertex that was in the main region before
+ * the stage (`captureStageRegion`), is still free and joined to the map's region in the map-only layer
+ * (no walls), is no longer in the main region. Those vertices seed a flood of the walls layer: the
+ * POCKET, which also takes in ground the stage just freed next to them (H1-a: a removed car). The wall to
+ * clear borders BOTH the pocket and the current main region (within `player.radiusM + BUILD_GRID_M` of a
+ * vertex of each: only such a wall can close a lattice step between them; H1-b: a turret inside the pocket
+ * or a barricade far from it never qualifies): of those, highest id first, the first whose removal alone
+ * joins the pocket back (a trial flood), else the highest. Null when nothing is cut. The decay system
+ * clears it and asks again, so the order is fixed on every copy that runs it. Per pass: the walls layer
+ * and one flood of it (main region, then the pocket from its seeds: disjoint), a scan of each wall's
+ * neighbourhood, and a trial flood per candidate tried (usually one). Build starts only.
  */
 export function stageCutWall(world: Readonly<World>): Building | null {
   const r = world.balance.player.radiusM;
   if (baseWorld?.deref() !== world || baseObstacles !== world.obstacles.version || baseR !== r) buildBase(world, r);
   if (cols !== stageCols || rows !== stageRows) return null; // no capture for this map
+  if (mapOnlyObstacles !== baseObstacles || mapOnlyWorld !== baseWorld) {
+    flood(base, anchorVertex(world, base), mapOnly, false); // the map's own region: walls never change it
+    mapOnlyObstacles = baseObstacles;
+    mapOnlyWorld = baseWorld;
+  }
   buildBefore(world, r, 0);
-  flood(base, anchorVertex(world, base), mapOnly, false);
   const n = cols * rows;
-  const reach = r + BUILD_GRID_M;
-  const list = world.buildings.list;
-  let best: Building | null = null;
+  // The pocket: seeds (old main region, still free, map-joined, cut off now), flooded through the walls layer.
+  const pocket = after;
+  pocket.fill(0, 0, n);
+  let qt = 0;
   for (let v = 0; v < n; v++) {
     if (stageBefore[v] !== 1 || before[v] === 1 || mapOnly[v] !== 1 || ((walls[v] as number) & FREE) === 0) continue;
-    const x = (v % cols) * BUILD_GRID_M;
-    const y = Math.floor(v / cols) * BUILD_GRID_M;
-    for (let k = list.length - 1; k >= 0; k--) {
-      const b = list[k] as Building;
-      if (!b.solid || (best !== null && b.id <= best.id)) continue;
-      const dx = Math.max(0, b.minX - x, x - b.maxX);
-      const dy = Math.max(0, b.minY - y, y - b.maxY);
-      if (dx * dx + dy * dy < reach * reach) best = b;
+    pocket[v] = 1;
+    queue[qt++] = v;
+  }
+  if (qt === 0) return null;
+  let qh = 0;
+  while (qh < qt) {
+    const v = queue[qh++] as number;
+    const i = v % cols;
+    if (i + 1 < cols && pocket[v + 1] === 0 && before[v + 1] === 0 && joined(walls, v, v + 1)) {
+      pocket[v + 1] = 1;
+      queue[qt++] = v + 1;
+    }
+    if (i > 0 && pocket[v - 1] === 0 && before[v - 1] === 0 && joined(walls, v, v - 1)) {
+      pocket[v - 1] = 1;
+      queue[qt++] = v - 1;
+    }
+    if (v + cols < n && pocket[v + cols] === 0 && before[v + cols] === 0 && joined(walls, v, v + cols)) {
+      pocket[v + cols] = 1;
+      queue[qt++] = v + cols;
+    }
+    if (v - cols >= 0 && pocket[v - cols] === 0 && before[v - cols] === 0 && joined(walls, v, v - cols)) {
+      pocket[v - cols] = 1;
+      queue[qt++] = v - cols;
     }
   }
-  return best;
+  // The wall to clear: among the walls bordering both the pocket and the main region (highest id first),
+  // the first whose removal alone joins the pocket back (a trial flood without it: a corner piece hidden
+  // behind its neighbours opens nothing); if none does alone, the highest such wall.
+  const reach = r + BUILD_GRID_M;
+  const list = world.buildings.list;
+  let fallback: Building | null = null;
+  for (let k = list.length - 1; k >= 0; k--) {
+    const b = list[k] as Building; // the list is sorted by id: candidates come highest first
+    if (!b.solid || !bordersMark(b, pocket, 1, reach) || !bordersMark(b, before, 1, reach)) continue;
+    fallback ??= b;
+    if (rejoinsWithout(world, b, r, pocket)) return b;
+  }
+  return fallback;
+}
+
+/** The main region of the walls layer without wall `w` reaches a vertex of the pocket (one flood, into `trial`). */
+function rejoinsWithout(world: Readonly<World>, w: Building, r: number, pocket: Uint8Array): boolean {
+  const n = cols * rows;
+  work.set(base.subarray(0, n));
+  const list = world.buildings.list;
+  for (let k = 0; k < list.length; k++) {
+    const b = list[k] as Building;
+    if (b.solid && b !== w) rasterize(work, b, r);
+  }
+  flood(work, anchorVertex(world, work), trial, false);
+  for (let v = 0; v < n; v++) if (pocket[v] === 1 && trial[v] === 1) return true;
+  return false;
+}
+
+/** Some vertex marked `value` in `mark` lies closer than `reach` to the box (strictly). */
+function bordersMark(b: Readonly<Box>, mark: Uint8Array, value: number, reach: number): boolean {
+  const c = BUILD_GRID_M;
+  const i0 = Math.max(0, Math.ceil((b.minX - reach) / c));
+  const i1 = Math.min(cols - 1, Math.floor((b.maxX + reach) / c));
+  const j0 = Math.max(0, Math.ceil((b.minY - reach) / c));
+  const j1 = Math.min(rows - 1, Math.floor((b.maxY + reach) / c));
+  for (let j = j0; j <= j1; j++) {
+    const y = j * c;
+    for (let i = i0; i <= i1; i++) {
+      if (mark[j * cols + i] !== value) continue;
+      const x = i * c;
+      const dx = Math.max(0, b.minX - x, x - b.maxX);
+      const dy = Math.max(0, b.minY - y, y - b.maxY);
+      if (dx * dx + dy * dy < reach * reach) return true;
+    }
+  }
+  return false;
 }
 
 /**
