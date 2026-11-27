@@ -134,10 +134,7 @@ PGlite repo tests. Real-PostgreSQL tests skip without `TEST_DATABASE_URL` (CI `p
   - `onDispose`'s `dropSave("lost")`.
   The deploy.md sentence is fixed (a lost finish → counted later as abandoned). **Test:** "L4: only a waiting joiner is left in the vote and the save FAILS". Probe: without the fix, the row stays open.
 - [x] **L5** New tests: calm all-left through `finalLeave` finishes nothing (row open), and the real-PG merged-guest delete case (L2).
-- [x] **L6** (main-session B-code 10.7-B10) A wipe in endless, after Stay, ends `endless`, with `extracted = false`. Leaving in endless stays `lost`; Stay then Extract stays `extracted`. The check constraint gets `'endless'`. Migration 0009 is regenerated, since it is not on master yet. Stats:
-  - runs/week has its own column: `N runs · E endless · A abandoned`;
-  - first-3 and runs-to-extraction count it as played, not extracted.
-  **Tests:** `runResult.test.ts`, `statsCommand.test.ts`.
+- [x] **L6** (main-session B-code 10.7-B10, clarified 2026-11-27) A wipe in endless (after Stay) ends `endless`, `extracted = false` (the code agrees: `suppliesEnding` gives such a wipe `lost`, no extract bonus; only the in-run `earnedAtEvac` money is kept). A team leaving in endless stays `lost`; Stay then Extract stays `extracted`. It is a normal run everywhere in the stats (runs/week, first 3, runs to first extraction, weapon share), told apart only by its ending. Check constraint + `'endless'` (migration 0009 regenerated: not on master yet). Tests: `runResult.test.ts`, `statsCommand.test.ts`.
 - [x] **L7** Accepted by the main session as a known gap (see Known gaps in the Implementation Plan).
 - [x] **Nits:** `player_count` = the seat rows really written (duplicates removed). The weapon share is now the share of RUNS: a run counts a weapon once if any seat bought it (Q1 wording).
 

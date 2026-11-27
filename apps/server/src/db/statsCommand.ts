@@ -4,8 +4,8 @@
  * account set.
  *
  * - Runs per week: ISO week of `ended_at` (Monday-based, this process's time zone); abandoned runs are their own
- *   column (Q2 = A) and are left out of the three other stats. Endless wipes (B-code 10.7-B10) are their own column too,
- *   and count in the other stats as played, not extracted.
+ *   column (Q2 = A) and are left out of the three other stats. An endless wipe (ending `endless`, B-code 10.7-B10) is a
+ *   normal run everywhere (not extracted).
  * - Each group's first 3 runs: group = the sorted set of accounts in a run (merged guests already mapped by the query,
  *   B6; a deleted account is its own anonymous member, so its run's group is unique).
  * - Runs to first extraction per account, as a distribution.
@@ -51,15 +51,14 @@ export function formatStats(runs: readonly StatsRun[], seats: readonly StatsSeat
 
   // 1. Runs per week (abandoned in their own column, Q2 = A).
   out.push("", "Runs per week");
-  const weeks = new Map<string, { monday: string; runs: number; endless: number; abandoned: number }>();
+  const weeks = new Map<string, { monday: string; runs: number; abandoned: number }>();
   for (const r of runs) {
     const w = isoWeek(r.endedAt);
-    const row = weeks.get(w.key) ?? weeks.set(w.key, { monday: w.monday, runs: 0, endless: 0, abandoned: 0 }).get(w.key)!;
+    const row = weeks.get(w.key) ?? weeks.set(w.key, { monday: w.monday, runs: 0, abandoned: 0 }).get(w.key)!;
     if (r.ending === "abandoned") row.abandoned++;
-    else if (r.ending === "endless") row.endless++;
     else row.runs++;
   }
-  for (const [key, w] of [...weeks.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) out.push(`  ${key} (${w.monday})  ${plural(w.runs, "run")} · ${w.endless} endless · ${w.abandoned} abandoned`);
+  for (const [key, w] of [...weeks.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) out.push(`  ${key} (${w.monday})  ${plural(w.runs, "run")} · ${w.abandoned} abandoned`);
 
   // The three other stats read played runs only (Q2 = A), oldest first.
   const played = runs.filter((r) => r.ending !== "abandoned");

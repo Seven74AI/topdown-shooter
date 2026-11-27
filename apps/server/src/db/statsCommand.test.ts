@@ -34,7 +34,7 @@ describe("Story 10.7: npm run stats", () => {
     const r4 = run(day(2026, 12, 1), 12, "extracted"); // the 4th run of the same group: not printed
     const r5 = run(day(2026, 12, 1, 13), 3, "wiped"); // a group of one deleted account + b
     const r6 = run(day(2026, 12, 2), 0, "abandoned");
-    const r7 = run(day(2026, 12, 3), 14, "endless"); // B-code 10.7-B10: its own column; played, not extracted
+    const r7 = run(day(2026, 12, 3), 14, "endless"); // B-code 10.7-B10: a normal run, not extracted
     const s = [
       ...seats(r1, ["a", "b"], ["smg", "shotgun+smg"]),
       ...seats(r2, ["b", "a"], ["smg", ""]),
@@ -47,8 +47,8 @@ describe("Story 10.7: npm run stats", () => {
     const out = formatStats([r1, r2, r3, r4, r5, r6, r7], s);
     const text = out.join("\n");
     expect(out[0]).toBe("Run stats (all finished runs)");
-    expect(text).toContain("2026-W48 (Mon 23 Nov)  2 runs · 0 endless · 0 abandoned");
-    expect(text).toContain("2026-W49 (Mon 30 Nov)  3 runs · 1 endless · 1 abandoned");
+    expect(text).toContain("2026-W48 (Mon 23 Nov)  2 runs · 0 abandoned");
+    expect(text).toContain("2026-W49 (Mon 30 Nov)  4 runs · 1 abandoned"); // the endless run counts as a run
     const groups = out.filter((l) => l.includes(" · group "));
     expect(groups).toHaveLength(3);
     expect(groups[2]).toMatch(/^ {2}1 player · group [0-9a-f]{6} · 14$/); // the endless run: no ✓
