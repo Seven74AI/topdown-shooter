@@ -240,3 +240,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:08 10.4 PR #39 green (5e9edbd): first visit 7.5 s / 0.87 MB, return 2.3 s (Slow 4G, 4× CPU). lateJoin.test race root-caused + fixed test-only (deferred item closed). Light review started (session_01CgLgPT96zvc7WsYxTynrva).
 - 09:27 10.4 re-review round 1 APPROVED; last low (MB text "0.0" while the bar moves → plain "Downloading…" until the first file) + nit go to a main-session check. 10.6 full review: CHANGES REQUESTED (M1 bad chars → 503, M2 terminal/prompt injection in npm run reports, M3 disk growth → B10 caps 30/day/IP + 2,000/day global, L1, L2, nits).
 - 09:40 Designer: 10.2-Q1 A, Q2 A, Q3 B; 10.3-Q1 A; 10.6-Q1 RP1; 10.5-Q3 C (no stills); 10.7-Q1 C (every weapon bought), Q2 A, Q3 A.
+- 09:50 10.4 PR #39 merged 96f614b5 (main-session check of the last low/nit + turretBandwidth PERF_ASSERT fix; CI green on f5a264f).

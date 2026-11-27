@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.4: Fast loading
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Real phones are parked (designer 2026-11-25): "a phone on 4G" is measured as headless Chromium at 844 × 390 DPR 2 with CDP network throttling, empty cache and a return visit. **One designer choice is open: 10.4-Q1 (the loading screen's look).** T1, T2, T4 and T5 can start without it. Can run **in parallel with 10.2**.)
 
@@ -172,3 +172,8 @@ Claude (builder session for 10.4, gds-dev-story)
 | --- | --- | --- | --- |
 | RR1-L1 | low | On Slow 4G the text read "Downloading… 0.0 / 0.9 MB" for ~3 s while the bar moved (looks stalled). | Plain "Downloading…" until the first file lands, then "Downloading… x / 0.9 MB" (`bootLoader.js › text`); test updated. |
 | RR1-N1 | nit | `bootLoaderSignal.ts`: a script that threw partway could leave the overlay up. | After calling the script's `hide`, `#boot-loader` is always removed too (try/finally); unit case for a missing and a throwing `hide`. |
+
+## Main session close-out (2026-11-27)
+
+- Main-session check of 4cfc195 + 467fa27 (after re-review round 1): read the diff. RR1-L1 shows plain "Downloading…" until `shown > 0`. RR1-N1 always removes #boot-loader in a `finally`. The turretBandwidth timing assert is now behind PERF_ASSERT=1, with a liveness assert (≥ 20 shots per call). Touched tests not rerun locally (no node_modules in the main checkout); CI 9/9 green on f5a264f, which contains master c41213f.
+- PR #39 merged 96f614b5.
