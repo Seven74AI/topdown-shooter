@@ -2768,6 +2768,69 @@ p.in-run-menu__title {
   font-size: 12px;
 }
 
+/* Story 10.5 (Q3 = C): the install hint — one Lumen line, last in the rewards card (like the nudge), once ever. */
+.rw-install {
+  display: flex;
+  flex-wrap: wrap; /* a narrow card (568 × 320): Install drops under the text, which keeps its line beside ✕ */
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  --ph-accent: #f59a2c;
+  --ph-accent-hi: #ffc46b;
+}
+
+/* A small home-screen glyph: an amber-rimmed tile with a plus. */
+.rw-install__icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #f59a2c;
+  border-radius: 4px;
+  box-sizing: border-box;
+  background:
+    linear-gradient(#ffc46b, #ffc46b) center / 8px 2px no-repeat,
+    linear-gradient(#ffc46b, #ffc46b) center / 2px 8px no-repeat;
+}
+
+.rw-install__text {
+  flex: 1 1 140px;
+  min-width: 0;
+  color: #d9dde2;
+  font: 600 13px/1.25 system-ui, sans-serif;
+}
+
+.ph-btn.rw-install__btn {
+  flex: none;
+  order: 2; /* text · Install · ✕ on one line */
+  width: auto;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* A narrow rewards card (568 × 320, 640 × 360): text · ✕, then Install under the text. */
+@media (max-width: 699px) {
+  .ph-btn.rw-install__btn {
+    order: 4;
+    margin-left: 26px;
+  }
+}
+
+.rw-install__x {
+  flex: none;
+  order: 3;
+  width: 44px;
+  height: 44px;
+  margin: 0 -8px 0 -6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #8f97a2;
+  font: 600 16px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
 /* Story 7.6 review M2 / L7: the reset card's "every other phone was logged out" and the login form's merge warning. */
 .ac-card__line--note {
   color: #ffc46b;

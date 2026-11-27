@@ -2,10 +2,9 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { GAME_TITLE } from "@topdown/shared";
-import { parseUrlOptions } from "../debug/urlOptions";
 
-/** Story 10.5 (AC 1, 2; B2): the web app manifest and the home-screen meta in index.html. */
-const CLIENT = join(import.meta.dirname, "..", "..");
+/** Story 10.5 (AC 1, 2; B2): the web app manifest and the home-screen meta in index.html (here, not in apps/client: it reads files). */
+const CLIENT = join(import.meta.dirname, "..", "..", "apps", "client");
 const PUBLIC = join(CLIENT, "public");
 const manifest = JSON.parse(readFileSync(join(PUBLIC, "manifest.webmanifest"), "utf8")) as {
   name: string;
@@ -76,7 +75,10 @@ describe("Story 10.5: manifest.webmanifest", () => {
     }
   });
 
-  it("B2: start_url's ?source=homescreen changes no URL option (dev and release)", () => {
+  it("B2: start_url's ?source=homescreen changes no URL option (dev and release)", async () => {
+    // a runtime path: the client module needs Vite's and the DOM's types, which tsconfig.tools.json doesn't load
+    const path = "../../apps/client/src/debug/urlOptions";
+    const { parseUrlOptions } = (await import(path)) as { parseUrlOptions(search: string, dev: boolean): unknown };
     const query = new URL(manifest.start_url, "https://hordes.sevend.io").search;
     expect(query).toBe("?source=homescreen");
     for (const dev of [false, true]) expect(parseUrlOptions(query, dev)).toEqual(parseUrlOptions("", dev));
