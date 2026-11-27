@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, isPowerOut, lightsOf, setForcedBlackout, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
+import { COLLAPSE_STYLES, DOWNTOWN_MAP, collapseStyleAt, isPowerOut, lightsOf, setForcedBlackout, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
   STRESS_DURATION_MS,
@@ -214,6 +214,14 @@ describe("StressRun interruption", () => {
 
 
 describe("Story 10.2 B1: ?stress=150&stressstage=5&blackout=10 (the wave 9 scene)", () => {
+  it("B7: every run seed gets the CO2 fog bank at stage 5 (the style is pinned, the other variant groups kept)", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const world = createWorld({ balance, seed, map: DOWNTOWN_MAP });
+      addPlayer(world, "local", 24, 16);
+      applyStressStage(world, 5);
+      expect(collapseStyleAt(world), `seed ${seed}`).toBe(1);
+    }
+  });
   it("the Downtown stress world really reaches stage 5 (power out, the stage 5 map) with 150 Walkers alive in view, darkness 10 %", () => {
     const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
     const cx = world.map.widthM / 2;
@@ -225,6 +233,7 @@ describe("Story 10.2 B1: ?stress=150&stressstage=5&blackout=10 (the wave 9 scene
     expect(world.decay.stage).toBe(5);
     expect(world.obstacles.stage).toBe(5);
     expect(isPowerOut(world)).toBe(true);
+    expect(collapseStyleAt(world)).toBe(COLLAPSE_STYLES.indexOf("fog_bank")); // B7: the worst-case weather every load
     expect(world.obstacles.solids.length).not.toBe(solidsAt1); // the stage 5 map's cover, not stage 1's
     const view = viewAround(world.map, cx, cy, 844 / 32, 390 / 32, { x: 0, y: 0, w: 0, h: 0 });
     expect(setupStressWorld(world, 150, view, cx, cy)).toBe(150);
