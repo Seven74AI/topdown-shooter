@@ -18,13 +18,14 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | **Epic 4, Downtown and city decay (Milestone 1)** | ✅ 4.1–4.9, 4.11 readability pass, 4.12 all 4.11 objects in game code (particle fire D), 4.13 Android graphics-loss fix. **4.10 playtest parked** (designer: "way later"; plan ready in `docs/playtests/milestone-1.md`). Retro: `epic-4-retro-2026-11-23.md` (§11 = **EPIC 5 BRIEF**, line 20 added) | `4-*.md` |
 | **Epic 5, full arsenal and bestiary** | ✅ **done** (5.1–5.28; 5.22 is in 5.21, 5.25 is in 5.23). Retro accepted: `epic-5-retro-2026-11-24.md` (actions A1–A10). Decisions: `docs/epic-5-decisions.md`. Alignment check: `docs/alignment/alignment-check-2026-11-23.md` | `5-*.md` |
 | **Epic 6** | ✅ **DONE 2026-11-25** (sessions 8–9): 6.1, 6.2+6.4, 6.3, 6.5, 6.6+6.7, 6.8, 6.9+6.10, 6.11+6.12, 6.13 wide-body stall fix, 6.14 tidy-up — each fresh-reviewed, every medium/high and behaviour-changing fix re-reviewed, master `cc26d05`. Decisions incl. build-time B-codes (6.2 B1–B3, 6.8 B1–B2, 6.10 B1–B2, 6.11 B1) in `docs/epic-6-decisions.md`. **Retro NOT run yet**: evidence ready on branch `epic-6-retro-prep` (`_bmad-output/implementation-artifacts/epic-6-retro-evidence.md`, snapshot at 23:15 — add 6.8–6.14). Follow-ups left in each story's "Main session close-out" | `6-*.md` |
-| **Network pass** (8.8, 8.9, 8.1, 8.10, 8.11) | ✅ **done 2026-11-25** (overnight run). Simulated bad lines only, **not verified on a phone** (2.10 is the designer's). 8.10 B6 (RTT-based horde skip) still has no owner | `8-*.md`, `docs/network-pass-decisions.md` |
-| **Epic 7, accounts and meta-progression** | ✅ **done 2026-11-25** (7.1–7.12; Lumen LF5 UI, loot bag LB4–LB8) | `7-*.md`, `docs/epic-7-*.md` |
-| **Epic 8, real-life resilience** | ✅ **done 2026-11-25** (8.1–8.11: join mid-run, host role, save/quit/resume, pings, one packet per tick) | `8-*.md`, `docs/epic-8-story-decisions.md` |
-| **Epic 9, art and audio** | in progress: photoreal pass 9.11–9.14 ✅ done; **9.1–9.10 need a correct-course** (their direction predates the photoreal pass; readiness 2026-11-26 Q1) | `9-*.md`, `docs/art/photoreal-decisions.md` |
-| **Epic 10, performance and polish** | 10.10 Build button ✅ done (layout B, PR #20); 10.1–10.9 backlog, ready (readiness 2026-11-26) | `epics.md` |
-| **Epic 11, random city** | backlog, post-v1, ready | `epics.md` |
-| Readiness + drift check 2026-11-26 | 17 doc fixes applied; 8 designer questions open | `implementation-readiness-report-2026-11-26.md` |
+| **Network pass** (8.8, 8.9, 8.1, 8.10, 8.11) | ✅ done 2026-11-25. Simulated bad lines only, **not verified on a phone** (phones parked) | `8-*.md`, `docs/network-pass-decisions.md` |
+| **Epic 7, accounts and meta-progression** | 12/13: 7.1–7.12 ✅; **7.13 Epic 7 leftovers** (B18/B19 verify + tests, "Wear it" build) backlog | `7-*.md`, `docs/epic-7-*.md` |
+| **Epic 8, real-life resilience** | ✅ **done** 13/13 (8.12 vote rule PR #29, 8.13 slow-line horde skip PR #32 → **protocol 4**, 2026-11-26) | `8-*.md`, `docs/epic-8-story-decisions.md` |
+| **Epic 9, art and audio** | 5/15: photoreal 9.11–9.15 ✅ (9.15 Behemoth PR #34). 9.1–9.10 re-based on photoreal (correct-course 2026-11-26); each art group starts with the designer's pick on a proposal page (`dead-city-model` skill). Photoreal group 5 (effects → 9.6) proposal session open on the designer's phone | `9-*.md`, `docs/art/photoreal-decisions.md`, `sprint-change-proposal-2026-11-26-epic-9-photoreal.md` |
+| **Epic 10, performance and polish** | 3/12: 10.1 Settings + account deletion ✅ (PR #30), 10.10 Build button ✅, 10.11 Admin players ✅ (PR #35). Backlog: 10.2–10.9, **10.12 Admin cheats online** | `10-*.md`, `epics.md` |
+| **Epic 11, random city** | backlog, post-v1 | `epics.md` |
+| **Epic 12, extraction cinematic** | ✅ **done** 2026-11-26/27: 12.1 + 12.4 (PR #33), 12.2 extraction walk (PR #36, **protocol 5**), 12.3 camera (PR #37), fly-out horde 150 (PR #38). All feel choices confirmed by the designer ("All ok") | `12-*.md` |
+| Readiness, retros, correct-course 2026-11-26 | done: readiness report, Epic 7 + 8 retros (action items in `deferred-work.md` / done), correct-course for Epic 9 + Epic 10 order, CI infra (postgres job, 30 s test cap, PR #28), copy-chain audit (PR #26) | `_bmad-output/planning-artifacts/` |
 
 `_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
 
@@ -84,14 +85,15 @@ Moved to **`AGENTS.md`** (2026-11-26): designer preferences, getting changes ont
 
 > Please don't implement stories; only deploy and report. On the VPS, read `docs/deploy.md` (the "What runs there right now" part includes what you found), do First-time setup step 2 (back up and freeze the current site) **before** pulling, then `git fetch && git checkout master && git pull --ff-only` in `/root/topdown-shooter`, and follow the doc from the top (it backs up the current setup first, replaces the old `topdown-shooter.service` static site with the Docker Compose stack via `deploy/deploy.sh`, and lists the checks: `https://hordes.sevend.io/api/health` 200, cache headers, `/j/ABCD` 200, a foreign-origin WebSocket refused with 403, two browsers creating and joining a game). If anything fails, use the rollback in the doc. Report every check's result back.
 
-## 7. Next steps for the new session (designer 2026-11-26)
+## 7. Next steps for the new session (designer 2026-11-27)
 
-The overnight run (HANDOFF §7 of 2026-11-25: Epic 6 retro → Network pass → Epic 7 → Epic 8) is **done**; morning report: claude.ai/artifact/3PoM94KqvR7PTHoFEjHSUe, log `docs/overnight-run-log-2026-11-25.md`. The designer is back in the loop: ask, don't auto-accept, unless they say otherwise.
+All work through 2026-11-27 07:30 is merged and master CI is green (last: b8266485, PR #38). No builder, reviewer or PR is open from the main session. Run log: `docs/overnight-run-log-2026-11-25.md` (2026-11-26 section onward).
 
-1. ✅ Readiness + drift check: `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-26.md`.
-2. Retros for Epic 7 and Epic 8 (`gds-retrospective`, in their own session).
-3. Refine what is left, with the designer: `gds-correct-course` for Epic 9 (readiness Q1, blocker), then the readiness questions Q2–Q9 (10.1 first, 10.5 / 10.8 wording, folding 1.11 / 1.12 / 4.10 into 10.2 / 10.9, 8.10 B6 owner), then story files (`gds-create-story`) and builds in file-overlap rounds.
-4. Process (`AGENTS.md` §2): PRs with the GitHub Actions `gate` as the merge gate; docs-only changes go straight to master; builders run `gate:fast`; check master's CI after every merge.
+1. **Before starting anything, check what other sessions did in the meantime** (designer 2026-11-26: "check before"): `git fetch`, open PRs, remote branches, `list_sessions(mine)`, the last commits on master and `sprint-status.yaml`. Other designer sessions (photoreal groups, admin players) push stories and docs on their own.
+2. Next build order (agreed): **Epic 10: 10.2 → 10.7** (10.1 is done and is the base for 9.5/9.6/9.8/10.2), then **10.12 Admin cheats online**, then 10.8 (balance pass, after real runs) and 10.9 (playtests + v1). Run non-overlapping stories in parallel (AGENTS.md §4). Real-phone checks stay **parked** (designer 2026-11-25): use the headless/emulated measures written into 10.2, 10.3 and 10.5.
+3. Open items carried in `_bmad-output/implementation-artifacts/deferred-work.md` (each with an owner).
+4. The designer's weekly usage was at the warning level on 2026-11-26/27: prefer light reviews for visual stories and don't start more than 2–3 builders at once.
+5. Process (`AGENTS.md`): PRs with the CI `gate`; docs-only straight to master; builders `gate:fast`; fresh review per story, narrow re-reviews (cap 2, a new high gets one more); check master CI after every merge.
 
 ## 8–9. Designer preferences and environment gotchas
 
@@ -101,4 +103,4 @@ Moved to `AGENTS.md` §1 and §6.
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `AGENTS.md` (how we work) and `HANDOFF.md` (where we are) at the repo root and follow them, using the gds-* skills (never bmad-build). The overnight run is done; next steps are in HANDOFF §7. Work with PRs and the CI `gate` (docs-only changes go straight to master). Builders and reviewers run in their own cloud sessions and message back with send_message to @parent; fresh-agent review per story, narrow re-reviews of medium/high fixes (at most 2 rounds). Ask me where a decision is mine.
+> I'm continuing my game project topdown-shooter. Read `AGENTS.md` (how we work) and `HANDOFF.md` (where we are) at the repo root and follow them, using the gds-* skills (never bmad-build). Start with HANDOFF §7: first check what other sessions changed since (PRs, branches, master, sprint-status), then continue Epic 10 (10.2 → 10.7, then 10.12). Work with PRs and the CI `gate` (docs-only changes go straight to master). Builders and reviewers run in their own cloud sessions and message back with send_message to @parent; fresh review per story, narrow re-reviews (max 2 rounds). Ask me where a decision is mine.
