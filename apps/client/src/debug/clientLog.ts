@@ -1,4 +1,4 @@
-import { REPORT_LINE_MAX, REPORT_LINES_MAX } from "@topdown/shared";
+import { cutText, REPORT_LINE_MAX, REPORT_LINES_MAX } from "@topdown/shared";
 
 /**
  * Story 10.6 (B6, AC 1): the last 200 log lines since boot, kept in every build and sent ONLY by a report.
@@ -22,7 +22,7 @@ export class ClientLog {
 
   push(level: LogLevel, text: string, nowMs = Date.now()): void {
     const line = `${stamp(nowMs)} ${level} ${text}`;
-    this.slots[this.head] = line.length > REPORT_LINE_MAX ? line.slice(0, REPORT_LINE_MAX) : line;
+    this.slots[this.head] = cutText(line, REPORT_LINE_MAX); // review M1: never half an emoji
     this.head = (this.head + 1) % this.capacity;
     if (this.count < this.capacity) this.count++;
   }

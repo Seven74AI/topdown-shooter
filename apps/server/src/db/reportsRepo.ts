@@ -30,7 +30,8 @@ export interface ReportRow {
 }
 
 export interface ReportsRepo {
-  insert(tokenHash: string, note: string, payload: ReportPayload, opts?: { dailyMax?: number; code?: string }): Promise<ReportInsertResult>;
+  /** `globalMax` (review M3, B10): reports from everyone in the last 24 h; at it → `limited`. */
+  insert(tokenHash: string, note: string, payload: ReportPayload, opts?: { dailyMax?: number; globalMax?: number; code?: string }): Promise<ReportInsertResult>;
   list(limit: number): Promise<ReportRow[]>;
   byCode(code: string): Promise<ReportRow[]>;
   byId(id: string): Promise<ReportRow | null>;
@@ -80,6 +81,11 @@ export function reportsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, onBat
           .from(problemReports)
           .where(and(eq(problemReports.accountId, id), gte(problemReports.createdAt, since)));
         if ((counted[0]?.n ?? 0) >= (opts.dailyMax ?? REPORT_DAILY_MAX)) return { outcome: "limited" };
+        if (opts.globalMax !== undefined) {
+          // B10: an index range count on created_at; not locked (a few over the cap in a race is fine: it bounds growth).
+          const all = await tx.select({ n: sql<number>`count(*)::int` }).from(problemReports).where(gte(problemReports.createdAt, since));
+          if ((all[0]?.n ?? 0) >= opts.globalMax) return { outcome: "limited" };
+        }
         const code = opts.code ?? newReportCode();
         const rows = await tx.insert(problemReports).values({ accountId: id, code, note, payload }).returning({ id: problemReports.id });
         return { outcome: "stored", id: rows[0]!.id, code };

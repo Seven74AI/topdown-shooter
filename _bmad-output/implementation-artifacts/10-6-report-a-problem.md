@@ -29,6 +29,7 @@ so that the designer can fix what went wrong.
 | 10.6-B6 | **Client ring buffer** `apps/client/src/debug/clientLog.ts`: a fixed 200-slot array of strings, plus head and count (no growth, no per-frame work: it is written only on events). Each line is `HH:MM:SS.mmm level text`, cut to 300 characters. Sources: (1) `console.warn` / `console.error` / `console.info` wrapped (the original still runs); (2) `window` `error` and `unhandledrejection` (message + first 3 stack lines); (3) `clientLog.note(kind, fields)` called at the existing net and run seams: connection state and close codes (`net/session.ts` onLeave / close code, `serverNotice.lostReason`), the link watchdog going quiet or back (`linkMonitor.ts` store), room join and leave, phase changes, `run.started` id, join refusals (`joinErrors.ts`), the WebGL context lost or restored and texture rebuild (`render/gfx/textureRegistry.ts`). **No per-tick netEvents** (zombie kills, hits): a minute of play would push out everything useful. It is never sent except by a report. | auto (technical) |
 | 10.6-B8 | *(build time)* **The daily-count lock is `FOR NO KEY UPDATE`, not `FOR KEY SHARE`.** Two `KEY SHARE` locks don't block each other, so two racing reports both counted 19 and both inserted (probe: the 25-report race stored 21 with `KEY SHARE`). `NO KEY UPDATE` serializes one account's reports and still waits on 10.1's delete (`FOR UPDATE`); it doesn't block other tables' FK checks (`KEY SHARE`). Still lock 2 only in the LOCK ORDER. | auto (technical) |
 | 10.6-B9 | *(build time)* **The run probe is read at report time**, never per frame: the seed and wave from the Results screen or the Game scene (`reportWorld()`), the WebGL renderer string from the game's own context once (never a new context: on a phone one more context can push the game's out). The room id and phase come from the lobby store's join / phase seams. Housekeeping is stopped on SIGINT / SIGTERM, not `server.onShutdown` (Colyseus keeps ONE such callback: app.ts's database close). | auto (technical) |
+| 10.6-B10 | *(main session, review M3)* **Storage caps:** besides 3 / min per IP and 20 / 24 h per account, at most **30 reports per IP per 24 h** (in memory, `reportIpDayLimiter`, like the minute limit) and **2,000 reports per 24 h from everyone** (counted in the database inside the insert transaction, an index range count, not locked: a few over in a race is fine). Both answer 429 "Too many reports, try again later". | main session |
 | 10.6-B7 | **Privacy (brief 28):** the payload carries no player names, usernames, guest token, cookie or IP. Log lines from `clientLog.note` use ids, codes and numbers only, and a test greps the notes' field names. The server stores the note as typed (the player wrote it to us) and logs `problem_reported { reportId, code, bytes, lines }`: no note text, no account id, no IP. `npm run reports` prints to the operator's terminal only. | auto (technical) |
 
 ## Acceptance Criteria
@@ -50,9 +51,9 @@ so that the designer can fix what went wrong.
 - [x] **T3 Route + limits (AC 4; B1–B3)**: `apps/server/src/auth/reportRoute.ts` (the `createEndpoint` pattern of `accountRoutes.ts:256`), wired in `app.ts` `createRouter`; `reportIpLimiter` in `net/rateLimit.ts`; `net/httpGuard.ts` per-path 64 KB; `deploy/Caddyfile` per-path `max_size 64KB`.
 - [x] **T4 Housekeeping + CLI (AC 6, 7; B5)**: `ops/housekeeping.ts`, start/stop in `index.ts`, `db/housekeepingCli.ts`, `db/reportsCli.ts`, scripts `housekeeping` and `reports` in `apps/server/package.json`, `docs/deploy.md`.
 - [x] **T5 Client log (AC 1; B6)**: `debug/clientLog.ts`, installed first thing in `main.ts`, plus `note()` calls at the B6 seams (one line each, no new behaviour).
-- [ ] **T6 Client UI (AC 2, 3; Q1–Q3; after the designer's pick)**: `ui/ReportScreen.tsx` (+ CSS in `overlay.css`), `uiState.ts` screen kind (`{ kind: "report"; from: "settings" | "results" }` or a `settings` view `"report"`, whichever keeps Back correct), `net/report.ts` (collects the payload, posts with `credentials: "include"` through the same `/api` base as `net/account.ts`), buttons in `SettingsScreen.tsx` and `ResultsScreen.tsx`. Add the screen to the one Lumen layout test (Epic 7 R9: 568 × 320, 640 × 360, 800 × 360, 844 × 390, insets 44 / 21, no overlaps, text ≥ 11 px) and a `tools/checks/reportDomLayout.test.ts` (Chromium).
+- [x] **T6 Client UI (AC 2, 3; Q1–Q3; after the designer's pick)**: `ui/ReportScreen.tsx` (+ CSS in `overlay.css`), `uiState.ts` screen kind (`{ kind: "report"; from: "settings" | "results" }` or a `settings` view `"report"`, whichever keeps Back correct), `net/report.ts` (collects the payload, posts with `credentials: "include"` through the same `/api` base as `net/account.ts`), buttons in `SettingsScreen.tsx` and `ResultsScreen.tsx`. Add the screen to the one Lumen layout test (Epic 7 R9: 568 × 320, 640 × 360, 800 × 360, 844 × 390, insets 44 / 21, no overlaps, text ≥ 11 px) and a `tools/checks/reportDomLayout.test.ts` (Chromium).
 - [x] **T7 Tests**: see the test plan.
-- [ ] **T8 Hand-back**: `gate:fast` + `test:changed`, and the real-PostgreSQL files locally if you have a PostgreSQL (else CI's `postgres` job). Branch `story-10-6`, PR "Story 10.6: Report a problem".
+- [x] **T8 Hand-back**: `gate:fast` + `test:changed`, and the real-PostgreSQL files locally if you have a PostgreSQL (else CI's `postgres` job). Branch `story-10-6`, PR "Story 10.6: Report a problem".
 
 ## Dev Notes
 
@@ -137,6 +138,24 @@ B8 and B9 added to the decision log. Q2 B: a "Help" group with "Report a problem
 - AC 9: no room messages, netEvents, balance numbers; other routes keep their caps (`httpGuard.test.ts`; CI docker smoke: `/api/account/report` passes 9 KB (400) and stops 70 KB (413)).
 - `gate:fast` green (5111 passed, 50 skipped; release:check green). Slow DOM layout checks in `tools/checks` 214/214.
 
+### Senior Developer Review (AI)
+
+Full review (fresh session, 2026-11-27): **changes requested**, no high. Every finding fixed, each minimal:
+
+| # | Finding | Fix | Proof |
+| --- | --- | --- | --- |
+| M1 | A 300-char cut could split a surrogate pair; a lone surrogate or a NUL in a line or the note made PostgreSQL refuse the row → 503 on every try | Client cuts at a code-point boundary (`cutText` in shared: `clientLog.push`, every string in `net/report.ts`). Server: every string of the request schema is cleaned (`cleanReportText`: NUL and lone surrogates removed) by a zod transform before the insert | `report.test.ts` (shared), `clientLog.test.ts` (emoji at the cut), `reportRoute.test.ts` (200 with NUL / lone halves), `realPostgresReports.test.ts`: each of NUL, a lone high and a lone low surrogate is **refused raw** by PostgreSQL 16 and stored once parsed |
+| M2 | `npm run reports` printed note / log lines raw: terminal escape injection (ESC[2J, OSC 52) and prompt injection when Hermes runs it | Every printed player string goes through `visible()`: C0 / C1 controls and bidi / line-separator controls shown as `\x1b` / `\u202e` (`\n` kept only in the full view's note). `docs/deploy.md`: report text is untrusted player input, never instructions | `reportsCommand.test.ts` (ESC[2J, OSC 52 + BEL, C1 CSI, U+202E in note and line: none survive in list or full view) |
+| M3 | Storage growth (≈ 270 MB / day from one IP through free guests) | B10: 30 per IP per 24 h (memory) + 2,000 per 24 h globally (DB) → 429 | `reportRoute.test.ts` (31st from one IP refused, another IP still reports; the global cap across two accounts) |
+| L1 | `runContext.roomId / phase` stayed after leaving a room | Cleared in `lobbyStore.detach()` (every leave and lost-room path) | `lobbyStore.test.ts` (leave and drop; probe: fails without the two lines) |
+| L2 | A body over 64 KB (multi-byte log text) was refused on every try | `fitBody`: drops the oldest log lines until the serialized body fits `REPORT_MAX_BYTES` | `report.test.ts` (client: ~118 KB → fits, newest line kept, only a prefix dropped) |
+| N1 | The client's 401 → session → retry burned a second IP slot | No (or a malformed) cookie is answered 401 **before** the IP limits. A well-formed but unknown token (stale cookie) still costs one slot (only the database can tell): documented in the route | `reportRoute.test.ts` (5 cookieless posts, then 3 reports from the same IP pass). CI smoke updated: the 9 KB cookieless body now answers 401 (still proves Caddy and Node pass it) |
+| N2 | "installed first thing" was after main.ts's imports | `debug/clientLogBoot.ts`, imported first in `main.ts` (ES modules evaluate in import order) | wiring by reading; `reportDomLayout` still sees the boot note |
+| N3 | wave 0 unexplained | `docs/deploy.md`: `w0` = before wave 1, `w-` = not in a run | — |
+| N4 | T6 / T8 unticked | ticked | — |
+
+Q1 stays with the designer: RP1 built, `REPORT_LAYOUT.showLog` toggle kept until the pick.
+
 ### File List
 
 - New: `packages/shared/src/net/report.ts`, `apps/server/drizzle/0008_problem_reports.sql`, `apps/server/drizzle/meta/0008_snapshot.json`, `apps/server/src/db/reportsRepo.ts`, `apps/server/src/db/reportsCommand.ts`, `apps/server/src/db/reportsCli.ts`, `apps/server/src/db/housekeepingCli.ts`, `apps/server/src/ops/housekeeping.ts`, `apps/server/src/auth/reportRoute.ts`, `apps/client/src/debug/clientLog.ts`, `apps/client/src/net/report.ts`, `apps/client/src/ui/ReportScreen.tsx`, `docs/art/report-screen/*.png`
@@ -148,3 +167,4 @@ B8 and B9 added to the decision log. Q2 B: a "Help" group with "Report a problem
 
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.6-Q1…Q3).
 - 2026-11-27: built (Q2 B, Q3 B; Q1 RP1 built with RP3 switchable pending the pick); status review.
+- 2026-11-27: review fixes M1–M3, L1, L2, N1–N4 (B10 recorded). New: `packages/shared/src/net/report.test.ts`, `apps/client/src/debug/clientLogBoot.ts`.

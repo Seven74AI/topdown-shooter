@@ -1,6 +1,7 @@
 import type { ReportPayload } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
-import { REPORT_FAIL_TEXT, sendReport } from "./report";
+import { REPORT_MAX_BYTES } from "@topdown/shared";
+import { REPORT_FAIL_TEXT, fitBody, sendReport } from "./report";
 
 /** Story 10.6 (AC 4): what the client does with each answer of `POST /api/account/report`. */
 const payload: ReportPayload = { lines: ["a"], device: { userAgent: "t", screen: { w: 1, h: 1 }, viewport: { w: 1, h: 1 }, dpr: 1, safeArea: { top: 0, right: 0, bottom: 0, left: 0 }, input: "touch", language: "en", installed: false } };
@@ -44,5 +45,17 @@ describe("sendReport (Story 10.6)", () => {
     await sendReport("x".repeat(600), d, payload);
     const init = (d.calls.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect((JSON.parse(init.body as string) as { note: string }).note).toHaveLength(500);
+  });
+
+  it("review L2: a body over 64 KB drops the OLDEST log lines until it fits (the newest stay)", () => {
+    const lines = Array.from({ length: 200 }, (_, i) => `${String(i).padStart(3, "0")} ${"é".repeat(290)}`); // 2-byte chars: ~118 KB
+    const body = fitBody("n".repeat(500), { ...payload, lines });
+    expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(REPORT_MAX_BYTES);
+    const kept = (JSON.parse(body) as { payload: { lines: string[] } }).payload.lines;
+    expect(kept.length).toBeGreaterThan(50);
+    expect(kept.length).toBeLessThan(200);
+    expect(kept.at(-1)).toBe(lines.at(-1)); // the newest line stays
+    expect(kept[0]).toBe(lines[200 - kept.length]); // only a prefix went
+    expect(fitBody("", payload)).toBe(JSON.stringify({ note: "", payload })); // a small body is untouched
   });
 });

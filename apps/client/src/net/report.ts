@@ -6,7 +6,9 @@
 import {
   ACCOUNT_REPORT_PATH,
   NET_PROTOCOL_VERSION,
+  REPORT_MAX_BYTES,
   REPORT_NOTE_MAX,
+  cutText,
   reportResponseSchema,
   type ReportDevice,
   type ReportPayload,
@@ -52,19 +54,19 @@ export function collectDevice(): ReportDevice {
   const quality: Record<string, string | number | boolean> = {};
   for (const k of QUALITY_KEYS) quality[k] = s[k];
   const device: ReportDevice = {
-    userAgent: nav.userAgent.slice(0, 400),
+    userAgent: cutText(nav.userAgent, 400),
     screen: { w: screen.width, h: screen.height },
     viewport: { w: innerWidth, h: innerHeight },
     dpr: devicePixelRatio || 1,
     safeArea: safeArea(),
     input: matchMedia("(pointer: coarse)").matches ? "touch" : "mouse",
-    gfxTier: gfxStatus.line().slice(0, 40),
-    language: (nav.language ?? "").slice(0, 40),
+    gfxTier: cutText(gfxStatus.line(), 40),
+    language: cutText(nav.language ?? "", 40),
     installed: matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches,
     quality,
   };
-  if (uad?.brands) device.brands = uad.brands.slice(0, 8).map((b) => `${b.brand} ${b.version}`.slice(0, 80));
-  if (uad?.platform) device.platform = uad.platform.slice(0, 40);
+  if (uad?.brands) device.brands = uad.brands.slice(0, 8).map((b) => cutText(`${b.brand} ${b.version}`, 80));
+  if (uad?.platform) device.platform = cutText(uad.platform, 40);
   if (uad?.mobile !== undefined) device.mobile = uad.mobile;
   const renderer = reportProbes.renderer();
   if (renderer) device.renderer = renderer;
@@ -74,16 +76,31 @@ export function collectDevice(): ReportDevice {
 export function collectPayload(log: ClientLog = clientLog): ReportPayload {
   const p: ReportPayload = { lines: log.lines(), protocol: NET_PROTOCOL_VERSION, device: collectDevice() };
   const c = runContext;
-  if (c.roomId) p.roomId = c.roomId.slice(0, 64);
-  if (c.phase) p.phase = c.phase.slice(0, 32);
+  if (c.roomId) p.roomId = cutText(c.roomId, 64);
+  if (c.phase) p.phase = cutText(c.phase, 32);
   const run = reportProbes.run();
   if (run) {
     p.runSeed = Math.trunc(run.seed);
     p.wave = Math.max(0, Math.min(10_000, Math.trunc(run.wave)));
   }
   const build = import.meta.env.MODE;
-  if (typeof build === "string") p.build = build.slice(0, 64);
+  if (typeof build === "string") p.build = cutText(build, 64);
   return p;
+}
+
+/**
+ * Review L2: the serialized body never exceeds `REPORT_MAX_BYTES` (the server answers 413 / 400 above it, on every try):
+ * the oldest log lines are dropped until it fits.
+ */
+export function fitBody(note: string, payload: ReportPayload, maxBytes = REPORT_MAX_BYTES): string {
+  const enc = new TextEncoder();
+  let lines = payload.lines;
+  let body = JSON.stringify({ note, payload });
+  while (enc.encode(body).length > maxBytes && lines.length > 0) {
+    lines = lines.slice(1); // the oldest first (only when a report is made: at most 200 tries)
+    body = JSON.stringify({ note, payload: { ...payload, lines } });
+  }
+  return body;
 }
 
 export interface ReportDeps {
@@ -103,7 +120,7 @@ const defaults = (): ReportDeps => ({
 
 export async function sendReport(note: string, over: Partial<ReportDeps> = {}, payload: ReportPayload = collectPayload()): Promise<ReportCall> {
   const deps = { ...defaults(), ...over };
-  const body = JSON.stringify({ note: note.slice(0, REPORT_NOTE_MAX), payload });
+  const body = fitBody(cutText(note, REPORT_NOTE_MAX), payload);
   const post = async (): Promise<Response> => {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), deps.timeoutMs);

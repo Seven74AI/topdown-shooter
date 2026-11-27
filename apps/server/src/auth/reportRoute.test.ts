@@ -7,7 +7,8 @@ import { reportsRepo, newReportCode } from "../db/reportsRepo";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
-import { reportIpLimiter, SlidingWindowLimiter } from "../net/rateLimit";
+import { reportIpDayLimiter, reportIpLimiter, SlidingWindowLimiter } from "../net/rateLimit";
+import { MAX_REPORTS_PER_IP_PER_DAY } from "../net/limits";
 import { backdateReportsForTest, deleteAccountRowForTest } from "../db/testQueries";
 import { storeReport } from "./reportRoute";
 
@@ -59,6 +60,7 @@ beforeAll(async () => {
 afterEach(async () => {
   vi.restoreAllMocks();
   reportIpLimiter.reset();
+  reportIpDayLimiter.reset();
   await colyseus.cleanup();
 });
 afterAll(async () => colyseus.shutdown());
@@ -186,5 +188,51 @@ describe("Story 10.6 AC 4: POST /account/report", () => {
 
   it("AC 9: the per-IP limiter is its own (3 per minute), not shared with any other route", () => {
     expect(reportIpLimiter).toBeInstanceOf(SlidingWindowLimiter);
+  });
+
+  it(`review M3 (B10): ${MAX_REPORTS_PER_IP_PER_DAY} per IP per 24 h, then 429 (another IP still reports)`, async () => {
+    const token = await guest();
+    const ip = nextIp();
+    const repo = reportsRepo(database);
+    const acc = await accountsRepo(database).findByTokenHash(hashGuestToken(token));
+    for (let i = 0; i < MAX_REPORTS_PER_IP_PER_DAY; i++) {
+      if (i % 3 === 0) reportIpLimiter.reset(); // the minute limit is not what this test measures
+      if (i % 15 === 14) await backdateReportsForTest(database, { accountId: acc!.id }, 25); // nor the per-account day
+      expect((await post({ note: `ip${i}`, payload: payload() }, { cookie: token, ip })).status, `report ${i}`).toBe(200);
+    }
+    reportIpLimiter.reset();
+    await backdateReportsForTest(database, { accountId: acc!.id }, 25);
+    const r = await post({ note: "31st", payload: payload() }, { cookie: token, ip });
+    expect(r.status).toBe(429);
+    expect(r.body.message).toBe("rate_limited");
+    expect((await post({ note: "other ip", payload: payload() }, { cookie: token })).status).toBe(200);
+    expect((await repo.list(1000)).some((x) => x.note === "31st")).toBe(false);
+  });
+
+  it("review M3 (B10): the global cap counts every account's reports of the last 24 h → limited", async () => {
+    const a = await guest();
+    const b = await guest();
+    const req = { note: "", payload: payload() };
+    const reports = reportsRepo(database);
+    const before = (await reports.list(100_000)).filter((r) => Date.now() - r.createdAt.getTime() < 86_400_000).length;
+    expect((await storeReport({ cookieToken: a, request: req, bytes: 1 }, { reports, globalMax: before + 2 })).status).toBe(200);
+    expect((await storeReport({ cookieToken: b, request: req, bytes: 1 }, { reports, globalMax: before + 2 })).status).toBe(200);
+    expect(await storeReport({ cookieToken: a, request: req, bytes: 1 }, { reports, globalMax: before + 2 })).toEqual({ status: 429, error: "rate_limited" });
+    expect(await storeReport({ cookieToken: b, request: req, bytes: 1 }, { reports, globalMax: before + 2 })).toEqual({ status: 429, error: "rate_limited" });
+  });
+
+  it("review N1: a report without a cookie is answered 401 before the IP limits (the client's session-then-retry costs no slot)", async () => {
+    const token = await guest();
+    const ip = nextIp();
+    for (let i = 0; i < 5; i++) expect((await post({ note: "", payload: payload() }, { ip })).status).toBe(401);
+    for (let i = 0; i < 3; i++) expect((await post({ note: `n1-${i}`, payload: payload() }, { cookie: token, ip })).status).toBe(200);
+  });
+
+  it("review M1: a note and lines with NUL and lone surrogates are stored cleaned (200, never 503)", async () => {
+    const token = await guest();
+    const r = await post({ note: "a\u0000b\ud83d", payload: payload({ lines: ["x\ude00", "y\u0000", "ok 😀"] }) }, { cookie: token });
+    expect(r.status).toBe(200);
+    const row = (await reportsRepo(database).byCode(r.body.code as string)).find((x) => x.note === "ab");
+    expect(row?.payload.lines).toEqual(["x", "y", "ok 😀"]);
   });
 });

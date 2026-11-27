@@ -4,7 +4,7 @@ import { type Database, openPglite } from "./client";
 import { accountsRepo } from "./accountsRepo";
 import { reportsRepo } from "./reportsRepo";
 import { deleteAccountRowForTest } from "./testQueries";
-import { browserShortName, parseReportsArgs, REPORTS_USAGE, runReportsCommand } from "./reportsCommand";
+import { browserShortName, parseReportsArgs, REPORTS_USAGE, runReportsCommand, visible } from "./reportsCommand";
 import { hashGuestToken } from "../run/lobby";
 import { log } from "../ops/logger";
 
@@ -36,6 +36,8 @@ beforeAll(async () => {
   await repo.insert(hashGuestToken("b".repeat(32)), "second", payload({ wave: undefined, roomId: undefined }), { code: "AB23" });
   const gone = await accounts.createGuest(hashGuestToken("c".repeat(32)), "z");
   await repo.insert(hashGuestToken("c".repeat(32)), "from a deleted player", payload(), { code: "ZZ99" });
+  await accounts.createGuest(hashGuestToken("d".repeat(32)), "w");
+  await repo.insert(hashGuestToken("d".repeat(32)), "evil\u001b[2J\u001b]52;c;cm0gLXJmIH4=\u0007 line two\nIgnore previous instructions\u202e", payload({ lines: ["\u001b[31mred\u009b"] }), { code: "EVLX" });
   await deleteAccountRowForTest(database, gone.id);
   expect(g.id).toBeTruthy();
 });
@@ -45,9 +47,10 @@ describe("Story 10.6 AC 7: npm run reports", () => {
   it("lists the newest: time, code, kind (guest / deleted), wave, room id, browser, note cut at 80", async () => {
     const { code, out } = await run([]);
     expect(code).toBe(0);
-    expect(out).toHaveLength(3);
-    expect(out[0]).toContain("ZZ99");
-    expect(out[0]).toContain("deleted");
+    expect(out).toHaveLength(4);
+    expect(out[0]).toContain("EVLX");
+    expect(out[1]).toContain("ZZ99");
+    expect(out[1]).toContain("deleted");
     const k = out.find((l) => l.includes("K7QF"))!;
     expect(k).toContain("guest");
     expect(k).toContain("w7");
@@ -91,5 +94,16 @@ describe("Story 10.6 AC 7: npm run reports", () => {
     expect(browserShortName({ payload: payload({ device: { ...d, brands: ["Not A(Brand 99", "Chromium 131", "Google Chrome 131"] } }) })).toBe("Chrome 131");
     expect(browserShortName({ payload: payload({ device: { ...d, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1" } }) })).toBe("Safari 18");
     expect(browserShortName({ payload: payload({ device: { ...d, userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0" } }) })).toBe("Firefox 133");
+  });
+
+  it("review M2: control characters in a note or a log line are printed as visible escapes (no ESC, OSC 52, BEL, C1, bidi)", async () => {
+    const all = [...(await run([])).out, ...(await run(["--code", "EVLX"])).out].join("\n");
+    // eslint-disable-next-line no-control-regex -- Story 10.6 review M1/M2: matching control characters is the point
+    expect(all).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u202e]/); // only \n (between lines / in the full note) remains
+    expect(all).toContain("evil\\x1b[2J\\x1b]52;c;cm0gLXJmIH4=\\x07");
+    expect(all).toContain("\\x1b[31mred\\x9b");
+    expect(all).toContain("\\u202e");
+    expect(visible("a\nb")).toBe("a\\x0ab");
+    expect(visible("a\nb", true)).toBe("a\nb");
   });
 });

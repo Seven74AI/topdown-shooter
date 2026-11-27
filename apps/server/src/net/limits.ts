@@ -165,3 +165,8 @@ export const MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN = 20;
 export const MAX_DELETE_CALLS_PER_IP_PER_MIN = 5;
 /** Story 10.6 (B3): `/account/report` calls per client IP per minute (the 20 per account per day is counted in the database). */
 export const MAX_REPORTS_PER_IP_PER_MIN = 3;
+/** Story 10.6 review M3 (B10): `/account/report` per client IP per 24 h (free guests make the per-account limit easy to multiply). */
+export const MAX_REPORTS_PER_IP_PER_DAY = 30;
+/** Story 10.6 review M3 (B10): reports accepted per 24 h from everyone (counted in the database): caps storage growth. */
+export const MAX_REPORTS_GLOBAL_PER_DAY = 2000;
+export const REPORT_DAY_WINDOW_MS = 24 * 60 * 60_000;

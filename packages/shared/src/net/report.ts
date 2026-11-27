@@ -21,7 +21,25 @@ export const REPORT_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const REPORT_CODE_LENGTH = 4;
 export const reportCodeSchema = z.string().regex(/^[A-HJ-NP-Z2-9]{4}$/);
 
-const shortText = (max: number) => z.string().max(max);
+/**
+ * Review M1: cut to at most `max` UTF-16 units without splitting a surrogate pair (a lone half makes PostgreSQL refuse
+ * the jsonb). The client cuts with this.
+ */
+export function cutText(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const end = max > 0 && /[\uD800-\uDBFF]/.test(s[max - 1] as string) ? max - 1 : max;
+  return s.slice(0, end);
+}
+
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+/** Review M1: NUL and lone surrogates removed (PostgreSQL text and jsonb refuse them): the server stores every string through this. */
+export function cleanReportText(s: string): string {
+  // eslint-disable-next-line no-control-regex -- Story 10.6 review M1/M2: matching control characters is the point
+  return s.replace(/\u0000/g, "").replace(LONE_SURROGATE, "");
+}
+
+/** A protocol string: at most `max` long as sent, stored cleaned (M1). */
+const shortText = (max: number) => z.string().max(max).transform(cleanReportText);
 const num = z.number().finite();
 
 /** AC 3: device and browser info. No names, tokens, cookies or IP (B7). */
@@ -40,14 +58,14 @@ export const reportDeviceSchema = z
     renderer: shortText(200).optional(),
     language: shortText(40),
     installed: z.boolean(),
-    quality: z.record(shortText(32), z.union([z.string().max(32), z.number().finite(), z.boolean()])).optional(),
+    quality: z.record(shortText(32), z.union([shortText(32), z.number().finite(), z.boolean()])).optional(),
   })
   .strict();
 export type ReportDevice = z.infer<typeof reportDeviceSchema>;
 
 export const reportPayloadSchema = z
   .object({
-    lines: z.array(z.string().max(REPORT_LINE_MAX)).max(REPORT_LINES_MAX),
+    lines: z.array(shortText(REPORT_LINE_MAX)).max(REPORT_LINES_MAX),
     roomId: shortText(64).optional(),
     runSeed: z.number().int().optional(),
     wave: z.number().int().min(0).max(10_000).optional(),
@@ -59,7 +77,7 @@ export const reportPayloadSchema = z
   .strict();
 export type ReportPayload = z.infer<typeof reportPayloadSchema>;
 
-export const reportRequestSchema = z.object({ note: z.string().max(REPORT_NOTE_MAX), payload: reportPayloadSchema }).strict();
+export const reportRequestSchema = z.object({ note: shortText(REPORT_NOTE_MAX), payload: reportPayloadSchema }).strict();
 export type ReportRequest = z.infer<typeof reportRequestSchema>;
 
 export const reportResponseSchema = z.object({ ok: z.literal(true), code: reportCodeSchema });

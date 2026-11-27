@@ -1,10 +1,12 @@
+// Story 10.6 (B6, review N2): first, so the report log sees every console line and error from boot on.
+import "./debug/clientLogBoot";
 import * as Phaser from "phaser";
 // The condensed HUD face (asset fixes round 5: the boss warning display; also the boss bar and painted labels).
 import "@fontsource/oswald/600.css";
 import "@fontsource/oswald/700.css";
 import { h, render } from "preact";
 import { dpr } from "./display";
-import { clientLog, installClientLog, reportProbes } from "./debug/clientLog";
+import { clientLog, reportProbes } from "./debug/clientLog";
 
 import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
@@ -33,8 +35,6 @@ import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
 import { NET_PROTOCOL_VERSION, RECONNECT, shouldRescueReload } from "@topdown/shared";
 import "./ui/overlay.css";
-// Story 10.6 (B6): the report log first thing after the imports, so it sees every console line and error from boot on.
-installClientLog();
 
 // Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
 let lastShownMs = Number.NEGATIVE_INFINITY;

@@ -2,6 +2,7 @@
  * Story 10.6 (AC 7, B7): the operator's `reports` command (run by `reportsCli.ts`). The list: created time, code,
  * account kind, wave, room id, browser short name and the note's first 80 characters. `--full`, `--id` or `--code`
  * print the whole report(s): note, device info and every log line. Exit codes: 0 done, 1 nothing found, 2 usage.
+ * Everything a player wrote is printed through `visible` (review M2): it is untrusted text, never instructions.
  */
 import { reportCodeSchema } from "@topdown/shared";
 import type { ReportRow, ReportsRepo } from "./reportsRepo";
@@ -50,22 +51,36 @@ export function browserShortName(r: Pick<ReportRow, "payload">): string {
 }
 
 const iso = (d: Date) => d.toISOString().replace("T", " ").slice(0, 19);
-const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/**
+ * Review M2: report text is untrusted player input. Every C0 / C1 control character (ESC sequences that clear the
+ * screen or write the clipboard, OSC 52, …) and the bidi / line-separator controls are printed as visible escapes
+ * (`\x1b`, `\u202e`); `keepNewlines` keeps `\n` (the full view's note).
+ */
+export function visible(s: string, keepNewlines = false): string {
+  // eslint-disable-next-line no-control-regex -- Story 10.6 review M1/M2: matching control characters is the point
+  return s.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, (c) => {
+    if (keepNewlines && c === "\n") return c;
+    const code = c.charCodeAt(0);
+    return code <= 0xff ? `\\x${code.toString(16).padStart(2, "0")}` : `\\u${code.toString(16).padStart(4, "0")}`;
+  });
+}
+const oneLine = (s: string) => visible(s.replace(/[ \t\r\n]+/g, " ").trim());
 
 function summary(r: ReportRow): string {
   const wave = r.payload?.wave === undefined ? "-" : String(r.payload.wave);
   const note = oneLine(r.note);
-  return [iso(r.createdAt), r.code, r.accountKind.padEnd(7), `w${wave}`.padEnd(4), (r.payload?.roomId ?? "-").padEnd(10), browserShortName(r).padEnd(12), note.length > 80 ? `${note.slice(0, 79)}…` : note].join("  ");
+  return [iso(r.createdAt), r.code, r.accountKind.padEnd(7), `w${wave}`.padEnd(4), visible(r.payload?.roomId ?? "-").padEnd(10), visible(browserShortName(r)).padEnd(12), note.length > 80 ? `${note.slice(0, 79)}…` : note].join("  ");
 }
 
 function full(r: ReportRow, out: (line: string) => void): void {
   out(`report ${r.code}  ${r.id}  ${iso(r.createdAt)} UTC  ${r.accountKind}`);
-  out(`note: ${r.note === "" ? "(none)" : r.note}`);
+  out(`note: ${r.note === "" ? "(none)" : visible(r.note, true)}`);
   const { lines, device, ...ctx } = r.payload ?? { lines: [], device: undefined };
-  out(`run: ${JSON.stringify(ctx)}`);
-  out(`device: ${JSON.stringify(device ?? null)}`);
+  out(`run: ${visible(JSON.stringify(ctx))}`);
+  out(`device: ${visible(JSON.stringify(device ?? null))}`);
   out(`log (${lines?.length ?? 0} lines):`);
-  for (const l of lines ?? []) out(`  ${l}`);
+  for (const l of lines ?? []) out(`  ${visible(l)}`);
   out("");
 }
 

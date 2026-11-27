@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
-import { REPORT_DAILY_MAX, type ReportPayload } from "@topdown/shared";
+import { REPORT_DAILY_MAX, reportRequestSchema, type ReportPayload } from "@topdown/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo } from "./accountsRepo";
@@ -39,6 +39,25 @@ describe.skipIf(!URL)("Story 10.6: the daily report limit on real PostgreSQL (TE
       expect(outcomes.filter((o) => o === "limited")).toHaveLength(25 - REPORT_DAILY_MAX);
       const rows = (await (await database.db()).execute(sql`select count(*)::int as n from problem_reports where account_id = ${a.id}`)) as unknown as { rows: { n: number }[] };
       expect(rows.rows[0]?.n).toBe(REPORT_DAILY_MAX);
+    }
+  });
+
+  it("review M1: NUL, a lone high and a lone low surrogate (note and lines) are refused raw by PostgreSQL, and stored once cleaned by the request schema", async () => {
+    const repo = reportsRepo(database);
+    for (const bad of ["a\u0000b", "x\uD83Dy", "x\uDE00y"]) {
+      const token = hex();
+      await accountsRepo(database).createGuest(token, "");
+      // the raw string (what the route stored before the fix) fails on every try
+      await expect(repo.insert(token, bad, { ...payload, lines: [bad] }), JSON.stringify(bad)).rejects.toThrow();
+      // through the request schema (the route parses with it), it is stored
+      const req = reportRequestSchema.parse({ note: bad, payload: { ...payload, lines: [bad, "ok 😀"] } });
+      const r = await repo.insert(token, req.note, req.payload);
+      expect(r.outcome, JSON.stringify(bad)).toBe("stored");
+      if (r.outcome !== "stored") continue;
+      const row = await repo.byId(r.id);
+      // eslint-disable-next-line no-control-regex -- Story 10.6 review M1/M2: matching control characters is the point
+      expect(row?.note).toBe(bad.replace(/\u0000|[\uD800-\uDFFF]/g, ""));
+      expect(row?.payload.lines).toEqual([row?.note, "ok 😀"]);
     }
   });
 });

@@ -454,6 +454,8 @@ class LobbyStore {
     this.unwatch = null;
     this.room = null;
     this.joined = null;
+    runContext.roomId = null; // Story 10.6 review L1: a report after leaving names no room
+    runContext.phase = null;
     this.runInbox?.close();
     this.runInbox = null;
     this.fight = null;

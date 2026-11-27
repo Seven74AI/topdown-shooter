@@ -25,6 +25,8 @@ import {
   MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN,
   MAX_DELETE_CALLS_PER_IP_PER_MIN,
   MAX_REPORTS_PER_IP_PER_MIN,
+  MAX_REPORTS_PER_IP_PER_DAY,
+  REPORT_DAY_WINDOW_MS,
 } from "./limits";
 
 /**
@@ -247,3 +249,5 @@ export const settingsAccountLimiter = new SlidingWindowLimiter(MAX_SETTINGS_SAVE
 export const deleteIpLimiter = new SlidingWindowLimiter(MAX_DELETE_CALLS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
 /** Story 10.6 (B3): Report a problem, per IP, before the body is parsed or the database is touched. */
 export const reportIpLimiter = new SlidingWindowLimiter(MAX_REPORTS_PER_IP_PER_MIN, LOGIN_WINDOW_MS, Date.now, ipKey);
+/** Story 10.6 review M3 (B10): Report a problem, per IP per 24 h (in memory, like the minute limit). */
+export const reportIpDayLimiter = new SlidingWindowLimiter(MAX_REPORTS_PER_IP_PER_DAY, REPORT_DAY_WINDOW_MS, Date.now, ipKey);

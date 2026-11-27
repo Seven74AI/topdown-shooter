@@ -21,7 +21,7 @@ import { RunRoom } from "./rooms/RunRoom";
 import { savedRunsRepo, type SavedRunsRepo } from "./db/savedRunsRepo";
 import { setRoomSaves } from "./run/roomSaves";
 import { createSavedRunsRoute } from "./auth/savedRunsRoute";
-import { reportIpLimiter, savedRunsIpLimiter } from "./net/rateLimit";
+import { reportIpDayLimiter, reportIpLimiter, savedRunsIpLimiter } from "./net/rateLimit";
 import { reportsRepo } from "./db/reportsRepo";
 import { createReportRoute } from "./auth/reportRoute";
 
@@ -85,7 +85,7 @@ export function createGameServer({
   setRoomSaves(saves); // Stories 8.4–8.6: autosaves, Save and quit, resume
   const savedRuns = createSavedRunsRoute({ accounts, saves, allowedOrigins, ipLimiter: savedRunsIpLimiter }); // Story 8.6
   // Story 10.6: Report a problem (the one 64 KB body path, B2)
-  const accountReport = createReportRoute({ reports: reportsRepo(database), allowedOrigins, ipLimiter: reportIpLimiter, logGate: rateLimitLogGate });
+  const accountReport = createReportRoute({ reports: reportsRepo(database), allowedOrigins, ipLimiter: reportIpLimiter, ipDayLimiter: reportIpDayLimiter, logGate: rateLimitLogGate });
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
     routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook, accountSettings, accountDelete, savedRuns, accountReport }),

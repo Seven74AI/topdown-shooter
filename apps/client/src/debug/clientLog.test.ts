@@ -17,6 +17,15 @@ describe("ClientLog (Story 10.6 B6)", () => {
     expect(lines.some((l) => l.length === REPORT_LINE_MAX)).toBe(true); // the 400-char ones were cut
   });
 
+  it("review M1: a line cut at 300 never ends in half an emoji", () => {
+    const log = new ClientLog();
+    const text = "x".repeat(300 - 13 - 6) + "😀😀"; // the stamp + level prefix is 18 chars: the first emoji straddles 300
+    log.push("info", text, 0);
+    const line = log.lines()[0]!;
+    expect(line.length).toBeLessThanOrEqual(300);
+    expect(/[\uD800-\uDBFF]$/.test(line)).toBe(false);
+  });
+
   it("under capacity: only what was pushed, in order; clear() empties it", () => {
     const log = new ClientLog(5);
     log.push("warn", "a");

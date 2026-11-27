@@ -857,6 +857,8 @@ export { playToBuild, type PlayedRun } from "./save/saveFixtures"; // tests and 
 // Story 10.6: Report a problem (one HTTP route, protocol limits).
 export {
   ACCOUNT_REPORT_PATH,
+  cleanReportText,
+  cutText,
   REPORT_CODE_ALPHABET,
   REPORT_CODE_LENGTH,
   REPORT_DAILY_MAX,
