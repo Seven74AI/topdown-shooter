@@ -68,6 +68,8 @@ export const SETTINGS_TEXT = {
   back: "Back",
   inRunDeleteNote: "Delete my progress is on the start screen",
   progressGroup: "Progress",
+  /** Story 10.6 (Q2 B): the Report a problem row, above Delete my progress. */
+  helpGroup: "Help",
   deleteButton: "Delete my progress",
   deleteHint: "Start over as a new player on this phone",
   confirmTitle: "Delete my progress?",

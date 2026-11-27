@@ -241,3 +241,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:27 10.4 re-review round 1 APPROVED; last low (MB text "0.0" while the bar moves → plain "Downloading…" until the first file) + nit go to a main-session check. 10.6 full review: CHANGES REQUESTED (M1 bad chars → 503, M2 terminal/prompt injection in npm run reports, M3 disk growth → B10 caps 30/day/IP + 2,000/day global, L1, L2, nits).
 - 09:40 Designer: 10.2-Q1 A, Q2 A, Q3 B; 10.3-Q1 A; 10.6-Q1 RP1; 10.5-Q3 C (no stills); 10.7-Q1 C (every weapon bought), Q2 A, Q3 A.
 - 09:50 10.4 PR #39 merged 96f614b5 (main-session check of the last low/nit + turretBandwidth PERF_ASSERT fix; CI green on f5a264f).
+- 09:57 Master CI green on 96f614b5 (#39, 10.4). Icon proposal session started (session_01CgLgPTMwBGKYCDmLagaYdh).
+- 10:05 Icon proposal on master (11dfb027). Designer: 10.5-Q1 = IC3 (Lumen badge). 10.6 re-review 1: RR-M1 Caddy 64KB = 64,000 B vs 65,536 → fixing (round 2 next).
+- 10:12 10.6 PR #40 merged cd9a944a (full review → 2 narrow re-reviews, approved). 10.5 builder next; 10.7 told to regenerate its migration on top of 0008.
+- 10:19 Master CI green on cd9a944a (#40, 10.6). Builder 10.5 started (session_01CgLgPX9PioZsbg6tUPi3pX).

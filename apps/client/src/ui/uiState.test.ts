@@ -66,6 +66,18 @@ describe("menuStep (Story 2.11)", () => {
     expect(menuStep("closed", "players")).toBe("closed");
   });
 
+  it("Story 10.6: Report a problem opens only from Settings; Back / Cancel return to Settings; ☰ closes", () => {
+    expect(run("closed", "toggle", "settings", "report")).toBe("report");
+    expect(run("closed", "toggle", "settings", "report", "back")).toBe("settings");
+    expect(run("closed", "toggle", "settings", "report", "cancel")).toBe("settings");
+    expect(run("closed", "toggle", "settings", "report", "confirm")).toBe("report"); // never "left"
+    expect(run("closed", "toggle", "settings", "report", "leave")).toBe("report");
+    expect(menuStep("report", "toggle")).toBe("closed");
+    expect(menuStep("open", "report")).toBe("open");
+    expect(menuStep("closed", "report")).toBe("closed");
+    expect(menuStep("players", "report")).toBe("players");
+  });
+
   it("Settings opens from the menu; Back / Cancel return to it; Esc closes", () => {
     expect(run("closed", "toggle", "settings")).toBe("settings");
     expect(run("closed", "toggle", "settings", "back")).toBe("open");

@@ -21,7 +21,9 @@ import { scrubSeats } from "./scrubSeats";
  *
  * Paths: `deleteAccount` (1 → 2 → 3 → 4), `deviceTokensRepo.logIn` / reset (1 → 2 → merge 3), `deviceTokensRepo.logOut`
  * (1 only), `progressRepo.addSupplies` (2: payee before the merged guest's seat row), `savedRunsRepo` put (2 as KEY SHARE
- * → 4). A new path that locks two of these points here.
+ * → 4), `reportsRepo.insert` (2 only, `FOR NO KEY UPDATE` on the reporting account: Story 10.6; its `problem_reports`
+ * rows are nulled by this delete's own `DELETE FROM accounts`, ON DELETE SET NULL). A new path that locks two of these
+ * points here.
  */
 
 /** What the rest of the server may know about an account (never a hash). */

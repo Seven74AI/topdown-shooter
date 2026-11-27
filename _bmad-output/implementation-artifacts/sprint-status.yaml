@@ -231,8 +231,8 @@ development_status:
   10-2-frame-rate-pass-on-reference-phones: in-progress  # builder session_01CgLgPUnLeUvouvuNhvGL6o (story-10-2); Q1 A, Q2 A, Q3 B picked 2026-11-27; headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked; carries D6
   10-3-memory-and-battery-pass: ready-for-dev  # story file written 2026-11-27 (10-3-memory-and-battery-pass.md); Q1 A picked 2026-11-27; build after 10.2; phone ACs parked
   10-4-fast-loading: done  # PR #39 merged 96f614b5 2026-11-27 after light review (M1 + 2 lows) + 1 narrow re-review + main-session check (RR1-L1, RR1-N1, turretBandwidth PERF_ASSERT test fix); Q1 B "Hordes"; parallel with 10.2 OK
-  10-5-home-screen-install-and-every-supported-browser: ready-for-dev  # Q2 A "Hordes", Q3 C (no stills) picked; Q1 icon proposal pending; real-phone notch + iOS/Android checks parked; desktop browsers via Playwright (story file 2026-11-27)
-  10-6-report-a-problem: review  # PR #40; Q1 RP1, Q2 B, Q3 B picked 2026-11-27; migration lands FIRST (0008), 10.7 regenerates on top
+  10-5-home-screen-install-and-every-supported-browser: ready-for-dev  # Q2 A "Hordes", Q3 C (no stills) picked; Q1 IC3 picked 2026-11-27; all picks in; build after 10.6 merges; real-phone notch + iOS/Android checks parked; desktop browsers via Playwright (story file 2026-11-27)
+  10-6-report-a-problem: done  # PR #40 merged cd9a944a 2026-11-27 after full review + 2 narrow re-reviews; Q1 RP1, Q2 B, Q3 B picked 2026-11-27; migration lands FIRST (0008), 10.7 regenerates on top
   10-7-run-stats: ready-for-dev  # all Q-codes picked 2026-11-27 (Q1 C every weapon bought, Q2 A, Q3 A, Q4 B kills); merges after 10.6 and regenerates its migration on top; not in parallel with 10.12
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night); per-phone measurements parked
