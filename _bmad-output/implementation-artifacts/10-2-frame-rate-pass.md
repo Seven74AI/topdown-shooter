@@ -182,7 +182,7 @@ Claude (builder session, gds-dev-story).
 | L7 | no wiring test for the GameScene gating | `tools/checks/autoQualityWiring.test.ts`: one call per frame, the exact gate, the toast, boot before the cap and the game, off under `?stress` | `83a533fc` |
 | N4 | a stored step applied under `?stress` | `boot()` returns at once when disabled (`?stress`). Test | `88210f2d` |
 | N6 | share the constants | the cross / label / name-size constants live in `teammateMarkers.ts`; HudScene imports them | `1b05bddc` |
-| N5 | the `stressStage` doc in `urlOptions.ts` said "after setup through applyDecayStage" | comment fixed: `changeDecayStage`, before the Walkers spawn (B6) | NEXT |
-| N7 | `pingArrows.test.ts` hard-coded `PING_OTHER_ARROWS + 4` / `+ 8` | derived from `MAX_PLAYERS` | NEXT |
-| L6 follow-up | the sim's per-tick allocations | `deferred-work.md` D13 added (owner: Story 10.3, memory pass), as the main session asked | NEXT |
+| N5 | the `stressStage` doc in `urlOptions.ts` said "after setup through applyDecayStage" | comment fixed: `changeDecayStage`, before the Walkers spawn (B6) | `c77398c0` |
+| N7 | `pingArrows.test.ts` hard-coded `PING_OTHER_ARROWS + 4` / `+ 8` | derived from `MAX_PLAYERS` | `c77398c0` |
+| L6 follow-up | the sim's per-tick allocations | `deferred-work.md` D13 added (owner: Story 10.3, memory pass), as the main session asked | `c77398c0` |
 | N1–N3 | — | no change (as reviewed) | — |
