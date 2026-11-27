@@ -37,6 +37,8 @@ What this says: the headless renderer is the CPU (SwiftShader), so the frame is 
 | **10.2-Q2** | Add a **Resolution** row to Settings › Screen (the biggest lever by far)? | **A** Add it: *Sharp* (2×, today) / *Balanced* (1.5×) / *Fast* (1×). Default Sharp. Measured: wave 9 at 4× is 6.9 FPS at 2×, 18.9 at 1× (Balanced expected ≈ 11). · **B** Add it with only Sharp / Fast. · **C** No row: resolution stays 2× always. | **A** |
 | **10.2-Q3** | How does a weaker phone get lower defaults ("the default settings for that device class")? A player's own choice always wins (10.1 B1). | **A** None: one default for all; the player lowers it in Settings. · **B** **Auto check once:** if the first 10 s of the first wave average < 40 FPS (Show-performance numbers), the defaults drop one step (Resolution Balanced, Rain Light) and a toast says "Lowered quality for smoother play · Settings"; a second check at < 30 FPS drops to Resolution Fast + Glow Low. Remembered on the phone; never touches a setting the player changed. · **C** By hardware hints at boot (≤ 4 CPU cores or ≤ 4 GB `deviceMemory` → Balanced): no toast, but guesses wrong on some phones (an old 8-core can be slower than a new 4-core). | **B** |
 
+**Designer picks (2026-11-27):** 10.2-Q1 = **A** (≥ +25 %: release baseline 7.4 → ≥ 9.3 FPS at 4×), 10.2-Q2 = **A** (Sharp / Balanced / Fast, default Sharp), 10.2-Q3 = **B** (one-time auto check in wave 1).
+
 D6 (edge arrows) is decided by the builder as B-code 10.2-B4 (below): no new look, it follows the 6.8 / 8.7 "keep 4 px clear" rule.
 
 ## Decisions made while writing (B-codes, technical)
