@@ -5,6 +5,7 @@
 //
 //   NODE_PATH=$(npm root -g) node tools/perf/fps.cjs <label=url> [<label=url> …] [rounds]
 //   e.g. node tools/perf/fps.cjs master=http://127.0.0.1:5321 branch=http://127.0.0.1:5322 2
+//   A target may carry its own extra URL switches after a `|`: `lowfx=http://127.0.0.1:5322|&fx=low`.
 //
 // Env: RATES=1,4 (CDP CPU throttling), SCENES=stage1,wave9, DPRS=2, QUERY=&fx=low (extra URL switches for every page),
 // PROFILE=1 (one CDP Profiler capture of the count at the LAST rate per scene and target: top self-time functions),
@@ -69,7 +70,8 @@ function topSelf(profile, n = 10) {
 
 async function measure(browser, base, rate, sceneName, dpr, profile) {
   const sc = SCENES[sceneName];
-  const { page: p, cdp } = await openPage(browser, `${base}/${sc.query}${QUERY}`, rate, dpr);
+  const [root, extra = ""] = base.split("|"); // `label=url|&ab=x`: extra switches for this target only
+  const { page: p, cdp } = await openPage(browser, `${root}/${sc.query}${QUERY}${extra}`, rate, dpr);
   const l0 = os.loadavg()[0];
   await p.waitForTimeout(WARM_MS);
   if (profile) {
