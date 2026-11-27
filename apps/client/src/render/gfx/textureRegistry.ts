@@ -104,6 +104,13 @@ export class TextureRegistry {
     return this.entries.size;
   }
 
+  /** Story 10.3 (B2): the 2D canvases registered for a `contextrestored` rebuild (the memory probe's "canvases"). */
+  get canvasCount(): number {
+    let n = 0;
+    for (const list of this.canvases.values()) n += list.length;
+    return n;
+  }
+
   /** Keys in rebuild order. */
   keys(): string[] {
     return [...this.entries.entries()].sort(([, a], [, b]) => a.phase - b.phase || a.seq - b.seq).map(([k]) => k);

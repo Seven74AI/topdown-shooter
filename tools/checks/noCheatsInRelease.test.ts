@@ -33,6 +33,7 @@ export const CHEAT_STRINGS = [
   "dev-gear",
   "Dev loadout",
   "__game",
+  "__mem", // Story 10.3: the dev-only memory probe / run driver
   "Collision / grid view", // Story 4.3
   "Decay stage (whole map)", // Stories 4.2 + 4.3 solo stage cheat; Story 4.5: the decay engine's path
   "Spawn Behemoth", // Story 6.5

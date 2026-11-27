@@ -32,3 +32,24 @@ Env:
 
 The script prints one JSON line per row. A row whose scene check fails (`errs`) is re-run once (`rerun`). Exported for
 Story 10.3: `openPage`, `countFrames`, `frameStats`, `topSelf`, `serveTargets`, `mainBundleOf`, `SCENES`.
+
+## memoryRun.cjs (Story 10.3)
+
+The memory and battery pass; results and method in `docs/perf/epic-10-memory-battery.md`. It runs a solo **dev**
+build (Vite in the script's own process, OS-picked port, no file watching or HMR) and drives the run through the
+dev-only `window.__memRun` (`apps/client/src/debug/memProbe.ts`).
+
+```sh
+NODE_PATH=$(npm root -g) node tools/perf/memoryRun.cjs run       # the 10-wave run, a sample per build phase (~10 min)
+NODE_PATH=$(npm root -g) node tools/perf/memoryRun.cjs restart   # wave 1 → Game over → Restart, × 3 (~3 min)
+NODE_PATH=$(npm root -g) node tools/perf/memoryRun.cjs battery   # 4× windows, waves 1 / 5 / 9, Battery saver off / on
+SETTINGS='{"resolution":"fast"}' NODE_PATH=$(npm root -g) node tools/perf/memoryRun.cjs battery
+```
+
+Each mode exits non-zero when its liveness or memory rule fails. Also for Story 10.3 (deferred-work D13):
+- `heapAlloc.cjs base=dist:<dir> branch=dist:<dir>`: CDP sampling of everything a release build allocates in 10 s of
+  the 10.2 stress scenes, by function (`LINES=1` adds line numbers: use a `vite build --minify false` dist; `FIRE=1`
+  holds fire).
+- `npx tsx tools/perf/simAlloc.ts [stage] [ticks]`: the same for the shared sim alone in Node (150 Walkers).
+- `npx tsx tools/perf/digestAB.ts [seeds]`: whole 4-bot runs folded into one World digest per seed; run it on two
+  trees: equal lines = the sim is unchanged bit for bit.

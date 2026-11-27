@@ -32,6 +32,8 @@ export const playerSettingsSchema = z.object({
   glow: z.enum(["full", "low", "off"]).optional(),
   /** Story 10.2-Q2 A: the canvas resolution cap: Sharp 2× / Balanced 1.5× / Fast 1× device px per CSS px (`RESOLUTION_DPR`). */
   resolution: z.enum(["sharp", "balanced", "fast"]).optional(),
+  /** Story 10.3-Q1 A: draw at most `BATTERY_SAVER_FPS` frames a second (the sim, input and network are unchanged). */
+  batterySaver: z.boolean().optional(),
   /** Story 9.6 (not built: stored, hidden). */
   filmGrain: z.enum(["full", "low", "off"]).optional(),
   /** Story 9.5 (not built: stored, hidden): "bloodOnly" = no dismemberment pieces. */
@@ -60,6 +62,7 @@ export const PLAYER_SETTINGS_DEFAULTS: Readonly<PlayerSettings> = Object.freeze(
   fog: "full",
   glow: "full",
   resolution: "sharp",
+  batterySaver: false,
   filmGrain: "full",
   gore: "full",
   sfxVolume: 100,
@@ -73,6 +76,9 @@ export const GLOW_LEVEL_K: Readonly<Record<"full" | "low" | "off", number>> = Ob
 
 /** Story 10.2-Q2 A: the highest device pixel ratio each Resolution step draws at (the device's own ratio if lower). */
 export const RESOLUTION_DPR: Readonly<Record<"sharp" | "balanced" | "fast", number>> = Object.freeze({ sharp: 2, balanced: 1.5, fast: 1 });
+
+/** Story 10.3-Q1 A: the most frames a second the game draws with Battery saver on (the 20 Hz sim is unchanged). */
+export const BATTERY_SAVER_FPS = 30;
 
 /** B10: the largest `/account/settings` body the route reads (bytes); a larger one is refused with 413. */
 export const SETTINGS_MAX_BODY_BYTES = 1024;
