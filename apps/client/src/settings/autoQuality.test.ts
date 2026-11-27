@@ -147,6 +147,24 @@ describe("Story 10.2 review H2 / N4: an app switch and ?stress", () => {
     expect(feed(aq, 50, AUTO_QUALITY_WINDOW_MS + 500, WAVE, r.t + 20).toasts).toEqual([]); // the fresh try: 50 FPS
     expect([aq.phase, aq.step]).toEqual(["done", 0]);
   });
+  it("R1-L1: steady 300 ms frames (3.3 FPS, slower than the old 250 ms limit) are slow frames, not a pause: two steps", () => {
+    const store = memStorage();
+    const { toasts } = feed(new AutoQuality(() => store, setSettingsDefaults, getStoredSettings), 1000 / 300, AUTO_QUALITY_WINDOW_MS + 500);
+    expect(toasts).toEqual([AUTO_QUALITY_TOAST]);
+    expect(getSettings().resolution).toBe("fast");
+    expect(JSON.parse(store.map.get(AUTO_QUALITY_KEY) ?? "{}")).toEqual({ step: 2 });
+  });
+  it("R1-L1: a 9 FPS phone with a 600 ms hitch every few seconds still counts every frame: two steps", () => {
+    const aq = new AutoQuality(() => memStorage(), setSettingsDefaults, getStoredSettings);
+    let t = 0;
+    let toast = "";
+    for (let f = 0; t < AUTO_QUALITY_WINDOW_MS + 1000; f++) {
+      t += f % 25 === 24 ? 600 : 1000 / 9;
+      toast ||= aq.frame(t, WAVE);
+    }
+    expect(toast).toBe(AUTO_QUALITY_TOAST);
+    expect(aq.step).toBe(2);
+  });
   it("H2: a slow but steady phone (every frame 200 ms = 5 FPS, under the gap limit) still drops two steps", () => {
     const { toasts } = feed(new AutoQuality(() => memStorage(), setSettingsDefaults, getStoredSettings), 5, AUTO_QUALITY_WINDOW_MS + 500);
     expect(toasts).toEqual([AUTO_QUALITY_TOAST]);

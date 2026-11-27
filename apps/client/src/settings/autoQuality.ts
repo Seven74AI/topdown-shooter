@@ -19,10 +19,12 @@ export const AUTO_QUALITY_WINDOW_MS = 10_000;
 export const AUTO_QUALITY_STEP1_FPS = 40;
 export const AUTO_QUALITY_STEP2_FPS = 30;
 /**
- * Review H2: a frame gap longer than this (ms) is a paused page (app switch, lock, a hidden tab whose loop Phaser
- * stopped), not a slow phone: the try is cancelled. 250 ms = a 4 FPS frame, below anything the check can call.
+ * Review H2 / re-review R1-L1, R1-L2: a frame gap longer than this (ms) is a paused page (an app switch, a lock, a
+ * hidden tab whose loop Phaser stopped), not a slow phone, so the try is cancelled (nothing stored). A frame up to it
+ * is a slow frame and counts: a phone under 4 FPS, or a 6–12 FPS phone with an occasional hitch of a few hundred ms,
+ * is still measured (and lowered).
  */
-export const AUTO_QUALITY_MAX_GAP_MS = 250;
+export const AUTO_QUALITY_MAX_GAP_MS = 1000;
 /** The toast the lowering shows once (10.2-Q3 B). */
 export const AUTO_QUALITY_TOAST = "Lowered quality for smoother play · Settings";
 

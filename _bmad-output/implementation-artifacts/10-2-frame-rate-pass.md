@@ -186,3 +186,10 @@ Claude (builder session, gds-dev-story).
 | N7 | `pingArrows.test.ts` hard-coded `PING_OTHER_ARROWS + 4` / `+ 8` | derived from `MAX_PLAYERS` | `c77398c0` |
 | L6 follow-up | the sim's per-tick allocations | `deferred-work.md` D13 added (owner: Story 10.3, memory pass), as the main session asked | `c77398c0` |
 | N1–N3 | — | no change (as reviewed) | — |
+
+**Narrow re-review, round 1 (fix commits): APPROVED**, with one low (to be checked by the main session):
+
+| # | finding | fix | commit |
+| --- | --- | --- | --- |
+| R1-L1 | `AUTO_QUALITY_MAX_GAP_MS = 250`: a phone under 4 FPS, or a 6–12 FPS phone with a hitch over 250 ms every 10 s, was never lowered | the limit is now 1000 ms: a longer gap is a pause or app switch and cancels the try (nothing stored); a frame of 250–1000 ms is a slow frame and counts. Tests: steady 300 ms frames → step 2 (stored); 9 FPS with a 600 ms hitch every 25 frames → step 2; a 3 s gap → nothing stored (kept) | NEXT |
+| R1-L2 | the comment ("250 ms = a 4 FPS frame, below anything the check can call") | rewritten with the fix | NEXT |
