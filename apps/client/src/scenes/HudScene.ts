@@ -62,6 +62,7 @@ import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "
 import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
 import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout } from "./consumableButton";
 import { CONSUMABLE_ICON_CSS_PX, CONSUMABLE_ICON_FRAMES, CONSUMABLE_ICON_TEXTURE, ensureConsumableIcons } from "../render/city/consumableIcons";
+import { barPx, cinemaTapPasses, filterHud, type CameraFiltered } from "./cinemaHud";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -72,6 +73,12 @@ export interface HudSceneData {
   stickRadiusCss: number;
 }
 
+/** Story 12.3: the cinematic's letterbox and fade, above every HUD object (≤ 1004), the debug overlay above them. */
+const CINEMA_BARS_DEPTH = 2000;
+const CINEMA_FADE_DEPTH = 2001;
+/** Review L1: ☰ between the bars and the fade while the cinematic is on (its own depth otherwise). */
+const CINEMA_MENU_DEPTH = 2000.5;
+const MENU_DEPTH = 1001;
 /** Health bar size and placement in CSS px (× dpr). */
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
@@ -501,6 +508,14 @@ export class HudScene extends Phaser.Scene {
   private shownW = 0;
   private shownH = 0;
   private perfOverlay: PerfOverlay | null = null;
+  /** Story 12.3: the extraction cinematic's letterbox (one Graphics, redrawn when its height or the screen changes), fade, and the objects that stay on. */
+  private cinemaBars!: Phaser.GameObjects.Graphics;
+  private cinemaFade!: Phaser.GameObjects.Rectangle;
+  private readonly cinemaKeep: CameraFiltered[] = [];
+  private cinemaHidden = false;
+  private shownBarPx = -1;
+  private shownBarW = -1;
+  private shownBarH = -1;
   private readonly countdowns: Phaser.GameObjects.Text[] = [];
   /** Seconds each countdown text shows (setText only when it changes). */
   private readonly shownSecs = new Int32Array(MAX_DOWNED_MARKERS).fill(-1);
@@ -652,7 +667,7 @@ export class HudScene extends Phaser.Scene {
       this.model.consumablePressed = true;
     });
     // Story 2.11: ☰ top-right, away from both thumbs (the sticks live in the lower halves).
-    this.menuBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.menuBtn = this.add.graphics().setDepth(MENU_DEPTH).setVisible(false);
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
@@ -790,6 +805,14 @@ export class HudScene extends Phaser.Scene {
     }
     this.hpBar = this.add.graphics();
     this.perfOverlay = new PerfOverlay(this); // Story 1.11 (top-right, toggled by ?debug=1 / three-finger tap)
+    // Story 12.3: the letterbox and fade above every HUD object; the debug overlay raised above them (AC 12's measure).
+    this.cinemaBars = this.add.graphics().setDepth(CINEMA_BARS_DEPTH).setVisible(false);
+    this.cinemaFade = this.add.rectangle(0, 0, 1, 1, 0x000000, 1).setOrigin(0, 0).setDepth(CINEMA_FADE_DEPTH).setVisible(false);
+    this.perfOverlay.gameObject.setDepth(CINEMA_FADE_DEPTH + 1);
+    this.cinemaKeep.length = 0;
+    this.cinemaKeep.push(this.cinemaBars, this.cinemaFade, this.perfOverlay.gameObject, this.menuBtn); // review L1: ☰ stays
+    this.cinemaHidden = false;
+    this.shownBarPx = this.shownBarW = this.shownBarH = -1;
     this.hpText = this.add.text(0, 0, "", {
       fontFamily: "system-ui, sans-serif",
       fontSize: `${Math.round(HP_TEXT_PX * dpr())}px`,
@@ -850,6 +873,11 @@ export class HudScene extends Phaser.Scene {
     // nothing (no aim stick, no fire: the right half belongs to the build cluster; BX-5 drags with it).
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
+      // Story 12.3: the HUD is hidden under the extraction's cinematic (no hidden button answers); review L1: ☰ stays (menu, Leave).
+      if (this.model.cinemaOn) {
+        if (cinemaTapPasses(true, this.buttons.hit(p.x, p.y, this.scale.width))) this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width);
+        return;
+      }
       this.pingHud.pointerDown(this.buttons.hit(p.x, p.y, this.scale.width)); // Story 8.7: a tap off the wheel closes it
       // Story 10.10 (AC 6): a touch outside the open Build panel closes it; off every button it is consumed
       // (no stick, no fire, no building selected), on another button (Ready, ping, ☰) that button still gets it.
@@ -2107,7 +2135,35 @@ export class HudScene extends Phaser.Scene {
     this.drawLongPress(); // Story 5.21
     this.drawUndo(); // Story 5.20
     this.drawSoldPops(); // Story 5.20
+    this.drawCinema(); // Story 12.3: after every draw (they may set objects visible: the camera filter hides them)
     this.perfOverlay?.update();
+  }
+
+  /** Story 12.3 (AC 2–4, 7, 11): the letterbox and the fade from the camera director; every other HUD object hidden. */
+  private drawCinema(): void {
+    const m = this.model;
+    const on = m.cinemaOn;
+    if (on || this.cinemaHidden) filterHud(this.children.list, this.cinemaKeep, this.cameras.main.id, on);
+    if (on !== this.cinemaHidden) this.menuBtn.setDepth(on ? CINEMA_MENU_DEPTH : MENU_DEPTH); // review L1: ☰ above the bars, under the fades
+    this.cinemaHidden = on;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const bar = on ? barPx(m.cinemaBars, h) : 0;
+    if (bar !== this.shownBarPx || w !== this.shownBarW || h !== this.shownBarH) {
+      this.shownBarPx = bar;
+      this.shownBarW = w;
+      this.shownBarH = h;
+      this.cinemaBars.clear();
+      if (bar > 0) this.cinemaBars.fillStyle(0x000000, 1).fillRect(0, 0, w, bar).fillRect(0, h - bar, w, bar);
+      this.cinemaBars.setVisible(bar > 0);
+    }
+    const fade = on ? m.cinemaFadeAlpha : 0;
+    if (fade > 0) {
+      if (this.cinemaFade.width !== w || this.cinemaFade.height !== h) this.cinemaFade.setSize(w, h);
+      if (this.cinemaFade.fillColor !== m.cinemaFadeRgb) this.cinemaFade.setFillStyle(m.cinemaFadeRgb, 1);
+      this.cinemaFade.setAlpha(fade);
+    }
+    if (this.cinemaFade.visible !== fade > 0) this.cinemaFade.setVisible(fade > 0);
   }
 
   /**

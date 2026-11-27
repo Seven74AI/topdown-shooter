@@ -16,7 +16,7 @@ import {
   PAD_RING_PX,
   ensureHeliAtlas,
 } from "./city/heliArt";
-import { BEAM_RX_M, BEAM_RY_M, BEAM_R_M, BEAM_SWEEP_HZ, EXTRACT_FLY_S, ROTOR_RAD_S, evacPadOf, flyOutDxM, heliPose, type HeliPhase, type HeliPose } from "./heliPose";
+import { BEAM_RX_M, BEAM_RY_M, BEAM_R_M, BEAM_SWEEP_HZ, DESCEND_S, EXTRACT_FLY_S, ROTOR_RAD_S, evacPadOf, flyOutDxM, heliPose, type HeliPhase, type HeliPose } from "./heliPose";
 
 /**
  * Story 6.11 (AC 9, D5): the evacuation helicopter. Visual only — no collision, nothing under it is
@@ -42,11 +42,16 @@ export class HeliView {
   private flyS = EXTRACT_FLY_S;
   private readonly flyDxM: number;
   private readonly pose: HeliPose = { phase: "gone", dx: 0, dy: 0, scale: 1, alpha: 0 };
+  /** Story 12.3: where it was last drawn (m; kept once it has flown off) — the camera director follows it. */
+  drawnX: number;
+  drawnY: number;
 
   constructor(scene: Phaser.Scene, map: Readonly<DistrictMap>, padRadiusM: number) {
     ensureHeliAtlas(scene);
     this.at = evacPadOf(map);
     this.flyDxM = flyOutDxM(map, this.at.x);
+    this.drawnX = this.at.x;
+    this.drawnY = this.at.y;
     const padSide = (padRadiusM * PAD_FRAME_PX) / PAD_RING_PX;
     this.pad = aboveDarkness(scene.add.image(this.at.x, this.at.y, ATLAS_HELI, HELI_PAD).setDisplaySize(padSide, padSide).setAlpha(0.55).setVisible(false), "marker");
     this.beam = aboveDarkness(scene.add.image(0, 0, ATLAS_HELI, HELI_BEAM).setDisplaySize(BEAM_R_M * 2, BEAM_R_M * 2).setVisible(false), "marker");
@@ -89,6 +94,16 @@ export class HeliView {
     this.leftAtS = -1;
   }
 
+  /** Story 12.3: the scene-clock second it touched down (−1 = no vote opened); the crew steps out from then. */
+  get landedAtS(): number {
+    return this.openedAtS < 0 ? -1 : this.openedAtS + DESCEND_S;
+  }
+
+  /** Story 12.3: the fly-out's east run (m). */
+  get flyOutDxM(): number {
+    return this.flyDxM;
+  }
+
   get phase(): HeliPhase {
     return this.pose.phase;
   }
@@ -101,9 +116,17 @@ export class HeliView {
     this.rotor.setVisible(on);
     this.beacon.setVisible(on && Math.floor(nowS * 2) % 2 === 0);
     this.beam.setVisible(on && p.phase !== "extracting");
-    if (!on) return;
+    if (!on) {
+      if (!this.hasLeft) {
+        this.drawnX = this.at.x;
+        this.drawnY = this.at.y;
+      }
+      return;
+    }
     const x = this.at.x + p.dx;
     const y = this.at.y + p.dy;
+    this.drawnX = x;
+    this.drawnY = y;
     const k = 1 / HELI_PX_PER_M;
     this.body.setPosition(x, y).setScale(k * p.scale).setAlpha(p.alpha);
     this.rotor
