@@ -191,5 +191,5 @@ Claude (builder session, gds-dev-story).
 
 | # | finding | fix | commit |
 | --- | --- | --- | --- |
-| R1-L1 | `AUTO_QUALITY_MAX_GAP_MS = 250`: a phone under 4 FPS, or a 6–12 FPS phone with a hitch over 250 ms every 10 s, was never lowered | the limit is now 1000 ms: a longer gap is a pause or app switch and cancels the try (nothing stored); a frame of 250–1000 ms is a slow frame and counts. Tests: steady 300 ms frames → step 2 (stored); 9 FPS with a 600 ms hitch every 25 frames → step 2; a 3 s gap → nothing stored (kept) | NEXT |
-| R1-L2 | the comment ("250 ms = a 4 FPS frame, below anything the check can call") | rewritten with the fix | NEXT |
+| R1-L1 | `AUTO_QUALITY_MAX_GAP_MS = 250`: a phone under 4 FPS, or a 6–12 FPS phone with a hitch over 250 ms every 10 s, was never lowered | the limit is now 1000 ms: a longer gap is a pause or app switch and cancels the try (nothing stored); a frame of 250–1000 ms is a slow frame and counts. Tests: steady 300 ms frames → step 2 (stored); 9 FPS with a 600 ms hitch every 25 frames → step 2; a 3 s gap → nothing stored (kept) | `578e1265` |
+| R1-L2 | the comment ("250 ms = a 4 FPS frame, below anything the check can call") | rewritten with the fix | `578e1265` |
