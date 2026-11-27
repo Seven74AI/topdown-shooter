@@ -165,7 +165,7 @@ export const runResults = pgTable("run_results", {
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   nightsPlayed: integer("nights_played").notNull().default(1),
-  /** Review L1: the room code of the last resume counted (a retried `resumed` of the same claim adds no night). */
+  /** Review L1: the key of the last resume counted (a random token per Start: a retried `resumed` adds no night). */
   lastResume: text("last_resume"),
 }, (t) => [
   check("run_results_ending", sql`${t.ending} is null or ${t.ending} in ('wiped', 'extracted', 'lost', 'endless', 'abandoned')`),

@@ -138,6 +138,13 @@ PGlite repo tests. Real-PostgreSQL tests skip without `TEST_DATABASE_URL` (CI `p
 - [x] **L7** Accepted by the main session as a known gap (see Known gaps in the Implementation Plan).
 - [x] **Nits:** `player_count` = the seat rows really written (duplicates removed). The weapon share is now the share of RUNS: a run counts a weapon once if any seat bought it (Q1 wording).
 
+**Re-review round 1 (2026-11-27): APPROVED**, with the last small fixes below, checked by the main session (no further re-review):
+
+- [x] Low: the L1 claim key is now a random token per Start (`randomUUID()` in `startRun`). Room codes are reused, so `this.roomId` could repeat. A retry of the same write keeps its key.
+- [x] Nit: `finishIfNotSaved` now gets the run's inputs (bank, district, seed, night start) captured at the call site, before `endWorldRun`, as a new `RunResultRun` value. A new Start during a slow failing save can't mix runs. `finishRunResult` takes the same value; it defaults to the current run.
+- [x] Nit: fixed the comment above `finishRunResult`. A failed shutdown save leaves the row open, the boot sweep makes the last autosave resumable, and the orphan rule applies only when there is no save row at all.
+- [x] Deferred-work row **D12** added: the pre-existing `savedRunsRepo.knownAccounts` plain id order can deadlock (merged guest G < A vs `deleteAccount(A)`). Owner: the next story that touches `savedRunsRepo.ts`.
+
 ## Dev Agent Record
 
 ### Agent Model Used

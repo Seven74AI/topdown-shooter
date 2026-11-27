@@ -77,7 +77,7 @@ export interface RunResultsRepo {
   start(row: RunStartRow): Promise<void>;
   /**
    * A resumed run started: +1 night on its open row (a lost row is inserted as a resumed one: 2 nights). Review L1:
-   * `claimKey` (the claiming room's code) counts once: a retry after a committed-but-errored attempt adds nothing.
+   * `claimKey` (a random token per Start) counts once: a retry after a committed-but-errored attempt adds nothing.
    */
   resumed(row: RunStartRow, claimKey: string): Promise<void>;
   /** The run ended (B2, B4): true when THIS call finished it (its seat rows written), false when it was already finished. */

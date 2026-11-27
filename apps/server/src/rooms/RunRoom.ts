@@ -1,5 +1,5 @@
 import { isSwitching, registerRoomDevices } from "../auth/devicesInRooms";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   CloseCode,
   Room,
@@ -335,6 +335,14 @@ export function checkNetProtocol(version: number | undefined): void {
 }
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
 export const authLog = roomLog("auth"); // exported for tests (Story 7.9: look_replaced)
+
+/** Story 10.7: what a run's stats finish reads, taken together (one run's bank, district, seed and night start). */
+interface RunResultRun {
+  readonly bank: RunBank;
+  readonly district: string;
+  readonly seed: number;
+  readonly nightStartedAt: number;
+}
 
 /**
  * One run: lobby now (Story 2.1), the fight from Story 2.4. The room id is the 4-letter code.
@@ -1255,12 +1263,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 8.4 (S2): everyone who played left in a calm phase: the run is saved for them (taken before the Results).
       const keep = (this.state.phase === "build" || this.state.phase === "vote") && this.saveWriter !== null && !this.saveSettled;
       const saving = keep ? this.makeResumable("all_left") : null; // captured now, in the calm phase
-      const bank = this.bank;
+      const run = this.runResultRun(); // re-review: this run's inputs, before anything can start another
       endWorldRun(controller.world);
       syncState(this.state, controller);
       this.endRun(controller, controller.world.waves.number, keep, "lost");
       // Story 10.7 review L4: the save failed → the run is lost after all (its stats row finished, not left to the orphan rule).
-      if (saving) void this.finishIfNotSaved(saving, controller.world, controller.world.waves.number, bank);
+      if (saving) void this.finishIfNotSaved(saving, controller.world, controller.world.waves.number, run);
     } else if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out). Story 8.4 (S2): in a build phase or the vote the run is
       // SAVED (resumable; its Supplies topped up by the save); mid-wave it is LOST (its save row deleted).
@@ -1891,7 +1899,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 10.7 (B1): the run's stats row opens at its first Start; a resumed Start counts one more night.
     this.nightStartedAt = Date.now();
     const started = { id: this.bank.runId, district: this.state.district, seed: this.runSeed };
-    this.runResultWrites = recordRunResult(started.id, resume ? "resumed" : "start", (r) => (resume ? r.resumed(started, this.roomId) : r.start(started)), this.log, this.bankRetryMs);
+    const claimKey = randomUUID(); // re-review: one key per Start (room codes are reused); a retry of this write keeps it
+    this.runResultWrites = recordRunResult(started.id, resume ? "resumed" : "start", (r) => (resume ? r.resumed(started, claimKey) : r.start(started)), this.log, this.bankRetryMs);
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Story 8.2: the
@@ -2058,20 +2067,27 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /**
    * Story 10.7 (AC 2, B2, B4, B8): the run is over: its stats row is finished with every seat banked in it (members,
    * held, remembered, Leavers: `RunBank.resultSeats`), fire and forget, after the start write. `left`: lost because
-   * the team left.
+   * the team left. `run`: this run's inputs (re-review: taken at the call site, so a later Start can't mix runs).
    */
-  private finishRunResult(world: World, wave: number, left: boolean, bank: RunBank | null = this.bank): void {
+  private finishRunResult(world: World, wave: number, left: boolean, run: RunResultRun | null = this.runResultRun()): void {
     // Review H1: a run saved as resumable here (a shutdown / tick-error save, then everyone's socket closes) plays on: no
-    // finish. A shutdown whose save is still in flight or failed leaves the row open (the orphan rule finishes it).
-    if (!bank || this.savedResumable || this.shuttingDown) return;
-    const row = resultRow(world, { id: bank.runId, district: this.state.district, seed: this.runSeed, nightMs: Date.now() - this.nightStartedAt }, wave, left);
+    // finish. A shutdown whose save failed leaves the row open too: the boot sweep makes its last autosave resumable, so
+    // the run can still end on another night; the orphan rule applies only when no save row exists at all.
+    if (!run || this.savedResumable || this.shuttingDown) return;
+    const { bank } = run;
+    const row = resultRow(world, { id: bank.runId, district: run.district, seed: run.seed, nightMs: Date.now() - run.nightStartedAt }, wave, left);
     const seats = bank.resultSeats();
     this.runResultWrites = recordRunResult(row.id, "finish", (r) => r.finish(row, seats), this.log, this.bankRetryMs, this.runResultWrites);
   }
 
+  /** Story 10.7: the current run's stats inputs (null outside a run). */
+  private runResultRun(): RunResultRun | null {
+    return this.bank ? { bank: this.bank, district: this.state.district, seed: this.runSeed, nightStartedAt: this.nightStartedAt } : null;
+  }
+
   /** Story 10.7 review L4: the waiting-only all-left save; when it failed, the run is lost: its stats row is finished. */
-  private async finishIfNotSaved(saving: Promise<Date | null>, world: World, wave: number, bank: RunBank | null): Promise<void> {
-    if ((await saving) === null) this.finishRunResult(world, wave, true, bank);
+  private async finishIfNotSaved(saving: Promise<Date | null>, world: World, wave: number, run: RunResultRun | null): Promise<void> {
+    if ((await saving) === null) this.finishRunResult(world, wave, true, run);
   }
 
   /**
