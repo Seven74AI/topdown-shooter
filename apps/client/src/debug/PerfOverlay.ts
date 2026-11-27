@@ -41,6 +41,11 @@ export class PerfOverlay {
   private hordeKeys = 0;
   private keyRate = 0;
 
+  /** Story 12.3: the overlay's text (it stays on while the extraction's cinematic hides the rest of the HUD). */
+  get gameObject(): Phaser.GameObjects.Text {
+    return this.text;
+  }
+
   constructor(private readonly scene: Phaser.Scene) {
     const k = dpr();
     this.text = scene.add

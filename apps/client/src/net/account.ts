@@ -80,11 +80,11 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
     // P2: both copies end up naming the same account (the cookie is renewed by the server).
     deps.tokens.set(parsed.data.deviceToken);
     if (parsed.data.saved) {
-      accountStore.accept(parsed.data.account.username); // Story 7.6: the account line
+      accountStore.accept(parsed.data.account.username, parsed.data.account.admin); // Story 7.6: the account line; 10.11: + admin
       if (parsed.data.progress) progressStore.accept(parsed.data.progress); // review L7: the Log in merge warning knows the guest's progress
       // Story 10.1 (B9): a failed progress read (null) says nothing about the settings: leave them.
       if (parsed.data.progress) acceptSessionSettings(parsed.data.account.username, parsed.data.progress.settings);
-    }
+    } else accountStore.dropAdmin(); // Story 10.11 (AC 2): an unsaved session is never an admin
     return parsed.data;
   } catch {
     return null;
@@ -279,7 +279,7 @@ async function action<T>(path: string, body: unknown, parse: (raw: unknown) => T
 function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
   tokens.set(s.deviceToken);
   forgetTicket();
-  accountStore.accept(s.account.username);
+  accountStore.accept(s.account.username, s.account.admin); // Story 10.11: + admin (a logout's new guest: false)
   if (s.progress) {
     progressStore.accept(s.progress);
     // Story 7.9 + 7.10: this phone's look copy follows the account it now is; a look pending for the OLD account is dropped
@@ -290,7 +290,7 @@ function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
 
 export async function upgradeAccount(username: string, password: string, over: Partial<AccountDeps> = {}): Promise<AccountCall<UpgradeResponse>> {
   const r = await action(ACCOUNT_UPGRADE_PATH, { username, password }, (raw) => upgradeResponseSchema.safeParse(raw).data ?? null, over);
-  if (r.kind === "ok") accountStore.accept(r.body.username);
+  if (r.kind === "ok") accountStore.accept(r.body.username, false); // Story 10.11: a just-saved guest is never an admin
   return r;
 }
 

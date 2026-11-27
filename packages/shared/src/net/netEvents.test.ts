@@ -58,6 +58,10 @@ const EVENTS: SimEvent[] = [
   { type: "run.vote_resolved", choice: "extract", extract: 0, stay: 2, silent: 2 },
   { type: "run.extracted", wave: 15, endless: true },
   { type: "run.extracted", wave: 10, endless: false },
+  { type: "player.boarded", playerId: "p2" }, // Story 12.2
+  { type: "run.extract_cut" },
+  { type: "run.lifted", tick: 123456 },
+  { type: "run.extract_done", wave: 15 },
   { type: "decay.stage_changed", stage: 2, from: 1 }, // Story 4.5
   { type: "money.earned", playerId: "p1", amount: 12, reason: "refund" }, // Story 4.5
   { type: "money.earned", playerId: "p3", amount: 150, reason: "boss" }, // Story 6.7
@@ -69,6 +73,10 @@ const EVENTS: SimEvent[] = [
   { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
   { type: "building.placed", buildingId: 3, buildingType: "wood_barricade", ownerId: "p1", gx: 47, gy: 31, rot: 3 },
   { type: "building.destroyed", buildingId: 4, buildingType: "wood_barricade", ownerId: "p2", gx: 12, gy: 30, rot: 1 },
+  // Story 12.1 / 12.4: a decay loss carries its cause (the owner's toast)
+  { type: "building.destroyed", buildingId: 5, buildingType: "wood_barricade", ownerId: "p0", gx: 12, gy: 30, rot: 0, cause: "collapse" },
+  { type: "building.destroyed", buildingId: 6, buildingType: "wood_barricade", ownerId: "p1", gx: 14, gy: 30, rot: 0, cause: "fire" },
+  { type: "building.destroyed", buildingId: 7, buildingType: "wood_barricade", ownerId: "p3", gx: 16, gy: 30, rot: 0, cause: "cleared" },
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
   // Story 3.6: a turret's kill (the building type is no weapon: decodes to "").
   { type: "zombie.killed", zombieId: 7, killerId: "p1", x: 3, y: 4, weapon: "", buildingId: 12 },

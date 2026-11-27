@@ -341,7 +341,7 @@ describe("the run ends after wave runWaves (Story 3.10)", () => {
       { type: "money.earned", playerId: "p1", amount: 150, reason: "wave" },
     ]);
     run(world, 300); // nobody votes: silence = Extract (F3)
-    expect(world.run.phase).toBe("results");
+    expect(world.run.phase).toBe("extract"); // Story 12.2: the extraction (Results after the fly-out)
     expect(world.run.ending).toBe("extracted");
     expect(world.waves.number).toBe(10);
     expect(world.zombies.aliveCount).toBe(0);

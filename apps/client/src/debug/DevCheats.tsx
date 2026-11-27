@@ -13,9 +13,11 @@ import { uiStore } from "../ui/uiState";
 import "./DevCheats.css";
 
 /**
- * Dev cheats (Story 1.11). DEVELOPMENT BUILDS ONLY: main.ts loads this module with a dynamic import
- * inside `if (import.meta.env.DEV)`, so Vite drops it from production; tools/checks/noCheatsInRelease
- * asserts the built JS contains none of the strings below. Toggled by the ⚙ button or the backtick key.
+ * Dev cheats (Story 1.11). Toggled by the ⚙ button or the backtick key. Dev builds mount it at once (main.ts). Story
+ * 10.11: a production build downloads it (through `adminTools.ts`, the neutrally named `assets/admin-tools-*` chunk)
+ * only once the session says this phone's account is an admin (`adminGate.ts`); tools/checks/noCheatsInRelease
+ * asserts that no other built file contains the strings below. In production an online run leaves only the view tools
+ * (Perf overlay, Collision / grid view): online cheats through the server are Story 10.12.
  */
 
 /** Ring radius for "around me", meters (inside the view on a phone in landscape). */
@@ -45,7 +47,20 @@ function hookGridView(game: Phaser.Game): void {
   });
 }
 
-function DevCheats({ game }: { game: Phaser.Game }) {
+/** Story 10.11 (AC 4): production online runs keep only the view tools (a dev build keeps today's online panel). */
+const PRACTICE_ONLY_ONLINE_DEFAULT = !import.meta.env.DEV;
+
+/** Story 10.11 (AC 5): turns off what the panel turned on for this phone when the admin mark goes (B-code B2). */
+function dropCheatState(game: Phaser.Game): void {
+  if (gridViewOn) {
+    gridViewOn = false;
+    gridView.hide();
+  }
+  const w = (game.scene.getScene("Game") as GameScene | null)?.debugWorld;
+  if (w) w.debug.godMode = false;
+}
+
+function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; visible: boolean; practiceOnlyOnline: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ZombieTypeId>(ZOMBIE_TYPES[0]);
   const [count, setCount] = useState("50");
@@ -62,12 +77,18 @@ function DevCheats({ game }: { game: Phaser.Game }) {
   const world = () => scene()?.debugWorld ?? null;
 
   useEffect(() => {
+    if (!visible) return; // Story 10.11 (AC 5): no backtick panel once the admin mark is gone
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Backquote" && !(e.target instanceof HTMLInputElement)) setOpen((o) => !o);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [visible]);
+  useEffect(() => {
+    if (visible) return;
+    setOpen(false);
+    dropCheatState(game);
+  }, [visible]);
   useEffect(() => {
     if (!open) return;
     const id = window.setInterval(refresh, 500); // live seed / wave / alive readout while open
@@ -80,14 +101,17 @@ function DevCheats({ game }: { game: Phaser.Game }) {
   const seed = parseSeed(seedText);
   // Story 4.4: online the server owns the run seed (host's ?seed= + DEV_ALLOW_RUN_SEED=1).
   const online = scene()?.isOnline ?? false;
+  // Story 10.11 (AC 4): every control but the two view tools is disabled (and does nothing) in a production online run.
+  const locked = practiceOnlyOnline && online;
   const spawn = (where: "ring" | "view") => {
     const s = scene();
-    if (!w || !p || !s) return;
+    if (locked || !w || !p || !s) return;
     if (where === "ring") spawnRing(w, type, n, p.x, p.y, RING_RADIUS_M);
     else spawnInView(w, type, n, s.debugView({ x: 0, y: 0, w: 0, h: 0 } as ViewRect), p.x, p.y);
     refresh();
   };
 
+  if (!visible) return null;
   return (
     <>
       {!inLobby && (
@@ -98,13 +122,14 @@ function DevCheats({ game }: { game: Phaser.Game }) {
       {open && (
         <div class="dev-cheats" role="dialog" aria-label="Dev cheats">
           <h2>Dev cheats</h2>
+          {locked && <p class="dev-cheats__info">Practice only</p>}
           <p class="dev-cheats__info">
             seed {scene()?.runSeed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0} · stage {w ? currentDecayStage(w) : "—"}
           </p>
           <fieldset>
             <legend>Spawn zombies</legend>
             <div class="dev-cheats__row">
-              <select value={type} onChange={(e) => setType((e.target as HTMLSelectElement).value as ZombieTypeId)}>
+              <select value={type} disabled={locked} onChange={(e) => setType((e.target as HTMLSelectElement).value as ZombieTypeId)}>
                 {ZOMBIE_TYPES.filter((t) => w?.balance.zombies.types[t] !== undefined).map((t) => (
                   <option value={t}>{t}</option>
                 ))}
@@ -114,48 +139,49 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 min={MIN_SPAWN}
                 max={MAX_SPAWN}
                 value={count}
+                disabled={locked}
                 aria-label="How many"
                 onInput={(e) => setCount((e.target as HTMLInputElement).value)}
               />
             </div>
             <div class="dev-cheats__row">
-              <button type="button" onClick={() => spawn("ring")}>
+              <button type="button" disabled={locked} onClick={() => spawn("ring")}>
                 Spawn {n} around me
               </button>
-              <button type="button" onClick={() => spawn("view")}>
+              <button type="button" disabled={locked} onClick={() => spawn("view")}>
                 Spawn {n} in view
               </button>
             </div>
           </fieldset>
           <div class="dev-cheats__row">
-            <button type="button" onClick={() => w && (skipWave(w), refresh())}>
+            <button type="button" disabled={locked} onClick={() => !locked && w && (skipWave(w), refresh())}>
               Skip wave
             </button>
-            <button type="button" onClick={() => w && (leaveLast(w, LEAVE_COUNT), refresh())}>
+            <button type="button" disabled={locked} onClick={() => !locked && w && (leaveLast(w, LEAVE_COUNT), refresh())}>
               Leave last 5
             </button>
-            <button type="button" onClick={() => w && (spawnBehemothCheat(w), refresh())}>
+            <button type="button" disabled={locked} onClick={() => !locked && w && (spawnBehemothCheat(w), refresh())}>
               Spawn Behemoth
             </button>
           </div>
           <div class="dev-cheats__row">
             {/* Story 6.8: Force event ▸ kind (the coming wave, at 20 %) */}
-            <button type="button" onClick={() => w && (forceEvent(w, "car_alarm"), refresh())}>
+            <button type="button" disabled={locked} onClick={() => !locked && w && (forceEvent(w, "car_alarm"), refresh())}>
               Force car alarm
             </button>
-            <button type="button" onClick={() => w && (forceEvent(w, "stampede"), refresh())}>
+            <button type="button" disabled={locked} onClick={() => !locked && w && (forceEvent(w, "stampede"), refresh())}>
               Force stampede
             </button>
           </div>
           <fieldset>
             <legend>Dev loadout</legend>
             <div class="dev-cheats__row">
-              <select value={weapon0} aria-label="Slot 1" onChange={(e) => setWeapon0((e.target as HTMLSelectElement).value)}>
+              <select value={weapon0} disabled={locked} aria-label="Slot 1" onChange={(e) => setWeapon0((e.target as HTMLSelectElement).value)}>
                 {(w ? weaponIds(w.balance) : []).map((id) => (
                   <option value={id}>{id}</option>
                 ))}
               </select>
-              <select value={weapon1} aria-label="Slot 2" onChange={(e) => setWeapon1((e.target as HTMLSelectElement).value)}>
+              <select value={weapon1} disabled={locked} aria-label="Slot 2" onChange={(e) => setWeapon1((e.target as HTMLSelectElement).value)}>
                 <option value={NO_WEAPON}>(none)</option>
                 {(w ? weaponIds(w.balance) : []).filter((id) => id !== weapon0).map((id) => (
                   <option value={id}>{id}</option>
@@ -163,8 +189,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
               </select>
               <button
                 type="button"
+                disabled={locked}
                 onClick={() => {
-                  if (w && p) setLoadout(w.balance, p.loadout, [weapon0, weapon1 === NO_WEAPON || weapon1 === weapon0 ? null : weapon1]);
+                  if (!locked && w && p) setLoadout(w.balance, p.loadout, [weapon0, weapon1 === NO_WEAPON || weapon1 === weapon0 ? null : weapon1]);
                   refresh();
                 }}
               >
@@ -172,14 +199,14 @@ function DevCheats({ game }: { game: Phaser.Game }) {
               </button>
             </div>
             <div class="dev-cheats__row">
-              <button type="button" onClick={() => {
-                  if (p) p.wallet += CHEAT_MONEY; // a cheat: no "+N" event, not counted as earned
+              <button type="button" disabled={locked} onClick={() => {
+                  if (!locked && p) p.wallet += CHEAT_MONEY; // a cheat: no "+N" event, not counted as earned
                   refresh();
                 }}>
                 +{CHEAT_MONEY} money
               </button>
-              <button type="button" onClick={() => {
-                  if (w && p) damageNearestBuilding(w, p.x, p.y, CHEAT_BUILDING_DAMAGE); // Story 3.7: repair checks
+              <button type="button" disabled={locked} onClick={() => {
+                  if (!locked && w && p) damageNearestBuilding(w, p.x, p.y, CHEAT_BUILDING_DAMAGE); // Story 3.7: repair checks
                   refresh();
                 }}>
                 Damage nearest building 50 %
@@ -190,8 +217,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             <input
               type="checkbox"
               checked={w?.debug.godMode ?? false}
+              disabled={locked}
               onChange={(e) => {
-                if (w) w.debug.godMode = (e.target as HTMLInputElement).checked;
+                if (w && !locked) w.debug.godMode = (e.target as HTMLInputElement).checked;
                 refresh();
               }}
             />
@@ -240,7 +268,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
               </select>
             </div>
             <p class="dev-cheats__info">Solo: runs the build-start decay for that stage (map mutations, cover, spawns, refunds, push-outs, flow fields, banner).</p>
-            {online && <p class="dev-cheats__info">Online: the server owns the decay stage (DEV_DECAY_STAGES=2,3 on a dev server).</p>}
+            {online && !locked && <p class="dev-cheats__info">Online: the server owns the decay stage (DEV_DECAY_STAGES=2,3 on a dev server).</p>}
             {!online && w && !decayCheatAllowed(w) && <p class="dev-cheats__info">Build phase only (decay never changes mid-wave).</p>}
           </fieldset>
           <fieldset>
@@ -271,6 +299,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 inputMode="numeric"
                 placeholder="uint32"
                 value={seedText}
+                disabled={locked}
                 aria-label="Run seed"
                 onInput={(e) => setSeedText((e.target as HTMLInputElement).value)}
               />
@@ -286,7 +315,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 Restart with seed
               </button>
             </div>
-            {online && (
+            {online && !locked && (
               <p class="dev-cheats__info">Online: the host opens the game with ?seed=N and the server runs with DEV_ALLOW_RUN_SEED=1.</p>
             )}
           </fieldset>
@@ -296,9 +325,24 @@ function DevCheats({ game }: { game: Phaser.Game }) {
   );
 }
 
-/** Renders the cheat panel into the UI layer. Called from main.ts in dev builds only. */
-export function mountDevCheats(game: Phaser.Game): void {
+/** Story 10.11: shows or hides the mounted panel (the ⚙, the backtick key and the open panel). */
+export interface CheatPanelHandle {
+  setVisible(visible: boolean): void;
+}
+
+/** Renders the cheat panel into the UI layer: at once in dev builds; for admins in production (`adminGate.ts`). */
+export interface CheatPanelOptions {
+  /** Shown at mount (default true). */
+  visible?: boolean;
+  /** Story 10.11 (AC 4): online runs keep only the view tools. Default: production builds yes, dev builds no. */
+  practiceOnlyOnline?: boolean;
+}
+
+export function mountDevCheats(game: Phaser.Game, opts: CheatPanelOptions = {}): CheatPanelHandle {
+  const { visible = true, practiceOnlyOnline = PRACTICE_ONLY_ONLINE_DEFAULT } = opts;
   const el = document.createElement("div");
   (document.getElementById("ui") ?? document.body).appendChild(el);
-  render(h(DevCheats, { game }), el);
+  const draw = (v: boolean) => render(h(DevCheats, { game, visible: v, practiceOnlyOnline }), el);
+  draw(visible);
+  return { setVisible: draw };
 }

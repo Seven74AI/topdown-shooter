@@ -212,3 +212,7 @@ Lessons:
       element inspector, rhythm steps; findings written on the page.
 - [ ] Reads at game scale (look at it small).
 - [ ] Page published, decisions doc updated, the designer asked for a code.
+
+## 9. Effects (FX) and warnings
+
+For effects and the boss warnings (photoreal group 5), also read `fx.md` in this folder: the group's one idea (light, matter, the mark), how an effects page is built, and **FX 4, goal first per effect** (designer 2026-11-26).

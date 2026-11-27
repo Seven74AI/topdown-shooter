@@ -17,7 +17,9 @@ describe("GameScene look wiring (Story 7.9)", () => {
     expect(arrowBody("syncPlayerView")).toMatch(/this\.syncLook\(view, id, this\.host\?\.playerInfo\(id\)\.look \?\? ""\)/);
   });
   it("syncLook passes the decay stage (D1) and ?devlayer to syncViewLook", () => {
-    expect(arrowBody("syncLook")).toMatch(/syncViewLook\(view, this\.lookTextures, id, code, this\.host\?\.world\.decay\.stage \?\? 1, this\.layerPoolOf, this\.layerPool !== null, urlOptions\(\)\.devLayer\)/);
+    expect(arrowBody("syncLook")).toMatch(/syncViewLook\(view, this\.lookTextures, id, code, this\.host\?\.world\.decay\.stage \?\? 1, this\.layerPoolOf, this\.layerPool !== null, this\.devLayerOpt\)/);
+    // Story 10.11 (AD-4): set at each create from the mode's options (solo: dev builds and admins; online: dev only).
+    expect(src).toMatch(/const opts = session \? urlOptions\(\) : soloUrlOptions\(soloDev\);\s*this\.devLayerOpt = opts\.devLayer;/);
   });
   it("a player who leaves takes their texture along", () => {
     expect(arrowBody("dropPlayerView")).toMatch(/this\.lookTextures\?\.remove\(id\)/);
@@ -27,7 +29,8 @@ describe("GameScene look wiring (Story 7.9)", () => {
     expect(src).toMatch(/this\.lookTextures\?\.dispose\(\);/);
   });
   it("?devlooks makes its extra survivors and updates them after the real ones", () => {
-    expect(src).toMatch(/new DevLooks\(urlOptions\(\)\.devLooks - 1, /);
+    expect(src).toMatch(/const devLooks = \(this\.mode === "solo" \? soloUrlOptions\(\) : urlOptions\(\)\)\.devLooks;/); // Story 10.11
+    expect(src).toMatch(/new DevLooks\(devLooks - 1, /);
     expect(src).toMatch(/this\.devLooks\.update\(me, /);
     expect(src).toMatch(/this\.devLooks\?\.destroy\(\);/);
   });

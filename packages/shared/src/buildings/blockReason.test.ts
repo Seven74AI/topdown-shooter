@@ -11,6 +11,7 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { addBuildingAt, blockReason, buildingStats, buildingTypeIds, footprint, footprintBlocked, type BlockCause, type Box, type BuildingRotation } from "./buildings";
 import { circleOverlapsBox } from "./collision";
+import { sealsPath } from "./pathOpen";
 
 /**
  * Story 5.17 (AC 1, brief line 7): the client's explanation never disagrees with the server's check.
@@ -84,6 +85,8 @@ function causeHolds(world: World, ownerId: string, box: Box, cause: BlockCause):
       }
       return false;
     }
+    case "seals_path":
+      return sealsPath(world, box); // Story 12.1: never the first cause without `wall` (the AC 1 order ends at zombie)
   }
 }
 

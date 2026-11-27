@@ -90,6 +90,8 @@ export interface PlayerStateView {
   readonly waiting: boolean;
   /** PR #9 review L1: the seat id (`playerId#gen`); Results match a teammate's loot find on it. */
   readonly seat?: string;
+  /** Story 12.2: in the helicopter (the body is not drawn). Absent from an older server = false. */
+  readonly boarded?: boolean;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -219,6 +221,11 @@ export interface RunStateView {
   readonly leftSeats: string;
   /** Story 8.6: a resumed run's wave in its lobby (0 = not a resume). */
   readonly resumeWave?: number;
+  /** Story 12.2: the extraction's lift-off server tick (−1 = on the pad / not extracting; absent = −1). */
+  readonly liftedAtTick?: number;
+  /** Story 12.2 review L6: the server tick the extraction began (−1 / absent = none) and whether the walk timed out. */
+  readonly extractStartTick?: number;
+  readonly extractCut?: boolean;
 }
 
 /**
@@ -314,6 +321,7 @@ export const PLAYER_STATE_FIELDS = {
   trainReload: true,
   waiting: true, // Story 8.2
   seat: true, // PR #9 review L1
+  boarded: true, // Story 12.2
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -376,6 +384,9 @@ export const RUN_STATE_FIELDS = {
   districtsOpen: true,
   leftSeats: true, // Story 8.3
   resumeWave: true, // Story 8.6
+  liftedAtTick: true, // Story 12.2
+  extractStartTick: true,
+  extractCut: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

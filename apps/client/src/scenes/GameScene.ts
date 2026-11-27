@@ -130,7 +130,7 @@ import { PlaceFxView } from "../render/PlaceFxView";
 import { routeBuildKeys, type BuildKeysOut } from "./buildKeys";
 import { PLACED_HAPTIC_MS, PlacedSoundPicker, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
 import { vibrate } from "../audio/haptics";
-import { placementHintText, type HintContext } from "./blockText";
+import { decayLossText, placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
 import { BUILDING_TAP_TOLERANCE_M, RepairPanel, moveRefusalText, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
 import { PendingMoves } from "./pendingMove";
@@ -146,6 +146,12 @@ import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState
 import { CLOSED_VOTE, VoteRequest, VoteSender, addHeldVoters, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
+import { syncHeliToRun } from "../render/heliSync";
+import { evacPadOf } from "../render/heliPose";
+import { CameraDirector, DAWN_EDGE_M, createDirectorInputs, type DirectorOutput } from "../render/cameraDirector";
+import { CrewView } from "../render/CrewView";
+import { CREW_STEP_S } from "../render/crewPose";
+import { DawnSweepView } from "../render/DawnSweepView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
@@ -178,6 +184,7 @@ import { SurvivorLookTextures, syncViewLook } from "../render/SurvivorLookTextur
 import { DevLooks } from "../render/devLooks";
 import { deviceLook } from "../net/deviceLook";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
+import { soloDevAllowed, soloUrlOptions } from "../debug/soloDevSwitches";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
@@ -274,6 +281,7 @@ export class GameScene extends Phaser.Scene {
   private readonly fireCue = new FireCue();
   private playerRadiusM = 0;
   private readonly syncPlayerView = (p: PlayerState, id: string): void => {
+    if (this.host?.world.extract.boarded.has(id)) return; // Story 12.2: in the helicopter: no body drawn
     let view = this.playerViews.get(id);
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
@@ -281,6 +289,7 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     this.syncLook(view, id, this.host?.playerInfo(id).look ?? "");
+    view.noBlink = this.host?.world.run.phase === "extract"; // Story 12.2: protected, but no blink
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     view.setAboveDark(this.blackoutNow); // Story 6.3 (F5): one depth change when a blackout starts or ends
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
@@ -319,8 +328,10 @@ export class GameScene extends Phaser.Scene {
     // Review L7: online, bake only once the mirror has the server's decay stage (no stage-1 bake, then a repaint).
     const host = this.host;
     if (host instanceof NetSimHost && !host.decaySynced) return;
-    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, urlOptions().devLayer);
+    if (this.lookTextures) syncViewLook(view, this.lookTextures, id, code, this.host?.world.decay.stage ?? 1, this.layerPoolOf, this.layerPool !== null, this.devLayerOpt);
   };
+  /** `?devlayer` for this run (Story 10.11: solo reads it for admins too; set at each create). */
+  private devLayerOpt: ReturnType<typeof urlOptions>["devLayer"] = null;
   private readonly layerPoolOf = (): SurvivorLayerPool => (this.layerPool ??= new SurvivorLayerPool(this));
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
@@ -332,6 +343,7 @@ export class GameScene extends Phaser.Scene {
     const host = this.host;
     const m = this.hudModel;
     if (!host || id === host.localPlayerId || m.teammateCount >= m.teammateSlot.length) return;
+    if (host.world.extract.boarded.has(id)) return; // Story 12.2: aboard: no name, no edge arrow
     const info = host.playerInfo(id);
     const i = m.teammateCount++;
     const view = this.playerViews.get(id);
@@ -343,7 +355,7 @@ export class GameScene extends Phaser.Scene {
     if (m.teammateNames[info.slot] !== info.name) m.teammateNames[info.slot] = info.name;
   };
   private readonly dropPlayerView = (view: PlayerView, id: string): void => {
-    if (this.host?.world.players.has(id)) return;
+    if (this.host?.world.players.has(id) && !this.host.world.extract.boarded.has(id)) return; // Story 12.2: a boarded body goes too
     view.destroy();
     this.playerViews.delete(id);
     this.lookTextures?.remove(id); // Story 7.9: a player who left takes their body texture along
@@ -398,6 +410,16 @@ export class GameScene extends Phaser.Scene {
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
   private heliView: HeliView | null = null;
+  /** Story 12.3: the extraction's camera director (it takes the camera over during `extract`), the crew, the dawn line. */
+  private readonly director = new CameraDirector();
+  private readonly dirIn = createDirectorInputs();
+  private crewView: CrewView | null = null;
+  private dawnView: DawnSweepView | null = null;
+  /** The scene-clock second of the last boarding seen (−1 none; the crew's pull-in) and the boarded count then. */
+  private pullAtS = -1;
+  private boardedSeen = 0;
+  /** The director had the camera last frame (its zoom goes back to the normal view when it lets go). */
+  private directing = false;
   private readonly voteReq = new VoteRequest();
   private readonly voteSend = new VoteSender();
   /** Review L8: four reused voter records, filled by a callback made once; the panel is rebuilt only when its key changes. */
@@ -661,11 +683,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.mode = session ? "online" : "solo";
-    const opts = urlOptions();
+    // Story 10.11 (AD-4): a solo run reads the dev link switches for dev builds AND admins (read at each solo start);
+    // online keeps the dev-build-only `urlOptions()` (the server must run the matching DEV_* env).
+    const soloDev = !session && soloDevAllowed();
+    const opts = session ? urlOptions() : soloUrlOptions(soloDev);
+    this.devLayerOpt = opts.devLayer;
     // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
     // always plays the bundled balance: the server checked that version at join. Solo: `?wallet`
     // works in release builds too (designer 2026-11-23, soloBalance).
-    const balance: Balance = session ? clientBalance() : opts.tune ? tunedBalance() : soloBalance();
+    const balance: Balance = session ? clientBalance() : opts.tune ? tunedBalance() : soloBalance(soloDev);
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
@@ -781,6 +807,14 @@ export class GameScene extends Phaser.Scene {
     this.lootLine.untilMs = 0;
     this.eventInsets = { ...safeArea() };
     this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
+    // Story 12.3: the cinematic (Phaser reuses the scene: everything reset here).
+    this.director.reset();
+    this.directing = false;
+    this.pullAtS = -1;
+    this.boardedSeen = 0;
+    const padAt = evacPadOf(host.world.map);
+    this.crewView = new CrewView(this, padAt.x, padAt.y);
+    this.dawnView = new DawnSweepView(this, host.world.map.widthM, host.world.map.heightM);
     this.voteReq.reset();
     this.voteSend.reset();
     this.voteKey = -1;
@@ -844,7 +878,8 @@ export class GameScene extends Phaser.Scene {
     this.layerPool = null; // Story 7.8: its sprites died with the old scene
     this.lookTextures = new SurvivorLookTextures(this); // Story 7.9: drops a previous run's leftover bodies
     // Story 7.9 (AC 14): ?devlooks=N — N − 1 survivors with random starter looks beside mine (views only, dev builds).
-    this.devLooks = urlOptions().devLooks > 1 ? new DevLooks(urlOptions().devLooks - 1, () => new PlayerView(this, this.playerRadiusM), this.syncLook) : null;
+    const devLooks = (this.mode === "solo" ? soloUrlOptions() : urlOptions()).devLooks; // Story 10.11: admins in solo too
+    this.devLooks = devLooks > 1 ? new DevLooks(devLooks - 1, () => new PlayerView(this, this.playerRadiusM), this.syncLook) : null;
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     this.flameView = new FlameView(this, balance, urlOptions().lowFx); // Story 5.4
@@ -976,6 +1011,8 @@ export class GameScene extends Phaser.Scene {
       this.lootView?.destroy(); // Story 7.12
       this.lootView = null;
       this.heliView = null; // Story 6.11: its images go with the scene
+      this.crewView = null; // Story 12.3: likewise
+      this.dawnView = null;
       voteStore.handle(null);
       voteStore.set(CLOSED_VOTE);
       if (this.bossMusic) stopBossLoop();
@@ -1153,7 +1190,9 @@ export class GameScene extends Phaser.Scene {
     m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
     m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
-    m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
+    // Story 6.11: the sticks hide in the vote; Story 12.2: every action control hides during the extraction too.
+    m.extracting = host.world.run.phase === "extract" && !this.gameOver;
+    m.voting = (host.world.run.phase === "vote" || m.extracting) && !this.gameOver;
     m.watching = host instanceof NetSimHost && host.waiting; // Story 8.2 (J4): a waiting late joiner has only ☰
     m.remaining = host.world.waves.remaining;
   }
@@ -1172,7 +1211,8 @@ export class GameScene extends Phaser.Scene {
     const run = host.world.run;
     const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
     // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
-    const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
+    // Story 12.3: after the extraction phase the fly-out was the dawn (the screen is white): the card at once.
+    const dawnEndsAtMs = dawnEndsAt(ending, !host.world.extract.started, performance.now(), host.world.balance.waves.evac.dawnS);
     uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned, training }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
   }
 
@@ -1189,7 +1229,9 @@ export class GameScene extends Phaser.Scene {
       const total = ticksFor(host.world.balance.waves.evac.voteS);
       this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
     }
-    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
+    // Story 12.2: a build clears it (a skipped lift-off, review L4: one already flown off); the extraction's fly-out.
+    const ex = host.world.extract;
+    if (this.heliView) syncHeliToRun(this.heliView, run.phase, ex.started, ex.liftedAtTick, host.world.tick, nowS, host.world.balance.waves.evac.flyOutS);
     this.heliView?.update(nowS);
     if (!open) {
       if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);
@@ -2198,8 +2240,8 @@ export class GameScene extends Phaser.Scene {
         this.acidCue.clear();
       }
       if (e.type === "run.vote_opened") this.heliView?.opened(this.time.now / 1000);
-      else if (e.type === "run.vote_resolved") this.heliView?.left(this.time.now / 1000, e.choice === "extract");
-      if ((e.type === "team.wiped" || e.type === "run.extracted") && !host.online && !this.gameOver) {
+      else if (e.type === "run.vote_resolved" && e.choice === "stay") this.heliView?.left(this.time.now / 1000, false); // Story 12.2: an Extract waits for the lift-off
+      if ((e.type === "team.wiped" || e.type === "run.extract_done") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave);
       } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
         // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
@@ -2233,6 +2275,9 @@ export class GameScene extends Phaser.Scene {
         // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
+      } else if (e.type === "building.destroyed") {
+        // Stories 12.1 (AC 6) / 12.4 (AC 5): my building lost to the decay: a toast, no amount (no refund).
+        if (e.cause !== undefined && e.ownerId === localId) this.toasts.pushUnique(decayLossText(e.cause, e.buildingType));
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave
@@ -2358,12 +2403,18 @@ export class GameScene extends Phaser.Scene {
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
     this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)
-    if (player && playerView) {
+    // Story 12.2: aboard, my body isn't drawn. Story 12.3: during the extraction the camera director has the camera
+    // (framing, zoom, letterbox, fades: `render/cameraDirector.ts`); it never touches the World.
+    const aboard = player !== undefined && host.world.extract.boarded.has(localId);
+    const shot = this.directCamera(host, deltaMs / 1000);
+    if (player && (playerView || aboard)) {
       // Out (Story 2.8): the camera spectates the lowest-slot standing teammate (the server streams that view).
-      const target = player.status === "out" ? spectateTarget(host.world, localId) : null;
-      const viewOf = (target && this.playerViews.get(target.id)) ?? playerView;
-      this.cameras.main.centerOn(viewOf.x, viewOf.y);
-      this.updateRushMarkers(host.alpha, viewOf.x, viewOf.y);
+      const target = player.status === "out" && !aboard ? spectateTarget(host.world, localId) : null;
+      const viewOf = (target && this.playerViews.get(target.id)) ?? playerView ?? player;
+      const camX = shot.active ? shot.centreX : viewOf.x;
+      const camY = shot.active ? shot.centreY : viewOf.y;
+      this.cameras.main.centerOn(camX, camY);
+      this.updateRushMarkers(host.alpha, camX, camY);
       this.updateDownedHud(host.world, player);
       this.updateTeammates(host.world);
       const m = this.hudModel;
@@ -2433,6 +2484,79 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Story 12.3 (AC 1–9): this frame's shot from the camera director — fed the timeline (server ticks), the walkers and
+   * the helicopter as drawn — then applied: the camera's zoom (the director's centre is used by the caller), the crew,
+   * the dawn line and the HUD's letterbox / fade / hide flags. Client only: nothing here writes the World.
+   */
+  private directCamera(host: SceneHost, dtS: number): DirectorOutput {
+    const world = host.world;
+    const ex = world.extract;
+    const evac = world.balance.waves.evac;
+    const inp = this.dirIn;
+    const phase = world.run.phase;
+    inp.extracting = ex.started && (phase === "extract" || phase === "results");
+    const st = host.serverTick;
+    inp.nowTick = Number.isFinite(st) ? st : world.tick;
+    inp.startTick = ex.startTick;
+    inp.liftedAtTick = ex.liftedAtTick;
+    inp.cut = ex.cut;
+    inp.dtS = dtS;
+    inp.walkTimeoutS = evac.walkTimeoutS;
+    inp.liftBeatS = evac.liftBeatS;
+    inp.flyOutS = evac.flyOutS;
+    inp.mapW = world.map.widthM;
+    inp.mapH = world.map.heightM;
+    inp.padX = ex.padX;
+    inp.padY = ex.padY;
+    inp.flyDxM = this.heliView?.flyOutDxM ?? 0;
+    inp.heliX = this.heliView?.drawnX ?? ex.padX;
+    inp.heliY = this.heliView?.drawnY ?? ex.padY;
+    inp.screenW = this.scale.width;
+    inp.screenH = this.scale.height;
+    inp.ppm = pixelsPerMeter(this.scale.width, this.scale.height);
+    inp.walkers = 0;
+    if (inp.extracting) world.players.forEach(this.addWalker);
+    inp.allAboard = inp.extracting && inp.walkers === 0;
+    const o = this.director.update(inp);
+    const cam = this.cameras.main;
+    if (o.active) cam.setZoom(inp.ppm * o.zoom);
+    else if (this.directing) this.applyZoom(); // let go: the normal 24 m view
+    this.directing = o.active;
+    // The crew (AC 8): out of the door once the helicopter is down and the walk has begun; a pull-in at each boarding.
+    const nowS = this.time.now / 1000;
+    const boarded = o.active ? ex.boarded.size : 0;
+    if (boarded > this.boardedSeen) this.pullAtS = nowS;
+    this.boardedSeen = boarded;
+    const landedAt = this.heliView?.landedAtS ?? -1;
+    const outS = o.active && landedAt >= 0 && o.flyS < 0 ? Math.min(nowS - landedAt, o.walkS) : -1;
+    const pullS = this.pullAtS >= 0 && outS >= 0 ? nowS - Math.max(this.pullAtS, nowS - outS + CREW_STEP_S) : -1;
+    this.crewView?.update(outS, o.aboardS, pullS);
+    this.dawnView?.update(o.dawnX, o.dawnAlpha);
+    if (this.darknessView) {
+      this.darknessView.dawnX = o.dawnX; // the dawn lifts the night east of its line (a stage-5 blackout)
+      this.darknessView.dawnEdgeM = DAWN_EDGE_M;
+      this.darknessView.dawnK = o.dawnAlpha;
+    }
+    const m = this.hudModel;
+    m.cinemaOn = o.active;
+    m.cinemaBars = o.bars;
+    m.cinemaFadeRgb = o.fadeRgb;
+    m.cinemaFadeAlpha = o.fadeAlpha;
+    return o;
+  }
+
+  /** A standing survivor not yet aboard, as drawn (the director frames them with the pad). */
+  private readonly addWalker = (p: PlayerState, id: string): void => {
+    const inp = this.dirIn;
+    const world = this.host?.world;
+    if (!world || world.extract.boarded.has(id) || p.status !== "alive" || inp.walkers >= inp.walkerX.length) return;
+    const v = this.playerViews.get(id);
+    inp.walkerX[inp.walkers] = v ? v.x : p.x;
+    inp.walkerY[inp.walkers] = v ? v.y : p.y;
+    inp.walkers++;
+  };
+
+  /**
    * Story 6.4 (F3, D2, D10): this frame's fog on my screen, before the zombie, eye and spit views:
    * centred on the camera's survivor (mine; the teammate I spectate while out), every standing
    * survivor's beam at its drawn pose (last frame's: the views update after the zombies).
@@ -2444,7 +2568,7 @@ export class GameScene extends Phaser.Scene {
     const me = world.players.get(localId);
     const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
     const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
-    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
+    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf, this.director.out.fogLift); // Story 12.3 (AC 5): the fog lift of the director's previous frame (it runs later in this frame)
     wireFog(this.fogTakers(), fog); // Story 6.10 follow-up (6.2 R1): one tested wiring, every frame
   }
 

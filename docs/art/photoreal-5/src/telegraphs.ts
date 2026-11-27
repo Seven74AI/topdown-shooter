@@ -19,6 +19,7 @@ import { ensureBossTextures, BOSS_TELE_RADIUS_PX, BOSS_LANE_PX_PER_M, TELE_TICKS
 import { ensureHudWarnTextures, hudFlicker, HUD_FRAMES, HUD_ART_SCALE } from "../../../../apps/client/src/render/city/hudWarnArt";
 import { ensureAtlases } from "../../../../apps/client/src/render/city/spriteAtlas";
 import { drawGroundDamage } from "../../../../apps/client/src/render/city/groundDamageArt";
+import { gLooks } from "./telegraphs-g";
 import { relief, ringSegment, drawRing, glowTex, streakTex, dustTex, fissure, blitSeg, blitSegCrop, screenLook, fbm, type Seg } from "./telegraphs-art";
 
 /* ---------------- Game numbers (boss.json, BossView.ts, bossTelegraph.ts) ---------------- */
@@ -46,7 +47,7 @@ const LOCK_LINE = 2 / LOCK_CSS;
 
 /* ---------------- Shared: the game's captured textures, the boss under the effect ---------------- */
 let booted = false;
-function boot(): void {
+export function boot(): void {
   if (booted) return;
   booted = true;
   ensureBossTextures(fakeScene, BODY_R / SLAM_R);
@@ -54,7 +55,7 @@ function boot(): void {
   ensureAtlases(fakeScene);
 }
 const frames = new Map<string, HTMLCanvasElement>();
-function fc(key: string, name: string): HTMLCanvasElement {
+export function fc(key: string, name: string): HTMLCanvasElement {
   const k = `${key}/${name}`;
   let c = frames.get(k);
   if (!c) {
@@ -63,18 +64,18 @@ function fc(key: string, name: string): HTMLCanvasElement {
   }
   return c;
 }
-const whole = (key: string): HTMLCanvasElement => (captured.get(key) as { canvas: HTMLCanvasElement }).canvas;
-const X = (st: Stage, m: number): number => st.cx + m * st.pxm;
-const Y = (st: Stage, m: number): number => st.cy + m * st.pxm;
+export const whole = (key: string): HTMLCanvasElement => (captured.get(key) as { canvas: HTMLCanvasElement }).canvas;
+export const X = (st: Stage, m: number): number => st.cx + m * st.pxm;
+export const Y = (st: Stage, m: number): number => st.cy + m * st.pxm;
 /** The boss (today's plain atlas frame, BH1) at (xm, ym), 7 m frame, facing +x. Context only: not counted. */
-function boss(g: CanvasRenderingContext2D, st: Stage, pose: string, xm: number, ym = 0): void {
+export function boss(g: CanvasRenderingContext2D, st: Stage, pose: string, xm: number, ym = 0): void {
   const tex = fc("boss_atlas", `boss_bh1_${pose}`);
   const s = BOSS_SIDE_M * st.pxm;
   g.drawImage(tex, X(st, xm) - s / 2, Y(st, ym) - s / 2, s, s);
 }
-const show = (st: Stage, part: string): boolean => st.only === null || st.only === part;
+export const show = (st: Stage, part: string): boolean => st.only === null || st.only === part;
 /** Stable 0–1 per index and channel (BossView `sparkHash`). */
-function sh(i: number, ch: number): number {
+export function sh(i: number, ch: number): number {
   let h = Math.imul(i + 1, 374761393) ^ Math.imul(ch, 668265263);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
@@ -94,7 +95,7 @@ function circle(g: CanvasRenderingContext2D, st: Stage, xm: number, ym: number, 
 }
 
 /* ---------------- Shared baked art for the takes ---------------- */
-let shared: {
+export let shared: {
   dust: HTMLCanvasElement[];
   dustDark: HTMLCanvasElement[];
   streak: HTMLCanvasElement;
@@ -105,7 +106,7 @@ let shared: {
   shadowSoft: HTMLCanvasElement;
   bits: HTMLCanvasElement[];
 } | null = null;
-async function sharedArt(): Promise<NonNullable<typeof shared>> {
+export async function sharedArt(): Promise<NonNullable<typeof shared>> {
   if (shared) return shared;
   const sdw = (px: number, soft: number): HTMLCanvasElement => {
     const c = make(px, px);
@@ -151,7 +152,7 @@ async function sharedArt(): Promise<NonNullable<typeof shared>> {
 }
 
 /** A thrown chunk (road slab / rubble / burnt-car panel), drawn as the real thing and relit from the upper left. */
-function chunkTex(kind: number, px: number): HTMLCanvasElement {
+export function chunkTex(kind: number, px: number): HTMLCanvasElement {
   const c = make(px, px);
   const g = c.getContext("2d", { willReadFrequently: true })!;
   const s = px / 2;
@@ -217,7 +218,7 @@ function chunkTex(kind: number, px: number): HTMLCanvasElement {
 }
 
 /** The throw crater, photoreal: a pit, a heaved rim of broken asphalt, radial cracks, ejecta dust; relit. */
-function craterTex(px: number, heave: number, seed: number): HTMLCanvasElement {
+export function craterTex(px: number, heave: number, seed: number): HTMLCanvasElement {
   const c = make(px, px);
   const g = c.getContext("2d", { willReadFrequently: true })!;
   const img = g.createImageData(px, px);
@@ -272,7 +273,7 @@ function craterTex(px: number, heave: number, seed: number): HTMLCanvasElement {
 
 /** The slam ground damage, relit (the approved R1 + R2 + R3 drawing, given depth from the upper-left light). */
 let gdRelitC: HTMLCanvasElement | null = null;
-function gdRelit(): HTMLCanvasElement {
+export function gdRelit(): HTMLCanvasElement {
   if (gdRelitC) return gdRelitC;
   const n = 384;
   const c = make(n, n);
@@ -282,7 +283,7 @@ function gdRelit(): HTMLCanvasElement {
 }
 
 /** Debris bits hopping out from (xm, ym): matter with shadows. tS = seconds since the impact. */
-function debris(g: CanvasRenderingContext2D, st: Stage, art: NonNullable<typeof shared>, xm: number, ym: number, tS: number, n: number, reach: number, seed: number): void {
+export function debris(g: CanvasRenderingContext2D, st: Stage, art: NonNullable<typeof shared>, xm: number, ym: number, tS: number, n: number, reach: number, seed: number): void {
   if (tS < 0 || tS > 0.55) return;
   const k = easeOut(tS / 0.45);
   for (let i = 0; i < (st.low ? n >> 1 : n); i++) {
@@ -298,7 +299,7 @@ function debris(g: CanvasRenderingContext2D, st: Stage, art: NonNullable<typeof 
   }
 }
 /** A burst of dust puffs from a ring (r0 → r1 m) round (xm, ym); secondary: starts after `delay`, settles slowly. */
-function dustRing(g: CanvasRenderingContext2D, st: Stage, art: NonNullable<typeof shared>, xm: number, ym: number, tS: number, n: number, r0: number, r1: number, life: number, alpha: number, seed: number, dark = false): void {
+export function dustRing(g: CanvasRenderingContext2D, st: Stage, art: NonNullable<typeof shared>, xm: number, ym: number, tS: number, n: number, r0: number, r1: number, life: number, alpha: number, seed: number, dark = false): void {
   if (tS < 0 || tS > life) return;
   const k = easeOut(tS / life);
   const fade = (1 - ramp(tS, life * 0.35, life)) * ramp(tS, 0, 0.06);
@@ -830,7 +831,7 @@ function laneNow(g: CanvasRenderingContext2D, st: Stage, c: Charge, t: number): 
   }
 }
 
-let clArt: { edge: Seg; edgeB: Seg; front: HTMLCanvasElement; chev: HTMLCanvasElement; long: { crack: Seg; glow: Seg }[]; crashBar: HTMLCanvasElement; crashWord: HTMLCanvasElement; crashWordB: HTMLCanvasElement; wall: HTMLCanvasElement; wallCrack: HTMLCanvasElement } | null = null;
+export let clArt: { edge: Seg; edgeB: Seg; front: HTMLCanvasElement; chev: HTMLCanvasElement; long: { crack: Seg; glow: Seg }[]; crashBar: HTMLCanvasElement; crashWord: HTMLCanvasElement; crashWordB: HTMLCanvasElement; wall: HTMLCanvasElement; wallCrack: HTMLCanvasElement } | null = null;
 /** A straight light strip along +x (`lenM` × `wM`): a hot core line at its centre, red bloom both sides. */
 function edgeStrip(lenM: number, wM: number, pxm: number, seed: number, jag = 0): Seg {
   const W = Math.ceil(lenM * pxm);
@@ -883,7 +884,7 @@ function wordTex(word: string, hM: number, pxm: number, col: string, glow: strin
   }
   return c;
 }
-async function clBake(): Promise<void> {
+export async function clBake(): Promise<void> {
   boot();
   await sharedArt();
   if (clArt) return;
@@ -1142,7 +1143,7 @@ const clTakeB: Look = {
 
 /* CR: the end of a charge into a wall */
 const WALL_X = CR_C.bx + CR_C.len + BODY_R; // the body's front at the stop
-function crUnder(g: CanvasRenderingContext2D, t: number, st: Stage): void {
+export function crUnder(g: CanvasRenderingContext2D, t: number, st: Stage): void {
   if (!clArt) return;
   // a concrete wall across the lane end (1 m thick, 6.5 m long); the body is drawn by the looks (above the lane)
   g.drawImage(clArt.wall, X(st, WALL_X + 0.05), Y(st, -3.25), 1 * st.pxm, 6.5 * st.pxm);
@@ -1276,13 +1277,13 @@ const crTakeB: Look = {
  * ====================================================================================== */
 const P1_LEN = 2.4;
 const SURV: [number, number] = [-3.6, 0.3];
-const lockP = (t: number): number => (t >= 0.6 && t <= 1.8 ? (t - 0.6) / 1.2 : 0);
-function lockGeom(t: number): { gap: number; len: number } {
+export const lockP = (t: number): number => (t >= 0.6 && t <= 1.8 ? (t - 0.6) / 1.2 : 0);
+export function lockGeom(t: number): { gap: number; len: number } {
   const lp = lockP(t);
   const lock = lp > 0 ? lp : 0.4 + 0.2 * Math.sin(t * 2);
   return { gap: LOCK_R * (1.25 - 0.35 * lock), len: LOCK_R * 0.55 };
 }
-function p1Survivor(g: CanvasRenderingContext2D, t: number, st: Stage): void {
+export function p1Survivor(g: CanvasRenderingContext2D, t: number, st: Stage): void {
   const s = fc("atlas_characters", "survivor_assault_rifle_a");
   const w = 1.5 * st.pxm;
   const h = (w * s.height) / s.width;
@@ -1354,7 +1355,7 @@ function lockNow(g: CanvasRenderingContext2D, st: Stage, t: number, glow: boolea
   g.restore();
 }
 /** The screen part (BossHud): the DANGER panel at the right edge with chevrons, the attack plate inward of it. */
-function hudScreen(g: CanvasRenderingContext2D, st: Stage, t: number, plates: { danger: HTMLCanvasElement; slam: HTMLCanvasElement; tag: HTMLCanvasElement }): void {
+export function hudScreen(g: CanvasRenderingContext2D, st: Stage, t: number, plates: { danger: HTMLCanvasElement; slam: HTMLCanvasElement; tag: HTMLCanvasElement }): void {
   const s = st.pxm / LOCK_CSS; // card px per CSS px (47 CSS px per metre at the default zoom)
   const fl = hudFlicker(t);
   const pw = 144 * 0.75 * s;
@@ -1401,8 +1402,8 @@ function hudScreen(g: CanvasRenderingContext2D, st: Stage, t: number, plates: { 
   }
 }
 const nowPlates = (): { danger: HTMLCanvasElement; slam: HTMLCanvasElement; tag: HTMLCanvasElement } => ({ danger: fc("boss_hud", HUD_FRAMES.danger), slam: fc("boss_hud", HUD_FRAMES.slam), tag: fc("boss_hud", HUD_FRAMES.tag) });
-let p1Art: { plates: { danger: HTMLCanvasElement; slam: HTMLCanvasElement; tag: HTMLCanvasElement }; ring: HTMLCanvasElement; bracket: HTMLCanvasElement; bar: HTMLCanvasElement } | null = null;
-async function p1Bake(): Promise<void> {
+export let p1Art: { plates: { danger: HTMLCanvasElement; slam: HTMLCanvasElement; tag: HTMLCanvasElement }; ring: HTMLCanvasElement; bracket: HTMLCanvasElement; bar: HTMLCanvasElement } | null = null;
+export async function p1Bake(): Promise<void> {
   boot();
   await sharedArt();
   if (p1Art) return;
@@ -1690,6 +1691,7 @@ const gdTakeB: Look = {
 /* ======================================================================================
  * The cards
  * ====================================================================================== */
+const GL = gLooks();
 const COLOUR = "Red = get out (danger), kept; amber = your window, kept.";
 export const cards: FxCard[] = [
   {
@@ -1699,8 +1701,12 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p><b>Light</b>, the group's first kind: the warning is emitted, so it lights the ground it falls on and dies first. The ring is where the slam reaches (4.5 m); the countdown is how long you have (1.2 s). Built up toward the hit (the skill's "tells first": the pose carries the read, the light only builds), then <b>everything releases together</b> in 0.15 s: the rim flares, the dust kicks out, the cracks land (the <b>mark</b>, GD). ${COLOUR}</p>`,
     game: `<p><code>BossView.ts › drawTelegraphs / drawCountdown</code>: the baked disc <code>boss_tele_disc</code> (512 px, ADD, shown 9.1 m, α = 0.45 + 0.55 × progress), 72 ticks lit to progress (Graphics, ADD), a hot head on the rim, 30 → 100 spark dots (hashed, no allocation). Progress from the server ticks (<code>bossTelegraph.ts › telegraphProgress</code>), fade 0.3 s after the hit. Pose: slam_a/b/c by progress (<code>slamFrameIndex</code>), slamHit 0.5 s. Crack decal on <code>boss.slammed</code>. 2 slots (pooled).</p>`,
-    perf: `<p>Today: <b>one 9.1 m full-disc additive quad</b> per slam (≈ 83 m² of ADD, the most expensive kind by Story 9.15's measure: ~1 FPS per full-frame ADD sprite) + one ADD Graphics. <b>SD-A</b>: the ring as 8 rim segments (1.8 × 3.9 m each, ≈ 57 m² of ADD, nearly all of it lit; the 4 m hole and the inner disc are no longer drawn), a tick layer and a spark layer (each one Graphics/emitter), head + pool (0.55 m, 2 m); at the hit one 9.5 m flash pool for 0.15 s. <b>SD-B</b>: 8 jagged rim segments + 11 crack-glow strips (2.4 × 0.9 m, cropped by progress) + head = 20 small ADD sprites, ≤ 63 m² at the hit (≈ 45 m² mid-warning), no full-disc quad. Dust ≤ 14–18 normal sprites for ~1.2 s (halved with <code>?fx=low</code>). Bake: one 165 × 82 px segment, one 384² relit decal, shared dust / bits.</p>`,
+    perf: `<p>Today: <b>one 9.1 m full-disc additive quad</b> per slam (≈ 83 m² of ADD, the most expensive kind by Story 9.15's measure: ~1 FPS per full-frame ADD sprite) + one ADD Graphics. <b>SD-A</b>: the ring as 8 rim segments (1.8 × 3.9 m each, ≈ 57 m² of ADD, nearly all of it lit; the 4 m hole and the inner disc are no longer drawn), a tick layer and a spark layer (each one Graphics/emitter), head + pool (0.55 m, 2 m); at the hit one 9.5 m flash pool for 0.15 s. <b>SD-B</b>: 8 jagged rim segments + 11 crack-glow strips (2.4 × 0.9 m, cropped by progress) + head = 20 small ADD sprites, ≤ 63 m² at the hit (≈ 45 m² mid-warning), no full-disc quad. Dust ≤ 14–18 normal sprites for ~1.2 s (halved with <code>?fx=low</code>). Bake: one 165 × 82 px segment, one 384² relit decal, shared dust / bits. <b>SD-G</b>: 24 ADD edge pieces (32 × 58 px, ≈ 1.4 × 0.8 m each; the dial = alpha per piece) + 8 ADD wash pieces (2 → 4.5 m, ≈ 51 m² of faint ADD; the 4 m hole not drawn) + head and its pool (0.42 m, 1.3 m) = 34 small ADD sprites, no full-disc quad; hit: 3 crack pictures (GD-G) over 0.15 s, ≤ 16 dust puffs (normal, 1.2 s, halved with <code>?fx=low</code>). No spark or tick layer. Bake: 2 small segments, 3 × 384² reveal pictures (shared with GD-G).</p>`,
     findings: [
+      `<b>-G finding: today's sparks are amber/yellow</b> (<code>#ffb45a</code>, <code>#ffe08c</code>) inside a red danger zone, drifting across the edge: amber means "your window". SD-G cuts them.`,
+      `-G: the ring and its countdown were three elements (rim, 72 ticks, head) doing two jobs; SD-G makes the edge itself the dial, so where and when are read from one line.`,
+      `-G: the slam's dust at the fists is already Story 9.15's (<code>bossDust.ts › slamFists</code>, 2 × 9 puffs, 0.5 s); A and B add their own burst on top. SD-G adds only the dust that stops at the 4.5 m reach (a different job).`,
+
       "<b>Additive cost</b>: today's disc is a full 9.1 m ADD quad, mostly transparent in its middle (the hole and the faint inner glow). Both takes crop it to the rim.",
       "Checked and fine: the countdown reaches the top of the dial exactly on the hit tick; the fill keys on the server tick, so a late join never shows a finished ring.",
       "The sparks use their own clock (<code>clockS</code>, view time): same look on every client, never tied to play.",
@@ -1711,7 +1717,7 @@ export const cards: FxCard[] = [
     keyT: [0.1, 0.6, 1.1, 1.22, 1.6],
     viewM: 11,
     under: (g, t, st) => boss(g, st, slamPose(t), 0),
-    looks: [sdNow, sdTakeA, sdTakeB],
+    looks: [sdNow, sdTakeA, sdTakeB, GL.SD],
     plan: {
       goal: "Get out of the ring NOW: how far (the ring) and how long (the countdown) at a glance, building to one release on the hit.",
       timing: "boss.json › slam: telegraphS 1.2, radiusM 4.5, recoverS 0.8; bossTelegraph.ts › TELEGRAPH_FADE_S 0.3; BossView SLAM_HIT_S 0.5.",
@@ -1747,8 +1753,12 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p>The ring is <b>light</b> (where it lands, 3 m); the white ring closing in is the clock (to the impact). The chunk is <b>matter</b>: a real piece of the street the boss tore up (road slab / rubble / burnt-car panel by where it stood), lit from the upper left, with a shadow on the road that tells its height. The impact releases everything at once; the crater is the <b>mark</b>. ${COLOUR}</p>`,
     game: `<p><code>BossView.ts › drawRing</code>: <code>boss_tele_ring</code> (512 px hatched disc, normal blend, 6.1 m, α = fade), a white Graphics ring (0.12 m) shrinking to 0 at the impact (<code>throwInnerRadius</code>), the chunk (<code>boss_chunk_*</code>, 64 px, 1.3 m) on a 3 m cosmetic arc (<code>throwChunkAt</code>: lift 0.35 × h, scale 1 + h/6, spin 5 rad), the crater (128 px, 3.2 m, shared decal pool of 8) and a grey dust ring (r 0.5 → 3 m, 0.4 s) on <code>boss.thrown_impact</code>. Pose: throw during the lift (Story 9.15).</p>`,
-    perf: `<p>Today: one 6.1 m normal quad, 2 Graphics, 1 chunk. <b>TH-A</b>: + 8 ADD rim segments (1.4 × 2.7 m, ≈ 29 m²) + 8 ADD white-ring segments scaled to the radius (shrinking), faint hatching kept (normal), chunk + shadow; impact: ≤ 9 bits with shadows (0.5 s), ≤ 12 dust puffs (1 s). <b>TH-B</b>: 8 ADD rim + ring during the lift only, 2 shadow sprites, ≤ 12 bits, ≤ 16 dust (1.4 s). Halved with <code>?fx=low</code>. Bake: chunks 112², craters 160–176², segments small.</p>`,
+    perf: `<p>Today: one 6.1 m normal quad, 2 Graphics, 1 chunk. <b>TH-A</b>: + 8 ADD rim segments (1.4 × 2.7 m, ≈ 29 m²) + 8 ADD white-ring segments scaled to the radius (shrinking), faint hatching kept (normal), chunk + shadow; impact: ≤ 9 bits with shadows (0.5 s), ≤ 12 dust puffs (1 s). <b>TH-B</b>: 8 ADD rim + ring during the lift only, 2 shadow sprites, ≤ 12 bits, ≤ 16 dust (1.4 s). Halved with <code>?fx=low</code>. Bake: chunks 112², craters 160–176², segments small. <b>TH-G</b>: 24 ADD edge pieces + 8 ADD wash pieces (pie, ≈ 28 m²) + head (2) = 34 small ADD, no closing ring; flight: slab + 2 shadow sprites; impact: ≤ 8 bits with shadows, ≤ 12 dust puffs (halved with <code>?fx=low</code>), 1 crater. Bake: 2 small segments, 1 slab 112², 1 crater 160².</p>`,
     findings: [
+      `<b>-G finding: the closing ring is white</b>, which means people and pick-ups; it was also a second clock next to the hatched ring. TH-G uses the red edge as the dial (same as SD-G).`,
+      `<b>-G finding (page context)</b>: in the game the chunk flies while the boss RECOVERS (<code>throw.ts</code>), so the body shows the walk frame in flight; this card's context body holds <code>throw_a</code> (chunk overhead) to the impact, so Now / A / B show two chunks in flight. TH-G draws the walk frame over it (a sliver of the context chunk still shows at the release).`,
+      `-G: the shadow as the clock, resolved by the goal: a real shadow (down-right of the slab by its height) that meets the slab on the impact, not TH-B's shadow parked on the target before anything is above it.`,
+
       "Today's chunks (64 px, flat fill, hard rim) read as stickers next to the relit boss; both takes redraw them as real pieces, relit.",
       "Today's chunk has no shadow: at the top of its 3 m arc it only grows (×1.5), so its height is hard to read. Both takes add the shadow on the road.",
       "Checked and fine: the white ring reaches 0 exactly on the impact tick; a chunk in flight when the boss dies never lands (6.7 F5).",
@@ -1759,8 +1769,8 @@ export const cards: FxCard[] = [
     keyT: [0.5, 1.0, 1.4, 1.82, 2.3],
     viewM: 17,
     aspect: 0.56,
-    under: (g, t, st) => boss(g, st, t < THROW_LEN ? "throw_a" : "walk_a", TB),
-    looks: [thNow, thTakeA, thTakeB],
+    under: (g, t, st) => boss(g, st, t < LIFT_S ? "throw_a" : "walk_a", TB), // the throw pose (chunk overhead) during the lift only; in flight the game shows the walk frame
+    looks: [thNow, thTakeA, thTakeB, GL.TH],
     plan: {
       goal: "Something heavy is coming down HERE: where (the ring) and when (the closing ring, then the falling chunk).",
       timing: "boss.json › throw: liftS 1.0, flightS 0.8, radiusM 3; bossTelegraph.ts › CHUNK_ARC_M 3, fade 0.3 s; crater 3.2 m.",
@@ -1796,8 +1806,11 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p>The lane is <b>light</b>: where the body will pass (4.8 m wide, body back to body front). The fill is the clock: it reaches the end as the rush starts. During the rush it stays full; the body kicks up <b>dust</b> behind it (secondary). ${COLOUR}</p>`,
     game: `<p><code>BossView.ts › drawLane</code>: <code>boss_tele_lane</code> (336 × 115 px at 24 px/m, normal blend, cropped to the lane's length: no stretching), a red Graphics fill (0xff2828, α 0.38) growing from the body's back over the 1 s warning (<code>chargeLaneProgress</code>), full during the rush, fade 0.3 s after the stop (<code>chargeStopTick</code>). Pose: charge during the warning (9.15), rush on the move.</p>`,
-    perf: `<p>Today: 1 normal strip (≤ 67 m²) + 1 Graphics. <b>CL-A</b>: the faint strip, a normal fill, 2 ADD edge strips (cropped, ≤ 14 × 0.9 m), 1 ADD sweep front (0.5 × 4.8 m, warning only), ≤ 6 ADD chevrons (0.9 m) ≈ 34 m² of ADD at most; rush dust ≤ 18 puffs (1.2 s). <b>CL-B</b>: 2 ADD edges + 3 ADD seep strips (14 × 0.8 m, cropped) ≤ 56 m² when the lane is full, 3 crack strips (normal), ≤ 12 lifting puffs. Halved with <code>?fx=low</code>.</p>`,
+    perf: `<p>Today: 1 normal strip (≤ 67 m²) + 1 Graphics. <b>CL-A</b>: the faint strip, a normal fill, 2 ADD edge strips (cropped, ≤ 14 × 0.9 m), 1 ADD sweep front (0.5 × 4.8 m, warning only), ≤ 6 ADD chevrons (0.9 m) ≈ 34 m² of ADD at most; rush dust ≤ 18 puffs (1.2 s). <b>CL-B</b>: 2 ADD edges + 3 ADD seep strips (14 × 0.8 m, cropped) ≤ 56 m² when the lane is full, 3 crack strips (normal), ≤ 12 lifting puffs. Halved with <code>?fx=low</code>. <b>CL-G</b>: 1 ADD wash (cropped to the lit range) + 4 ADD edge blits (lit / not yet, each side) + 1 end line + the front (1 line + 2 pools, warning only) = ≤ 9 ADD sprites from one 336 × 14 px strip and one 168 × 58 px wash; ≈ 30 m² of faint ADD when full, shrinking behind the body in the rush. No own dust (9.15's trail).</p>`,
     findings: [
+      `-G: after the rush starts, today's lane stays fully lit until 0.3 s after the stop, including behind the body where it can no longer hit; CL-G puts the light out behind its back (view only, no sim change).`,
+      `-G: the chevrons repeated the fill's direction; 9.15 already kicks a rush trail (26 puffs over the rush), so CL-G adds no dust.`,
+
       "Checked and fine: the strip is cropped, never stretched, so the hatching keeps its 0.55 m spacing on every lane length.",
       "The fill (α 0.38) over the strip (α 0.16 red) gives a strong red block on the lit street but loses its edges in the dark (it isn't above the darkness as light; the strip is): both takes make the edges light.",
     ],
@@ -1807,7 +1820,7 @@ export const cards: FxCard[] = [
     viewM: 20,
     aspect: 0.45,
     under: (g, t, st) => boss(g, st, chargePose(CL_C, t), bossX(CL_C, t)), // and again above the lane (bodyTop)
-    looks: [clNow, clTakeA, clTakeB],
+    looks: [clNow, clTakeA, clTakeB, GL.CL],
     plan: {
       goal: "Get off the line: where it will pass and when it goes (the fill reaches the end).",
       timing: "boss.json › charge: telegraphS 1.0, speedMps 12, laneWidthM 4.8, distM 10 (lane 14 m with the body); fade 0.3 s after the stop.",
@@ -1839,8 +1852,12 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p>The one warning that is <b>good news</b>: it crashed into something and is stunned for 2 s. Amber = an event you can use. The crash is a release: light, bits and dust in the same 0.15 s; the dust hangs while it is stunned. ${COLOUR}</p>`,
     game: `<p><code>BossView.ts › drawLane</code>: <code>boss_mark_crash_a</code> (256 px, 4.8 m, normal) at the body's front at the stop when the lane ends on a building (<code>crash</code>), same α as the lane: <b>it fades 0.3 s after the stop</b>. <code>onCrashed</code>: a grey dust ring (r 2 → 3.5 m, 0.5 s). Stun pose 2 s; the HUD bar flashes amber (4 Hz) for the stun (<code>BossHud</code>).</p>`,
-    perf: `<p>Today: 1 normal 4.8 m mark + 1 Graphics ring. <b>CR-A / CR-B</b>: amber bar (0.55 × 4.6 m) + word (4.5 × 1.7 m) ADD ≈ 10 m², flash pool (4–5 m, 0.15 s only), ≤ 10–12 bits (0.5 s), ≤ 12–16 dust puffs (1.4–2.2 s); B adds one normal wall-crack decal that stays. Plus the lane (as CL-A / CL-B).</p>`,
+    perf: `<p>Today: 1 normal 4.8 m mark + 1 Graphics ring. <b>CR-A / CR-B</b>: amber bar (0.55 × 4.6 m) + word (4.5 × 1.7 m) ADD ≈ 10 m², flash pool (4–5 m, 0.15 s only), ≤ 10–12 bits (0.5 s), ≤ 12–16 dust puffs (1.4–2.2 s); B adds one normal wall-crack decal that stays. Plus the lane (as CL-A / CL-B). <b>CR-G</b>: the lane as CL-G; crash: amber flash (4.5 m, 0.15 s), ≤ 8 bits, 1 wall-crack decal; window: 24 small ADD amber pieces (drain to 0 over 2 s) + CRASH (one ADD light 4.2 × 1.8 m + one normal shade) for the 2 s. No own dust (9.15's crash burst).</p>`,
     findings: [
+      `<b>-G finding: the CRASH mark rotates with the lane</b> (<code>l.crash.setRotation(l.lane.angle)</code>): on a westward charge the word is upside down, on a north/south one sideways. CR-G draws it horizontal, above the body.`,
+      `-G: amber now lasts the whole 2 s stun (a ring that drains on <code>stunS</code>), drawn above the body; the red lane fades in its usual 0.3 s as the amber comes in, so the two never compete.`,
+      `-G: 9.15's crash burst (16 puffs at 1.3 r ahead) is the crash dust; CR-G adds none.`,
+
       "<b>The amber window disappears early</b>: the CRASH mark fades with the lane, 0.3 s after the stop, while the stun (the window it announces) lasts 2 s; only the HUD bar keeps flashing. Both takes keep today's timing (see the question).",
       "<b>The word is hidden</b>: at the stop the body (2 m radius) sits over the word (1.07 m before the bar), and in the light the body is redrawn above its lane (<code>bodyTop</code>), so only the bar and the edge of the word show. Both takes draw the CRASH light above the body.",
       "The dust ring is centred on the body, not on the impact point at the wall; both takes put the dust and bits at the wall.",
@@ -1851,7 +1868,7 @@ export const cards: FxCard[] = [
     viewM: 14,
     aspect: 0.6,
     under: crUnder,
-    looks: [crNow, crTakeA, crTakeB],
+    looks: [crNow, crTakeA, crTakeB, GL.CR],
     plan: {
       goal: "It's stunned: hit it now. The crash must read as a release, then as a window.",
       timing: "boss.json › charge: stunS 2, laneWidthM 4.8; the mark fades with the lane 0.3 s after the stop; dust ring 0.5 s.",
@@ -1879,8 +1896,11 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p>The display is the game talking to you, not part of the street, so it stays a <b>display</b> ("P1 is just perfect"). Photoreal here means a real emissive screen (A), or (B) its target lock turned into <b>light</b> on the road under the survivor it hunts. Layout, sizes and flicker unchanged. Red = danger.</p>`,
     game: `<p><code>BossView.ts › drawLock</code>: on the target survivor, brackets (0.8 m, closing over a slam's windup, breathing while it walks), a turning ring of 24 ticks, a scrolling hazard bar, the TARGET tag (<code>hud_target_tag</code>, 88 × 44 CSS px at 47 px/m), all × <code>hudFlicker</code>. <code>BossHud.ts</code>: off screen, the DANGER panel (<code>hud_danger</code> × 0.75) at the edge with 3 chevrons marching toward the boss, the attack plate (SLAM / CHARGE / THROW) inward during a warning; the THE BEHEMOTH banner only during the arrival (not shown here).</p>`,
-    perf: `<p>Today: 2 Graphics + 3 images (HUD scene). <b>P1-A</b>: the same objects; the bloom, scanlines and sheen are baked into the plates (no filter at run time); the lock's glow is a second wide pass (as today's first pass). <b>P1-B</b>: + 7 small ADD sprites under the survivor (pool 2.6 m, ring 1.8 m, 4 brackets 0.6 m, bar), ≈ 9 m².</p>`,
+    perf: `<p>Today: 2 Graphics + 3 images (HUD scene). <b>P1-A</b>: the same objects; the bloom, scanlines and sheen are baked into the plates (no filter at run time); the lock's glow is a second wide pass (as today's first pass). <b>P1-B</b>: + 7 small ADD sprites under the survivor (pool 2.6 m, ring 1.8 m, 4 brackets 0.6 m, bar), ≈ 9 m². <b>P1-G</b>: as P1-A minus the hazard bar (−1 Graphics), plus a 2-rect time-left bar under the plate (1 Graphics, ADD) during a warning.</p>`,
     findings: [
+      `-G: <code>hudFlicker</code> dips (to 45 %) also happen during a warning, against the closing brackets (the skill's "tells first: never pulse against the countdown"). P1-G keeps the flicker only while it walks.`,
+      `-G: the TARGET tag's last letter is clipped by its plate in the page's capture ("TARGE"), in Now, A, B and G alike: worth a look in <code>hudWarnArt</code> (not checked in the game).`,
+
       "Checked and fine: the tag, brackets and bar share one flicker; the plate flickers on its own phase (+0.3 s) so they never all dip at once.",
       "The lock is drawn above the darkness (marker layer): any glow added to it (A, B) shows in a blackout too, which is right for a warning.",
     ],
@@ -1890,7 +1910,7 @@ export const cards: FxCard[] = [
     viewM: 12,
     aspect: 0.5,
     under: p1Survivor,
-    looks: [p1Now, p1TakeA, p1TakeB],
+    looks: [p1Now, p1TakeA, p1TakeB, GL.P1],
     plan: {
       goal: "It's after YOU (the lock) and it's over there (the panel): what it will do next (the plate).",
       timing: "BossView LOCK_R_M 0.8, 47 CSS px/m; hudFlicker; chevrons 2 Hz; BossHud PANEL_SCALE 0.75; a slam warning 1.2 s shown from 0.6 s.",
@@ -1916,8 +1936,11 @@ export const cards: FxCard[] = [
     family: "telegraphs",
     brief: `<p>The <b>mark</b>: what the street keeps. Matte, darker than the road, lit by the one light from the upper left. The approved ground damage (R1 + R2 + R3) is the style reference of the whole photoreal rework, so its drawing stays; the takes give it depth and the moment it is made (debris, then dust: <b>secondary follows</b>).</p>`,
     game: `<p><code>BossView.ts › onSlam / onThrownImpact</code>: one decal pool of <code>boss.json › caps.maxDecals</code> = 8 (oldest reused, cleared at the build start): the crack decal (<code>groundDamageArt.ts › drawGroundDamage</code>, 256 px for 9 m, α 0.85, random rotation) and the crater (128 px, 3.2 m). They appear whole, in one frame.</p>`,
-    perf: `<p>Today: ≤ 8 normal decals (9 m and 3.2 m). <b>GD-A</b>: the same decals, relit at 384 px (9 m: 43 px/m, 1.2 × the game's 36); + ≤ 10 bits and ≤ 14 dust puffs for ~1.5 s per hit. <b>GD-B</b>: 3 reveal pictures (3 × 576 KB) swapped over 0.15 s, 8 dark heave segments (normal, 0.2 s), ≤ 16 dust puffs. No ADD at all. Memory: 384² RGBA = 576 KB per decal picture (today 256 KB).</p>`,
+    perf: `<p>Today: ≤ 8 normal decals (9 m and 3.2 m). <b>GD-A</b>: the same decals, relit at 384 px (9 m: 43 px/m, 1.2 × the game's 36); + ≤ 10 bits and ≤ 14 dust puffs for ~1.5 s per hit. <b>GD-B</b>: 3 reveal pictures (3 × 576 KB) swapped over 0.15 s, 8 dark heave segments (normal, 0.2 s), ≤ 16 dust puffs. No ADD at all. Memory: 384² RGBA = 576 KB per decal picture (today 256 KB). <b>GD-G</b>: the 3 reveal pictures (shared with SD-G) + 1 dust film (192², normal, 3 s) per slam; crater + a 96² film per throw. No ADD, no debris or dust of its own (they belong to SD-G / TH-G and 9.15).</p>`,
     findings: [
+      `-G: GD-A / GD-B throw their own debris and dust at the hit, on top of the attack's and 9.15's: three bursts for one hit. GD-G keeps only the mark.`,
+      `-G: the crack decal is 9 m wide = 2 × the slam's 4.5 m reach, so the mark already ends where the danger ended; GD-G keeps that and says so.`,
+
       "Today's crack decal is drawn at 256 px for 9 m (28 px/m), under the game's 36 px/m: it is upscaled on screen and its fine cracks soften. The takes bake it at 384 px.",
       "Today's crater (flat fills, a hard dark disc, 9 straight cracks) doesn't match the approved slam damage next to it; the takes redraw it in the same style.",
       "Checked and fine: decals clear at the build start; 8 at most.",
@@ -1927,7 +1950,7 @@ export const cards: FxCard[] = [
     keyT: [0.0, 0.05, 0.12, 0.55, 1.4],
     viewM: 15,
     aspect: 0.7,
-    looks: [gdNow, gdTakeA, gdTakeB],
+    looks: [gdNow, gdTakeA, gdTakeB, GL.GD],
     plan: {
       goal: "That hit was real: the street is broken where it landed, and it stays broken.",
       timing: "On boss.slammed / boss.thrown_impact; stays until the build phase (caps.maxDecals 8). Debris 0.5 s, dust 1.1–1.5 s (new).",

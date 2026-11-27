@@ -13,6 +13,7 @@ import {
   type RoomMethodName,
 } from "@colyseus/core";
 import {
+  stageSealsUnresolved,
   ByteRate,
   C2S,
   MAX_PLAYERS,
@@ -263,7 +264,7 @@ export type PingRefusal = "phase" | "frozen" | "held" | "waiting" | "status";
  * can't).
  */
 export function pingRefusal(phase: string, frozen: boolean, held: boolean, status: string | undefined, waiting = false): PingRefusal | null {
-  if (phase !== "build" && phase !== "wave" && phase !== "vote") return "phase";
+  if (phase !== "build" && phase !== "wave" && phase !== "vote" && phase !== "extract") return "phase"; // Story 12.2 (AC 3): pings still work while extracting
   if (frozen) return "frozen";
   if (held) return "held";
   if (waiting) return "waiting";
@@ -716,6 +717,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private joinLate(client: RunClient, auth: RunAuth, key: string): void {
     const controller = this.controller;
     if (!controller || !this.inRun()) throw refuse("run_started");
+    if (this.state.phase === "extract") throw refuse("run_started"); // Story 12.2 (AC 13): the run is ending: no waiting joiner
     const slot = assignSlot(this.takenSlots());
     if (slot < 0) throw refuse("run_full");
     const playerId = `p${slot}`;
@@ -842,7 +844,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.1: build, wave and vote (and endless, which is build/wave): a drop is held. Lobby and results: a drop is a leave (D7). */
   inRun(): boolean {
     const phase = this.state.phase;
-    return this.controller !== null && (phase === "build" || phase === "wave" || phase === "vote");
+    return this.controller !== null && (phase === "build" || phase === "wave" || phase === "vote" || phase === "extract"); // Story 12.2: the extraction
   }
 
   /**
@@ -997,6 +999,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private updateFreeze(): void {
     const controller = this.controller;
     if (!controller || !this.inRun()) return;
+    if (this.state.phase === "extract") {
+      // Story 12.2 review H1: nothing can hurt anyone and the extraction ends in ≤ 18 s: it runs to Results (and banks
+      // "extracted") even with nobody connected; never frozen, no 3-2-1.
+      this.resumeTimer?.clear();
+      this.resumeTimer = null;
+      this.state.resumeIn = 0;
+      this.state.frozen = false;
+      return;
+    }
     if (controller.activeCount() === 0) {
       this.resumeTimer?.clear();
       this.resumeTimer = null;
@@ -1070,7 +1081,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
     if (!p) return;
     world.loot.banked.add(member.playerId); // review M1: a banked seat can no longer take the bag
-    void this.bank.bank({ playerId: member.playerId, seatId: seatIdOf(member), accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
+    // Story 12.2 (AC 12): a seat leaving during the extraction was there at the Extract: it banks "extracted".
+    const ending = world.run.phase === "extract" ? "extracted" : "quit";
+    void this.bank.bank({ playerId: member.playerId, seatId: seatIdOf(member), accountId: member.accountId, record: p, ending, wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
@@ -1931,13 +1944,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /**
    * One server tick: step, copy to schema, forward events, send horde frames (all inside the
-   * slow-tick timing). Only phases "build", "wave" and (Story 6.11) "vote" step the World
+   * slow-tick timing). Only phases "build", "wave", (Story 6.11) "vote" and (Story 12.2) "extract" step the World
    * (Story 3.1): after Results nothing moves any more (Story 2.8).
    */
   private step(): void {
     const controller = this.controller;
     const phase = this.state.phase;
-    if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
+    if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave" && phase !== "vote" && phase !== "extract")) return;
     if (this.state.frozen) return; // Story 8.1 (F6): nobody connected, or the 3-2-1 is running: the World waits
     if (this.savingQuit) return; // Story 8.5: Save and quit is writing: the World waits (nothing after the save is lost)
     const t0 = performance.now();
@@ -1971,7 +1984,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.logWaveStats(e.number);
       }
       else if (e.type === "team.wiped") this.endRun(controller, e.wave);
-      else if (e.type === "run.extracted") this.endRun(controller, e.wave); // Story 6.11
+      else if (e.type === "run.extract_done") this.endRun(controller, e.wave); // Story 12.2: Results after the fly-out (6.11 ended at `run.extracted`)
       else if (e.type === "run.vote_resolved") this.log.info({ wave: controller.world.waves.number, extract: e.extract, stay: e.stay, silent: e.silent, choice: e.choice }, "vote_resolved"); // Story 6.11 (run stats)
       else if (e.type === "build.started") {
         this.enterWaiting(true); // Story 8.2 (J4): waiting late joiners enter now (before their offers go out)
@@ -1979,7 +1992,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.autosavePending = "build_start"; // Story 8.4 (D10): after the tick's events (below)
       }
       else if (e.type === "run.vote_opened") this.autosavePending = "vote"; // Story 8.4 (E8-S12): the vote is a calm phase
-      else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
+      else if (e.type === "decay.stage_changed") {
+        this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
+        // Story 12.1 re-review round 2: a stage left part of the map sealed with no wall to clear: never silent.
+        const unresolved = stageSealsUnresolved(controller.world);
+        if (unresolved > 0) this.log.warn({ stage: e.stage, vertices: unresolved }, "stage_seal_unresolved");
+      }
     }
     // Story 8.4: a pending autosave (build start, vote) once the World is clean (a last shot may still be in flight).
     if (this.autosavePending !== null && this.inRun() && saveBlocker(controller.world) === null) this.autosave(this.autosavePending);
@@ -1988,7 +2006,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /**
    * Team wipe (Story 2.8 AC 4) or, Story 6.11, the team extracted: the run ends for everyone.
-   * `team.wiped` / `run.extracted` was already forwarded this tick; the World's run state machine
+   * `team.wiped` / `run.extract_done` (Story 12.2; 6.11's `run.extracted`) was already forwarded this tick; the World's run state machine
    * already went to "results" (`endRun`, which set `run.ending`), and the patch with phase "results"
    * follows. The World stays as it was (no more ticks). `earned` includes the last wave's bonus
    * (paid by the economy system in the same tick). Story 6.12 (F7): the log splits each player's

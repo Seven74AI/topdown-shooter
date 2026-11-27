@@ -101,6 +101,8 @@ const playerFields = {
   waiting: t.boolean().default(false),
   // PR #9 review L1: the seat's id (`playerId#generation`), set at join / return; Results match a teammate's find on it.
   seat: t.string().default(""),
+  // Story 12.2: in the helicopter (the body is not drawn); on change only (a boarding). Appended last.
+  boarded: t.boolean().default(false),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
@@ -238,6 +240,11 @@ const runFields = {
   leftSeats: t.string().default(""),
   // Story 8.6 (E8-R1): a resumed run's lobby shows "Resuming · <district> · wave N" (0 = not a resume). On change only.
   resumeWave: t.uint16().default(0),
+  // Story 12.2: the extraction's lift-off tick (−1 = still on the pad); the client's fly-out is a pure function of it. On change only.
+  liftedAtTick: t.int32().default(-1),
+  // Story 12.2 review L6: the extraction's start tick (−1 none) and its timeout cut (12.3's timeline online). On change only.
+  extractStartTick: t.int32().default(-1),
+  extractCut: t.boolean().default(false),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

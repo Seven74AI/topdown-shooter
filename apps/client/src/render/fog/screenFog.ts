@@ -26,6 +26,8 @@ export class ScreenFog {
   viewerX = 0;
   viewerY = 0;
   on = false;
+  /** Story 12.3 (AC 5): 0 → 1 the fog of war lifts (the extraction's fly-out); 1 = gone (`on` false). */
+  lift = 0;
   private world: World | null = null;
   private drawnOf: (id: string) => FogPose | undefined = () => undefined;
 
@@ -33,8 +35,9 @@ export class ScreenFog {
     for (let i = 0; i < MAX_FOG_BEAMS; i++) this.beams.push(createFogBeam());
   }
 
-  update(world: World, viewerX: number, viewerY: number, drawnOf: (id: string) => FogPose | undefined): void {
-    this.on = fogRadiiOf(world, this.radii).radiusM !== Infinity;
+  update(world: World, viewerX: number, viewerY: number, drawnOf: (id: string) => FogPose | undefined, lift = 0): void {
+    this.lift = lift <= 0 ? 0 : lift >= 1 ? 1 : lift;
+    this.on = fogRadiiOf(world, this.radii).radiusM !== Infinity && this.lift < 1;
     this.viewerX = viewerX;
     this.viewerY = viewerY;
     this.beamCount = 0;
@@ -47,6 +50,7 @@ export class ScreenFog {
 
   private readonly addBeam = (p: PlayerState, id: string): void => {
     if (p.status !== "alive" || this.beamCount >= MAX_FOG_BEAMS || !this.world) return;
+    if (this.world.extract.boarded.has(id)) return; // Story 12.3: aboard, the body is gone (no beam from the pad)
     const d = this.drawnOf(id);
     const b = this.beams[this.beamCount++] as FogBeam;
     b.x = d ? d.x : p.x;
@@ -59,7 +63,8 @@ export class ScreenFog {
   /** How visible a zombie (or a spit glob) centred at (x, y) is on my screen: 0…1. */
   visibility(x: number, y: number): number {
     if (!this.on) return 1;
-    return fogVisibility(this.radii, this.viewerX, this.viewerY, x, y, this.beams, this.beamCount);
+    const v = fogVisibility(this.radii, this.viewerX, this.viewerY, x, y, this.beams, this.beamCount);
+    return this.lift > 0 ? v + (1 - v) * this.lift : v; // Story 12.3: the horde shows through as the fog lifts
   }
 
   /** Beams counted this frame (tests). */

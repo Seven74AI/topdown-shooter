@@ -163,7 +163,7 @@ export class FogView {
       this.geoKey = key;
       this.drawGeometry(r.clearM, r.radiusM, FOG_LOOKS[style] as FogStyleLook);
     }
-    this.geo.setPosition(this.fog.viewerX, this.fog.viewerY);
+    this.geo.setPosition(this.fog.viewerX, this.fog.viewerY).setAlpha(1 - this.fog.lift); // Story 12.3: the fog lifts
     if (!this.geo.visible) this.geo.setVisible(true);
   }
 
@@ -265,7 +265,7 @@ export class FogView {
     // Into the darkness canvas.
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
-    g.globalAlpha = look.alpha;
+    g.globalAlpha = look.alpha * (1 - this.fog.lift); // Story 12.3: the fog lifts
     g.drawImage(fc, 0, 0);
     g.globalAlpha = 1;
   }

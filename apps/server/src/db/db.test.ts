@@ -66,7 +66,7 @@ describe("repositories (Story 7.1 AC 8)", () => {
     const accounts = accountsRepo(database);
     expect(await accounts.findByTokenHash(HASH_A)).toBeNull();
     const made = await accounts.createGuest(HASH_A, "");
-    expect(made).toEqual({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), displayName: "", username: null });
+    expect(made).toEqual({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), displayName: "", username: null, isAdmin: false });
     expect(await accounts.findByTokenHash(HASH_A)).toEqual(made);
     expect(await accounts.findByTokenHash(HASH_B)).toBeNull();
     await accounts.setDisplayName(made.id, "Bea");

@@ -61,7 +61,7 @@ import { inHealReach } from "../buildings/medStation";
  * `CHANGE_S` of walking, moves to a later stage (2 or 3) through the DecaySystem (`changeDecayStage`,
  * the build start's path): before it, a barricade is placed on every mutation box that is not there
  * yet (legal then) and a player and a zombie are put inside one, so the change must destroy and
- * refund the buildings and move the bodies out. The "map box" list is computed here from the map's
+ * destroy the buildings (Story 12.4: no refund) and move the bodies out. The "map box" list is computed here from the map's
  * data and its mutations (`expectedSolids`), not read from the World. After the change every alive
  * zombie must reach a player again ("zombies still reach us after stage 2").
  */
@@ -651,7 +651,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       fires.returned += r.fire.returned;
       fires.returnedByFire += r.fire.returnedByFire;
       variantsSeen.add(r.world.decay.variants);
-      if (r.decayLog.refunds !== r.decayLog.destroyed) failures.push(`seed ${4100 + seed}: ${r.decayLog.destroyed} buildings destroyed by the stage, ${r.decayLog.refunds} refunds`);
+      if (r.decayLog.refunds !== 0) failures.push(`seed ${4100 + seed}: ${r.decayLog.destroyed} buildings destroyed by the stage, ${r.decayLog.refunds} refunds (Story 12.4: decay never refunds)`);
       if (r.stage !== r.toStage) failures.push(`seed ${4100 + seed}: ended at stage ${r.stage}, wanted ${r.toStage}`);
       if (r.jitterHits > 0) failures.push(`seed ${4100 + seed}: ${r.jitterHits} spawn jitter areas (any stage) overlap a building`);
       if (r.violation) failures.push(r.violation);
@@ -690,10 +690,10 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       // Story 4.2 liveness: every stage ran and shots really stopped at cover.
       expect([...stages].sort()).toEqual([1, 2, 3]);
       expect(coverStops).toBeGreaterThan(LAYOUTS / 2); // Story 4.3 merge: was > LAYOUTS; the spawn set (and so the layouts) changed, 31 seen
-      // Story 4.5 liveness: the changes really destroyed and refunded buildings, pushed bodies out, and
+      // Story 4.5 liveness: the changes really destroyed buildings (Story 12.4: none refunded), pushed bodies out, and
       // both candidates of the stage-2 car were used across the seeds.
       expect(decayDestroyed).toBeGreaterThan(LAYOUTS / 2);
-      expect(decayRefunded).toBe(decayDestroyed);
+      expect(decayRefunded).toBe(0); // Story 12.4
       expect(pushedOut).toBe(LAYOUTS);
       expect(variantsSeen.size).toBeGreaterThan(1);
       // Story 4.7: every combination of moved cars ran (and so every moved car landed on a layout).
@@ -706,7 +706,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       expect(fires.zombieHits).toBeGreaterThan(0);
       expect(fires.returned).toBeGreaterThan(4); // re-review H1 liveness: returns at a stage-3 build start really happened
       expect(fires.returnedByFire).toBeGreaterThan(5);
-      expect(fires.ignitionDestroyed).toBeGreaterThan(0); // review M2: buildings under a new fire went (refunded), none burns on from the ignition
+      expect(fires.ignitionDestroyed).toBeGreaterThan(0); // review M2: buildings under a new fire went (Story 12.4: not refunded), none burns on from the ignition
     });
   });
 });

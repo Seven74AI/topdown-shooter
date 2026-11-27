@@ -111,7 +111,7 @@ describe("Story 6.2 F2: rubble is hard cover, like a car", () => {
   });
 });
 
-describe("Story 6.2 F3: you can't build on rubble; a building it lands on is destroyed with half back", () => {
+describe("Story 6.2 F3: you can't build on rubble; a building it lands on is destroyed (Story 12.4: nothing back)", () => {
   it("placement on a pile is refused with cause solid (the client's line: \"Blocked by rubble\")", () => {
     const w = ruins(MASK_ALLEY[0] as number);
     startBuild(w);
@@ -132,7 +132,7 @@ describe("Story 6.2 F3: you can't build on rubble; a building it lands on is des
     expect(refused).toBe(4); // 3 piles + alley 1
   });
 
-  it("a barricade, a spike trap, a mine and a turret on the pile spots (built at stage 3) are destroyed at the stage-4 build start, each refunded floor(price × 0.5) once", () => {
+  it("a barricade, a spike trap, a mine and a turret on the pile spots (built at stage 3) are destroyed at the stage-4 build start, nothing refunded (Story 12.4)", () => {
     const w = ruins(MASK_ALLEY[1] as number, { stage: 3 });
     startBuild(w);
     const placed: Building[] = [];
@@ -152,16 +152,16 @@ describe("Story 6.2 F3: you can't build on rubble; a building it lands on is des
     step(w, TICK_DT_S); // events are delivered on the next step
     off();
     expect(w.buildings.list.filter((b) => placed.includes(b))).toEqual([]);
-    const refunds = of(events, "money.earned").filter((e) => e.reason === "refund").map((e) => e.amount);
-    const expected = types.map((t) => Math.floor((buildingStats(balance, t)?.price ?? 0) * balance.decay.buildingRefundShare));
-    expect(refunds.sort()).toEqual(expected.sort());
-    expect(p0.wallet - before).toBe(expected.reduce((a, b) => a + b, 0));
+    // Story 12.4: lost, nothing back (was floor(price × 0.5) each).
+    expect(of(events, "money.earned").filter((e) => e.reason === "refund")).toEqual([]);
+    expect(p0.wallet - before).toBe(0);
     expect(of(events, "building.destroyed")).toHaveLength(4);
+    expect(of(events, "building.destroyed").map((e) => e.cause)).toEqual(["collapse", "collapse", "collapse", "collapse"]);
   });
 });
 
-describe("Story 6.2 review L4: the refund is half of what the player PAID (upgrades included)", () => {
-  it("an upgraded barricade (wood → reinforced) on a pile spot refunds floor(paid × 0.5); the refund reads `paid`, not the tier's price", () => {
+describe("Story 6.2 review L4, as changed by Story 12.4: nothing comes back, upgrades included", () => {
+  it("an upgraded barricade (wood → reinforced) and a discounted trap on pile spots are lost: no refund at all (was floor(paid × 0.5))", () => {
     const w = ruins(MASK_ALLEY[0] as number, { stage: 3 });
     startBuild(w);
     const pile = box("rubble_pile_1");
@@ -188,10 +188,9 @@ describe("Story 6.2 review L4: the refund is half of what the player PAID (upgra
     expect(changeDecayStage(w, 4)).toBe(true);
     step(w, TICK_DT_S);
     off();
-    const share = balance.decay.buildingRefundShare;
-    const refunds = of(events, "money.earned").filter((e) => e.reason === "refund").map((e) => e.amount).sort((x, y) => x - y);
-    expect(refunds).toEqual([Math.floor(30 * share), Math.floor(b.paid * share)].sort((x, y) => x - y));
-    expect(p0.wallet - before).toBe(Math.floor(30 * share) + Math.floor(b.paid * share));
+    expect(of(events, "building.destroyed").map((e) => e.buildingId).sort((x, y) => x - y)).toEqual([b.id, other.id].sort((x, y) => x - y));
+    expect(of(events, "money.earned").filter((e) => e.reason === "refund")).toEqual([]);
+    expect(p0.wallet - before).toBe(0);
   });
 });
 

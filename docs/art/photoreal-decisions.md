@@ -86,4 +86,53 @@ and the asset review in `docs/art/asset-review.md`.
   - CRASH: amber for the whole 2 s stun, drawn above the body;
   - TH-B: the chunk's shadow as the clock;
   - HT-A: a direction on `zombie.hit`.
+- **Picks (designer 2026-11-26): "All A version. Blood A too."** This covers the cards up to the car fire only.
+  The designer later said: "I didn't validate model after the car fire".
+  - Picked: MZ-A, SG-A, TR-A, HT-A, BL-A, BT-A, ML-A, CS-A (with more blood), BF-A, EX1-A, EX2-A, GR-A, MO-A.
+  - **Not reviewed yet (no pick):** FS, BX; the whole acid / gas / dust / rain family (AC, GA, EV, RD, PD, RN, BD);
+    the Behemoth's warnings (SD, TH, CL, CR, P1, GD).
+
+  Two changes:
+  - **CS-A with more blood** ("CSA: id like more blood"). Now 6 heavy drops per cut (3 with `?fx=low`), crossing
+    the body and landing 0.5–1.2 m behind it. The splats stay (the last 24), a smear grows behind the target, and the
+    mist is bigger. Waiting for a look.
+  - **Fire on cars, rethought** ("Fire on cars should be rethink entirely. The fire cant be a circle if the car is a
+    rectangle. Circle may represent the heat. But flames in a perfect circle look weird"). FI-A is declined: it was
+    the same particle code with new pictures, so it kept Story 4.11's ring of edge flames. **FI-B** is built goal
+    first:
+    - the goal: "show player a car is burning + zone where they get damaged";
+    - flames on the car's fuel, in its shape (cabin, engine bay, tyres, a fuel pool from under the rear), downwind;
+    - the 2 m circle drawn only by heat: a ground glow that ends at R, and a heat line that brightens on each 0.5 s
+      damage tick;
+    - black smoke born downwind of the flames; soot burnt into the street.
+
+    Waiting for the designer's go on FI-B.
+- Still open from the page: CRASH amber for the whole 2 s stun and drawn above the body; EX1's amber ring and EX2's
+  white ring; the new mark pools; a direction on `zombie.hit` (needed by HT-A). The picked A takes keep today's
+  timing until answered.
+- Method miss, written down (designer 2026-11-26: "did you really follow model and fix skill? … you didn't follow
+  the concept of picking a goal … and then think of elements needed, and then how they compose with each other").
+  The first page had one idea for the whole group, but most takes were today's emitters with new pictures, and their
+  "goal" lines were written after the drawing. The rule is now in `.claude/skills/dead-city-model/fx.md` › FX 4.
+- **Goal-first redo, take -G on every card** (designer 2026-11-26: "redo everything. But keep what you did earlier.
+  So you should add a new option where you use the corrected skills", "Also redo what I already approved").
+  - Built in four cloud sessions, one per family (designer: "don't run them in the same container").
+  - Every card gets a `-G` look with its goal → elements (one job each) → composition and its own timeline, shown
+    in green on the card. FI keeps FI-B, which was already goal first, with its goal block added.
+  - Earlier looks are all kept.
+  - Main changes:
+    - MO-G: the fuel is thrown forward in a fan, the flames burn on the fuel, the 3 m zone is heat.
+    - EX1-G / EX2-G: no amber or white rings; the reach is the fireball's light front or the dust wall.
+    - BX-G: one rim is both the blast and the gas zone.
+    - SG-G: no 2.4 m cone; the pellets and dust kicks to 5 m carry the spread.
+    - BF-G: the effects follow each building's own footprint, not circles.
+    - CS-G: blood thrown out one side of the chain.
+    - BT-G: hand prints.
+    - AC-G / GA-G: the zone colour holds until the effect really ends.
+    - PD-G: dust squeezed out from under the edges.
+    - BD-G: 9.15's dust thrown away from the body only.
+    - The warnings share one language: the red edge on the boundary is also the clock; CR-G is amber for the whole
+      2 s stun, above the body.
+  - Page fixes: overlapping timeline bars now stack; the TH context shows the walk frame in flight.
+  - **Waiting for the designer's codes** (A or G per card, FI-B) and the -G questions written on the cards.
 

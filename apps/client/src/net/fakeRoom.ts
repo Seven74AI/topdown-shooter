@@ -55,6 +55,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     trainReload: 0,
     waiting: false, // Story 8.2
     seat: "", // PR #9 review L1
+    boarded: false, // Story 12.2
     ...over,
   };
 }
@@ -122,6 +123,10 @@ export interface FakeState {
   district: string;
   leftSeats: string; // Story 8.3
   districtsOpen: number;
+  /** Story 12.2: the extraction's lift-off tick (−1 = none). */
+  liftedAtTick: number;
+  extractStartTick: number;
+  extractCut: boolean;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -182,6 +187,9 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     district: "downtown", // Story 7.7
     districtsOpen: 1,
     leftSeats: "", // Story 8.3
+    liftedAtTick: -1, // Story 12.2
+    extractStartTick: -1,
+    extractCut: false,
   };
 }
 

@@ -187,7 +187,7 @@ development_status:
   epic-7-retrospective: done  # 2026-11-26, headless; epic-7-retro-2026-11-26.md, actions E7-A1–A8
 
   # Epic 8: Real-life resilience
-  epic-8: in-progress  # reopened 2026-11-26 for 8.12 (evac-vote quick story) and 8.13 (correct-course). Earlier: Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
+  epic-8: done  # reopened 2026-11-26 for 8.12 (evac-vote quick story) and 8.13 (correct-course). Earlier: Network pass story files 8.8, 8.9, 8.1, 8.10, 8.11 written 2026-11-24 (brief docs/network-pass-brief.md, decisions docs/network-pass-decisions.md); 8.2-8.7 stay after Epic 7
   # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
   # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
   8-8-my-shots-count-on-a-bad-4g-line: done  # 2026-11-25 overnight: 500 ms rewind (8.9 raises to 600) + lossy line; review 2M+4L fixed, narrow re-review 3L test gaps fixed
@@ -222,7 +222,7 @@ development_status:
   9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
   9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); PR #22 merged 2026-11-26 00:19 (1fbf310e); open follow-ups FU1 (a late download failure never settles), FU2 in the story file
-  9-15-photoreal-behemoth-in-game: done  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan; PR #34 merged 4362482a; review approved (3L 4N), re-review 1 found M1 (stale wipe probes) fixed, re-review 2 clean; phone / GPU / online not verified; designer to eye the death puff (N4) and roar glow peak (N2)
+  9-15-photoreal-behemoth-in-game: done  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan (docs/art/photoreal-decisions.md, Behemoth row); builder session story-9-15
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
@@ -237,7 +237,7 @@ development_status:
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night); per-phone measurements parked
   10-10-build-button: done  # PR #20 merged 2026-11-25 (6861275e) after review (1 important) + 2 narrow re-reviews + main-session check; layout B; added 2026-11-25 (designer: hybrid Build button); BU-1 = B (designer 2026-11-25); built on branch story-10-10 (PR), B-codes 10.10-B1…B12 in the story file
-  10-11-admin-players: ready-for-dev  # added 2026-11-26 (designer); AD-1..AD-4 = A (as recommended)
+  10-11-admin-players: done  # PR #35 merged 2026-11-26 (78433ca) after review APPROVED (2 lows + 1 nit, test-only fixes checked by main session); added 2026-11-26 (designer); AD-1..AD-4 = A
   10-12-admin-cheats-online: backlog  # added 2026-11-26 with 10.11; AD-3 A (cheated online run pays nobody)
   epic-10-retrospective: optional
 
@@ -255,9 +255,9 @@ development_status:
 
   # Epic 12: Extraction cinematic (party-mode session 2026-11-25, designer decisions; quick stories)
   # Build order: 12.1 -> 12.2 -> 12.3 (8.12 first or alongside)
-  epic-12: in-progress
-  12-1-buildings-never-close-a-path: ready-for-dev  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
-  12-2-extraction-walk-and-lift-off: ready-for-dev  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
-  12-3-extraction-cinematic-camera: ready-for-dev  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
-  12-4-no-refund-for-decay-losses: ready-for-dev  # designer 2026-11-25 "bad luck": buildings lost to decay (stage cover, fire, 12.1 margin) give no money back; FR58 changed
+  epic-12: done
+  12-1-buildings-never-close-a-path: done  # no forts: a placement or move that would wall off any walkable area is refused; walls stay solid
+  12-2-extraction-walk-and-lift-off: done  # "extract" phase: sim autopilot to the pad, boarding, timeout cut, fly-out horde, endRun after
+  12-3-extraction-cinematic-camera: done  # client camera director: bars, team framing, follow heli, zoom out, dawn sweep, fade to white
+  12-4-no-refund-for-decay-losses: done  # designer 2026-11-25 "bad luck": buildings lost to decay (stage cover, fire, 12.1 margin) give no money back; FR58 changed
   epic-12-retrospective: optional

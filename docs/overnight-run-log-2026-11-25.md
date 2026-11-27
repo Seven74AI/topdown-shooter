@@ -221,3 +221,10 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 11:24 Master CI green on 39781be5 (#28; first master run with the postgres job and the 30 s guard, 3:45).
 - 14:38 8.13 slow-line horde skip, PR #32 merged 572c3fd9 (fresh 3-layer review → 2 narrow re-reviews → main-session check; protocol 4; 64 kbit/s longest wait 8 s → ≤ 0.65 s in bots; CI green).
 - 14:46 Master CI green on 572c3fd9 (#32, protocol 4).
+- 17:10 12.1 + 12.4 PR #33 merged 73b8bea0 (fresh review → H1 = A by the designer → 2 re-reviews + 1 cap-exception re-review for a new high → main-session check; MEDIUM-1 over-clear accepted by the designer, A).
+- 18:43 Master CI green on 73b8bea0 (#33, 12.1 + 12.4).
+- 18:50 Epic 8 marked done (13/13); 9.15 marked done (PR #34). Next: 12.2 → 12.3 → 10.12 with Epic 10 (designer).
+- 23:10 12.2 extraction walk + lift-off, PR #36 merged e5aef083 (fresh review → fixes → narrow re-review clean; protocol 5). Timings, downed walk and horde size await the designer (balance only).
+- 23:18 Master CI green on e5aef083 (#36, 12.2). 12.3 builder started.
+- 00:14 (11-27) 12.3 extraction camera, PR #37 merged 10387c0b (light review + no-sim check; L1 fixed). Epic 12 stories all done. Open feel questions: 12.2 timings/downed/horde; 12.3 F1–F4 + pings.
+- 00:22 Master CI green on 10387c0b (#37). Epic 12 done (12.1–12.4).

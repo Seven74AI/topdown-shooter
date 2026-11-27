@@ -14,7 +14,7 @@ describe("Stories 8.2 + 8.3 client wiring", () => {
     expect(src).toMatch(/\(s\.heldUntilTick > 0 \|\| s\.waiting === true\) && id !== this\.localPlayerId\)\) removePlayer\(this\.world, id\)/);
     expect(src).toMatch(/if \(\(p\.heldUntilTick > 0 \|\| p\.waiting === true\) && id !== this\.localPlayerId\) return;/);
     expect(src).toMatch(/if \(s\.waiting === true\) p\.status = "out";/);
-    expect(src).toMatch(/if \(!this\.linkUp\(\) \|\| this\.waiting\) \{/);
+    expect(src).toMatch(/if \(!this\.linkUp\(\) \|\| this\.waiting \|\| this\.session\.room\.state\?\.phase === "extract"\) \{/); // Story 12.2: nor while extracting
     expect(src).toMatch(/return waitingView\(state\?\.players\?\.get\(this\.localPlayerId\), state\?\.phase\)\.waiting;/);
   });
 

@@ -46,7 +46,7 @@ describe("Story 7.6: accounts and devices (PGlite)", () => {
     const g = await setup(database, H("a"), { supplies: 340, lifetime: 500, unlocks: ["mine"], training: { max_hp: 2 } });
     const acc = accountsRepo(database);
     expect(await acc.setCredentials(g.id, { username: "Mo_42", passwordHash: "$argon2id$p", recoveryCodeHash: "$argon2id$r" })).toBe("ok");
-    expect(await acc.findByTokenHash(H("a"))).toEqual({ id: g.id, displayName: "", username: "Mo_42" });
+    expect(await acc.findByTokenHash(H("a"))).toEqual({ id: g.id, displayName: "", username: "Mo_42", isAdmin: false });
     expect(await acc.findByUsernameLower("mo_42")).toEqual({ id: g.id, username: "Mo_42", passwordHash: "$argon2id$p", recoveryCodeHash: "$argon2id$r" });
     expect(await progressRepo(database).get(g.id)).toMatchObject({ supplies: 340, lifetimeSupplies: 500, unlocks: ["mine"], training: { max_hp: 2 } });
     expect(await acc.setCredentials(g.id, { username: "other", passwordHash: "x", recoveryCodeHash: "y" })).toBe("not_guest");

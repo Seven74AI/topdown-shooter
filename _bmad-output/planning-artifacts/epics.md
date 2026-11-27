@@ -108,7 +108,7 @@ FR57: Hazards damage or slow what is inside them: fire zones (10 dmg/s to everyt
 
 **City decay**
 
-FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed with a 50% refund.
+FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed. (Story 12.4, designer 2026-11-25 "bad luck": no refund; was "with a 50% refund".)
 FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it darkens each stage), parked cars along curbs, lit shops.
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
 FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).
@@ -120,7 +120,7 @@ FR65: Each run has a seed that drives its random choices (which cars burn, which
 **Win, evacuation and endless**
 
 FR66: After the Behemoth dies, the team votes for 15 s: a majority of the connected, standing players wins; a tie or no counted votes means extract (Story 8.12: disconnected, downed and dead players don't count).
-FR67: Extract wins the run and keeps all rewards (the helicopter lifts off into 4 s of dawn, then Results); Stay starts endless waves in the collapsed city.
+FR67: Extract wins the run and keeps all rewards: the survivors walk to the helicopter and fly out (≤ 20 s), then Results (Story 12.2, 2026-11-26; was "the helicopter lifts off into 4 s of dawn"); Stay starts endless waves in the collapsed city.
 FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave before each evacuation vote (15, 20, 25…) with +25% HP each time; one event on each even endless wave without a Behemoth; a wipe before extracting loses rewards earned after wave 10.
 
 **Multiplayer**
@@ -1440,6 +1440,7 @@ So that wave 5 doesn't play like wave 1.
 **Given** a building on a cell that becomes blocked
 **When** the stage is applied
 **Then** the building is destroyed and its owner is refunded 50% of its price
+*(As built, Story 12.4, 2026-11-26: no refund; the building is simply lost and the owner sees "Lost to the collapse". Story 12.1 AC 6 also clears walls within 0.8 m of new cover.)*
 
 **Given** `decay.stage_changed` on the client
 **When** it arrives
@@ -1448,7 +1449,7 @@ So that wave 5 doesn't play like wave 1.
 
 **Given** the decay engine
 **When** Vitest runs
-**Then** tests cover stage timing, each mutation action, building destruction with refund, and same-seed variation choices
+**Then** tests cover stage timing, each mutation action, building destruction with refund, and same-seed variation choices *(as built, Story 12.4: destruction with no refund)*
 
 ### Story 4.6: Evening
 
@@ -2183,7 +2184,7 @@ So that the map squeezes us as the city breaks.
 **Given** the build phase before wave 7
 **When** stage 4 is applied
 **Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
-**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53) *(as built, Story 12.4, 2026-11-26: no refund, FR58)*
 **And** rubble also stops melee and shields blasts (like cars); lobbed rounds (launcher, grenade, molotov) fly over it, because rubble is not `building: true`
 **And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
@@ -2425,7 +2426,7 @@ So that we choose together how much to risk.
 
 **Given** Extract
 **When** chosen
-**Then** the helicopter lifts off, the first light of dawn rises over the district for 4 s (designer, 2026-11-22), then the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
+**Then** the helicopter lifts off, the first light of dawn rises over the district for 4 s (designer, 2026-11-22), then the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67) *(as built by Story 12.2: Extract starts the extraction phase first — the survivors walk to the helicopter, board, it lifts off and flies out over the horde (≤ 20 s), then the dawn and Results)*
 
 **Given** Stay
 **When** chosen
@@ -3291,12 +3292,12 @@ So that I can read my teammates' roles and state at a glance.
 *(Re-based 2026-11-26, correct-course: attack and death animations, plus a photoreal Behemoth — the Behemoth part moved to Story 9.15 the same day. Walk loops for Walker, Runner and Crawler, breathing, glow, Bloater veins and Spitter drips are done in 9.13.)*
 
 As a player,
-I want every zombie to attack and die visibly, and the Behemoth to match the rest,
+I want every zombie to attack and die visibly,
 So that I can read the fight in the crowd and the dark.
 
 **Acceptance Criteria:**
 
-**Given** proposal pages for the attack and death animations and for a photoreal Behemoth (relit like 9.13, keeping its silhouette and every telegraph)
+**Given** proposal pages for the attack and death animations
 **When** the designer picks
 **Then** the picks are recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
 
@@ -3306,9 +3307,7 @@ So that I can read the fight in the crowd and the dark.
 **And** death animations are client-only, pooled and capped (a `controls.fx` cap, `?fx=low` halves it); beyond the cap a zombie vanishes with today's splat
 **And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
-**Given** the Behemoth
-**When** it is drawn
-**Then** it uses the approved photoreal look (worker relight, code drawing as fallback) for its walk, slam, charge, throw, stun / roar and enrage poses, and its telegraphs (ring, hatching, P1 warning display) read the same as today on the readability sheet
+*(The photoreal Behemoth AC moved to Story 9.15, merged 2026-11-26 as PR #34; 9.15's "Covers from 9.4" section lists what it took. 9.4 keeps the attack and death animations of the six zombie types.)*
 
 **Given** 150 animated zombies in view, with deaths at the cap
 **When** the `?stress=150` test runs the 9.13 way
@@ -3994,6 +3993,7 @@ So that my team can't build a sealed fort, and there's always a way through for 
 **Given** a decay stage adds solid cover (4.2 `minStage`, a 4.8 wreck or rubble)
 **When** `destroyBlockedBuildings` runs at the build start
 **Then** every wall-type building closer than 0.8 m (one player body) to the new cover is destroyed with no refund (12.4), in building-id order, with the owner toast "Your barricade was cleared by the collapse"
+**And** a decay stage re-checks paths; walls that now seal are cleared (review H1, designer-decided 2026-11-26: A): a spot that was in the main region before the stage, is still free and is now cut off by walls (the map alone still joins it) gets the walls nearest it cleared, highest id first, same cause, toast and no refund
 **And** saves and replays that already hold a sealed fort still load; bots handle `"seals_path"`
 
 ### Story 12.2: Extraction: walk to the helicopter and lift off

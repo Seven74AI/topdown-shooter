@@ -37,6 +37,7 @@ import {
   type BloodPic,
   type MuzzleKind,
 } from "./gunfire-art";
+import * as G from "./gunfire-g";
 
 const DEG = Math.PI / 180;
 const on = (st: Stage, part: string): boolean => st.only === null || st.only === part;
@@ -198,7 +199,7 @@ const MZ: FxCard = {
     barrel(g, mzX(st), mzRowY(st, i), st.pxm, r.kind === "turret" ? 0.25 : 0.4);
     label(g, r.name, mzX(st) - 0.5 * st.pxm, mzRowY(st, i), st.pxm, "right");
   }),
-  looks: [mzNow(), mzTake("MZ-A"), mzTake("MZ-B")],
+  looks: [mzNow(), mzTake("MZ-A"), mzTake("MZ-B"), G.mzG()],
   plan: {
     goal: "Every shot reads at once as a hot burst at the gun, sized by the weapon, then gets out of the way of the target.",
     timing: "Flash 50 ms (<code>MUZZLE_MS</code>, FxView.ts), 3 game frames. Light pool 80 ms. Smoke 0.03–0.68 s. Next shot: SMG 83 ms, rifle 167 ms, pistol 333 ms.",
@@ -355,7 +356,7 @@ const SG: FxCard = {
   aspect: 0.6,
   origin: [0.14, 0.5],
   under: (g, _t, st) => barrel(g, st.cx, st.cy, st.pxm, 0.55),
-  looks: [sgNow(), sgTake()],
+  looks: [sgNow(), sgTake(), G.sgG()],
   plan: {
     goal: "Read the spray: a short, wide, violent cone that shows where the pellets went, then clears so you see what it hit.",
     timing: "Cone 110 ms (<code>BLAST_MS</code>), pellets ≈ 83 ms (5 m at 60 m/s), flash 50 ms. Next shot 0.83 s (1.2/s). Smoke ends before it.",
@@ -470,7 +471,7 @@ const TR: FxCard = {
   aspect: 0.45,
   origin: [0.02, 0.5],
   under: (g, _t, st) => TR_LANES.forEach((l) => label(g, l.name, st.cx + 0.2 * st.pxm, st.cy + (l.dy - 0.3) * st.pxm, st.pxm)),
-  looks: [trNow(), trTake()],
+  looks: [trNow(), trTake(), G.trG()],
 };
 
 /* ======================================================================================================== HT */
@@ -580,7 +581,7 @@ const HT: FxCard = {
   aspect: 0.6,
   origin: [0.45, 0.5],
   under: (g, _t, st) => body(g, htZombie(), htZx(st), st.cy, HT_Z, st.pxm, Math.PI),
-  looks: [htNow(), htTake()],
+  looks: [htNow(), htTake(), G.htG()],
   plan: {
     goal: "You know you hit, and from which side, without losing sight of what you hit.",
     timing: "Flash 80 ms (Brute 160 ms) (<code>ZombieView.ts › FLASH_MS</code>). Mist 0–0.22 s, drops land at 0.11 s, marks fade over 3 s.",
@@ -709,7 +710,7 @@ const BL: FxCard = {
   keyT: [0.03, 0.12, 0.35, 1.5],
   viewM: 2.4,
   aspect: 0.75,
-  looks: [blNow(), blTake("BL-A"), blTake("BL-B")],
+  looks: [blNow(), blTake("BL-A"), blTake("BL-B"), G.blG()],
   plan: {
     goal: "The kill lands: a burst you feel, then a mark that tells the street what happened here.",
     timing: "Puff 200 ms (<code>PUFF_MS</code>); splat fades over 10 s (<code>SPLAT_FADE_MS</code>), 200 kept. Take: mist 0–0.32 s, drops land at 0.13 s, pool spreads 0–0.3 s, gloss dries 0.8–5 s.",
@@ -822,7 +823,7 @@ const BT: FxCard = {
   viewM: 5.5,
   aspect: 0.4,
   origin: [0.08, 0.5],
-  looks: [btNow(), btTake()],
+  looks: [btNow(), btTake(), G.btG()],
 };
 
 /* ======================================================================================================== ML */
@@ -936,7 +937,7 @@ const ML: FxCard = {
       g.fill();
       label(g, m.name, x, y + 0.45 * st.pxm, st.pxm, "center");
     }),
-  looks: [mlNow(), mlTake()],
+  looks: [mlNow(), mlTake(), G.mlG()],
   plan: {
     goal: "Read the cut: which way the blade went and exactly what it could reach.",
     timing: "Machete 120 ms, axe 200 ms (<code>SWING_MS</code>, <code>AXE_SWING_MS</code>). Sweep: 60 ms (4 frames) / 90 ms, then fade to the same end.",
@@ -1051,7 +1052,7 @@ function csTake(): Look {
   return {
     code: "CS-A",
     title: "hot sparks, heavy blood",
-    note: "Same sparks, same numbers, as hot streaks stretched along their flight and cooling from white-yellow to dull red as they die (light, added); a flicker of light at the blade. Blood as dark red-brown drops that fly shorter (heavier), land and stay (cap 8 marks), and a small mist at each cut. The wedge stays (the sim's sector), a little fainter.",
+    note: "Same sparks, same numbers, as hot streaks cooling from white-yellow to dull red (light, added); a flicker of light at the blade. <b>More blood</b> (designer 2026-11-26, \"I'd like more blood\"): every cut throws a dark red-brown mist and a spray of 6 heavy drops away from the blade (3 with ?fx=low); they land as splats and stay (the last 24), and a wet smear grows under the cut while the saw bites. The wedge stays (the sim's sector), a little fainter.",
     bake: async () => {
       if (wedge) return;
       wedge = slice(CS_RANGE, CS_HALF, "#ffc98a", 0.11, P);
@@ -1073,13 +1074,31 @@ function csTake(): Look {
       if (on(st, "light")) sprite(g, pool!, st.cx + CS_TIP * st.pxm, st.cy, 1.3, st.pxm, 0, (0.3 + 0.15 * Math.abs(Math.sin(tick * 2.7))) * (1 - 0.6 * tk / 0.1), true);
       if (on(st, "blood") && tk < 0.2) sprite(g, mist!, st.cx + (CS_TIP + 0.12) * st.pxm, st.cy, 0.12 + tk * 1.5, st.pxm, tick, 0.45 * (1 - tk / 0.1));
       const sparks = csSparks(1, st.low);
-      // blood marks: the last 8 that landed
+      // more blood (designer 2026-11-26): a smear grows under the cut, a heavy spray per cut, splats stay (last 24)
       if (on(st, "blood")) {
-        const landed = sparks.filter((s) => s.blood && t - s.born >= s.life).slice(-8);
-        landed.forEach((s, i) => {
-          const [x, y] = csPos(s, s.life, 9);
-          sprite(g, drop[i % 2]!, st.cx + x * st.pxm, st.cy + y * st.pxm, 0.055, st.pxm, i, 0.8);
-        });
+        const tipX = st.cx + (CS_TIP + 0.1) * st.pxm;
+        sprite(g, drop[1]!, tipX + 0.55 * st.pxm, st.cy + 0.08 * st.pxm, 0.2 + 0.35 * Math.min(1, t / 0.9), st.pxm, 0.6, 0.8); // the smear on the street behind the target
+        sprite(g, mist!, tipX + 0.2 * st.pxm, st.cy, 0.25 + tk * 3.5, st.pxm, tick * 1.7, 0.45 * (1 - tk / 0.1));
+        const n = st.low ? 3 : 6;
+        const marks: [number, number, number, number][] = [];
+        for (let k = 0; k <= tick; k++) {
+          for (let j = 0; j < n; j++) {
+            const h = (k * 97 + j * 31 + 7) % 1000;
+            const r1 = ((h * 7919) % 1000) / 1000;
+            const r2 = ((h * 104729) % 1000) / 1000;
+            const r3 = ((h * 1299709) % 1000) / 1000;
+            const ang = (r1 - 0.5) * 1.9 + (j % 2 ? 0.25 : -0.25); // away from the blade, ±55°
+            const sp = 2.2 + r2 * 2.6; // m/s: drops cross the body and land on the street behind it (0.5–1.2 m)
+            const life = 0.22 + r3 * 0.16;
+            const age = t - k * 0.1;
+            const d = 0.15 + (sp * (1 - Math.exp(-4 * Math.min(age, life)))) / 4;
+            const x = tipX + Math.cos(ang) * d * st.pxm;
+            const y = st.cy + Math.sin(ang) * d * st.pxm;
+            if (age >= life) marks.push([x, y, 0.07 + r3 * 0.08, h]);
+            else if (age >= 0) sprite(g, drop[j % 2]!, x, y, 0.06 + r2 * 0.03, st.pxm, ang, 0.95);
+          }
+        }
+        marks.slice(-24).forEach(([x, y, w, h]) => sprite(g, drop[h % 2]!, x, y, w, st.pxm, h, 0.85));
       }
       for (const sp of sparks) {
         const age = t - sp.born;
@@ -1087,7 +1106,7 @@ function csTake(): Look {
         if (sp.blood) {
           if (!on(st, "blood")) continue;
           const [x, y] = csPos(sp, age, 9);
-          sprite(g, drop[0]!, st.cx + x * st.pxm, st.cy + y * st.pxm, 0.05, st.pxm, 0, 0.95);
+          sprite(g, drop[0]!, st.cx + x * st.pxm, st.cy + y * st.pxm, 0.07, st.pxm, 0, 0.95);
           continue;
         }
         if (!on(st, "sparks")) continue;
@@ -1122,7 +1141,7 @@ const CS: FxCard = {
   game:
     "<code>FxView.sawCut</code> every tick (10/s): the wedge (#ffc98a at 0.16, 60° × 1.5 m, fade 140 ms) and <code>meleeFx.ts › SparkPool.spawn</code> at the blade tip (0.75 × range): per cut <code>chainsawSparksPerHit</code> 4 steel + 2 blood (a miss: 1 steel), ±60° around the blade's side, 2–5 m/s with drag, life 0.6–1 × <code>chainsawSparkMs</code> 180 ms, cap <code>maxChainsawSparks</code> 32; drawn as 0.1 m squares (#ffe2a0 / #8a1010) in one Graphics, alpha by life left.",
   perf:
-    "CS-A: 3 spark streaks 32 × 8, 2 drops 16², a 48² light, a 40² mist (≈ 20 KB). Sparks: same pool (32), drawn as images (or kept in the one Graphics with lines: no textures at all). New: ≤ 8 blood marks (a ring) and one blade light + one mist per cut. <code>?fx=low</code>: 2 steel + 1 blood per cut.",
+    "CS-A: 3 spark streaks 32 × 8, 2 drops 16², a 48² light, a 40² mist (≈ 20 KB). Sparks: same pool (32), drawn as images (or kept in the one Graphics with lines: no textures at all). New (more blood): 6 blood drops per cut (≤ 18 in the air at 10 cuts/s), ≤ 24 blood splats that stay (a ring), one smear under the cut, one blade light + one mist per cut. <code>?fx=low</code>: 2 steel + 1 blood spark, 3 drops per cut.",
   findings: [
     "Square sparks (0.1 m = 3.6 px) read as pixels, not sparks: nothing shows their motion.",
     "Chainsaw blood #8a1010 is a fourth blood colour (see BL).",
@@ -1141,7 +1160,7 @@ const CS: FxCard = {
     g.arc(st.cx - 0.15 * st.pxm, st.cy, 0.2 * st.pxm, 0, Math.PI * 2);
     g.fill();
   },
-  looks: [csNow(), csTake()],
+  looks: [csNow(), csTake(), G.csG()],
   plan: {
     goal: "Feel the saw biting: a steady spray of hot sparks at the blade, blood when it cuts flesh, never a cloud that hides the target.",
     timing: "A cut every 0.1 s; sparks live 108–180 ms (<code>chainsawSparkMs</code>), cap 32; wedge 140 ms. Shown: 1 s of cutting a zombie.",
@@ -1152,7 +1171,7 @@ const CS: FxCard = {
       matter: [
         { t0: 0, t1: 1, label: "sparks: white → orange → red as they die (6 per cut)", nw: true },
       ],
-      mark: [{ t0: 0.15, t1: 1, label: "blood drops land and stay (last 8)", nw: true }],
+      mark: [{ t0: 0.15, t1: 1, label: "blood splats land and stay (last 24); the smear grows under the cut", nw: true }],
       game: [{ t0: 0, t1: 1, label: "damage every tick, rev sound" }],
     },
   },
@@ -1352,7 +1371,7 @@ const BF: FxCard = {
     const [x, y] = bfAt(st, s);
     label(g, BF_NAMES[s], x, y + (s === "sold" || s === "debris" ? 1.15 : 0.95) * st.pxm, st.pxm, "center");
   }),
-  looks: [bfNow(), bfTake()],
+  looks: [bfNow(), bfTake(), G.bfG()],
   plan: {
     goal: "Each building event reads at a glance (what happened, to which building) without becoming a firework; a broken one leaves its wreck.",
     timing: "Repair / upgrade 450 ms (<code>REPAIR_MS</code>), snap 180 ms (<code>SNAP_MS</code>), sold 200 ms (<code>SOLD_MS</code>), debris 450 ms (<code>DEBRIS_MS</code>). Take: splinters land at 0.45 s and fade over 4 s.",
@@ -1371,6 +1390,23 @@ const BF: FxCard = {
     },
   },
 };
+
+/** The goal-first takes' numbers and findings (gunfire-g.ts), appended to each card. */
+const G_EXTRA: readonly [FxCard, string, readonly string[]][] = [
+  [MZ, G.MZ_G_PERF, G.MZ_G_FINDINGS],
+  [SG, G.SG_G_PERF, G.SG_G_FINDINGS],
+  [TR, G.TR_G_PERF, G.TR_G_FINDINGS],
+  [HT, G.HT_G_PERF, G.HT_G_FINDINGS],
+  [BL, G.BL_G_PERF, G.BL_G_FINDINGS],
+  [BT, G.BT_G_PERF, G.BT_G_FINDINGS],
+  [ML, G.ML_G_PERF, G.ML_G_FINDINGS],
+  [CS, G.CS_G_PERF, G.CS_G_FINDINGS],
+  [BF, G.BF_G_PERF, G.BF_G_FINDINGS],
+];
+for (const [c, perf, f] of G_EXTRA) {
+  c.perf += perf;
+  (c as { findings?: readonly string[] }).findings = [...(c.findings ?? []), ...f];
+}
 
 export const cards: FxCard[] = [MZ, SG, TR, HT, BL, BT, ML, CS, BF];
 void countSprite;

@@ -4,7 +4,7 @@ baseline_commit: 1729ac5
 
 # Story 12.1: Buildings never close a path (no forts)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Quick story 2026-11-25 from a designer decision in the party-mode session on cinematics. A building rule for every phase, and a prerequisite for 12.2 (the extraction walk always has a path). Rewritten the same day: walls stay solid; placement prevents the fort. -->
 
@@ -29,6 +29,7 @@ so that my team can't build a sealed fort, and there's always a way through for 
 4. **Chained and pending placements.** The server checks each placement in arrival order against the buildings already placed (5.18's place-place-place chain under lag). A pending placement that becomes illegal because an earlier one landed is refused like any other block.
 5. **Only walls count.** Floor types (`solid: false`: spike trap, mine, bear trap) never block a path and are never refused by this rule.
 6. **Map changes over the run: buildings too close to new cover go** (designer 2026-11-25). The placement check only uses the map as it is now. When a decay stage adds solid cover (Story 4.2 `minStage`; also any solid wreck or rubble a 4.8 breakdown or fire leaves), **every building whose box is closer than one player body (`2 × player.radiusM` = 0.8 m) to the new cover is destroyed**, whether or not it would actually seal a path. No path search is needed: a building can never end up squeezing a gap below player width against new cover.
+   - **A decay stage re-checks paths; walls that now seal are cleared** (review H1, designer-decided 2026-11-26: option A). After the stage's mutations and the 0.8 m clearing, the path rule runs again: a spot that was in the main region before the stage, is still free, and is now cut off by walls (while the map alone still joins it) gets the wall nearest it cleared (highest building id first, again until nothing is cut), cause `cleared`, no refund, the same toast. The 0.8 m margin stays (the re-check also covers wider gaps the grid reads as closed, e.g. 0.85 m).
    - **No refund** (Story 12.4): the building is simply lost; `building.destroyed` is emitted as for any decay loss.
    - **Where:** inside `destroyBlockedBuildings` (`decay/decaySystem.ts`). Today it destroys buildings that *overlap* new solids; this widens "overlap" to "within 0.8 m". Same build-phase start, same order (building id), so every phone and every replay agrees.
    - **Floor types** (traps, mines) are not affected: they never block.
@@ -55,17 +56,17 @@ Added 2026-11-26 (clashes X3, X4, X5, X10; designer "ok" 2026-11-26, `sprint-cha
 
 ## Tasks
 
-- [ ] `packages/shared/src/buildings/pathOpen.ts` (new): the player-clearance flood fill and `sealsPath(world, box, exceptId)` (AC 2, 5, 6, 9).
-- [ ] `buildings.ts`: call it from `placeBuilding` and `blockReason`; new error and cause values (AC 2, 7).
-- [ ] `move.ts`: same check (AC 3).
-- [ ] `decay/decaySystem.ts`: widen the overlap test to a 0.8 m margin (AC 6), plus the owner toast.
-- [ ] Client: ghost refusal line, pocket highlight (AC 7), cache (AC 9).
-- [ ] Bots (AC 11).
-- [ ] Tests (AC 8, 12).
-- [ ] Shared rasteriser + escape-agreement test (AC 13).
-- [ ] Bot-sim before/after table + Brute forced-gap test (AC 14).
-- [ ] Dev fort bypass comment (AC 15).
-- [ ] Headless 4× CPU timing, Downtown + 140 × 140 grid (AC 16).
+- [x] `packages/shared/src/buildings/pathOpen.ts` (new): the player-clearance flood fill and `sealsPath(world, box, exceptId)` (AC 2, 5, 6, 9).
+- [x] `buildings.ts`: call it from `placeBuilding` and `blockReason`; new error and cause values (AC 2, 7).
+- [x] `move.ts`: same check (AC 3).
+- [x] `decay/decaySystem.ts`: widen the overlap test to a 0.8 m margin (AC 6), plus the owner toast.
+- [x] Client: ghost refusal line, pocket highlight (AC 7), cache (AC 9).
+- [x] Bots (AC 11).
+- [x] Tests (AC 8, 12).
+- [x] Shared rasteriser + escape-agreement test (AC 13).
+- [x] Bot-sim before/after table + Brute forced-gap test (AC 14).
+- [x] Dev fort bypass comment (AC 15).
+- [x] Headless 4× CPU timing, Downtown + 140 × 140 grid (AC 16).
 
 ## Dev Notes
 
@@ -73,3 +74,159 @@ Added 2026-11-26 (clashes X3, X4, X5, X10; designer "ok" 2026-11-26, `sprint-cha
 - Consequence: since there's always a player-sized gap, zombies of the same size can use it too. Brutes and wide bodies may not fit. The designer said zombies don't matter here.
 - CN-1 settled: AC 6 (destroy buildings within one player body of new cover; no refund, Story 12.4). CN-2 accepted by the designer: highlight the pocket a refused placement would close.
 - AC 6 builds on FR58: decay already destroys buildings that end up under new cover.
+
+## Dev Agent Record
+
+Builder: cloud session, branch `story-12-1` (one PR with Story 12.4), 2026-11-26. Built with `gds-dev-story`.
+
+### Decisions
+
+No decision was left open in this story file (CN-1, CN-2 settled). Builder decisions, each the recommended/minimal option, **auto-accepted (designer 2026-11-26: follow recommendations)** unless marked otherwise:
+
+- **D1 the grid** (**designer-confirmed 2026-11-26**, "ok": the strict gap rule may refuse a placement that still leaves a narrow way through, but never allows a real seal). The check floods the vertices of the 0.5 m build lattice (97 × 65 on Downtown) at player clearance: a vertex is free when a 0.4 m body centred there overlaps no box and stays in the map; two neighbours are joined when the body slides between them (exact box-to-segment clearance). A lattice gap between buildings is open exactly when ≥ 1.0 m (0.5 m: closed). Between a building and a map solid it is conservative: 0.8–0.9 m can read closed, never the reverse (a grid path is always a real path). A pocket with no lattice vertex inside (only possible between map solids) isn't tracked.
+- **D2 "before" region.** Refused iff a vertex of the evac pad's region **before** the placement is still free but no longer joined to it. Map nooks the grid already reads as closed, and the inside of an old save's fort (AC 10), never refuse anything. A map without an `evac_pad` anchors at team start 0.
+- **D3 shared rasteriser (AC 13).** `collision.ts` exports the two clearance helpers (`bodyFitsInMap`, `segmentNearBox`, plus the existing `circleOverlapsBox`); `pathOpen.ts` and the escape's flood both use them. For a **player's body** (an explicit `playerBody` flag on `pushOutOfBuildings`, passed by player movement and knockback) the escape's flood is snapped to the lattice in a 100-cell window. The agreement is **one way**: a spot the placement check calls open is open for the escape's player flood (the AC 13 test); the reverse is not promised (the check is the stricter of the two between a building and a map solid). Every other body keeps the unsnapped 98-cell window and reach (snapping zombies too broke three tuned escape tests), and since review M2 a test pins zombie escapes to a digest computed on master `d8ffaee` (`escapeZombieGolden.test.ts`).
+- **D4 highlight.** The pocket fill is the smaller side of the cut: for a ring round the pad the cut-off part is the whole rest of the map, so the ring's inside is filled instead.
+- **D5 decay-loss cause.** `building.destroyed` gets an optional `cause` (`collapse` | `fire` | `cleared`), appended to the existing net tuple (index + 1); no new net kind. The toast for `cleared` says "barricade" for the barricade types, else "building".
+- **D6 pending placements.** The client preview judges the seal against the World without my pending boxes (5.18); the server judges in arrival order (AC 4), so a chained Place that becomes illegal is refused with the toast "Leave a way through".
+
+### Implementation notes
+
+- `packages/shared/src/buildings/pathOpen.ts` (new): `sealsPath(world, box, exceptId)`, `sealedPocket`. Module buffers sized to the largest map (no allocation per call). Caches: map-solid layer per (World, `obstacles.version`), before-flood per (`buildings.wallVersion`, moved id), last answer per box (AC 9's ghost cache: same cell + rotation + wall version → no flood).
+- `buildings.ts`: `PlaceError` / `BlockCause` + `seals_path`; `placementError` checks it last (walls only, AC 5); `blockReason(…, wall)` explains it (index = the pocket's first vertex, id = its size, so a new pocket is a new reason). `move.ts`: `MoveError` + `seals_path`, judged with the building lifted (AC 3).
+- `decaySystem.ts`: `decayMutate` copies the solids before the mutations; `destroyBlockedBuildings(world, fires, before)` also removes every wall closer than `2 × player.radiusM` (box to box) to a solid not in `before` (AC 6), no refund, cause `cleared`. Floor types only go by overlap.
+- Client: "Leave a way through" (`SEALS_PATH_TEXT`, placement refusal, reason line, move refusal), the soft red pocket fill (`BlockReasonView`, from `Placement.pocketCells`), the decay-loss toast (`decayLossText`). Over-the-wire bots treat `seals_path` like `blocked` (next spot); headless bots already try the next candidate on any refusal (AC 11).
+- AC 15: comment on `placeStressFort` (it uses `addBuildingAt` + `footprintBlocked` only; verified, `stressScenario.ts:392`).
+
+### Tests
+
+- `buildings/pathOpen.test.ts` (new, 21): ring round the pad (closing piece refused; 1.0 m gap ok; two 0.5 m gaps refused; highlight = the ring's inside, 49 vertices); ring round a teammate (pocket highlighted inside the ring); 0.7 m gap against a map solid refused, 0.9 / 1.0 m allowed; corner against the map edge and against a map solid refused; floor types never refused; old sealed fort (AC 10); move into the gap refused, a ring piece moved along allowed (lifted), own spot ok; chained turrets (AC 4); AC 8 fuzz: 6 Downtown layouts × 600 spots, the client's `blockReason(…, wall)` asked twice (cache) equals the server's cold `placementError`; AC 13 (one way: check-open ⇒ escape-open): 4 Downtown layouts built only from accepted placements near the pad, every main-region vertex within 3 m of a building is open for the escape's player flood (`escapeAreaOpen`), with liveness (seal refusals happened); AC 6: new cover 0.5 m from a barricade destroys it (cause `cleared`, no money), 1.0 m / 1.41 m / 1.5 m stay, a mine 0.2 m away stays.
+- `zombies/wideBodyStall.test.ts`: AC 14's "Brute at a forced 0.8 m gap" (built with no checks between a map wall and a barricade; a player fits): the Brute never squeezes in, never stands still > 4 s, and breaks a barricade within 45 s.
+- `decay/decay.test.ts`: 4.5's "a path can still be closed" is now the 12.1 rule (the piece leaving 0.5 m is refused with `seals_path`; a body-wide line stays open). `map/evening.test.ts`: the shop-front build spot keeps 0.8 m from every box a later stage adds. `net/netEvents.test.ts`: the three causes round-trip. Client: `placement.test.ts` (seals_path shown with its pocket), `blockText.test.ts` (texts).
+- The sealed-fort escape tests (`collision.test.ts`, `relocationPinned.test.ts`) are unchanged and pass.
+
+### AC 14: 10-wave bot sim, before → after
+
+Mortal runs, `runHeadless` on Downtown, 1–4 bots × seeds 1–3 (bots build round where they stand, by the pad). Wall damage = HP lost by wall buildings during waves. AC 14 asks for "zombies through gaps", which the sim doesn't measure directly; the column **"zombies reaching a player"** (distinct zombies that bit a player) stands in for it (bites = `player.damaged` from a zombie; solo bots mostly die to Spitter acid). Script: `tools/sims/wallSim.ts` (committed with review L6).
+
+**Before** (master `d8ffaee`):
+
+| bots | seed | ending | waves cleared | walls placed | wall damage taken (HP) | walls broken | zombies reaching a player | zombie bites | wiped |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | wiped | 3 | 2 | 0 | 0 | 0 | 0 | yes |
+| 1 | 2 | wiped | 5 | 3 | 0 | 0 | 0 | 0 | yes |
+| 1 | 3 | wiped | 6 | 3 | 80 | 0 | 2 | 2 | yes |
+| 2 | 1 | wiped | 8 | 8 | 800 | 2 | 0 | 0 | yes |
+| 2 | 2 | wiped | 9 | 7 | 1600 | 7 | 1 | 3 | yes |
+| 2 | 3 | wiped | 9 | 7 | 1400 | 5 | 6 | 6 | yes |
+| 3 | 1 | wiped | 9 | 9 | 360 | 1 | 0 | 0 | yes |
+| 3 | 2 | wiped | 9 | 11 | 1500 | 6 | 1 | 1 | yes |
+| 3 | 3 | wiped | 3 | 7 | 0 | 0 | 19 | 21 | yes |
+| 4 | 1 | wiped | 9 | 13 | 2140 | 8 | 0 | 0 | yes |
+| 4 | 2 | wiped | 9 | 15 | 3200 | 14 | 1 | 1 | yes |
+| 4 | 3 | extracted | 10 | 13 | 1640 | 7 | 3 | 3 | no |
+| **all** | 12 runs | | 89 | 98 | 12720 | 50 | 33 | 37 | 11 |
+
+**After** (12.1 + 12.4; 12.1 alone gives the identical table — 12.4 changes no bot behaviour here):
+
+| bots | seed | ending | waves cleared | walls placed | wall damage taken (HP) | walls broken | zombies reaching a player | zombie bites | wiped |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | wiped | 3 | 2 | 0 | 0 | 0 | 0 | yes |
+| 1 | 2 | wiped | 5 | 3 | 0 | 0 | 0 | 0 | yes |
+| 1 | 3 | wiped | 6 | 4 | 80 | 0 | 2 | 2 | yes |
+| 2 | 1 | wiped | 8 | 8 | 800 | 2 | 0 | 0 | yes |
+| 2 | 2 | wiped | 9 | 7 | 1600 | 7 | 1 | 3 | yes |
+| 2 | 3 | wiped | 9 | 7 | 1400 | 5 | 6 | 6 | yes |
+| 3 | 1 | wiped | 9 | 9 | 360 | 1 | 0 | 0 | yes |
+| 3 | 2 | wiped | 9 | 11 | 1500 | 6 | 1 | 1 | yes |
+| 3 | 3 | wiped | 3 | 7 | 0 | 0 | 19 | 21 | yes |
+| 4 | 1 | wiped | 9 | 13 | 2140 | 8 | 0 | 0 | yes |
+| 4 | 2 | wiped | 9 | 15 | 3200 | 14 | 1 | 1 | yes |
+| 4 | 3 | wiped | 9 | 15 | 780 | 3 | 3 | 3 | yes |
+| **all** | 12 runs | | 88 | 101 | 11860 | 46 | 33 | 37 | 12 |
+
+Only two runs differ. 1 bot seed 3: 12.1's margin cleared the bot's turret at the build start before wave 6; it rebuilt one (the extra wall) and so skipped a revive kit. 4 bots seed 3: at the stage-3 build start (before wave 5) 12.1's margin cleared one bot barricade 0.5 m from new cover; the bot rebuilt elsewhere, the run diverged and the team wiped in wave 10 instead of extracting (wall damage 1,640 → 780, walls broken 7 → 3). A placement-by-placement diff of that run shows every bot placement identical up to that clearing (so no `seals_path` refusal changed anything before it); `seals_path` refusals were not counted across the other runs. Totals: wall damage 12,720 → 11,860 HP, walls broken 50 → 46, zombies reaching a player 33 → 33, wipes 11 → 12 of 12. Input for 10.8: no sign that the rule weakens the bots' defence beyond that one butterfly.
+
+### AC 9 / AC 16: timing (headless Chromium, `Emulation.setCPUThrottlingRate`)
+
+24 walls placed through the real check, 400 random wood spots; machine load average ≈ 1.1–1.3 (4 cores) during the runs. Harness: `tools/sims/pathOpenBench.ts` (+ `.entry.ts`, committed with review L6). Two more runs after the review fixes (fresh container, load ≈ 0.7): Downtown ×4 per placement 0.56–0.64 ms, new spot 0.16–0.18 ms, fully cold 1.90–2.29 ms; 70 × 70 m ×4 per placement 1.84–2.91 ms, new spot 0.91–1.39 ms.
+
+| Map | Vertices | Per server placement (map layer cached, walls + 2 floods) | Client new ghost spot (before cached, 1 flood) | Ghost held still | Fully cold (map layer rebuilt: once per decay change) |
+| --- | --- | --- | --- | --- | --- |
+| Downtown 48 × 32 m, ×1 | 6,305 | 0.115 ms | 0.040 ms | ~0 | 0.39 ms |
+| Downtown 48 × 32 m, **×4** | 6,305 | **0.49–0.56 ms** | **0.17 ms** | ~0 | 1.77 ms |
+| 70 × 70 m (140 × 140 cells), ×1 | 19,881 | 0.43 ms | 0.21 ms | ~0 | 0.56 ms |
+| 70 × 70 m (140 × 140 cells), ×4 | 19,881 | 1.93–1.97 ms | 0.95–1.07 ms | ~0 | 2.39–2.48 ms |
+
+Downtown meets < 1 ms at 4× for every check a placement or a drag makes. The fully cold path (1.8 ms at 4×) happens once after a decay stage changes the map. Epic 11's 70 × 70 m maps are about 2 ms per placement at 4× (recorded, not a target). The reference-phone wording of AC 9 stays parked.
+
+### Browser check
+
+Headless Chromium, mobile emulation, dpr 2, Practice solo (`?wallet=5000`), Vite on its own port (5421, stopped by PID). A wood ring round the pad laid in the solo World but for one piece; the ghost pinned on the closing spot. Shots in `docs/art/12-1/` (README): `12-1-ghost-{844x390,568x320}.png` (red ghost, "Leave a way through", the ring's inside filled soft red) and `12-1-refusal-toast-{844x390,568x320}.png` (after Place the solo host refuses it and the toast reads "Leave a way through"). No console or page errors. Not verified in a browser: the online path (the refusal comes back as `building.refused`, same text) and the decay-loss toasts (unit-tested texts; the event path is the same loop as other toasts).
+
+### Review fixes (PR #33 review, 2026-11-26: 1 high, 3 medium, 7 low)
+
+- **H1** (a decay stage can finish a seal the walls started): **designer-decided 2026-11-26: A** (re-check paths after each decay stage). `pathOpen.ts › captureStageRegion` keeps the main region just before a build start's mutations; after them (and the 0.8 m clearing) `decaySystem.ts › clearStageSeals` asks `stageCutWall` for the highest-id wall within `player.radiusM + BUILD_GRID_M` of a vertex that was in the main region, is still free, is cut off by walls and is joined in the map-only layer, clears it (cause `cleared`, no refund, toast "Your barricade was cleared by the collapse") and asks again until nothing is cut. It runs in the DecaySystem (server and solo); the client mirror and the Predictor follow the removal like every decay loss (`applyDecayStage` has no side effects on buildings by design). Build starts only, module buffers (no allocation per tick). The 0.8 m margin stays: the re-check also covers the 0.85 m flip case. Tests (`pathOpen.test.ts` "H1"): the review's parking-lot layout (Downtown, five wood walls at (20, 22) and (19.5, 24/26/28/30) rot 1, variants 1 << 10, stages 2 → 4: 208 vertices sealed before the fix, 0 after, a wall cleared, wallets unchanged), the 0.85 m gap after new cover (35 → 0, highest id first, no money), and a stage that seals nothing clears nothing. Both regressions fail on the previous head. CI caught a cost: the capture ran at every build start, and `shopCards.test.ts` (2,000 build starts, no buildings) went from ~4 s to 35 s locally (69 s on a CI runner, over the 30 s limit). The capture and the re-check now run only while a wall stands (without one the re-check can never name a wall, so results are unchanged): back to 4.6 s. Bot sim: the re-check cleared **0 walls in all 12 runs** (the table above is unchanged; new column in `tools/sims/wallSim.ts`).
+- **M1** fixed: `moveError` skips the seal check for the spot the building already has (a pick-up, or a move that changes nothing), so a wall of an old save's sealed fort can be picked up. Test: `repairPanel.test.ts` "review M1" (fails without the fix: `seals_path`).
+- **M2** fixed: the snapped 100-cell window and its wider reach now apply only with the explicit `playerBody` flag (player movement and knockback pass it); every other body has the old 98-cell window and reach, and the dead-end cache is keyed by body kind. Test: `escapeZombieGolden.test.ts` pins illegal starts' escapes to a digest computed on master `d8ffaee`. *Correction (re-review round 1): the first version did NOT fail on the reviewed head; see round 1's LOW below.*
+- **M3** done: `npm run bots -- --url http://localhost:2621 --count 4 --until-wave 3` against a local server (own port, stopped by PID): 3 waves ended, 8 buildings placed, no placement refused, 0 horde decode errors.
+- **L1** answered, no change: the anchor search already gives the base layer's vertex. The walls layer's free set is a subset of the base layer's, so when the base layer's nearest free vertex is free in the walls layer it is also the walls layer's first in scan order; when a wall covers it, a search in the walls layer is what both would need. The results are identical, so no test can fail without a change.
+- **L2** documented: `SEALS_PATH_TEXT`'s doc says the preview ignores my pending walls (D6) and the server's toast covers it.
+- **L3** added: `verticesOutsideMainRegion(world)`; Downtown has 0 at every stage 1–5 and every legal decay mask (`pathOpen.test.ts`).
+- **L4** added: the AC 8 fuzz now asserts `seals_path` answers happened (placements and moves), checks moves (client warm vs server cold), and lands a wall every 100 spots so the client's warm cache crosses a `wallVersion` change.
+- **L5** fixed: the shown pocket refreshes when `wallVersion` changes (`Placement.pocketWallVersion`). Test in `placement.test.ts` (fails without the fix).
+- **L6** fixed in this record: the AC 14 column label (stand-in for "zombies through gaps"), the 1-bot seed-3 cause, the god seed-3 wallet (12.4 story and changelog), the two scripts committed under `tools/sims/`, the `pathOpen.ts` JSDoc of `inMainRegion` / `resetPathOpenCache`.
+- **L7** fixed: D3 / AC 13 now say "one way".
+- Nits: the `BUILDING_DESTROYED` comment names the 8th field; the dead `void`s in the tests are gone.
+
+### Re-review round 1 (2026-11-26: 1 high, 1 medium, 1 low)
+
+- **H1-a (high)** fixed: a wall whose pocket side only touched ground the stage just freed (a car driving off, Downtown has 8 `remove` mutations) was never picked, so the seal stayed. `stageCutWall` now floods the walls layer from the cut vertices (old main region, still free, map-joined, cut off now), so freed ground joins its pocket.
+- **H1-b (medium)** fixed: a wall qualifies only if it borders BOTH the pocket and the current main region (within `player.radiusM + BUILD_GRID_M` of a vertex of each), so a turret inside the pocket or a barricade far from it is never cleared. Of those, highest id first, the first whose removal alone joins the pocket back is cleared (one trial flood per candidate tried; a corner piece hidden behind its neighbours opens nothing), else the highest. The map-only flood is cached per obstacle version; each pass is the walls layer, one flood (main region + pocket, disjoint), a border scan of each wall's neighbourhood, and the trial floods.
+- Tests (`pathOpen.test.ts` "H1"), all three fail on `a155897`:
+  - **P1**: area R with exits A (a car with a wall flush behind it) and X; stage 2 drives the car off and blocks X. Old code: 0 cleared (R sealed). Now the wall is cleared.
+  - **P2**: P1 plus a higher-id turret inside R. Old code: the turret went first. Now only the wall goes; the turret stays.
+  - **P3**: a ring round the pad that a stage-2 barrier leaves with two 0.85 m gaps, plus three far barricades with higher ids. Old code: the far barricades and more ring walls went. Now exactly one ring wall goes (the east middle piece: the corner pieces overlap the south wall's ends, so lifting one alone opens only a 0.5 m slot), in one pass; the far barricades stay.
+- **Timing** (`tools/sims/pathOpenBench.ts`, new case): a whole build start (`changeDecayStage`) with 100 walls, a 54-piece ring round the pad sealed by the stage plus 46 walls inside, 1 wall cleared per start: median 2.6 ms / max 11 ms at 1×, **median 8.5 ms / max 11.3 ms at 4× CPU** (under 15 ms; load ≈ 0.4).
+- **LOW** fixed: the digest didn't catch the bug it guards (the old code snapped on `r === player.radiusM`, and no zombie type is 0.4 m). It now also escapes a non-player body of the player's radius (`playerBody` false), on Downtown and on a fine grid of starts round review M1's fort murder hole (the narrow cases where the grid offset matters). The digest is computed on master `d8ffaee` (502889178); it **fails on `34fb76f`'s `packages/shared/src`** (518040916) and passes now.
+
+### Re-review round 2 (2026-11-26: 1 new high, 2 low; the high gets one more fresh re-review)
+
+- **HIGH-1** fixed: a seal behind a wall two or more pieces thick (or two walls 0.5 m apart) survived the stage silently: no wall is within reach of both sides, so the round-1 fast path found no candidate. Now, when no single wall bordering both sides reopens the pocket, `cheapestPathWall` runs a 0-1 breadth-first search on the map-only layer from the pocket to the current main region (a step the walls layer allows costs 0, one only walls block costs 1). It returns the highest-id wall that blocks a costly step of the cheapest way; the decay system clears it and asks again (the fast path usually finishes the job). Buffers are preallocated in `ensure()`; no allocation per pass. If seeds exist but no wall can be found, `stageSealsUnresolved(world)` holds the count and the server logs `stage_seal_unresolved` at the stage change (never silent).
+- Tests (`pathOpen.test.ts` "round 2"), all three fail on `da40316` (nothing cleared): a wall two pieces thick (both cleared, highest id first, 0 outside, 0 unresolved), two walls 0.5 m apart (both cleared), a wall three pieces thick (all three cleared). P1/P2/P3 still clear exactly what they did.
+- **LOW-1** fixed: the "else the highest" fallback is gone; when the fast path finds nothing, the cheapest-path search decides.
+- **LOW-2** fixed: `buildBase` resets the map-only region's key, so a radius change (or a new World) never reuses it. No failing test: in a run a World's radius never changes (the balance is per World), so the stale case can't be reached without mutating a frozen World.
+- **Timing** re-run (`tools/sims/pathOpenBench.ts`, 100 walls, ring sealed by the stage, 1 cleared per start; fresh container, load ≈ 0.7–0.8), 4× CPU over four runs: median 8.6–12.5 ms, max 11.6–20.3 ms. The median stays under 15 ms; single outliers exceed it (30 build starts per run). This case takes the fast path; the 0-1 search runs only when no single wall reopens the pocket.
+
+### HIGH-1 re-review (2026-11-26: no new high; 1 medium on hold, 2 low)
+
+- Result: 400 fuzz cases plus hand cases, no seal survives, no false wall picks.
+- **MEDIUM-1** (on hold for the designer): on some thick layouts the cheapest-path search clears more walls than needed (33 / 400 fuzz cases, up to 4 where 2 would do), because its cost counts blocked lattice steps, not buildings. Options: accept, approximate (each wall counted once along the path), exact (minimum vertex cut). Not started.
+- **LOW-A** fixed: `stageCutWall` resets the unresolved count at its top, before every early return (it is process-global; a stale count leaked across Worlds). Test: a forced unresolved cut (`stageCutTestHooks.noWall`), then another World's check reads 0 (288 without the fix).
+- **LOW-B** fixed: `decayMutate` deletes the World's unresolved count first, so a later build start (or one with no walls, where the re-check doesn't run) never re-logs an old `stage_seal_unresolved`. Test: forced unresolved, walls removed, next build start → 0 (288 without the fix).
+- `cheapestPathWall`'s doc no longer claims "fewest walls" (it is the shortest crossing in lattice steps; MEDIUM-1).
+- Main-session check (log-only lows, per the re-review cap).
+
+### Follow-ups
+
+- **For 10.8 (balance pass):** in the 10-wave bot sim, 4 bots seed 3 went from extracting to a team wipe in wave 10. 12.1's 0.8 m margin cleared one bot barricade at the stage-3 build start, and the run diverged from there. Re-check bot survival with 12.1's rules in force.
+
+### Notes for the merge
+
+- Shared files other stories may touch: `packages/shared/src/index.ts` (two export lines), `core/simEvents.ts` (optional `cause` on `building.destroyed`, `BUILDING_LOSS_CAUSES`), `net/netEvents.ts` (`BUILDING_DESTROYED` tuple gains an optional 8th field; **no new net kind**), `apps/client/src/net/session.ts` (one line: `PLACE_ERRORS` + `seals_path`), `apps/client/src/scenes/GameScene.ts` (one `else if` in the event loop + an import), `apps/client/src/debug/stressScenario.ts` (comment only), `buildings/collision.ts` (helpers + the player-only flood snap).
+- No readability-sheet item and no new net event kind used.
+- No save shape change (`SAVE_SCHEMA_VERSION` unchanged); `balance.version` changes with 12.4.
+
+### File List
+
+New: `packages/shared/src/buildings/pathOpen.ts`, `packages/shared/src/buildings/pathOpen.test.ts`, `docs/art/12-1/` (README + 4 PNG).
+Modified: `packages/shared/src/buildings/{buildings,move,collision}.ts`, `packages/shared/src/buildings/{blockReason,move}.test.ts`, `packages/shared/src/decay/decaySystem.ts`, `packages/shared/src/decay/decay.test.ts`, `packages/shared/src/core/simEvents.ts`, `packages/shared/src/net/netEvents.ts`, `packages/shared/src/net/netEvents.test.ts`, `packages/shared/src/index.ts`, `packages/shared/src/map/evening.test.ts`, `packages/shared/src/zombies/wideBodyStall.test.ts`, `apps/client/src/scenes/{placement,blockText,repairPanel,GameScene}.ts`, `apps/client/src/scenes/{placement,blockText}.test.ts`, `apps/client/src/render/BlockReasonView.ts`, `apps/client/src/net/session.ts`, `apps/client/src/debug/stressScenario.ts`, `tools/bots/botClient.ts`.
+
+### Change Log
+
+- 2026-11-26: built (branch `story-12-1`, with 12.4).
+
+## Main session close-out (2026-11-26)
+- Review path: fresh 3-layer review (H1 needs-designer, M1–M3, L1–L7) → designer H1 = A (re-check paths after each decay stage) → re-review round 1 (H1-a high, H1-b medium, golden low) → round 2 (HIGH-1, thick walls) → fresh re-review of HIGH-1 (cap exception: no new high; MEDIUM-1 + 2 lows) → main-session check of d0c864a (LOW-A/B; docstring).
+- **MEDIUM-1, designer 2026-11-26: A, accepted.** On some thick layouts the stage re-check clears 1–2 more walls than the minimum (about 8 % of random thick fuzz layouts; no refund). A seal never survives.
+- Merged as 73b8bea0 (PR #33). CI green.

@@ -13,6 +13,8 @@ import { installGraphicsGuard } from "./render/gfx/graphicsGuard";
 import { gfxStatus } from "./render/gfx/gfxStatus";
 import { textureRegistry } from "./render/gfx/textureRegistry";
 import { urlOptions } from "./debug/urlOptions";
+import { installAdminGate } from "./debug/adminGate";
+import { accountStore } from "./net/accountStore";
 import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
@@ -265,11 +267,15 @@ resumeSavedSeat(); // Story 8.1: a reload mid-run takes its seat back
 
 if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this
-  // block, the dynamic import and the cheat chunk (checked by tools/checks/noCheatsInRelease.test.ts).
+  // block (checked by tools/checks/noCheatsInRelease.test.ts).
   Object.assign(window, { __game: game }); // for automated browser checks (docs/perf/epic-1-stress.md)
   // Story 4.13 browser checks: renderer, lost / restored counts, registry rebuilds.
   Object.assign(window, {
     __gfx: () => ({ line: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, last: textureRegistry.lastReport, keys: textureRegistry.keys() }),
   });
-  void import("./debug/DevCheats").then(({ mountDevCheats }) => mountDevCheats(game));
+  void import("./debug/adminTools").then(({ mountAdminTools }) => mountAdminTools(game));
+} else {
+  // Story 10.11 (AC 3, 7): production builds download the cheat panel only for an admin account (never `__game` /
+  // `__gfx`: those stay dev-only above). The chunk is `assets/admin-tools-*` (vite.config.ts).
+  installAdminGate(game, accountStore, () => import("./debug/adminTools"));
 }

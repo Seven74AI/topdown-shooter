@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, gameplayDecayMasks, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
-import { COVER_WORDS, SOLID_NAMES, blockText, placementHintText, solidWord } from "./blockText";
+import { COVER_WORDS, SEALS_PATH_TEXT, SOLID_NAMES, blockText, decayLossText, placementHintText, solidWord } from "./blockText";
+import { moveRefusalText } from "./repairPanel";
 import { placeRefusalText } from "./placement";
 
 /** Story 5.17 (AC 3): the reason line's words. */
@@ -94,5 +95,26 @@ describe("blockText (Story 5.17, AC 3)", () => {
     const gy = Math.round((d.y - 0.5) * 2);
     addBuildingAt(w, { id: 1, type: "auto_turret", ownerId: "p0", gx, gy, rot: 0, hp: 300 });
     expect(say(footprint(stats, gx, gy, 0, { minX: 0, minY: 0, maxX: 0, maxY: 0 }))).toBe("Overlaps a building");
+  });
+});
+
+describe("Stories 12.1 / 12.4: the path rule and decay-loss texts", () => {
+  const balance = loadBalance();
+  it("a wall that would seal a pocket reads \"Leave a way through\" (placement refusal, reason line, move refusal)", () => {
+    expect(SEALS_PATH_TEXT).toBe("Leave a way through");
+    expect(placeRefusalText("seals_path", balance)).toBe(SEALS_PATH_TEXT);
+    expect(moveRefusalText("seals_path")).toBe(SEALS_PATH_TEXT);
+    const r: BlockReason = { cause: "seals_path", index: 10, id: 49, playerId: "" };
+    const world = createWorld({ balance, seed: 1 });
+    expect(blockText(world, r, () => "")).toBe(SEALS_PATH_TEXT);
+    const c = { price: 40, wallet: 400, nameOf: () => "", refusal: (e: Parameters<typeof placeRefusalText>[0]) => placeRefusalText(e, balance) };
+    expect(placementHintText(world, "seals_path", null, c)).toBe(SEALS_PATH_TEXT);
+  });
+  it("the owner's decay-loss toasts carry no amount", () => {
+    expect(decayLossText("collapse", "wood_barricade")).toBe("Lost to the collapse");
+    expect(decayLossText("fire", "auto_turret")).toBe("Lost to the fire");
+    expect(decayLossText("cleared", "metal_barricade")).toBe("Your barricade was cleared by the collapse");
+    expect(decayLossText("cleared", "auto_turret")).toBe("Your building was cleared by the collapse");
+    for (const c of ["collapse", "fire", "cleared"] as const) expect(decayLossText(c, "wood_barricade")).not.toMatch(/\$|\d/);
   });
 });

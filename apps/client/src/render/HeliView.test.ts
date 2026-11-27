@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOWNTOWN_MAP, loadBalance } from "@topdown/shared";
-import { DESCEND_S, EXTRACT_FLY_S, LIFT_S, evacPadOf, heliPose, type HeliPose } from "./heliPose";
+import { DESCEND_S, EXTRACT_FLY_S, FLY_OUT_PAST_EDGE_M, LIFT_S, evacPadOf, flyOutDxM, heliPose, type HeliPose } from "./heliPose";
 
 /** Story 6.11 (AC 9): the helicopter's pose, pure; the pad from the map. */
 const pose = (): HeliPose => ({ phase: "gone", dx: 0, dy: 0, scale: 1, alpha: 0 });
@@ -18,6 +18,23 @@ describe("heliPose", () => {
     expect(p.dx).toBeGreaterThan(0); // east
     expect(p.dy).toBeLessThan(0); // north
     expect(heliPose(10 + EXTRACT_FLY_S, 0, 10, true, p).phase).toBe("gone");
+  });
+
+  it("Story 12.2: the fly-out lasts evac.flyOutS and ends past the map's east edge; the descent matches evac.descendS", () => {
+    const b = loadBalance();
+    expect(DESCEND_S).toBe(b.waves.evac.descendS); // the sim boards nobody before the drawn landing
+    const pad = evacPadOf(DOWNTOWN_MAP);
+    const dx = flyOutDxM(DOWNTOWN_MAP, pad.x);
+    expect(pad.x + dx).toBe(DOWNTOWN_MAP.widthM + FLY_OUT_PAST_EDGE_M);
+    const p = pose();
+    const fly = b.waves.evac.flyOutS;
+    expect(heliPose(10 + fly / 2, 0, 10, true, p, fly, dx).phase).toBe("extracting");
+    expect(p.dx).toBeCloseTo(dx / 2, 5); // smoothstep at half time
+    expect(heliPose(10 + fly - 0.01, 0, 10, true, p, fly, dx).phase).toBe("extracting");
+    expect(p.dx).toBeGreaterThan(dx * 0.99);
+    expect(heliPose(10 + fly, 0, 10, true, p, fly, dx).phase).toBe("gone");
+    // a phone that wakes mid-fly-out: left at the server's lift-off time, it lands in the right moment
+    expect(heliPose(100, 0, 100 - fly / 2, true, p, fly, dx).dx).toBeCloseTo(dx / 2, 5);
   });
 
   it("a late wake (opened long ago) sees it landed, no replayed descent", () => {

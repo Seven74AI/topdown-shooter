@@ -11,6 +11,9 @@
  * real scorch mark, light pools. Take B only where there is a real choice (BX-B: glowing bile).
  */
 import { BlastParticles, Explosions, BLAST_TIMES, P_DEBRIS, P_DUST, P_EMBER, P_FLAME, P_SMOKE, type BlastLook, type ParticleDraw as BlastDraw } from "../../../../apps/client/src/render/grenadeFx";
+import { fiCarLook, approvedCar, drawCar as drawApprovedCar } from "./fire-car";
+import { ex1G, ex2G, grG, fsG, bxG } from "./fire-g";
+import { moG } from "./fire-gmo";
 import { CarFire, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, smokeDraw, type ParticleDraw as FireDraw } from "../../../../apps/client/src/render/city/fireParticles";
 import { FLAME_TINTS, SMOKE_PALETTES } from "../../../../apps/client/src/render/city/fireSprites";
 import { FlameJets, FLAME_STYLE, TORCH_BLUE, type JetDraw } from "../../../../apps/client/src/render/flameJet";
@@ -848,19 +851,21 @@ export const cards: FxCard[] = [
       "<b>Light, then matter, then the mark.</b> The flash is light: a white-hot core with short soft rays, then the fireball cools by temperature (white → amber → red-brown, never the boss's warning red). The <b>light pool</b> lights the street for 0.7 s. Matter follows: soot smoke lit by the street's one light from the upper left, with a warm belly while the fire is under it; chunks relit, dropping shadows that meet them when they land. The <b>scorch</b> stays: soot, blast rays, embers dying in the first 1.5 s. The amber ring stays exactly on the 2.5 m damage edge."
     ),
     game: "<code>ExplosionView.ts</code> + <code>grenadeFx.ts › BlastParticles / Explosions</code>, atlas <code>atlas_blastfx</code>. One blast: 34 flames (ADD, 16 ramp tints), 10 smoke puffs (black palette), 16 embers (ADD), 6 debris; flash 0.18 s (2.2 R), ground glow 2 R for 0.7 s (ADD), amber edge ring 0.05 m on R for 0.5 s, scorch decal 2 R fading over 30 s (or at the next build). Shared pool: <code>combat.json › explosion.fx</code> maxExplosionParticles 96, maxLiveExplosions 8, maxScorchDecals 16.",
-    perf: `Now: up to 52 additive sprites per blast (34 flames + 16 embers + flash + glow), all in the shared 96-particle pool. EX1-A: the same sprites plus 1 additive (the scorch embers, 1.3 R wide) and 6 debris shadows (normal blend); textures +2.4 MB (24 flame steps × 96², 9 smoke 96², chunks 6 × ≈ 48², scorch 256², flash 192², pool 128²); bake ≈ 0.3 s, once per game. <code>?fx=low</code> (new in A): half the flames and puffs (today explosions ignore <code>?fx=low</code>). Largest additive: the flash, 5.5 m wide for 0.18 s. ${ADDNOTE}`,
+    perf: `Now: up to 52 additive sprites per blast (34 flames + 16 embers + flash + glow), all in the shared 96-particle pool. EX1-A: the same sprites plus 1 additive (the scorch embers, 1.3 R wide) and 6 debris shadows (normal blend); textures +2.4 MB (24 flame steps × 96², 9 smoke 96², chunks 6 × ≈ 48², scorch 256², flash 192², pool 128²); bake ≈ 0.3 s, once per game. <code>?fx=low</code> (new in A): half the flames and puffs (today explosions ignore <code>?fx=low</code>). Largest additive: the flash, 5.5 m wide for 0.18 s. EX1-G: 30 additive (26 fireball flames, front, flash, pool, scorch embers) + 21 normal (scorch, 8 smoke, 6 chunks + 6 shadows): about 51 sprites at the peak, no sparks; <code>?fx=low</code>: 13 flames, 4 smoke (37). New textures: blast front ×3 temperatures, 256² each (768 KB); the rest shared with A. Largest additive: the front, 5.2 m square for 0.4 s (a ring cannot be cropped; its inner 45 % is empty pixels). ${ADDNOTE}`,
     findings: [
       "<b>Debris has no shadow</b> today: chunks are drawn 0.15 m up the screen per metre of height but nothing touches the ground, so they float. A adds a soft shadow that meets the chunk when it lands.",
       "<b><code>?fx=low</code> does not reach explosions</b>: <code>ExplosionView</code> always uses the full 96-particle pool. A halves flames and puffs with it.",
       "The late flame tints (deep red 74,13,6) add almost nothing in ADD, so old flames vanish instead of darkening: fine for a blast, and A keeps it (red-brown fringe only).",
       "Checked and fine: smoke stays under zombies (depth 4.37, the 4.12 rule); the flame cores stop at the 2.5 m edge (<code>FLAME_CORE_FRAC</code>); the ring ends exactly on R.",
       "<b>Question</b>: EX1's edge ring is amber (0xffb060), and amber means an event you can use. Keep it, or make it the flame's orange?",
+      "<b>EX1-G answers it by colour meaning</b>: no ring. A blast front really is round, so the reach is the fireball's own front of light, which cools like flame (white → orange → red-brown) and is gone by 0.4 s; the scorch's rays end at R afterwards. Amber stays free for events you can use.",
+      "EX1-G cuts the flying sparks: they had no job the flash and the front don't already do, and they crossed the 2.5 m edge, blurring the reach.",
     ],
     lengthS: 3.2,
     gapS: 0.5,
     keyT: [0.02, 0.08, 0.2, 0.5, 1.2, 2.8],
     viewM: 8,
-    looks: [blastNow("fireball"), blastA("fireball")],
+    looks: [blastNow("fireball"), blastA("fireball"), ex1G()],
     plan: {
       goal: "A blast you feel in 0.2 s and can read the size of: the flash says where, the ring says how far, the smoke and the scorch say it happened here.",
       timing: "BLAST_TIMES.fireball (grenadeFx.ts): flash 0.18 s, glow 0.7 s, ring 0.5 s; flames 0.35–0.8 s, embers 0.4–1 s, smoke 2.4–3.2 s, debris 1.5–2.5 s; scorch 30 s. Damage lands on the event tick (t = 0); camera shake within 6 m.",
@@ -898,17 +903,19 @@ export const cards: FxCard[] = [
     family: "fire",
     brief: "<b>A hard white hit, then dust.</b> Less fire, more force: a whiter, harder flash; the dust ring is concrete dust rolling out and stopping exactly on the 2.5 m edge, lit from the upper left (tan tops, shaded undersides); 18 chunks thrown hard, relit, landing on their shadows; a short spray of sparks. The scorch is lighter than EX1's and has fewer embers.",
     game: "<code>ExplosionView.ts</code> (shockwave look), <code>mineBlast.ts</code> shake (≤ 6 m, 220 ms). 8 short flames, 24 dust puffs rolling to the edge in 0.32 s (6 dust tints), 18 debris, 14 sparks, 4 smoke puffs; flash 0.12 s (2.6 R), glow 0.3 s, a white ring growing to R in 0.25 s then fading 0.45 s; scorch as EX1. Same shared pool (96 / 8 / 16).",
-    perf: `Now: up to 24 additive sprites per blast (8 flames + 14 sparks + flash + glow). EX2-A: the same plus 1 additive scorch-embers sprite and up to 18 debris shadows (normal). Textures shared with EX1-A (+0.3 MB for the dust set). <code>?fx=low</code> in A halves flames and dust puffs. Largest additive: the flash, 6.5 m wide for 0.12 s. ${ADDNOTE}`,
+    perf: `Now: up to 24 additive sprites per blast (8 flames + 14 sparks + flash + glow). EX2-A: the same plus 1 additive scorch-embers sprite and up to 18 debris shadows (normal). Textures shared with EX1-A (+0.3 MB for the dust set). <code>?fx=low</code> in A halves flames and dust puffs. Largest additive: the flash, 6.5 m wide for 0.12 s. EX2-G: 16 additive (14 fragments for 0.12 s, flash, pool) + 55 normal (crater + cracks, settled dust, 28 dust puffs + 5 veil, 10 chunks + 10 shadows); no flames; <code>?fx=low</code>: 7 fragments, 14 + 3 dust (≈ 44). New textures: cracks 256², dust band 256² (512 KB). Largest additive: the flash, 3.75 m for 0.05 s. ${ADDNOTE}`,
     findings: [
       "Same as EX1: floating debris (no shadow), no <code>?fx=low</code>.",
       "<b>Question</b>: the shock ring is white (0xf2eee6), and white means pick-ups and people. Keep it white, or use a pale concrete grey?",
+      "<b>EX2-G answers it by colour meaning</b>: no ring. The reach is the dust itself, a wall of concrete dust that stops on 2.5 m and leaves a pale settled band there (matter, lit from the upper left, no code colour). Its cracks end at the reach too.",
+      "EX2-G cuts the 8 short flames: a mine or grenade has no fuel, and the flames made it read as a weaker EX1.",
       "Checked: the dust ring stops on the edge (each puff's edge on R); the hand grenade uses this look (<code>blastLookFor</code>).",
     ],
     lengthS: 2.6,
     gapS: 0.5,
     keyT: [0.02, 0.08, 0.2, 0.5, 1.2, 2.4],
     viewM: 8,
-    looks: [blastNow("shockwave"), blastA("shockwave")],
+    looks: [blastNow("shockwave"), blastA("shockwave"), ex2G()],
     plan: {
       goal: "A sharp crack that throws everything outward: the ring says the exact reach, the dust says the force.",
       timing: "BLAST_TIMES.shockwave: flash 0.12 s, glow 0.3 s, ring grows 0.25 s then fades 0.45 s; dust 1.4–2 s (rolls out in 0.32 s); debris 1.5–2.5 s; sparks 0.25–0.6 s; mine shake 220 ms (mineBlast.ts).",
@@ -939,14 +946,14 @@ export const cards: FxCard[] = [
     family: "fire",
     brief: "<b>Matter in the air.</b> Solid things lit by the street's light: the game's own round and grenade drawings relit (metal volume, a glint top-left), each casting its own soft shadow that drifts down-right with height (the same rule as today), so you read the arc and where it lands. Only the launcher round leaves a thin grey propellant trail, gone in 0.2 s. No light: nothing burns until it lands.",
     game: "<code>GrenadeView.ts</code> + <code>grenadeFx.ts › GrenadeFlights.pose</code>: straight line, height 4·1.5 m·u(1−u), drawn 0.15 m up per metre, scale +30 % per metre; round shown 3× (0.37 m), hand grenade 2.2× and tumbling 2.2 turns; shadow <code>fx_grenadeshadow</code> offset (0.35, 0.45) m per metre of height. Pool <code>combat.json › explosion.maxLiveRounds</code> 32.",
-    perf: "Now: 2 sprites per item (item + shadow), no additive. GR-A: the same 2 sprites, plus 5 small trail puffs (normal blend) for a launcher round only; textures: round 40², hand grenade 3 × 64², their shadows (≈ 60 KB). No additive sprites.",
-    findings: ["Checked and fine: the shadow offset follows the height; the hand grenade's tumble is tied to the flight (u), not to the clock.", "Today's shadow is one flat ellipse for every item (round, grenade and the bottle), so it doesn't match the shape it belongs to; A uses each item's own soft silhouette."],
+    perf: "Now: 2 sprites per item (item + shadow), no additive. GR-A: the same 2 sprites, plus 5 small trail puffs (normal blend) for a launcher round only; textures: round 40², hand grenade 3 × 64², their shadows (≈ 60 KB). No additive sprites. GR-G: the same sprite counts as A; its shadows are 3 blurs per item picked by height (+≈ 40 KB). No additive sprites.",
+    findings: ["Checked and fine: the shadow offset follows the height; the hand grenade's tumble is tied to the flight (u), not to the clock.", "Today's shadow is one flat ellipse for every item (round, grenade and the bottle), so it doesn't match the shape it belongs to; A uses each item's own soft silhouette.", "GR-G is close to A (the goal didn't ask for new elements): the change is that the shadow's sharpness follows the height, so it becomes the landing read and counts down to the burst."],
     lengthS: 0.8,
     gapS: 0.6,
     keyT: [0.03, 0.2, 0.33, 0.6],
     viewM: 9,
     aspect: 0.6,
-    looks: [grLook("now"), grLook("A")],
+    looks: [grLook("now"), grLook("A"), grG()],
     plan: {
       goal: "See it coming and where it will land: the arc reads from the scale and the shadow.",
       timing: "Launcher 20 m/s (weapons.json lobSpeedMps, min 0.25 s): 7.5 m in 0.375 s. Hand grenade 12 m/s (consumables.json throwSpeedMps, min 0.3 s): 0.625 s. Arc 1.5 m (combat.json lobArcM).",
@@ -972,19 +979,22 @@ export const cards: FxCard[] = [
     family: "fire",
     brief: "<b>Light rides on matter.</b> The rag is the only light in the air: a real flame that lights the bottle from the front (a small warm pool on the ground under it). On landing the <b>fuel</b> splashes first (a dark wet stain spreading in 0.45 s, MB2 forward), then burns: fire-lab D's flames by temperature, lit soot, a flickering warm pool. The ring stays at exactly 3 m (you touch it, you burn) and now <b>fades with the fire</b>. When it goes out, the <b>scorch</b> stays like a blast's.",
     game: "<code>GrenadeView.ts</code> (bottle 1.5×, 1.6 turns, rag = <code>fx_fireflame</code> ADD at 14 Hz), <code>MolotovView.ts</code> + <code>molotovFx.ts</code> + <code>FireView.ts</code> in pool mode (<code>CarFire.setPool</code>): radius 3 m, 4 s, last 0.6 s fades; per-zone share <code>consumables.json › fx</code> (particleShare 0.25, smokeShare 0.1, edgeSpacingM 1.2, maxParticles 80, maxEdgeFlames 64, maxLights 1), always at low caps; ring <code>fx_molotovring</code> tinted 0xff7828 at 0.55. Max 8 live zones.",
-    perf: `Now: one zone ≈ 28 flames + 3 smoke + 6 embers + ≈ 16 edge flames + light + ring ≈ 55 sprites, ≈ 51 additive; the caps hold over all zones (80 particles, 64 edge flames, 1 light). MO-A: the same sprites plus 2 normal-blend ground marks (fuel, scorch) and 1 additive ring glow, the rag adds 1 additive pool (0.9 m) + 1 smoke puff in flight. The scorch after the fire needs a decal slot: reuse the explosions' scorch pool (maxScorchDecals 16). ${ADDNOTE}`,
+    perf: `Now: one zone ≈ 28 flames + 3 smoke + 6 embers + ≈ 16 edge flames + light + ring ≈ 55 sprites, ≈ 51 additive; the caps hold over all zones (80 particles, 64 edge flames, 1 light). MO-A: the same sprites plus 2 normal-blend ground marks (fuel, scorch) and 1 additive ring glow, the rag adds 1 additive pool (0.9 m) + 1 smoke puff in flight. The scorch after the fire needs a decal slot: reuse the explosions' scorch pool (maxScorchDecals 16). MO-G: 40 flames on the fuel + heat glow + heat line + light pool additive (43; the 64-slot edge-flame pool is not used at all), 5 more for the 0.12 s whoosh; 2 marks (fuel, scorch) + 7 glass shards + 8 smoke normal: about 60 sprites at the peak, like today's 55. <code>?fx=low</code>: 20 flames, 4 smoke (≈ 36). New textures: fuel splash 156 × 160 and its scorch (same size), heat 192², heat line 256², a 16 × 8 shard (≈ 0.45 MB). The heat glow and line are the largest additive: one 6.25 m square each. ${ADDNOTE}`,
     findings: [
       "<b>The rag flame is white</b>: <code>GrenadeView</code> draws a fire mask (white, meant to be tinted) without a tint, so the rag burns white instead of orange (visible in the Now column at ½×).",
       "<b>The ring pops off</b>: its alpha is fixed at 0.55 and only changes when the zone list changes, so during the last 0.6 s the flames fade and the ring stays at full strength, then vanishes. A fades it with the fire.",
       "The fire leaves no mark today: the zone ends and the street is clean. A leaves a scorch like a blast's (uses a scorch decal slot).",
       "Checked and fine: flames stay inside the 3 m ring (the edge rule with <code>freeFlameFitR</code>); edge flames only light where the fuel has reached the ring (<code>poolReach</code>).",
+      "<b>MO-A's flames also make a ring</b>, like FI-A: Story 5.12's edge flames line the 3 m circle once the fuel \"reaches\" it, whatever the splash looked like. MO-G drops them: flames only on the splashed fuel, the circle shown by heat.",
+      "The zone is centred on the landing point, but the MB2 splash throws the fuel forward: the side behind the impact burns you with no fuel on it. MO-G keeps the game's circle and shows that side by heat only (the fuel never leaves the circle: it is laid inside 2.85 m).",
+      "MO-G needs the throw direction at the landing (<code>molotovFx</code> already keeps it for MB2: <code>z.dir</code>) and a decal slot for the fan-shaped scorch.",
     ],
     lengthS: MOL_LAND + 4.6,
     gapS: 0.4,
     keyT: [0.2, MOL_LAND + 0.15, MOL_LAND + 0.8, MOL_LAND + 2.5, MOL_LAND + 3.8, MOL_LAND + 4.4],
     viewM: 9,
     origin: [0.56, 0.5],
-    looks: [moLook("now"), moLook("A")],
+    looks: [moLook("now"), moLook("A"), moG()],
     plan: {
       goal: "Area denial you can read at a glance: where the fire is, its exact edge, how long it has left (the fade).",
       timing: "Flight 4.5 m at 12 m/s = 0.375 s. Zone: 4 s (consumables.json molotovs.durationS), damage 8/s pulsed every 0.5 s; the last 0.6 s fade (MOLOTOV_FADE_S). MB2: the fuel splashes forward along the throw.",
@@ -1015,32 +1025,54 @@ export const cards: FxCard[] = [
   {
     id: "fi",
     code: "FI",
-    name: "Fire: burning wreck (fire-lab D)",
+    name: "Fire: burning car",
     family: "fire",
-    brief: "<b>Light from fuel, matter from soot.</b> Fire-lab D's particles and wind kept as picked (4.12). The flames are light: their colour comes from their temperature, so the white-hot core sits where the fuel is (on the car) and cools to amber and red-brown at the tips. The smoke is matter: soot lit by the street's light from the upper left, warm underneath while the fire lights it. The pool of light flickers on the street, and soot blackens the ground under the wreck (the mark).",
+    brief: `<b>Goal first</b> (designer 2026-11-26: "show player a car is burning + zone where they get damaged"). Two reads: <b>1. this car is burning</b>, <b>2. inside this circle you get hurt</b> (2 m, 10 damage/s in 0.5 s pulses).
+<br><b>Elements, each with one job:</b><ul>
+<li><b>The wreck</b> (approved, Story 9.14): the fuel. Read 1.</li>
+<li><b>Flames on the car's fuel</b>, in the car's own shape: the cabin (seats, plastics: tallest, densest), the engine bay, the four tyres (small), a fuel pool leaking under the rear (low, wide). They lean downwind. Never a circle. Read 1.</li>
+<li><b>Heat on the ground</b> = the circle: a warm glow, strongest at the car, that ends exactly at the damage edge, and a thin heat line on that edge. No flame draws the circle. Read 2.</li>
+<li><b>The damage pulse</b>: the heat line brightens a little on each 0.5 s damage tick. Read 2.</li>
+<li><b>Light from the flames</b>: a flickering pool on the car; its flicker also drives the ground glow. Read 1.</li>
+<li><b>Black smoke</b> from the cabin and engine, downwind, thin where it leaves the flames: you see the fire from far away. Read 1.</li>
+<li><b>Embers</b> from the cabin, downwind: it's alive.</li>
+<li><b>The mark</b>: soot burnt into the asphalt under the car, the fuel stain. What stays.</li></ul>
+<b>How they compose:</b> flames only inside the car and the pool; the circle only from heat; brightness: cabin &gt; engine &gt; pool &gt; tyres &gt; ground glow &gt; heat line; the bright flame never passes the damage edge (the car is 4.5 m, the zone 4 m wide, so the bumpers stick out 0.25 m: their flames are held inside); one flicker for flames, car light and ground glow; the heat line moves only with the damage tick; smoke may cross the edge (it doesn't burn).`,
     game: "<code>city/FireView.ts</code> + <code>fireParticles.ts › CarFire</code> (car mode), atlas <code>atlas_firefx</code> (white masks tinted with 16 ramp steps; smoke 6 tones), light <code>fx_firelight</code> 2R at 0.13 × flicker; ring by <code>CityView</code> (2 px orange line + 5 px glow, <code>fireRing.ts</code>). Caps per fire: 110 flames, 26 smoke, 24 embers (half with <code>?fx=low</code>). Burning survivors and zombies (<code>BurnView</code>, <code>FlameView.zombies</code>) use the same frames.",
-    perf: `Now: a car fire ≈ 60–80 flames + edge flames + embers additive, ≈ 20 smoke. FI-A: the same counts (same sims), plus 1 normal-blend soot mark per fire; the light pool's alpha is higher, same size (2R = 4 m). Textures shared with the other fire cards. A applies to <code>BurnView</code> and burning zombies with no new textures. ${ADDNOTE}`,
-    findings: ["Checked and fine: flames stay in the ring (edge rule); smoke thins near the source so it never hides the core; embers dim past the ring.", "Today's tints make the whole flame one colour per step (a multiply tint on a white mask): the core and the tips of one flame are the same colour. A colours each flame by its local heat (white core, amber body, red-brown tips)."],
+    perf: `Now: a car fire ≈ 60–80 flames + 49 edge flames + embers additive, ≈ 20 smoke (caps 110 / 26 / 24, half with <code>?fx=low</code>; the 49 edge slots are never halved). FI-B (the goal-first take; no FI-G): 54 flames (cabin 18, engine 14, tyres 8, pool 14) + 12 embers + 3 glows (heat, heat line, car light) additive, 14 smoke, 3 marks: about 85 sprites, under half of today's ≈ 200, and <code>?fx=low</code> halves all of it (27 flames, 6 embers, 7 smoke). The heat glow and line are the largest additive: one 4.2 m square each, cropped to the circle. New textures: heat 192², heat line 256², soot mark 160 × 96, fuel pool 96² (≈ 470 KB); flames, smoke, embers and light shared with take A. ${ADDNOTE}`,
+    findings: [
+      "<b>FI-A declined</b> (designer 2026-11-26: \"The fire cant be a circle if the car is a rectangle… flames in a perfect circle look weird\"). FI-A was the same particle code with new pictures, so it kept today's ring of flames. That ring comes from Story 4.11's edge rule (\"most of the zone's flames are spawned right at the edge, so a clear ring of flames marks it\"). FI-B keeps the rule's real job (the bright flame never passes the damage edge) but marks the edge with heat, not flames.",
+      "The car (4.5 m) is longer than the zone (4 m across): its bumpers stick out 0.25 m, and the zone doesn't follow the car's shape. FI-B keeps the circle (the sim's <code>circleInFire</code>) and holds the flames inside it.",
+      "Burning survivors and zombies, and the Molotov pool, use the same fire code (BurnView, MolotovView). FI-B is only the car. The Molotov's flames also make a ring at the edge (MO-A): worth the same goal-first pass.",
+      "Checked and fine: smoke thins near the source so it never hides the flames; embers stop at the source's downwind side; the heat ends at exactly R (2 m).",
+      "FI-B is FI's goal-first take, so FI has no -G; its goal, elements and composition are now shown in the green block below the takes.",
+    ],
     lengthS: 3,
     gapS: 0,
-    keyT: [0, 0.5, 1.5, 2.5],
+    keyT: [0, 0.25, 1.5, 2.5],
     viewM: 7,
-    under: (g, _t, st) => {
-      const car = G.burntCar();
-      sprite(g, car, X(st, 0), Y(st, 0), 4.6, st.pxm, 0.35, 0.8);
-    },
-    looks: [fiLook("now"), fiLook("A")],
+    under: (g, _t, st) => drawApprovedCar(g, st), // the approved Story 9.14 wreck (as the game shows it since 9.14)
+    looks: [fiLook("now"), fiCarLook()],
     plan: {
-      goal: "A steady hazard you can read in the dark: where it burns (the ring), and that it's alive (flicker, smoke).",
-      timing: "Continuous: decay.json fire radius 2 m, damage 10/s every 0.5 s, lasts 2 waves. Flame life 0.24–0.7 s, smoke 3–4.2 s, embers 0.7–1.4 s; wind (0.55, 0.32).",
-      lengthS: 3,
+      goal: "This car is burning (flames on its own shape, smoke you see from far), and inside this circle you get hurt (heat that ends exactly at the edge, ticking with the damage).",
+      timing: "Continuous: decay.json fire radius 2 m, damage 10/s in 0.5 s pulses, lasts 2 waves. FI-B: flame life 0.35–0.9 s by source, smoke 3.2–4.2 s, embers 1–1.6 s; wind (0.55, 0.32) as the game's.",
+      lengthS: 2,
       lanes: {
-        light: [{ t0: 0, t1: 3, label: "pool flickers (fireFlicker), A: stronger" }],
-        core: [{ t0: 0, t1: 3, label: "flames: heat-coloured core on the car (A)", nw: true }],
-        matter: [{ t0: 0, t1: 3, label: "embers rise and drift" }],
-        smoke: [{ t0: 0, t1: 3, label: "soot downwind, lit top-left (A)", nw: true }],
-        mark: [{ t0: 0, t1: 3, label: "soot under the wreck (A)", nw: true }],
-        game: [{ t0: 0, t1: 3, label: "damage every 0.5 s inside 2 m" }],
+        light: [
+          { t0: 0, t1: 2, label: "car light + ground glow: one flicker (fireFlicker)", nw: true },
+        ],
+        core: [
+          { t0: 0, t1: 2, label: "flames on cabin > engine > pool > tyres, downwind; never on the circle", nw: true },
+        ],
+        matter: [{ t0: 0, t1: 2, label: "embers from the cabin, downwind" }],
+        smoke: [{ t0: 0, t1: 2, label: "black smoke from cabin + engine, downwind, thin at the flames", nw: true }],
+        mark: [{ t0: 0, t1: 2, label: "soot under the car, fuel stain", nw: true }],
+        game: [
+          { t0: 0, t1: 0.25, label: "tick: heat line up", key: true, nw: true },
+          { t0: 0.5, t1: 0.75, label: "tick", key: true, nw: true },
+          { t0: 1, t1: 1.25, label: "tick", key: true, nw: true },
+          { t0: 1.5, t1: 1.75, label: "tick", key: true, nw: true },
+        ],
       },
     },
   },
@@ -1051,8 +1083,8 @@ export const cards: FxCard[] = [
     family: "fire",
     brief: "<b>Burning fuel in a stream.</b> FS1 throws liquid fuel: white at the core where it ignites, cooling to amber and red-brown at the late bloom, so the 6 m reach reads by colour. FS2 burns gas: a blue-white core at the nozzle, then a short amber fan (3 m, 60°). Both are light: a warm pool on the floor along the cone and a pilot light at the nozzle. After release, the stream's end leaves thin soot wisps (matter, drifting with the wind) for 0.8 s.",
     game: "<code>FlameView.ts</code> + <code>flameJet.ts › FlameJets</code>: rays inside the cone, 90 particles/s, pool 96 (<code>combat.json › fx</code>; both halved with <code>?fx=low</code>), FS1 jet (life 0.42–0.55 s, blooms at 85 %), FS2 torch (life 0.3–0.42 s, blue under 28 % of the reach); floor glow = <code>fx_firelight</code> tinted 0xff9a40 stretched along the cone at 0.38 × flicker; max 4 flamers; burning zombies get 2 flames each (max 40).",
-    perf: `Now: up to 96 additive flames + 1 glow per flamer. FS-A: the same, plus 1 additive pilot light (0.45 m) per flamer and up to 6 soot wisps per flamer (normal, 1.2 m max). The floor glow is the largest additive: 6.9 × 2.3 m for FS1. Textures: flame steps and torch from the shared set (+150 KB for the torch). ${ADDNOTE}`,
-    findings: ["Checked and fine: the bright part of every ray stays inside the cone (the w clamp); a ray stopped by a car splashes and dims at its face (not shown here: open street).", "FS2's blue core is one flat tint (TORCH_BLUE) on the same mask as the fire: A gives it its own blue-white texture."],
+    perf: `Now: up to 96 additive flames + 1 glow per flamer. FS-A: the same, plus 1 additive pilot light (0.45 m) per flamer and up to 6 soot wisps per flamer (normal, 1.2 m max). The floor glow is the largest additive: 6.9 × 2.3 m for FS1. Textures: flame steps and torch from the shared set (+150 KB for the torch). FS-G: fuel parcels in flight = rate × flight time: FS1 40/s × 0.45 s = 18, FS2 50/s × 0.3 s = 15 additive (today up to 96 per flamer), + 1 floor light + 1 pilot each, + up to 4 soot wisps; <code>?fx=low</code> halves the parcels (9 / 8). New textures: the two cone lights, 147 × 58 and 74 × 91 (≈ 60 KB), cropped to the cone. ${ADDNOTE}`,
+    findings: ["Checked and fine: the bright part of every ray stays inside the cone (the w clamp); a ray stopped by a car splashes and dims at its face (not shown here: open street).", "FS2's blue core is one flat tint (TORCH_BLUE) on the same mask as the fire: A gives it its own blue-white texture.", "FS-G replaces the ray emitter with a rope of fuel parcels (FS1) and a gas fan (FS2) that fill the same cone; it shows the open street only (a ray stopped by a car is not drawn here). Burning drips on the ground were cut: the game leaves no fire there."],
     lengthS: 2.4,
     gapS: 0.4,
     keyT: [0.1, 0.6, 1.2, 1.75, 2.2],
@@ -1064,7 +1096,7 @@ export const cards: FxCard[] = [
         sprite(g, c, X(st, f.x - 0.05), Y(st, f.y), 1.4, st.pxm, 0);
       });
     },
-    looks: [fsLook("now"), fsLook("A")],
+    looks: [fsLook("now"), fsLook("A"), fsG()],
     plan: {
       goal: "See exactly what your stream covers (reach, width) while it burns, and that it stopped when you release.",
       timing: "Held 1.6 s here (fuel 6 s, weapons.json). FS1: range 6 m, cone 20°, damage pulses every 0.25 s; FS2: range 3 m, cone 60°. Particles live 0.3–0.55 s, so the stream clears 0.55 s after release.",
@@ -1091,18 +1123,20 @@ export const cards: FxCard[] = [
     family: "fire",
     brief: "<b>The one fluid that glows.</b> The burst is light: a short white-to-yellow-green flash (yellow-green = infection), the shock ring out to 2.5 m in 0.1 s. Then matter: bile is wet and glossy, relit, with shadows under drops in flight, landing as splats with dark rims; torn clothes (the Bloater's own colours) flutter down. The gas is a lit volume, lit top-left, turning slowly, with its 2.5 m edge ring. <b>BX-B</b> adds a faint glow on the bile until the gas clears.",
     game: "<code>BloaterView.ts</code> + <code>bloaterFx.ts › BloaterFx</code>, frames in <code>atlas_fx</code>: flash <code>fx_explosionbloater</code> (ADD, 0.9 × 5 m, 0.14 s), 14 drops (bile-splat frames) landing as splats ×3, 5 cloth scraps (5 tints), 8 puffs (<code>fx_glow</code> tinted 0xb9c65e), two cloud layers (<code>fx_gascloud</code>, 0.42 / 0.22) over 4 s with a 0.25 s fade-in and 1 s fade-out; rings: gas edge 0.045 m, shock 0.07 m. Caps: <code>controls.json › fx.maxBloaterParticles</code> 240, <code>zombies.json › blasts.maxGasClouds</code> 24, fuse rings 16.",
-    perf: `Now: 27 sprites per burst + 2 cloud layers + rings, 1 additive (the flash). BX-A: the same plus up to 19 small shadows in flight (normal); 1 additive. BX-B: + up to 14 additive bile glows (≈ 0.4 m each) per burst, ×24 clouds at most = 336, so B would need its own cap (suggest 6 bursts' worth, like <code>maxBloaterFx</code>). Textures: relit bile 4 × 64², scraps 5 × 40², gas set 9 × 96² (≈ 0.5 MB). <code>?fx=low</code>: today the Bloater pool is not halved; A halves the puffs. ${ADDNOTE}`,
+    perf: `Now: 27 sprites per burst + 2 cloud layers + rings, 1 additive (the flash). BX-A: the same plus up to 19 small shadows in flight (normal); 1 additive. BX-B: + up to 14 additive bile glows (≈ 0.4 m each) per burst, ×24 clouds at most = 336, so B would need its own cap (suggest 6 bursts' worth, like <code>maxBloaterFx</code>). Textures: relit bile 4 × 64², scraps 5 × 40², gas set 9 × 96² (≈ 0.5 MB). <code>?fx=low</code>: today the Bloater pool is not halved; A halves the puffs. BX-G: 1 additive (the flash, 0.1 s); normal: gas body 1 + 16 rim puffs + 12 drops (with 12 shadows in flight) then 12 splats + 3 scraps (+ shadows while falling): about 46 at the peak, no rings; <code>?fx=low</code>: 8 puffs, 6 drops, 2 scraps (≈ 26). New texture: the gas body 256² (256 KB). ${ADDNOTE}`,
     findings: [
       "<b>Flying drops use the ground-splat picture</b>: a flat splat shape flies through the air, stretched. A draws a round drop in flight and keeps the splat for the landing.",
       "<b><code>?fx=low</code> doesn't halve the Bloater pool</b> (<code>GameScene</code> passes <code>maxBloaterParticles</code> as is).",
       "<b>Overlap</b>: the gas cloud's look is the matter family's GA card; BX-A's lit cloud is drawn to match its idea, but GA's pick decides.",
       "Checked and fine: splats leave with their cloud (they fade in its last second); the shock ring reaches exactly the 2.5 m blast radius in 0.1 s.",
+      "The blast and the gas have the same radius (2.5 m, <code>zombies.json</code>): BX-G shows both with one element, the gas thrown out to the edge in 0.1 s that stays as the cloud's rim. The two rings are cut (white = people).",
+      "BX-G keeps the bile matte (BX-B's glow not taken): in the goal, the gas is what slows you, so the gas carries the zone, not the bile.",
     ],
     lengthS: 4.2,
     gapS: 0.5,
     keyT: [0.02, 0.09, 0.25, 0.7, 2.5, 3.7],
     viewM: 7,
-    looks: [bxLook("now"), bxLook("A"), bxLook("B")],
+    looks: [bxLook("now"), bxLook("A"), bxLook("B"), bxG()],
     plan: {
       goal: "A burst you can't miss, then a 4 s zone you must not walk into (the gas slows you): light says 'pop', matter says 'messy', the cloud and its ring say 'stay out'.",
       timing: "bloaterFx.ts: flash 0.14 s, shock ring 0.1 s + fade 0.6 s; drops land in ≈ 0.3–0.7 s (gravity 9); scraps flutter (slowed fall) 1.5–3.5 s; gas 4 s (zombies.json gasS), slows 30 %; fade in 0.25 s, out 1 s.",

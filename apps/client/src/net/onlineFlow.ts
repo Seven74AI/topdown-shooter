@@ -94,7 +94,7 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
     const last = prev;
     prev = phase;
     const now = deps.nowMs ? deps.nowMs() : performance.now();
-    const inRun = (p: RunPhase): boolean => p === "build" || p === "wave" || p === "vote";
+    const inRun = (p: RunPhase): boolean => p === "build" || p === "wave" || p === "vote" || p === "extract"; // Story 12.2
     const newRun = inRun(phase) && !(session && inRun(last));
     if (phase === "lobby" || newRun || (phase === "wave" && last !== "wave")) minOffsetMs = Number.POSITIVE_INFINITY;
     if (phase !== "lobby") minOffsetMs = Math.min(minOffsetMs, now - deps.state().tick * TICK_MS);
@@ -102,8 +102,8 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       voteSeenAtMs = now;
       voteTick = deps.state().tick;
     }
-    if (phase === "build" || phase === "wave" || phase === "vote") {
-      if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
+    if (inRun(phase)) {
+      if (session && inRun(last)) return; // build ↔ wave ↔ vote ↔ extract inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
       session = deps.makeSession();
       activeRun.set(session);
@@ -125,6 +125,8 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       // ticks between them (a backlog that lands > 1 s after an unlock has every sample equally late,
       // so its age reads 0, but the two patches arrive together).
       const sawVoteRun = now - voteSeenAtMs >= (st.tick - voteTick) * TICK_MS - VOTE_SEEN_SLACK_MS;
+      // Story 12.3: after the extraction phase the fly-out (dawn sweep, fade to white) WAS the dawn: the card at once,
+      // live or late. Only Results straight from the vote (no extraction seen) still play the 4 s dawn.
       const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown && sawVoteRun;
       const mySlot = deps.mySlot?.();
       deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS), ...(mySlot === undefined ? {} : { mySlot }) });

@@ -44,6 +44,20 @@ export interface Look {
   parts?: readonly { id: string; label: string }[];
   /** The frames the game would show, in order, and when (decomposition: consecutive frames are diffed). */
   frames?: readonly { label: string; t: number; when: string }[];
+  /**
+   * Goal-first takes (code `${card}-G`, dead-city-model fx.md › FX 4): the reasoning, written BEFORE drawing.
+   * The shell shows it on the card under the takes.
+   */
+  goalFirst?: {
+    /** What the player must read, one sentence, from the game's rule (with its numbers). */
+    goal: string;
+    /** Each element and its one job toward the goal (which read it serves). */
+    elements: readonly { name: string; job: string }[];
+    /** Where each element may and may not appear, brightness order, one clock, what may cross an edge. */
+    composition: readonly string[];
+    /** Its own timeline (when it differs from the card's plan). */
+    plan?: ActionPlan;
+  };
 }
 
 /** Dope-sheet lanes for FX (the skill's lanes, for effects instead of a body). */

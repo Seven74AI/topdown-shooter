@@ -137,6 +137,8 @@ export interface BotWaveStats {
 }
 
 const r1 = (n: number): number => Math.round(n * 10) / 10;
+/** The phases a bot is in the fight for (reconnect, the line watchdog, pings). Story 12.2 review L3: the extraction too. */
+export const botInRun = (phase: string | undefined): boolean => phase === "build" || phase === "wave" || phase === "vote" || phase === "extract";
 const INPUT_INTERVAL_MS = TICK_DT_S * 1000;
 
 /**
@@ -399,7 +401,7 @@ export class BotClient {
       }
       // Story 8.1: mid-run, an end that is not a Leave, a shutdown or a takeover is a drop the SDK couldn't repair.
       const phase = room.state?.phase;
-      if ((phase === "build" || phase === "wave" || phase === "vote") && code !== 4000 && code !== 4001 && code !== CLOSE_TAKEN_OVER) {
+      if (botInRun(phase) && code !== 4000 && code !== 4001 && code !== CLOSE_TAKEN_OVER) {
         if (this.link === "ok") this.dropped();
         this.recovery.start();
         return;
@@ -431,7 +433,7 @@ export class BotClient {
     const now = performance.now();
     const phase = this.room.state?.phase;
     if (this.link === "ok") {
-      if (phase !== "build" && phase !== "wave" && phase !== "vote") return this.watchdog.disarm();
+      if (!botInRun(phase)) return this.watchdog.disarm();
       if (this.watchdog.fired(now)) {
         this.dropped();
         try {
@@ -551,7 +553,7 @@ export class BotClient {
 
   /** Story 8.7 (AC 10): one ping when due, in build / wave / vote, a random kind from the bot's own stream (mulberry32 seeded by its name). */
   private pingStep(phase: string): void {
-    if (this.pingEveryMs <= 0 || this.link !== "ok" || (phase !== "build" && phase !== "wave" && phase !== "vote")) return;
+    if (this.pingEveryMs <= 0 || this.link !== "ok" || !botInRun(phase)) return;
     const now = performance.now();
     if (now - this.lastPingMs < this.pingEveryMs) return;
     this.lastPingMs = now;
@@ -577,6 +579,7 @@ export class BotClient {
       }
       return;
     }
+    if (state?.phase === "extract") return; // Story 12.2: the server walks the survivors; nothing is sent (like the client)
     // Story 3.1: the fight runs in build and wave phases; a bot taps Ready in every build phase.
     if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);
@@ -782,8 +785,8 @@ export class BotClient {
   private placeRefused(m: BuildingRefused): void {
     const p = this.shopPending;
     if (!p || p.kind !== "building") return;
-    // A bad spot: the next candidate on the next step. Money or the cap: give up on that entry.
-    if (m.reason !== "blocked") {
+    // A bad spot (Story 12.1: or one that would seal a path): the next candidate on the next step. Money or the cap: give up on that entry.
+    if (m.reason !== "blocked" && m.reason !== "seals_path") {
       this.shopSkip |= 1 << p.index;
       this.placeAttempt = 0;
     }

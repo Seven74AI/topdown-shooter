@@ -92,6 +92,39 @@ describe("Story 6.3 DarknessView", () => {
     expect(textureRegistry.has(DARKNESS_KEY)).toBe(false);
   });
 
+  it("Story 12.3 (AC 6): the dawn line lifts the darkness east of it (a ramp over its soft edge, then the rest), nothing while off; a boarded body leaves no glow or cone", () => {
+    const { fs, view } = darkness();
+    const w = world(5);
+    frame(view, w);
+    const k2 = 1 + 2 * DARKNESS_PAD;
+    const c = fs.canvases.find((x) => x.width === Math.ceil(1280 * k2 * DARKNESS_RES));
+    const ctx = c?.ctx;
+    if (!ctx) throw new Error("ctx");
+    ctx.clear();
+    view.dawnX = 20; // m; the view starts at 4 − pad
+    view.dawnEdgeM = 6;
+    view.dawnK = 1;
+    frame(view, w);
+    const kpx = 40 * DARKNESS_RES;
+    const vx = 4 - 32 * DARKNESS_PAD;
+    const lit = ctx.ops.filter((o) => o.comp === "destination-out" && o.op === "fillRect");
+    expect(lit).toHaveLength(1);
+    expect(lit[0]?.args[0] as number).toBeCloseTo((20 - vx) * kpx, 6);
+    expect(lit[0]?.alpha).toBeCloseTo(0.9, 6);
+    const ramp = ctx.ops.find((o) => o.comp === "destination-out" && o.op === "drawImage" && o.args.length === 5);
+    expect(ramp?.args[1] as number).toBeCloseTo((14 - vx) * kpx, 6);
+    view.dawnX = Number.NaN;
+    ctx.clear();
+    frame(view, w);
+    expect(ctx.ops.some((o) => o.comp === "destination-out" && o.op === "fillRect")).toBe(false);
+    // 12.2 left it: a boarded survivor's body is gone, so is its light
+    w.extract.boarded.add("me");
+    const plan = new DarknessPlan(B.maxStamps);
+    planDarkness(plan, w, inputs());
+    expect(plan.count).toBe(0);
+    view.destroy();
+  });
+
   it("F6: the darkness alpha is the same with ?fx=low on and off; 20 % → 0.8 (BL2 moonlit), half dark → 0.4", () => {
     const a = darkness(false);
     const b = darkness(true);
