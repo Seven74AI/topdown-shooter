@@ -316,6 +316,10 @@ export class FogView {
     if (!this.inDarkness) return;
     const f = scratch();
     if (!f) return;
+    // the scratch layer may be smaller than the target (FOG_GL_RES): draw in its pixels
+    k *= f.w / w;
+    w = f.w;
+    h = f.h;
     const look = FOG_LOOKS[this.style] as FogStyleLook;
     this.darkPaints++;
     const r = this.fog.radii;

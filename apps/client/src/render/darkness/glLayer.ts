@@ -28,7 +28,7 @@ export interface GlLayer {
   rect(x: number, y: number, w: number, h: number, alpha: number, erase: boolean): void;
   /** The canvas `src` repeated over the whole layer, scaled by `scale`, its origin at (ox, oy) (the 2D pattern fill). */
   tile(src: HTMLCanvasElement, scale: number, ox: number, oy: number, alpha: number, erase: boolean): void;
-  /** Another layer (already drawn this frame) drawn in at `alpha`. */
+  /** Another layer (already drawn this frame) drawn in at `alpha`, stretched over this one (it may be smaller). */
   layer(src: GlLayer, alpha: number): void;
   /** Runs this frame's commands (call once all are queued; `layer` runs its source first). */
   flush(): void;
@@ -114,7 +114,8 @@ class DynamicLayer implements GlLayer {
     const c = this.kit.stampCfg;
     c.alpha = alpha;
     c.rotation = 0;
-    c.scaleX = c.scaleY = 1;
+    c.scaleX = this.w / src.w; // a smaller layer is stretched over this one
+    c.scaleY = this.h / src.h;
     c.originX = c.originY = 0;
     c.blendMode = BLEND_NORMAL;
     this.dt.stamp((src as DynamicLayer).key, undefined, 0, 0, c);

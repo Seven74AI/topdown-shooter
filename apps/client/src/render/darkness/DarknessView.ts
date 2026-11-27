@@ -11,6 +11,8 @@ import { GlLayers, rgbNumber, type GlLayer } from "./glLayer";
 /** Story 10.2 (B8): the GPU darkness's texture keys (the 2D path keeps `DARKNESS_KEY`). */
 export const DARKNESS_GL_KEY = "fx_darkness_gl";
 export const DARKNESS_GL_FOG_KEY = "fx_darkness_gl_fog";
+/** Story 10.2 (T3 L4, in A/B): the GPU fog layer's size as a share of the darkness layer (stretched back when drawn in). */
+export const FOG_GL_RES = Number(new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("fogres") ?? 1) || 1;
 
 /** The texture key of the darkness canvas (brief 20: through `addGeneratedTexture`). */
 export const DARKNESS_KEY = "fx_darkness";
@@ -188,7 +190,7 @@ export class DarknessView {
     return true;
   }
 
-  private readonly fogScratch = (): GlLayer | null => (this.gl ? this.gl.get(DARKNESS_GL_FOG_KEY, this.w, this.h) : null);
+  private readonly fogScratch = (): GlLayer | null => (this.gl ? this.gl.get(DARKNESS_GL_FOG_KEY, Math.max(1, Math.ceil(this.w * FOG_GL_RES)), Math.max(1, Math.ceil(this.h * FOG_GL_RES))) : null);
 
   /** `paint` on the GPU: the same steps (fill, stamps cut out, dawn, fog, warm tints), as `GlLayer` commands. */
   private paintGl(l: GlLayer): void {
