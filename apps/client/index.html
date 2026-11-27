@@ -32,11 +32,66 @@
       #game.mouse-mode {
         cursor: crosshair;
       }
+      /* Story 10.4 (10.4-Q1 = B, designer 2026-11-27; title "Hordes", 10.5-Q2): the loading screen, drawn before any script arrives; removed by main.ts at the first screen. */
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        background: #000;
+        color: #fff;
+        font-family: system-ui, sans-serif;
+      }
+      .bl__title {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        text-align: center;
+        font-size: 32px;
+        line-height: 1;
+      }
+      .bl__bar,
+      .bl__line {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + 34px);
+      }
+      .bl__bar {
+        width: 240px;
+        height: 4px;
+        margin-left: -120px;
+        background: #3b4048;
+        overflow: hidden;
+      }
+      .bl__fill {
+        height: 100%;
+        background: #f59e2c;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.2s linear;
+      }
+      .bl__line {
+        top: calc(50% + 50px);
+        width: 300px;
+        margin-left: -150px;
+        text-align: center;
+        font-size: 13px;
+        color: #8f97a2;
+        font-variant-numeric: tabular-nums;
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
     <div id="ui"></div>
+    <div id="boot-loader" data-progress="0">
+      <div class="bl__title">Hordes</div>
+      <div class="bl__bar"><div class="bl__fill"></div></div>
+      <div class="bl__line">Downloading…</div>
+    </div>
+    <!-- boot-loader-script -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
