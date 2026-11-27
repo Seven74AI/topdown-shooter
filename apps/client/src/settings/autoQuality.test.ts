@@ -90,6 +90,12 @@ describe("Story 10.2-Q3 B: the one-time quality check (autoQuality)", () => {
     const boom = () => {
       throw new Error("blocked");
     };
+    // review H1: the localStorage GETTER throws too (blocked storage: SecurityError) — boot must not throw
+    const getterThrows = new AutoQuality(() => boom(), setSettingsDefaults, getStoredSettings);
+    expect(() => getterThrows.boot()).not.toThrow();
+    expect(getterThrows.phase).toBe("idle");
+    expect(feed(getterThrows, 35, AUTO_QUALITY_WINDOW_MS + 500).toasts).toEqual([AUTO_QUALITY_TOAST]); // the result can't be stored: still applies
+    resetSettingsCache();
     const aq = new AutoQuality(() => ({ getItem: boom, setItem: boom }), setSettingsDefaults, getStoredSettings);
     aq.boot();
     expect(feed(aq, 35, AUTO_QUALITY_WINDOW_MS + 500).toasts).toEqual([AUTO_QUALITY_TOAST]);
@@ -119,6 +125,37 @@ describe("Story 10.2-Q3 B: the one-time quality check (autoQuality)", () => {
     expect(feed(aq, 50, AUTO_QUALITY_WINDOW_MS + 500, WAVE, r.t + 1).toasts).toEqual([]); // the fresh try: 50 FPS
     expect(aq.step).toBe(0);
     expect(aq.phase).toBe("done");
+  });
+});
+
+describe("Story 10.2 review H2 / N4: an app switch and ?stress", () => {
+  afterEach(() => {
+    resetSettingsCache();
+    vi.unstubAllGlobals();
+  });
+  it("H2: a real frame gap (the loop paused while hidden, `hidden` never seen) cancels the try: nothing lowered, nothing stored; the next try checks afresh", () => {
+    const store = memStorage();
+    const aq = new AutoQuality(() => store, setSettingsDefaults, getStoredSettings);
+    let r = feed(aq, 50, 4000); // 4 s of a fine 50 FPS
+    expect(aq.phase).toBe("running");
+    // the app was switched away for 3 s: Phaser stopped stepping; the first frame back comes 3 s later, still "visible"
+    aq.frame(r.t + 3000, WAVE);
+    expect(aq.phase).toBe("idle");
+    r = feed(aq, 50, 6100, WAVE, r.t + 3000); // the rest of the old window would have read ~33 FPS with the gap
+    expect(getSettings()).toEqual(PLAYER_SETTINGS_DEFAULTS);
+    expect(store.map.has(AUTO_QUALITY_KEY)).toBe(false);
+    expect(feed(aq, 50, AUTO_QUALITY_WINDOW_MS + 500, WAVE, r.t + 20).toasts).toEqual([]); // the fresh try: 50 FPS
+    expect([aq.phase, aq.step]).toEqual(["done", 0]);
+  });
+  it("H2: a slow but steady phone (every frame 200 ms = 5 FPS, under the gap limit) still drops two steps", () => {
+    const { toasts } = feed(new AutoQuality(() => memStorage(), setSettingsDefaults, getStoredSettings), 5, AUTO_QUALITY_WINDOW_MS + 500);
+    expect(toasts).toEqual([AUTO_QUALITY_TOAST]);
+    expect(getSettings().resolution).toBe("fast");
+  });
+  it("N4: under ?stress a remembered step is not applied (the benchmark keeps the shipped defaults)", () => {
+    const store = memStorage({ [AUTO_QUALITY_KEY]: JSON.stringify({ step: 2 }) });
+    new AutoQuality(() => store, setSettingsDefaults, getStoredSettings, true).boot();
+    expect(getSettings()).toEqual(PLAYER_SETTINGS_DEFAULTS);
   });
 });
 

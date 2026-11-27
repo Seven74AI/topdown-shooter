@@ -18,6 +18,11 @@ export const AUTO_QUALITY_KEY = "topdown-shooter.autoQuality";
 export const AUTO_QUALITY_WINDOW_MS = 10_000;
 export const AUTO_QUALITY_STEP1_FPS = 40;
 export const AUTO_QUALITY_STEP2_FPS = 30;
+/**
+ * Review H2: a frame gap longer than this (ms) is a paused page (app switch, lock, a hidden tab whose loop Phaser
+ * stopped), not a slow phone: the try is cancelled. 250 ms = a 4 FPS frame, below anything the check can call.
+ */
+export const AUTO_QUALITY_MAX_GAP_MS = 250;
 /** The toast the lowering shows once (10.2-Q3 B). */
 export const AUTO_QUALITY_TOAST = "Lowered quality for smoother play · Settings";
 
@@ -53,9 +58,10 @@ interface Stored {
   step: AutoQualityStep;
 }
 
-function readStored(store: AutoQualityStore | undefined): Stored | null {
+/** Review H1: the storage getter itself can throw (`localStorage` blocked: SecurityError), so it is called inside the try. */
+function readStored(store: () => AutoQualityStore | undefined): Stored | null {
   try {
-    const raw = store?.getItem(AUTO_QUALITY_KEY);
+    const raw = store()?.getItem(AUTO_QUALITY_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw) as { step?: unknown };
     return v.step === 0 || v.step === 1 || v.step === 2 ? { step: v.step } : null;
@@ -74,6 +80,8 @@ export class AutoQuality {
   step: AutoQualityStep = 0;
   private startMs = 0;
   private frames = 0;
+  /** Review H2: the previous frame's time; a gap over `AUTO_QUALITY_MAX_GAP_MS` cancels the try. */
+  private lastMs = 0;
 
   constructor(
     private readonly store: () => AutoQualityStore | undefined,
@@ -85,7 +93,8 @@ export class AutoQuality {
 
   /** At boot: a remembered result lowers the defaults again; the check is then done for good. */
   boot(): void {
-    const s = readStored(this.store());
+    if (this.disabled) return; // review N4: a `?stress` benchmark keeps the shipped defaults (a stored step too)
+    const s = readStored(this.store);
     if (!s) return;
     this.step = s.step;
     this.phase = "done";
@@ -99,7 +108,16 @@ export class AutoQuality {
       if (!f.firstWave || f.hidden) return "";
       this.phase = "running";
       this.startMs = nowMs;
+      this.lastMs = nowMs;
       this.frames = 0;
+      return "";
+    }
+    // Review H2: Phaser stops its loop while the tab is hidden, so `hidden` is rarely seen here; the first frame back
+    // after an app switch shows as one long gap. Any gap over the limit cancels this try (nothing stored).
+    const gap = nowMs - this.lastMs;
+    this.lastMs = nowMs;
+    if (gap > AUTO_QUALITY_MAX_GAP_MS) {
+      this.phase = "idle";
       return "";
     }
     // running
