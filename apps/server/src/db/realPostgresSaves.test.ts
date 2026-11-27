@@ -80,6 +80,28 @@ describe.skipIf(!URL)("Stories 8.4–8.6: saves on real PostgreSQL (TEST_DATABAS
     }
   });
 
+  it("deferred D2 (Story 10.7): a first bank of 20, then 3 top-ups of 35 and 2 of 50 at once (separate connections) → one row of 50, Supplies and lifetime +50 in all, runs +1 once, ×10", async () => {
+    const progress = progressRepo(database);
+    const db = await database.db();
+    const meta = { statsDelta: { revives: 0, kills: 0, barricades: 0, runs: 1 }, grant: () => ({ cosmetics: [], districts: [], breakdown: {} }) };
+    const pay = (n: number) => () => ({ supplies: n, breakdown: { total: n } });
+    for (let round = 0; round < 10; round++) {
+      const a = await acct();
+      const run = randomUUID();
+      const first = await progress.addSupplies(run, a, pay(20), meta, false); // the Leave
+      expect(first.banked).toBe(true);
+      const before = (await progress.get(a))!;
+      expect([before.supplies, before.lifetimeSupplies, before.stats.runs]).toEqual([20, 20, 1]);
+      const tops = [35, 50, 35, 50, 35];
+      await Promise.all(tops.map((n) => progress.addSupplies(run, a, pay(n), meta, true)));
+      const after = (await progress.get(a))!;
+      expect([after.supplies, after.lifetimeSupplies], `round ${round}`).toEqual([50, 50]); // 20 + 30, never 20 + 15 + 30
+      expect(after.stats.runs).toBe(1);
+      const rowsNow = ((await db.execute(sql`select supplies from run_rewards where run_id = ${run}`)) as unknown as { rows: { supplies: number }[] }).rows;
+      expect(rowsNow).toEqual([{ supplies: 50 }]);
+    }
+  });
+
   it("re-review H: a guest's bank, a merge, then the account's top-ups at once ×5 → one row, paid once", async () => {
     const progress = progressRepo(database);
     const [g, a] = [await acct(), await acct()];

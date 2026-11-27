@@ -7,11 +7,12 @@ import { runHousekeeping } from "../ops/housekeeping";
 import { type Database, databaseFromEnv } from "./client";
 import { DEFAULT_PGLITE_DIR } from "./paths";
 import { reportsRepo } from "./reportsRepo";
+import { runResultsRepo } from "./runResultsRepo";
 
 let database: Database | null = null;
 try {
   database = databaseFromEnv(process.env, DEFAULT_PGLITE_DIR);
-  const done = await runHousekeeping({ reports: reportsRepo(database) });
+  const done = await runHousekeeping({ reports: reportsRepo(database), runResults: runResultsRepo(database) });
   process.stdout.write(`${JSON.stringify(done)}\n`);
 } catch (e) {
   log.error({ err: e instanceof Error ? e.message : String(e) }, "housekeeping_command_failed");

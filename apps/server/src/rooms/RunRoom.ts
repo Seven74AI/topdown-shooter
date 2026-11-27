@@ -1,5 +1,5 @@
 import { isSwitching, registerRoomDevices } from "../auth/devicesInRooms";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   CloseCode,
   Room,
@@ -138,6 +138,8 @@ import { loadRunInits, pickDevUnlocks, runPlayers, type RunPlayerInit } from "..
 import { pickDevLoot } from "../run/devLoot";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
+import { recordRunResult } from "../run/roomRunResults";
+import { resultRow, seatRow } from "../meta/runResult";
 import { PlayerState, RunState } from "./schema/RunState";
 
 /**
@@ -334,6 +336,14 @@ export function checkNetProtocol(version: number | undefined): void {
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
 export const authLog = roomLog("auth"); // exported for tests (Story 7.9: look_replaced)
 
+/** Story 10.7: what a run's stats finish reads, taken together (one run's bank, district, seed and night start). */
+interface RunResultRun {
+  readonly bank: RunBank;
+  readonly district: string;
+  readonly seed: number;
+  readonly nightStartedAt: number;
+}
+
 /**
  * One run: lobby now (Story 2.1), the fight from Story 2.4. The room id is the 4-letter code.
  * Player ids are slots `p0`–`p3`, never the Colyseus sessionId.
@@ -404,6 +414,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private readonly askedLook = new WeakMap<Member, unknown>();
   /** Review M3: the run end's banks (settled), so the lobby reloads progress after this run's grants are written. */
   private runBanked: Promise<unknown> = Promise.resolve();
+  /** Story 10.7: the run stats writes, in order (start/resumed, then finish; tests await it). Never awaited by a tick. */
+  runResultWrites: Promise<void> = Promise.resolve();
+  /** Story 10.7 (B8): when this night's Start happened (a lost start row is inserted with this night's length). */
+  private nightStartedAt = 0;
   /** Story 8.1: the hold length in seconds (HOLD_S; tests may shorten it on a live room, like `allowSoloStart`). */
   holdS = HOLD_S;
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
@@ -453,6 +467,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private savingQuit = false;
   /** Story 8.4: the run's row reached its end state here (resumable or deleted): no later write touches it. */
   private saveSettled = false;
+  /** Story 10.7 review H1: this run was saved as resumable here (Save and quit, all left, shutdown, tick error): it plays on. */
+  private savedResumable = false;
   /** Story 8.4: the run's save row exists (an autosave or a claim). */
   private saveRowOpen = false;
   /** Review L: bumped at every Start, so a late save of an earlier run never settles the next run's row. */
@@ -1083,7 +1099,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     world.loot.banked.add(member.playerId); // review M1: a banked seat can no longer take the bag
     // Story 12.2 (AC 12): a seat leaving during the extraction was there at the Extract: it banks "extracted".
     const ending = world.run.phase === "extract" ? "extracted" : "quit";
-    void this.bank.bank({ playerId: member.playerId, seatId: seatIdOf(member), accountId: member.accountId, record: p, ending, wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p) }); // 7.11 AC 6: with what it had then
+    void this.bank.bank({ playerId: member.playerId, seatId: seatIdOf(member), accountId: member.accountId, record: p, ending, wave: world.waves.number, lockedUsed: p.lockedUsed, meta: this.bank.seatMetaNow(world, p), result: seatRow(p, seatIdOf(member), member.slot, member.accountId) }); // 7.11 AC 6: with what it had then
   }
 
   /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
@@ -1174,7 +1190,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const controller = this.controller;
     if (controller && this.bank) {
       const world = controller.world;
-      void this.bank.bank({ playerId: seat.playerId, seatId: seatIdOf(seat), accountId: seat.accountId, record: seat.player, ending: "quit", wave: world.waves.number, lockedUsed: seat.player.lockedUsed, meta: this.bank.seatMetaNow(world, seat.player) });
+      void this.bank.bank({ playerId: seat.playerId, seatId: seatIdOf(seat), accountId: seat.accountId, record: seat.player, ending: "quit", wave: world.waves.number, lockedUsed: seat.player.lockedUsed, meta: this.bank.seatMetaNow(world, seat.player), result: seatRow(seat.player, seatIdOf(seat), seat.slot, seat.accountId) });
     }
     controller?.disownBuildings(seat.playerId);
     if (controller) syncState(this.state, controller);
@@ -1184,7 +1200,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /** Story 8.3 review H1: the members and remembered seats for `bankRunEnd`, each with its seat id. */
   private bankMembers(): { playerId: string; accountId: string | null; seatId: string }[] {
-    return Array.from(this.members.values(), (m) => ({ playerId: m.playerId, accountId: m.accountId, seatId: seatIdOf(m) }));
+    return Array.from(this.members.values(), (m) => ({ playerId: m.playerId, accountId: m.accountId, seatId: seatIdOf(m), slot: m.slot }));
   }
   private bankRemembered(): (RememberedSeat & { seatId: string })[] {
     return Array.from(this.rememberedSeats.values(), (s) => ({ ...s, seatId: seatIdOf(s) }));
@@ -1246,10 +1262,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase, waiting: this.members.size }, "run_abandoned");
       // Story 8.4 (S2): everyone who played left in a calm phase: the run is saved for them (taken before the Results).
       const keep = (this.state.phase === "build" || this.state.phase === "vote") && this.saveWriter !== null && !this.saveSettled;
-      if (keep) void this.makeResumable("all_left");
+      const saving = keep ? this.makeResumable("all_left") : null; // captured now, in the calm phase
+      const run = this.runResultRun(); // re-review: this run's inputs, before anything can start another
       endWorldRun(controller.world);
       syncState(this.state, controller);
       this.endRun(controller, controller.world.waves.number, keep, "lost");
+      // Story 10.7 review L4: the save failed → the run is lost after all (its stats row finished, not left to the orphan rule).
+      if (saving) void this.finishIfNotSaved(saving, controller.world, controller.world.waves.number, run);
     } else if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out). Story 8.4 (S2): in a build phase or the vote the run is
       // SAVED (resumable; its Supplies topped up by the save); mid-wave it is LOST (its save row deleted).
@@ -1257,6 +1276,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase, saved: calm && this.saveWriter !== null }, "run_abandoned");
       const bankNow = (): void => {
         this.runBanked = this.bank?.bankRunEnd(controller.world, this.bankMembers(), this.bankRemembered()) ?? this.runBanked; // Story 7.2: every remembered seat banks `quit`
+        this.finishRunResult(controller.world, controller.world.waves.number, true); // Story 10.7: the run is lost (B2)
       };
       if (calm && this.saveWriter && !this.saveSettled) {
         void this.saveAllLeft(bankNow);
@@ -1864,6 +1884,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 7.2 (+ 7.7: the run's district). Story 8.6 (E8-S3): a resume keeps the run id and every bank is a top-up.
     this.bank = new RunBank(this.runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs, district: this.state.district, ...(resume ? { runId: resume.save.runId, resumed: true } : {}) });
     this.saveSettled = false;
+    this.savedResumable = false;
     this.finalizing = false;
     this.runToken++;
     this.saveRowOpen = resume !== null; // a resume's row is open (claimed); a fresh run has none until its first autosave
@@ -1875,6 +1896,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.saveWriter = savesRepo ? new SaveWriter(savesRepo, this.log) : null;
     if (resume) this.resumeSeats(controller, resume.save, inits);
     this.autosavePending = resume ? "resumed" : "build_start"; // Story 8.4: the run's first calm phase is saved on its first tick
+    // Story 10.7 (B1): the run's stats row opens at its first Start; a resumed Start counts one more night.
+    this.nightStartedAt = Date.now();
+    const started = { id: this.bank.runId, district: this.state.district, seed: this.runSeed };
+    const claimKey = randomUUID(); // re-review: one key per Start (room codes are reused); a retry of this write keeps it
+    this.runResultWrites = recordRunResult(started.id, resume ? "resumed" : "start", (r) => (resume ? r.resumed(started, claimKey) : r.start(started)), this.log, this.bankRetryMs);
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Story 8.2: the
@@ -2033,8 +2059,35 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.log.info({ runSeed: this.runSeed, runId: this.bank?.runId, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
     this.runBanked = this.bank?.bankRunEnd(controller.world, this.bankMembers(), this.bankRemembered()) ?? this.runBanked; // Story 7.2: one call (never awaited by the tick)
     if (!keepSave) this.dropSave(dropWhy); // Story 8.4 (S3): a finished run (won, extracted, wiped) deletes its save; review L: an abandoned one is "lost"
+    if (!keepSave) this.finishRunResult(controller.world, wave, dropWhy === "lost"); // Story 10.7 (B2): a saved run plays on another night
     // Story 8.2 review M2: a joiner still waiting played nothing: a zero not_saved result now.
     for (const m of this.members.values()) if (m.waiting === true) this.bank?.nothingFor(seatIdOf(m), run.ending === "none" ? "wiped" : run.ending);
+  }
+
+  /**
+   * Story 10.7 (AC 2, B2, B4, B8): the run is over: its stats row is finished with every seat banked in it (members,
+   * held, remembered, Leavers: `RunBank.resultSeats`), fire and forget, after the start write. `left`: lost because
+   * the team left. `run`: this run's inputs (re-review: taken at the call site, so a later Start can't mix runs).
+   */
+  private finishRunResult(world: World, wave: number, left: boolean, run: RunResultRun | null = this.runResultRun()): void {
+    // Review H1: a run saved as resumable here (a shutdown / tick-error save, then everyone's socket closes) plays on: no
+    // finish. A shutdown whose save failed leaves the row open too: the boot sweep makes its last autosave resumable, so
+    // the run can still end on another night; the orphan rule applies only when no save row exists at all.
+    if (!run || this.savedResumable || this.shuttingDown) return;
+    const { bank } = run;
+    const row = resultRow(world, { id: bank.runId, district: run.district, seed: run.seed, nightMs: Date.now() - run.nightStartedAt }, wave, left);
+    const seats = bank.resultSeats();
+    this.runResultWrites = recordRunResult(row.id, "finish", (r) => r.finish(row, seats), this.log, this.bankRetryMs, this.runResultWrites);
+  }
+
+  /** Story 10.7: the current run's stats inputs (null outside a run). */
+  private runResultRun(): RunResultRun | null {
+    return this.bank ? { bank: this.bank, district: this.state.district, seed: this.runSeed, nightStartedAt: this.nightStartedAt } : null;
+  }
+
+  /** Story 10.7 review L4: the waiting-only all-left save; when it failed, the run is lost: its stats row is finished. */
+  private async finishIfNotSaved(saving: Promise<Date | null>, world: World, wave: number, run: RunResultRun | null): Promise<void> {
+    if ((await saving) === null) this.finishRunResult(world, wave, true, run);
   }
 
   /**
@@ -2464,7 +2517,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.error({ runId: save.runId, why }, "run_save_failed");
       return null;
     }
-    if (this.runToken === token) this.saveSettled = true; // review L: never the next run's row
+    if (this.runToken === token) {
+      this.saveSettled = true; // review L: never the next run's row
+      this.savedResumable = true; // Story 10.7 review H1: the run plays on another night (no stats finish)
+    }
     this.log.info({ runId: save.runId, why, wave: save.wave, phase: save.phase }, "run_resumable");
     // E8-S4: the Supplies of the waves so far (top-up: never twice); then E8-S11 per linked account. Review M2: a
     // shutdown waits for it (inside its bounded wait), so the database never closes under a top-up.
@@ -2652,7 +2708,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Review M5: a row this room still holds is settled (never left 'open' for the boot sweep): the last stored save
       // becomes resumable when there is one, else the row goes.
       if (this.lastSave) void this.makeResumable("disposed", this.lastSave);
-      else this.dropSave("lost");
+      else {
+        this.dropSave("lost");
+        this.finishRunResult(this.controller.world, this.controller.world.waves.number, true); // Story 10.7 review L4
+      }
     }
     this.clearHolds();
     reservedCodes.delete(this.roomId);

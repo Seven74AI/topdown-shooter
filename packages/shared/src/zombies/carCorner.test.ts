@@ -255,5 +255,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
  * `balance.version`; this scenario has no buildings and no decay change (it passed unchanged on 12.1's commit).
  * Story 12.2: re-pinned (was 2551157819) only because the new `waves.evac` extraction keys (descendS, walkTimeoutS,
  * liftBeatS, flyOutS, flyOutHorde) change `balance.version`; this scenario never reaches a vote.
+ * Story 10.7: re-pinned (was 2415701599) only because the snapshot holds the new `PlayerState.weaponsBought` (an empty
+ * list here: nobody buys); the simulation is unchanged.
  */
-const GOLDEN_DIGEST = 2415701599;
+const GOLDEN_DIGEST = 4002033413;

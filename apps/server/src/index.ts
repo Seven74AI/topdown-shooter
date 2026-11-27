@@ -10,6 +10,7 @@ import { bankSavedRun } from "./meta/saveBank";
 import { progressRepo } from "./db/progressRepo";
 import { releaseSavesOnBoot } from "./run/roomSaves";
 import { startHousekeeping } from "./ops/housekeeping";
+import { runResultsRepo } from "./db/runResultsRepo";
 import { reportsRepo } from "./db/reportsRepo";
 
 // Environment, read once (Story 2.2 sets these in deploy/docker-compose.yml).
@@ -56,9 +57,9 @@ await releaseSavesOnBoot(server.saves, log, async (id, snapshot) => {
   return bankSavedRun(m.save, { balance: serverBalance, map: mapForDistrict(m.save.district), repo: () => progress, log, codeVersion: SAVE_CODE_VERSION });
 });
 await server.listen(port, host);
-// Story 10.6 (B5): daily housekeeping (first run 5 min after boot, then every 24 h; unref'd timers, stopped on the stop
+// Story 10.6 (B5) + Story 10.7 (B3): daily housekeeping (first run 5 min after boot, then every 24 h; unref'd timers, stopped on the stop
 // signal; not `server.onShutdown`, which holds ONE callback: app.ts's database close).
-const stopHousekeeping = startHousekeeping({ reports: reportsRepo(database) });
+const stopHousekeeping = startHousekeeping({ reports: reportsRepo(database), runResults: runResultsRepo(database) });
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, stopHousekeeping);
 log.info(
   { port, allowedOrigins, allowSoloStart, allowTestScenarios, balanceVersion: serverBalance.version, database: database.kind, gitSha: process.env.GIT_SHA ?? "dev" },

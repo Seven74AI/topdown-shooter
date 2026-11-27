@@ -31,6 +31,9 @@ async function guestWith(reports: number, token: string): Promise<{ id: string; 
   return { id: acc!.id, ids };
 }
 
+/** Story 10.7: its step (tested in `db/runResults.test.ts`) finds nothing here. */
+const noRuns = { expireAbandoned: async () => 0 };
+
 describe("Story 10.6 AC 6: housekeeping deletes reports older than 30 days", () => {
   it("31-day rows go, 29-day rows stay; the count is logged in housekeeping_done", async () => {
     const before = await countReportsForTest(database);
@@ -38,9 +41,9 @@ describe("Story 10.6 AC 6: housekeeping deletes reports older than 30 days", () 
     await backdateReportsForTest(database, { ids: a.ids.slice(0, 2) }, 31 * 24);
     await backdateReportsForTest(database, { ids: a.ids.slice(2) }, 29 * 24);
     const logger = { info: vi.fn(), error: vi.fn() };
-    const done = await runHousekeeping({ reports: reportsRepo(database) }, housekeepingSteps, logger);
-    expect(done).toEqual({ problemReports: 2 });
-    expect(logger.info).toHaveBeenCalledWith({ problemReports: 2 }, "housekeeping_done");
+    const done = await runHousekeeping({ reports: reportsRepo(database), runResults: noRuns }, housekeepingSteps, logger);
+    expect(done).toEqual({ problemReports: 2, expireAbandonedRuns: 0 });
+    expect(logger.info).toHaveBeenCalledWith({ problemReports: 2, expireAbandonedRuns: 0 }, "housekeeping_done");
     expect(await countReportsForTest(database)).toBe(before + 2);
   });
 
@@ -53,7 +56,7 @@ describe("Story 10.6 AC 6: housekeeping deletes reports older than 30 days", () 
     expect(statements).toEqual([10, 10, 5]);
     expect((await repo.list(5000)).filter((r) => a.ids.includes(r.id))).toHaveLength(0);
     const spy = vi.fn(async () => 0);
-    await runHousekeeping({ reports: { deleteOlderThan: spy } }, housekeepingSteps, silent);
+    await runHousekeeping({ reports: { deleteOlderThan: spy }, runResults: noRuns }, housekeepingSteps, silent);
     expect(spy).toHaveBeenCalledWith(30, HOUSEKEEPING_BATCH);
   });
 
@@ -63,7 +66,7 @@ describe("Story 10.6 AC 6: housekeeping deletes reports older than 30 days", () 
       { name: "broken", run: () => Promise.reject(new Error("boom")) },
       { name: "fine", run: async () => 7 },
     ];
-    const done = await runHousekeeping({ reports: reportsRepo(database) }, steps, logger);
+    const done = await runHousekeeping({ reports: reportsRepo(database), runResults: noRuns }, steps, logger);
     expect(done).toEqual({ fine: 7 });
     expect(logger.error).toHaveBeenCalledWith({ step: "broken", err: "boom" }, "housekeeping_step_failed");
     expect(logger.info).toHaveBeenCalledWith({ fine: 7 }, "housekeeping_done");
@@ -73,7 +76,7 @@ describe("Story 10.6 AC 6: housekeeping deletes reports older than 30 days", () 
     vi.useFakeTimers();
     try {
       const deleteOlderThan = vi.fn(async () => 0);
-      const stop = startHousekeeping({ reports: { deleteOlderThan } }, { firstDelayMs: 1000, intervalMs: 5000 });
+      const stop = startHousekeeping({ reports: { deleteOlderThan }, runResults: noRuns }, { firstDelayMs: 1000, intervalMs: 5000 });
       await vi.advanceTimersByTimeAsync(999);
       expect(deleteOlderThan).toHaveBeenCalledTimes(0);
       await vi.advanceTimersByTimeAsync(1);

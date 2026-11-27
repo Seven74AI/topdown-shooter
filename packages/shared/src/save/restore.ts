@@ -214,6 +214,9 @@ export function restoreRunSave(save: RunSave, opts: RestoreOptions): Restored {
   const checked = sameBalance && sameCode;
   if (checked && saveDigest(world, away.map((r) => r.player)) !== save.digest) throw new SaveRestoreError("digest");
   for (let i = 0; i < flame.length; i++) if (flame[i] !== null && !world.players.has(flame[i] as string)) flame[i] = null;
+  // Story 10.7 (save v2): a version-1 seat has no `weaponsBought` (its digest was taken without it): an empty list,
+  // filled AFTER the digest check so a v1 save still checks against its own digest.
+  for (const r of bySeat) if (!Array.isArray(r.player.weaponsBought)) r.player.weaponsBought = [];
   return { world, present, away, digestChecked: checked };
 }
 

@@ -167,11 +167,11 @@ describe("Story 8.4–8.6: savedRunsRepo", () => {
     const repo = savedRunsRepo(database);
     await repo.upsertOpen(row(RUN, [a]));
     await repo.upsertOpen(row(RUN2, [a], { roomCode: "EFGH" }));
-    const swept = await repo.releaseOpenOnBoot(later());
+    const swept = await repo.releaseOpenOnBoot();
     expect(swept.map((s) => s.id).sort()).toEqual([RUN, RUN2]);
     expect(swept[0]!.snapshot.wave).toBe(3);
     expect((await repo.listForAccount(a.id)).length).toBe(2);
-    expect(await repo.releaseOpenOnBoot(later())).toEqual([]);
+    expect(await repo.releaseOpenOnBoot()).toEqual([]);
   });
 
   it("re-review L4: the boot sweep's expiry counts from the row's LAST write (D13), not a claim's old expiry", async () => {
@@ -226,6 +226,21 @@ describe("Story 8.4–8.6: savedRunsRepo", () => {
     expect(q.deleted).toEqual([ids[1]]);
     const left = await rows<{ n: number }>(db, sql`select count(*)::int as n from saved_runs`);
     expect(left[0]!.n).toBe(4);
+  });
+
+  it("Story 10.7 review M1: pruneAccount leaves expired saves alone (the housekeeping step finishes them) and never counts them in the 3", async () => {
+    const database = fresh();
+    const a = await guest(database);
+    const repo = savedRunsRepo(database);
+    const db = await database.db();
+    const old = "5f1e2d3c-4b5a-4968-8776-655443322115";
+    await repo.saveResumable(row(old, [a]), later());
+    await db.execute(sql`update saved_runs set expires_at = now() - interval '1 hour', saved_at = now() + interval '1 hour' where id = ${old}`); // expired, yet "newest"
+    const ids = ["6", "7", "8"].map((d) => `${d}f1e2d3c-4b5a-4968-8776-65544332211${d}`);
+    for (const id of ids) await repo.saveResumable(row(id, [a]), later());
+    expect(await repo.pruneAccount(a.id)).toEqual({ unlinked: 0, deleted: [] });
+    expect(await rows(db, sql`select id from saved_runs where id = ${old}`)).toHaveLength(1);
+    expect((await repo.listForAccount(a.id)).map((r) => r.id).sort()).toEqual([...ids].sort());
   });
 
   it("a dead database rejects (the caller logs and plays on)", async () => {
