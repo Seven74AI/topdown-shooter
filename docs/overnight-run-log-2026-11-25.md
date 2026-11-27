@@ -236,3 +236,5 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 07:56–08:16 Story files 10.2–10.7 written (220beba9, d8cccb41, 8b5ff8a1); D5 closed (cut.test 102/102, 2338209e); D2 still open (needs a paying top-up race test, folded into 10.7).
 - 08:17 Builders started: 10.2 (session_01CgLgPUnLeUvouvuNhvGL6o, Q-independent tasks first), 10.4 (session_01CgLgPWc9XSvWaFLxaCPAk2).
 - 08:40 Designer: 10.6-Q2 B, 10.6-Q3 B, 10.7-Q4 B; 10.4-Q1 B + 10.5-Q2 "Hordes" ("All ok"). 10.7-Q1 ("All counts") / Q2 / Q3 being clarified.
+- 08:30 Builder 10.6 started (session_01CgLgPUKi1mbtVveuQfa6u4); report-screen stills RP1/RP3 on master (4dcb8e6), shown to the designer.
+- 09:08 10.4 PR #39 green (5e9edbd): first visit 7.5 s / 0.87 MB, return 2.3 s (Slow 4G, 4× CPU). lateJoin.test race root-caused + fixed test-only (deferred item closed). Light review started (session_01CgLgPT96zvc7WsYxTynrva).
