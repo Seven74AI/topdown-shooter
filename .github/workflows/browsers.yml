@@ -5,10 +5,6 @@ name: Browsers
 # containers have only Chromium. Run it by hand (Actions → Browsers → Run workflow, on any branch) and once a week;
 # record the results in docs/qa/browsers.md (the job summary and the smoke-*.json artifacts hold them).
 on:
-  # TEMPORARY (Story 10.5 T6): one run on the story branch, since workflow_dispatch only works once the file is on
-  # master. Removed before the merge.
-  push:
-    branches: [story-10-5]
   workflow_dispatch:
   schedule:
     - cron: "17 4 * * 1" # Mondays 04:17 UTC
