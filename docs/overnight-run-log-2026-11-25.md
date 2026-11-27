@@ -226,3 +226,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 18:50 Epic 8 marked done (13/13); 9.15 marked done (PR #34). Next: 12.2 → 12.3 → 10.12 with Epic 10 (designer).
 - 23:10 12.2 extraction walk + lift-off, PR #36 merged e5aef083 (fresh review → fixes → narrow re-review clean; protocol 5). Timings, downed walk and horde size await the designer (balance only).
 - 23:18 Master CI green on e5aef083 (#36, 12.2). 12.3 builder started.
+- 00:14 (11-27) 12.3 extraction camera, PR #37 merged 10387c0b (light review + no-sim check; L1 fixed). Epic 12 stories all done. Open feel questions: 12.2 timings/downed/horde; 12.3 F1–F4 + pings.

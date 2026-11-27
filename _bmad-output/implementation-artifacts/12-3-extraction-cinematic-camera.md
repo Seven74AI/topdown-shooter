@@ -4,7 +4,7 @@ baseline_commit: e13f439
 
 # Story 12.3: Extraction cinematic camera
 
-Status: review
+Status: done
 
 <!-- Quick story 2026-11-25 from the party-mode session on cinematics. Needs 12.2 (the extraction phase). Client only. The camera director built here is meant to drive game-rendered trailers later (same shot data, offline render), so keep it data-driven. -->
 
@@ -230,3 +230,7 @@ no sim side effects. L2 (pings) and F1–F4 are with the designer (unchanged).
 - 2026-11-26: Story 12.3 built (camera director, letterbox / fade / HUD hide, crew placeholder, dawn sweep with the
   night lifting, fog lift, boarded bodies' light removed, Results without the 4 s dawn after an extraction). Status → review.
 - 2026-11-26: Light review fixes: L1 (☰ reachable during the cinematic), N1, N2.
+
+## Main session close-out (2026-11-27)
+- Light review + no-sim check: no high or medium; L1 (☰ unreachable during the cinematic) fixed in 610b47a, checked by the main session. CI green. Merged as 10387c0b (PR #37).
+- **Open with the designer (one setting each, tunable later):** F1 white timing, F2 dawn look, F3 crew placeholder, F4 bars at the fade, L2 pings hidden during the extraction (conflicts with 12.2 AC 3: designer call). Merged as built.
