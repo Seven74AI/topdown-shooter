@@ -30,6 +30,8 @@ export const playerSettingsSchema = z.object({
   fog: z.enum(["full", "plain"]).optional(),
   /** B5: light glow × 1 / 0.5 / 0. */
   glow: z.enum(["full", "low", "off"]).optional(),
+  /** Story 10.2-Q2 A: the canvas resolution cap: Sharp 2× / Balanced 1.5× / Fast 1× device px per CSS px (`RESOLUTION_DPR`). */
+  resolution: z.enum(["sharp", "balanced", "fast"]).optional(),
   /** Story 9.6 (not built: stored, hidden). */
   filmGrain: z.enum(["full", "low", "off"]).optional(),
   /** Story 9.5 (not built: stored, hidden): "bloodOnly" = no dismemberment pieces. */
@@ -57,6 +59,7 @@ export const PLAYER_SETTINGS_DEFAULTS: Readonly<PlayerSettings> = Object.freeze(
   rain: "full",
   fog: "full",
   glow: "full",
+  resolution: "sharp",
   filmGrain: "full",
   gore: "full",
   sfxVolume: 100,
@@ -67,6 +70,9 @@ export const PLAYER_SETTINGS_DEFAULTS: Readonly<PlayerSettings> = Object.freeze(
 /** B3 / B5: the multipliers the renderer applies. */
 export const RAIN_LEVEL_K: Readonly<Record<"full" | "light" | "off", number>> = Object.freeze({ full: 1, light: 0.5, off: 0 });
 export const GLOW_LEVEL_K: Readonly<Record<"full" | "low" | "off", number>> = Object.freeze({ full: 1, low: 0.5, off: 0 });
+
+/** Story 10.2-Q2 A: the highest device pixel ratio each Resolution step draws at (the device's own ratio if lower). */
+export const RESOLUTION_DPR: Readonly<Record<"sharp" | "balanced" | "fast", number>> = Object.freeze({ sharp: 2, balanced: 1.5, fast: 1 });
 
 /** B10: the largest `/account/settings` body the route reads (bytes); a larger one is refused with 413. */
 export const SETTINGS_MAX_BODY_BYTES = 1024;

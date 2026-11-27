@@ -54,7 +54,7 @@ import { BossHud } from "./BossHud";
 import { MAX_PLAYERS } from "@topdown/shared";
 import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark, waveLine } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
-import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
+import { MATE_ARROW_CSS_PX, MATE_ARROW_MARGIN_CSS_PX, MATE_ARROW_OUTLINE_CSS_PX, MATE_CROSS_CSS_PX, MATE_CROSS_INSET_CSS_PX, MATE_CROSS_THICK_CSS_PX, MATE_DOWNED_SCALE, MATE_LABEL_INSET_CSS_PX, MATE_LABEL_PAD_CSS_PX, MATE_NAME_TEXT_CSS_PX, createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
@@ -130,25 +130,23 @@ const TEXT_STROKE_PX = 4;
 /** The same stroke as a number (Graphics outlines). */
 const TEXT_STROKE_COLOR = 0x000000;
 /** Story 2.9: teammate name tags (CSS px × dpr) and edge arrows. */
-const NAME_TEXT_PX = 14;
+const NAME_TEXT_PX = MATE_NAME_TEXT_CSS_PX; // review N6: shared with the ping arrows' keep-off
 const NAME_STROKE_PX = 3;
 const NAME_STROKE = "#0b0d10";
 /** Gap between a downed teammate's countdown and their name, CSS px. */
 const NAME_GAP_PX = 2;
-const MATE_ARROW_SCALE = 1.3;
-/** Wider than the rush arrows' margin, so the two kinds don't overlap at the same edge spot. */
-const MATE_ARROW_MARGIN = ARROW_MARGIN + 12;
-const MATE_ARROW_OUTLINE_PX = 2;
+/** Wider than the rush arrows' margin, so the two kinds don't overlap at the same edge spot (10.2: in `teammateMarkers.ts`, shared with the ping arrows' keep-off). */
+const MATE_ARROW_MARGIN = MATE_ARROW_MARGIN_CSS_PX;
+const MATE_ARROW_OUTLINE_PX = MATE_ARROW_OUTLINE_CSS_PX;
 const MATE_ARROW_OUTLINE = 0xffffff;
 /** The downed "+" icon: arm length and thickness (CSS px), and its distance inside the arrow tip. */
-const CROSS_PX = 6;
-const CROSS_THICK_PX = 2.5;
-const CROSS_INSET_PX = 20;
+const CROSS_PX = MATE_CROSS_CSS_PX;
+const CROSS_THICK_PX = MATE_CROSS_THICK_CSS_PX;
+const CROSS_INSET_PX = MATE_CROSS_INSET_CSS_PX;
 const CROSS_COLOR = 0xffffff;
-/** An off-screen DOWNED teammate's arrow is this much bigger (before the pulse), so it can't be missed. */
-const MATE_DOWNED_SCALE = 1.5;
+// An off-screen DOWNED teammate's arrow is MATE_DOWNED_SCALE bigger (before the pulse), so it can't be missed (`teammateMarkers.ts`).
 /** Their "Bo · 14 s" label: centred this far inward from the arrow tip (CSS px), in this colour. */
-const MATE_LABEL_INSET_PX = 62;
+const MATE_LABEL_INSET_PX = MATE_LABEL_INSET_CSS_PX;
 const MATE_DOWNED_COLOR = "#ff6b6b";
 const NAME_COLOR = "#ffffff";
 /** Story 5.24 (D7): a teammate ghost's label ("Bo · Auto-turret"), CSS px × dpr, in the sender's colour. */
@@ -793,7 +791,7 @@ export class HudScene extends Phaser.Scene {
     for (let slot = 0; slot < MAX_PLAYERS; slot++) {
       this.names.push(this.add.text(0, 0, "", this.nameStyle()).setOrigin(0.5).setVisible(false));
       this.ghostLabels.push(this.add.text(0, 0, "", this.ghostLabelStyle(slot)).setOrigin(0.5, 1).setVisible(false)); // Story 5.24
-      const a = ARROW_PX * MATE_ARROW_SCALE * this.arrowDpr;
+      const a = MATE_ARROW_CSS_PX * this.arrowDpr;
       this.mateArrows.push(
         this.add
           .triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, SLOT_COLORS[slot] ?? SLOT_COLORS[0])
@@ -2275,6 +2273,10 @@ export class HudScene extends Phaser.Scene {
         this.shownNames[slot] = text;
         name.setText(text);
       }
+      // Story 10.2 review L3: the label's measured size for the ping arrows' keep-off (GameScene, next frame)
+      m.mateLabelSecs[slot] = offDowned ? mk.secs : -1;
+      m.mateLabelW[slot] = name.width;
+      m.mateLabelH[slot] = name.height;
       if (offDowned !== this.redNames[slot]) {
         this.redNames[slot] = offDowned;
         name.setColor(offDowned ? MATE_DOWNED_COLOR : NAME_COLOR);
@@ -2295,8 +2297,8 @@ export class HudScene extends Phaser.Scene {
       if (offDowned) {
         // Inward from the arrow, kept fully on screen.
         const inset = MATE_LABEL_INSET_PX * k * MATE_DOWNED_SCALE;
-        const hw = name.width / 2 + 4 * k;
-        const hh = name.height / 2 + 4 * k;
+        const hw = name.width / 2 + MATE_LABEL_PAD_CSS_PX * k;
+        const hh = name.height / 2 + MATE_LABEL_PAD_CSS_PX * k;
         const lx = Math.min(this.scale.width - hw, Math.max(hw, mk.x - Math.cos(mk.angle) * inset));
         const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
         name.setPosition(lx, ly).setVisible(true);

@@ -37,7 +37,13 @@ describe("Story 8.7: pings are wired end to end", () => {
     expect(src).toMatch(/playSfx\(p\.kind === 0 \? "ping_double" : "ping", pingPan\(sx, sw\), PING_SFX_VOLUME\)/);
     expect(src).toMatch(/if \(menuKey && this\.hudModel\.ping\.open\) \{/); // Esc closes the wheel before the menu
     // B16 (designer 2026-11-25): no HUD control keep-offs — the HUD rects only for the icon check; the other arrows kept off
-    expect(src).toMatch(/this\.pingView\?\.update\(pings, now, vx, vy, vw, sw, sh, k, this\.eventInsets, ev\?\.controlRects\(\) \?\? \[\], others\);/);
+    // Story 10.2 B4 (D6): + the teammate edge arrows (HudScene's own `teammateMarkers`, same margin) as keep-offs
+    expect(src).toMatch(/this\.pingView\?\.update\(pings, now, vx, vy, vw, sw, sh, k, this\.eventInsets, ev\?\.controlRects\(\) \?\? \[\], others, mates\);/);
+    expect(src).toMatch(/teammateMarkers\(m0, sw, sh, MATE_ARROW_MARGIN_CSS_PX \* k, this\.pingMarkers\)/);
+    expect(src).toMatch(/mates\[2 \* mk\.slot\] = teammateArrowRect\(mk, k,/);
+    expect(src).toMatch(/if \(teammateLabelRect\(mk, k, tw, th, sw, sh, lr\)\) mates\[2 \* mk\.slot \+ 1\] = lr;/);
+    // review L1: the ping step runs after this frame's camera + teammates (HudScene draws from the same model)
+    expect(src.indexOf("this.updatePings(host.pings, ev.x, ev.y, ev.width)")).toBeGreaterThan(src.indexOf("this.updateTeammates(host.world);"));
     expect(src).toMatch(/others\[0\] = arrow \?/);
     expect(src).toMatch(/others\[1\] = flag \?/);
     expect(src).toMatch(/others\[2\] = badge \?/);

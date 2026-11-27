@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, lightsOf, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
+import { COLLAPSE_STYLES, DOWNTOWN_MAP, collapseStyleAt, isPowerOut, lightsOf, setForcedBlackout, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
   STRESS_DURATION_MS,
   STRESS_WARMUP_MS,
   StressRun,
   STRESS_FLOOR_BUILDINGS,
+  applyStressStage,
   formatStressReport,
   placeStressFloor,
   placeStressLights,
@@ -211,6 +212,46 @@ describe("StressRun interruption", () => {
   });
 });
 
+
+describe("Story 10.2 B1: ?stress=150&stressstage=5&blackout=10 (the wave 9 scene)", () => {
+  it("B7: every run seed gets the CO2 fog bank at stage 5 (the style is pinned, the other variant groups kept)", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const world = createWorld({ balance, seed, map: DOWNTOWN_MAP });
+      addPlayer(world, "local", 24, 16);
+      applyStressStage(world, 5);
+      expect(collapseStyleAt(world), `seed ${seed}`).toBe(1);
+    }
+  });
+  it("the Downtown stress world really reaches stage 5 (power out, the stage 5 map) with 150 Walkers alive in view, darkness 10 %", () => {
+    const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
+    const cx = world.map.widthM / 2;
+    const cy = world.map.heightM / 2;
+    addPlayer(world, "local", cx, cy);
+    setForcedBlackout(world, 10);
+    const solidsAt1 = world.obstacles.solids.length;
+    expect(applyStressStage(world, 5)).toBe(5); // before the Walkers, like GameScene
+    expect(world.decay.stage).toBe(5);
+    expect(world.obstacles.stage).toBe(5);
+    expect(isPowerOut(world)).toBe(true);
+    expect(collapseStyleAt(world)).toBe(COLLAPSE_STYLES.indexOf("fog_bank")); // B7: the worst-case weather every load
+    expect(world.obstacles.solids.length).not.toBe(solidsAt1); // the stage 5 map's cover, not stage 1's
+    const view = viewAround(world.map, cx, cy, 844 / 32, 390 / 32, { x: 0, y: 0, w: 0, h: 0 });
+    expect(setupStressWorld(world, 150, view, cx, cy)).toBe(150);
+    for (let i = 0; i < 40; i++) step(world, TICK_DT_S); // it keeps running: the crowd lives (god mode, waves paused)
+    const z = world.zombies;
+    expect(z.aliveCount).toBe(150);
+    let inView = 0;
+    for (let k = 0; k < z.aliveCount; k++) {
+      const id = z.aliveIds[k] as number;
+      const x = z.x[id] as number;
+      const y = z.y[id] as number;
+      if (x >= view.x - 1 && x <= view.x + view.w + 1 && y >= view.y - 1 && y <= view.y + view.h + 1) inView++;
+    }
+    expect(inView).toBeGreaterThanOrEqual(140);
+    expect(world.decay.stage).toBe(5); // nothing moved it back
+    expect(world.lights.blackoutPct).toBe(10);
+  });
+});
 
 describe("Story 5.10: ?stressbuild=lights", () => {
   it("lays 8 floodlights and 4 med stations round the survivor on Downtown, none overlapping; they stay standing; 8 lights", () => {

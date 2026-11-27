@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TEAMMATE_DOWNED, TEAMMATE_OUT, createHudModel, type HudModel } from "../scenes/hudModel";
-import { createTeammateMarkers, teammateMarkers } from "./teammateMarkers";
+import { MATE_ARROW_CSS_PX, MATE_ARROW_OUTLINE_CSS_PX, MATE_CROSS_CSS_PX, MATE_CROSS_INSET_CSS_PX, MATE_DOWNED_SCALE, MATE_LABEL_INSET_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateLabelRect, teammateMarkers } from "./teammateMarkers";
+import { PULSE_SCALE_AMP } from "./pulse";
 
 /** 800 × 400 px screen showing world x 10–50, y 0–20 (20 px per metre). */
 const W = 800;
@@ -69,5 +70,63 @@ describe("teammateMarkers (Story 2.9)", () => {
     expect(teammateMarkers(m, W, H, MARGIN, out)).toBe(2);
     expect(out[0]).toMatchObject({ visible: true, slot: 1, downed: true, secs: 14 });
     expect(out[1]).toMatchObject({ visible: true, slot: 2, downed: false, secs: 0 });
+  });
+});
+
+describe("teammateArrowRect (Story 10.2 B4, D6)", () => {
+  it("holds HudScene's turned triangle and its stroke at every bearing (0.5° steps), downed at the pulse's peak too, at k = 1 and 2", () => {
+    const m = createTeammateMarkers()[0]!;
+    const out = { x: 0, y: 0, w: 0, h: 0 };
+    for (const k of [1, 2]) {
+      for (const downed of [false, true]) {
+        m.downed = downed;
+        m.x = 300;
+        m.y = 200;
+        const scale = (downed ? MATE_DOWNED_SCALE * (1 + PULSE_SCALE_AMP) : 1) * k;
+        const a = MATE_ARROW_CSS_PX * scale;
+        const stroke = (MATE_ARROW_OUTLINE_CSS_PX / 2) * scale; // half the stroke lies outside the edge
+        for (let deg = 0; deg < 360; deg += 0.5) {
+          m.angle = (deg * Math.PI) / 180;
+          teammateArrowRect(m, k, out);
+          const c = Math.cos(m.angle);
+          const s = Math.sin(m.angle);
+          for (const [px, py] of [[a, 0], [-0.6 * a, 0.7 * a], [-0.6 * a, -0.7 * a]] as const) {
+            const x = m.x + px * c - py * s;
+            const y = m.y + px * s + py * c;
+            expect(x - stroke).toBeGreaterThanOrEqual(out.x);
+            expect(x + stroke).toBeLessThanOrEqual(out.x + out.w);
+            expect(y - stroke).toBeGreaterThanOrEqual(out.y);
+            expect(y + stroke).toBeLessThanOrEqual(out.y + out.h);
+          }
+          if (downed) {
+            // review L3: the "+" inside the tip (at its largest) is inside too
+            const cx = m.x - c * MATE_CROSS_INSET_CSS_PX * scale;
+            const cy = m.y - s * MATE_CROSS_INSET_CSS_PX * scale;
+            const arm = MATE_CROSS_CSS_PX * scale;
+            expect(cx - arm).toBeGreaterThanOrEqual(out.x - 1e-9);
+            expect(cx + arm).toBeLessThanOrEqual(out.x + out.w + 1e-9);
+            expect(cy - arm).toBeGreaterThanOrEqual(out.y - 1e-9);
+            expect(cy + arm).toBeLessThanOrEqual(out.y + out.h + 1e-9);
+          } else expect(out.w).toBeLessThanOrEqual(2 * a + 6 * scale); // not a blanket square
+        }
+      }
+    }
+  });
+});
+
+describe("teammateLabelRect (Story 10.2 review L3)", () => {
+  it("only for an off-screen downed teammate; centred 62 × 1.5 px inward, padded, kept on screen", () => {
+    const m = createTeammateMarkers()[0]!;
+    const out = { x: 0, y: 0, w: 0, h: 0 };
+    Object.assign(m, { visible: true, downed: false, x: 800, y: 195, angle: 0 });
+    expect(teammateLabelRect(m, 1, 100, 20, 844, 390, out)).toBe(false);
+    m.downed = true;
+    expect(teammateLabelRect(m, 1, 100, 20, 844, 390, out)).toBe(true);
+    expect(out.x + out.w / 2).toBeCloseTo(800 - MATE_LABEL_INSET_CSS_PX * 1.5, 9);
+    expect([out.w, out.h]).toEqual([108, 28]);
+    Object.assign(m, { x: 10, y: 5, angle: Math.PI }); // left edge: kept on screen
+    teammateLabelRect(m, 2, 100, 20, 844, 390, out);
+    expect(out.x).toBeGreaterThanOrEqual(0);
+    expect(out.y).toBeGreaterThanOrEqual(0);
   });
 });

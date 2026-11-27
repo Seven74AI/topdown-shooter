@@ -1,5 +1,5 @@
-import { BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
-import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
+import { COLLAPSE_STYLE_GROUP, changeDecayStage, collapseStyleAt, type CollapseStyle, createFogRadii, fogRadiiOf, isPowerOut, BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
+import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, createPerfSnapshot, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
 /**
@@ -86,6 +86,77 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
     spawned += n;
   }
   return spawned;
+}
+
+/**
+ * Story 10.2 B1 (`?stressstage=5`, with `?stress`): moves the stress world to decay stage `stage` through the
+ * decay engine's own whole change (`changeDecayStage`: the map's mutations, fires, push-outs, flow fields, the
+ * banner), so `?stress=150&stressstage=5&blackout=10` is wave 9's look (fog, power out, rubble, ash). Called
+ * BEFORE the Walkers spawn (they spawn round the new map's cover). Returns the stage now in force.
+ */
+export function applyStressStage(world: World, stage: number): number {
+  pinStressCollapseStyle(world, STRESS_COLLAPSE_STYLE);
+  changeDecayStage(world, stage);
+  return world.decay.stage;
+}
+
+/**
+ * Story 10.2 B7: the Collapse weather the stress scene uses at stage 5 — the run's pick is random per load (CO1 haze,
+ * CO2 fog bank, CO3 ash, CO4 flood), which made two loads of one build differ by a style. CO2 fog bank is the one with
+ * the two drifting noise layers: the most work per frame, so the benchmark measures the worst case every time.
+ */
+export const STRESS_COLLAPSE_STYLE: CollapseStyle = "fog_bank";
+
+/** Sets the run's variant bits so the map's `collapse_style` group picks `style` (the other groups keep theirs). */
+export function pinStressCollapseStyle(world: World, style: CollapseStyle): void {
+  const vs = world.map.decayVariants;
+  let v = world.decay.variants >>> 0;
+  for (let i = 0; i < vs.length && i < 32; i++) {
+    const d = vs[i] as { name: string; group: string };
+    if (d.group !== COLLAPSE_STYLE_GROUP) continue;
+    v = d.name.endsWith(`_${style}`) ? (v | (1 << i)) >>> 0 : (v & ~(1 << i)) >>> 0;
+  }
+  world.decay.variants = v;
+}
+
+/** Story 10.2 B2: what `window.__stress()` reports (read-only; the frame-rate script checks the scene with it). */
+export interface StressProbe {
+  stage: number;
+  blackoutPct: number;
+  powerOut: boolean;
+  /** The run phase, the fog radius (m; Infinity = no fog) and the Collapse style (−1 below stage 5). */
+  phase: string;
+  fogRadiusM: number;
+  collapseStyle: number;
+  alive: number;
+  inView: number;
+  /** The perf ring over the last `windowMs` (`perf.snapshot`): avg FPS, update / render ms per frame, tick avg ms. */
+  fps: number;
+  updateMs: number;
+  renderMs: number;
+  tickMs: number;
+}
+
+/**
+ * Story 10.2 B2: the read-only stress probe, set on `window.__stress` by GameScene only under `?stress` (release
+ * too: it reads, never changes the World; no cheat). Allocates per call, so only the measuring script calls it.
+ */
+export function stressProbe(world: Readonly<World>, nowMs: number, windowMs: number): StressProbe {
+  const snap = perf.snapshot(nowMs, createPerfSnapshot(), windowMs);
+  return {
+    stage: world.decay.stage,
+    blackoutPct: world.lights.blackoutPct,
+    powerOut: isPowerOut(world),
+    phase: world.run.phase,
+    fogRadiusM: fogRadiiOf(world, createFogRadii()).radiusM,
+    collapseStyle: collapseStyleAt(world),
+    alive: world.zombies.aliveCount,
+    inView: perf.inView,
+    fps: snap.fps,
+    updateMs: snap.updateAvgMs,
+    renderMs: snap.renderAvgMs,
+    tickMs: snap.tickAvgMs,
+  };
 }
 
 /** Story 5.9: floor buildings `?stressbuild=traps` lays (every player's whole allowance: 4 × 6). */

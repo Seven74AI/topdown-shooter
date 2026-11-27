@@ -477,6 +477,7 @@ export {
   PLAYER_SETTINGS_DEFAULTS,
   RAIN_LEVEL_K,
   GLOW_LEVEL_K,
+  RESOLUTION_DPR,
   SETTINGS_MAX_BODY_BYTES,
   parseStoredSettings,
   type PlayerSettings,

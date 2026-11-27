@@ -52,9 +52,9 @@ The frame interval runs from one Phaser `PRE_STEP` to the next. Gaps over 1 s (a
 |---|---|---|---|---|---|---|---|---|---|
 | **Headless desktop, not a reference phone.** Linux container, Xeon, 4 vCPU, SwiftShader software GL, 844×390 @ DPR 2 | HeadlessChrome 157 (Playwright), release build (`vite preview`) | 27.1 | 16.9 | 23 | 92.74 | 0.19 / 1.80 | 0.23 | rendering/GPU | missed |
 | **iPhone 15 Pro** (designer, 2026-11-21; above the iPhone 12 reference class), 958×401 @ DPR 2, iOS 18.7 | Brave (WebKit, Safari engine) | 60.0 | 38.5 | 59 | 0.00 | 0.56 / 2.00 | 0.79 | none | **met** |
-| *iPhone 12 class* (designer) | Safari | | | | | | | | |
+| *iPhone 12 class* (designer) | Safari | parked (designer 2026-11-25; Story 10.2 AC 8) | | | | | | | |
 | **Honor 10** (designer, 2026-11-21; 2018 Kirin 970, older than the Pixel 5 reference class), 808×332 @ DPR 2, Android 10 | Chrome 156 | 58.3 | 6.3 | 39 | 0.49 | 0.91 / 2.50 | 1.67 | rendering/GPU | missed (single-frame hitches) |
-| *Pixel 5 class* (designer) | Chrome | | | | | | | | |
+| *Pixel 5 class* (designer) | Chrome | parked (designer 2026-11-25; Story 10.2 AC 8) | | | | | | | |
 
 ### Headless desktop, for reference (2026-11-21)
 
