@@ -229,7 +229,7 @@ development_status:
   epic-10: in-progress
   10-1-settings-screen: done  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
   10-2-frame-rate-pass-on-reference-phones: done  # PR #43 merged 60b8aad2 2026-11-27 (full review → 1 re-review → main-session check; designer: 9.1 FPS passes); Q1 A, Q2 A, Q3 B picked 2026-11-27; headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked; carries D6
-  10-3-memory-and-battery-pass: review  # PR open 2026-11-27; story file written 2026-11-27 (10-3-memory-and-battery-pass.md); Q1 A picked 2026-11-27; build after 10.2; phone ACs parked
+  10-3-memory-and-battery-pass: done  # PR #45 merged a4105f77 2026-11-27 (light review → 1 re-review); PR open 2026-11-27; story file written 2026-11-27 (10-3-memory-and-battery-pass.md); Q1 A picked 2026-11-27; build after 10.2; phone ACs parked
   10-4-fast-loading: done  # PR #39 merged 96f614b5 2026-11-27 after light review (M1 + 2 lows) + 1 narrow re-review + main-session check (RR1-L1, RR1-N1, turretBandwidth PERF_ASSERT test fix); Q1 B "Hordes"; parallel with 10.2 OK
   10-5-home-screen-install-and-every-supported-browser: done  # PR #42 merged d5f41147 2026-11-27 (light review approve + main-session check); Q2 A "Hordes", Q3 C (no stills) picked; Q1 IC3 picked 2026-11-27; all picks in; build after 10.6 merges; real-phone notch + iOS/Android checks parked; desktop browsers via Playwright (story file 2026-11-27)
   10-6-report-a-problem: done  # PR #40 merged cd9a944a 2026-11-27 after full review + 2 narrow re-reviews; Q1 RP1, Q2 B, Q3 B picked 2026-11-27; migration lands FIRST (0008), 10.7 regenerates on top

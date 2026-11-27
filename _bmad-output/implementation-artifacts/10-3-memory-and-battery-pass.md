@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.3: Memory and battery pass (headless 10-wave run)
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Correct-course 2026-11-26: the iPhone 12 Safari and battery-percentage ACs are **parked** (designer 2026-11-25); the buildable part is a headless Chromium run of all 10 waves with CDP memory and main-thread sampling. **Build after 10.2** (reuses its `tools/perf/` helpers, measures its tree, and both may add a Settings row). **One designer choice is open: 10.3-Q1.** Everything except T4 can start without it.)
 
@@ -184,3 +184,8 @@ Claude (cloud session, builder for 10.3)
 ### Change Log
 
 - 2026-11-27: built (memory/battery pass, Battery saver, D13 radius table).
+
+## Main session close-out (2026-11-27)
+
+- Light review (zombieAi change verified behaviour-identical: digestAB + a dense 2400-tick probe) → 1 high (Battery saver made the 10.2 auto check lower a capable phone for good) + 3 lows + 2 nits → fix 7d337f7 → narrow re-review 1 APPROVED. CI green on 7d337f7. The hint now reads "Draws at most 30 frames a second" (N1). The designer was told and can ask for the old wording.
+- PR #45 merged a4105f77. D13 partly closed (sim churn 11.4 → 4.6 MB / 10 s); the rest is deferred with causes.
