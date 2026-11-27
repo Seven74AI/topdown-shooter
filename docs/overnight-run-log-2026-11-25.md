@@ -242,3 +242,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:40 Designer: 10.2-Q1 A, Q2 A, Q3 B; 10.3-Q1 A; 10.6-Q1 RP1; 10.5-Q3 C (no stills); 10.7-Q1 C (every weapon bought), Q2 A, Q3 A.
 - 09:50 10.4 PR #39 merged 96f614b5 (main-session check of the last low/nit + turretBandwidth PERF_ASSERT fix; CI green on f5a264f).
 - 09:57 Master CI green on 96f614b5 (#39, 10.4). Icon proposal session started (session_01CgLgPTMwBGKYCDmLagaYdh).
+- 10:05 Icon proposal on master (11dfb027). Designer: 10.5-Q1 = IC3 (Lumen badge). 10.6 re-review 1: RR-M1 Caddy 64KB = 64,000 B vs 65,536 → fixing (round 2 next).
