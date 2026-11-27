@@ -4,7 +4,7 @@ baseline_commit: 4ee22a7
 
 # Story 10.12: Admin cheats online
 
-Status: review
+Status: done
 
 (Added 2026-11-26 with 10.11. AD-3 A (designer 2026-11-26): an admin cheat used online → **nobody in that room earns rewards for the run**, and Results says **"Admin cheats used"**. Written with `gds-create-story` from the real code at `4ee22a7` (10.7 run stats merged). The designer picks 10.12-Q1…Q6 below before the build. B-codes are technical choices made here; the builder adds its own.)
 
@@ -201,3 +201,8 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-27.
 - 2026-11-27: story rewritten for the designer decisions; built (T1–T6); status → review.
 - 2026-11-27: full review fixes M1, L1–L4, N1, N2 (see Senior Developer Review).
 - 2026-11-27: re-review round 1 approved; L5 fixed.
+
+## Main session close-out (2026-11-27)
+
+- Designer decisions 2026-11-27 (top of this file) reversed AD-3 A. Full review (1 medium, 4 lows, nits) → fix round (main-session decision on L3: held seats survive a restart, per AC 6) → narrow re-review 1 APPROVED (new L5) → main-session check of 40dd70f (panel state keyed by the run id from `run.started`; DOM test with the same seed). CI green on 40dd70f.
+- PR #44 merged efb31a1c. NET_PROTOCOL_VERSION is now 6. Deploy: migration 0010 (`run_results.cheated`).
