@@ -106,3 +106,48 @@ DPR 2).
 
 **Not verified:** any real phone (parked, designer 2026-11-25), any real GPU. On a real phone the old path's per-frame
 canvas → texture upload is also a known cost, so B8 should help there too; that is not measured.
+
+## Profiles at 4×, top 10 (review L6; release build, minified names; the same 12 s count as the table)
+
+| # | before · stage 1 (12.5 FPS) | ms | % | after · stage 1 (13.1 FPS) | ms | % |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | (program) | 10337 | 82.3 | (program) | 10490 | 83.2 |
+| 2 | Phaser batch `Yv` | 385 | 3.1 | Phaser batch `K_` | 363 | 2.9 |
+| 3 | `willRender` | 191 | 1.5 | `willRender` | 174 | 1.4 |
+| 4 | Phaser `wD` | 109 | 0.9 | Phaser `xE` | 123 | 1.0 |
+| 5 | GameScene `update` | 92 | 0.7 | `texImage2D` | 88 | 0.7 |
+| 6 | `render` | 89 | 0.7 | `jp` (main) | 73 | 0.6 |
+| 7 | `texImage2D` | 73 | 0.6 | `run` (Phaser render node) | 68 | 0.5 |
+| 8 | `run` (Phaser render node) | 63 | 0.5 | `render` | 66 | 0.5 |
+| 9 | Phaser `fD` | 63 | 0.5 | GameScene `update` | 65 | 0.5 |
+| 10 | `Op` (main) | 60 | 0.5 | Phaser `lE` | 64 | 0.5 |
+
+| # | before · wave 9 (6.7 FPS) | ms | % | after · wave 9 (8.8 FPS) | ms | % |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | (program) | 7000 | 54.5 | (program) | 9892 | 78.3 |
+| 2 | **`drawImage` (darkness canvas)** | **2342** | **18.2** | Phaser batch `K_` | 357 | 2.8 |
+| 3 | **`texImage2D` (darkness upload)** | **1372** | **10.7** | `willRender` | 157 | 1.2 |
+| 4 | Phaser batch `Yv` | 338 | 2.6 | `run` (Phaser render node) | 148 | 1.2 |
+| 5 | `willRender` | 123 | 1.0 | GameScene `update` | 108 | 0.9 |
+| 6 | Phaser `wD` | 112 | 0.9 | Phaser `get` | 105 | 0.8 |
+| 7 | `run` (Phaser render node) | 111 | 0.9 | Phaser `xE` | 96 | 0.8 |
+| 8 | GameScene `update` | 82 | 0.6 | `texImage2D` (the usual uploads) | 86 | 0.7 |
+| 9 | `sortByDepth` | 57 | 0.4 | `jp` (main) | 61 | 0.5 |
+| 10 | Phaser `get` | 56 | 0.4 | `render` | 58 | 0.5 |
+
+## The story's candidate levers (review L6: each one's outcome)
+
+| candidate (story T3) | outcome |
+| --- | --- |
+| darkness: skip repaint / upload when no stamp moved | Probe A3 (a static darkness: 9.7 FPS) measured the ceiling. Not built: the fog noise drifts every frame and the camera follows the survivor, so it would only skip on a still screen. B8 removed the repaint and upload cost altogether |
+| darkness: 150 `EyesView` images → one blitter | Not tried. The eyes are 150 tiny sprites in Phaser's batch (the whole batch is ~3 % of the main thread at 4×, after); the frame is SwiftShader fill, and the eyes' fill is a few pixels each |
+| fog: count the full-screen layers at stage 5; merge two stacked blends | Counted: in a stage-5 blackout the fog rides in the darkness layer (one full-screen layer; `FogView` geometry hidden), so there was nothing to merge. B9 cut the GPU fog layer's own fill to a quarter |
+| weather: rain / ash drop count at stage 5 | Not changed at default (a look change). The Rain setting (10.1) and the auto check (step 1 = Rain Light) lower it per phone. Not in the top 10 |
+| characters: draw calls (9.13: 14.1 per frame) | Not changed: the designer-approved 12 / 6 caps stay. Not in the top 10 |
+| per-frame allocations (Chrome heap sampling at 1×, 10 s) | Sampled on the branch (collected objects included): wave 9 allocates ~111 MB per 10 s, stage 1 ~50 MB. Almost all of it is inside Phaser (stroke-path and batch render nodes, and the DynamicTexture command path: +60 MB in wave 9). Our own code: `zombieAi.resolveOverlaps` / `updateZombies` (shared sim, ~9 MB per 10 s in both scenes) and `FireView.update` / `ZombieView.update` (~2 MB). These predate this story. Pooling the sim is a gameplay-code change (B5), so they are not pooled here: proposed as a deferred-work row |
+
+## Parked (review L6, AC 8)
+
+The real-phone rows are not built and not claimed: the iPhone 12 / Pixel 5 / Galaxy A52 / Mi 11i rows of
+`epic-1-stress.md` and the 1.11 AC 3 rows stay empty, marked "parked (designer 2026-11-25)". Every number above is
+headless SwiftShader in this container.
