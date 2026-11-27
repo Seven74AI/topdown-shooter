@@ -146,6 +146,7 @@ Claude (builder session for 10.4, gds-dev-story)
 - `_bmad-output/implementation-artifacts/10-4-fast-loading.md`
 - `tools/bots/lateJoin.test.ts` (E8-A1 repro + test-only fix of the shard-4 red, see Debug Log)
 - `_bmad-output/implementation-artifacts/deferred-work.md` (the lateJoin item resolved)
+- `apps/server/src/run/turretBandwidth.test.ts` (E8-A1: an ungated timing assert red on PR #39 CI; now behind `PERF_ASSERT=1` + a liveness assert; see deferred-work.md)
 - Review fixes: `tools/maps/downtown.tmj` (moved from `apps/client/public/assets/maps/`), `tools/maps/buildDowntown.ts`, `tools/maps/downtownFiles.test.ts`, `packages/shared/src/map/downtown.ts` (path only)
 
 ### Change Log
