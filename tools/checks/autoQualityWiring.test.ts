@@ -16,7 +16,7 @@ describe("Story 10.2 L7: autoQuality wiring", () => {
     const calls = src.match(/autoQuality\.frame\(/g) ?? [];
     expect(calls).toHaveLength(1);
     expect(src).toMatch(
-      /autoQuality\.frame\(performance\.now\(\), \{ firstWave: !this\.stressMode && !this\.gameOver && host\.world\.run\.phase === "wave" && host\.world\.waves\.number === 1, hidden: document\.hidden \}\)/,
+      /autoQuality\.frame\(performance\.now\(\), \{ firstWave: !this\.stressMode && !this\.gameOver && host\.world\.run\.phase === "wave" && host\.world\.waves\.number === 1, hidden: document\.hidden, capped: frameCap\.on \}\)/,
     );
     expect(src).toMatch(/if \(aq !== ""\) this\.toasts\.push\(aq\);/);
     // in update(), before anything else can return early past it

@@ -48,6 +48,12 @@ export interface AutoQualityFrame {
   firstWave: boolean;
   /** `document.hidden` (or the page was just hidden: a frame-clock gap). */
   hidden: boolean;
+  /**
+   * Story 10.3 review H: Battery saver caps the draw at 30 frames a second (`frameCap.on`), so the frame rate says
+   * nothing about the phone: while it is on the check doesn't start, and a running try is cancelled (nothing stored;
+   * a later first wave with the saver off tries again).
+   */
+  capped?: boolean;
 }
 
 /** Storage as the check sees it (tests pass a fake). */
@@ -106,6 +112,10 @@ export class AutoQuality {
   /** One rendered frame at `nowMs` (performance.now). Returns the toast text when this frame lowered the look. */
   frame(nowMs: number, f: AutoQualityFrame): string {
     if (this.phase === "done" || this.disabled) return "";
+    if (f.capped) {
+      this.phase = "idle"; // review H (10.3): Battery saver on: no try now
+      return "";
+    }
     if (this.phase === "idle") {
       if (!f.firstWave || f.hidden) return "";
       this.phase = "running";

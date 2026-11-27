@@ -191,6 +191,7 @@ import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
 import { autoQuality } from "../settings/autoQuality"; // Story 10.2-Q3
+import { frameCap } from "../settings/batterySaver"; // Story 10.3 review H
 import { STRESS_FLOOR_BUILDINGS, applyStressStage, stressProbe, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
@@ -2173,7 +2174,7 @@ export class GameScene extends Phaser.Scene {
     const router = this.router;
     if (!host || !router) return;
     // Story 10.2-Q3 B: the one-time quality check (the first 10 s of the run's first wave; never under ?stress).
-    const aq = autoQuality.frame(performance.now(), { firstWave: !this.stressMode && !this.gameOver && host.world.run.phase === "wave" && host.world.waves.number === 1, hidden: document.hidden });
+    const aq = autoQuality.frame(performance.now(), { firstWave: !this.stressMode && !this.gameOver && host.world.run.phase === "wave" && host.world.waves.number === 1, hidden: document.hidden, capped: frameCap.on }); // 10.3 review H: not under Battery saver
     if (aq !== "") this.toasts.push(aq);
 
     // Mouse aim: survivor (last drawn position) → cursor, through the camera that drew that frame.

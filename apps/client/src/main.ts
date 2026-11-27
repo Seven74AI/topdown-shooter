@@ -9,6 +9,7 @@ import { dpr } from "./display";
 import { getSettings } from "./settings/settings";
 import { autoQuality } from "./settings/autoQuality"; // Story 10.2-Q3
 import { applyResolutionCap, bindResolution, deviceSize as resolutionDeviceSize } from "./settings/resolution"; // Story 10.2-Q2
+import { bindBatterySaver, capFrames } from "./settings/batterySaver"; // Story 10.3-Q1
 import { clientLog, reportProbes } from "./debug/clientLog";
 
 import { BootScene } from "./scenes/BootScene";
@@ -78,6 +79,10 @@ window.addEventListener("resize", () => {
   game.scale.setZoom(1 / dpr());
 });
 bindResolution(game, viewport); // Story 10.2-Q2: a Resolution change re-sizes the canvas at once
+// Story 10.3-Q1 A: Battery saver (≤ 30 frames drawn a second). Phaser sets the loop's callback right after READY
+// (`Game.start`, same task), so the wrap goes in a microtask, before the first frame.
+bindBatterySaver();
+game.events.once(Phaser.Core.Events.READY, () => queueMicrotask(() => capFrames(game.loop)));
 
 // Performance overlay and ?stress timing (Story 1.11): release builds too.
 installPerfProbe(game, urlOptions().debug);
@@ -313,6 +318,7 @@ if (import.meta.env.DEV) {
     __gfx: () => ({ line: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, last: textureRegistry.lastReport, keys: textureRegistry.keys() }),
   });
   void import("./debug/adminTools").then(({ mountAdminTools }) => mountAdminTools(game));
+  void import("./debug/memProbe").then(({ installMemProbe }) => installMemProbe(game)); // Story 10.3: `__mem` / `__memRun`
 } else {
   // Story 10.11 (AC 3, 7): production builds download the cheat panel only for an admin account (never `__game` /
   // `__gfx`: those stay dev-only above). The chunk is `assets/admin-tools-*` (vite.config.ts).

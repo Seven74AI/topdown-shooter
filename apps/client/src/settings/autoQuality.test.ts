@@ -184,4 +184,26 @@ describe("Story 10.2-Q2 A: the resolution field", () => {
     expect(parseStoredSettings({ rain: "light" })).toEqual({ rain: "light" });
     expect(parseStoredSettings({ resolution: "ultra", rain: "off" })).toEqual({ rain: "off" });
   });
+
+  it("Story 10.3 review H: Battery saver on (30 / 29.6 drawn FPS) → no try, nothing stored; saver off later → checks", () => {
+    for (const fps of [30, 29.6]) {
+      const store = memStorage();
+      const aq = new AutoQuality(() => store, setSettingsDefaults, getStoredSettings);
+      const capped: AutoQualityFrame = { ...WAVE, capped: true };
+      const { toasts, t } = feed(aq, fps, AUTO_QUALITY_WINDOW_MS + 500, capped);
+      expect(toasts).toEqual([]);
+      expect(aq.phase).toBe("idle");
+      expect(store.map.has(AUTO_QUALITY_KEY)).toBe(false);
+      expect(getSettings()).toEqual(PLAYER_SETTINGS_DEFAULTS);
+      // a try already running is cancelled when the saver turns on
+      const r = feed(aq, 60, 3000, WAVE, t + 1);
+      aq.frame(r.t + 16, capped);
+      expect(aq.phase).toBe("idle");
+      // with the saver off, a later first wave checks as usual (60 FPS: step 0)
+      feed(aq, 60, AUTO_QUALITY_WINDOW_MS + 500, WAVE, r.t + 32);
+      expect(aq.phase).toBe("done");
+      expect(JSON.parse(store.map.get(AUTO_QUALITY_KEY) ?? "{}")).toEqual({ step: 0 });
+      resetSettingsCache();
+    }
+  });
 });

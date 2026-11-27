@@ -12,7 +12,7 @@ import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, se
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { LURE_READY, flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid, type ZombieProgress } from "./flowField";
-import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
+import { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isWindupState } from "./zombieTypes";
 import { knockPlayer } from "../player/knockback";
 import { meleeLineClear } from "../combat/cover";
 import { segmentHitsFire } from "../decay/fire";
@@ -60,6 +60,19 @@ const steer = { x: 0, y: 0, fieldEnd: false };
 type ChaseTarget = PlayerState | SurvivorState;
 /** Story 6.13: a stuck wide body walking up to its building counts as getting closer when this much nearer than its closest yet (per tick). */
 const STUCK_CLOSING_M = 0.01;
+/**
+ * Story 10.3 (deferred-work D13): each type's body radius by type index (`pool.type`), filled once at the top of
+ * `updateZombies` from the balance. The six type objects have different shapes, so reading `types[t].radiusM` in the
+ * per-pair loops was a megamorphic load of a double field, which V8 answers with a fresh boxed number every time
+ * (~6.5 MB per 10 s with 150 zombies). Same values, so the same positions and digests.
+ */
+const typeRadius = new Float64Array(ZOMBIE_TYPES.length);
+
+function fillTypeRadius(world: World): void {
+  const types = world.balance.zombies.types;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) typeRadius[t] = types[ZOMBIE_TYPES[t] as (typeof ZOMBIE_TYPES)[number]]?.radiusM ?? 0;
+}
+
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie); then the survivor. */
 const alivePlayers: ChaseTarget[] = [];
 /** How many of `alivePlayers` are players (the survivor, when alive, is the last entry). */
@@ -237,6 +250,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     pool.prevY[id] = pool.y[id] as number;
   }
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
+  fillTypeRadius(world); // D13: the radius table of pass 2 and `resolveOverlaps`
   collectAlivePlayers(world);
   collectStanding(world); // Story 5.6: the Spitters' target list
   // Story 4.1: map solids count like buildings for the line of sight and the push-out (never attacked).
@@ -386,7 +400,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // Pass 2: move and clamp to the map.
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
-    const rz = world.balance.zombies.types[zombieTypeOf(pool, id)]?.radiusM ?? 0;
+    const rz = typeRadius[pool.type[id] as number] ?? 0;
     pool.x[id] = Math.min(widthM - rz, Math.max(rz, (pool.x[id] as number) + (pool.vx[id] as number) * dtS));
     pool.y[id] = Math.min(heightM - rz, Math.max(rz, (pool.y[id] as number) + (pool.vy[id] as number) * dtS));
   }
@@ -785,12 +799,12 @@ function resolveOverlaps(world: World): void {
   const { widthM, heightM } = world.map;
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
-    const ri = world.balance.zombies.types[zombieTypeOf(pool, id)]?.radiusM ?? 0;
+    const ri = typeRadius[pool.type[id] as number] ?? 0; // D13 (filled by `updateZombies`, the only caller)
     const qr = ri * 2 + OVERLAP_QUERY_MARGIN_M;
     const count = queryRadius(world.zombieGrid, pool.x, pool.y, pool.x[id] as number, pool.y[id] as number, qr, neighbours);
     for (let k = 0; k < count; k++) {
       const j = neighbours[k] as number;
-      const rj = world.balance.zombies.types[zombieTypeOf(pool, j)]?.radiusM ?? 0;
+      const rj = typeRadius[pool.type[j] as number] ?? 0;
       // Each pair once: by the bigger body (its query reaches the smaller one; Story 5.7), equal
       // bodies by the lower id (as before).
       if (rj > ri || (rj === ri && j <= id)) continue;

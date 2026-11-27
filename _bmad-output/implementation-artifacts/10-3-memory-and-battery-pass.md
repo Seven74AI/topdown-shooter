@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.3: Memory and battery pass (headless 10-wave run)
 
-Status: ready-for-dev
+Status: review
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Correct-course 2026-11-26: the iPhone 12 Safari and battery-percentage ACs are **parked** (designer 2026-11-25); the buildable part is a headless Chromium run of all 10 waves with CDP memory and main-thread sampling. **Build after 10.2** (reuses its `tools/perf/` helpers, measures its tree, and both may add a Settings row). **One designer choice is open: 10.3-Q1.** Everything except T4 can start without it.)
 
@@ -45,11 +45,11 @@ JS heap used (CDP `JSHeapUsedSize`): 33–43 MB across stage 1 / wave 9 at 1× a
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Run script (AC 1)** — `tools/perf/memoryRun.cjs` (reuses 10.2's `tools/perf/fps.cjs` page/throttle helpers; own ports; stop processes by PID). Liveness asserts in the script: waves counted from the HUD/world, boss seen, Results reached; exits non-zero otherwise.
-- [ ] **T2 Sampling (AC 2, 4)** — the B2 / B4 metrics; a small dev-only probe `window.__mem()` in `apps/client/src/debug/` (dev builds only, like `__game`; never in a release bundle: `noCheatsInRelease` stays green) that returns the texture estimate and canvas count without allocating per frame (called only at samples).
-- [ ] **T3 Find and fix leaks (AC 2, 3)** — first run on master; then fixes (likely places to check: GameScene `create`/shutdown resets, views that `add` per wave without pooling — blood trails, ground damage, place FX, loot bags, police lines; HudScene listeners; `subscribeSettings` / `uiStore` subscriptions made in `create` without an unsubscribe). Re-run; record before/after.
-- [ ] **T4 Battery saver (AC 5; Q1)** — `packages/shared/src/config/playerSettings.ts`, `apps/client/src/ui/settingsRows.ts` (switch key union), `apps/client/src/main.ts` (apply on change via `subscribeSettings`). Settings DOM check still green.
-- [ ] **T5 Hand-back** — `gate:fast` + `test:changed`; PR "Story 10.3: Memory and battery pass"; record new decisions as 10.3-B6+.
+- [x] **T1 Run script (AC 1)** — `tools/perf/memoryRun.cjs` (reuses 10.2's `tools/perf/fps.cjs` page/throttle helpers; own ports; stop processes by PID). Liveness asserts in the script: waves counted from the HUD/world, boss seen, Results reached; exits non-zero otherwise.
+- [x] **T2 Sampling (AC 2, 4)** — the B2 / B4 metrics; a small dev-only probe `window.__mem()` in `apps/client/src/debug/` (dev builds only, like `__game`; never in a release bundle: `noCheatsInRelease` stays green) that returns the texture estimate and canvas count without allocating per frame (called only at samples).
+- [x] **T3 Find and fix leaks (AC 2, 3)** — first run on master; then fixes (likely places to check: GameScene `create`/shutdown resets, views that `add` per wave without pooling — blood trails, ground damage, place FX, loot bags, police lines; HudScene listeners; `subscribeSettings` / `uiStore` subscriptions made in `create` without an unsubscribe). Re-run; record before/after.
+- [x] **T4 Battery saver (AC 5; Q1)** — `packages/shared/src/config/playerSettings.ts`, `apps/client/src/ui/settingsRows.ts` (switch key union), `apps/client/src/main.ts` (apply on change via `subscribeSettings`). Settings DOM check still green.
+- [x] **T5 Hand-back** — `gate:fast` + `test:changed`; PR "Story 10.3: Memory and battery pass"; record new decisions as 10.3-B6+.
 
 ## Test plan
 
@@ -82,12 +82,105 @@ No per-frame allocation; textures through `addGeneratedTexture`; Phaser 4 ≠ 3 
 - **Overlap:** with **10.2** on `tools/perf/`, `playerSettings.ts`, `settingsRows.ts`, `main.ts`, and possibly GameScene → **run after 10.2 merges**. With **10.4**: `main.ts` only (trivial). Leak fixes in GameScene/HudScene can touch the same files as any HUD story running then: the builder lists the exact hunks in the hand-back.
 - No migration, no netEvents kinds, no protocol bump.
 
+## Decisions made while building (10.3-B6+)
+
+- **10.3-B6 (the dev server):** `memoryRun.cjs` runs Vite in its own process (`createServer`, OS-picked port) with no
+  file watching and no HMR. A first run lost its page in wave 10 when a source edit live-reloaded it. Nothing to kill by
+  PID, no fixed port.
+- **10.3-B7 (what "heap" means in the rules):** B3 and B5 use **JS objects** = heap used after GC − V8's compiled code
+  (a heap snapshot's "code" nodes). Compiled code only grows as V8 optimises more functions (+1.7 MB over Restart × 3,
+  +2.3 MB from wave 2 to wave 9) while the game's objects and their count stay flat. The whole heap is in every table.
+- **10.3-B8 (B3's reference build):** each build phase is compared with the first build phase of its own decay stage
+  (wave 2's build for wave 2's stage). Stage jumps are named in the doc. The story's B3 already allows named stage jumps
+  that then stay flat; this applies the same allowance to the heap.
+- **10.3-B9 (B4 windows):** the survivor holds no fire in the windows (`__memRun.fire(false)`), so the wave's horde stays
+  on screen and the wave lasts the whole 60 s. With fire, wave 1 ended in ~10 s. Each window starts 20 s after the wave
+  starts. The run's seed is pinned per wave (`restartRun(2000 + wave)`), so saver off / on see the same wave.
+- **10.3-B10 (Battery saver's cap):** a wrapper on Phaser's `loop.callback` (`game.step`), not Phaser's own
+  `fps.limit` / `setFPSLimit`. Phaser's limiter draws when the time since the last draw is ≥ 33.33 ms exactly: two 60 Hz
+  frames with rounded rAF timestamps (33.3 ms) can miss, giving a 50 ms frame then a 16 ms one. It also keeps the
+  remainder after passing it on, counting that time twice. The wrapper draws once ≥ 29.33 ms (4 ms slack) have passed,
+  and hands the drawn frame the whole time since the last draw. 60 Hz → 30 drawn, 120 Hz → 30, 144 Hz → 28.8.
+  `BATTERY_SAVER_FPS = 30` is in shared `playerSettings.ts` next to `RESOLUTION_DPR`.
+- **10.3-B11 (Game over in the restart loop):** `__memRun.gameOver()` sets my survivor "out", and the sim's own wipe
+  check does the rest (`team.wiped` → solo Results). Calling `endRun` directly doesn't emit `team.wiped`, so no Results
+  screen showed.
+- **10.3-B12 (D13 scope):** fixed only the per-type radius reads (a `Float64Array` by type index, filled once a tick):
+  identical digests. The rest of D13 stays deferred: the other `stats.*` reads, `pushOutOfBuildings`' box reads (the
+  "pass four numbers" fix made it worse, reverted), the Phaser setter calls in views, and Phaser's renderer. Each is
+  written up in `deferred-work.md` D13.
+- **10.3-B13 (HUD overlaps):** the two pre-existing HUD overlaps (boss banner vs loot line, DANGER marker vs ☰) were
+  **not** fixed. Neither is trivial: each needs a layout rule and a browser check. Owner kept: 9.7.
+
+## Senior Developer Review (AI)
+
+Light review (main session's reviewer, 2026-11-27, on 7c695f6): **changes requested**, 1 high, 3 lows, 2 nits. The
+zombieAi change was verified behaviour-identical (digestAB plus a dense 2400-tick probe). Fixes (all minimal):
+
+- [x] **H** `autoQuality.ts` (+ `GameScene.ts`, `batterySaver.ts`): with Battery saver on, the one-time quality check
+  counted ~30 drawn FPS, so step 2 would be stored forever, even after the saver was turned off. **Fix:** a new frame
+  flag `capped` (GameScene passes `frameCap.on`). While it is set, the check doesn't start, and a running try is
+  cancelled (nothing stored); a later first wave with the saver off checks as usual. Test: 30 and 29.6 drawn FPS with
+  the saver on → nothing stored, phase idle; a running try is cancelled; then saver off → stored step 0. Red without the
+  fix (1 failed), green with it.
+- [x] **L1** `memoryRun.cjs`: the run's liveness fails when more than one wave was skipped.
+- [x] **L2** wording: the `playerSettings.ts` comment and the doc now say the 20 Hz sim, the network and prediction
+  are unchanged, and that the input is sampled and sent up to one display frame later (≤ 16.7 ms) under the cap.
+- [x] **L3** `batterySaver.ts`: turning the saver off between two drawn frames passes the skipped frames' time into the
+  next frame (no wall time dropped). Test added.
+- [x] **N1** hint: "Draws at most 30 frames a second" (no "instead of 60": 90 / 120 / 144 Hz screens). This changes the
+  wording quoted in the 10.3-Q1 option A text; the designer may want it back.
+- [x] **N2** the unused `frameCap.drawn` / `skipped` counters were removed.
+
 ## Dev Agent Record
 
 ### Agent Model Used
 
+Claude (cloud session, builder for 10.3)
+
 ### Debug Log References
+
+- Run logs (JSON lines) are summarised in `docs/perf/epic-10-memory-battery.md`. Before: master `c40d1a5` + the probe.
+  After: `story-10-3`.
+- D13 hunt: `tools/perf/simAlloc.ts` (Node: 11.4 → 4.6 MB / 10 s), `tools/perf/heapAlloc.cjs` (browser, release
+  builds; `--minify false` + `LINES=1` for names), `tools/perf/digestAB.ts` (6 seeds identical before / after).
 
 ### Completion Notes List
 
+- AC 1: the 10-wave run happened (seed 1003): 10 waves, the Behemoth spawned in wave 10, wave 10 skipped after 240 s
+  (logged), Extract vote, Results "extracted", 9.2 min. Before and after.
+- AC 2: a row per build phase plus Results, and peaks: heap 31.9 MB, JS objects 15.4 MB, texture estimate 98.5 MB. The
+  B3 rule passes per stage (≤ 1.020). Stage jumps are named. No retention leak was found (before passes too); the fixes
+  are allocation churn (D13).
+- AC 3: Restart × 3: JS objects 1.008, object count ≤ 1.006, textures, DOM nodes and listeners identical; the whole
+  heap's +6.7 % is compiled code.
+- AC 4: battery proxy at 4× (and 1×) for waves 1 / 5 / 9, Battery saver off and on; frames drawn and ticks recorded.
+- AC 5: `batterySaver` (default false) in `playerSettingsSchema`, a "Battery saver" switch in Settings › Screen
+  (hint "Draws at most 30 frames a second"; review N1), applied at once via `subscribeSettings`. Unit test: 60 Hz → 60 of 120
+  frames drawn, 120 Hz → 60 of 240, and 20 Hz ticks unchanged over 2 s of fake time. Browser: wave 1 at 4× draws
+  49.6 → 29.6 FPS with 20.0 ticks/s both ways. Settings DOM layout check green (24/24).
+- AC 6: the parked rows are in the doc, empty and marked.
+- D13: `resolveOverlaps` no longer allocates; the sim's share of the page's allocations is down ~65 %; the rest is
+  deferred with causes (deferred-work D13).
+- Not verified: Safari / WebKit, a real phone (memory, battery), real GPU memory (estimate only), a screenshot of the
+  new Settings row (the DOM layout check covers its fit).
+
 ### File List
+
+- `apps/client/src/debug/memProbe.ts` (new, dev only), `apps/client/src/debug/memProbe.test.ts` (new)
+- `apps/client/src/settings/batterySaver.ts` (new), `apps/client/src/settings/batterySaver.test.ts` (new)
+- `apps/client/src/main.ts` (Battery saver bind + cap; the probe in the DEV block)
+- `apps/client/src/render/gfx/textureRegistry.ts` (`canvasCount`)
+- `apps/client/src/ui/settingsRows.ts`, `apps/client/src/ui/settingsRows.test.ts`
+- `packages/shared/src/config/playerSettings.ts`, `packages/shared/src/index.ts` (`batterySaver`, `BATTERY_SAVER_FPS`)
+- `packages/shared/src/zombies/zombieAi.ts` (D13: `typeRadius`)
+- `tools/checks/noCheatsInRelease.test.ts` (`__mem`)
+- `tools/perf/memoryRun.cjs`, `tools/perf/heapAlloc.cjs`, `tools/perf/simAlloc.ts`, `tools/perf/digestAB.ts` (new),
+  `tools/perf/README.md`
+- `docs/perf/epic-10-memory-battery.md` (new)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (D13, the HUD overlap owners),
+  `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+
+### Change Log
+
+- 2026-11-27: built (memory/battery pass, Battery saver, D13 radius table).
