@@ -4,7 +4,7 @@ baseline_commit: 4ee22a7
 
 # Story 10.12: Admin cheats online
 
-Status: in-progress
+Status: review
 
 (Added 2026-11-26 with 10.11. AD-3 A (designer 2026-11-26): an admin cheat used online → **nobody in that room earns rewards for the run**, and Results says **"Admin cheats used"**. Written with `gds-create-story` from the real code at `4ee22a7` (10.7 run stats merged). The designer picks 10.12-Q1…Q6 below before the build. B-codes are technical choices made here; the builder adds its own.)
 
@@ -52,17 +52,17 @@ so that I can test co-op situations (waves, the Behemoth, events, downs) in prod
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Shared (AC 3, 5)**
-  - [ ] `net/messages.ts`: `C2S.ADMIN_CHEAT = "admin.cheat"`; `adminCheatSchema` = strict discriminated union on `cheat` (`spawn {type, count, where: "ring"|"view", view?}`, `skip_wave`, `leave_last`, `behemoth`, `event {kind}`, `loadout {w0, w1|null}`, `money`, `damage_building`, `god {on}`, `decay {stage}`, `blackout {pct}`, `restart {seed}`); `NET_PROTOCOL_VERSION = 6`.
-  - [ ] `debug/adminCheats.ts`: `leaveLast`, `damageNearestBuilding`, `clampSpawnCount`, `decayCheatAllowed`, constants (ring radius, leave count, money, building damage), and `applyAdminCheat(world, playerId, cheat)` for every world cheat (not restart: the room's). The client panel imports the same helpers (solo path unchanged).
-  - [ ] Per-player god (B6): `world.debug.godPlayers: Set<string>` + `isGodFor(world, p)` at the 5 sites.
-- [ ] **T2 Server (AC 1–3, 6, 7)**
-  - [ ] `RunRoom.ts`: handler through `this.net.guard`; `onAdminCheat` (in a run, member with a player; admin check B7 cached per seat for the run, async; the cheat is queued after the check and the tick drains the queue before `controller.tick()`, B2); refused / used logs (B4); `DEV_ADMIN_CHEATS=1` outside production (B9).
-  - [ ] Restart (B3): `endRun` with the run's ending "none" → everyone banks `quit`; back to the lobby state (shared with `onLobbyReturn`), resume cleared; `loadAndStart` with the seed, no Ready check.
-  - [ ] Mark: first applied cheat → `this.cheated`, `recordRunResult(runId, "cheated", markCheated)` after the earlier writes; `finish` passes `cheated`. Reset per run.
-- [ ] **T3 Run stats (AC 7)**: `db/schema.ts` `runResults.cheated`; `npm run db:generate` → `0010_*`; `runResultsRepo.markCheated`, `RunEndRow.cheated?`, finish never clears, `StatsRun.cheated`; `statsCommand.formatStats` filter + line.
-- [ ] **T4 Client (AC 8, 9)**: `DevCheats.tsx` online → `admin.cheat` through the online session (no confirm), solo unchanged; the panel's state readouts (god) follow the server where it matters.
-- [ ] **T5 Tests** (Test plan). **T6 Hand-back**: `gate:fast` + `test:changed`, PR "Story 10.12: Admin cheats online", CI green, B-codes recorded.
+- [x] **T1 Shared (AC 3, 5)**
+  - [x] `net/messages.ts`: `C2S.ADMIN_CHEAT = "admin.cheat"`; `adminCheatSchema` = strict discriminated union on `cheat` (`spawn {type, count, where: "ring"|"view", view?}`, `skip_wave`, `leave_last`, `behemoth`, `event {kind}`, `loadout {w0, w1|null}`, `money`, `damage_building`, `god {on}`, `decay {stage}`, `blackout {pct}`, `restart {seed}`); `NET_PROTOCOL_VERSION = 6`.
+  - [x] `debug/adminCheats.ts`: `leaveLast`, `damageNearestBuilding`, `clampSpawnCount`, `decayCheatAllowed`, constants (ring radius, leave count, money, building damage), and `applyAdminCheat(world, playerId, cheat)` for every world cheat (not restart: the room's). The client panel imports the same helpers (solo path unchanged).
+  - [x] Per-player god (B6): `world.debug.godPlayers: Set<string>` + `isGodFor(world, p)` at the 5 sites.
+- [x] **T2 Server (AC 1–3, 6, 7)**
+  - [x] `RunRoom.ts`: handler through `this.net.guard`; `onAdminCheat` (in a run, member with a player; admin check B7 cached per seat for the run, async; the cheat is queued after the check and the tick drains the queue before `controller.tick()`, B2); refused / used logs (B4); `DEV_ADMIN_CHEATS=1` outside production (B9).
+  - [x] Restart (B3): `endRun` with the run's ending "none" → everyone banks `quit`; back to the lobby state (shared with `onLobbyReturn`), resume cleared; `loadAndStart` with the seed, no Ready check.
+  - [x] Mark: first applied cheat → `this.cheated`, `recordRunResult(runId, "cheated", markCheated)` after the earlier writes; `finish` passes `cheated`. Reset per run.
+- [x] **T3 Run stats (AC 7)**: `db/schema.ts` `runResults.cheated`; `npm run db:generate` → `0010_*`; `runResultsRepo.markCheated`, `RunEndRow.cheated?`, finish never clears, `StatsRun.cheated`; `statsCommand.formatStats` filter + line.
+- [x] **T4 Client (AC 8, 9)**: `DevCheats.tsx` online → `admin.cheat` through the online session (no confirm), solo unchanged; the panel's state readouts (god) follow the server where it matters.
+- [x] **T5 Tests** (Test plan). **T6 Hand-back**: `gate:fast` + `test:changed`, PR "Story 10.12: Admin cheats online", CI green, B-codes recorded.
 
 ## Test plan
 
@@ -119,10 +119,60 @@ Ticks count ticks; no per-tick allocation (the cheat queue is a reused array); n
 
 ### Agent Model Used
 
+Claude (builder cloud session, `gds-dev-story`), 2026-11-27.
+
 ### Debug Log References
+
+- gate:fast first run: 1 failure, `RunRoom.account.test.ts` "the tick never waits for the database" (no `.then(` in the room): the admin read now settles in an `async` helper (`afterAdminRead`), still off the tick.
+- gate:fast (head after the master merge): typecheck + lint + 551 files / 5276 tests passed (58 skipped) + release:check (build + cheat scan) green. `vitest --changed origin/master --project slow`: 65 files / 548 tests passed. Load: 4-core container, this builder alone, VITEST_MAX_WORKERS=3.
+- Browser (Playwright + Chromium, PRODUCTION client build via `vite preview` on :5913, server on :2913 with its own PGlite, stopped by PID): account `ana_admin` registered through `/api/account/upgrade`, marked with `npm run admin -- add` (server stopped meanwhile); Ana creates, Bo (a guest) joins, Start. Ana's ⚙ shows (Bo has none), no "Practice only" line; "Spawn 50 around me" → a ring of 50 around Ana on BOTH phones; "+500 money" → Ana $700, Bo $200; Bo's page has no cheat text (Q2). "Restart with seed 424242" → both phones in a fresh build phase (wave 1 in 24 s, $200 each), the panel reads seed 424242. Server log: `admin_cheat_used` (spawn, money, restart), `run_ended`, `admin_restart`, `run_started`. Screenshots at deviceScaleFactor 1 (own check). **Not verified in a browser:** the other cheats one by one online (they are covered by the shared unit tests, the room tests and the DOM check of the sent messages), a real phone, a dev-build online panel.
 
 ### Completion Notes List
 
-- Story context created with `gds-create-story` (story writer session, 2026-11-27). Q1–Q6 await the designer.
+- Story context created with `gds-create-story` (story writer session, 2026-11-27). Q1–Q6 then superseded by the designer decisions 2026-11-27; the builder rewrote ACs / tasks / test plan first (commit `c2fda6b`).
+- **Shared:** `adminCheatSchema` (strict discriminated union, every panel cheat incl. `restart {seed}`), `C2S.ADMIN_CHEAT`, `NET_PROTOCOL_VERSION` 6. `debug/adminCheats.ts › applyAdminCheat` (the server's path; the solo panel uses the same helpers). Per-player god: `world.godPlayers` + `isGodFor` at the 5 damage sites (B6: not saved, not in the digest). `spawnInView` moved to shared.
+- **Server:** `AdminCheatGate` (B7 admin read from the database once per seat per run, never cached on a DB error; B9 `DEV_ADMIN_CHEATS`; B4 log rate). `RunRoom.onAdminCheat` → queue → `applyCheats` at the start of `step()` (B2). First applied cheat → `markRunCheated` (`run_results.cheated`, after the run's earlier writes). Restart (B3): `endRun` (ending none → every seat banks `quit`), `toLobby()`, `loadAndStart(force)` with the seed; the new run is cheated too.
+- **Stats:** migration `0010_run_results_cheated`, `markCheated` (sticky upsert), `finish` ORs the room's flag, `expireAbandoned` keeps it; `formatStats` leaves cheated runs out and prints "Cheated runs left out: N" as line 2.
+- **Client:** the panel's `act()` sends online / runs locally solo; online god box tracks the run seed; the 10.11 `practiceOnlyOnline` lock removed.
+- **Rewards untouched** (AD-3 reversed): no banking, save, `run.rewards` or Results change; a room test checks a cheated run's wipe still banks Supplies.
+- Sprint-status left to the main session (AGENTS §2).
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/10-12-admin-cheats-online.md`
+- `apps/client/src/debug/DevCheats.tsx`
+- `apps/client/src/debug/devCheatActions.ts`
+- `apps/client/src/debug/stressScenario.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/server/drizzle/0010_run_results_cheated.sql`
+- `apps/server/drizzle/meta/0010_snapshot.json`
+- `apps/server/drizzle/meta/_journal.json`
+- `apps/server/src/db/realPostgresRunResults.test.ts`
+- `apps/server/src/db/runResults.test.ts`
+- `apps/server/src/db/runResultsRepo.ts`
+- `apps/server/src/db/schema.ts`
+- `apps/server/src/db/statsCommand.test.ts`
+- `apps/server/src/db/statsCommand.ts`
+- `apps/server/src/rooms/RunRoom.adminCheats.test.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/run/adminCheatGate.ts`
+- `packages/shared/src/combat/damage.ts`
+- `packages/shared/src/core/god.ts`
+- `packages/shared/src/core/world.ts`
+- `packages/shared/src/debug/adminCheats.test.ts`
+- `packages/shared/src/debug/adminCheats.ts`
+- `packages/shared/src/decay/fire.ts`
+- `packages/shared/src/events/stampede.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/save/runSave.ts`
+- `packages/shared/src/zombies/spawnRing.ts`
+- `packages/shared/src/zombies/spit.ts`
+- `packages/shared/src/zombies/zombieAi.ts`
+- `tools/checks/adminPanelDomLayout.test.ts`
+- `tools/checks/noCheatsInRelease.test.ts`
+
+### Change Log
+
+- 2026-11-27: story rewritten for the designer decisions; built (T1–T6); status → review.
