@@ -2141,7 +2141,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       else if (gate.shouldLog(seat.seatId, cheat.cheat, "refused")) this.log.warn({ roomId: this.roomId, playerId: member.playerId, accountId: member.accountId, cheat: cheat.cheat }, "admin_cheat_refused");
     };
     if (typeof answer === "boolean") settle(answer);
-    else void answer.then(settle);
+    else void this.afterAdminRead(answer, settle);
+  }
+
+  /** Story 10.12 (B7): the seat's admin read settles off the tick (the gate never rejects), then the cheat is queued or refused. */
+  private async afterAdminRead(read: Promise<boolean>, settle: (ok: boolean) => void): Promise<void> {
+    settle(await read);
   }
 
   /** Story 10.12 (B2): applies the queued cheats on the World; true when a restart replaced the run (no step this tick). */

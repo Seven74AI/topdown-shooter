@@ -104,9 +104,12 @@ Ticks count ticks; no per-tick allocation (the cheat queue is a reused array); n
 
 ### Notes for the merge
 
-- **Overlaps:** `apps/server/src/rooms/RunRoom.ts` (handler list, startRun/resume, endRun, bank callers), `meta/banking.ts`, `meta/saveBank.ts`, `packages/shared/src/save/*` (**save v3**: any other story bumping the save format must go after and regenerate its step), `net/messages.ts` (C2S + run.rewards), `db/schema.ts` + **migration 0010** (any other migration story regenerates on top), `runResultsRepo.ts`, `statsCommand.ts`, `DevCheats.tsx` / `devCheatActions.ts`, `rewardsModel.ts` / `ResultsScreen.tsx`, the 5 god-mode sim sites (Q4 B), `NET_PROTOCOL_VERSION` (B5).
-- **In flight now:** 10.2 (frame rate, client render) and 10.5 (install / browsers, client shell) touch different code — fine in parallel; check HUD files if 10.2 touches the HUD (banner). **Don't run in parallel** with deferred D3 (two-seat under-pay, the next `banking.ts` change) or any story touching RunRoom start/end or the save format. 10.3 (memory/battery) is client-side: fine.
-- Hermes: deploy must run migration 0010; no operator step beyond 10.11's `admin add`.
+(Rewritten by the builder 2026-11-27 for what was really built.)
+
+- **Overlaps:** `apps/server/src/rooms/RunRoom.ts` (handler list; `step()` drains the cheat queue before the tick; `startRun` seed + cheat reset; `loadAndStart(force)`; `onLobbyReturn` body moved into `toLobby()`; `RunResultRun.cheated`), `packages/shared/src/net/messages.ts` (`C2S.ADMIN_CHEAT`, `adminCheatSchema`, **`NET_PROTOCOL_VERSION` 5 → 6**: Epic 11 now takes 7), `db/schema.ts` + **migration `0010_run_results_cheated`** (any other migration story regenerates on top; never rename), `runResultsRepo.ts` (`markCheated`, `RunEndRow.cheated`, `StatsRun.cheated`), `statsCommand.ts` (new line 2 "Cheated runs left out: N" on every non-empty output), `core/world.ts` (new World key `godPlayers`, classified in `WORLD_SAVE_PLAN` as excluded), the 5 god-mode sites (now `isGodFor(world, p)` from `core/god.ts`), `zombies/spawnRing.ts` (`spawnInView` moved here from the client's `stressScenario.ts`, which re-exports it), new `debug/adminCheats.ts` (the client's `devCheatActions.ts` re-exports `leaveLast`/`damageNearestBuilding`/`decayCheatAllowed`/`setDecayStageCheat`/`clampSpawnCount`), `DevCheats.tsx` (the 10.11 `practiceOnlyOnline` option and "Practice only" line are gone), `GameScene.sendAdminCheat`, `NetSimHost.sendAdminCheat`, `tools/checks/adminPanelDomLayout.test.ts` + `noCheatsInRelease.test.ts` (one assert).
+- **No banking, save or Results change** (AD-3 reversed): `meta/banking.ts`, `meta/saveBank.ts`, `save/*` format and `rewardsModel.ts` are untouched (save format stays v2). Deferred D3 (banking) no longer conflicts.
+- **10.3 overlap:** if 10.3 touched `zombieAi.ts` / `spit.ts` / `fire.ts` / `damage.ts` / `stampede.ts`, the conflict is one `world.debug.godMode` → `isGodFor(world, p)` per line plus an import.
+- Hermes: the deploy must run migration 0010 (the usual `db:migrate` step). Nothing else: admins are 10.11's `admin add`.
 
 ### References
 
