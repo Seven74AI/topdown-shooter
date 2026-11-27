@@ -49,7 +49,7 @@
 # - 8.12 and Epic 12 are in epics.md since 2026-11-26. Order: 8.12 -> 12.1 (+12.4) -> 12.2 -> 12.3, before 10.2 / 10.8 / 10.9.
 
 generated: 11-21-2026 18:20
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -228,9 +228,9 @@ development_status:
   # Epic 10: Performance and polish
   epic-10: in-progress
   10-1-settings-screen: done  # FIRST in Epic 10 (9.5, 9.6, 9.8, 10.2 depend on it); + account/progress deletion AC (E7-A8)
-  10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; buildable part = headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked
-  10-3-memory-and-battery-pass: backlog  # buildable part = headless 10-wave heap/CPU run; phone ACs parked
-  10-4-fast-loading: backlog
+  10-2-frame-rate-pass-on-reference-phones: ready-for-dev  # story file written 2026-11-27 (10-2-frame-rate-pass.md); awaiting designer Q-codes 10.2-Q1..Q3; headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked; carries D6
+  10-3-memory-and-battery-pass: ready-for-dev  # story file written 2026-11-27 (10-3-memory-and-battery-pass.md); awaiting designer Q-code 10.3-Q1; build after 10.2; phone ACs parked
+  10-4-fast-loading: ready-for-dev  # story file written 2026-11-27 (10-4-fast-loading.md); awaiting designer Q-code 10.4-Q1; parallel with 10.2 OK
   10-5-home-screen-install-and-every-supported-browser: ready-for-dev  # awaiting designer Q-codes 10.5-Q1 (icon proposal) … Q3; real-phone notch + iOS/Android checks parked; desktop browsers via Playwright (story file 2026-11-27)
   10-6-report-a-problem: ready-for-dev  # awaiting designer Q-codes 10.6-Q1 (Report screen layout proposal) … Q3; migration lands FIRST (0008), 10.7 regenerates on top
   10-7-run-stats: ready-for-dev  # awaiting designer Q-codes 10.7-Q1…Q4 (none blocks the server work); merges after 10.6 and regenerates its migration on top
