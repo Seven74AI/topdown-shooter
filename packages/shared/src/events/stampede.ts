@@ -1,5 +1,6 @@
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
+import { isGodFor } from "../core/god";
 import type { MapBox, StampedeLane } from "../map/districtMap";
 import { stageForWave } from "../decay/decayState";
 import type { Building } from "../buildings/buildings";
@@ -344,7 +345,7 @@ const touchPlayer = (p: PlayerState): void => {
   if (((z.stampedeHit[id] as number) & bit) !== 0) return;
   z.stampedeHit[id] = (z.stampedeHit[id] as number) | bit;
   world.special.log.stampedeHits++;
-  if (world.debug.godMode) return;
+  if (isGodFor(world, p)) return;
   damagePlayerBy(world, p, world.balance.events.stampede.contactDamage, "zombie", null, id);
 };
 

@@ -1,6 +1,7 @@
 import { resetBearTraps } from "../buildings/bearTrap";
 import { damageSurvivor, survivorTarget } from "../events/survivor";
 import type { World } from "../core/world";
+import { isGodFor } from "../core/god";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
 import { buildingStats, damageBuilding, type Building } from "../buildings/buildings";
@@ -93,7 +94,7 @@ function molotovPulseDamage(world: Readonly<World>, slot: number): number {
 const burnPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
   // D4: downed players keep their own countdown; out players are off the map; god mode (dev, ?stress).
-  if (p.status !== "alive" || world.debug.godMode || p.protectTicks > 0) return; // Story 8.1 spawn protection
+  if (p.status !== "alive" || isGodFor(world, p) || p.protectTicks > 0) return; // Story 8.1 spawn protection
   const car = pass.cars && circleInFire(world.decay.fires, p.x, p.y, p.radiusM);
   const mol = molotovZoneAt(world, p.x, p.y, p.radiusM);
   if (!car && mol < 0) return;

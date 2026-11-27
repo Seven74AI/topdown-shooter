@@ -157,6 +157,11 @@ export interface World {
   readonly loot: LootState;
   /** Story 12.2: the extraction (walk, boarding, lift-off, fly-out; `run/extract.ts`). Never saved. */
   readonly extract: ExtractState;
+  /**
+   * Story 10.12 (Q4 B, B6): the player ids an admin's online God mode protects (only their own survivor). Not saved, not
+   * in the digest: a resume or a restart starts without it. `world.debug.godMode` still spares everyone (solo, bots, ?stress).
+   */
+  readonly godPlayers: Set<string>;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -275,6 +280,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     special: createSpecialEventState(), // Story 6.8
     loot: createLootState(), // Story 7.12
     extract: createExtractState(), // Story 12.2
+    godPlayers: new Set(), // Story 10.12 (B6)
   };
   world.loot.salt = lootSalt;
   if (opts.loot?.off !== true) makeLootPlan(streams.loot, opts.balance, opts.loot?.prevVariant ?? -1, world.loot.plan);
@@ -323,3 +329,4 @@ export function step(world: World, dtS: number): void {
   recordBossHistory(world); // Story 6.5 (D3): the boss's row of the same tick
   world.events.flush(); // always last: events of this tick are delivered once, in order
 }
+

@@ -5,7 +5,7 @@ import { formatStats, isoWeek, parseStatsArgs } from "./statsCommand";
 /** Story 10.7 (AC 8; Q1 = C, Q2 = A, Q3 = A): the stats text on fixture rows. */
 const day = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h);
 let n = 0;
-const run = (endedAt: Date, waveReached: number, ending: StatsRun["ending"], over: Partial<StatsRun> = {}): StatsRun => ({ id: `r${++n}`, endedAt, ending, extracted: ending === "extracted", waveReached, playerCount: 0, ...over });
+const run = (endedAt: Date, waveReached: number, ending: StatsRun["ending"], over: Partial<StatsRun> = {}): StatsRun => ({ id: `r${++n}`, endedAt, ending, extracted: ending === "extracted", waveReached, playerCount: 0, cheated: false, ...over });
 const seats = (r: StatsRun, members: (string | null)[], loadouts: string[] = []): StatsSeat[] => members.map((m, i) => ({ runId: r.id, member: m, loadout: loadouts[i] ?? "" }));
 
 describe("Story 10.7: npm run stats", () => {
@@ -77,5 +77,25 @@ describe("Story 10.7: npm run stats", () => {
     expect(out).toMatch(/smg +50 %\n/);
     const only = formatStats([run(day(2026, 11, 2), 3, "wiped")], seats(run(day(2026, 11, 2), 3, "wiped"), [])).join("\n");
     expect(only).toContain("(none)");
+  });
+
+  it("Story 10.12 (Q3 A): cheated runs are left out of every number; one line counts them", () => {
+    const clean = run(day(2026, 11, 23), 6, "wiped");
+    const c1 = run(day(2026, 11, 24), 10, "extracted", { cheated: true });
+    const c2 = run(day(2026, 11, 25), 0, "abandoned", { cheated: true });
+    const s = [...seats(clean, ["a"], ["smg"]), ...seats(c1, ["a"], ["minigun"]), ...seats(c2, ["b"], ["shotgun"])];
+    const out = formatStats([clean, c1, c2], s);
+    const text = out.join("\n");
+    expect(out.slice(0, 2)).toEqual(["Run stats (all finished runs)", "Cheated runs left out: 2"]);
+    expect(text).toContain("2026-W48 (Mon 23 Nov)  1 run · 0 abandoned");
+    expect(text).toContain("not yet: 1"); // a's cheated extraction does not count
+    expect(text).toContain("Weapons bought (share of 1 run)");
+    expect(text).not.toContain("minigun");
+    expect(text).not.toContain("shotgun");
+    expect(formatStats([clean], s).slice(0, 2)).toEqual(["Run stats (all finished runs)", "Cheated runs left out: 0"]);
+    // Only cheated runs: the title, the count, empty tables.
+    const only = formatStats([c1], s);
+    expect(only[1]).toBe("Cheated runs left out: 1");
+    expect(only.join("\n")).toContain("(none)");
   });
 });

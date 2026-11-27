@@ -75,7 +75,7 @@ describe.skipIf(!hasDist && !REQUIRED)("release build has no dev cheats", () => 
     expect(admin.filter((f) => f.endsWith(".css")).length).toBeLessThanOrEqual(1);
     const text = readFileSync(js[0] as string, "utf8");
     expect(text).toContain("Spawn zombies");
-    expect(text).toContain("Practice only");
+    expect(text).toContain("restarts the run for everyone"); // Story 10.12: the online panel (the 10.11 lock is gone)
     expect(text).not.toContain("__game"); // the dev-only window hooks never ship, even for admins
     expect(text).not.toContain("__gfx");
   });
