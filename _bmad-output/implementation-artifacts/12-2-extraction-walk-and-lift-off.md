@@ -197,3 +197,5 @@ Left for 12.3 (noted): the flashlight cone of a body walking to (or waiting at) 
 - **Open with the designer (balance only, tunable later):** timings (walk cap 8 s, beat 0.5 s, fly-out 8 s), downed survivors walk (CN-3), fly-out horde of 40 Walkers. Merged as built.
 
 - **Designer 2026-11-27:** fly-out horde 40 → 150 Walkers (30/s), PR #38. Timings and the downed walk: still open.
+
+- **Designer 2026-11-27 "All ok":** timings kept (walk cap 8 s, beat 0.5 s, fly-out 8 s); downed survivors walk (CN-3) kept. No open feel questions left for 12.2.

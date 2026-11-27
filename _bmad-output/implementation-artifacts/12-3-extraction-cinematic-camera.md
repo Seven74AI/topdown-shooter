@@ -236,3 +236,5 @@ no sim side effects. L2 (pings) and F1–F4 are with the designer (unchanged).
 - **Open with the designer (one setting each, tunable later):** F1 white timing, F2 dawn look, F3 crew placeholder, F4 bars at the fade, L2 pings hidden during the extraction (conflicts with 12.2 AC 3: designer call). Merged as built.
 
 - **Designer 2026-11-27:** F1 kept (full white 5.7 s after lift-off). Fly-out horde raised to 150 (12.2 follow-up, PR #38).
+
+- **Designer 2026-11-27 "All ok":** F2 dawn look kept, F3 crew placeholder kept, F4 bars turn white with the fade kept, L2 pings hidden during the extraction accepted (supersedes 12.2 AC 3 for the cinematic). No open feel questions left for 12.3.
