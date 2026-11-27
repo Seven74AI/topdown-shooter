@@ -228,3 +228,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 23:18 Master CI green on e5aef083 (#36, 12.2). 12.3 builder started.
 - 00:14 (11-27) 12.3 extraction camera, PR #37 merged 10387c0b (light review + no-sim check; L1 fixed). Epic 12 stories all done. Open feel questions: 12.2 timings/downed/horde; 12.3 F1–F4 + pings.
 - 00:22 Master CI green on 10387c0b (#37). Epic 12 done (12.1–12.4).
+- 07:25 (11-27) Designer "All ok": every open 12.2/12.3 feel choice kept as built; fly-out horde 150 merged (PR #38, b8266485).

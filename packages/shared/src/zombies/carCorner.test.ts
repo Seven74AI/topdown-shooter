@@ -256,4 +256,4 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
  * Story 12.2: re-pinned (was 2551157819) only because the new `waves.evac` extraction keys (descendS, walkTimeoutS,
  * liftBeatS, flyOutS, flyOutHorde) change `balance.version`; this scenario never reaches a vote.
  */
-const GOLDEN_DIGEST = 2082734638;
+const GOLDEN_DIGEST = 2415701599;

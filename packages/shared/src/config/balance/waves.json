@@ -36,7 +36,7 @@
     "walkTimeoutS": 8,
     "liftBeatS": 0.5,
     "flyOutS": 8,
-    "flyOutHorde": { "count": 40, "perS": 8, "type": "walker" }
+    "flyOutHorde": { "count": 150, "perS": 30, "type": "walker" }
   },
   "endless": {
     "maxZombiesPerWave": 600,
