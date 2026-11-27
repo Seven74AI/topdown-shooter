@@ -231,9 +231,9 @@ development_status:
   10-2-frame-rate-pass-on-reference-phones: backlog  # depends on 10.1; buildable part = headless ?stress=150 at 1x/4x CPU; phone ACs (incl. 1.11 AC 3) parked
   10-3-memory-and-battery-pass: backlog  # buildable part = headless 10-wave heap/CPU run; phone ACs parked
   10-4-fast-loading: backlog
-  10-5-home-screen-install-and-every-supported-browser: backlog  # real-phone notch + iOS/Android checks parked; desktop browsers via Playwright
-  10-6-report-a-problem: backlog
-  10-7-run-stats: backlog
+  10-5-home-screen-install-and-every-supported-browser: ready-for-dev  # awaiting designer Q-codes 10.5-Q1 (icon proposal) … Q3; real-phone notch + iOS/Android checks parked; desktop browsers via Playwright (story file 2026-11-27)
+  10-6-report-a-problem: ready-for-dev  # awaiting designer Q-codes 10.6-Q1 (Report screen layout proposal) … Q3; migration lands FIRST (0008), 10.7 regenerates on top
+  10-7-run-stats: ready-for-dev  # awaiting designer Q-codes 10.7-Q1…Q4 (none blocks the server work); merges after 10.6 and regenerates its migration on top
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night); per-phone measurements parked
   10-10-build-button: done  # PR #20 merged 2026-11-25 (6861275e) after review (1 important) + 2 narrow re-reviews + main-session check; layout B; added 2026-11-25 (designer: hybrid Build button); BU-1 = B (designer 2026-11-25); built on branch story-10-10 (PR), B-codes 10.10-B1…B12 in the story file
