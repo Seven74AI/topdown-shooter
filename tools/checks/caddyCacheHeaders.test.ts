@@ -18,6 +18,7 @@ const serveDist = require("../perf/serveDist.cjs") as {
   createServer(dir: string): Server;
   IMMUTABLE: string;
   NO_CACHE: string;
+  SHORT: string;
 };
 const CADDYFILE = readFileSync(join(process.cwd(), "deploy/Caddyfile"), "utf8");
 
@@ -56,6 +57,19 @@ describe("Story 10.4 B3: deploy/Caddyfile cache rules", () => {
     expect(rest).toMatch(/try_files\s+\{path\}\s+\/index\.html/);
   });
 
+  it("Story 10.5 (AC 1): the manifest and icons get the short cache (1 h) and the manifest MIME type, only when they exist, no index.html fallback", () => {
+    expect(CADDYFILE).toMatch(/\n\s*@install path \/manifest\.webmanifest \/icons\/\*\n/);
+    const install = handleBlock(CADDYFILE, "@install");
+    expect(install).not.toBeNull();
+    expect(install).toMatch(/@exists\s+file/);
+    expect(install).toContain(`header @exists Cache-Control "${serveDist.SHORT}"`);
+    expect(install).toContain('header /manifest.webmanifest Content-Type "application/manifest+json"');
+    expect(install).not.toMatch(/immutable|try_files/);
+    expect(serveDist.SHORT).toBe("public, max-age=3600");
+    // Caddy puts a matcher-less `handle` last; written before it here too, for the reader.
+    expect(CADDYFILE.indexOf("handle @install {")).toBeLessThan(CADDYFILE.indexOf("\thandle {"));
+  });
+
   it("the check bites on a doctored Caddyfile", () => {
     const doctored = CADDYFILE.replace("max-age=31536000, immutable", "max-age=60");
     expect(handleBlock(doctored, "/assets/*")).not.toContain(`Cache-Control "${serveDist.IMMUTABLE}"`);
@@ -72,6 +86,9 @@ describe("Story 10.4 B3: tools/perf/serveDist.cjs serves like Caddy", () => {
     mkdirSync(join(dir, "assets"));
     writeFileSync(join(dir, "index.html"), "<!doctype html><title>t</title>");
     writeFileSync(join(dir, "assets/main-abc123.js"), "console.log(1);".repeat(50));
+    mkdirSync(join(dir, "icons"));
+    writeFileSync(join(dir, "manifest.webmanifest"), '{"name":"t"}');
+    writeFileSync(join(dir, "icons/icon-192.png"), "png");
     server = serveDist.createServer(dir);
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -89,6 +106,20 @@ describe("Story 10.4 B3: tools/perf/serveDist.cjs serves like Caddy", () => {
     expect(await r.text()).toContain("console.log(1);");
     const again = await fetch(`${base}/assets/main-abc123.js`, { headers: { "if-none-match": r.headers.get("etag") ?? "" } });
     expect(again.status).toBe(304);
+  });
+
+  it("Story 10.5: the manifest and an icon: the short cache and their types; a missing icon is a 404", async () => {
+    const m = await fetch(`${base}/manifest.webmanifest`);
+    expect(m.status).toBe(200);
+    expect(m.headers.get("cache-control")).toBe(serveDist.SHORT);
+    expect(m.headers.get("content-type")).toBe("application/manifest+json");
+    const i = await fetch(`${base}/icons/icon-192.png`);
+    expect(i.status).toBe(200);
+    expect(i.headers.get("cache-control")).toBe(serveDist.SHORT);
+    expect(i.headers.get("content-type")).toBe("image/png");
+    const miss = await fetch(`${base}/icons/nope.png`);
+    expect(miss.status).toBe(404);
+    expect(miss.headers.get("cache-control")).toBeNull();
   });
 
   it("a missing asset is a 404 with no cache header; index.html and share links are no-cache", async () => {

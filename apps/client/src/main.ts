@@ -35,7 +35,11 @@ import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
 import { NET_PROTOCOL_VERSION, RECONNECT, shouldRescueReload } from "@topdown/shared";
 import { signalBootLoader } from "./ui/bootLoaderSignal";
+import { installHintStore } from "./install/installHint";
 import "./ui/overlay.css";
+
+// Story 10.5 (Q3 = C): keep the browser's install prompt for the Results hint's Install button.
+installHintStore.capture(window);
 
 // Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
 let lastShownMs = Number.NEGATIVE_INFINITY;

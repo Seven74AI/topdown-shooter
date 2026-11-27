@@ -38,6 +38,7 @@ import {
   type BuildTile,
 } from "./buildBar";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
+import { hudBandTop } from "./hudTopLayout";
 
 const balance = loadBalance();
 
@@ -158,10 +159,10 @@ describe("Story 10.10: layoutBuildPanel (BU-4, AC 3, 5)", () => {
       [640, 360, 21],
     ] as const) {
       const p = layoutBuildPanel(w, h, 44, b, 1, newBuildPanelLayout(), 20);
-      expect(p.cardY, `${w}x${h} bottom ${b}`).toBeGreaterThanOrEqual(20 + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 12 - 1e-6);
+      expect(p.cardY, `${w}x${h} bottom ${b}`).toBeGreaterThanOrEqual(hudBandTop(20) + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 12 - 1e-6); // Story 10.5 (B5): ☰ sits hudBandTop(inset) down
       expect(p.tile).toBeGreaterThanOrEqual(48);
     }
-    expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout(), 20).tile).toBe(49);
+    expect(layoutBuildPanel(568, 320, 44, 21, 1, newBuildPanelLayout(), 20).tile).toBe(50); // 49 before Story 10.5 B5 (☰ 8 px higher)
     expect(layoutBuildPanel(844, 390, 0, 0, 1, newBuildPanelLayout(), 20).tile).toBe(56); // room to spare
   });
 

@@ -1,6 +1,6 @@
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "../scenes/consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
-import { layoutHpBlock, layoutMoneyLine, layoutPingButton, layoutWaveLine } from "../scenes/hudTopLayout";
+import { hudBandTop, layoutHpBlock, layoutMoneyLine, layoutPingButton, layoutWaveLine } from "../scenes/hudTopLayout";
 
 /**
  * Story 6.8 review M2 (brief 31): where the event edge arrow sits on the SCREEN. Not pressable, but it
@@ -43,7 +43,7 @@ export function waveControlRects(w: number, h: number, insets: Insets, k: number
   const ms = MENU_BUTTON_CSS_PX * k;
   const menu = out[0] as ScreenRect;
   menu.x = w - (MENU_BUTTON_INSET_CSS_PX + insets.right) * k - ms;
-  menu.y = (MENU_BUTTON_INSET_CSS_PX + insets.top) * k;
+  menu.y = (MENU_BUTTON_INSET_CSS_PX + hudBandTop(insets.top)) * k;
   menu.w = menu.h = ms;
   const r = layoutRightButtons(w, h, insets.right, insets.bottom, k, false, 0, 0, rightScratch);
   const swap = out[1] as ScreenRect;

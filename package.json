@@ -27,7 +27,9 @@
     "maps:build": "tsx tools/maps/buildDowntown.ts",
     "maps:sync": "tsx tools/maps/buildDowntown.ts --sync",
     "gallery:export": "tsx tools/gallery/export.ts",
-    "art:street-props": "tsx tools/art/streetProps.ts"
+    "art:street-props": "tsx tools/art/streetProps.ts",
+    "art:icons": "tsx tools/art/icons/drawIcon.ts",
+    "smoke:browsers": "tsx tools/checks/browserSmoke.ts"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.10",

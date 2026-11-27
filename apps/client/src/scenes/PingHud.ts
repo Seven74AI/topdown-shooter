@@ -70,7 +70,7 @@ export class PingHud {
   }
 
   /** On create and every resize: the button's and the chips' rects (canvas px) and their drawings. */
-  layout(width: number, insets: HudInsets, k: number): void {
+  layout(width: number, insets: HudInsets, k: number, height = Infinity): void {
     this.k = k;
     const b = layoutPingButton(width, insets, k, this.btnRect);
     const rect = this.buttons.get(PING_BUTTON_ID);
@@ -82,7 +82,7 @@ export class PingHud {
     g.setPosition(b.x, b.y);
     this.glyph.setPosition(b.x + b.w / 2, b.y + b.h / 2).setDisplaySize(b.w * 0.72, b.h * 0.72);
     layoutPingWheel(width, insets, k, this.chipsGrid);
-    layoutPingWheel(width, insets, k, this.chipsColumn, true);
+    layoutPingWheel(width, insets, k, this.chipsColumn, true, height);
     this.placeChips();
     this.shownButton = null; // re-apply visibility
     this.shownRing = -1;

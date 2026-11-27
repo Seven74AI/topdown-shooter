@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
+import { hudBandTop } from "../scenes/hudTopLayout";
 import { createPerfSnapshot, delayLine, hordeStreamText, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
 import { hitsLine } from "./reversedHits";
@@ -125,7 +126,7 @@ export class PerfOverlay {
       this.lastText = text;
       this.text.setText(text);
     }
-    this.text.setPosition(this.scene.scale.width - (MARGIN_CSS_PX + safe.right) * k, (TOP_CSS_PX + safe.top) * k);
+    this.text.setPosition(this.scene.scale.width - (MARGIN_CSS_PX + safe.right) * k, (TOP_CSS_PX + hudBandTop(safe.top)) * k); // Story 10.5 (B5): the top band overlaps the inset, like ☰
   }
 
   /** Horde frames per second, over windows of at least HORDE_RATE_WINDOW_MS. */

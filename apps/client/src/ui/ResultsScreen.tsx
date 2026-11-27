@@ -10,6 +10,7 @@ import { itemPortraitUrl } from "../render/city/survivorPortrait";
 import { ACCOUNT_TEXT, showNudge } from "./accountModel";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
 import { openAccount } from "./uiState";
+import { INSTALL_TEXT, installHintStore, showInstallHint, type InstallPlatform } from "../install/installHint";
 
 /**
  * Results after a team wipe (Story 2.8, FR11): the wave reached, then color dot, name and kills per
@@ -45,6 +46,16 @@ export function ResultsScreen() {
     const id = requestAnimationFrame(() => setNow(performance.now())); // the dawn's 4 s only
     return () => cancelAnimationFrame(id);
   }, [progress]);
+  // Story 10.5 (Q3 = C): the install hint, once ever, when the finished run's Results first show on a phone that can install.
+  const [install, setInstall] = useState<InstallPlatform | null>(null);
+  const shown = screen.kind === "results" && progress >= 1;
+  useEffect(() => {
+    if (!shown) return;
+    const p = installHintStore.platform();
+    if (!showInstallHint(p, installHintStore.stored())) return;
+    installHintStore.markShown(); // used up now, whatever the player does with it
+    setInstall(p);
+  }, [shown]);
   if (screen.kind !== "results") return null;
   const look = dawnLookFor(screen.ending, screen.endless);
   if (progress < 1) {
@@ -136,7 +147,7 @@ export function ResultsScreen() {
             )}
           </div>
         </section>
-        <RunRewardsCard view={view} nudge={screen.online && rewards?.seed === screen.seed && showNudge(rewards, account) ? screen : null} />
+        <RunRewardsCard view={view} nudge={screen.online && rewards?.seed === screen.seed && showNudge(rewards, account) ? screen : null} install={install} onInstallDone={() => setInstall(null)} />
       </div>
     </div>
   );
@@ -171,7 +182,19 @@ function ItemPicture({ partKey }: { partKey: string | null }) {
 }
 
 /** Story 7.2 (AC 5, RW1): the "Run rewards" card. One scrolling column; rows in the fixed order of brief 26. */
-export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** Story 7.6 (AC 10): the Results screen to come back to, when the nudge shows. */ nudge?: UiScreen | null }) {
+export function RunRewardsCard({
+  view,
+  nudge = null,
+  install = null,
+  onInstallDone,
+}: {
+  view: RewardsView;
+  /** Story 7.6 (AC 10): the Results screen to come back to, when the nudge shows. */
+  nudge?: UiScreen | null;
+  /** Story 10.5 (Q3 = C): the install hint's kind, when it shows (last row). */
+  install?: InstallPlatform | null;
+  onInstallDone?: () => void;
+}) {
   return (
     <section class={`rw-card rw-card--rewards rw--${view.state}`} aria-labelledby="rw-title" data-testid="run-rewards" data-state={view.state}>
       <header class="rw-card__head rw-card__head--rewards">
@@ -265,6 +288,27 @@ export function RunRewardsCard({ view, nudge = null }: { view: RewardsView; /** 
             <button type="button" class="ph-btn rw-nudge__btn" onClick={() => uiStore.set(openAccount("save", nudge))}>
               {ACCOUNT_TEXT.save}
             </button>
+          </p>
+        ) : null}
+        {install ? (
+          <p class="rw-install" data-testid="install-hint" data-platform={install}>
+            <span class="rw-install__icon" aria-hidden="true" />
+            <span class="rw-install__text">{INSTALL_TEXT[install]}</span>
+            <button type="button" class="rw-install__x" aria-label={INSTALL_TEXT.dismiss} title={INSTALL_TEXT.dismiss} onClick={() => onInstallDone?.()}>
+              ✕
+            </button>
+            {install === "android" ? (
+              <button
+                type="button"
+                class="ph-btn rw-install__btn"
+                onClick={() => {
+                  void installHintStore.install();
+                  onInstallDone?.();
+                }}
+              >
+                {INSTALL_TEXT.install}
+              </button>
+            ) : null}
           </p>
         ) : null}
       </div>

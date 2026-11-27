@@ -17,7 +17,7 @@ describe("Story 7.6 wiring (account upgrade, login, merge)", () => {
     expect(hub).toMatch(/<AccountLineView line=\{accountLine\(account\)\} from=\{screen\} compact \/>\s*<\/header>/);
     expect(hub).toMatch(/accountStore\.subscribe\(setAccount\)/);
     const res = read(`${UI}ResultsScreen.tsx`);
-    expect(res).toMatch(/<RunRewardsCard view=\{view\} nudge=\{screen\.online && rewards\?\.seed === screen\.seed && showNudge\(rewards, account\) \? screen : null\} \/>/);
+    expect(res).toMatch(/<RunRewardsCard view=\{view\} nudge=\{screen\.online && rewards\?\.seed === screen\.seed && showNudge\(rewards, account\) \? screen : null\}( install=\{install\} onInstallDone=\{\(\) => setInstall\(null\)\}) \/>/); // Story 10.5: + the install hint
     expect(res).toMatch(/uiStore\.set\(openAccount\("save", nudge\)\)/);
   });
 

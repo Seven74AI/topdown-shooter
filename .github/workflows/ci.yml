@@ -221,6 +221,14 @@ jobs:
           asset="$(curl -sS "$base/" | grep -o '/assets/[^"]*\.js' | head -1)"; [ -n "$asset" ]
           curl -sS -D - -o /dev/null "$base$asset" | tee asset-headers.txt
           grep -qi '^cache-control: public, max-age=31536000, immutable' asset-headers.txt
+          # Story 10.5 (AC 1): the manifest and icons: a short cache (1 h), the manifest's MIME type; a missing icon is a 404.
+          curl -sS -D - -o /dev/null "$base/manifest.webmanifest" | tee manifest-headers.txt
+          grep -qi '^cache-control: public, max-age=3600' manifest-headers.txt
+          grep -qi '^content-type: application/manifest+json' manifest-headers.txt
+          curl -sS -D - -o /dev/null "$base/icons/icon-192.png" | tee icon-headers.txt
+          grep -qi '^cache-control: public, max-age=3600' icon-headers.txt
+          grep -qi '^content-type: image/png' icon-headers.txt
+          check 404 "$base/icons/nope.png"
       - name: Stack status and logs
         if: failure()
         run: |

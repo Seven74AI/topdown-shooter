@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.5: Home-screen install and every supported browser
 
-Status: ready-for-dev
+Status: review
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. **Awaiting designer Q-codes 10.5-Q1…Q3.** Q1 is a new look (the icon), so it needs a code-drawn proposal page before the build. T1–T2 and T4–T6 can start before Q1 is picked, with a placeholder icon. Real-phone ACs are **parked** (designer 2026-11-25, HANDOFF §5.2). The buildable part is Playwright desktop browsers plus device emulation.)
 
@@ -40,18 +40,18 @@ so that it feels like an app.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Manifest + meta (AC 1, 2; B1, B2)**
-  - [ ] `apps/client/public/manifest.webmanifest`, `index.html` links and meta, `<title>` (Q2; until it is picked, keep "topdown-shooter" and put a TODO in the PR).
-  - [ ] `deploy/Caddyfile`: MIME type and cache for `/manifest.webmanifest` and `/icons/*` (read how `index.html` and `/assets/*` are handled first; keep `security_headers`).
-  - [ ] Unit test `apps/client/src/install/manifest.test.ts`: fields, both icon purposes, every icon exists with its size (read the PNG header), and `start_url`'s query doesn't change `parseUrlOptions`.
-- [ ] **T2 Icons (B3) — placeholder until Q1**
-  - [ ] `tools/art/icons/drawIcon.ts` (+ `npm run art:icons`): draws the picked option, deterministically (no `Math.random`, seeded noise). Use a flat placeholder (amber crosshair on charcoal) until the designer picks, and say so in the PR.
-  - [ ] Byte-compare test (the bake pattern used by the existing `*BakeWiring.test.ts`).
-- [ ] **T3 Q1 proposal page (only if the main session asks the builder to make it; otherwise the main session does it before T2)**: follow `.claude/skills/dead-city-model/SKILL.md`. Show 4 options as stills on home-screen mock-ups at 60 and 180 px. No video.
-- [ ] **T4 Top-inset layout cases (AC 4)**: add 47 px top cases at 568 × 320 and 844 × 390 to `hudLayout.test.ts`. Fix any element that fails in its layout function (`hudLayout` / `layoutBossBanner` / Build cluster). Note what moved.
-- [ ] **T5 Emulation run (AC 5)**: `tools/checks/safeAreaEmulation.test.ts` (browser DOM check, runs in the CI test shard 1 like the other `*DomLayout` checks; under 30 s, split per device if needed). Production build + preview on your own port.
-- [ ] **T6 Browser smoke + workflow (AC 7, 8; B4)**: `tools/checks/browserSmoke.ts`, the root `package.json` script, `.github/workflows/browsers.yml`. Run Chromium locally. Trigger the workflow once on the branch (`mcp__github__actions_run_trigger`) and record all four results in `docs/qa/browsers.md`.
-- [ ] **T7 Hand-back**: `gate:fast` + `test:changed`. Branch `story-10-5`, PR "Story 10.5: Home-screen install and every supported browser". Record B-codes for anything you decided (inset hook, any layout fix).
+- [x] **T1 Manifest + meta (AC 1, 2; B1, B2)**
+  - [x] `apps/client/public/manifest.webmanifest`, `index.html` links and meta, `<title>` (Q2; until it is picked, keep "topdown-shooter" and put a TODO in the PR).
+  - [x] `deploy/Caddyfile`: MIME type and cache for `/manifest.webmanifest` and `/icons/*` (read how `index.html` and `/assets/*` are handled first; keep `security_headers`).
+  - [x] Unit test `apps/client/src/install/manifest.test.ts`: fields, both icon purposes, every icon exists with its size (read the PNG header), and `start_url`'s query doesn't change `parseUrlOptions`.
+- [x] **T2 Icons (B3) — placeholder until Q1**
+  - [x] `tools/art/icons/drawIcon.ts` (+ `npm run art:icons`): draws the picked option, deterministically (no `Math.random`, seeded noise). Use a flat placeholder (amber crosshair on charcoal) until the designer picks, and say so in the PR.
+  - [x] Byte-compare test (the bake pattern used by the existing `*BakeWiring.test.ts`).
+- [x] **T3 Q1 proposal page (done by the main session before the build: `docs/art/icon/`; IC3 picked) (only if the main session asks the builder to make it; otherwise the main session does it before T2)**: follow `.claude/skills/dead-city-model/SKILL.md`. Show 4 options as stills on home-screen mock-ups at 60 and 180 px. No video.
+- [x] **T4 Top-inset layout cases (AC 4)**: add 47 px top cases at 568 × 320 and 844 × 390 to `hudLayout.test.ts`. Fix any element that fails in its layout function (`hudLayout` / `layoutBossBanner` / Build cluster). Note what moved.
+- [x] **T5 Emulation run (AC 5)**: `tools/checks/safeAreaEmulation.test.ts` (browser DOM check, runs in the CI test shard 1 like the other `*DomLayout` checks; under 30 s, split per device if needed). Production build + preview on your own port.
+- [x] **T6 Browser smoke + workflow (AC 7, 8; B4)**: `tools/checks/browserSmoke.ts`, the root `package.json` script, `.github/workflows/browsers.yml`. Run Chromium locally. Trigger the workflow once on the branch (`mcp__github__actions_run_trigger`) and record all four results in `docs/qa/browsers.md`.
+- [x] **T7 Hand-back**: `gate:fast` + `test:changed`. Branch `story-10-5`, PR "Story 10.5: Home-screen install and every supported browser". Record B-codes for anything you decided (inset hook, any layout fix).
 
 ## Dev Notes
 
@@ -83,7 +83,7 @@ Exact version pins (no new dependency expected: node canvas for `tools/art` is a
 - **Client shell:** `apps/client/index.html`, `apps/client/public/**`. These **overlap 10.4 (fast loading)**, which is likely to touch `index.html` (preload, inline CSS) and maybe `vite.config.ts`. Run 10.5 after 10.4, or merge `index.html` by hand (keep-both of `<head>` lines is trivial).
 - **`deploy/Caddyfile`:** also touched by **10.6** (`/api` body size for the report path) and maybe **10.4** (cache headers). They touch different blocks, so the conflict is trivial.
 - **`hudLayout.test.ts`** (+ HUD layout code if a 47 px case fails): overlaps **10.2** if 10.2 moves HUD elements, and the deferred-work **D6** (edge arrows) if it is folded into 10.2.
-- **CI:** new workflow file only; `.github/workflows/ci.yml` unchanged.
+- **CI:** new workflow `.github/workflows/browsers.yml`, and `.github/workflows/ci.yml`'s docker smoke gained the manifest / icon header checks (after 10.4's asset header lines; review nit 1).
 - No server, DB, shared or netEvents changes: runs in parallel with 10.6 and 10.7.
 
 ## Test plan
@@ -108,16 +108,45 @@ Exact version pins (no new dependency expected: node canvas for `tools/art` is a
 
 ### Agent Model Used
 
+Claude (builder session, 2026-11-27)
+
 ### Debug Log References
 
+- `npm run smoke:browsers -- --browser chromium`: 9/9 steps in 34.1 s (local, load ~1.2).
+- `tools/checks/safeAreaDomLayout.test.ts`: 7/7 (installable + iPhone 13 / Pixel 7 emulation); `installHintDomLayout.test.ts`: 5/5.
+
 ### Implementation Plan / decisions (B-codes)
+
+- **10.5-B5 (main session 2026-11-27, option A):** AC 4's top inset is **47 px at 844 × 390 and 20 px at 568 × 320** (568-wide iPhones have no top inset in landscape; with 47 px the band above the survivor's 48 px is 65 px and the HP block + boss bar need 71). The **top band overlaps the inset**: every top-band y is counted from `hudBandTop(inset) = max(0, inset − 8)` (`hudTopLayout.ts`), so the first row (☰, ping, wave line) sits at max(12, inset + 4) px; no inset: unchanged. Applied to the HP block / money / wave / toast / boss bar / ☰ / ping layouts, HudScene's draw positions, `consumableButton`, `handCluster`, `buildBar`, `eventArrow`, `pingArrows`, and the CSS `.held-chips` (`max(0px, env(safe-area-inset-top) − 8px) + 86px`, cross-checked). Other fixes a top inset needed: the held-teammate chips follow the top inset; the ping wheel's column shrinks its gaps (≥ 2 px, chips stay 44 px) to fit the bottom; the loot line's gap under the boss bar may close to 0 (touching, never overlapping) before it would cross the survivor's 48 px. The one exception is 10.10's existing `CLOSED_INFEASIBLE "568x320 44/21/20"` (the closed Build cluster's 5.12 row vs ↶; hoisted to module scope and cited), no new known-gap line. The 47/20 px cases compare against the same size with the usual insets (844 × 390 has the same as-built Ready / vote / action-bar lines as 568 / 640). Before/after stills: `docs/qa/browsers/top-inset-844x390-47-{before,after}.png` (before = overlap 0).
+- **10.5-B6 (Q3 = C as built):** the install hint is the last row of the Run rewards card (like 7.6's nudge: it scrolls with the card, never off screen), on the first Results where this browser can install: a phone (coarse pointer), not already installed, and either Chrome's `beforeinstallprompt` (→ Install button, the browser's own sheet) or iOS (→ "tap Share → Add to Home Screen"). Shown = used up (`localStorage topdown-shooter.installHint`); ✕ hides it. Desktop / Firefox Android: nothing, and the "once" is kept for later.
+- **10.5-B7:** safe-area insets are forced with CDP `Emulation.setSafeAreaInsetsOverride` (Chromium 158 here has it; `env()` returns the forced values, so `safeArea()` reads them as on a phone). HUD positions come from the running HudScene, which only a dev build exposes (`__game`, Story 10.11), so that part runs on the Vite dev client; the release build gets the installable check and the stills. The file is `safeAreaDomLayout.test.ts` (the `*DomLayout` name puts it in the slow project / CI shard 1). Practice solo has no ping button (online only): ping is covered by `hudLayout.test.ts` and the smoke.
+- **10.5-B8:** the smoke starts the game with a headless bot as the second player (`tools/bots/botClient.ts`, in-process): a release client can't start alone (`LobbyScreen` solo start is dev-only), and the browser can't see zombies to aim at. The bot also fights wave 1; the browser plays with WASD + a swept, held mouse. Every step is asserted from the room state the bot sees. The test server runs with no `DEV_*` balance switch (a release client would be refused with a balance mismatch).
+- **B3 as built:** `drawIcon.ts` runs the approved `docs/art/icon/icons.js` itself in a node sandbox (node canvas), so the shipped icon is the picked drawing: the 512 px icon is pixel-identical to the designer's still. The maskable icon is the same drawing (IC3 is full-bleed with the badge inside the 80 % circle; a test checks the amber glyph is inside it). The manifest test lives in `tools/checks/installManifest.test.ts` (it reads files: the client tsconfig has no Node types).
+- **Caddy:** `@install path /manifest.webmanifest /icons/*` → `public, max-age=3600`, `Content-Type: application/manifest+json` for the manifest, 404 for a missing icon; `serveDist.cjs` mirrors it; the CI docker smoke checks the headers on the real stack.
+- **Q2:** `GAME_TITLE` (shared constant used by the start screen and the boot title) is now "Hordes".
 
 ### Completion Notes List
 
 - Story context created with `gds-create-story` (story writer session, 2026-11-27).
+- All tasks done. Real iOS / Android install and notch checks (AC 3, 6) are parked and were not run. Firefox / WebKit / Edge ran only in the Browsers workflow (results in `docs/qa/browsers.md`).
+- Seen, not changed (exists before this story, also at 0 inset): during the boss's arrival banner ("THE BEHEMOTH" over the bar's place), a loot line ("Bag found!") is drawn over the banner, because `layoutLootLine` knows the bar, not the banner. The boss's DANGER edge marker can touch ☰'s bottom edge at the top right. Candidates for deferred-work.
 
 ### File List
+
+- New: `apps/client/public/manifest.webmanifest`, `apps/client/public/icons/{icon-192,icon-512,icon-maskable-512,apple-touch-icon-180,favicon-32}.png`, `apps/client/src/install/installHint.ts`, `apps/client/src/install/installHint.test.ts`, `tools/art/icons/drawIcon.ts`, `tools/art/icons/drawIcon.test.ts`, `tools/art/icons/icons.json`, `tools/checks/installManifest.test.ts`, `tools/checks/installHintDomLayout.test.ts`, `tools/checks/safeAreaDomLayout.test.ts`, `tools/checks/browserSmoke.ts`, `.github/workflows/browsers.yml`, `docs/qa/browsers.md`, `docs/qa/browsers/*.png`
+- Changed: `apps/client/index.html`, `apps/client/src/main.ts`, `apps/client/src/ui/ResultsScreen.tsx`, `apps/client/src/ui/overlay.css`, `apps/client/src/ui/connectionModel.ts`, `apps/client/src/scenes/{hudTopLayout,bossBar,pingWheel,PingHud,HudScene,consumableButton,handCluster,buildBar}.ts`, `apps/client/src/render/{eventArrow,pingArrows}.ts`, `apps/client/src/scenes/{hudLayout,buildBar}.test.ts`, `packages/shared/src/config/constants{,.test}.ts`, `deploy/Caddyfile`, `tools/perf/serveDist.cjs`, `tools/checks/{caddyCacheHeaders,heldChipsCss,pingWiring,accountUpgradeWiring}.test.ts`, `apps/client/src/debug/PerfOverlay.ts`, `.github/workflows/ci.yml` (docker smoke: manifest / icon headers), `package.json` (scripts `art:icons`, `smoke:browsers`)
+
+### Senior Developer Review (AI)
+
+- 2026-11-27, light review (one checker, main session): **APPROVED**, 4 nits.
+  - [x] N1: "Notes for the merge" said ci.yml unchanged; it gained the docker smoke's manifest / icon header checks. Corrected.
+  - [x] N2: `manifest.webmanifest` gets `"id": "/"` (a stable app identity); `installManifest.test.ts` checks it.
+  - [x] N3: `debug/PerfOverlay.ts` placed its text at `TOP + safe.top`; now `hudBandTop(safe.top)` like ☰ (B5).
+  - N4: no change (reviewer's call).
+  - Fixes checked by the main session (no re-review).
 
 ### Change Log
 
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.5-Q1…Q3).
+- 2026-11-27: built (manifest, IC3 icons, Hordes, Caddy, top-inset HUD B5, install hint, emulation + installable check, browser smoke + workflow). Status → review.
+- 2026-11-27: review nits 1–3 fixed.
