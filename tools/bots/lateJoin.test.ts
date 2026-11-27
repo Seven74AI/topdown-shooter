@@ -76,6 +76,10 @@ describe("Story 8.2 late bots (T8)", () => {
       expect(await until(() => room.state.phase === "wave", 90_000)).toBe(true);
       b4 = await BotClient.connect({ url: url(), name: "Bot 4", roomId: room.roomId, log });
       bots.push(b4);
+      // E8-A1 (PR #39): everyone Ready ends a build phase on the next tick, and bots Ready as soon as they've shopped, so
+      // the build after wave 1 could last a few ticks and step 4's poll first saw bot 4 in wave 2. Hold Ready after
+      // wave 1 (the build then runs its countdown) until step 4 has seen bot 4 enter.
+      for (const b of bots) b.holdReadyAfterWave = 1;
       expect(await until(() => b4.waited, 10_000)).toBe(true);
       expect(world.players.has(b4.playerId)).toBe(false);
       expect(room.state.players.get(b4.playerId)?.waiting).toBe(true);
@@ -98,7 +102,9 @@ describe("Story 8.2 late bots (T8)", () => {
       // The next build phase: it enters; wave 2: it shoots.
       expect(await until(() => world.players.has(b4.playerId), 150_000, 250)).toBe(true);
       expect(world.waves.number).toBe(1);
+      expect(room.state.phase).toBe("build");
       expect(await until(() => b4.entered, 10_000)).toBe(true);
+      for (const b of bots) b.holdReadyAfterWave = 0; // wave 2 may start (step 5)
     }, 180_000);
 
     it("step 5: bot 4 shoots in wave 2", async () => {
