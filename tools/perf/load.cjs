@@ -1,4 +1,4 @@
-/* global require, process, console, window, document, performance */
+/* global require, process, console, window, document, performance, __dirname */
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled, not a dependency) */
 /*
  * Story 10.4 (B1, B2, B4; AC 1–3): load times of a release build, served like production (tools/perf/serveDist.cjs).
