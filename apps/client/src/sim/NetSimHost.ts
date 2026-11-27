@@ -56,6 +56,7 @@ import {
   type World,
   type EvacChoice,
   evacPadPoint,
+  type AdminCheat,
 } from "@topdown/shared";
 import { viewTickOf } from "../net/viewTick";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
@@ -540,6 +541,11 @@ export class NetSimHost implements SimHost {
   /** Story 3.1: `build.set_ready` (the server ignores it outside a build); the flag comes back in the state. */
   setBuildReady(ready: boolean): void {
     if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
+  }
+
+  /** Story 10.12: one `admin.cheat` (the server checks admin itself and ignores anyone else; no reply). */
+  sendAdminCheat(cheat: AdminCheat): void {
+    if (!this.disposed) this.session.room.send(C2S.ADMIN_CHEAT, cheat);
   }
 
   /** Story 6.11: `evac.vote` (the server ignores it outside the vote); my `vote` comes back in the state. */

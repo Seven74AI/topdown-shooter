@@ -1,4 +1,5 @@
 import type { World } from "../core/world";
+import { isGodFor } from "../core/god";
 import { ticksFor } from "../core/time";
 import { MUZZLE_OFFSET_M, TICK_DT_S } from "../config/constants";
 import type { SpitStats } from "../config/balanceSchema";
@@ -274,7 +275,7 @@ const acidPass = { world: null as World | null, amount: 0, pulse: 0 };
 
 const acidPlayer = (p: PlayerState): void => {
   const world = acidPass.world as World;
-  if (p.status !== "alive" || world.debug.godMode || p.protectTicks > 0) return; // F5; Story 8.1 spawn protection
+  if (p.status !== "alive" || isGodFor(world, p) || p.protectTicks > 0) return; // F5; Story 8.1 spawn protection
   if (!circleInAcid(world, p.x, p.y, p.radiusM)) return;
   if (++p.acidTicks < acidPass.pulse) return;
   p.acidTicks = 0;

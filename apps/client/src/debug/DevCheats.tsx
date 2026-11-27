@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, forceEvent, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
+import { CHEAT_BLACKOUT_LEVELS, CHEAT_BUILDING_DAMAGE, CHEAT_LEAVE_COUNT, CHEAT_MONEY, CHEAT_RING_RADIUS_M, MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, forceEvent, setLoadout, skipWave, spawnRing, weaponIds, type AdminCheat, type ZombieTypeId } from "@topdown/shared";
 import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
@@ -10,24 +10,22 @@ import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast
 import { BLACKOUT_LEVELS } from "./urlOptions";
 import { CollisionGridView } from "./collisionGridView";
 import { uiStore } from "../ui/uiState";
+import { rewardsStore } from "../net/rewardsStore";
 import "./DevCheats.css";
 
 /**
  * Dev cheats (Story 1.11). Toggled by the ⚙ button or the backtick key. Dev builds mount it at once (main.ts). Story
  * 10.11: a production build downloads it (through `adminTools.ts`, the neutrally named `assets/admin-tools-*` chunk)
  * only once the session says this phone's account is an admin (`adminGate.ts`); tools/checks/noCheatsInRelease
- * asserts that no other built file contains the strings below. In production an online run leaves only the view tools
- * (Perf overlay, Collision / grid view): online cheats through the server are Story 10.12.
+ * asserts that no other built file contains the strings below. Story 10.12: online (dev and production) every cheat
+ * goes to the server as one `admin.cheat` message (the server checks admin itself and applies it on its World; no
+ * confirm, Q6 B); Perf overlay and Collision / grid view stay local view tools. Solo / Practice is unchanged (local).
  */
 
-/** Ring radius for "around me", meters (inside the view on a phone in landscape). */
-const RING_RADIUS_M = 8;
+/** Ring radius for "around me" (Story 10.12: shared with the server's cheat). */
+const RING_RADIUS_M = CHEAT_RING_RADIUS_M;
 /** "Leave last 5": the wave's last-5 rush (FR30) starts on the next tick. */
-const LEAVE_COUNT = 5;
-/** Story 3.3: "+500 money" for shop checks (solo). */
-const CHEAT_MONEY = 500;
-/** Story 3.7: "Damage nearest building 50 %" (until Story 3.5's zombies do it). */
-const CHEAT_BUILDING_DAMAGE = 0.5;
+const LEAVE_COUNT = CHEAT_LEAVE_COUNT;
 /** Story 3.3: the dev loadout's "no second weapon" choice. */
 const NO_WEAPON = "";
 
@@ -47,9 +45,6 @@ function hookGridView(game: Phaser.Game): void {
   });
 }
 
-/** Story 10.11 (AC 4): production online runs keep only the view tools (a dev build keeps today's online panel). */
-const PRACTICE_ONLY_ONLINE_DEFAULT = !import.meta.env.DEV;
-
 /** Story 10.11 (AC 5): turns off what the panel turned on for this phone when the admin mark goes (B-code B2). */
 function dropCheatState(game: Phaser.Game): void {
   if (gridViewOn) {
@@ -60,7 +55,7 @@ function dropCheatState(game: Phaser.Game): void {
   if (w) w.debug.godMode = false;
 }
 
-function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; visible: boolean; practiceOnlyOnline: boolean }) {
+function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ZombieTypeId>(ZOMBIE_TYPES[0]);
   const [count, setCount] = useState("50");
@@ -68,6 +63,12 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
   // Story 3.3: the dev loadout (moved here from the Story 1.8 start-of-run picker).
   const [weapon0, setWeapon0] = useState("pistol");
   const [weapon1, setWeapon1] = useState(NO_WEAPON);
+  // Story 10.12 (Q4 B): online god mode lives on the server (the admin's own survivor); the box shows what this phone
+  // asked for in this run (review L5: keyed by the run id from `run.started`, so a restart with the SAME seed starts clean).
+  const [onlineGodRun, setOnlineGodRun] = useState<string | null>(null);
+  // Review L2: the mirror World never gets the forced blackout level, so online the select shows what this phone set
+  // (in this run, by its run id); otherwise it snapped back to "off" and "off" could never be sent.
+  const [onlineBlackout, setOnlineBlackout] = useState<{ run: string; pct: number } | null>(null);
   const [, setTick] = useState(0);
   // Story 7.9 review L5: no gear on the lobby (it sat on LEAVE); cheats are for runs.
   const [inLobby, setInLobby] = useState(uiStore.get().kind === "lobby");
@@ -99,17 +100,26 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
   const p = w?.players.get(LOCAL_PLAYER_ID);
   const n = clampSpawnCount(Number(count));
   const seed = parseSeed(seedText);
-  // Story 4.4: online the server owns the run seed (host's ?seed= + DEV_ALLOW_RUN_SEED=1).
   const online = scene()?.isOnline ?? false;
-  // Story 10.11 (AC 4): every control but the two view tools is disabled (and does nothing) in a production online run.
-  const locked = practiceOnlyOnline && online;
-  const spawn = (where: "ring" | "view") => {
-    const s = scene();
-    if (locked || !w || !p || !s) return;
-    if (where === "ring") spawnRing(w, type, n, p.x, p.y, RING_RADIUS_M);
-    else spawnInView(w, type, n, s.debugView({ x: 0, y: 0, w: 0, h: 0 } as ViewRect), p.x, p.y);
+  // Review L5: this online run's key (its id from `run.started`; the seed only before one arrived).
+  const runNow = rewardsStore.currentRunId ?? `seed:${scene()?.runSeed ?? 0}`;
+  /** Story 10.12: online the cheat goes to the server (`admin.cheat`); solo it runs here on the local World. */
+  const act = (cheat: AdminCheat, solo: () => void) => {
+    if (online) scene()?.sendAdminCheat(cheat);
+    else solo();
     refresh();
   };
+  const spawn = (where: "ring" | "view") => {
+    const s = scene();
+    if (!s) return;
+    const view = s.debugView({ x: 0, y: 0, w: 0, h: 0 } as ViewRect);
+    act({ cheat: "spawn", type, count: n, where, ...(where === "view" ? { view: { x: view.x, y: view.y, w: view.w, h: view.h } } : {}) }, () => {
+      if (!w || !p) return;
+      if (where === "ring") spawnRing(w, type, n, p.x, p.y, RING_RADIUS_M);
+      else spawnInView(w, type, n, view, p.x, p.y);
+    });
+  };
+  const godOn = online ? onlineGodRun === runNow : (w?.debug.godMode ?? false);
 
   if (!visible) return null;
   return (
@@ -122,14 +132,13 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
       {open && (
         <div class="dev-cheats" role="dialog" aria-label="Dev cheats">
           <h2>Dev cheats</h2>
-          {locked && <p class="dev-cheats__info">Practice only</p>}
           <p class="dev-cheats__info">
             seed {scene()?.runSeed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0} · stage {w ? currentDecayStage(w) : "—"}
           </p>
           <fieldset>
             <legend>Spawn zombies</legend>
             <div class="dev-cheats__row">
-              <select value={type} disabled={locked} onChange={(e) => setType((e.target as HTMLSelectElement).value as ZombieTypeId)}>
+              <select value={type} onChange={(e) => setType((e.target as HTMLSelectElement).value as ZombieTypeId)}>
                 {ZOMBIE_TYPES.filter((t) => w?.balance.zombies.types[t] !== undefined).map((t) => (
                   <option value={t}>{t}</option>
                 ))}
@@ -139,49 +148,48 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
                 min={MIN_SPAWN}
                 max={MAX_SPAWN}
                 value={count}
-                disabled={locked}
                 aria-label="How many"
                 onInput={(e) => setCount((e.target as HTMLInputElement).value)}
               />
             </div>
             <div class="dev-cheats__row">
-              <button type="button" disabled={locked} onClick={() => spawn("ring")}>
+              <button type="button" onClick={() => spawn("ring")}>
                 Spawn {n} around me
               </button>
-              <button type="button" disabled={locked} onClick={() => spawn("view")}>
+              <button type="button" onClick={() => spawn("view")}>
                 Spawn {n} in view
               </button>
             </div>
           </fieldset>
           <div class="dev-cheats__row">
-            <button type="button" disabled={locked} onClick={() => !locked && w && (skipWave(w), refresh())}>
+            <button type="button" onClick={() => act({ cheat: "skip_wave" }, () => w && skipWave(w))}>
               Skip wave
             </button>
-            <button type="button" disabled={locked} onClick={() => !locked && w && (leaveLast(w, LEAVE_COUNT), refresh())}>
+            <button type="button" onClick={() => act({ cheat: "leave_last" }, () => w && leaveLast(w, LEAVE_COUNT))}>
               Leave last 5
             </button>
-            <button type="button" disabled={locked} onClick={() => !locked && w && (spawnBehemothCheat(w), refresh())}>
+            <button type="button" onClick={() => act({ cheat: "behemoth" }, () => w && spawnBehemothCheat(w))}>
               Spawn Behemoth
             </button>
           </div>
           <div class="dev-cheats__row">
             {/* Story 6.8: Force event ▸ kind (the coming wave, at 20 %) */}
-            <button type="button" disabled={locked} onClick={() => !locked && w && (forceEvent(w, "car_alarm"), refresh())}>
+            <button type="button" onClick={() => act({ cheat: "event", kind: "car_alarm" }, () => w && forceEvent(w, "car_alarm"))}>
               Force car alarm
             </button>
-            <button type="button" disabled={locked} onClick={() => !locked && w && (forceEvent(w, "stampede"), refresh())}>
+            <button type="button" onClick={() => act({ cheat: "event", kind: "stampede" }, () => w && forceEvent(w, "stampede"))}>
               Force stampede
             </button>
           </div>
           <fieldset>
             <legend>Dev loadout</legend>
             <div class="dev-cheats__row">
-              <select value={weapon0} disabled={locked} aria-label="Slot 1" onChange={(e) => setWeapon0((e.target as HTMLSelectElement).value)}>
+              <select value={weapon0} aria-label="Slot 1" onChange={(e) => setWeapon0((e.target as HTMLSelectElement).value)}>
                 {(w ? weaponIds(w.balance) : []).map((id) => (
                   <option value={id}>{id}</option>
                 ))}
               </select>
-              <select value={weapon1} disabled={locked} aria-label="Slot 2" onChange={(e) => setWeapon1((e.target as HTMLSelectElement).value)}>
+              <select value={weapon1} aria-label="Slot 2" onChange={(e) => setWeapon1((e.target as HTMLSelectElement).value)}>
                 <option value={NO_WEAPON}>(none)</option>
                 {(w ? weaponIds(w.balance) : []).filter((id) => id !== weapon0).map((id) => (
                   <option value={id}>{id}</option>
@@ -189,26 +197,19 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
               </select>
               <button
                 type="button"
-                disabled={locked}
                 onClick={() => {
-                  if (!locked && w && p) setLoadout(w.balance, p.loadout, [weapon0, weapon1 === NO_WEAPON || weapon1 === weapon0 ? null : weapon1]);
-                  refresh();
+                  const second = weapon1 === NO_WEAPON || weapon1 === weapon0 ? null : weapon1;
+                  act({ cheat: "loadout", w0: weapon0, w1: second }, () => w && p && setLoadout(w.balance, p.loadout, [weapon0, second]));
                 }}
               >
                 Set loadout
               </button>
             </div>
             <div class="dev-cheats__row">
-              <button type="button" disabled={locked} onClick={() => {
-                  if (!locked && p) p.wallet += CHEAT_MONEY; // a cheat: no "+N" event, not counted as earned
-                  refresh();
-                }}>
+              <button type="button" onClick={() => act({ cheat: "money" }, () => p && (p.wallet += CHEAT_MONEY))}>
                 +{CHEAT_MONEY} money
               </button>
-              <button type="button" disabled={locked} onClick={() => {
-                  if (!locked && w && p) damageNearestBuilding(w, p.x, p.y, CHEAT_BUILDING_DAMAGE); // Story 3.7: repair checks
-                  refresh();
-                }}>
+              <button type="button" onClick={() => act({ cheat: "damage_building" }, () => w && p && damageNearestBuilding(w, p.x, p.y, CHEAT_BUILDING_DAMAGE))}>
                 Damage nearest building 50 %
               </button>
             </div>
@@ -216,11 +217,11 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
           <label class="dev-cheats__check">
             <input
               type="checkbox"
-              checked={w?.debug.godMode ?? false}
-              disabled={locked}
+              checked={godOn}
               onChange={(e) => {
-                if (w && !locked) w.debug.godMode = (e.target as HTMLInputElement).checked;
-                refresh();
+                const on = (e.target as HTMLInputElement).checked;
+                if (online) setOnlineGodRun(on ? runNow : null);
+                act({ cheat: "god", on }, () => w && (w.debug.godMode = on));
               }}
             />
             God mode
@@ -256,10 +257,10 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
               <select
                 value={String(w ? currentDecayStage(w) : 1)}
                 aria-label="Decay stage"
-                disabled={online || !w || !decayCheatAllowed(w)}
+                disabled={!w || !decayCheatAllowed(w)}
                 onChange={(e) => {
-                  if (w && !online) setDecayStageCheat(w, Number((e.target as HTMLSelectElement).value));
-                  refresh();
+                  const stage = Number((e.target as HTMLSelectElement).value);
+                  act({ cheat: "decay", stage }, () => w && setDecayStageCheat(w, stage));
                 }}
               >
                 {Array.from({ length: MAP_STAGE_COUNT }, (_, i) => (
@@ -267,20 +268,20 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
                 ))}
               </select>
             </div>
-            <p class="dev-cheats__info">Solo: runs the build-start decay for that stage (map mutations, cover, spawns, refunds, push-outs, flow fields, banner).</p>
-            {online && !locked && <p class="dev-cheats__info">Online: the server owns the decay stage (DEV_DECAY_STAGES=2,3 on a dev server).</p>}
-            {!online && w && !decayCheatAllowed(w) && <p class="dev-cheats__info">Build phase only (decay never changes mid-wave).</p>}
+            <p class="dev-cheats__info">Runs the build-start decay for that stage (map mutations, cover, spawns, push-outs, flow fields, banner){online ? " on the server, for everyone" : ""}.</p>
+            {w && !decayCheatAllowed(w) && <p class="dev-cheats__info">Build phase only (decay never changes mid-wave).</p>}
           </fieldset>
           <fieldset>
             <legend>Force blackout</legend>
             <div class="dev-cheats__row">
               <select
-                value={String(w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
+                value={String(online ? (onlineBlackout?.run === runNow ? onlineBlackout.pct : -1) : w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
                 aria-label="Force blackout"
-                disabled={online || !w}
+                disabled={!online && !w}
                 onChange={(e) => {
-                  if (w && !online) setForcedBlackoutCheat(w, Number((e.target as HTMLSelectElement).value));
-                  refresh();
+                  const pct = Number((e.target as HTMLSelectElement).value) as (typeof CHEAT_BLACKOUT_LEVELS)[number];
+                  if (online) setOnlineBlackout({ run: runNow, pct });
+                  act({ cheat: "blackout", pct }, () => w && setForcedBlackoutCheat(w, pct));
                 }}
               >
                 <option value="-1">off</option>
@@ -289,7 +290,7 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
                 ))}
               </select>
             </div>
-            <p class="dev-cheats__info">Solo, any phase: the darkness at that level (Story 6.3). Online: DEV_FORCE_BLACKOUT=5 on a dev server.</p>
+            <p class="dev-cheats__info">Any phase: the darkness at that level (Story 6.3){online ? ", for everyone" : ""}.</p>
           </fieldset>
           <fieldset>
             <legend>Run seed</legend>
@@ -299,25 +300,24 @@ function DevCheats({ game, visible, practiceOnlyOnline }: { game: Phaser.Game; v
                 inputMode="numeric"
                 placeholder="uint32"
                 value={seedText}
-                disabled={locked}
                 aria-label="Run seed"
                 onInput={(e) => setSeedText((e.target as HTMLInputElement).value)}
               />
               <button
                 type="button"
-                disabled={seed === null || online}
+                disabled={seed === null}
                 onClick={() => {
-                  if (seed === null || online) return;
+                  if (seed === null) return;
                   setOpen(false);
-                  scene()?.restartRun(seed);
+                  // Story 10.12 (AC 6): online the server restarts the room's run for everyone with this seed.
+                  if (online) scene()?.sendAdminCheat({ cheat: "restart", seed });
+                  else scene()?.restartRun(seed);
                 }}
               >
                 Restart with seed
               </button>
             </div>
-            {online && !locked && (
-              <p class="dev-cheats__info">Online: the host opens the game with ?seed=N and the server runs with DEV_ALLOW_RUN_SEED=1.</p>
-            )}
+            {online && <p class="dev-cheats__info">Online: restarts the run for everyone in the room.</p>}
           </fieldset>
         </div>
       )}
@@ -334,15 +334,13 @@ export interface CheatPanelHandle {
 export interface CheatPanelOptions {
   /** Shown at mount (default true). */
   visible?: boolean;
-  /** Story 10.11 (AC 4): online runs keep only the view tools. Default: production builds yes, dev builds no. */
-  practiceOnlyOnline?: boolean;
 }
 
 export function mountDevCheats(game: Phaser.Game, opts: CheatPanelOptions = {}): CheatPanelHandle {
-  const { visible = true, practiceOnlyOnline = PRACTICE_ONLY_ONLINE_DEFAULT } = opts;
+  const { visible = true } = opts;
   const el = document.createElement("div");
   (document.getElementById("ui") ?? document.body).appendChild(el);
-  const draw = (v: boolean) => render(h(DevCheats, { game, visible: v, practiceOnlyOnline }), el);
+  const draw = (v: boolean) => render(h(DevCheats, { game, visible: v }), el);
   draw(visible);
   return { setVisible: draw };
 }

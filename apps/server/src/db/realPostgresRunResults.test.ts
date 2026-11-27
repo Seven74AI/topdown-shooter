@@ -81,4 +81,17 @@ describe.skipIf(!URL)("Story 10.7: run stats rows on real PostgreSQL (TEST_DATAB
       expect((await q<{ n: number }>(sql`select nights_played as n from run_results where id = ${id}`))[0]?.n).toBe(2);
     }
   });
+
+  it("Story 10.12 (AC 7): migration 0010's column defaults to false; markCheated and a clean finish keep it true", async () => {
+    const repo = runResultsRepo(database);
+    const id = randomUUID();
+    const clean = randomUUID();
+    await repo.start({ id, district: "downtown", seed: 1 });
+    await repo.start({ id: clean, district: "downtown", seed: 1 });
+    await repo.markCheated({ id, district: "downtown", seed: 1 });
+    await repo.finish({ id, district: "downtown", seed: 1, waveReached: 3, ending: "wiped", endless: false, nightMs: 1000 }, []);
+    const read = await q<{ id: string; cheated: boolean }>(sql`select id, cheated from run_results where id in (${id}, ${clean})`);
+    expect(Object.fromEntries(read.map((r) => [r.id, r.cheated]))).toEqual({ [id]: true, [clean]: false });
+  });
 });
+

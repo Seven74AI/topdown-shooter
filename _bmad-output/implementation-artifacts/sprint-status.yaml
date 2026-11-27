@@ -238,7 +238,7 @@ development_status:
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story; absorbs 1.12 and 4.10 (first game night); per-phone measurements parked
   10-10-build-button: done  # PR #20 merged 2026-11-25 (6861275e) after review (1 important) + 2 narrow re-reviews + main-session check; layout B; added 2026-11-25 (designer: hybrid Build button); BU-1 = B (designer 2026-11-25); built on branch story-10-10 (PR), B-codes 10.10-B1…B12 in the story file
   10-11-admin-players: done  # PR #35 merged 2026-11-26 (78433ca) after review APPROVED (2 lows + 1 nit, test-only fixes checked by main session); added 2026-11-26 (designer); AD-1..AD-4 = A
-  10-12-admin-cheats-online: ready-for-dev  # designer 2026-11-27: every cheat online incl. Restart with seed; AD-3 REVERSED (cheats cost no rewards, teammates not told); stats mark + leave out; god mode admin only; no confirm. Story file has the superseding block.
+  10-12-admin-cheats-online: done  # PR #44 merged efb31a1c 2026-11-27 (full review → 1 re-review → main-session check); designer 2026-11-27: every cheat online incl. Restart with seed; AD-3 REVERSED (cheats cost no rewards, teammates not told); stats mark + leave out; god mode admin only; no confirm. Story file has the superseding block.
   epic-10-retrospective: optional
 
   # Epic 11: Random city (post-v1; sprint-change-proposal-2026-11-24-random-city.md)

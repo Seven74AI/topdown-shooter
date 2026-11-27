@@ -283,6 +283,7 @@ export function removePlayer(world: World, id: string): void {
   releaseFlameSlot(world, id); // Story 5.4
   world.players.delete(id);
   world.heldPlayers.delete(id); // Story 8.1: a final leave while held
+  world.godPlayers.delete(id); // Story 10.12 review M1: a later seat reusing this id is never invulnerable
   world.pendingInputs.delete(id);
   world.inputs.delete(id);
   world.lastAppliedSeq.delete(id);

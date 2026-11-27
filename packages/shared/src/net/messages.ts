@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
+import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
+import { MAP_STAGE_COUNT } from "../map/districtMap";
 import { LOOK_CODE_MAX } from "../config/cosmetics";
 import type { PlaceError } from "../buildings/buildings";
 import type { RepairError } from "../buildings/repair";
@@ -76,6 +78,11 @@ export const C2S = {
    * the host, for a playable district some member has unlocked; anything else is logged and ignored.
    */
   LOBBY_DISTRICT: "lobby.district",
+  /**
+   * Story 10.12: one admin cheat (`adminCheatSchema`) in an online run. The SERVER checks that the seat's account is an
+   * admin (never a client claim) and applies it in its next tick; anything else is logged and ignored (no reply).
+   */
+  ADMIN_CHEAT: "admin.cheat",
   // Story 8.7 (pings) ↓ — kept in one block (8.2+8.3 appends its own).
   /**
    * `{ kind }` (Story 8.7, D15): "ping where I am". Only the kind: the server stamps the sender's own position and slot
@@ -170,8 +177,9 @@ export type S2CType = (typeof S2C)[keyof typeof S2C];
  * refused at join as `update_required` ("A new version is out. Please reload.").
  */
 // Story 8.11: 3 = the binary input (`BYTES.INPUT`, net/input.ts); Story 8.13: 4 = its tick ack. Story 12.2: 5 = the
-// `extract` phase, `boarded` / `liftedAtTick` and the extraction events (X6); Epic 11 takes 6.
-export const NET_PROTOCOL_VERSION = 5;
+// `extract` phase, `boarded` / `liftedAtTick` and the extraction events (X6). Story 10.12: 6 = the `admin.cheat` message
+// (B5); Epic 11 takes 7.
+export const NET_PROTOCOL_VERSION = 6;
 
 /**
  * Binary messages use numeric types (1 byte on the wire instead of a string). Story 2.5: `HORDE_FRAME` (server →
@@ -667,3 +675,37 @@ export interface SavedRunSummary {
   savedAt: string;
   expiresAt: string;
 }
+
+// ── Story 10.12 (admin cheats online) ──
+/** The spawn count range of the Spawn cheat (Story 1.11's panel limits). */
+export const CHEAT_SPAWN_MIN = 1;
+export const CHEAT_SPAWN_MAX = 200;
+/** Force blackout: off (−1) or the three looks (Story 6.3, `?blackout=`). */
+export const CHEAT_BLACKOUT_LEVELS = [-1, 20, 10, 5] as const;
+/** A view rectangle's sane bounds, meters (the server clamps it inside the map anyway). */
+const VIEW_COORD_M = 1000;
+const VIEW_SIZE_M = 200;
+const viewSchema = z
+  .object({ x: z.number().finite().min(-VIEW_COORD_M).max(VIEW_COORD_M), y: z.number().finite().min(-VIEW_COORD_M).max(VIEW_COORD_M), w: z.number().finite().positive().max(VIEW_SIZE_M), h: z.number().finite().positive().max(VIEW_SIZE_M) })
+  .strict();
+const cheatKind = <K extends string, S extends z.ZodRawShape>(cheat: K, shape: S) => z.object({ cheat: z.literal(cheat), ...shape }).strict();
+/**
+ * `admin.cheat` (Story 10.12, Q1: every cheat of the panel). Ranges and names are checked here; weapons, zombie types
+ * the balance doesn't have and phase rules are the server's (`applyAdminCheat`, `restart` is the room's).
+ */
+export const adminCheatSchema = z.discriminatedUnion("cheat", [
+  cheatKind("spawn", { type: z.enum(ZOMBIE_TYPES), count: z.number().int().min(CHEAT_SPAWN_MIN).max(CHEAT_SPAWN_MAX), where: z.enum(["ring", "view"]), view: viewSchema.optional() }),
+  cheatKind("skip_wave", {}),
+  cheatKind("leave_last", {}),
+  cheatKind("behemoth", {}),
+  cheatKind("event", { kind: z.enum(["car_alarm", "stampede"]) }),
+  cheatKind("loadout", { w0: z.string().min(1).max(32), w1: z.string().min(1).max(32).nullable() }),
+  cheatKind("money", {}),
+  cheatKind("damage_building", {}),
+  cheatKind("god", { on: z.boolean() }),
+  cheatKind("decay", { stage: z.number().int().min(1).max(MAP_STAGE_COUNT) }),
+  cheatKind("blackout", { pct: z.literal(CHEAT_BLACKOUT_LEVELS) }),
+  cheatKind("restart", { seed: z.number().int().min(0).max(0xffffffff) }),
+]);
+export type AdminCheat = z.infer<typeof adminCheatSchema>;
+export type AdminCheatKind = AdminCheat["cheat"];

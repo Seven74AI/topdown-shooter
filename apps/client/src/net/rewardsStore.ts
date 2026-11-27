@@ -36,6 +36,11 @@ export class RewardsStore {
 
   constructor(private readonly storage: () => KeyValueStore | null = browserStorage) {}
 
+  /** Story 10.12 review L5: the current online run's id (`run.started`), or null before one; the cheat panel keys its online state by it. */
+  get currentRunId(): string | null {
+    return this.runId;
+  }
+
   get(): RunRewards | null {
     return this.latest;
   }
