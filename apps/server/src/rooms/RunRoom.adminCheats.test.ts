@@ -1,13 +1,13 @@
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { randomBytes } from "node:crypto";
-import { C2S, damagePlayerBy, downPlayer, skipWave } from "@topdown/shared";
+import { C2S, damagePlayerBy, downPlayer, isGodFor, skipWave } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { accountsRepo, adminsRepo } from "../db/accountsRepo";
 import { type Database, openPglite } from "../db/client";
 import { runResultForTest } from "../db/testQueries";
 import { hashGuestToken } from "../run/lobby";
 import { bootTestServer } from "../test/bootTestServer";
-import { SAVE_SECRET, lobby, newPlayer, start, supplies, type Lobby, type Player } from "../test/saveKit";
+import { SAVE_SECRET, joinOptions, lobby, newPlayer, start, supplies, type Lobby, type Player } from "../test/saveKit";
 import type { RunRoom } from "./RunRoom";
 
 /**
@@ -196,4 +196,79 @@ describe("Story 10.12: admin cheats online", () => {
     expect(l.room.controller).toBeNull();
     expect(info.mock.calls.filter((c) => c[1] === "admin_cheat_used")).toEqual([]);
   });
+
+  it("review M1: an admin's god mode leaves with the seat: host remove, then a late joiner on the freed p1 is not protected; a Leave too", async () => {
+    const host = await newPlayer(database, "Ana");
+    const bo = await adminPlayer("Bo");
+    const l = await lobby(colyseus, [host, bo]);
+    await start(l);
+    l.clients[1]!.send(C2S.ADMIN_CHEAT, { cheat: "god", on: true });
+    await vi.waitFor(() => expect(world(l).godPlayers.has("p1")).toBe(true));
+    l.clients[0]!.send(C2S.HOST_REMOVE, { playerId: "p1" });
+    await vi.waitFor(() => expect(world(l).players.has("p1")).toBe(false));
+    expect(world(l).godPlayers.has("p1")).toBe(false);
+    const cy = await colyseus.sdk.joinById(l.room.roomId, joinOptions("join", await newPlayer(database, "Cy")));
+    await vi.waitFor(() => expect(world(l).players.has("p1")).toBe(true), { timeout: 10_000 });
+    expect(isGodFor(world(l), world(l).players.get("p1")!)).toBe(false);
+    // A consented Leave of a god admin.
+    const l2 = await lobby(colyseus, [await newPlayer(database, "Di"), await adminPlayer("Ed")]);
+    await start(l2);
+    l2.clients[1]!.send(C2S.ADMIN_CHEAT, { cheat: "god", on: true });
+    await vi.waitFor(() => expect(world(l2).godPlayers.has("p1")).toBe(true));
+    l2.clients[1]!.send(C2S.RUN_LEAVE, {});
+    await l2.clients[1]!.leave(true);
+    await vi.waitFor(() => expect(world(l2).players.has("p1")).toBe(false));
+    expect(world(l2).godPlayers.has("p1")).toBe(false);
+    await cy.leave(true);
+  });
+
+  it("review L3 + L4: a restart keeps a held teammate (held again in the new run, back on reconnect) and starts only after the old run's banks", async () => {
+    const a = await adminPlayer("Ana");
+    const l = await lobby(colyseus, [a, await newPlayer(database, "Bo")]);
+    await start(l);
+    const bo = l.clients[1]!;
+    bo.reconnection.enabled = false;
+    (l.room.clients.find((c) => c.sessionId === bo.sessionId)?.ref as unknown as { terminate(): void }).terminate();
+    await vi.waitFor(() => expect(l.room.holds.has("p1")).toBe(true));
+    // L4: the old run's banks are slow; the new run waits for them.
+    let releaseBanks!: () => void;
+    const slow = new Promise<void>((r) => (releaseBanks = r));
+    const bank = l.room.bank!;
+    const realEnd = bank.bankRunEnd.bind(bank);
+    vi.spyOn(bank, "bankRunEnd").mockImplementation((...args) => {
+      const done = realEnd(...args);
+      return slow.then(() => done);
+    });
+    const oldRun = bank.runId;
+    l.clients[0]!.send(C2S.ADMIN_CHEAT, { cheat: "restart", seed: 77 });
+    await vi.waitFor(() => expect(l.room.state.phase).toBe("lobby"));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(l.room.controller).toBeNull(); // still waiting for the banks
+    releaseBanks();
+    await vi.waitFor(() => expect(l.room.controller).not.toBeNull()); // (the bank is null in between)
+    expect(l.room.bank?.runId).not.toBe(oldRun);
+    expect(world(l).seed).toBe(77);
+    // L3: Bo's seat survived: held in the new World, back on reconnect.
+    expect(l.room.holds.has("p1")).toBe(true);
+    expect(world(l).heldPlayers.has("p1")).toBe(true);
+    expect(l.room.state.players.get("p1")?.heldUntilTick).toBeGreaterThan(0);
+    const back = await colyseus.sdk.reconnect(bo.reconnectionToken);
+    await vi.waitFor(() => expect(l.room.holds.has("p1")).toBe(false));
+    expect(world(l).players.has("p1")).toBe(true);
+    await back.leave(true);
+  });
+
+  it("review N1: DEV_ADMIN_CHEATS is logged at each Start (or ignored in production)", async () => {
+    vi.stubEnv("DEV_ADMIN_CHEATS", "1");
+    const l = await lobby(colyseus, [await newPlayer(database, "Gus", false)]);
+    const warn = vi.spyOn(l.room.log, "warn");
+    await start(l);
+    expect(warn).toHaveBeenCalledWith("dev_admin_cheats");
+    vi.stubEnv("NODE_ENV", "production");
+    const l2 = await lobby(colyseus, [await newPlayer(database, "Hal", false)]);
+    const warn2 = vi.spyOn(l2.room.log, "warn");
+    await start(l2);
+    expect(warn2).toHaveBeenCalledWith({ value: "1" }, "dev_admin_cheats_ignored");
+  });
 });
+

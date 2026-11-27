@@ -65,6 +65,9 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
   // Story 10.12 (Q4 B): online god mode lives on the server (the admin's own survivor); the box shows what this phone
   // asked for in this run (by its seed: a restart or a new run starts without it).
   const [onlineGodSeed, setOnlineGodSeed] = useState<number | null>(null);
+  // Review L2: the mirror World never gets the forced blackout level, so online the select shows what this phone set
+  // (in this run, by its seed); otherwise it snapped back to "off" and "off" could never be sent.
+  const [onlineBlackout, setOnlineBlackout] = useState<{ seed: number; pct: number } | null>(null);
   const [, setTick] = useState(0);
   // Story 7.9 review L5: no gear on the lobby (it sat on LEAVE); cheats are for runs.
   const [inLobby, setInLobby] = useState(uiStore.get().kind === "lobby");
@@ -270,11 +273,12 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
             <legend>Force blackout</legend>
             <div class="dev-cheats__row">
               <select
-                value={String(w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
+                value={String(online ? (onlineBlackout?.seed === seedNow ? onlineBlackout.pct : -1) : w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
                 aria-label="Force blackout"
-                disabled={!w}
+                disabled={!online && !w}
                 onChange={(e) => {
                   const pct = Number((e.target as HTMLSelectElement).value) as (typeof CHEAT_BLACKOUT_LEVELS)[number];
+                  if (online) setOnlineBlackout({ seed: seedNow, pct });
                   act({ cheat: "blackout", pct }, () => w && setForcedBlackoutCheat(w, pct));
                 }}
               >

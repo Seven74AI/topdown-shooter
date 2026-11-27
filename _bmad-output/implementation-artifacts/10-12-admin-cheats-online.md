@@ -115,6 +115,21 @@ Ticks count ticks; no per-tick allocation (the cheat queue is a reused array); n
 
 - epics.md › Story 10.11 / 10.12 (AD-1…AD-4); `10-11-admin-players.md` (B1–B7, Security notes); `10-7-run-stats.md` (B7, Notes for the merge); AGENTS.md §2–§6; files cited above.
 
+## Senior Developer Review (AI)
+
+**Full review (fresh agent, relayed by the main session, 2026-11-27): CHANGES REQUESTED** — 1 medium, 4 lows, no high; nits N1, N2 to do, N3–N5 no change.
+
+### Action Items
+
+- [x] **M1** `world.godPlayers` keyed by player id was never cleaned: a late joiner who got a freed slot was invulnerable. Fix: the two shared exits from the World drop the id: `removePlayer` (host remove, consented Leave, final leave) and `releaseHeldPlayer` (a hold that ran out → remembered seat). A temporary hold keeps it (the same seat comes back). A restart builds a new World, which starts empty. Tests: `adminCheats.test.ts` "M1" (removePlayer, then a re-added p0 is not god; a hold keeps it, its release drops it); `RunRoom.adminCheats.test.ts` "review M1" (god admin removed by the host → late joiner Cy gets p1 → `isGodFor` false; a god admin's Leave drops it).
+- [x] **L1** A spawn view off the map (the schema allows ±1000 m) put zombies outside the map. Fix: `spawnInView` returns 0 when the view, clamped to the map, is empty. Test: three off-map views spawn nothing; a view that is partly on the map spawns only inside the map.
+- [x] **L2** The online Force blackout select read the mirror's `lights.forcedPct` (never sent), so it snapped back to "off" and "off" could not be sent. Fix: online, the select shows the level this phone set in this run (keyed by the run seed) and no longer needs a mirror World. Test: `adminPanelDomLayout.test.ts`: picking 10 then off sends both, and the select reads "10" then "-1".
+- [x] **L3** Restart dropped held teammates (`toLobby` → `clearHolds`). Main-session decision: AC 6 means "the same members". Fix: the holds are kept through the restart (their 120 s clocks keep running) and every still-held seat is held again in the new World (`reholdAfterRestart`: `controller.holdPlayer`, the remaining `heldUntilTick`). Held seats still bank `quit` for the old run (`bankRunEnd` already covers held seats). Test: "review L3 + L4": Bo is held, the admin restarts, Bo is held in the new World with a chip, then reconnects into it.
+- [x] **L4** `loadAndStart(true)` read progress before the old run's banks were written. Fix: `restartWhenBanked` awaits `runBanked` (like the lobby's reload) before the Start. Test: with the old run's bank held back, the room stays in the lobby with no controller, and starts once the banks settle.
+- [x] **N1** `dev_admin_cheats` / `dev_admin_cheats_ignored` are logged at each Start, like the other `DEV_*` switches (test "review N1").
+- [x] **N2** A failed admin read now refuses and is cached for 10 s (`CHEAT_LOG_EVERY_MS`), then read again (`adminCheatGate.test.ts`).
+- N3–N5: no change (main session).
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -172,7 +187,11 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-27.
 - `packages/shared/src/zombies/zombieAi.ts`
 - `tools/checks/adminPanelDomLayout.test.ts`
 - `tools/checks/noCheatsInRelease.test.ts`
+- `apps/server/src/run/adminCheatGate.test.ts`
+- `packages/shared/src/player/player.ts`
+- `packages/shared/src/player/hold.ts`
 
 ### Change Log
 
 - 2026-11-27: story rewritten for the designer decisions; built (T1–T6); status → review.
+- 2026-11-27: full review fixes M1, L1–L4, N1, N2 (see Senior Developer Review).

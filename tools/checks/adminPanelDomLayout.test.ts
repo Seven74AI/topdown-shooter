@@ -31,6 +31,7 @@ interface PanelState {
   disabled: number;
   practiceOnly: number;
   sent: unknown[];
+  blackout: string[];
 }
 
 /** Mounts a second panel (the dev page has its own) over a stub scene and reads its controls after opening it. */
@@ -60,6 +61,10 @@ const probe = (online: boolean) => `(async () => {
   const god = controls.find((e) => e.closest("label")?.textContent.trim() === "God mode");
   god?.click();
   controls.find((e) => e.closest("label")?.textContent.trim() === "Perf overlay")?.click(); // a view tool: local
+  // Review L2: the blackout select keeps the level this phone set online, so "off" can be sent afterwards.
+  const blackout = panel.querySelector('select[aria-label="Force blackout"]');
+  const pick = async (v) => { blackout.value = v; blackout.dispatchEvent(new Event("change", { bubbles: true })); await wait(50); return blackout.value; };
+  out.blackout = [await pick("10"), await pick("-1")];
   await wait(50);
   out.sent = sent.slice();
   gear.parentElement.remove();
@@ -102,7 +107,10 @@ describe.skipIf(pw === null)("Stories 10.11 + 10.12: the admin cheat panel onlin
       { cheat: "money" },
       { cheat: "damage_building" },
       { cheat: "god", on: true },
+      { cheat: "blackout", pct: 10 },
+      { cheat: "blackout", pct: -1 },
     ]);
+    expect(s.blackout).toEqual(["10", "-1"]); // the select shows what was set (it no longer snaps back to "off")
   }, 30_000);
 
   it("solo (same option): the spawn, wave and loadout controls stay enabled and no 'Practice only' line shows", async (ctx) => {

@@ -4,7 +4,7 @@
  *
  * - B7: a seat's answer is read once per run from the database (`findByTokenHash` of the seat's device token; the
  *   account must be the seat's own account and `isAdminAccount`), then cached. An `admin remove` takes effect for that
- *   seat at the next run. A failed read is not cached (the next message reads again) and refuses this one.
+ *   seat at the next run. A failed read refuses, and is cached for `CHEAT_LOG_EVERY_MS` (review N2), then read again.
  * - B9: `DEV_ADMIN_CHEATS=1` lets any seat cheat on a dev server (ignored when `NODE_ENV=production`).
  * - B4: `admin_cheat_used` / `admin_cheat_refused` at most once per seat per 10 s per cheat kind.
  */
@@ -28,6 +28,8 @@ export function devAdminCheats(env: NodeJS.ProcessEnv = process.env): boolean {
 export class AdminCheatGate {
   private readonly answers = new Map<string, boolean | Promise<boolean>>();
   private readonly loggedAt = new Map<string, number>();
+  /** Review N2: seats whose read failed, until when their "no" holds. */
+  private readonly failedUntil = new Map<string, number>();
 
   constructor(
     private readonly repo: () => Pick<AccountsRepo, "findByTokenHash"> | null,
@@ -37,6 +39,11 @@ export class AdminCheatGate {
 
   /** The seat's cached answer (true / false), or the read in flight. */
   isAdmin(seat: CheatSeat): boolean | Promise<boolean> {
+    const until = this.failedUntil.get(seat.seatId);
+    if (until !== undefined && this.nowMs() >= until) {
+      this.failedUntil.delete(seat.seatId);
+      this.answers.delete(seat.seatId);
+    }
     const known = this.answers.get(seat.seatId);
     if (known !== undefined) return known;
     if (devAdminCheats(this.env)) {
@@ -56,7 +63,8 @@ export class AdminCheatGate {
         return ok;
       },
       () => {
-        this.answers.delete(seat.seatId); // B7: a failed read is not cached
+        this.answers.set(seat.seatId, false); // review N2: a failed read refuses for 10 s, then reads again
+        this.failedUntil.set(seat.seatId, this.nowMs() + CHEAT_LOG_EVERY_MS);
         return false;
       },
     );

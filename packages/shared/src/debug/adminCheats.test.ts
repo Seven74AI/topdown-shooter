@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createWorld, step, type World } from "../core/world";
 import { TICK_DT_S } from "../config/constants";
-import { addPlayer } from "../player/player";
+import { addPlayer, removePlayer } from "../player/player";
+import { holdPlayer, releaseHeldPlayer } from "../player/hold";
+import { isGodFor } from "../core/god";
 import { setBuildReady, startBuild } from "../run/runStateMachine";
 import { loadBalance } from "../config/balance";
 import { damagePlayerBy } from "../combat/damage";
@@ -175,5 +177,39 @@ describe("applyAdminCheat (Story 10.12, AC 3)", () => {
   it("restart is the room's (never applied here)", () => {
     const world = twoPlayers();
     expect(applyAdminCheat(world, "p0", cheat({ cheat: "restart", seed: 5 }))).toBe(false);
+  });
+});
+
+describe("Story 10.12 review fixes", () => {
+  it("M1: a player id leaving the World (removePlayer, hold run out) drops its god mode, so a later seat with that id is not protected", () => {
+    const world = twoPlayers();
+    applyAdminCheat(world, "p0", cheat({ cheat: "god", on: true }));
+    applyAdminCheat(world, "p1", cheat({ cheat: "god", on: true }));
+    removePlayer(world, "p0");
+    expect(world.godPlayers.has("p0")).toBe(false);
+    const again = addPlayer(world, "p0", 20, 16);
+    expect(isGodFor(world, again)).toBe(false);
+    // A hold keeps it (the same seat comes back); the hold running out drops it.
+    expect(holdPlayer(world, "p1")).toBe(true);
+    expect(world.godPlayers.has("p1")).toBe(true);
+    expect(releaseHeldPlayer(world, "p1")).not.toBeNull();
+    expect(world.godPlayers.has("p1")).toBe(false);
+  });
+
+  it("L1: a view off the map spawns nothing (never a zombie outside the map)", () => {
+    const world = twoPlayers();
+    for (const view of [{ x: -900, y: -900, w: 100, h: 100 }, { x: 900, y: 5, w: 50, h: 50 }, { x: 5, y: world.map.heightM + 10, w: 50, h: 50 }]) {
+      expect(applyAdminCheat(world, "p0", cheat({ cheat: "spawn", type: "walker", count: 20, where: "view", view }))).toBe(false);
+    }
+    expect(world.zombies.aliveCount).toBe(0);
+    // Partly on the map: every zombie inside it.
+    expect(applyAdminCheat(world, "p0", cheat({ cheat: "spawn", type: "walker", count: 20, where: "view", view: { x: -50, y: -50, w: 60, h: 60 } }))).toBe(true);
+    const z = world.zombies;
+    for (let i = 0; i < z.aliveCount; i++) {
+      const id = z.aliveIds[i] as number;
+      expect(z.x[id]).toBeGreaterThanOrEqual(0);
+      expect(z.y[id]).toBeGreaterThanOrEqual(0);
+      expect(z.x[id]).toBeLessThanOrEqual(10);
+    }
   });
 });

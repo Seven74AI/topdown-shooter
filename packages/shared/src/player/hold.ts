@@ -133,6 +133,7 @@ export function releaseHeldPlayer(world: World, id: string): { player: PlayerSta
   const h = world.heldPlayers.get(id);
   if (!h) return null;
   world.heldPlayers.delete(id);
+  world.godPlayers.delete(id); // Story 10.12 review M1: the seat is gone; a late joiner may get this id
   return { player: h.player, buildIdx: h.buildIdx }; // review H2: the remembered seat keeps its build-start index
 }
 

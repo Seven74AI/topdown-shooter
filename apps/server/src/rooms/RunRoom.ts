@@ -1788,6 +1788,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     for (const i of inits) if (i.source === "read_failed") this.log.warn({ playerId: i.playerId }, "run_progress_read_failed");
     this.startRun(inits);
+    if (force) this.reholdAfterRestart(); // Story 10.12 review L3
   }
 
   /**
@@ -1903,6 +1904,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     else if (shopPick.ignored !== null) this.log.warn({ value: process.env.DEV_SHOP_CARDS, reason: shopPick.ignored }, "dev_shop_cards_ignored");
     if (blackoutPick.pct !== null) this.log.warn({ pct: blackoutPick.pct }, "dev_force_blackout");
     else if (blackoutPick.ignored !== null) this.log.warn({ value: process.env.DEV_FORCE_BLACKOUT, reason: blackoutPick.ignored }, "dev_force_blackout_ignored");
+    // Story 10.12 review N1 (B9): the admin-cheat switch, logged like the other DEV_* switches.
+    if (devAdminCheats()) this.log.warn("dev_admin_cheats");
+    else if (process.env.DEV_ADMIN_CHEATS) this.log.warn({ value: process.env.DEV_ADMIN_CHEATS }, "dev_admin_cheats_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
@@ -2192,10 +2196,34 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.resume = null;
       this.state.resumeWave = 0;
     }
+    // Review L3 (main session: "the same members"): held seats survive the restart (their 120 s keep running) and are
+    // held again in the new World; `toLobby` would end their reconnections.
+    const held = [...this.holds];
+    this.holds.clear();
     this.toLobby();
+    for (const [id, hold] of held) this.holds.set(id, hold);
     this.cheatRestartSeed = seed;
-    this.log.info({ seed }, "admin_restart");
-    void this.loadAndStart(true);
+    this.log.info({ seed, held: held.length }, "admin_restart");
+    void this.restartWhenBanked();
+  }
+
+  /** Review L4: like the normal path, the new run reads progress only after the old run's banks are written. */
+  private async restartWhenBanked(): Promise<void> {
+    await this.runBanked.catch(() => undefined);
+    await this.loadAndStart(true);
+  }
+
+  /** Review L3: after a restart's Start, every seat still held is held in the new World too (its clock unchanged). */
+  private reholdAfterRestart(): void {
+    const controller = this.controller;
+    if (!controller) return;
+    for (const [playerId, hold] of this.holds) {
+      if (!controller.holdPlayer(playerId)) continue;
+      const s = this.state.players.get(playerId);
+      if (s) s.heldUntilTick = controller.world.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
+    }
+    if (this.holds.size > 0) syncState(this.state, controller);
+    this.updateFreeze();
   }
 
   /**

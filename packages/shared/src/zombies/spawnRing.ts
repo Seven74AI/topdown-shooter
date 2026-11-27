@@ -52,6 +52,7 @@ export function spawnInView(world: World, type: ZombieTypeId, count: number, vie
   const x1 = Math.min(world.map.widthM - r, view.x + view.w - r);
   const y0 = Math.max(r, view.y + r);
   const y1 = Math.min(world.map.heightM - r, view.y + view.h - r);
+  if (x1 < x0 || y1 < y0) return 0; // Story 10.12 review L1: a view off the map spawns nothing (never a zombie off the map)
   let spawned = 0;
   for (let i = 0; i < count; i++) {
     let x = x0;
