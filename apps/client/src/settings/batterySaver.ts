@@ -21,8 +21,8 @@ export interface CappableLoop {
   callback: (time: number, delta: number) => void;
 }
 
-/** The cap's state (exported for the tests and the overlay). */
-export const frameCap = { on: false, drawn: 0, skipped: 0 };
+/** The cap's state: on while Battery saver is (the quality check reads it too: 10.3 review H). */
+export const frameCap = { on: false };
 
 /**
  * Wraps `loop.callback` once (call after the game booted: Phaser sets the callback in `loop.start`). The wrapper is
@@ -33,18 +33,16 @@ export function capFrames(loop: CappableLoop): void {
   let sinceDrawMs = 0;
   loop.callback = (time, delta) => {
     if (!frameCap.on) {
+      // Review L3: the saver just turned off between two drawn frames: the skipped frames' time goes into this one.
+      const d = delta + sinceDrawMs;
       sinceDrawMs = 0;
-      draw(time, delta);
+      draw(time, d);
       return;
     }
     sinceDrawMs += delta;
-    if (sinceDrawMs < FRAME_MS - SLACK_MS) {
-      frameCap.skipped++;
-      return;
-    }
+    if (sinceDrawMs < FRAME_MS - SLACK_MS) return;
     const d = sinceDrawMs;
     sinceDrawMs = 0;
-    frameCap.drawn++;
     draw(time, d);
   };
 }

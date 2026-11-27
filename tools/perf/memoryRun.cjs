@@ -206,6 +206,7 @@ async function fullRun(browser, url) {
   if (lastWave < RUN_WAVES) errs.push(`only ${lastWave} waves started`);
   if (!bossSeen) errs.push("the Behemoth never spawned");
   if (!voted) errs.push("no extract vote");
+  if (skipped.length > 1) errs.push(`${skipped.length} waves skipped (${skipped.join(", ")}): at most one (B1; review L1)`);
   const ending = rows[rows.length - 1].ending;
   if (ending !== "extracted") errs.push(`ending ${ending}`);
   // B3: after wave 2, the JS objects (heap minus V8's compiled code) and the texture estimate of every build phase stay

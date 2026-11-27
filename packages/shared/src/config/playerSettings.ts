@@ -32,7 +32,11 @@ export const playerSettingsSchema = z.object({
   glow: z.enum(["full", "low", "off"]).optional(),
   /** Story 10.2-Q2 A: the canvas resolution cap: Sharp 2× / Balanced 1.5× / Fast 1× device px per CSS px (`RESOLUTION_DPR`). */
   resolution: z.enum(["sharp", "balanced", "fast"]).optional(),
-  /** Story 10.3-Q1 A: draw at most `BATTERY_SAVER_FPS` frames a second (the sim, input and network are unchanged). */
+  /**
+   * Story 10.3-Q1 A: draw at most `BATTERY_SAVER_FPS` frames a second. The 20 Hz sim, the network and prediction are
+   * unchanged; the input is read once per drawn frame, so it is sampled and sent up to one display frame later (≤ 16.7 ms
+   * on 60 Hz; review L2).
+   */
   batterySaver: z.boolean().optional(),
   /** Story 9.6 (not built: stored, hidden). */
   filmGrain: z.enum(["full", "low", "off"]).optional(),

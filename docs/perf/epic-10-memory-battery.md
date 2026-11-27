@@ -123,7 +123,10 @@ Per 60 s window (60.3–61.1 s each), 20 s into the wave, the survivor holding n
   these waves draw near 60 FPS (the 10.2 target), so the cap would engage. That is not measured here (no phone,
   parked).
 - **The sim is unchanged:** 20 ticks a second in every window, saver on or off (and the unit test: 20 Hz ticks over
-  2 s of fake time, the same with the draw capped).
+  2 s of fake time, the same with the draw capped). The network and prediction are unchanged too. The input is read once
+  per drawn frame, so with the cap it is sampled and sent up to one display frame later (≤ 16.7 ms on 60 Hz; review L2).
+- While Battery saver is on, the 10.2 one-time quality check doesn't run (it would read the 30 drawn frames as a slow
+  phone; review H). It runs on a later first wave with the saver off.
 - Script time per minute is small next to busy time: most of a busy minute is the draw (SwiftShader rasterising on
   the CPU, and the GPU-process wait), and that part scales with frames drawn.
 

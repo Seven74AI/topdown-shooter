@@ -34,8 +34,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = Object.freeze([
       { kind: "switch", key: "screenShake", label: "Screen shake" },
       // Story 10.2-Q2 A: the canvas resolution (2× / 1.5× / 1× device px), the biggest frame-rate lever
       { kind: "choice", key: "resolution", label: "Resolution", options: [{ value: "sharp", label: "Sharp" }, { value: "balanced", label: "Balanced" }, { value: "fast", label: "Fast" }], hint: "Fast is smoother on slower phones" },
-      // Story 10.3-Q1 A: the biggest battery lever (half the frames drawn); off by default
-      { kind: "switch", key: "batterySaver", label: "Battery saver", hint: "Draws 30 frames a second instead of 60" },
+      // Story 10.3-Q1 A: the biggest battery lever (half the frames drawn on 60 Hz); off by default (review N1: no "60": 90 / 120 Hz screens)
+      { kind: "switch", key: "batterySaver", label: "Battery saver", hint: "Draws at most 30 frames a second" },
       { kind: "choice", key: "rain", label: "Rain", options: [{ value: "full", label: "Full" }, { value: "light", label: "Light" }, { value: "off", label: "Off" }] },
       { kind: "choice", key: "fog", label: "Fog detail", options: [{ value: "full", label: "Full" }, { value: "plain", label: "Plain" }], hint: "The fog still hides what it hides" },
       { kind: "choice", key: "glow", label: "Light glow", options: [{ value: "full", label: "Full" }, { value: "low", label: "Low" }, { value: "off", label: "Off" }] },

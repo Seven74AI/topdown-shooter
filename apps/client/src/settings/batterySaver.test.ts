@@ -63,6 +63,18 @@ describe("Story 10.3-Q1 A: Battery saver caps the draw at 30 frames a second, th
     expect(seen).toEqual([50, 33.3]);
   });
 
+  it("review L3: turning the saver off between two drawn frames keeps the skipped frame's time", () => {
+    const seen: number[] = [];
+    const loop: CappableLoop = { callback: (_t, d) => seen.push(d) };
+    capFrames(loop);
+    frameCap.on = true;
+    loop.callback(33.3, 33.3); // drawn
+    loop.callback(50, 16.7); // skipped
+    frameCap.on = false;
+    loop.callback(66.7, 16.7); // drawn with 16.7 + 16.7
+    expect(seen).toEqual([33.3, 33.4]);
+  });
+
   it("follows the setting at once (no reload); off by default; stored and parsed like the other switches", () => {
     expect(PLAYER_SETTINGS_DEFAULTS.batterySaver).toBe(false);
     expect(playerSettingsSchema.parse({ batterySaver: true })).toEqual({ batterySaver: true });

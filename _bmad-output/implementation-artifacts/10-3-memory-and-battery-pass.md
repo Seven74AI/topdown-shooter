@@ -112,6 +112,26 @@ No per-frame allocation; textures through `addGeneratedTexture`; Phaser 4 ≠ 3 
 - **10.3-B13 (HUD overlaps):** the two pre-existing HUD overlaps (boss banner vs loot line, DANGER marker vs ☰) were
   **not** fixed. Neither is trivial: each needs a layout rule and a browser check. Owner kept: 9.7.
 
+## Senior Developer Review (AI)
+
+Light review (main session's reviewer, 2026-11-27, on 7c695f6): **changes requested**, 1 high, 3 lows, 2 nits. The
+zombieAi change was verified behaviour-identical (digestAB plus a dense 2400-tick probe). Fixes (all minimal):
+
+- [x] **H** `autoQuality.ts` (+ `GameScene.ts`, `batterySaver.ts`): with Battery saver on, the one-time quality check
+  counted ~30 drawn FPS, so step 2 would be stored forever, even after the saver was turned off. **Fix:** a new frame
+  flag `capped` (GameScene passes `frameCap.on`). While it is set, the check doesn't start, and a running try is
+  cancelled (nothing stored); a later first wave with the saver off checks as usual. Test: 30 and 29.6 drawn FPS with
+  the saver on → nothing stored, phase idle; a running try is cancelled; then saver off → stored step 0. Red without the
+  fix (1 failed), green with it.
+- [x] **L1** `memoryRun.cjs`: the run's liveness fails when more than one wave was skipped.
+- [x] **L2** wording: the `playerSettings.ts` comment and the doc now say the 20 Hz sim, the network and prediction
+  are unchanged, and that the input is sampled and sent up to one display frame later (≤ 16.7 ms) under the cap.
+- [x] **L3** `batterySaver.ts`: turning the saver off between two drawn frames passes the skipped frames' time into the
+  next frame (no wall time dropped). Test added.
+- [x] **N1** hint: "Draws at most 30 frames a second" (no "instead of 60": 90 / 120 / 144 Hz screens). This changes the
+  wording quoted in the 10.3-Q1 option A text; the designer may want it back.
+- [x] **N2** the unused `frameCap.drawn` / `skipped` counters were removed.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -136,7 +156,7 @@ Claude (cloud session, builder for 10.3)
   heap's +6.7 % is compiled code.
 - AC 4: battery proxy at 4× (and 1×) for waves 1 / 5 / 9, Battery saver off and on; frames drawn and ticks recorded.
 - AC 5: `batterySaver` (default false) in `playerSettingsSchema`, a "Battery saver" switch in Settings › Screen
-  (hint "Draws 30 frames a second instead of 60"), applied at once via `subscribeSettings`. Unit test: 60 Hz → 60 of 120
+  (hint "Draws at most 30 frames a second"; review N1), applied at once via `subscribeSettings`. Unit test: 60 Hz → 60 of 120
   frames drawn, 120 Hz → 60 of 240, and 20 Hz ticks unchanged over 2 s of fake time. Browser: wave 1 at 4× draws
   49.6 → 29.6 FPS with 20.0 ticks/s both ways. Settings DOM layout check green (24/24).
 - AC 6: the parked rows are in the doc, empty and marked.
