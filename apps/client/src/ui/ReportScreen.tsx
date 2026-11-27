@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { REPORT_NOTE_MAX, REPORT_NOTE_WARN } from "@topdown/shared";
-import { clientLog } from "../debug/clientLog";
 import { sendReport, type ReportCall } from "../net/report";
 
 /** Story 10.6 (AC 2; Q1–Q3): the player text. AC 2 fixes the "what is sent" words. */
@@ -12,7 +11,6 @@ export const REPORT_TEXT = {
   notePlaceholder: "What went wrong? (optional)",
   noteLabel: "Your note",
   counter: (n: number) => `${n} / ${REPORT_NOTE_MAX}`,
-  showLog: "Show what is sent",
   send: "Send",
   sending: "Sending…",
   cancel: "Cancel",
@@ -21,16 +19,10 @@ export const REPORT_TEXT = {
   close: "Close",
 } as const;
 
-/**
- * 10.6-Q1 (awaiting the designer): RP1 = the card alone, RP3 = the card plus the "Show what is sent" log box. Mutable
- * only so the proposal stills can render both; becomes a constant at the pick.
- */
-export const REPORT_LAYOUT: { showLog: boolean } = { showLog: false };
-
 type Send = (note: string) => Promise<ReportCall>;
 
 /**
- * Story 10.6 (RP1, after 10.1's Delete confirm card): one centred Lumen card. The note stays after a failure; Send is
+ * Story 10.6 (10.6-Q1 = RP1, designer 2026-11-27; after 10.1's Delete confirm card): one centred Lumen card. The note stays after a failure; Send is
  * disabled while sending (`aria-busy`); Cancel / Esc / Close go back to where the player came from (`onClose`).
  */
 export function ReportCard({ onClose, send = sendReport, testId = "report-card" }: { onClose: () => void; send?: Send; testId?: string }) {
@@ -119,14 +111,6 @@ export function ReportCard({ onClose, send = sendReport, testId = "report-card" 
           {REPORT_TEXT.counter(n)}
         </span>
       </label>
-      {REPORT_LAYOUT.showLog && (
-        <details class="rp-log">
-          <summary class="rp-log__summary">{REPORT_TEXT.showLog}</summary>
-          <pre class="rp-log__box" data-testid="report-log">
-            {clientLog.lines().join("\n")}
-          </pre>
-        </details>
-      )}
       {error && (
         <p class="menu__error rp-error" role="alert" data-testid="report-error">
           {error}

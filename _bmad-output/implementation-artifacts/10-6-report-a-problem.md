@@ -18,7 +18,7 @@ so that the designer can fix what went wrong.
 
 | # | Decision | Status |
 | --- | --- | --- |
-| 10.6-Q1 | **Report screen layout** (a new look in Lumen LF5: proposal stills at 568 × 320 and 844 × 390 before the build). **RP1** one centred modal card, like 10.1's Delete confirm (`st-modal` / `ac-card`): title "Report a problem", one line "What is sent: your note, the last 200 log lines, your device and browser", a note box with a `0 / 500` counter, then **Send** (amber) and **Cancel**. **RP2** a bottom sheet over the current screen (Results stays visible above it), with the same parts in one row: the note on the left, Send on the right, and the "what is sent" line under it. **RP3** the RP1 card plus a collapsed "Show what is sent" disclosure that lists the log lines in a scrolling monospace box. **Recommendation: RP1.** It reuses the Delete confirm's card, focus trap and keyboard behaviour, and fits 568 × 320 with the phone keyboard open. RP3 is more honest about the data but its log box is unreadable on a phone. | **awaiting designer** — stills at `docs/art/report-screen/` (RP1 built; RP3 = `REPORT_LAYOUT.showLog`) |
+| 10.6-Q1 | **Report screen layout** (a new look in Lumen LF5: proposal stills at 568 × 320 and 844 × 390 before the build). **RP1** one centred modal card, like 10.1's Delete confirm (`st-modal` / `ac-card`): title "Report a problem", one line "What is sent: your note, the last 200 log lines, your device and browser", a note box with a `0 / 500` counter, then **Send** (amber) and **Cancel**. **RP2** a bottom sheet over the current screen (Results stays visible above it), with the same parts in one row: the note on the left, Send on the right, and the "what is sent" line under it. **RP3** the RP1 card plus a collapsed "Show what is sent" disclosure that lists the log lines in a scrolling monospace box. **Recommendation: RP1.** It reuses the Delete confirm's card, focus trap and keyboard behaviour, and fits 568 × 320 with the phone keyboard open. RP3 is more honest about the data but its log box is unreadable on a phone. | **RP1** (designer 2026-11-27); stills `docs/art/report-screen/rp1-*.png` (the RP3 stills and branch removed) |
 | 10.6-Q2 | **Where the button sits.** **A** Settings main view, a neutral `btn` row **above** "Delete my progress" (so it reaches the start screen and the in-run ☰ → Settings), **and** a small text button "Report a problem" under the Results team card's buttons. **B** Settings only. **C** A plus a "Report a problem" item directly in the ☰ in-run menu list. **Recommendation: A** (the AC's two places; C adds a 6th ☰ item on small phones). | **B Settings only** (designer 2026-11-27) |
 | 10.6-Q3 | **What the player sees after Send.** **A** "Sent. Thank you." for 2 s, then the card closes. **B** "Sent: report **K7QF**" plus a Close button. The 4-character code (A–Z without I/O, 2–9) is stored with the report, so a friend can say "I sent K7QF" and `npm run reports -- --code K7QF` finds it. **C** B, plus a "Copy code" button. **Recommendation: B.** It is one extra column and makes "the bug I told you about" findable in a 30-day list. | **B** "Sent: report K7QF" (designer 2026-11-27) |
 | 10.6-B1 | **One server route** `POST /account/report` (path constant in `packages/shared/src/net/report.ts`, zod `reportRequestSchema`). The body is `{ note: string ≤ 500, code?: never, payload: { lines: string[] ≤ 200, each ≤ 300 chars, roomId?, runSeed?, wave?, phase?, device: {…}, build? } }`. The server checks the **serialized** body size again (≤ 64 KB), not only the header. Origin check and `guard(ctx)` the same as the other `/account/*` routes. | auto (technical) |
@@ -121,7 +121,7 @@ Claude (builder session, 2026-11-27).
 
 ### Implementation Plan / decisions (B-codes)
 
-B8 and B9 added to the decision log. Q2 B: a "Help" group with "Report a problem" above Delete my progress on the start-screen Settings, and a "Report a problem" row in the ☰ → Settings view (`menu: "report"`; Back / Cancel / Esc return to Settings). Q3 B: "Sent: report K7QF" + Close; the code is stored (`problem_reports.code`, indexed). Q1: RP1 built (centred `ac-card` like the Delete confirm); RP3 is the same card with `REPORT_LAYOUT.showLog = true` (a `<details>` log box), kept switchable only until the pick.
+B8 and B9 added to the decision log. Q2 B: a "Help" group with "Report a problem" above Delete my progress on the start-screen Settings, and a "Report a problem" row in the ☰ → Settings view (`menu: "report"`; Back / Cancel / Esc return to Settings). Q3 B: "Sent: report K7QF" + Close; the code is stored (`problem_reports.code`, indexed). Q1: RP1 (designer 2026-11-27), the centred `ac-card` like the Delete confirm.
 
 ### Completion Notes List
 
@@ -154,7 +154,7 @@ Full review (fresh session, 2026-11-27): **changes requested**, no high. Every f
 | N3 | wave 0 unexplained | `docs/deploy.md`: `w0` = before wave 1, `w-` = not in a run | — |
 | N4 | T6 / T8 unticked | ticked | — |
 
-Q1 stays with the designer: RP1 built, `REPORT_LAYOUT.showLog` toggle kept until the pick.
+Designer pick 10.6-Q1 = RP1 (2026-11-27): the RP3 branch (`REPORT_LAYOUT`, the log `<details>`, its CSS) and the `rp3-*` stills are removed in this round.
 
 ### File List
 
