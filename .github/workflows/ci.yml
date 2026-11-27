@@ -204,6 +204,11 @@ jobs:
           check 404 "$base/assets/nope.js"
           head -c 9000 /dev/zero | tr '\0' a > big.txt
           check 413 -X POST --data-binary @big.txt "$base/api/matchmake/create/run"
+          # Story 10.6 (B2): /api/account/report alone passes 9 KB through Caddy and Node (400: not a report) and stops 70 KB.
+          { printf '{"x":"'; cat big.txt; printf '"}'; } > big.json
+          check 400 -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' --data-binary @big.json "$base/api/account/report"
+          head -c 70000 /dev/zero | tr '\0' a > huge.txt
+          check 413 -X POST --data-binary @huge.txt "$base/api/account/report"
           curl -sS -D - -o /dev/null "$base/" | tee headers.txt
           grep -qi '^cache-control: no-cache' headers.txt
           grep -qi '^x-content-type-options: nosniff' headers.txt

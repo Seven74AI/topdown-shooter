@@ -1072,6 +1072,11 @@ export class GameScene extends Phaser.Scene {
     return this.mode === "online";
   }
 
+  /** Story 10.6 (AC 3): the world a report reads its wave from (null between runs). */
+  reportWorld(): { readonly waves: { readonly number: number } } | null {
+    return this.running ? (this.host?.world ?? null) : null;
+  }
+
   /** Story 4.4: this run's seed (online the server's, from the room state). */
   get runSeed(): number {
     return this.host instanceof NetSimHost ? this.host.runSeed : (this.host?.world.seed ?? 0);

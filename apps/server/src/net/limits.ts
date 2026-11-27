@@ -163,3 +163,5 @@ export const MAX_SETTINGS_CALLS_PER_IP_PER_MIN = 20;
 export const MAX_SETTINGS_SAVES_PER_ACCOUNT_PER_MIN = 20;
 /** Story 10.1 (AC 9, B11): `/account/delete` calls per client IP per minute, checked before the body (each may pay an Argon2 verify). */
 export const MAX_DELETE_CALLS_PER_IP_PER_MIN = 5;
+/** Story 10.6 (B3): `/account/report` calls per client IP per minute (the 20 per account per day is counted in the database). */
+export const MAX_REPORTS_PER_IP_PER_MIN = 3;

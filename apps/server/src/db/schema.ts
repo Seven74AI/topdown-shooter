@@ -146,6 +146,25 @@ export const paidBags = pgTable("paid_bags", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Story 10.6 (AC 4, 5; B1, B4): "Report a problem". One row per report: the player's note as typed, the payload (log
+ * lines, run context, device info; no names, tokens, cookies or IP: B7) and the 4-character code the player sees (Q3 B;
+ * indexed, not unique: a code plus its date is enough). `account_id` is set null when the account is deleted (10.1's
+ * delete transaction, B4). Kept 30 days (`ops/housekeeping.ts`, B5).
+ */
+export const problemReports = pgTable(
+  "problem_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    code: text("code").notNull(),
+    note: text("note").notNull(),
+    payload: jsonb("payload").notNull(),
+  },
+  (t) => [index("problem_reports_created_idx").on(t.createdAt), index("problem_reports_account_created_idx").on(t.accountId, t.createdAt), index("problem_reports_code_idx").on(t.code)],
+);
+
 /** Story 7.11: `progress.stats`. */
 export interface LifetimeStatsRow {
   revives: number;

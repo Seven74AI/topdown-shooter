@@ -4,6 +4,8 @@ import "@fontsource/oswald/600.css";
 import "@fontsource/oswald/700.css";
 import { h, render } from "preact";
 import { dpr } from "./display";
+import { clientLog, installClientLog, reportProbes } from "./debug/clientLog";
+
 import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
 import { HudScene } from "./scenes/HudScene";
@@ -29,8 +31,10 @@ import { isRoomCode, type Result } from "@topdown/shared";
 import { RUN_SAVED_TEXT, SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
-import { RECONNECT, shouldRescueReload } from "@topdown/shared";
+import { NET_PROTOCOL_VERSION, RECONNECT, shouldRescueReload } from "@topdown/shared";
 import "./ui/overlay.css";
+// Story 10.6 (B6): the report log first thing after the imports, so it sees every console line and error from boot on.
+installClientLog();
 
 // Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
 let lastShownMs = Number.NEGATIVE_INFINITY;
@@ -72,6 +76,30 @@ installPerfProbe(game, urlOptions().debug);
 // Story 4.13: survive a lost WebGL context (Android app switch): redraw every generated texture on
 // restore; a reload notice if it never comes back; a message when there is no WebGL at all.
 installGraphicsGuard(game, () => lobbyStore.current() !== null);
+
+// Story 10.6 (AC 3): what a report reads about the run and the graphics (only when a report is made).
+reportProbes.run = () => {
+  const screen = uiStore.get();
+  if (screen.kind === "results") return { seed: screen.seed, wave: screen.wave };
+  if (screen.kind !== "playing") return null;
+  const scene = game.scene.getScene("Game") as GameScene | null;
+  const world = scene?.reportWorld();
+  return scene && world ? { seed: scene.runSeed, wave: world.waves.number } : null;
+};
+let rendererName: string | undefined | null = null;
+reportProbes.renderer = () => {
+  if (rendererName !== null) return rendererName;
+  try {
+    const gl = (game.renderer as { gl?: WebGLRenderingContext }).gl;
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    const r = gl ? gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) : undefined;
+    rendererName = typeof r === "string" ? r.slice(0, 200) : undefined;
+  } catch {
+    rendererName = undefined;
+  }
+  return rendererName;
+};
+clientLog.note("boot", { protocol: NET_PROTOCOL_VERSION, mode: import.meta.env.MODE });
 
 // Online lobby (Stories 2.1/2.3): networking stays in net/, the scenes don't know about it. The SDK
 // is loaded on the first Create game or Join, so solo play doesn't download it.

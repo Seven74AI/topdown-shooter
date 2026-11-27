@@ -33,6 +33,7 @@ import type { ShopAnswer } from "../sim/SimHost";
 import { TeammateGhosts } from "./teammateGhosts";
 import { PingModel } from "../render/pingModel";
 import { rewardsStore } from "./rewardsStore";
+import { clientLog } from "../debug/clientLog";
 
 const SHOP_ERRORS: readonly ShopError[] = [
   "not_build",
@@ -287,6 +288,8 @@ export class RunInbox {
 
   /** Story 7.2 (RR-L1): `run.started { runId }` → the rewards store accepts only that run's rewards from now on. */
   private receiveRunStarted(m: unknown): void {
+    const runId = (m as { runId?: unknown } | null)?.runId;
+    clientLog.note("run.started", { run: typeof runId === "string" ? runId.slice(0, 40) : "?" }); // Story 10.6
     if (!this.closed) rewardsStore.setRun(m);
   }
 
