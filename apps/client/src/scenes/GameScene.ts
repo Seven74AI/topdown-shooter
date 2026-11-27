@@ -189,7 +189,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { STRESS_FLOOR_BUILDINGS, applyStressStage, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { STRESS_FLOOR_BUILDINGS, applyStressStage, stressProbe, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -927,6 +927,8 @@ export class GameScene extends Phaser.Scene {
       const meleeFire = this.stressFire && (firstKind === "melee" || firstKind === "flame" || firstKind === "launcher");
       if (opts.stressBuild || opts.stressLights || opts.stressBear || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
+      // Story 10.2 B2: the read-only probe the frame-rate script reads (release too; under ?stress only).
+      Object.assign(window, { __stress: (windowMs = 3000) => stressProbe(world, performance.now(), windowMs) });
     }
 
     this.sticks = new TouchSticks(stickRadiusCss * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
@@ -943,6 +945,7 @@ export class GameScene extends Phaser.Scene {
       detachDesktop();
       this.router = null;
       stressRun.cancel();
+      delete (window as { __stress?: unknown }).__stress; // Story 10.2 B2
       netSummary.cancel();
       uiStore.handle("restart", undefined);
       uiStore.handle("shop", undefined);

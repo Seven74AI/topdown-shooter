@@ -1,5 +1,5 @@
-import { changeDecayStage, BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
-import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
+import { changeDecayStage, isPowerOut, BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
+import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, createPerfSnapshot, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
 /**
@@ -97,6 +97,39 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
 export function applyStressStage(world: World, stage: number): number {
   changeDecayStage(world, stage);
   return world.decay.stage;
+}
+
+/** Story 10.2 B2: what `window.__stress()` reports (read-only; the frame-rate script checks the scene with it). */
+export interface StressProbe {
+  stage: number;
+  blackoutPct: number;
+  powerOut: boolean;
+  alive: number;
+  inView: number;
+  /** The perf ring over the last `windowMs` (`perf.snapshot`): avg FPS, update / render ms per frame, tick avg ms. */
+  fps: number;
+  updateMs: number;
+  renderMs: number;
+  tickMs: number;
+}
+
+/**
+ * Story 10.2 B2: the read-only stress probe, set on `window.__stress` by GameScene only under `?stress` (release
+ * too: it reads, never changes the World; no cheat). Allocates per call, so only the measuring script calls it.
+ */
+export function stressProbe(world: Readonly<World>, nowMs: number, windowMs: number): StressProbe {
+  const snap = perf.snapshot(nowMs, createPerfSnapshot(), windowMs);
+  return {
+    stage: world.decay.stage,
+    blackoutPct: world.lights.blackoutPct,
+    powerOut: isPowerOut(world),
+    alive: world.zombies.aliveCount,
+    inView: perf.inView,
+    fps: snap.fps,
+    updateMs: snap.updateAvgMs,
+    renderMs: snap.renderAvgMs,
+    tickMs: snap.tickAvgMs,
+  };
 }
 
 /** Story 5.9: floor buildings `?stressbuild=traps` lays (every player's whole allowance: 4 × 6). */
