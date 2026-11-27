@@ -17,7 +17,7 @@ import { MAX_DAMAGERS } from "../economy/economy";
 import { MAX_PIERCE } from "../combat/projectilePool";
 
 /** Bump with a step in `SAVE_MIGRATIONS` (`migrations.ts`) whenever the saved shape changes (a test checks both). */
-export const SAVE_SCHEMA_VERSION = 1;
+export const SAVE_SCHEMA_VERSION = 2;
 
 /** D10 "about 50 KB": a 4-player wave-10 build with 60 buildings stays under this (test). */
 export const SAVE_MAX_BYTES = 64 * 1024;

@@ -20,6 +20,7 @@ import {
   SHOP_CHIP_GAP_CSS_PX,
 } from "../ui/sizes";
 import { CENTRE_CLEAR_CSS_PX } from "./consumableButton";
+import { hudBandTop } from "./hudTopLayout";
 
 /**
  * Story 5.16 (BX-2, ux-spec §3–§4): the build bar, the right-thumb cluster's "hands empty" state in
@@ -243,7 +244,7 @@ export function layoutBuildPanel(width: number, height: number, insetRight: numb
   const bottom = height - (BUILD_BAR_INSET_CSS_PX + insetBottom) * k;
   const room = (right - (width / 2 + (CENTRE_CLEAR_CSS_PX + BUILD_PANEL_PAD_CSS_PX) * k) - (BUILD_PANEL_COLS - 1) * gap) / BUILD_PANEL_COLS; // the card too keeps the survivor's 48 px
   const pad = BUILD_PANEL_PAD_CSS_PX * k;
-  const topRow = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BUILD_PANEL_TOP_CLEAR_CSS_PX) * k;
+  const topRow = (hudBandTop(insetTop) + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BUILD_PANEL_TOP_CLEAR_CSS_PX) * k;
   // Review 7: and the card (with its smallest header) keeps 12 px under ping / ☰ (a short screen with a top inset).
   const roomV = (bottom - topRow - pad - BUILD_PANEL_HEADER_MIN_CSS_PX * k - (BUILD_PANEL_ROWS - 1) * gap) / BUILD_PANEL_ROWS;
   const tile = Math.max(MIN_PANEL_CELL_CSS_PX * k, Math.min(BUILD_TILE_CSS_PX * k, Math.floor(room), Math.floor(roomV)));

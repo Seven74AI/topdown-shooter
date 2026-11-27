@@ -1,4 +1,4 @@
-import { LOOT_ICON_CSS_PX, LOOT_ICON_GAP_CSS_PX, layoutLootLine } from "./hudTopLayout";
+import { LOOT_ICON_CSS_PX, LOOT_ICON_GAP_CSS_PX, hudBandTop, layoutLootLine } from "./hudTopLayout";
 import { LOOT_ATLAS, LOOT_BADGE_FRAME } from "../render/city/lootBagAtlas";
 import { BANNER_TEXT_PX, HP_BAR_H, HP_BAR_W, HP_MARGIN, HP_TEXT_PX, LINE_HEIGHT, MONEY_GAP_PX, MONEY_TEXT_PX, WAVE_TEXT_PX, WAVE_TOP_PX, WIDEST_HP_TEXT, WIDEST_MONEY_TEXT, WIDEST_WAVE_LINE, bannerWrapWidth, fitWaveText, hpRowText, layoutBanner, reportHudTextWidths } from "./hudTopLayout";
 import { layoutBossBar } from "./bossBar";
@@ -1170,7 +1170,7 @@ export class HudScene extends Phaser.Scene {
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutConsumableButton();
     this.layoutMenuButton();
-    this.pingHud.layout(this.scale.width, this.insets, k); // Story 8.7
+    this.pingHud.layout(this.scale.width, this.insets, k, this.scale.height); // Story 8.7 (10.5: the height fits the column)
     this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
     this.layoutPlacementButtons();
@@ -1962,7 +1962,7 @@ export class HudScene extends Phaser.Scene {
     const safe = this.insets;
     const size = MENU_BUTTON_CSS_PX * k;
     const x = this.scale.width - (MENU_BUTTON_INSET_CSS_PX + safe.right) * k - size;
-    const y = (MENU_BUTTON_INSET_CSS_PX + safe.top) * k;
+    const y = (MENU_BUTTON_INSET_CSS_PX + hudBandTop(safe.top)) * k;
     const rect = this.buttons.get("menu");
     if (rect) Object.assign(rect, { x, y, w: size, h: size });
     const g = this.menuBtn;
@@ -2035,7 +2035,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const safe = this.insets;
     const x = (HP_MARGIN + safe.left) * k;
-    const y = (HP_MARGIN + safe.top) * k;
+    const y = (HP_MARGIN + hudBandTop(safe.top)) * k;
     const w = HP_BAR_W * k;
     const h = HP_BAR_H * k;
     const frac = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
@@ -2077,7 +2077,7 @@ export class HudScene extends Phaser.Scene {
     if (m.money !== this.shownMoney) {
       this.shownMoney = m.money;
       const safe = this.insets;
-      const y = (HP_MARGIN + safe.top + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT + MONEY_GAP_PX) * k;
+      const y = (HP_MARGIN + hudBandTop(safe.top) + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT + MONEY_GAP_PX) * k;
       this.moneyText.setText(`$${m.money}`).setPosition((HP_MARGIN + safe.left) * k, y).setVisible(true);
     }
     if (m.moneyGain > 0) {
@@ -2187,7 +2187,7 @@ export class HudScene extends Phaser.Scene {
       this.shownToast = m.toastText;
       this.shownToastLoot = m.toastLoot;
       this.shownToastSlot = m.toastSlot;
-      const y = (WAVE_TOP_PX + this.insets.top + WAVE_TEXT_PX + LINE_GAP_PX + STATUS_TEXT_PX + LINE_GAP_PX) * dpr();
+      const y = (WAVE_TOP_PX + hudBandTop(this.insets.top) + WAVE_TEXT_PX + LINE_GAP_PX + STATUS_TEXT_PX + LINE_GAP_PX) * dpr();
       // Story 7.12 (BF2): a loot find in the finder's slot colour, with the bag icon left of it.
       const colour = m.toastLoot && m.toastSlot >= 0 ? (SLOT_COLOR_CSS[m.toastSlot] ?? TOAST_COLOR) : TOAST_COLOR;
       this.toastText.setText(m.toastText).setColor(colour).setScale(1).setPosition(this.scale.width / 2, y).setVisible(m.toastText !== "");
@@ -2240,7 +2240,7 @@ export class HudScene extends Phaser.Scene {
       this.shownStatus = m.statusText;
       this.statusText
         .setText(m.statusText)
-        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top + WAVE_TEXT_PX + LINE_GAP_PX) * dpr())
+        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + hudBandTop(this.insets.top) + WAVE_TEXT_PX + LINE_GAP_PX) * dpr())
         .setVisible(m.statusText !== "");
     }
   }
@@ -2356,7 +2356,7 @@ export class HudScene extends Phaser.Scene {
       const fullW = this.waveText.setText(waveLine(m)).width;
       const at = fitWaveText(this.scale.width, this.insets, dpr(), fullW, compactW, this.waveFit);
       if (at.compact) this.waveText.setText(compact);
-      this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + this.insets.top) * dpr());
+      this.waveText.setScale(at.scale).setPosition(at.x, (WAVE_TOP_PX + hudBandTop(this.insets.top)) * dpr());
     }
     if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor || m.bossVisible !== this.shownBannerBoss) {
       this.shownBanner = m.bannerText;

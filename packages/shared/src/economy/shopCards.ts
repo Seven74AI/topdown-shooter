@@ -479,6 +479,7 @@ export function buyCard(world: World, playerId: string, build: number, rev: numb
     const paid = spendMoney(world, playerId, price);
     if (!paid.ok) return paid;
     lo.slots[into] = createSlot(world.balance, item); // full magazine, level I (5.1)
+    if (!p.weaponsBought.includes(item)) p.weaponsBought.push(item); // Story 10.7 (Q1 = C): the run stats' loadout
   } else {
     const r = buyGearAt(world, playerId, item, price);
     if (!r.ok) return r;

@@ -106,7 +106,7 @@ export const saveExpiry = (nowMs = Date.now()): Date => new Date(nowMs + SAVE_KE
 export async function releaseSavesOnBoot(repo: SavedRunsRepo | null, log: SaveLog, onReleased?: (id: string, snapshot: Record<string, unknown>) => Promise<unknown>): Promise<number> {
   if (!repo) return 0;
   try {
-    const released = await repo.releaseOpenOnBoot(saveExpiry());
+    const released = await repo.releaseOpenOnBoot();
     log.info({ count: released.length }, "saved_runs_released");
     // Review M2: resumable saves whose Supplies top-up never landed (idempotent top-ups: paying twice is impossible).
     const unbanked = await repo.listUnbanked().catch(() => []);

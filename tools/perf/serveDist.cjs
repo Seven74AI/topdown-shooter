@@ -4,6 +4,7 @@
  * Story 10.4 (B3): serves the client's release build (apps/client/dist) the way deploy/Caddyfile does, for load measures:
  *   - /assets/<file that exists>: Cache-Control "public, max-age=31536000, immutable"
  *   - /assets/<missing>: 404, no cache header (never index.html)
+ *   - /manifest.webmanifest, /icons/<file that exists> (Story 10.5): Cache-Control "public, max-age=3600"; missing: 404
  *   - everything else: Cache-Control "no-cache"; a missing path serves index.html (share links /j/<code>)
  *   - gzip when the browser accepts it (Caddy: encode zstd gzip), ETag + 304 for revalidation
  * `vite preview` sends none of these headers. tools/checks/caddyCacheHeaders.test.ts checks the Caddyfile still has both rules.
@@ -18,6 +19,7 @@ const crypto = require("node:crypto");
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 const NO_CACHE = "no-cache";
+const SHORT = "public, max-age=3600";
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -39,6 +41,7 @@ function route(dir, urlPath) {
   if (!file.startsWith(dir)) return { status: 404 };
   const exists = fs.existsSync(file) && fs.statSync(file).isFile();
   if (clean.startsWith("/assets/")) return exists ? { status: 200, file, cache: IMMUTABLE } : { status: 404 };
+  if (clean === "/manifest.webmanifest" || clean.startsWith("/icons/")) return exists ? { status: 200, file, cache: SHORT } : { status: 404 };
   return { status: 200, file: exists ? file : path.join(dir, "index.html"), cache: NO_CACHE };
 }
 
@@ -75,7 +78,7 @@ function createServer(dir) {
   });
 }
 
-module.exports = { createServer, route, IMMUTABLE, NO_CACHE };
+module.exports = { createServer, route, IMMUTABLE, NO_CACHE, SHORT };
 
 if (require.main === module) {
   const arg = (name, dflt) => {

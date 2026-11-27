@@ -8,8 +8,12 @@ import { SAVE_SCHEMA_VERSION, type RunSave } from "./runSave";
 
 export type SaveMigration = (save: Record<string, unknown>) => Record<string, unknown>;
 
-/** v → v + 1. Version 1 is the first format: no step yet. */
-export const SAVE_MIGRATIONS: Readonly<Record<number, SaveMigration>> = {};
+/** v → v + 1. */
+export const SAVE_MIGRATIONS: Readonly<Record<number, SaveMigration>> = {
+  // Story 10.7: version 2 adds `PlayerState.weaponsBought` (the run stats' loadout). Nothing to rewrite here: the
+  // restore gives a seat without it an empty list AFTER its digest check (the v1 digest was taken without the field).
+  1: (s) => s,
+};
 
 export type MigrateResult = { ok: true; save: RunSave; from: number } | { ok: false; reason: "not_a_save" | "newer" | "no_migration" | "broken"; version: number | null };
 

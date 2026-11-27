@@ -45,6 +45,18 @@ export async function savedRunForTest(database: Database, id: string): Promise<{
   return r ?? null;
 }
 
+/** Story 10.7 (tests only): a run's `run_results` row (snake_case columns), or undefined. */
+export async function runResultForTest(database: Database, id: string): Promise<Record<string, unknown> | undefined> {
+  const db = await database.db();
+  return ((await db.execute(sql`select * from run_results where id = ${id}::uuid`)) as unknown as { rows: Record<string, unknown>[] }).rows[0];
+}
+
+/** Story 10.7 (tests only): a run's seat rows, by slot then seat id. */
+export async function runResultSeatsForTest(database: Database, id: string): Promise<{ seat: string; account_id: string | null; slot: number; loadout: string; waves_in: number; kills: number }[]> {
+  const db = await database.db();
+  return ((await db.execute(sql`select seat, account_id, slot, loadout, waves_in, kills from run_result_players where run_id = ${id}::uuid order by slot, seat`)) as unknown as { rows: { seat: string; account_id: string | null; slot: number; loadout: string; waves_in: number; kills: number }[] }).rows;
+}
+
 /** Story 10.6 (tests only): move reports back in time (`hours` ago). `ids` absent = every report of the account. */
 export async function backdateReportsForTest(database: Database, filter: { accountId?: string; ids?: readonly string[] }, hours: number): Promise<void> {
   const db = await database.db();

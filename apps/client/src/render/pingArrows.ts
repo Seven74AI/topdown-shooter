@@ -3,7 +3,7 @@ import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
 import { CENTRE_CLEAR_CSS_PX, rectCentreGap } from "../scenes/consumableButton";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, placeEventArrow, type EventArrowPlace, type Insets, type ScreenRect } from "./eventArrow";
 import type { PingModel } from "./pingModel";
-import { HP_BAR_H, HP_MARGIN, HP_TEXT_PX, HP_TEXT_RESERVE_CSS_PX, LINE_HEIGHT, hudTextWidths, layoutHpBar, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
+import { HP_BAR_H, HP_MARGIN, HP_TEXT_PX, HP_TEXT_RESERVE_CSS_PX, LINE_HEIGHT, hudBandTop, hudTextWidths, layoutHpBar, layoutMoneyLine, layoutWaveLine } from "../scenes/hudTopLayout";
 
 /** Story 8.7 (AC 7): a ping's edge arrow size (CSS px): its disc (× 0.7) holds the kind icon at 24 px. */
 export const PING_ARROW_CSS_PX = 34;
@@ -50,7 +50,7 @@ function hudTextBlocks(sw: number, insets: Insets, k: number): readonly ScreenRe
   layoutHpBar(textInsets, k, textRects[0] as ScreenRect);
   const t = textRects[1] as ScreenRect;
   t.x = (HP_MARGIN + insets.left - 2) * k;
-  t.y = (HP_MARGIN + insets.top + HP_BAR_H + 2) * k;
+  t.y = (HP_MARGIN + hudBandTop(insets.top) + HP_BAR_H + 2) * k;
   t.w = ((hudTextWidths.hpText > 0 ? hudTextWidths.hpText : HP_TEXT_RESERVE_CSS_PX) + 4) * k;
   t.h = (2 + HP_TEXT_PX * LINE_HEIGHT) * k;
   layoutMoneyLine(textInsets, k, textRects[2] as ScreenRect);

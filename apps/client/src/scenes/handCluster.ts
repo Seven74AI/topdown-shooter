@@ -12,6 +12,7 @@ import {
   MENU_BUTTON_CSS_PX,
   MENU_BUTTON_INSET_CSS_PX,
 } from "../ui/sizes";
+import { hudBandTop } from "./hudTopLayout";
 
 /** A square hit rect (canvas px, top-left) around a round button. */
 export interface HandRect {
@@ -78,7 +79,7 @@ export function layoutHandCluster(width: number, height: number, insetRight: num
   chip.x = width - (HAND_CHIP.rightCss + insetRight) * k - chip.w;
   chip.y = out.cancel.y - HAND_CHIP.gapAboveCancelCss * k - chip.h;
   out.hintY = chip.y - HAND_HINT_GAP_CSS_PX * k; // the reason line above the chip
-  const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + insetTop) * k;
+  const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + hudBandTop(insetTop)) * k;
   out.chipRow = out.hintY - HAND_HINT_LINE_CSS_PX * k < menuBottom + HAND_MENU_CLEAR_CSS_PX * k;
   if (out.chipRow) {
     chip.w = HAND_CHIP_SHORT_W_CSS_PX * k; // main-session decision: 120 px with short text, further from the screen centre

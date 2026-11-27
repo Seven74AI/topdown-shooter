@@ -8,7 +8,7 @@ import {
   MENU_BUTTON_CSS_PX,
   MENU_BUTTON_INSET_CSS_PX,
 } from "../ui/sizes";
-import { HUD_BAND_GAP_CSS_PX, layoutHpBlock, pingButtonLeft } from "./hudTopLayout";
+import { HUD_BAND_GAP_CSS_PX, hudBandTop, layoutHpBlock, pingButtonLeft } from "./hudTopLayout";
 
 /**
  * Story 6.5 (D9, AC 13): where the boss bar sits — top centre, under the wave line, never over the
@@ -36,7 +36,7 @@ export function layoutBossBar(width: number, insetLeft: number, insetTop: number
   const w = Math.min(Math.max(BOSS_BAR_MIN_W_CSS_PX * k, 2 * half), 2 * (menuLeft - BOSS_BAR_GAP_CSS_PX * k - width / 2));
   out.w = w;
   out.x = width / 2 - w / 2;
-  out.y = (BOSS_BAR_TOP_CSS_PX + insetTop) * k;
+  out.y = (BOSS_BAR_TOP_CSS_PX + hudBandTop(insetTop)) * k; // Story 10.5 (B5): the band overlaps the inset
   // Story 6.14: below the HP block (bar + HP row at its widest) where they share columns, a band gap clear.
   hpInsets.left = insetLeft;
   hpInsets.top = insetTop;
