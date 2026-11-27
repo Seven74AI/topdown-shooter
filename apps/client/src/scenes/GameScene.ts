@@ -147,6 +147,11 @@ import { CLOSED_VOTE, VoteRequest, VoteSender, addHeldVoters, pollVote, voteFram
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
 import { syncHeliToRun } from "../render/heliSync";
+import { evacPadOf } from "../render/heliPose";
+import { CameraDirector, DAWN_EDGE_M, createDirectorInputs, type DirectorOutput } from "../render/cameraDirector";
+import { CrewView } from "../render/CrewView";
+import { CREW_STEP_S } from "../render/crewPose";
+import { DawnSweepView } from "../render/DawnSweepView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
@@ -405,6 +410,16 @@ export class GameScene extends Phaser.Scene {
   private bossView: BossView | null = null;
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
   private heliView: HeliView | null = null;
+  /** Story 12.3: the extraction's camera director (it takes the camera over during `extract`), the crew, the dawn line. */
+  private readonly director = new CameraDirector();
+  private readonly dirIn = createDirectorInputs();
+  private crewView: CrewView | null = null;
+  private dawnView: DawnSweepView | null = null;
+  /** The scene-clock second of the last boarding seen (−1 none; the crew's pull-in) and the boarded count then. */
+  private pullAtS = -1;
+  private boardedSeen = 0;
+  /** The director had the camera last frame (its zoom goes back to the normal view when it lets go). */
+  private directing = false;
   private readonly voteReq = new VoteRequest();
   private readonly voteSend = new VoteSender();
   /** Review L8: four reused voter records, filled by a callback made once; the panel is rebuilt only when its key changes. */
@@ -792,6 +807,14 @@ export class GameScene extends Phaser.Scene {
     this.lootLine.untilMs = 0;
     this.eventInsets = { ...safeArea() };
     this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
+    // Story 12.3: the cinematic (Phaser reuses the scene: everything reset here).
+    this.director.reset();
+    this.directing = false;
+    this.pullAtS = -1;
+    this.boardedSeen = 0;
+    const padAt = evacPadOf(host.world.map);
+    this.crewView = new CrewView(this, padAt.x, padAt.y);
+    this.dawnView = new DawnSweepView(this, host.world.map.widthM, host.world.map.heightM);
     this.voteReq.reset();
     this.voteSend.reset();
     this.voteKey = -1;
@@ -988,6 +1011,8 @@ export class GameScene extends Phaser.Scene {
       this.lootView?.destroy(); // Story 7.12
       this.lootView = null;
       this.heliView = null; // Story 6.11: its images go with the scene
+      this.crewView = null; // Story 12.3: likewise
+      this.dawnView = null;
       voteStore.handle(null);
       voteStore.set(CLOSED_VOTE);
       if (this.bossMusic) stopBossLoop();
@@ -1186,7 +1211,8 @@ export class GameScene extends Phaser.Scene {
     const run = host.world.run;
     const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
     // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
-    const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
+    // Story 12.3: after the extraction phase the fly-out was the dawn (the screen is white): the card at once.
+    const dawnEndsAtMs = dawnEndsAt(ending, !host.world.extract.started, performance.now(), host.world.balance.waves.evac.dawnS);
     uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned, training }], online: false, seed: host.world.seed, dawnEndsAtMs, mySlot: 0 });
   }
 
@@ -2377,14 +2403,18 @@ export class GameScene extends Phaser.Scene {
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
     this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)
-    // Story 12.2: aboard, my body isn't drawn: the camera stays on it at the pad (12.3 takes the camera over).
+    // Story 12.2: aboard, my body isn't drawn. Story 12.3: during the extraction the camera director has the camera
+    // (framing, zoom, letterbox, fades: `render/cameraDirector.ts`); it never touches the World.
     const aboard = player !== undefined && host.world.extract.boarded.has(localId);
+    const shot = this.directCamera(host, deltaMs / 1000);
     if (player && (playerView || aboard)) {
       // Out (Story 2.8): the camera spectates the lowest-slot standing teammate (the server streams that view).
       const target = player.status === "out" && !aboard ? spectateTarget(host.world, localId) : null;
       const viewOf = (target && this.playerViews.get(target.id)) ?? playerView ?? player;
-      this.cameras.main.centerOn(viewOf.x, viewOf.y);
-      this.updateRushMarkers(host.alpha, viewOf.x, viewOf.y);
+      const camX = shot.active ? shot.centreX : viewOf.x;
+      const camY = shot.active ? shot.centreY : viewOf.y;
+      this.cameras.main.centerOn(camX, camY);
+      this.updateRushMarkers(host.alpha, camX, camY);
       this.updateDownedHud(host.world, player);
       this.updateTeammates(host.world);
       const m = this.hudModel;
@@ -2454,6 +2484,79 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Story 12.3 (AC 1–9): this frame's shot from the camera director — fed the timeline (server ticks), the walkers and
+   * the helicopter as drawn — then applied: the camera's zoom (the director's centre is used by the caller), the crew,
+   * the dawn line and the HUD's letterbox / fade / hide flags. Client only: nothing here writes the World.
+   */
+  private directCamera(host: SceneHost, dtS: number): DirectorOutput {
+    const world = host.world;
+    const ex = world.extract;
+    const evac = world.balance.waves.evac;
+    const inp = this.dirIn;
+    const phase = world.run.phase;
+    inp.extracting = ex.started && (phase === "extract" || phase === "results");
+    const st = host.serverTick;
+    inp.nowTick = Number.isFinite(st) ? st : world.tick;
+    inp.startTick = ex.startTick;
+    inp.liftedAtTick = ex.liftedAtTick;
+    inp.cut = ex.cut;
+    inp.dtS = dtS;
+    inp.walkTimeoutS = evac.walkTimeoutS;
+    inp.liftBeatS = evac.liftBeatS;
+    inp.flyOutS = evac.flyOutS;
+    inp.mapW = world.map.widthM;
+    inp.mapH = world.map.heightM;
+    inp.padX = ex.padX;
+    inp.padY = ex.padY;
+    inp.flyDxM = this.heliView?.flyOutDxM ?? 0;
+    inp.heliX = this.heliView?.drawnX ?? ex.padX;
+    inp.heliY = this.heliView?.drawnY ?? ex.padY;
+    inp.screenW = this.scale.width;
+    inp.screenH = this.scale.height;
+    inp.ppm = pixelsPerMeter(this.scale.width, this.scale.height);
+    inp.walkers = 0;
+    if (inp.extracting) world.players.forEach(this.addWalker);
+    inp.allAboard = inp.extracting && inp.walkers === 0;
+    const o = this.director.update(inp);
+    const cam = this.cameras.main;
+    if (o.active) cam.setZoom(inp.ppm * o.zoom);
+    else if (this.directing) this.applyZoom(); // let go: the normal 24 m view
+    this.directing = o.active;
+    // The crew (AC 8): out of the door once the helicopter is down and the walk has begun; a pull-in at each boarding.
+    const nowS = this.time.now / 1000;
+    const boarded = o.active ? ex.boarded.size : 0;
+    if (boarded > this.boardedSeen) this.pullAtS = nowS;
+    this.boardedSeen = boarded;
+    const landedAt = this.heliView?.landedAtS ?? -1;
+    const outS = o.active && landedAt >= 0 && o.flyS < 0 ? Math.min(nowS - landedAt, o.walkS) : -1;
+    const pullS = this.pullAtS >= 0 && outS >= 0 ? nowS - Math.max(this.pullAtS, nowS - outS + CREW_STEP_S) : -1;
+    this.crewView?.update(outS, o.aboardS, pullS);
+    this.dawnView?.update(o.dawnX, o.dawnAlpha);
+    if (this.darknessView) {
+      this.darknessView.dawnX = o.dawnX; // the dawn lifts the night east of its line (a stage-5 blackout)
+      this.darknessView.dawnEdgeM = DAWN_EDGE_M;
+      this.darknessView.dawnK = o.dawnAlpha;
+    }
+    const m = this.hudModel;
+    m.cinemaOn = o.active;
+    m.cinemaBars = o.bars;
+    m.cinemaFadeRgb = o.fadeRgb;
+    m.cinemaFadeAlpha = o.fadeAlpha;
+    return o;
+  }
+
+  /** A standing survivor not yet aboard, as drawn (the director frames them with the pad). */
+  private readonly addWalker = (p: PlayerState, id: string): void => {
+    const inp = this.dirIn;
+    const world = this.host?.world;
+    if (!world || world.extract.boarded.has(id) || p.status !== "alive" || inp.walkers >= inp.walkerX.length) return;
+    const v = this.playerViews.get(id);
+    inp.walkerX[inp.walkers] = v ? v.x : p.x;
+    inp.walkerY[inp.walkers] = v ? v.y : p.y;
+    inp.walkers++;
+  };
+
+  /**
    * Story 6.4 (F3, D2, D10): this frame's fog on my screen, before the zombie, eye and spit views:
    * centred on the camera's survivor (mine; the teammate I spectate while out), every standing
    * survivor's beam at its drawn pose (last frame's: the views update after the zombies).
@@ -2465,7 +2568,7 @@ export class GameScene extends Phaser.Scene {
     const me = world.players.get(localId);
     const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
     const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
-    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
+    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf, this.director.out.fogLift); // Story 12.3 (AC 5): the fog lift of the director's previous frame (it runs later in this frame)
     wireFog(this.fogTakers(), fog); // Story 6.10 follow-up (6.2 R1): one tested wiring, every frame
   }
 

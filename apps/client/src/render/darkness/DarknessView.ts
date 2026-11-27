@@ -54,8 +54,21 @@ interface DarkImage {
  * filter per frame), the warm tints are drawn on top (≤ 0.1), then the texture is re-uploaded.
  * Otherwise the image is hidden and nothing is painted or uploaded (F9).
  */
+/** Story 12.3 (AC 6): how much of the darkness the dawn lifts east of its line (1 = all), and the ramp strip's width (px). */
+export const DAWN_LIFT = 0.9;
+const DAWN_RAMP_PX = 64;
+
 export class DarknessView {
   private canvas: HTMLCanvasElement | null = null;
+  /**
+   * Story 12.3 (AC 6): the extraction's dawn line (world x, m; NaN = none), its soft edge west of it (m) and its
+   * strength (0…1): the darkness is lifted east of the line (`DAWN_LIFT`), ramping in over the edge. Set each frame.
+   */
+  dawnX = Number.NaN;
+  dawnEdgeM = 6;
+  dawnK = 0;
+  /** A 0 → 1 alpha ramp (drawn once; scaled over the dawn's edge each paint: no gradient per frame). */
+  private dawnRamp: HTMLCanvasElement | null = null;
   private tex: { refresh(): unknown } | null = null;
   private image: DarkImage | null = null;
   private w = 0;
@@ -163,6 +176,7 @@ export class DarknessView {
         this.drawCone(g, c.canvas, c.ax, c.ay, i);
       } else this.drawDisc(g, plan.kind[i] === STAMP_GLOW ? st.glow : st.disc, i);
     }
+    if (!Number.isNaN(this.dawnX) && this.dawnK > 0) this.liftDawn(g);
     g.globalCompositeOperation = "source-over";
     if (this.fog) {
       this.fog.paintInto(g, this.w, this.h, this.k, this.vx, this.vy);
@@ -180,6 +194,35 @@ export class DarknessView {
       }
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+  }
+
+  /** Story 12.3: erases the darkness east of the dawn line (still in `destination-out`), the edge as a ramp. */
+  private liftDawn(g: CanvasRenderingContext2D): void {
+    let ramp = this.dawnRamp;
+    if (!ramp) {
+      ramp = this.makeCanvas();
+      ramp.width = DAWN_RAMP_PX;
+      ramp.height = 1;
+      const r = ramp.getContext("2d");
+      if (r) {
+        const grad = r.createLinearGradient(0, 0, DAWN_RAMP_PX, 0); // once
+        grad.addColorStop(0, "rgba(255,255,255,0)");
+        grad.addColorStop(1, "rgba(255,255,255,1)");
+        r.fillStyle = grad;
+        r.fillRect(0, 0, DAWN_RAMP_PX, 1);
+      }
+      this.dawnRamp = ramp;
+    }
+    const x1 = (this.dawnX - this.vx) * this.k;
+    const x0 = (this.dawnX - this.dawnEdgeM - this.vx) * this.k;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = DAWN_LIFT * this.dawnK;
+    if (x1 > 0 && x0 < this.w) g.drawImage(ramp, x0, 0, Math.max(1, x1 - x0), this.h);
+    if (x1 < this.w) {
+      g.fillStyle = "#fff";
+      g.fillRect(Math.max(0, x1), 0, this.w - Math.max(0, x1), this.h);
+    }
     g.globalAlpha = 1;
   }
 

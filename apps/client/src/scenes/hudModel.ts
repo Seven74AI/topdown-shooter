@@ -84,6 +84,15 @@ export interface HudModel {
   voting: boolean;
   /** Story 12.2: the extraction (walk and fly-out; `voting` is true too: every action control hides): the top line says so. */
   extracting: boolean;
+  /**
+   * Story 12.3: the extraction's cinematic (the camera director, `render/cameraDirector.ts`): while `cinemaOn` the HUD
+   * hides (pings stay: they are drawn in the world); the letterbox bars (fraction of the screen height, top and bottom
+   * each) and a full-screen fade (colour, alpha) draw over the game.
+   */
+  cinemaOn: boolean;
+  cinemaBars: number;
+  cinemaFadeRgb: number;
+  cinemaFadeAlpha: number;
   /** Story 8.2 (J4, AC 4): I am a waiting late joiner: no controls but ☰ (sticks, weapon panel, quick-use, Ready, build bar hidden). */
   watching: boolean;
   /** Story 3.1: the Ready button is shown (a build phase, a run on screen, menu closed). */
@@ -358,6 +367,10 @@ export const createHudModel = (): HudModel => ({
   endless: false,
   voting: false,
   extracting: false, // Story 12.2
+  cinemaOn: false, // Story 12.3
+  cinemaBars: 0,
+  cinemaFadeRgb: 0,
+  cinemaFadeAlpha: 0,
   watching: false,
   readyButton: false,
   readyOn: false,
