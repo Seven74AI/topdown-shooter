@@ -244,3 +244,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:57 Master CI green on 96f614b5 (#39, 10.4). Icon proposal session started (session_01CgLgPTMwBGKYCDmLagaYdh).
 - 10:05 Icon proposal on master (11dfb027). Designer: 10.5-Q1 = IC3 (Lumen badge). 10.6 re-review 1: RR-M1 Caddy 64KB = 64,000 B vs 65,536 → fixing (round 2 next).
 - 10:12 10.6 PR #40 merged cd9a944a (full review → 2 narrow re-reviews, approved). 10.5 builder next; 10.7 told to regenerate its migration on top of 0008.
+- 10:19 Master CI green on cd9a944a (#40, 10.6). Builder 10.5 started (session_01CgLgPX9PioZsbg6tUPi3pX).
