@@ -243,3 +243,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 09:50 10.4 PR #39 merged 96f614b5 (main-session check of the last low/nit + turretBandwidth PERF_ASSERT fix; CI green on f5a264f).
 - 09:57 Master CI green on 96f614b5 (#39, 10.4). Icon proposal session started (session_01CgLgPTMwBGKYCDmLagaYdh).
 - 10:05 Icon proposal on master (11dfb027). Designer: 10.5-Q1 = IC3 (Lumen badge). 10.6 re-review 1: RR-M1 Caddy 64KB = 64,000 B vs 65,536 → fixing (round 2 next).
+- 10:12 10.6 PR #40 merged cd9a944a (full review → 2 narrow re-reviews, approved). 10.5 builder next; 10.7 told to regenerate its migration on top of 0008.

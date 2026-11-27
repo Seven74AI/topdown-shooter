@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.6: Report a problem
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. **Awaiting designer Q-codes 10.6-Q1…Q3.** Q1 is a new screen layout and needs Lumen LF5 proposal stills before the client UI is built. The server half (T1–T4) and the ring buffer (T5) can start at once. **Migration order:** this story lands **first** and takes the next free number (today `0008_*`). 10.7 regenerates its migration on top (AGENTS §2: never rename).)
 
@@ -176,3 +176,8 @@ Designer pick 10.6-Q1 = RP1 (2026-11-27): the RP3 branch (`REPORT_LAYOUT`, the l
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.6-Q1…Q3).
 - 2026-11-27: built (Q2 B, Q3 B; Q1 RP1 built with RP3 switchable pending the pick); status review.
 - 2026-11-27: review fixes M1–M3, L1, L2, N1–N4 (B10 recorded). New: `packages/shared/src/net/report.test.ts`, `apps/client/src/debug/clientLogBoot.ts`.
+
+## Main session close-out (2026-11-27)
+
+- Full three-layer review (3 medium + 2 low + 4 nits) → fix round → narrow re-review 1 (RR-M1 Caddy `64KB` = 64,000 bytes, nits) → fix → narrow re-review 2 APPROVED (cap reached, no open findings). B10 (main session): 30 reports/day/IP + 2,000/day global.
+- PR #40 merged cd9a944a. Master had moved docs-only since the PR's last CI run (non-overlapping).
