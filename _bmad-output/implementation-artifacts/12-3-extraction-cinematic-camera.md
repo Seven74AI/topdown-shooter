@@ -234,3 +234,5 @@ no sim side effects. L2 (pings) and F1–F4 are with the designer (unchanged).
 ## Main session close-out (2026-11-27)
 - Light review + no-sim check: no high or medium; L1 (☰ unreachable during the cinematic) fixed in 610b47a, checked by the main session. CI green. Merged as 10387c0b (PR #37).
 - **Open with the designer (one setting each, tunable later):** F1 white timing, F2 dawn look, F3 crew placeholder, F4 bars at the fade, L2 pings hidden during the extraction (conflicts with 12.2 AC 3: designer call). Merged as built.
+
+- **Designer 2026-11-27:** F1 kept (full white 5.7 s after lift-off). Fly-out horde raised to 150 (12.2 follow-up, PR #38).

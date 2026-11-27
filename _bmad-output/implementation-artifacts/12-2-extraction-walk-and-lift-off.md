@@ -195,3 +195,5 @@ Left for 12.3 (noted): the flashlight cone of a body walking to (or waiting at) 
 ## Main session close-out (2026-11-26)
 - Fresh 3-layer review (H1 empty room in extract banks quit; M1 all-four judged at Results; L1–L8) → fixed in b024d1e → narrow re-review: no findings. CI green. Merged as e5aef083 (PR #36). Protocol 5.
 - **Open with the designer (balance only, tunable later):** timings (walk cap 8 s, beat 0.5 s, fly-out 8 s), downed survivors walk (CN-3), fly-out horde of 40 Walkers. Merged as built.
+
+- **Designer 2026-11-27:** fly-out horde 40 → 150 Walkers (30/s), PR #38. Timings and the downed walk: still open.

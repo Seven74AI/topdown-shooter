@@ -301,3 +301,4 @@ only. Every finding fixed minimally (or noted, as asked):
 
 ## Main session close-out (2026-11-26)
 - Merged as 4362482a (PR #34, from the photoreal session: review approved, two narrow re-reviews). Master CI green. Marked done by the main session (designer 2026-11-26). Story 9.4 trimmed to the zombie attack and death animations.
+- Master CI on 4362482a: the first attempt was red in one browser layout case (`accountDomLayout`, "Forgot password, code hint", shard 1/4), unrelated to 9.15 as far as checked (no boss bake on the menus, no added main-thread blocking); the re-run of the failed job was green. Logged in `deferred-work.md` per E8-A1 (not labelled flaky).
