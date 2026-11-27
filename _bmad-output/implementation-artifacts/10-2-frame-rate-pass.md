@@ -29,7 +29,13 @@ so that nothing stutters when it matters.
 
 What this says: the headless renderer is the CPU (SwiftShader), so the frame is fill-bound (as `epic-1-stress.md` and `epic-6-blackout.md` already found: DPR 2 → 1 is ×2.7 here; the darkness layer costs ~30 %). **The epics AC "at 4× the average is ≥ 30 FPS" is out of reach in this renderer even at DPR 1 (18.9)**: lowering quality until it is met would mean drawing at well under half resolution for every phone. Hence 10.2-Q1.
 
-## Designer decisions (open)
+## Designer decisions (answered 2026-11-27, via the main session: Q1 = A, Q2 = A, Q3 = B)
+
+- **10.2-Q1 = A**: relative target from the builder's release baseline (wave 9 at 4× DPR 2: 7.4 FPS) → **≥ 9.3 FPS (+25 %)**, default look unchanged, no other row more than 1 FPS worse; 30 FPS stays for the parked phone check.
+- **10.2-Q2 = A**: Resolution row Sharp 2× / Balanced 1.5× / Fast 1×, default Sharp.
+- **10.2-Q3 = B**: one-time auto check in the first 10 s of wave 1: < 40 FPS → Balanced + Rain Light; < 30 → Fast + Glow Low; toast; never overrides a player choice.
+
+The questions as asked:
 
 | # | Question | Options (numbers from the baseline above) | Recommendation |
 | --- | --- | --- | --- |
