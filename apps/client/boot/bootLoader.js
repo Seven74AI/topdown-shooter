@@ -16,6 +16,7 @@
       return (Math.round(b / 1e5) / 10).toFixed(1);
     },
     text: function (shown, total) {
+      if (shown <= 0) return "Downloading\u2026"; // nothing landed yet: no "0.0 / 0.9 MB" that looks stuck (re-review)
       return "Downloading… " + api.mb(shown) + " / " + api.mb(total) + " MB";
     },
   };

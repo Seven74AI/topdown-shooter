@@ -97,7 +97,8 @@ describe("Story 10.4: loading screen progress maths", () => {
 
   it("reads in MB with one decimal", () => {
     expect(api.text(1_234_567, 2_000_000)).toBe("Downloading… 1.2 / 2.0 MB");
-    expect(api.text(0, 870_000)).toBe("Downloading… 0.0 / 0.9 MB");
+    expect(api.text(0, 870_000)).toBe("Downloading…"); // re-review: nothing landed yet → no "0.0 / 0.9 MB"
+    expect(api.text(40_000, 870_000)).toBe("Downloading… 0.0 / 0.9 MB");
   });
 });
 
@@ -111,7 +112,7 @@ describe("Story 10.4: loading screen on a page", () => {
     now = 1000;
     b.tick();
     expect(Number(root.attrs["data-progress"])).toBeCloseTo(0.18, 2); // the bar follows the guess…
-    expect(root.line.textContent).toBe("Downloading\u2026 0.0 / 1.0 MB"); // …the text doesn't (review L1)
+    expect(root.line.textContent).toBe("Downloading\u2026"); // …the text doesn't (review L1; no numbers before a file lands)
     b.land("http://x.test/assets/other.js", 999_999, 900); // not a first-load file: ignored
     b.land("http://x.test/assets/main-a.js", 310_000, 1500);
     b.land("http://x.test/assets/main-a.js", 310_000, 1500); // twice: counted once
@@ -167,6 +168,24 @@ describe("Story 10.4: main.ts's signals", () => {
     expect(calls).toEqual(["draw"]);
     frames.shift()?.();
     expect(calls).toEqual(["draw", "hide"]);
+  });
+
+  it("re-review: the overlay is removed even when the script's hide is missing or throws", () => {
+    for (const loader of [{ phase: () => {} }, { hide: () => { throw new Error("half-run script"); } }]) {
+      let removed = 0;
+      const listeners: (() => void)[] = [];
+      const frames: (() => void)[] = [];
+      const document = { getElementById: () => ({ remove: () => void removed++ }) };
+      signalBootLoader({ subscribe: (l) => (listeners.push(l), () => {}) }, { __bootLoader: loader, document, requestAnimationFrame: (cb) => frames.push(cb) });
+      listeners.forEach((l) => l());
+      frames.shift()?.();
+      try {
+        frames.shift()?.();
+      } catch {
+        // the throwing hide still propagates; the overlay must be gone anyway
+      }
+      expect(removed).toBe(1);
+    }
   });
 
   it("does nothing without a loading screen (dev tools pages, tests)", () => {

@@ -19,11 +19,18 @@ interface Page {
 }
 
 export function signalBootLoader(screens: Screens, w: Page = globalThis as never): void {
-  // Review M1: the inline script didn't run (blocked by a CSP, say): still take the overlay away at the first screen.
-  const loader: BootLoader = w.__bootLoader ?? { hide: () => w.document?.getElementById("boot-loader")?.remove() };
+  // Review M1 + re-review: the inline script didn't run (blocked by a CSP, say) or threw partway: the overlay still goes.
+  const loader: BootLoader = w.__bootLoader ?? {};
+  const hide = (): void => {
+    try {
+      loader.hide?.();
+    } finally {
+      w.document?.getElementById("boot-loader")?.remove();
+    }
+  };
   loader.phase?.("draw");
   const off = screens.subscribe(() => {
     off();
-    w.requestAnimationFrame(() => w.requestAnimationFrame(() => loader.hide?.()));
+    w.requestAnimationFrame(() => w.requestAnimationFrame(hide));
   });
 }

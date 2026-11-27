@@ -164,3 +164,10 @@ Claude (builder session for 10.4, gds-dev-story)
 | N1 | note (pre-existing) | `apps/client/public/assets/maps/downtown.tmj` is unhashed under `/assets` (would get the 1-year immutable header); the game never fetches it (the sim imports its JSON copy). | Not unused: the map pipeline writes/reads it (`maps:build`, `maps:sync`, `downtownFiles.test.ts`). Moved out of the served folder to `tools/maps/downtown.tmj`, next to the Tiled source; three path strings updated. The build no longer ships it. |
 | L2 | low | lateJoin hold ordering | Accepted as is (reviewer). |
 
+
+**Re-review round 1 (2026-11-27): APPROVED**, two last changes checked by the main session (no further re-review):
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| RR1-L1 | low | On Slow 4G the text read "Downloading… 0.0 / 0.9 MB" for ~3 s while the bar moved (looks stalled). | Plain "Downloading…" until the first file lands, then "Downloading… x / 0.9 MB" (`bootLoader.js › text`); test updated. |
+| RR1-N1 | nit | `bootLoaderSignal.ts`: a script that threw partway could leave the overlay up. | After calling the script's `hide`, `#boot-loader` is always removed too (try/finally); unit case for a missing and a throwing `hide`. |
