@@ -98,19 +98,19 @@ async function playable(page) {
   return handle.jsonValue();
 }
 
-function loaderCheck(samples, playableMs) {
+function loaderCheck(samples, playableMs, goneMs) {
   const shown = samples.filter((s) => s[1] !== "gone");
   const at1s = shown.find((s) => s[0] >= 900 && s[0] <= 1500);
   let backwards = 0;
   for (let i = 1; i < shown.length; i++) if (shown[i][1] < shown[i - 1][1]) backwards++;
-  const gone = samples.find((s) => s[1] === "gone");
+  const gone = shown.length > 0 ? goneMs : null; // a page without the loading screen (master) never showed one
   return {
-    firstSampleMs: samples[0] ? samples[0][0] : null,
+    firstSampleMs: shown[0] ? shown[0][0] : null,
     visibleAt1s: !!(at1s && at1s[2]),
-    progressAt1s: at1s ? at1s[1] : null,
+    movingBy2s: shown.some((s) => s[0] <= 2000 && s[1] > 0),
     backwards,
-    goneMs: gone ? gone[0] : null,
-    goneAfterPlayable: gone ? gone[0] >= playableMs - 150 : false,
+    goneMs: gone,
+    goneAfterPlayable: gone !== null && gone >= playableMs - 150,
   };
 }
 
@@ -122,8 +122,8 @@ async function firstAndReturn(browser, base, profile, cpu) {
   await page.goto(base + "/", { waitUntil: "commit" });
   const ms = await playable(page);
   log.stopAt = Date.now();
-  await page.waitForFunction(() => !document.getElementById("boot-loader"), null, { timeout: 5000 });
-  const loader = loaderCheck(await page.evaluate(() => window.__blSamples), ms);
+  const goneMs = await (await page.waitForFunction(() => (document.getElementById("boot-loader") ? 0 : Math.round(performance.now())), null, { timeout: 5000, polling: "raf" })).jsonValue();
+  const loader = loaderCheck(await page.evaluate(() => window.__blSamples), ms, goneMs);
   const first = { kind: "first", playableMs: ms, bytes: log.bytes, requests: log.requests.length, loader };
   // Liveness: Practice solo really starts a run (the Game scene's create starts the character bake).
   await page.getByRole("button", { name: "Practice solo" }).click();
@@ -192,7 +192,7 @@ async function solo(browser, base, profile, cpu) {
           soloRun: median(runs.map((r) => r.s.runMs)),
           soloBaked: median(runs.map((r) => r.s.charBakedMs)),
           soloMB: (median(runs.map((r) => r.s.bytes)) / 1e6).toFixed(2),
-          loader: runs.every((r) => r.first.loader.visibleAt1s && r.first.loader.backwards === 0 && r.first.loader.goneAfterPlayable) ? "ok" : "CHECK",
+          loader: runs.every((r) => r.first.loader.visibleAt1s && r.first.loader.movingBy2s && r.first.loader.backwards === 0 && r.first.loader.goneAfterPlayable) ? "ok" : "CHECK",
         });
       }
     }
