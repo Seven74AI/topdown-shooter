@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.4: Fast loading
 
-Status: ready-for-dev
+Status: review
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Real phones are parked (designer 2026-11-25): "a phone on 4G" is measured as headless Chromium at 844 × 390 DPR 2 with CDP network throttling, empty cache and a return visit. **One designer choice is open: 10.4-Q1 (the loading screen's look).** T1, T2, T4 and T5 can start without it. Can run **in parallel with 10.2**.)
 
@@ -34,11 +34,11 @@ Earlier measure (9.14, `docs/art/9-14/slow4g.cjs`, CDP 562.5 ms latency, 1.44 Mb
 
 Cache headers (`deploy/Caddyfile`): `/assets/*` (Vite's hashed files, workers and the WebP included) get `public, max-age=31536000, immutable`; everything else (`index.html`, `/j/<code>`) `no-cache`. CI's docker smoke checks the `no-cache` on `/` but not the immutable header on a real asset.
 
-## Designer decision (open)
+## Designer decision (picked 2026-11-27)
 
 | # | Question | Options | Recommendation |
 | --- | --- | --- | --- |
-| **10.4-Q1** | What does the player see while the game loads (today: a black screen for ~6 s on slow 4G)? Drawn in plain HTML/CSS inside `index.html`, so it shows in the first 0.5 KB. Black background, white title as the Boot scene draws it now. | **A** Title + one thin bar (240 × 4 CSS px, LF5 Field Ops accent, fills as the files arrive), nothing else. · **B** Title + the bar + a short line under it that says what is happening: "Downloading… 1.2 / 2.0 MB", then "Drawing the city…". · **C** Title + a small spinner (no bar, no numbers). | **B** (the 4G wait is mostly the download; showing MB makes it feel shorter, and "Drawing the city…" covers the bake) |
+| **10.4-Q1** | What does the player see while the game loads (today: a black screen for ~6 s on slow 4G)? Drawn in plain HTML/CSS inside `index.html`, so it shows in the first 0.5 KB. Black background, white title as the Boot scene draws it now. | **A** Title + one thin bar (240 × 4 CSS px, LF5 Field Ops accent, fills as the files arrive), nothing else. · **B** Title + the bar + a short line under it that says what is happening: "Downloading… 1.2 / 2.0 MB", then "Drawing the city…". · **C** Title + a small spinner (no bar, no numbers). | **B** (the 4G wait is mostly the download; showing MB makes it feel shorter, and "Drawing the city…" covers the bake) · **Designer pick 2026-11-27 ("All ok"): B**, with the title **"Hordes"** (10.5-Q2; loading screen only, `<title>`/manifest are 10.5's) |
 
 The builder shows a **still** of the picked option at 844 × 390 and 568 × 320 (no video) before merging, per AGENTS §1.
 
@@ -64,12 +64,12 @@ The builder shows a **still** of the picked option at 844 × 390 and 568 × 320 
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Measuring tool + before table (AC 1, 3)** — `tools/perf/serveDist.cjs` (B3), `tools/perf/load.cjs` (B1, B2, B4: first visit + return visit, 3 runs, median; liveness: the start screen really mounted — a Practice button exists and responds — else the run fails). Run on master first.
-- [ ] **T2 Bundle (B5)** — `apps/client/vite.config.ts` `manualChunks`; check the real `dist/` names; `noCheatsInRelease` green.
-- [ ] **T3 Loading screen (AC 2; Q1)** — `apps/client/index.html` (inline CSS/HTML for the picked option, inside `#ui`'s sibling so Preact's mount doesn't wipe it, or removed by `main.ts`), a Vite plugin in `vite.config.ts` for the size manifest (B6), `apps/client/src/main.ts` + `scenes/BootScene.ts` (signal "Drawing the city…" / hide). Stills for the designer's check.
-- [ ] **T4 Guards (AC 4, 5)** — `tools/checks/caddyCacheHeaders.test.ts`, `tools/checks/noEagerAudio.test.ts`; one line in `.github/workflows/ci.yml` docker smoke (`curl -sS -D - -o /dev/null "$base/assets/<a file from dist>"` → grep immutable; pick the file by listing `dist/assets` in the step, since the hash changes).
-- [ ] **T5 Return-visit levers (AC 3), only if the before table misses 3 s** — measure first; candidates: drop the 500 ms title wait on a warm visit (`TITLE_SHOW_MS`) is a look change → ask; start the character bake worker earlier; defer `urlOptions`'s modulepreload if unused. Each with its A/B numbers.
-- [ ] **T6 Hand-back** — `gate:fast` + `test:changed`; PR "Story 10.4: Fast loading"; new decisions as 10.4-B9+.
+- [x] **T1 Measuring tool + before table (AC 1, 3)** — `tools/perf/serveDist.cjs` (B3), `tools/perf/load.cjs` (B1, B2, B4: first visit + return visit, 3 runs, median; liveness: the start screen really mounted — a Practice button exists and responds — else the run fails). Run on master first.
+- [x] **T2 Bundle (B5)** — `apps/client/vite.config.ts` `manualChunks`; check the real `dist/` names; `noCheatsInRelease` green.
+- [x] **T3 Loading screen (AC 2; Q1)** — `apps/client/index.html` (inline CSS/HTML for the picked option, inside `#ui`'s sibling so Preact's mount doesn't wipe it, or removed by `main.ts`), a Vite plugin in `vite.config.ts` for the size manifest (B6), `apps/client/src/main.ts` + `scenes/BootScene.ts` (signal "Drawing the city…" / hide). Stills for the designer's check.
+- [x] **T4 Guards (AC 4, 5)** — `tools/checks/caddyCacheHeaders.test.ts`, `tools/checks/noEagerAudio.test.ts`; one line in `.github/workflows/ci.yml` docker smoke (`curl -sS -D - -o /dev/null "$base/assets/<a file from dist>"` → grep immutable; pick the file by listing `dist/assets` in the step, since the hash changes).
+- [x] **T5 Return-visit levers (AC 3), only if the before table misses 3 s** — measure first; candidates: drop the 500 ms title wait on a warm visit (`TITLE_SHOW_MS`) is a look change → ask; start the character bake worker earlier; defer `urlOptions`'s modulepreload if unused. Each with its A/B numbers.
+- [x] **T6 Hand-back** — `gate:fast` + `test:changed`; PR "Story 10.4: Fast loading"; new decisions as 10.4-B9+.
 
 ## Test plan
 
