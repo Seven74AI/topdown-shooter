@@ -17,6 +17,11 @@ export function filterHud(list: readonly CameraFiltered[], keep: readonly Camera
   }
 }
 
+/** Story 12.3 review L1: what a HUD tap does under the cinematic: ☰ still opens the menu (Leave), anything else is dropped. */
+export function cinemaTapPasses(cinemaOn: boolean, hitId: string | null): boolean {
+  return !cinemaOn || hitId === "menu";
+}
+
 /** The bar height in px for `frac` of the screen (whole pixels: no shimmer while it eases). */
 export function barPx(frac: number, screenH: number): number {
   return Math.round(Math.max(0, frac) * screenH);

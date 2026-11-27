@@ -2568,7 +2568,7 @@ export class GameScene extends Phaser.Scene {
     const me = world.players.get(localId);
     const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
     const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
-    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf, this.director.out.fogLift); // Story 12.3: last frame's shot (AC 5)
+    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf, this.director.out.fogLift); // Story 12.3 (AC 5): the fog lift of the director's previous frame (it runs later in this frame)
     wireFog(this.fogTakers(), fog); // Story 6.10 follow-up (6.2 R1): one tested wiring, every frame
   }
 

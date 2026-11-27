@@ -214,7 +214,19 @@ are SwiftShader's; reference phones stay parked (X10).
 - `docs/playtests/12-3-extraction/*` (new: stills and shot logs)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+**Light review** (2026-11-26, parent session `session_01CgLgPXDq7yDzkuhpu4JMQB`, on `f991dd0`): no high or medium findings;
+no sim side effects. L2 (pings) and F1–F4 are with the designer (unchanged).
+
+| # | Sev | Finding | Fix | Check |
+|---|-----|---------|-----|-------|
+| L1 | low | Phones couldn't reach ☰ (menu / Leave) during the extraction: every HUD tap was dropped and ☰ hidden. | ☰ is in `cinemaKeep` (drawn between the bars and the fades, depth 2000.5 while the cinematic is on); the down handler lets a tap through when `buttons.hit(…) === "menu"` (`cinemaTapPasses`), every other HUD tap is still dropped. | `cinemaHud.test.ts` › "review L1" (real `HudButtons`: ☰ presses, Ready doesn't). Browser (`12-3-stills/menu-check.cjs`): at 844×390 and 568×320 ☰ shows above the bars, a tap elsewhere leaves the menu closed, a tap on ☰ opens it. Stills `*-review-L1-menu-above-bars.png`, `*-review-L1-menu-open.png`. |
+| N1 | nit | GameScene fog-lift comment ("last frame's shot"). | Reworded: the director's previous frame (it runs later in the frame). | — |
+| N2 | nit | cameraDirector comment said an endless run extracts again. | Reworded: an extraction ends its run. | — |
+
 ## Change Log
 
 - 2026-11-26: Story 12.3 built (camera director, letterbox / fade / HUD hide, crew placeholder, dawn sweep with the
   night lifting, fog lift, boarded bodies' light removed, Results without the 4 s dawn after an extraction). Status → review.
+- 2026-11-26: Light review fixes: L1 (☰ reachable during the cinematic), N1, N2.

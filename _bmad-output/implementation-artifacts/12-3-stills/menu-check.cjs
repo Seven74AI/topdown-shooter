@@ -1,0 +1,36 @@
+const { chromium } = require("playwright");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const [w, h, out] = [Number(process.argv[2]), Number(process.argv[3]), process.argv[4]];
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: true });
+  const pg = await ctx.newPage();
+  await pg.goto(`http://localhost:5293/?solo&startwave=10&bosswave=99`);
+  await pg.waitForFunction(() => { const s = window.__game?.scene?.getScene("Game"); return !!(s && s.host); }, null, { timeout: 60000 });
+  const G = "window.__game.scene.getScene('Game')";
+  await pg.evaluate(`${G}.host.world.run.buildTicksLeft = 1`);
+  await pg.waitForFunction(`${G}.host.world.run.phase === "wave"`);
+  await pg.keyboard.press("Backquote");
+  await pg.getByRole("button", { name: "Skip wave" }).click();
+  await pg.keyboard.press("Backquote");
+  await pg.waitForFunction(`${G}.host.world.run.phase === "vote"`, null, { timeout: 20000 });
+  await pg.evaluate(`(() => { const s = ${G}; const p = s.host.world.players.get(s.host.localPlayerId); p.x = p.prevX = 9; p.y = p.prevY = 26; })()`);
+  await sleep(2500);
+  await pg.getByRole("button", { name: /extract/i }).first().click();
+  await pg.waitForFunction(`${G}.director.out.walkS > 1.5`, null, { timeout: 5000 });
+  await pg.addStyleTag({ content: ".dev-gear, .dev-cheats { display: none !important; }" });
+  await pg.evaluate("window.__game.loop.sleep()");
+  await pg.screenshot({ path: `${out}/menu-above-bars-${w}.png` });
+  const r = await pg.evaluate(`(() => { const hud = window.__game.scene.getScene("Hud"); const m = hud.buttons.get("menu"); const k = window.devicePixelRatio; return { x: (m.x + m.w / 2) / k, y: (m.y + m.h / 2) / k, depth: hud.menuBtn.depth, filter: hud.menuBtn.cameraFilter, visible: hud.menuBtn.visible, bars: hud.cinemaBars.visible }; })()`);
+  await pg.evaluate("window.__game.loop.wake()");
+  // A tap elsewhere (the Ready / stick area) does nothing; a tap on ☰ opens the menu.
+  await pg.touchscreen.tap(w * 0.8, h * 0.7);
+  await sleep(200);
+  const before = await pg.evaluate(`${G}.hudModel.menuOpen`);
+  await pg.touchscreen.tap(r.x, r.y);
+  await sleep(400);
+  const after = await pg.evaluate(`${G}.hudModel.menuOpen`);
+  await pg.screenshot({ path: `${out}/menu-open-${w}.png` });
+  console.log(JSON.stringify({ w, h, ...r, menuOpenBeforeTap: before, menuOpenAfterTap: after }));
+  await b.close();
+})().catch((e) => { console.error(e); process.exit(1); });

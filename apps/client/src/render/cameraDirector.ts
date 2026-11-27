@@ -245,7 +245,7 @@ export class CameraDirector {
       return o;
     }
     if (inp.startTick !== this.seenStart) {
-      this.reset(); // a new extraction (an endless run extracts again later)
+      this.reset(); // a new extraction (a new run: an extraction ends its run; the scene restart also resets)
       this.seenStart = inp.startTick;
     }
     o.active = true;

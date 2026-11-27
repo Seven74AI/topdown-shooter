@@ -62,7 +62,7 @@ import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "
 import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
 import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, layoutRowAboveCluster, newRightButtonsLayout } from "./consumableButton";
 import { CONSUMABLE_ICON_CSS_PX, CONSUMABLE_ICON_FRAMES, CONSUMABLE_ICON_TEXTURE, ensureConsumableIcons } from "../render/city/consumableIcons";
-import { barPx, filterHud, type CameraFiltered } from "./cinemaHud";
+import { barPx, cinemaTapPasses, filterHud, type CameraFiltered } from "./cinemaHud";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -76,6 +76,9 @@ export interface HudSceneData {
 /** Story 12.3: the cinematic's letterbox and fade, above every HUD object (≤ 1004), the debug overlay above them. */
 const CINEMA_BARS_DEPTH = 2000;
 const CINEMA_FADE_DEPTH = 2001;
+/** Review L1: ☰ between the bars and the fade while the cinematic is on (its own depth otherwise). */
+const CINEMA_MENU_DEPTH = 2000.5;
+const MENU_DEPTH = 1001;
 /** Health bar size and placement in CSS px (× dpr). */
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
@@ -664,7 +667,7 @@ export class HudScene extends Phaser.Scene {
       this.model.consumablePressed = true;
     });
     // Story 2.11: ☰ top-right, away from both thumbs (the sticks live in the lower halves).
-    this.menuBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.menuBtn = this.add.graphics().setDepth(MENU_DEPTH).setVisible(false);
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
@@ -807,7 +810,7 @@ export class HudScene extends Phaser.Scene {
     this.cinemaFade = this.add.rectangle(0, 0, 1, 1, 0x000000, 1).setOrigin(0, 0).setDepth(CINEMA_FADE_DEPTH).setVisible(false);
     this.perfOverlay.gameObject.setDepth(CINEMA_FADE_DEPTH + 1);
     this.cinemaKeep.length = 0;
-    this.cinemaKeep.push(this.cinemaBars, this.cinemaFade, this.perfOverlay.gameObject);
+    this.cinemaKeep.push(this.cinemaBars, this.cinemaFade, this.perfOverlay.gameObject, this.menuBtn); // review L1: ☰ stays
     this.cinemaHidden = false;
     this.shownBarPx = this.shownBarW = this.shownBarH = -1;
     this.hpText = this.add.text(0, 0, "", {
@@ -870,7 +873,11 @@ export class HudScene extends Phaser.Scene {
     // nothing (no aim stick, no fire: the right half belongs to the build cluster; BX-5 drags with it).
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
-      if (this.model.cinemaOn) return; // Story 12.3: the HUD is hidden under the extraction's cinematic (no hidden button answers)
+      // Story 12.3: the HUD is hidden under the extraction's cinematic (no hidden button answers); review L1: ☰ stays (menu, Leave).
+      if (this.model.cinemaOn) {
+        if (cinemaTapPasses(true, this.buttons.hit(p.x, p.y, this.scale.width))) this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width);
+        return;
+      }
       this.pingHud.pointerDown(this.buttons.hit(p.x, p.y, this.scale.width)); // Story 8.7: a tap off the wheel closes it
       // Story 10.10 (AC 6): a touch outside the open Build panel closes it; off every button it is consumed
       // (no stick, no fire, no building selected), on another button (Ready, ping, ☰) that button still gets it.
@@ -2137,6 +2144,7 @@ export class HudScene extends Phaser.Scene {
     const m = this.model;
     const on = m.cinemaOn;
     if (on || this.cinemaHidden) filterHud(this.children.list, this.cinemaKeep, this.cameras.main.id, on);
+    if (on !== this.cinemaHidden) this.menuBtn.setDepth(on ? CINEMA_MENU_DEPTH : MENU_DEPTH); // review L1: ☰ above the bars, under the fades
     this.cinemaHidden = on;
     const w = this.scale.width;
     const h = this.scale.height;
