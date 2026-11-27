@@ -251,3 +251,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 11:39 10.2 full review: CHANGES REQUESTED (H1 blank page when storage is blocked; H2 a hidden tab can lower quality for good; M1 9.1 FPS vs the designer's 9.3; M2 the serve-helper claim isn't in the code; 7 lows).
 - 11:55 10.5 PR #42 merged d5f41147 (light review approve + main-session check of the nits).
 - Designer on 10.12 (2026-11-27): any cheats online; NO reward removal and no telling teammates (reverses AD-3 A); god mode admin only. Stats / restart / confirm are being clarified.
+- 12:40 10.2: review fixes (H1, H2, M2, lows) → re-review 1 APPROVED → main-session check of 578e1265 (pause limit 1000 ms; slower frames count). PR #43 green on cd5135eb. Merge waits only for the designer's M1 answer (9.1 FPS vs the 9.3 number).
