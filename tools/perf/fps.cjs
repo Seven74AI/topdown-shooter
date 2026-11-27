@@ -1,10 +1,11 @@
-/* global require, process, console, window, performance, requestAnimationFrame, module, localStorage, document */
+/* global require, process, console, window, performance, requestAnimationFrame, module, localStorage, document, fetch */
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled, not a dependency) */
 // Story 10.2 (B2, "the 9.13 way"): the frame-rate pass measuring script. CommonJS like docs/art/9-14/perf.cjs, run with
 // the preinstalled Playwright + Chromium (headless, SwiftShader: the CPU draws, so the frame is fill-bound).
 //
-//   NODE_PATH=$(npm root -g) node tools/perf/fps.cjs <label=url> [<label=url> …] [rounds]
-//   e.g. node tools/perf/fps.cjs master=http://127.0.0.1:5321 branch=http://127.0.0.1:5322 2
+//   NODE_PATH=$(npm root -g) node tools/perf/fps.cjs <label=dist:<dir>|label=url> […] [rounds]
+//   e.g. node tools/perf/fps.cjs before=dist:/tmp/dist-before after=dist:apps/client/dist 2
+//   (`dist:` targets are served in this process on an OS-picked port, bundle-checked: the safe way, review M2)
 //   A target may carry its own extra URL switches after a `|`: `lowfx=http://127.0.0.1:5322|&fx=low`.
 //
 // Env: RATES=1,4 (CDP CPU throttling), SCENES=stage1,wave9, DPRS=2, QUERY=&fx=low (extra URL switches for every page),
@@ -15,6 +16,9 @@
 // Exports the page/throttle helpers for Story 10.3.
 const { chromium } = require("playwright");
 const os = require("os");
+const fs = require("fs");
+const path = require("path");
+const { createServer } = require("./serveDist.cjs");
 
 const WARM_MS = Number(process.env.WARM_MS || 8000);
 const COUNT_MS = Number(process.env.COUNT_MS || 12000);
@@ -106,8 +110,45 @@ async function measure(browser, base, rate, sceneName, dpr, profile) {
   };
 }
 
+/** The main bundle a dist's index.html loads (`assets/main-<hash>.js`). */
+function mainBundleOf(dir) {
+  const m = /assets\/main-[\w-]+\.js/.exec(fs.readFileSync(path.join(dir, "index.html"), "utf8"));
+  if (!m) throw new Error(`no main bundle in ${dir}/index.html`);
+  return m[0];
+}
+
+/**
+ * Review M2 (10.2): `label=dist:<dir>` targets are served IN this process (10.4's `serveDist`, the Caddy headers) on a
+ * port the OS picks: no `vite preview`, no wrapper PID to kill, no port another server can hold. Before measuring,
+ * the served index must load that dist's own main bundle (a stale server can't answer for it). `label=<url>` targets
+ * are used as given. Returns the URLs and a close function.
+ */
+async function serveTargets(targets) {
+  const servers = [];
+  const out = [];
+  for (const [label, spec] of targets) {
+    if (!spec.startsWith("dist:")) {
+      out.push([label, spec]);
+      continue;
+    }
+    const [dirRaw, extra = ""] = spec.slice(5).split("|");
+    const dir = path.resolve(dirRaw);
+    const server = createServer(dir);
+    await new Promise((res, rej) => server.once("error", rej).listen(0, "127.0.0.1", res));
+    servers.push(server);
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const want = mainBundleOf(dir);
+    const html = await (await fetch(`${url}/`)).text();
+    if (!html.includes(want)) throw new Error(`${label}: ${url} does not serve ${dir} (${want})`);
+    console.error(`[fps] ${label}: ${dir} (${want}) on ${url}`);
+    out.push([label, extra ? `${url}|${extra}` : url]);
+  }
+  return { targets: out, close: () => Promise.all(servers.map((s) => new Promise((r) => s.close(r)))) };
+}
+
 async function main() {
-  const targets = process.argv.slice(2).filter((a) => a.includes("=")).map((a) => a.split(/=(.*)/s).slice(0, 2));
+  const served = await serveTargets(process.argv.slice(2).filter((a) => a.includes("=")).map((a) => a.split(/=(.*)/s).slice(0, 2)));
+  const targets = served.targets;
   const rounds = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || 2);
   const rates = (process.env.RATES || "1,4").split(",").map(Number);
   const scenes = (process.env.SCENES || "stage1,wave9").split(",");
@@ -123,7 +164,8 @@ async function main() {
     }
   }
   await browser.close();
+  await served.close();
 }
 
-module.exports = { openPage, countFrames, frameStats, topSelf, SCENES };
+module.exports = { openPage, countFrames, frameStats, topSelf, serveTargets, mainBundleOf, SCENES };
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });

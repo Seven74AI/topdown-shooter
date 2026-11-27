@@ -64,8 +64,8 @@ painted into it) and re-uploading it every frame; then SwiftShader fills one mor
 | **B9** | the GPU fog layer at half the darkness layer's size (stretched back) | 8.6 / 8.9 → **9.4 / 9.0** | **yes** | the fog is a soft ring + soft noise: identical in brightened stills; its GPU fill was the new cost (fill 98 → 85 ms) |
 
 Note: while exploring, two A/B rounds measured the wrong build. `kill` of the `npx` wrapper PID left the `vite preview`
-child holding the port, and the next `--strictPort` server failed silently. Both rounds are discarded. The serving
-helper now refuses a busy port and checks the served bundle hash before every run.
+child holding the port, and the next `--strictPort` server failed silently. Both rounds are discarded. Review M2: `fps.cjs` now serves
+`label=dist:<dir>` targets itself (in-process, an OS-picked port, the served bundle checked), so no `vite preview` is involved.
 
 ## After (2026-11-27, release builds, before = `story-10-2` @ cba43a3: master + the scene switch, D6 and B7 pinning, no render change, built before the 10.4 merge; after = branch @ dd00c06, which has 10.4 merged)
 
