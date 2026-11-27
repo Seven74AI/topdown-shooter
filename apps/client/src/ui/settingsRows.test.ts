@@ -7,7 +7,7 @@ import { inRoom } from "./accountModel";
 
 describe("Story 10.1: the Settings rows (AC 1–3; B2, B16, B18)", () => {
   it("AC 1: aim assist, screen shake, vibration, full speed, show performance, rain, fog detail, light glow and two volumes are shown", () => {
-    expect(shownKeys().sort()).toEqual(["aimAssist", "alwaysFullSpeed", "ambienceVolume", "fog", "glow", "haptics", "rain", "screenShake", "sfxVolume", "showPerformance"].sort());
+    expect(shownKeys().sort()).toEqual(["aimAssist", "alwaysFullSpeed", "ambienceVolume", "fog", "glow", "haptics", "rain", "resolution", "screenShake", "sfxVolume", "showPerformance"].sort());
     for (const k of shownKeys()) expect(PLAYER_SETTINGS_DEFAULTS).toHaveProperty(k);
   });
   it("B2: gore, film grain and music volume are stored fields but have no row yet", () => {

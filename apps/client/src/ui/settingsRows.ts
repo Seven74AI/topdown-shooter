@@ -8,7 +8,7 @@ import type { PlayerSettingKey, PlayerSettings } from "@topdown/shared";
  */
 export type SettingsRow =
   | { readonly kind: "switch"; readonly key: Extract<PlayerSettingKey, "aimAssist" | "screenShake" | "haptics" | "alwaysFullSpeed" | "showPerformance">; readonly label: string; readonly hint?: string; readonly needsVibrate?: boolean }
-  | { readonly kind: "choice"; readonly key: "rain" | "fog" | "glow"; readonly label: string; readonly options: readonly { readonly value: string; readonly label: string }[]; readonly hint?: string }
+  | { readonly kind: "choice"; readonly key: "resolution" | "rain" | "fog" | "glow"; readonly label: string; readonly options: readonly { readonly value: string; readonly label: string }[]; readonly hint?: string }
   | { readonly kind: "volume"; readonly key: "sfxVolume" | "ambienceVolume"; readonly label: string };
 
 export interface SettingsGroup {
@@ -32,6 +32,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = Object.freeze([
     title: "Screen",
     rows: [
       { kind: "switch", key: "screenShake", label: "Screen shake" },
+      // Story 10.2-Q2 A: the canvas resolution (2× / 1.5× / 1× device px), the biggest frame-rate lever
+      { kind: "choice", key: "resolution", label: "Resolution", options: [{ value: "sharp", label: "Sharp" }, { value: "balanced", label: "Balanced" }, { value: "fast", label: "Fast" }], hint: "Fast is smoother on slower phones" },
       { kind: "choice", key: "rain", label: "Rain", options: [{ value: "full", label: "Full" }, { value: "light", label: "Light" }, { value: "off", label: "Off" }] },
       { kind: "choice", key: "fog", label: "Fog detail", options: [{ value: "full", label: "Full" }, { value: "plain", label: "Plain" }], hint: "The fog still hides what it hides" },
       { kind: "choice", key: "glow", label: "Light glow", options: [{ value: "full", label: "Full" }, { value: "low", label: "Low" }, { value: "off", label: "Off" }] },

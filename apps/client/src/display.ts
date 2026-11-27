@@ -1,8 +1,16 @@
 /** Highest devicePixelRatio we render at (architecture › Client Platform Budgets). */
 export const MAX_DPR = 2;
 
-/** Effective render scale: the device's pixel ratio, capped at MAX_DPR. */
-export const dpr = (): number => Math.min(window.devicePixelRatio || 1, MAX_DPR);
+/** Story 10.2-Q2: the Resolution setting's cap (`RESOLUTION_DPR`; ≤ MAX_DPR), set by `settings/resolution.ts`. */
+let dprCap = MAX_DPR;
+
+/** Story 10.2: sets the Resolution cap (clamped to 1 … MAX_DPR); `dpr()` reads it from the next call. */
+export function setDprCap(cap: number): void {
+  dprCap = Math.min(MAX_DPR, Math.max(1, cap));
+}
+
+/** Effective render scale: the device's pixel ratio, capped at MAX_DPR and the Resolution setting (10.2). */
+export const dpr = (): number => Math.min(window.devicePixelRatio || 1, dprCap);
 
 export interface SafeArea {
   top: number;

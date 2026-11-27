@@ -4,6 +4,9 @@ import "@fontsource/oswald/600.css";
 import "@fontsource/oswald/700.css";
 import { h, render } from "preact";
 import { dpr } from "./display";
+import { getSettings } from "./settings/settings";
+import { autoQuality } from "./settings/autoQuality"; // Story 10.2-Q3
+import { applyResolutionCap, bindResolution, deviceSize as resolutionDeviceSize } from "./settings/resolution"; // Story 10.2-Q2
 import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
 import { HudScene } from "./scenes/HudScene";
@@ -39,11 +42,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
-// (capped at MAX_DPR) and zoom it back down to the CSS viewport.
-const deviceSize = (): [number, number] => [
-  Math.round(window.innerWidth * dpr()),
-  Math.round(window.innerHeight * dpr()),
-];
+// (capped at MAX_DPR and, Story 10.2, the Resolution setting) and zoom it back down to the CSS viewport.
+autoQuality.boot(); // Story 10.2-Q3 B: a remembered device-class result lowers the defaults first
+applyResolutionCap(getSettings());
+const viewport = (): [number, number] => [window.innerWidth, window.innerHeight];
+const deviceSize = (): [number, number] => resolutionDeviceSize(...viewport());
 
 /** Touch pointers Phaser tracks: move stick + aim stick + one HUD button. */
 const ACTIVE_TOUCH_POINTERS = 3;
@@ -65,6 +68,7 @@ window.addEventListener("resize", () => {
   game.scale.resize(...deviceSize());
   game.scale.setZoom(1 / dpr());
 });
+bindResolution(game, viewport); // Story 10.2-Q2: a Resolution change re-sizes the canvas at once
 
 // Performance overlay and ?stress timing (Story 1.11): release builds too.
 installPerfProbe(game, urlOptions().debug);
