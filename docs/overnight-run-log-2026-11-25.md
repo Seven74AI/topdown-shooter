@@ -233,3 +233,6 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 
 ## 2026-11-27 (new session: Epic 10)
 - 07:44 Check before: nothing changed since the handoff (master 9fa9c8d green, no open PRs, no unmerged branches). Story writers started: 10.2–10.4 + D5 cut.test sweep (session_01CgLgPWETniyRqao35nC7Fq), 10.5–10.7 + D2 check (session_01CgLgPVvbkde5aGPTH95L1G).
+- 07:56–08:16 Story files 10.2–10.7 written (220beba9, d8cccb41, 8b5ff8a1); D5 closed (cut.test 102/102, 2338209e); D2 still open (needs a paying top-up race test, folded into 10.7).
+- 08:17 Builders started: 10.2 (session_01CgLgPUnLeUvouvuNhvGL6o, Q-independent tasks first), 10.4 (session_01CgLgPWc9XSvWaFLxaCPAk2).
+- 08:40 Designer: 10.6-Q2 B, 10.6-Q3 B, 10.7-Q4 B; 10.4-Q1 B + 10.5-Q2 "Hordes" ("All ok"). 10.7-Q1 ("All counts") / Q2 / Q3 being clarified.
