@@ -70,6 +70,7 @@ export { NO_TRAINING, boostValue, clampLevel, damageMul, levelOf, levelsFromProg
 export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
+export { isGodFor } from "./core/god"; // Story 10.12
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
 export {
@@ -162,7 +163,7 @@ export {
 export { movePlayers, updatePlayers } from "./player/movement";
 export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isSwellState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
-export { spawnRing } from "./zombies/spawnRing";
+export { SPAWN_CLEAR_M, spawnInView, spawnRing, type ViewRect } from "./zombies/spawnRing";
 export { BRUTE_LOOKS, announceSpawn, bruteLookIndex } from "./zombies/brute"; // Story 5.7
 export {
   BLOATER_BLAST_WEAPON,
@@ -833,6 +834,8 @@ export { CLOSE_REMOVED } from "./net/reconnect";
 export { buildEndsThisTick } from "./run/runStateMachine";
 export { CLOSE_RUN_SAVED } from "./net/reconnect";
 export { runSaveQuitSchema, type RunSaveFailed, type RunSaved, type SavedRunSummary } from "./net/messages";
+export { CHEAT_BUILDING_DAMAGE, CHEAT_LEAVE_COUNT, CHEAT_MONEY, CHEAT_RING_RADIUS_M, CHEAT_VIEW_H_M, CHEAT_VIEW_W_M, applyAdminCheat, clampSpawnCount, damageNearestBuilding, decayCheatAllowed, leaveLast, setDecayStageCheat } from "./debug/adminCheats"; // Story 10.12
+export { CHEAT_BLACKOUT_LEVELS, CHEAT_SPAWN_MAX, CHEAT_SPAWN_MIN, adminCheatSchema, type AdminCheat, type AdminCheatKind } from "./net/messages"; // Story 10.12
 export { toPlain, hydrate, clonePlain, type Plain } from "./save/plain";
 export {
   DIGEST_EXCLUDED_KEYS,
