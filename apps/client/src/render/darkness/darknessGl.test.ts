@@ -161,3 +161,38 @@ describe("Story 10.2 B8: the GPU darkness (DynamicTexture) draws the 2D canvas's
     expect(gpu.dark.shown).toBe(false);
   });
 });
+
+describe("Story 10.2 review L2 / L5: GPU darkness lifetime and fallback", () => {
+  it("L2: destroy removes every mirror texture and registry entry it made; a second scene lifetime leaves none either", () => {
+    const mirrors = (keys: Set<string>) => [...keys].filter((k) => k.startsWith("fx_mirror_"));
+    const gpu = run(true, 2);
+    const made = mirrors(gpu.fs.keys);
+    expect(made.length).toBeGreaterThan(3); // stamps, fog ring, fog noise
+    expect(made.every((k) => textureRegistry.has(k))).toBe(true);
+    gpu.dark.destroy();
+    gpu.fogView.destroy();
+    expect(mirrors(gpu.fs.keys)).toEqual([]);
+    expect(made.some((k) => textureRegistry.has(k))).toBe(false);
+    // a restarted scene (new views, same texture manager) makes them again and drops them again
+    const again = run(true, 2);
+    expect(mirrors(again.fs.keys).length).toBe(made.length);
+    again.dark.destroy();
+    again.fogView.destroy();
+    expect(mirrors(again.fs.keys)).toEqual([]);
+  });
+
+  it("L5: when the GPU layer can't be made, the 2D canvas draws that frame and the GPU image is hidden", () => {
+    const gpu = run(true, 1);
+    const img = gpu.fs.objects.find((o) => o.texture === DARKNESS_GL_KEY) as FakeObject;
+    expect(img.visible).toBe(true);
+    // the next frame at a new size: the dynamic texture can't be made (e.g. a lost context)
+    (gpu.fs.scene as unknown as { textures: { addDynamicTexture: () => null } }).textures.addDynamicTexture = () => null;
+    gpu.dark.update(gpu.w, gpu.plan, 8, 9, 24, 13.5, 40, 1280, 720);
+    expect(img.visible).toBe(false);
+    expect(gpu.fs.keys.has(DARKNESS_KEY)).toBe(true); // the 2D canvas texture
+    const k2 = 1 + 2 * DARKNESS_PAD;
+    expect(gpu.fs.canvases.some((c) => c.width === Math.ceil(1280 * k2 * DARKNESS_RES))).toBe(true);
+    expect(gpu.dark.shown).toBe(true);
+    gpu.dark.destroy();
+  });
+});

@@ -120,6 +120,15 @@ export function addMirrorTexture(scene: Phaser.Scene, canvas: HTMLCanvasElement)
   return key;
 }
 
+/** Review L2: drops a canvas's mirror texture and its registry entry (a view's own canvases, at its destroy). */
+export function removeMirror(scene: Phaser.Scene, canvas: HTMLCanvasElement): void {
+  const key = mirrorKeys.get(canvas);
+  if (!key) return;
+  textureRegistry.unregister(key);
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  mirrorKeys.delete(canvas);
+}
+
 /** Re-uploads a mirror texture after its owner repainted the canvas. */
 export function refreshMirror(scene: Phaser.Scene, canvas: HTMLCanvasElement): void {
   const key = mirrorKeys.get(canvas);

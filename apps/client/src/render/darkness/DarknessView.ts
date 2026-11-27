@@ -145,6 +145,12 @@ export class DarknessView {
     const px = viewX - viewW * DARKNESS_PAD;
     const py = viewY - viewH * DARKNESS_PAD;
     if (this.gl && this.glFrame(world, plan, px, py, viewW * k2, viewH * k2, w, h, zoom)) return;
+    if (this.glImage?.visible) {
+      // review L5: the GPU layer couldn't be made this frame: hide its image, and make the 2D canvas afresh (the GPU
+      // frames set w / h without a canvas of that size)
+      this.glImage.setVisible(false);
+      this.w = this.h = 0;
+    }
     if (w !== this.w || h !== this.h || !this.image) this.make(w, h);
     this.alpha = darknessAlpha(world);
     this.look = darkLookFor(world.lights.blackoutPct);

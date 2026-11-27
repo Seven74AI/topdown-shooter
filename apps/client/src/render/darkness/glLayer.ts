@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { addFrameTexture, addMirrorTexture, removeFrameTexture } from "../city/canvasTexture";
+import { addFrameTexture, addMirrorTexture, removeFrameTexture, removeMirror } from "../city/canvasTexture";
 
 /**
  * Story 10.2 (T3, decision 10.2-B8): the blackout darkness and its fog drawn on the GPU. The 2D path painted a
@@ -52,8 +52,17 @@ class GlKit {
     this.whitePx = scene.textures.getFrame("__WHITE")?.width || 4;
   }
 
+  /** Review L2: every canvas mirrored through this kit (removed at `destroy`: no texture kept per scene restart). */
+  readonly sources = new Set<HTMLCanvasElement>();
+
   key(src: HTMLCanvasElement): string {
+    if (!this.sources.has(src)) this.sources.add(src);
     return addMirrorTexture(this.scene, src);
+  }
+
+  destroy(): void {
+    for (const c of this.sources) removeMirror(this.scene, c);
+    this.sources.clear();
   }
 }
 
@@ -155,6 +164,7 @@ export class GlLayers {
   destroy(): void {
     for (const key of this.layers.keys()) removeFrameTexture(this.scene, key);
     this.layers.clear();
+    this.kit?.destroy(); // review L2: the mirror textures (stamps, fog ring and noise, dawn ramp) and their registry entries
     this.kit = null;
   }
 }
