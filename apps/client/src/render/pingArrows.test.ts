@@ -1,3 +1,4 @@
+import { MAX_PLAYERS } from "@topdown/shared";
 import { describe, expect, it } from "vitest";
 import { CENTRE_CLEAR_CSS_PX, rectCentreGap } from "../scenes/consumableButton";
 import { layoutPingButton } from "../scenes/hudTopLayout";
@@ -290,7 +291,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     expect(arrows.at[0]).toBe(at0);
     expect(arrows.avoid[3]).toBe(avoid0);
     expect(arrows.avoid[3]?.[0]).toBe(arrows.others[0]);
-    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS + 8]).toBe(arrows.drawn[0]); // Story 10.2 B4: after the 8 teammate rects (arrow + label per slot)
+    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS + 2 * MAX_PLAYERS]).toBe(arrows.drawn[0]); // Story 10.2 B4: after the teammate rects (arrow + label per slot)
   });
 });
 
@@ -536,8 +537,8 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
 
   it("no allocation: the keep-off rects are the preallocated ones (PING_OTHER_ARROWS + 2 × MAX_PLAYERS teammate rects in every avoid list)", () => {
     const a = newPingArrows();
-    expect(a.mates).toHaveLength(8);
-    for (let n = 0; n < 4; n++) expect(a.avoid[n]).toHaveLength(PING_OTHER_ARROWS + 8 + n);
+    expect(a.mates).toHaveLength(2 * MAX_PLAYERS);
+    for (let n = 0; n < MAX_PLAYERS; n++) expect(a.avoid[n]).toHaveLength(PING_OTHER_ARROWS + 2 * MAX_PLAYERS + n); // review N7: from MAX_PLAYERS
     expect(a.avoid[3]?.[PING_OTHER_ARROWS + 2]).toBe(a.mates[2]);
   });
 });

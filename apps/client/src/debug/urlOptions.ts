@@ -103,9 +103,10 @@ export interface UrlOptions {
    */
   stressMolotovs: number;
   /**
-   * `?stressstage=5` (Story 10.2 B1, release-safe, only with `?stress`): the stress world is moved to that
-   * decay stage (1–5) after setup through the shared `applyDecayStage`, so `?stress=150&stressstage=5&blackout=10`
-   * is the wave 9 scene (fog, power out, rubble, ash) of the frame-rate pass. null otherwise.
+   * `?stressstage=5` (Story 10.2 B1, release-safe, only with a valid `?stress`): the stress world is moved to that
+   * decay stage (1–5) BEFORE the Walkers and stress buildings spawn, through the decay engine's whole change
+   * (`changeDecayStage`, decision B6; review N5), so `?stress=150&stressstage=5&blackout=10` is the wave 9 scene
+   * (fog, power out, rubble, ash) of the frame-rate pass. null otherwise.
    */
   stressStage: number | null;
   /**
