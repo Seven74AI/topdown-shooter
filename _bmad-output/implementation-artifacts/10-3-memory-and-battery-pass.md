@@ -24,6 +24,8 @@ JS heap used (CDP `JSHeapUsedSize`): 33–43 MB across stage 1 / wave 9 at 1× a
 | --- | --- | --- | --- |
 | **10.3-Q1** | Add a **Battery saver** switch (the biggest battery lever: drawing half as many frames)? The game still simulates at 20 Hz, so aim, hits and the network are unchanged; only the picture updates less often. | **A** Add it to Settings › Screen: *Battery saver — draws 30 frames a second instead of 60*, **off** by default. The doc records main-thread busy time at 4× with it off and on. · **B** Add it, **on** by default (smoother is opt-in; every phone saves battery, the game looks less fluid by default). · **C** No switch: measure and record only. | **A** |
 
+**Designer pick (2026-11-27):** 10.3-Q1 = **A** (Battery saver, off by default).
+
 ## Decisions made while writing (B-codes, technical)
 
 - **10.3-B1 (the run):** a solo **dev** build (own Vite port), 844 × 390 DPR 2, a real 10-wave run from `?solo` (real wave curve, real decay stages, the wave 10 Behemoth, the extract vote → Extract). The browser player is driven by the script: god mode through `window.__game` (dev only, as the cheat panel does: `world.debug.godMode`), a dev loadout `?loadout=assault_rifle:4,shotgun:4`, and a scripted input that holds fire at the nearest zombie (the `stressFireInput` helper of `stressScenario.ts`, wired from the page). If a wave is still running after 240 s (bots/scripts aren't difficulty evidence), the script calls the dev "skip wave" once and logs it. Build phases are passed with Ready. Expected length ≈ 20–25 min at 1×.

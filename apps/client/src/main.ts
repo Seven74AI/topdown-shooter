@@ -33,6 +33,7 @@ import { RUN_SAVED_TEXT, SERVER_RESTARTING_TEXT, serverNotice } from "./net/serv
 import { seatStore } from "./net/seatStore";
 import { linkStore } from "./net/linkMonitor";
 import { RECONNECT, shouldRescueReload } from "@topdown/shared";
+import { signalBootLoader } from "./ui/bootLoaderSignal";
 import "./ui/overlay.css";
 
 // Story 6.11 re-review 2 (RR2-M1): when the page last became visible (no late dawn right after a freeze).
@@ -260,6 +261,8 @@ uiStore.handle("leaveLobby", () => {
   uiStore.request("leaveRun");
   uiStore.set({ kind: "start" });
 });
+
+signalBootLoader(uiStore); // Story 10.4: "Drawing the city…", then gone at the first screen
 
 const ui = document.getElementById("ui");
 // A share link `/j/<code>` opens the start screen with the code filled in and the name focused.

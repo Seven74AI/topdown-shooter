@@ -2,7 +2,7 @@
  * Story 4.1: writes the Downtown map (Tiled is not installed where it was authored).
  *
  *   npx tsx tools/maps/buildDowntown.ts          → tools/maps/downtown.tmx (Tiled source),
- *                                                  apps/client/public/assets/maps/downtown.tmj (export),
+ *                                                  tools/maps/downtown.tmj (export),
  *                                                  packages/shared/src/map/data/downtown.tmj.json (the sim's copy)
  *   npx tsx tools/maps/buildDowntown.ts --sync   → only copies the .tmj export into the shared copy
  *
@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const TMX_PATH = resolve(ROOT, "tools/maps/downtown.tmx");
-export const TMJ_PATH = resolve(ROOT, "apps/client/public/assets/maps/downtown.tmj");
+export const TMJ_PATH = resolve(ROOT, "tools/maps/downtown.tmj");
 export const SHARED_COPY_PATH = resolve(ROOT, "packages/shared/src/map/data/downtown.tmj.json");
 
 const WIDTH_TILES = 48;
