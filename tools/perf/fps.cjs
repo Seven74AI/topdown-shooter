@@ -1,4 +1,4 @@
-/* global require, process, console, window, performance, requestAnimationFrame, module */
+/* global require, process, console, window, performance, requestAnimationFrame, module, localStorage, document */
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node script (Playwright is preinstalled, not a dependency) */
 // Story 10.2 (B2, "the 9.13 way"): the frame-rate pass measuring script. CommonJS like docs/art/9-14/perf.cjs, run with
 // the preinstalled Playwright + Chromium (headless, SwiftShader: the CPU draws, so the frame is fill-bound).
@@ -8,6 +8,7 @@
 //   A target may carry its own extra URL switches after a `|`: `lowfx=http://127.0.0.1:5322|&fx=low`.
 //
 // Env: RATES=1,4 (CDP CPU throttling), SCENES=stage1,wave9, DPRS=2, QUERY=&fx=low (extra URL switches for every page),
+// RESOLUTION=sharp|balanced|fast (the stored Resolution setting, Story 10.2-Q2),
 // PROFILE=1 (one CDP Profiler capture of the count at the LAST rate per scene and target: top self-time functions),
 // WARM_MS / COUNT_MS (8000 / 12000). Prints one JSON line per row. Every row asserts the scene: frames counted
 // (≥ 60 at 4×, else the row is thrown out and re-run once), 150 alive, ≥ 140 in view, the stage and darkness asked for.
@@ -27,6 +28,8 @@ const SCENES = {
 /** A page at 844 × 390 (the 9.13 phone view), `dpr`, CPU throttled ×`rate`, on `url`; resolves when the city is baked. */
 async function openPage(browser, url, rate, dpr = 2) {
   const p = await browser.newPage({ viewport: { width: 844, height: 390 }, deviceScaleFactor: dpr });
+  // RESOLUTION=balanced|fast (Story 10.2-Q2): the stored Resolution setting, set before the game reads it
+  if (process.env.RESOLUTION) await p.addInitScript((r) => { try { localStorage.setItem("topdown-shooter.settings", JSON.stringify({ resolution: r })); } catch { /* none */ } }, process.env.RESOLUTION);
   const cdp = await p.context().newCDPSession(p);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate });
   await p.goto(url);
@@ -83,6 +86,7 @@ async function measure(browser, base, rate, sceneName, dpr, profile) {
   const top = profile ? topSelf((await cdp.send("Profiler.stop")).profile) : undefined;
   const probe = await p.evaluate(() => window.__stress(3000));
   const heap = await p.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize : 0));
+  const canvasW = await p.evaluate(() => document.querySelector("#game canvas")?.width ?? 0); // Resolution check: 844 × the step's ratio
   const l1 = os.loadavg()[0];
   await p.close();
   const s = frameStats(t);
@@ -98,7 +102,7 @@ async function measure(browser, base, rate, sceneName, dpr, profile) {
     // B3: the rest of the frame is the GPU fill (SwiftShader: CPU too) and the browser's compositing
     fillMs: +(1000 / s.fps - probe.updateMs - probe.renderMs).toFixed(1),
     bottleneck: probe.tickMs > 8 ? "simulation" : "rendering/GPU", // the 1.11 rule (epic-1-stress.md)
-    inView: probe.inView, heapMB: Math.round(heap / 1048576), load: +((l0 + l1) / 2).toFixed(2), top, errs,
+    inView: probe.inView, canvasW, heapMB: Math.round(heap / 1048576), load: +((l0 + l1) / 2).toFixed(2), top, errs,
   };
 }
 
@@ -115,7 +119,7 @@ async function main() {
       const profile = process.env.PROFILE === "1" && r === 0 && rate === rates[rates.length - 1];
       let x = await measure(browser, url, rate, scene, dpr, profile);
       if (x.errs.length) x = { ...(await measure(browser, url, rate, scene, dpr, profile)), rerun: x.errs };
-      console.log(JSON.stringify({ round: r + 1, label, scene, rate, dpr, ...x }));
+      console.log(JSON.stringify({ round: r + 1, label, scene, rate, dpr, resolution: process.env.RESOLUTION || "sharp", ...x }));
     }
   }
   await browser.close();

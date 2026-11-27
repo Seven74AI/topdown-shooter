@@ -5,7 +5,7 @@ vi.mock("phaser", () => ({ BlendModes: { ADD: 1, NORMAL: 0 }, TintModes: { MULTI
 vi.mock("../city/spriteAtlas", async (orig) => ({ ...(await orig<typeof import("../city/spriteAtlas")>()), ensureAtlases: () => ({}) }));
 
 import { DARKNESS_DEPTH } from "./aboveDark";
-import { DARKNESS_GL_FOG_KEY, DARKNESS_GL_KEY, DARKNESS_KEY, DARKNESS_PAD, DARKNESS_RES, DarknessView } from "./DarknessView";
+import { FOG_GL_RES, DARKNESS_GL_FOG_KEY, DARKNESS_GL_KEY, DARKNESS_KEY, DARKNESS_PAD, DARKNESS_RES, DarknessView } from "./DarknessView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "./darknessPlan";
 import { resetLightStamps } from "./lightStamps";
 import { fakeScene, type CtxOp, type DtCmd, type FakeObject } from "./fakeScene.testkit";
@@ -133,6 +133,9 @@ describe("Story 10.2 B8: the GPU darkness (DynamicTexture) draws the 2D canvas's
     ]);
     expect(f.filter((x) => x.op === "stamp" && x.cfg?.blendMode === ERASE).length).toBe(1); // my beam
     expect(f.at(-1)?.op).toBe("render");
+    // B9: the fog layer is half the darkness layer, stretched back when drawn in
+    expect([fogDt.width, fogDt.height]).toEqual([Math.ceil(W * FOG_GL_RES), Math.ceil(H * FOG_GL_RES)]);
+    expect(c[fogIdx]?.cfg?.scaleX).toBeCloseTo(W / fogDt.width, 9);
   });
 
   it("frame after frame: the same two textures (no re-make), one render each, 0 uploads; resized → re-made at the new size", () => {

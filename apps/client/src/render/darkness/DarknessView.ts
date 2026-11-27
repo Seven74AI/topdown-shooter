@@ -11,8 +11,12 @@ import { GlLayers, rgbNumber, type GlLayer } from "./glLayer";
 /** Story 10.2 (B8): the GPU darkness's texture keys (the 2D path keeps `DARKNESS_KEY`). */
 export const DARKNESS_GL_KEY = "fx_darkness_gl";
 export const DARKNESS_GL_FOG_KEY = "fx_darkness_gl_fog";
-/** Story 10.2 (T3 L4, in A/B): the GPU fog layer's size as a share of the darkness layer (stretched back when drawn in). */
-export const FOG_GL_RES = Number(new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("fogres") ?? 1) || 1;
+/**
+ * Story 10.2 (T3 L4, decision 10.2-B9): the GPU fog layer's size as a share of the darkness layer (stretched back
+ * when drawn in). The fog is a soft ring and soft drifting noise: at half size it reads the same (brightened stills in
+ * `docs/perf/img/`) and its GPU fill costs a quarter (wave 9 at 4×: 8.75 → 9.2 FPS). 1 = full size.
+ */
+export const FOG_GL_RES = 0.5;
 
 /** The texture key of the darkness canvas (brief 20: through `addGeneratedTexture`). */
 export const DARKNESS_KEY = "fx_darkness";
