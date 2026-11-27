@@ -144,7 +144,23 @@ Claude (builder session for 10.4, gds-dev-story)
 - `docs/perf/epic-10-loading.md` (new), `docs/hermes-go-live.md` (cache check line)
 - `docs/art/loading-screen/` (new: `stills.cjs`, 4 PNG stills of B)
 - `_bmad-output/implementation-artifacts/10-4-fast-loading.md`
+- `tools/bots/lateJoin.test.ts` (E8-A1 repro + test-only fix of the shard-4 red, see Debug Log)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (the lateJoin item resolved)
+- Review fixes: `tools/maps/downtown.tmj` (moved from `apps/client/public/assets/maps/`), `tools/maps/buildDowntown.ts`, `tools/maps/downtownFiles.test.ts`, `packages/shared/src/map/downtown.ts` (path only)
 
 ### Change Log
 
+- 2026-11-27: review fixes M1, L1, N1 (see Senior Developer Review).
 - 2026-11-27: Story 10.4 built: vendor-phaser chunk, loading screen B ("Hordes") with a size manifest, measuring tools, cache + eager-audio guards, CI smoke line, before/after measures.
+
+## Senior Developer Review (AI)
+
+**2026-11-27, light review by a fresh agent (main session relay): APPROVED with 1 medium.**
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | medium | `bootLoaderSignal.ts`: with no `window.__bootLoader` (inline script blocked, e.g. a CSP `script-src 'self'`) the black overlay stayed forever over a working start screen (probed in Chromium). | Fallback: remove `#boot-loader` at the first screen when the inline script never ran. Unit case added (`bootLoader.test.ts` › review M1); re-probed in Chromium with `script-src 'self'` on index.html: inline script blocked, overlay gone at the start screen. |
+| L1 | low | `bootLoader.js`: before 10 % landed the bar follows the 180 KB/s guess, so on a slow line the text could read "0.9 / 0.9 MB" while still downloading. | The text shows only the bytes that landed; the guess drives only the bar. Test asserts both. |
+| N1 | note (pre-existing) | `apps/client/public/assets/maps/downtown.tmj` is unhashed under `/assets` (would get the 1-year immutable header); the game never fetches it (the sim imports its JSON copy). | Not unused: the map pipeline writes/reads it (`maps:build`, `maps:sync`, `downtownFiles.test.ts`). Moved out of the served folder to `tools/maps/downtown.tmj`, next to the Tiled source; three path strings updated. The build no longer ships it. |
+| L2 | low | lateJoin hold ordering | Accepted as is (reviewer). |
+

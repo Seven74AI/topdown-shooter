@@ -110,7 +110,8 @@ describe("Story 10.4: loading screen on a page", () => {
     expect(Number(root.attrs["data-progress"])).toBe(0);
     now = 1000;
     b.tick();
-    expect(Number(root.attrs["data-progress"])).toBeCloseTo(0.18, 2);
+    expect(Number(root.attrs["data-progress"])).toBeCloseTo(0.18, 2); // the bar follows the guess…
+    expect(root.line.textContent).toBe("Downloading\u2026 0.0 / 1.0 MB"); // …the text doesn't (review L1)
     b.land("http://x.test/assets/other.js", 999_999, 900); // not a first-load file: ignored
     b.land("http://x.test/assets/main-a.js", 310_000, 1500);
     b.land("http://x.test/assets/main-a.js", 310_000, 1500); // twice: counted once
@@ -119,7 +120,7 @@ describe("Story 10.4: loading screen on a page", () => {
     const mid = Number(root.attrs["data-progress"]);
     expect(mid).toBeGreaterThan(0.3);
     expect(mid).toBeLessThan(1);
-    expect(root.line.textContent).toMatch(/^Downloading… \d\.\d \/ 1\.0 MB$/);
+    expect(root.line.textContent).toBe("Downloading\u2026 0.3 / 1.0 MB"); // review L1: only the bytes that landed, not the guess
     b.land("http://x.test/assets/vendor-phaser-b.js", 0, 4000); // cached (no body size): its listed size
     now = 4100;
     b.tick();
@@ -169,7 +170,23 @@ describe("Story 10.4: main.ts's signals", () => {
   });
 
   it("does nothing without a loading screen (dev tools pages, tests)", () => {
-    const screens = { subscribe: () => () => {} };
-    expect(() => signalBootLoader(screens, { requestAnimationFrame: () => 0 })).not.toThrow();
+    const listeners: (() => void)[] = [];
+    const screens = { subscribe: (l: () => void) => (listeners.push(l), () => {}) };
+    expect(() => signalBootLoader(screens, { requestAnimationFrame: (cb) => cb() })).not.toThrow();
+    expect(() => listeners.forEach((l) => l())).not.toThrow();
+  });
+
+  it("review M1: the inline script never ran (a CSP): the overlay is still removed at the first screen", () => {
+    let removed = 0;
+    const listeners: (() => void)[] = [];
+    const frames: (() => void)[] = [];
+    const screens = { subscribe: (l: () => void) => (listeners.push(l), () => {}) };
+    const document = { getElementById: (id: string) => (id === "boot-loader" ? { remove: () => void removed++ } : null) };
+    signalBootLoader(screens, { document, requestAnimationFrame: (cb) => frames.push(cb) });
+    expect(removed).toBe(0);
+    listeners.forEach((l) => l());
+    frames.shift()?.();
+    frames.shift()?.();
+    expect(removed).toBe(1);
   });
 });

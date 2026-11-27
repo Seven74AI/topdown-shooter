@@ -56,7 +56,7 @@
     if (phase !== "load" || total <= 0) return;
     shown = api.estimate(shown, done, total, w.performance.now(), tDone);
     fill.style.transform = "scaleX(" + shown / total + ")";
-    line.textContent = api.text(shown, total);
+    line.textContent = api.text(done, total); // the text tells only what really landed; the guess moves the bar (review L1)
     root.setAttribute("data-progress", (shown / total).toFixed(3));
   }
   var timer = w.setInterval(draw, 100);

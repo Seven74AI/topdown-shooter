@@ -1,7 +1,7 @@
 /**
  * Story 4.1: the three Downtown files agree. The sim imports `packages/shared/src/map/data/downtown.tmj.json`
  * (the shared package can't read the client's public folder), so it must be a byte copy of the Tiled
- * export `apps/client/public/assets/maps/downtown.tmj`; the Tiled source `downtown.tmx` must hold the
+ * export `tools/maps/downtown.tmj`; the Tiled source `downtown.tmx` must hold the
  * same objects. After a Tiled export run `npm run maps:sync`.
  *
  * Review L7: while the generator is the source, the committed .tmj and .tmx must be exactly what it
