@@ -6,6 +6,11 @@ import { darkLookFor, type DarkLook } from "../city/palette";
 import { DARKNESS_DEPTH } from "./aboveDark";
 import { STAMP_CONE, STAMP_GLOW, TINT_BEAM, TINT_FIRE, TINT_FLASH, TINT_FLOOD, type DarknessPlan } from "./darknessPlan";
 import { STAMP_PX, coneStampFor, lightStamps, type LightStampSet } from "./lightStamps";
+import { GlLayers, rgbNumber, type GlLayer } from "./glLayer";
+
+/** Story 10.2 (B8): the GPU darkness's texture keys (the 2D path keeps `DARKNESS_KEY`). */
+export const DARKNESS_GL_KEY = "fx_darkness_gl";
+export const DARKNESS_GL_FOG_KEY = "fx_darkness_gl_fog";
 
 /** The texture key of the darkness canvas (brief 20: through `addGeneratedTexture`). */
 export const DARKNESS_KEY = "fx_darkness";
@@ -88,18 +93,29 @@ export class DarknessView {
    * Story 6.4 (AC 6): the Collapse fog painted into THIS canvas after the light stamps, before the
    * warm tints (fires still glow through it), so a blackout + fog frame is one full-screen layer.
    */
-  fog: { paintInto(g: CanvasRenderingContext2D, w: number, h: number, k: number, vx: number, vy: number): void } | null = null;
+  fog: {
+    paintInto(g: CanvasRenderingContext2D, w: number, h: number, k: number, vx: number, vy: number): void;
+    /** Story 10.2 (B8): the same fog drawn on the GPU into `target`, built in `scratch` (a layer of the same size). */
+    paintGl(target: GlLayer, scratch: () => GlLayer | null, w: number, h: number, k: number, vx: number, vy: number): void;
+  } | null = null;
+  /** Story 10.2 (B8): the GPU path (WebGL renderer), else null: the 2D canvas path. */
+  private readonly gl: GlLayers | null;
+  private glImage: DarkImage | null = null;
+  private glLayer: GlLayer | null = null;
+  private lookRgb = rgbNumber(darkLookFor(5).rgb);
+  private lookRgbOf: DarkLook = darkLookFor(5);
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly makeCanvas: () => HTMLCanvasElement = () => document.createElement("canvas"),
   ) {
     this.stamps = lightStamps(makeCanvas);
+    this.gl = GlLayers.available(scene) ? new GlLayers(scene) : null;
   }
 
   /** The darkness is on screen this frame. */
   get shown(): boolean {
-    return this.image?.visible === true;
+    return this.image?.visible === true || this.glImage?.visible === true;
   }
 
   /** The alpha the last frame painted (F6 tests). */
@@ -114,6 +130,7 @@ export class DarknessView {
   update(world: World, plan: DarknessPlan, viewX: number, viewY: number, viewW: number, viewH: number, zoom: number, gameW: number, gameH: number): void {
     if (!isBlackout(world)) {
       if (this.image?.visible) this.image.setVisible(false);
+      if (this.glImage?.visible) this.glImage.setVisible(false);
       return;
     }
     const k2 = 1 + 2 * DARKNESS_PAD;
@@ -121,6 +138,7 @@ export class DarknessView {
     const h = Math.max(1, Math.ceil(gameH * k2 * DARKNESS_RES));
     const px = viewX - viewW * DARKNESS_PAD;
     const py = viewY - viewH * DARKNESS_PAD;
+    if (this.gl && this.glFrame(world, plan, px, py, viewW * k2, viewH * k2, w, h, zoom)) return;
     if (w !== this.w || h !== this.h || !this.image) this.make(w, h);
     this.alpha = darknessAlpha(world);
     this.look = darkLookFor(world.lights.blackoutPct);
@@ -135,6 +153,94 @@ export class DarknessView {
     const img = this.image as DarkImage;
     img.setPosition(px, py).setDisplaySize(viewW * k2, viewH * k2);
     if (!img.visible) img.setVisible(true);
+  }
+
+  /**
+   * Story 10.2 (B8): the frame on the GPU (`GlLayer`, no canvas paint, no upload). False when the layer can't be made
+   * (then the 2D path draws this frame).
+   */
+  private glFrame(world: World, plan: DarknessPlan, px: number, py: number, dw: number, dh: number, w: number, h: number, zoom: number): boolean {
+    const l = (this.gl as GlLayers).get(DARKNESS_GL_KEY, w, h);
+    if (!l) return false;
+    if (l !== this.glLayer || !this.glImage) {
+      this.glLayer = l;
+      if (this.glImage) (this.glImage as unknown as Phaser.GameObjects.Image).setTexture(DARKNESS_GL_KEY);
+      else this.glImage = (this.scene.add.image(0, 0, DARKNESS_GL_KEY) as unknown as DarkImage).setOrigin(0, 0).setDepth(DARKNESS_DEPTH);
+    }
+    this.w = w;
+    this.h = h;
+    this.alpha = darknessAlpha(world);
+    this.look = darkLookFor(world.lights.blackoutPct);
+    if (this.look !== this.lookRgbOf) {
+      this.lookRgbOf = this.look;
+      this.lookRgb = rgbNumber(this.look.rgb);
+    }
+    this.plan = plan;
+    this.k = zoom * DARKNESS_RES;
+    this.vx = px;
+    this.vy = py;
+    this.paintGl(l);
+    l.flush();
+    const img = this.glImage as DarkImage;
+    img.setPosition(px, py).setDisplaySize(dw, dh);
+    if (!img.visible) img.setVisible(true);
+    if (this.image?.visible) this.image.setVisible(false);
+    return true;
+  }
+
+  private readonly fogScratch = (): GlLayer | null => (this.gl ? this.gl.get(DARKNESS_GL_FOG_KEY, this.w, this.h) : null);
+
+  /** `paint` on the GPU: the same steps (fill, stamps cut out, dawn, fog, warm tints), as `GlLayer` commands. */
+  private paintGl(l: GlLayer): void {
+    this.paints++;
+    l.clear();
+    if (this.alpha <= 0) return;
+    const look = this.look;
+    l.fill(this.lookRgb, this.alpha);
+    const plan = this.plan;
+    if (!plan) return;
+    const st = this.stamps;
+    const cones = look.hardBeams ? st.hard : st.soft;
+    for (let i = 0; i < plan.count; i++) {
+      const s = plan.strength[i] as number;
+      if (plan.kind[i] === STAMP_CONE) {
+        const c = coneStampFor(cones, plan.coneDeg[i] as number);
+        this.glCone(l, c.canvas, c.ax, c.ay, i, s, true);
+      } else this.glDisc(l, plan.kind[i] === STAMP_GLOW ? st.glow : st.disc, i, s, true);
+    }
+    if (!Number.isNaN(this.dawnX) && this.dawnK > 0) {
+      const ramp = this.ensureDawnRamp();
+      const x1 = (this.dawnX - this.vx) * this.k;
+      const x0 = (this.dawnX - this.dawnEdgeM - this.vx) * this.k;
+      const a = DAWN_LIFT * this.dawnK;
+      if (x1 > 0 && x0 < this.w) l.stamp(ramp, x0, 0, Math.max(1, x1 - x0) / DAWN_RAMP_PX, this.h, 0, 0, 0, a, true);
+      if (x1 < this.w) l.rect(Math.max(0, x1), 0, this.w - Math.max(0, x1), this.h, a, true);
+    }
+    this.fog?.paintGl(l, this.fogScratch, this.w, this.h, this.k, this.vx, this.vy);
+    for (let i = 0; i < plan.count; i++) {
+      const t = plan.tint[i] as number;
+      if (t === TINT_BEAM) {
+        const c = coneStampFor(st.beamTint, plan.coneDeg[i] as number);
+        this.glCone(l, c.canvas, c.ax, c.ay, i, look.beamTintA, false);
+      } else if (t === TINT_FIRE || t === TINT_FLOOD || t === TINT_FLASH) {
+        const a = t === TINT_FIRE ? look.fireTintA : t === TINT_FLOOD ? look.floodTintA : look.flashTintA;
+        this.glDisc(l, t === TINT_FIRE ? st.fireTint : t === TINT_FLOOD ? st.floodTint : st.flashTint, i, a, false);
+      }
+    }
+  }
+
+  /** `drawDisc` on the GPU. */
+  private glDisc(l: GlLayer, img: HTMLCanvasElement, i: number, alpha: number, erase: boolean): void {
+    const plan = this.plan as DarknessPlan;
+    const sc = ((2 * (plan.radius[i] as number)) / STAMP_PX) * this.k;
+    l.stamp(img, ((plan.x[i] as number) - this.vx) * this.k, ((plan.y[i] as number) - this.vy) * this.k, sc, sc, 0, STAMP_PX / 2, STAMP_PX / 2, alpha, erase);
+  }
+
+  /** `drawCone` on the GPU. */
+  private glCone(l: GlLayer, img: HTMLCanvasElement, ax: number, ay: number, i: number, alpha: number, erase: boolean): void {
+    const plan = this.plan as DarknessPlan;
+    const sc = ((plan.radius[i] as number) / (STAMP_PX - ax)) * this.k;
+    l.stamp(img, ((plan.x[i] as number) - this.vx) * this.k, ((plan.y[i] as number) - this.vy) * this.k, sc, sc, plan.angle[i] as number, ax, ay, alpha, erase);
   }
 
   /** (Re)makes the canvas texture at w × h (first blackout frame, or the game canvas resized). */
@@ -204,6 +310,21 @@ export class DarknessView {
 
   /** Story 12.3: erases the darkness east of the dawn line (still in `destination-out`), the edge as a ramp. */
   private liftDawn(g: CanvasRenderingContext2D): void {
+    const ramp = this.ensureDawnRamp();
+    const x1 = (this.dawnX - this.vx) * this.k;
+    const x0 = (this.dawnX - this.dawnEdgeM - this.vx) * this.k;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = DAWN_LIFT * this.dawnK;
+    if (x1 > 0 && x0 < this.w) g.drawImage(ramp, x0, 0, Math.max(1, x1 - x0), this.h);
+    if (x1 < this.w) {
+      g.fillStyle = "#fff";
+      g.fillRect(Math.max(0, x1), 0, this.w - Math.max(0, x1), this.h);
+    }
+    g.globalAlpha = 1;
+  }
+
+  /** The dawn's 0 → 1 ramp (drawn once). */
+  private ensureDawnRamp(): HTMLCanvasElement {
     let ramp = this.dawnRamp;
     if (!ramp) {
       ramp = this.makeCanvas();
@@ -219,16 +340,7 @@ export class DarknessView {
       }
       this.dawnRamp = ramp;
     }
-    const x1 = (this.dawnX - this.vx) * this.k;
-    const x0 = (this.dawnX - this.dawnEdgeM - this.vx) * this.k;
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.globalAlpha = DAWN_LIFT * this.dawnK;
-    if (x1 > 0 && x0 < this.w) g.drawImage(ramp, x0, 0, Math.max(1, x1 - x0), this.h);
-    if (x1 < this.w) {
-      g.fillStyle = "#fff";
-      g.fillRect(Math.max(0, x1), 0, this.w - Math.max(0, x1), this.h);
-    }
-    g.globalAlpha = 1;
+    return ramp;
   }
 
   /** A disc stamp of the plan's radius at its centre (canvas px = (world − view) × k). */
@@ -265,6 +377,10 @@ export class DarknessView {
 
   destroy(): void {
     this.dropTexture();
+    this.glImage?.destroy();
+    this.glImage = null;
+    this.glLayer = null;
+    this.gl?.destroy();
     this.plan = null;
   }
 }

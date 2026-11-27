@@ -6,6 +6,8 @@ import { STAMP_PX, coneStampFor, lightStamps, type LightStampSet } from "../dark
 import { DARKNESS_DEPTH } from "../darkness/aboveDark";
 import type { ScreenFog } from "./screenFog";
 import { getSettings } from "../../settings/settings";
+import { rgbNumber, type GlLayer } from "../darkness/glLayer";
+import { refreshMirror } from "../city/canvasTexture";
 
 /**
  * Story 10.1 (B4, AC 2): the drifting fog texture is drawn at Fog detail "full" (and not with `?fx=low`). This is the
@@ -132,9 +134,11 @@ export class FogView {
   geometryDraws = 0;
   private plan: DarknessPlan | null = null;
   private colourFill: string[];
+  /** Story 10.2 (B8): the styles' colours as 0xRRGGBB for the GPU path. */
+  private readonly colourRgb: number[];
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly fog: ScreenFog,
     private readonly lowFx: boolean,
     private readonly makeCanvas: () => HTMLCanvasElement = () => document.createElement("canvas"),
@@ -156,6 +160,7 @@ export class FogView {
     repaint();
     this.unregister = textureRegistry.register("fx_fog_noise", RebuildPhase.cache, repaint, [this.noise as unknown as RestorableCanvas, this.ring as unknown as RestorableCanvas, this.tile as unknown as RestorableCanvas]);
     this.colourFill = FOG_LOOKS.map((l) => `rgb(${l.rgb})`);
+    this.colourRgb = FOG_LOOKS.map((l) => rgbNumber(l.rgb));
     this.geo = scene.add.graphics().setDepth(FOG_DEPTH).setVisible(false);
   }
 
@@ -300,6 +305,56 @@ export class FogView {
     t.fillRect(0, 0, NOISE_PX, NOISE_PX);
     t.setTransform(1, 0, 0, 1, 0, 0);
     this.noisePattern = t.createPattern(this.tile, "repeat");
+  }
+
+  /**
+   * Story 10.2 (B8): `paintInto` on the GPU — the same mask (the ring stamp in the style's colour, opaque outside its
+   * square), CO2's two drifting noise layers cut out, every beam cut out, built in `scratch` and drawn into `target` at
+   * the style's alpha. Nothing changes what the fog hides (F5).
+   */
+  paintGl(target: GlLayer, scratch: () => GlLayer | null, w: number, h: number, k: number, vx: number, vy: number): void {
+    if (!this.inDarkness) return;
+    const f = scratch();
+    if (!f) return;
+    const look = FOG_LOOKS[this.style] as FogStyleLook;
+    this.darkPaints++;
+    const r = this.fog.radii;
+    const inner = r.clearM / r.radiusM;
+    if (inner !== this.ringInner || this.style !== this.ringStyle) {
+      const rg = this.ring.getContext("2d");
+      if (rg) paintRing(rg, RING_PX, inner, look.rgb);
+      this.ringInner = inner;
+      this.ringStyle = this.style;
+      refreshMirror(this.scene, this.ring); // the GPU copy of the ring follows
+    }
+    const rgb = this.colourRgb[this.style] as number;
+    const cx = (this.fog.viewerX - vx) * k;
+    const cy = (this.fog.viewerY - vy) * k;
+    const R = r.radiusM * k;
+    f.clear();
+    f.stamp(this.ring, cx - R, cy - R, (2 * R) / RING_PX, (2 * R) / RING_PX, 0, 0, 0, 1, false);
+    if (cy - R > 0) f.fill(rgb, 1, 0, 0, w, cy - R);
+    if (h - cy - R > 0) f.fill(rgb, 1, 0, cy + R, w, h - cy - R);
+    if (cx - R > 0) f.fill(rgb, 1, 0, cy - R, cx - R, 2 * R);
+    if (w - cx - R > 0) f.fill(rgb, 1, cx + R, cy - R, w - cx - R, 2 * R);
+    if (look.noise && fogNoiseOn(this.lowFx, getSettings().fog)) {
+      const tp = Math.max(8, Math.round(NOISE_TILE_M * k));
+      for (let L = 0; L < 2; L++) {
+        const ox = (((this.t * (NOISE_SPEED_MPS[L] as number) - vx) * k) % tp) + L * 37;
+        const oy = (((this.t * 0.12 - vy) * k) % tp) + L * 53;
+        f.tile(this.noise, tp / NOISE_PX, ox, oy, NOISE_ALPHA[L] as number, true);
+      }
+    }
+    const plan = this.plan;
+    if (plan) {
+      for (let i = 0; i < plan.count; i++) {
+        if (plan.kind[i] !== STAMP_CONE) continue;
+        const c = coneStampFor(this.stamps.hard, plan.coneDeg[i] as number);
+        const sc = ((plan.radius[i] as number) / (STAMP_PX - c.ax)) * k;
+        f.stamp(c.canvas, ((plan.x[i] as number) - vx) * k, ((plan.y[i] as number) - vy) * k, sc, sc, plan.angle[i] as number, c.ax, c.ay, 1, true);
+      }
+    }
+    target.layer(f, look.alpha * (1 - this.fog.lift)); // Story 12.3: the fog lifts
   }
 
   destroy(): void {

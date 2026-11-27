@@ -195,8 +195,53 @@ export function fakeCanvas(): FakeCanvas {
   return { width: 0, height: 0, ctx, getContext: () => ctx, addEventListener: () => {}, removeEventListener: () => {} };
 }
 
+/** Story 10.2 (B8): one recorded DynamicTexture command (the GPU darkness path). */
+export interface DtCmd {
+  op: "clear" | "fill" | "stamp" | "repeat" | "render";
+  key?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  rgb?: number;
+  alpha?: number;
+  cfg?: Record<string, number>;
+}
+
+/** A DynamicTexture stand-in that records its commands. */
+export class FakeDynamicTexture {
+  readonly cmds: DtCmd[] = [];
+  constructor(
+    readonly key: string,
+    readonly width: number,
+    readonly height: number,
+  ) {}
+  clear(): this {
+    this.cmds.push({ op: "clear" });
+    return this;
+  }
+  fill(rgb: number, alpha = 1, x = 0, y = 0, w = this.width, h = this.height): this {
+    this.cmds.push({ op: "fill", rgb, alpha, x, y, w, h });
+    return this;
+  }
+  stamp(key: string, _frame: unknown, x: number, y: number, cfg: Record<string, number>): this {
+    this.cmds.push({ op: "stamp", key, x, y, cfg: { ...cfg } });
+    return this;
+  }
+  repeat(key: string, _frame: unknown, x: number, y: number, w: number, h: number, cfg: Record<string, number>): this {
+    this.cmds.push({ op: "repeat", key, x, y, w, h, cfg: { ...cfg } });
+    return this;
+  }
+  render(): this {
+    this.cmds.push({ op: "render" });
+    return this;
+  }
+}
+
 export interface FakeScene {
   readonly objects: FakeObject[];
+  /** Story 10.2: the DynamicTextures made (`webgl` scenes only), by key. */
+  readonly dts: Map<string, FakeDynamicTexture>;
   readonly canvases: FakeCanvas[];
   readonly keys: Set<string>;
   refreshes: number;
@@ -206,12 +251,14 @@ export interface FakeScene {
 }
 
 /** A fake scene: `add.image/circle/graphics`, `textures.exists/addCanvas/remove` (every atlas key "exists"). */
-export function fakeScene(atlasKeys: readonly string[] = []): FakeScene {
+export function fakeScene(atlasKeys: readonly string[] = [], webgl = false): FakeScene {
   const objects: FakeObject[] = [];
+  const dts = new Map<string, FakeDynamicTexture>();
   const canvases: FakeCanvas[] = [];
   const keys = new Set<string>(atlasKeys);
   const out: FakeScene = {
     objects,
+    dts,
     canvases,
     keys,
     refreshes: 0,
@@ -242,7 +289,17 @@ export function fakeScene(atlasKeys: readonly string[] = []): FakeScene {
       },
       remove: (k: string) => keys.delete(k),
       getTextureKeys: () => [...keys], // Story 7.9: a restarted scene's leftover bodies
+      // Story 10.2 (B8): the GPU path
+      addDynamicTexture: (k: string, w: number, h: number) => {
+        keys.add(k);
+        const dt = new FakeDynamicTexture(k, w, h);
+        dts.set(k, dt);
+        return dt;
+      },
+      getFrame: () => ({ width: 4 }),
+      get: () => tex,
     },
+    ...(webgl ? { sys: { game: { renderer: { gl: {} } } } } : {}),
   };
   return out;
 }

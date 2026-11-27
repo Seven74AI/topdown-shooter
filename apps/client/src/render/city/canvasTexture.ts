@@ -100,3 +100,46 @@ function probeFor(canvas: HTMLCanvasElement, tex: Phaser.Textures.CanvasTexture)
     return true;
   };
 }
+
+let mirrorSeq = 0;
+const mirrorKeys = new WeakMap<HTMLCanvasElement, string>();
+
+/**
+ * Story 10.2 (T3, GPU darkness): a texture of a canvas that ANOTHER owner paints and registers for repaint (the light
+ * stamps, the fog ring and noise: `textureRegistry` phase `cache` draws them again). On a restore this only re-uploads
+ * the canvas (phase `atlas`, after its owner's repaint); it never resets or paints it. One texture per canvas per
+ * page (the key is kept). `refreshMirror` re-uploads after the owner repainted it at run time (the fog ring).
+ */
+export function addMirrorTexture(scene: Phaser.Scene, canvas: HTMLCanvasElement): string {
+  let key = mirrorKeys.get(canvas);
+  if (key && scene.textures.exists(key)) return key;
+  key ??= `fx_mirror_${mirrorSeq++}`;
+  mirrorKeys.set(canvas, key);
+  const tex = addCanvasTexture(scene, key, canvas);
+  if (tex) textureRegistry.register(key, RebuildPhase.atlas, () => tex.refresh(), []);
+  return key;
+}
+
+/** Re-uploads a mirror texture after its owner repainted the canvas. */
+export function refreshMirror(scene: Phaser.Scene, canvas: HTMLCanvasElement): void {
+  const key = mirrorKeys.get(canvas);
+  if (key && scene.textures.exists(key)) (scene.textures.get(key) as Phaser.Textures.CanvasTexture).refresh();
+}
+
+/**
+ * Story 10.2 (T3): a GPU texture its owner draws EVERY frame (the blackout darkness and its fog), made here so the
+ * Story 4.13 rule holds (one place makes textures). Its registry entry repaints nothing: the next frame draws it
+ * again after a lost context. Replaces a leftover of the same key (a restarted scene's). Null without WebGL.
+ */
+export function addFrameTexture(scene: Phaser.Scene, key: string, w: number, h: number): Phaser.Textures.DynamicTexture | null {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const dt = scene.textures.addDynamicTexture(key, w, h);
+  if (dt) textureRegistry.register(key, RebuildPhase.bake, () => {}, []);
+  return dt;
+}
+
+/** Drops a frame texture and its registry entry. */
+export function removeFrameTexture(scene: Phaser.Scene, key: string): void {
+  textureRegistry.unregister(key);
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+}
