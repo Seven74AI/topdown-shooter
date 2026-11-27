@@ -139,6 +139,8 @@ import { pickDevLoot } from "../run/devLoot";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { recordRunResult } from "../run/roomRunResults";
+import { AdminCheatGate, devAdminCheats } from "../run/adminCheatGate";
+import { adminCheatSchema, applyAdminCheat, type AdminCheat } from "@topdown/shared";
 import { resultRow, seatRow } from "../meta/runResult";
 import { PlayerState, RunState } from "./schema/RunState";
 
@@ -342,6 +344,16 @@ interface RunResultRun {
   readonly district: string;
   readonly seed: number;
   readonly nightStartedAt: number;
+  /** Story 10.12 (B8): an admin cheat was used in this run (the stats row's mark; `finish` never clears it). */
+  readonly cheated: boolean;
+}
+
+/** Story 10.12 (B2): one admin cheat waiting for the next tick. */
+interface QueuedCheat {
+  readonly playerId: string;
+  readonly seatId: string;
+  readonly accountId: string | null;
+  readonly cheat: AdminCheat;
 }
 
 /**
@@ -418,6 +430,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   runResultWrites: Promise<void> = Promise.resolve();
   /** Story 10.7 (B8): when this night's Start happened (a lost start row is inserted with this night's length). */
   private nightStartedAt = 0;
+  /** Story 10.12 (B2): admin cheats checked and waiting for the next tick (drained before the World steps; reused). */
+  private readonly cheatQueue: QueuedCheat[] = [];
+  /** Story 10.12 (B7, B4): the run's admin answers per seat and the cheat log rate (a new one per run). */
+  private cheatGate = new AdminCheatGate(roomAccountsRepo);
+  /** Story 10.12 (AC 7): an admin cheat was used in this run (its stats row is marked once). */
+  private cheated = false;
+  /** Story 10.12 (B3): the seed and the cheated mark of the run an online "Restart with seed" starts next. */
+  private cheatRestartSeed: number | null = null;
   /** Story 8.1: the hold length in seconds (HOLD_S; tests may shorten it on a live room, like `allowSoloStart`). */
   holdS = HOLD_S;
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
@@ -594,6 +614,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
     this.onMessage(C2S.HOST_REMOVE, this.net.guard(hostRemoveSchema, (c, m) => this.onHostRemove(c, m.playerId))); // Story 8.3 (D9)
     this.onMessage(C2S.RUN_SAVE_QUIT, this.net.guard(runSaveQuitSchema, (c) => this.onSaveQuit(c))); // Story 8.5 (D12)
+    this.onMessage(C2S.ADMIN_CHEAT, this.net.guard(adminCheatSchema, (c, m) => this.onAdminCheat(c, m))); // Story 10.12 ("other" bucket)
     // Story 8.7 (pings) ↓ — one block (8.2+8.3 adds its own): own 1/s bucket (E8-P5), rate drops counted (`pingDropped`).
     this.onMessage(C2S.PING_SEND, this.net.guard(pingSendSchema, (c, m) => this.onPing(c, m), "ping", (c) => this.countPingDrop(c)));
     // Story 8.7 ↑
@@ -1744,7 +1765,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * tick), then starts the run with those unlock masks and Training levels. A failed read plays with the starter pool
    * and Training 0 (logged). Members, phase and Ready are checked again after the read (someone may have left).
    */
-  private async loadAndStart(): Promise<void> {
+  private async loadAndStart(force = false): Promise<void> {
     this.starting = true;
     let inits: RunPlayerInit[];
     try {
@@ -1758,9 +1779,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.state.phase !== "lobby" || this.shuttingDown || this.members.size === 0) return;
     const players = Array.from(this.members.values(), (m) => ({ ready: this.state.players.get(m.playerId)?.ready === true }));
     const host = Array.from(this.members.values()).some((m) => m.slot === this.state.hostSlot);
-    const reason = startBlocker(players, host, this.allowSoloStart);
+    // Story 10.12 (B3): an admin's "Restart with seed" starts the same members again (no Ready step).
+    const reason = force ? (host ? null : "no_host") : startBlocker(players, host, this.allowSoloStart);
     if (reason !== null) {
       this.log.info({ reason }, "run_start_refused");
+      this.cheatRestartSeed = null;
       return;
     }
     for (const i of inits) if (i.source === "read_failed") this.log.warn({ playerId: i.playerId }, "run_progress_read_failed");
@@ -1783,9 +1806,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const players = runPlayers(Array.from(this.members.values()), inits, devUnlocks.mask, devStartingWallet);
     this.runNames.clear();
     for (const m of this.members.values()) this.runNames.set(m.slot, m.name);
-    const runSeed = this.devRunSeed ?? randomUint32();
+    // Story 10.12 (B3): an online "Restart with seed" picks this run's seed (once).
+    const restartSeed = this.cheatRestartSeed;
+    this.cheatRestartSeed = null;
+    const runSeed = restartSeed ?? this.devRunSeed ?? randomUint32();
     this.runSeed = runSeed;
-    if (this.devRunSeed !== null) this.log.warn({ runSeed }, "dev_run_seed");
+    if (this.devRunSeed !== null && restartSeed === null) this.log.warn({ runSeed }, "dev_run_seed");
     const devPlacedHp = devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null;
     // Story 4.5 (dev only, read per run like DEV_NO_WAVES): DEV_DECAY_STAGES=2,3 = the decay stage of waves 1, 2, ….
     const decayPick = pickDevDecayStages(process.env); // review L4: production ignores it (tested)
@@ -1901,6 +1927,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const started = { id: this.bank.runId, district: this.state.district, seed: this.runSeed };
     const claimKey = randomUUID(); // re-review: one key per Start (room codes are reused); a retry of this write keeps it
     this.runResultWrites = recordRunResult(started.id, resume ? "resumed" : "start", (r) => (resume ? r.resumed(started, claimKey) : r.start(started)), this.log, this.bankRetryMs);
+    // Story 10.12: every run starts clean (a resumed cheated run's row keeps its mark: B8); a restart's run is cheated.
+    this.cheated = false;
+    this.cheatQueue.length = 0;
+    this.cheatGate = new AdminCheatGate(roomAccountsRepo);
+    if (restartSeed !== null) this.markRunCheated();
     this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Story 8.2: the
@@ -1979,6 +2010,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave" && phase !== "vote" && phase !== "extract")) return;
     if (this.state.frozen) return; // Story 8.1 (F6): nobody connected, or the 3-2-1 is running: the World waits
     if (this.savingQuit) return; // Story 8.5: Save and quit is writing: the World waits (nothing after the save is lost)
+    // Story 10.12 (B2): admin cheats apply here, before the step (one-threaded, a stable tick order). A restart ends the run.
+    if (this.cheatQueue.length > 0 && this.applyCheats(controller)) return;
     const t0 = performance.now();
     // Story 8.4 (D10, E8-S2): the build's last tick: saved BEFORE the step that starts the wave (every purchase in it).
     if (buildEndsThisTick(controller.world)) this.autosave("build_end");
@@ -2075,19 +2108,89 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // the run can still end on another night; the orphan rule applies only when no save row exists at all.
     if (!run || this.savedResumable || this.shuttingDown) return;
     const { bank } = run;
-    const row = resultRow(world, { id: bank.runId, district: run.district, seed: run.seed, nightMs: Date.now() - run.nightStartedAt }, wave, left);
+    const row = { ...resultRow(world, { id: bank.runId, district: run.district, seed: run.seed, nightMs: Date.now() - run.nightStartedAt }, wave, left), cheated: run.cheated };
     const seats = bank.resultSeats();
     this.runResultWrites = recordRunResult(row.id, "finish", (r) => r.finish(row, seats), this.log, this.bankRetryMs, this.runResultWrites);
   }
 
   /** Story 10.7: the current run's stats inputs (null outside a run). */
   private runResultRun(): RunResultRun | null {
-    return this.bank ? { bank: this.bank, district: this.state.district, seed: this.runSeed, nightStartedAt: this.nightStartedAt } : null;
+    return this.bank ? { bank: this.bank, district: this.state.district, seed: this.runSeed, nightStartedAt: this.nightStartedAt, cheated: this.cheated } : null;
   }
 
   /** Story 10.7 review L4: the waiting-only all-left save; when it failed, the run is lost: its stats row is finished. */
   private async finishIfNotSaved(saving: Promise<Date | null>, world: World, wave: number, run: RunResultRun | null): Promise<void> {
     if ((await saving) === null) this.finishRunResult(world, wave, true, run);
+  }
+
+  /**
+   * Story 10.12 (AC 1–3, B2, B7): `admin.cheat`. Only in a run, only from a member; the SERVER decides admin
+   * (`AdminCheatGate`: the seat's account read from the database once per run, never a client claim). A refused one
+   * changes nothing and is only logged (no reply); an accepted one waits for the next tick (`applyCheats`).
+   */
+  onAdminCheat(client: RunClient, cheat: AdminCheat): void {
+    const member = this.members.get(client.sessionId);
+    if (!member || !this.controller || !this.inRun()) return;
+    const seat = { seatId: seatIdOf(member), guestTokenHash: member.guestTokenHash, accountId: member.accountId };
+    const answer = this.cheatGate.isAdmin(seat);
+    const gate = this.cheatGate;
+    const settle = (ok: boolean): void => {
+      // A read that settled after the run changed (a new run, the member gone) does nothing.
+      if (gate !== this.cheatGate || this.members.get(client.sessionId) !== member || !this.inRun()) return;
+      if (ok) this.cheatQueue.push({ playerId: member.playerId, seatId: seat.seatId, accountId: member.accountId, cheat });
+      else if (gate.shouldLog(seat.seatId, cheat.cheat, "refused")) this.log.warn({ roomId: this.roomId, playerId: member.playerId, accountId: member.accountId, cheat: cheat.cheat }, "admin_cheat_refused");
+    };
+    if (typeof answer === "boolean") settle(answer);
+    else void answer.then(settle);
+  }
+
+  /** Story 10.12 (B2): applies the queued cheats on the World; true when a restart replaced the run (no step this tick). */
+  private applyCheats(controller: RunController): boolean {
+    const world = controller.world;
+    for (let i = 0; i < this.cheatQueue.length; i++) {
+      const q = this.cheatQueue[i] as QueuedCheat;
+      if (q.cheat.cheat === "restart") {
+        this.cheatQueue.length = 0;
+        this.noteCheatUsed(q, world.waves.number);
+        this.restartWithSeed(controller, q.cheat.seed);
+        return true;
+      }
+      if (applyAdminCheat(world, q.playerId, q.cheat)) this.noteCheatUsed(q, world.waves.number);
+    }
+    this.cheatQueue.length = 0;
+    return false;
+  }
+
+  /** Story 10.12 (AC 7, B4): the run's stats row is marked at its first cheat; `admin_cheat_used` per the rate rule. */
+  private noteCheatUsed(q: QueuedCheat, wave: number): void {
+    if (this.cheatGate.shouldLog(q.seatId, q.cheat.cheat, "used")) this.log.info({ runId: this.bank?.runId, accountId: q.accountId, cheat: q.cheat.cheat, wave, ...(devAdminCheats() ? { dev: true } : {}) }, "admin_cheat_used");
+    this.markRunCheated();
+  }
+
+  /** Story 10.12 (AC 7, B8): marks the run cheated once; its stats row after the run's earlier writes (fire and forget). */
+  private markRunCheated(): void {
+    if (this.cheated || !this.bank) return;
+    this.cheated = true;
+    const row = { id: this.bank.runId, district: this.state.district, seed: this.runSeed };
+    this.runResultWrites = recordRunResult(row.id, "cheated", (r) => r.markCheated(row), this.log, this.bankRetryMs, this.runResultWrites);
+  }
+
+  /**
+   * Story 10.12 (AC 6, B3): the room's run restarts for everyone with `seed`. The run ends as if everyone left at once
+   * (ending "none": every seat banks `quit`, its waves so far; the save dropped; the stats row finished, cheated), the
+   * room goes back to its lobby state (a resumed run's resume is over), then the same members start a fresh run with
+   * that seed through the normal Start path (progress reads), with no Ready step. The new run is cheated too.
+   */
+  private restartWithSeed(controller: RunController, seed: number): void {
+    this.endRun(controller, controller.world.waves.number);
+    if (this.resume) {
+      this.resume = null;
+      this.state.resumeWave = 0;
+    }
+    this.toLobby();
+    this.cheatRestartSeed = seed;
+    this.log.info({ seed }, "admin_restart");
+    void this.loadAndStart(true);
   }
 
   /**
@@ -2098,6 +2201,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   onLobbyReturn(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member || this.state.phase !== "results") return;
+    this.toLobby();
+    this.log.info({ playerId: member.playerId }, "lobby_returned");
+  }
+
+  /** The room back in its lobby after a run's Results (`lobby.return`; Story 10.12: an online restart, B3). */
+  private toLobby(): void {
     this.controller = null;
     this.saveWriter = null; // Story 8.4: the next Start is a new run (new id, new save)
     this.lastSave = null;
@@ -2118,7 +2227,6 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.maxClients = MAX_PLAYERS;
     resetRunFields(this.state);
     this.state.phase = "lobby";
-    this.log.info({ playerId: member.playerId }, "lobby_returned");
     // Review M3 (Story 7.7 R3 across runs): leavers' districts are gone now; once this run's banks settle, every
     // member's progress is read again (new districts open, new parts are owned).
     this.recomputeDistricts();

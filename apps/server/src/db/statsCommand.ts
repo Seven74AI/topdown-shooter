@@ -9,6 +9,8 @@
  * - Each group's first 3 runs: group = the sorted set of accounts in a run (merged guests already mapped by the query,
  *   B6; a deleted account is its own anonymous member, so its run's group is unique).
  * - Runs to first extraction per account, as a distribution.
+ * - Story 10.12 (Q3 A): runs marked `cheated` (an admin cheat was used) are left out of every number; the line
+ *   "Cheated runs left out: N" follows the title.
  * - Weapons bought (Q1 = C): each weapon's share of RUNS (a run counts a weapon once if any seat bought it; review
  *   nit), `⚠ over half` above 50 %.
  */
@@ -44,10 +46,13 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n =
 const shortHash = (ids: readonly string[]): string => createHash("sha256").update(ids.join(",")).digest("hex").slice(0, 6);
 const pct = (n: number, of: number): number => (of === 0 ? 0 : Math.round((100 * n) / of));
 
-export function formatStats(runs: readonly StatsRun[], seats: readonly StatsSeat[], since: Date | null = null): string[] {
+export function formatStats(allRuns: readonly StatsRun[], seats: readonly StatsSeat[], since: Date | null = null): string[] {
   const out: string[] = [];
-  if (runs.length === 0) return ["No finished runs yet"];
+  if (allRuns.length === 0) return ["No finished runs yet"];
   out.push(since ? `Run stats (finished runs since ${since.toDateString()})` : "Run stats (all finished runs)");
+  // Story 10.12 (Q3 A): a run with an admin cheat is left out of every number below; one line says how many.
+  const runs = allRuns.filter((r) => !r.cheated);
+  out.push(`Cheated runs left out: ${allRuns.length - runs.length}`);
 
   // 1. Runs per week (abandoned in their own column, Q2 = A).
   out.push("", "Runs per week");

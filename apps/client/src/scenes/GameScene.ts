@@ -66,6 +66,7 @@ import {
   setForcedBlackout,
   MAX_PLAYERS,
   PING_SHOW_MS,
+  type AdminCheat,
 } from "@topdown/shared";
 import { dpr, safeArea, type SafeArea } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -1073,7 +1074,12 @@ export class GameScene extends Phaser.Scene {
     return out;
   }
 
-  /** Story 4.4: the dev cheats' "Restart with seed" is solo only. */
+  /** Story 10.12: the cheat panel's online path (an admin's cheat goes to the server, which decides). No-op solo. */
+  sendAdminCheat(cheat: AdminCheat): void {
+    if (this.host instanceof NetSimHost) this.host.sendAdminCheat(cheat);
+  }
+
+  /** Story 4.4 (10.12: online the panel's restart goes through `sendAdminCheat`). */
   get isOnline(): boolean {
     return this.mode === "online";
   }

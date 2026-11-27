@@ -237,3 +237,50 @@ describe("Story 10.7 AC 5 (B3): the expiry step", () => {
     expect(await repo.expireAbandoned(1)).toBe(0);
   });
 });
+
+describe("Story 10.12 (AC 7, B8): the cheated mark", () => {
+  it("migration 0010: a new row is clean by default", async () => {
+    const d = fresh();
+    await runResultsRepo(d).start(start);
+    expect((await runRow(d))?.cheated).toBe(false);
+  });
+
+  it("markCheated marks an open row for good: a resume and a clean finish keep it; the stats read it", async () => {
+    const d = fresh();
+    const repo = runResultsRepo(d);
+    await repo.start(start);
+    await repo.markCheated(start);
+    await repo.markCheated(start); // a repeat changes nothing
+    await repo.resumed(start, "k1");
+    expect(await runRow(d)).toMatchObject({ cheated: true, nights_played: 2, ended_at: null });
+    expect(await repo.finish(end({ cheated: false }), [seat(0, null)])).toBe(true);
+    expect(await runRow(d)).toMatchObject({ cheated: true, ending: "wiped" });
+    expect((await repo.statsRows(null)).runs.map((r) => r.cheated)).toEqual([true]);
+  });
+
+  it("a lost start row: markCheated inserts it open and marked; a finish with the room's flag marks a clean row", async () => {
+    const d = fresh();
+    const repo = runResultsRepo(d);
+    await repo.markCheated(start);
+    expect(await runRow(d)).toMatchObject({ cheated: true, ended_at: null, nights_played: 1 });
+    // RUN2: never marked by markCheated (its write lost), the room's finish carries the flag (lost start row too).
+    expect(await repo.finish(end({ id: RUN2, cheated: true }), [])).toBe(true);
+    expect(await runRow(d, RUN2)).toMatchObject({ cheated: true });
+    // RUN3: started clean, the finish carries the flag.
+    await repo.start({ ...start, id: RUN3 });
+    expect(await repo.finish(end({ id: RUN3, cheated: true }), [])).toBe(true);
+    expect(await runRow(d, RUN3)).toMatchObject({ cheated: true });
+  });
+
+  it("expireAbandoned keeps the mark (a cheated run saved and never resumed)", async () => {
+    const d = fresh();
+    const db = await d.db();
+    const repo = runResultsRepo(d);
+    await repo.start(start);
+    await repo.markCheated(start);
+    await savedRunsRepo(d).saveResumable(saveRow(RUN, snapshot(RUN, []), []), new Date(Date.now() + SAVE_KEEP_MS));
+    await db.execute(sql`update saved_runs set expires_at = now() - interval '1 hour' where id = ${RUN}`);
+    expect(await repo.expireAbandoned(10)).toBe(1);
+    expect(await runRow(d)).toMatchObject({ ending: "abandoned", cheated: true });
+  });
+});

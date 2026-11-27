@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
- * Story 10.11 (AC 4; review L1): the production online lock of the cheat panel, in a REAL browser. The panel is mounted
- * with `practiceOnlyOnline: true` (what a production build passes) over a stub Game scene: in an online run only the
- * Perf overlay and Collision / grid view stay enabled and one "Practice only" line shows; in a solo run nothing is
- * locked and the line is absent. Skipped (never failed) without Chromium + Playwright, like the other DOM checks.
+ * Story 10.11 (AC 4; review L1) → Story 10.12 (AC 8, 9): the cheat panel in a REAL browser, mounted as a production
+ * build mounts it (`mountAdminTools`) over a stub Game scene. Online (10.12: the 10.11 "Practice only" lock is gone)
+ * every cheat control is enabled and a click sends ONE `admin.cheat` through the scene (no confirm, Q6 B), never
+ * touching the local World; the two view tools stay local (no message). Solo, the controls run locally (no message).
+ * Skipped (never failed) without Chromium + Playwright, like the other DOM checks.
  */
 const CLIENT = join(__dirname, "..", "..", "apps", "client");
 
@@ -29,16 +30,18 @@ interface PanelState {
   enabled: string[];
   disabled: number;
   practiceOnly: number;
+  sent: unknown[];
 }
 
 /** Mounts a second panel (the dev page has its own) over a stub scene and reads its controls after opening it. */
 const probe = (online: boolean) => `(async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const { mountAdminTools } = await import("/src/debug/adminTools.ts");
-  const scene = { isOnline: ${online}, debugWorld: null, runSeed: 7, debugView: (r) => r, restartRun() {}, sys: { isActive: () => false } };
+  const sent = [];
+  const scene = { isOnline: ${online}, debugWorld: null, runSeed: 7, debugView: (r) => Object.assign(r, { x: 1, y: 2, w: 24, h: 13.5 }), restartRun() {}, sendAdminCheat: (c) => sent.push(c), sys: { isActive: () => false } };
   const game = { scene: { getScene: () => scene }, events: { on() {} } };
   const before = new Set(document.querySelectorAll(".dev-gear"));
-  mountAdminTools(game, { practiceOnlyOnline: true });
+  mountAdminTools(game);
   await wait(50);
   const gear = [...document.querySelectorAll(".dev-gear")].find((g) => !before.has(g));
   gear.click();
@@ -50,12 +53,20 @@ const probe = (online: boolean) => `(async () => {
     enabled: controls.filter((e) => !e.disabled).map(label),
     disabled: controls.filter((e) => e.disabled).length,
     practiceOnly: [...panel.querySelectorAll(".dev-cheats__info")].filter((p) => p.textContent.trim() === "Practice only").length,
+    sent,
   };
+  const click = (text) => controls.find((e) => e.tagName === "BUTTON" && e.textContent.trim().startsWith(text))?.click();
+  for (const t of ["Spawn", "Skip wave", "Leave last 5", "Spawn Behemoth", "Force stampede", "Set loadout", "+500", "Damage nearest"]) click(t);
+  const god = controls.find((e) => e.closest("label")?.textContent.trim() === "God mode");
+  god?.click();
+  controls.find((e) => e.closest("label")?.textContent.trim() === "Perf overlay")?.click(); // a view tool: local
+  await wait(50);
+  out.sent = sent.slice();
   gear.parentElement.remove();
   return out;
 })()`;
 
-describe.skipIf(pw === null)("Story 10.11: the cheat panel's production online lock (real browser)", () => {
+describe.skipIf(pw === null)("Stories 10.11 + 10.12: the admin cheat panel online and solo (real browser)", () => {
   beforeAll(async () => {
     const { createServer } = await import("vite");
     server = (await createServer({ root: CLIENT, configFile: join(CLIENT, "vite.config.ts"), logLevel: "silent", server: { host: "127.0.0.1", port: 0, strictPort: false, hmr: false } })) as unknown as typeof server;
@@ -76,18 +87,29 @@ describe.skipIf(pw === null)("Story 10.11: the cheat panel's production online l
     await server?.close();
   });
 
-  it("online: only Perf overlay and Collision / grid view are enabled, with one 'Practice only' line", async (ctx) => {
+  it("10.12 online: every cheat is enabled, no 'Practice only' line, each click sends one admin.cheat; view tools send nothing", async (ctx) => {
     if (!page) return ctx.skip();
     const s = (await page.evaluate(probe(true), undefined)) as PanelState;
-    expect(s.enabled).toEqual(["Perf overlay", "Collision / grid view"]);
-    expect(s.disabled).toBeGreaterThan(10); // liveness: the panel's other controls are really there, and locked
-    expect(s.practiceOnly).toBe(1);
+    expect(s.practiceOnly).toBe(0);
+    for (const c of ["Skip wave", "Leave last 5", "Spawn Behemoth", "Force car alarm", "+500 money", "God mode", "Perf overlay", "Collision / grid view"]) expect(s.enabled).toContain(c);
+    expect(s.sent).toEqual([
+      { cheat: "spawn", type: "walker", count: 50, where: "ring" },
+      { cheat: "skip_wave" },
+      { cheat: "leave_last" },
+      { cheat: "behemoth" },
+      { cheat: "event", kind: "stampede" },
+      { cheat: "loadout", w0: "pistol", w1: null },
+      { cheat: "money" },
+      { cheat: "damage_building" },
+      { cheat: "god", on: true },
+    ]);
   }, 30_000);
 
   it("solo (same option): the spawn, wave and loadout controls stay enabled and no 'Practice only' line shows", async (ctx) => {
     if (!page) return ctx.skip();
     const s = (await page.evaluate(probe(false), undefined)) as PanelState;
     expect(s.practiceOnly).toBe(0);
+    expect(s.sent).toEqual([]); // solo runs locally (here: no World, so nothing happens)
     for (const c of ["Skip wave", "Leave last 5", "Spawn Behemoth", "Force car alarm", "+500 money", "God mode", "Perf overlay", "Collision / grid view"]) expect(s.enabled).toContain(c);
     expect(s.enabled.some((e) => /^Spawn \d+ around me$/.test(e))).toBe(true);
   }, 30_000);

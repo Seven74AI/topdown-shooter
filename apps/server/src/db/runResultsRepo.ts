@@ -42,6 +42,8 @@ export interface RunEndRow extends RunStartRow {
   readonly endless: boolean;
   /** How long this night ran (B8: a lost start row is inserted with `started_at = now − this`). */
   readonly nightMs: number;
+  /** Story 10.12 (B8): the room saw an admin cheat in this run (ORed into the row: a finish never clears the mark). */
+  readonly cheated?: boolean;
 }
 
 /** One seat of a finished run (`meta/runResult.ts › seatRow`). */
@@ -63,6 +65,8 @@ export interface StatsRun {
   readonly extracted: boolean;
   readonly waveReached: number;
   readonly playerCount: number;
+  /** Story 10.12 (Q3 A): an admin cheat was used (`npm run stats` leaves it out). */
+  readonly cheated: boolean;
 }
 
 /** A seat of a finished run, as the stats read it: `member` = the account now (merged guests mapped, B6), null deleted. */
@@ -80,6 +84,11 @@ export interface RunResultsRepo {
    * `claimKey` (a random token per Start) counts once: a retry after a committed-but-errored attempt adds nothing.
    */
   resumed(row: RunStartRow, claimKey: string): Promise<void>;
+  /**
+   * Story 10.12 (AC 7, B8): an admin cheat was used in this run: its row is marked for good (a lost start row is
+   * inserted open, marked). A resume keeps the run id, so a resumed cheated run stays marked.
+   */
+  markCheated(row: RunStartRow): Promise<void>;
   /** The run ended (B2, B4): true when THIS call finished it (its seat rows written), false when it was already finished. */
   finish(row: RunEndRow, seats: readonly RunSeatRow[]): Promise<boolean>;
   /** B3: finishes up to `batch` expired unresumed saves (and old orphan rows) as abandoned; returns how many runs. */
@@ -112,7 +121,8 @@ const int = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 /** The guarded finish (B4, B8): the run row finished once, then its seats. */
 async function finishIn(tx: Tx, values: typeof runResults.$inferInsert, seats: readonly RunSeatRow[], known: ReadonlySet<string>): Promise<boolean> {
   // The finish never moves `started_at` (night 1's) or `nights_played` (the resumes) of an open row.
-  const set = { district: values.district, seed: values.seed, playerCount: values.playerCount, waveReached: values.waveReached, extracted: values.extracted, ending: values.ending, endless: values.endless, endedAt: values.endedAt };
+  // Story 10.12 (B8): `cheated` is ORed in (never cleared by a finish).
+  const set = { district: values.district, seed: values.seed, playerCount: values.playerCount, waveReached: values.waveReached, extracted: values.extracted, ending: values.ending, endless: values.endless, endedAt: values.endedAt, ...(values.cheated === true ? { cheated: true } : {}) };
   const won = await tx
     .insert(runResults)
     .values(values)
@@ -157,6 +167,10 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
           .onConflictDoUpdate({ target: runResults.id, set: { nightsPlayed: sql`${runResults.nightsPlayed} + 1`, lastResume: claimKey }, setWhere: sql`${runResults.endedAt} is null and ${runResults.lastResume} is distinct from ${claimKey}` }),
       );
     },
+    markCheated: async (r) => {
+      if (!isRunId(r.id)) return;
+      await write("runResults.markCheated", (tx) => tx.insert(runResults).values({ id: r.id, district: r.district, seed: r.seed, cheated: true }).onConflictDoUpdate({ target: runResults.id, set: { cheated: true } }));
+    },
     finish: async (r, seats) => {
       if (!isRunId(r.id)) return false;
       return write("runResults.finish", async (tx) => {
@@ -170,6 +184,7 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
           extracted: r.ending === "extracted",
           ending: r.ending,
           endless: r.endless,
+          cheated: r.cheated === true,
           startedAt: sql`now() - ${`${int(r.nightMs)} milliseconds`}::interval`,
           endedAt: sql`now()`,
         } as unknown as typeof runResults.$inferInsert;
@@ -241,7 +256,7 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
           const db = await database.db();
           const when = since === null ? isNotNull(runResults.endedAt) : and(isNotNull(runResults.endedAt), gte(runResults.endedAt, since));
           const runs = await db
-            .select({ id: runResults.id, endedAt: runResults.endedAt, ending: runResults.ending, extracted: runResults.extracted, waveReached: runResults.waveReached, playerCount: runResults.playerCount })
+            .select({ id: runResults.id, endedAt: runResults.endedAt, ending: runResults.ending, extracted: runResults.extracted, waveReached: runResults.waveReached, playerCount: runResults.playerCount, cheated: runResults.cheated })
             .from(runResults)
             .where(when)
             .orderBy(asc(runResults.endedAt), asc(runResults.id));
