@@ -130,6 +130,10 @@ Ticks count ticks; no per-tick allocation (the cheat queue is a reused array); n
 - [x] **N2** A failed admin read now refuses and is cached for 10 s (`CHEAT_LOG_EVERY_MS`), then read again (`adminCheatGate.test.ts`).
 - N3–N5: no change (main session).
 
+**Re-review round 1 (main session relay, 2026-11-27): APPROVED**, with one last low (checked by the main session):
+
+- [x] **L5** After Restart with seed using the SAME seed, the online God box and blackout select kept stale state (keyed by the seed). Fix: both are keyed by the run id from `run.started` (`rewardsStore.currentRunId`; the seed only before the first one arrives). Test: `adminPanelDomLayout.test.ts`: God on + 5 % in run 1; a new run id with the same seed (7) → box unchecked, select "off".
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -188,6 +192,7 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-27.
 - `tools/checks/adminPanelDomLayout.test.ts`
 - `tools/checks/noCheatsInRelease.test.ts`
 - `apps/server/src/run/adminCheatGate.test.ts`
+- `apps/client/src/net/rewardsStore.ts`
 - `packages/shared/src/player/player.ts`
 - `packages/shared/src/player/hold.ts`
 
@@ -195,3 +200,4 @@ Claude (builder cloud session, `gds-dev-story`), 2026-11-27.
 
 - 2026-11-27: story rewritten for the designer decisions; built (T1–T6); status → review.
 - 2026-11-27: full review fixes M1, L1–L4, N1, N2 (see Senior Developer Review).
+- 2026-11-27: re-review round 1 approved; L5 fixed.

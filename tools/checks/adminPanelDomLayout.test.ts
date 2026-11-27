@@ -32,6 +32,8 @@ interface PanelState {
   practiceOnly: number;
   sent: unknown[];
   blackout: string[];
+  run1?: [boolean, string];
+  run2?: [boolean, string];
 }
 
 /** Mounts a second panel (the dev page has its own) over a stub scene and reads its controls after opening it. */
@@ -67,6 +69,20 @@ const probe = (online: boolean) => `(async () => {
   out.blackout = [await pick("10"), await pick("-1")];
   await wait(50);
   out.sent = sent.slice();
+  // Review L5: a new run (a new run.started id, the SAME seed: Restart with seed 7) starts with the box and select clean.
+  if (${online}) {
+    const { rewardsStore } = await import("/src/net/rewardsStore.ts");
+    rewardsStore.setRun({ runId: "11111111-1111-4111-8111-111111111111" });
+    await wait(650); // the open panel re-reads every 500 ms
+    god?.click();
+    await pick("5");
+    await wait(50);
+    const godBox = () => controls.find((e) => e.closest("label")?.textContent.trim() === "God mode");
+    out.run1 = [godBox().checked, blackout.value];
+    rewardsStore.setRun({ runId: "22222222-2222-4222-8222-222222222222" });
+    await wait(650); // the open panel re-reads every 500 ms
+    out.run2 = [godBox().checked, blackout.value];
+  }
   gear.parentElement.remove();
   return out;
 })()`;
@@ -111,6 +127,8 @@ describe.skipIf(pw === null)("Stories 10.11 + 10.12: the admin cheat panel onlin
       { cheat: "blackout", pct: -1 },
     ]);
     expect(s.blackout).toEqual(["10", "-1"]); // the select shows what was set (it no longer snaps back to "off")
+    expect(s.run1).toEqual([true, "5"]); // set in run 1 (God on, 5 %)
+    expect(s.run2).toEqual([false, "-1"]); // review L5: a new run id with the same seed starts clean
   }, 30_000);
 
   it("solo (same option): the spawn, wave and loadout controls stay enabled and no 'Practice only' line shows", async (ctx) => {

@@ -10,6 +10,7 @@ import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast
 import { BLACKOUT_LEVELS } from "./urlOptions";
 import { CollisionGridView } from "./collisionGridView";
 import { uiStore } from "../ui/uiState";
+import { rewardsStore } from "../net/rewardsStore";
 import "./DevCheats.css";
 
 /**
@@ -63,11 +64,11 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
   const [weapon0, setWeapon0] = useState("pistol");
   const [weapon1, setWeapon1] = useState(NO_WEAPON);
   // Story 10.12 (Q4 B): online god mode lives on the server (the admin's own survivor); the box shows what this phone
-  // asked for in this run (by its seed: a restart or a new run starts without it).
-  const [onlineGodSeed, setOnlineGodSeed] = useState<number | null>(null);
+  // asked for in this run (review L5: keyed by the run id from `run.started`, so a restart with the SAME seed starts clean).
+  const [onlineGodRun, setOnlineGodRun] = useState<string | null>(null);
   // Review L2: the mirror World never gets the forced blackout level, so online the select shows what this phone set
-  // (in this run, by its seed); otherwise it snapped back to "off" and "off" could never be sent.
-  const [onlineBlackout, setOnlineBlackout] = useState<{ seed: number; pct: number } | null>(null);
+  // (in this run, by its run id); otherwise it snapped back to "off" and "off" could never be sent.
+  const [onlineBlackout, setOnlineBlackout] = useState<{ run: string; pct: number } | null>(null);
   const [, setTick] = useState(0);
   // Story 7.9 review L5: no gear on the lobby (it sat on LEAVE); cheats are for runs.
   const [inLobby, setInLobby] = useState(uiStore.get().kind === "lobby");
@@ -100,7 +101,8 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
   const n = clampSpawnCount(Number(count));
   const seed = parseSeed(seedText);
   const online = scene()?.isOnline ?? false;
-  const seedNow = scene()?.runSeed ?? 0;
+  // Review L5: this online run's key (its id from `run.started`; the seed only before one arrived).
+  const runNow = rewardsStore.currentRunId ?? `seed:${scene()?.runSeed ?? 0}`;
   /** Story 10.12: online the cheat goes to the server (`admin.cheat`); solo it runs here on the local World. */
   const act = (cheat: AdminCheat, solo: () => void) => {
     if (online) scene()?.sendAdminCheat(cheat);
@@ -117,7 +119,7 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
       else spawnInView(w, type, n, view, p.x, p.y);
     });
   };
-  const godOn = online ? onlineGodSeed === seedNow : (w?.debug.godMode ?? false);
+  const godOn = online ? onlineGodRun === runNow : (w?.debug.godMode ?? false);
 
   if (!visible) return null;
   return (
@@ -218,7 +220,7 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
               checked={godOn}
               onChange={(e) => {
                 const on = (e.target as HTMLInputElement).checked;
-                if (online) setOnlineGodSeed(on ? seedNow : null);
+                if (online) setOnlineGodRun(on ? runNow : null);
                 act({ cheat: "god", on }, () => w && (w.debug.godMode = on));
               }}
             />
@@ -273,12 +275,12 @@ function DevCheats({ game, visible }: { game: Phaser.Game; visible: boolean }) {
             <legend>Force blackout</legend>
             <div class="dev-cheats__row">
               <select
-                value={String(online ? (onlineBlackout?.seed === seedNow ? onlineBlackout.pct : -1) : w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
+                value={String(online ? (onlineBlackout?.run === runNow ? onlineBlackout.pct : -1) : w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
                 aria-label="Force blackout"
                 disabled={!online && !w}
                 onChange={(e) => {
                   const pct = Number((e.target as HTMLSelectElement).value) as (typeof CHEAT_BLACKOUT_LEVELS)[number];
-                  if (online) setOnlineBlackout({ seed: seedNow, pct });
+                  if (online) setOnlineBlackout({ run: runNow, pct });
                   act({ cheat: "blackout", pct }, () => w && setForcedBlackoutCheat(w, pct));
                 }}
               >
