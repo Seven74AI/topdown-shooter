@@ -116,6 +116,31 @@ PGlite repo tests. Real-PostgreSQL tests skip without `TEST_DATABASE_URL` (CI `p
 - epics.md › Story 10.7 (:3681), X8 (`sprint-change-proposal-2026-11-26-epic-9-photoreal.md:252`), 12.2 AC 19 + D-12.2-3/6/7 (`12-2-extraction-walk-and-lift-off.md:65,114-122`).
 - [Source: apps/server/src/rooms/RunRoom.ts#1084,1243-1265,1865-1878,1986-1987,2015-2038,2271], [Source: apps/server/src/meta/banking.ts#33-58,186-305,366], [Source: apps/server/src/db/savedRunsRepo.ts#19,208-210], [Source: apps/server/src/run/roomSaves.ts#100-123], [Source: apps/server/src/db/accountsRepo.ts#13-25,134-198], [Source: packages/shared/src/meta/runRecord.ts#20-26], [Source: packages/shared/src/combat/loadout.ts], [Source: packages/shared/src/save/runSave.ts#90-130], [Source: AGENTS.md §2, §5].
 
+## Senior Developer Review (AI)
+
+**Full review (fresh agent, 2026-11-27): CHANGES REQUESTED.** 1 high, 2 medium, 7 lows, nits. Every fix below is minimal. Each one has a test, and each test was probed red without its fix.
+
+- [x] **H1** `RunRoom.ts` all-left branch: after a resumable shutdown or tick-error save, everyone's socket closes. `bankNow` then wrote a false `lost`. **Fix:** a new `savedResumable` flag, set when `makeResumable` succeeds. `finishRunResult` returns when `savedResumable || shuttingDown`. A failed shutdown save leaves the row to the orphan rule. **Tests:** `RunRoom.runResults.test.ts` "H1: a shutdown mid-wave…" and "H1: 20 tick errors…". Each checks the row stays open, then resumes the run, wipes it, and checks one row with 2 nights. Probe: without the guard, both tests fail.
+- [x] **M1** `savedRunsRepo.pruneAccount` deleted every expired save before housekeeping could finish it as abandoned. **Fix:** that global delete is gone, and the keep-3 count now reads only unexpired saves. Housekeeping owns expiry. **D8 is folded in:** the dead `releaseOpenOnBoot(expiresAt?)` parameter is removed from the interface, `roomSaves.ts` and the tests. **Test:** `savedRunsRepo.test.ts` "review M1". An expired save that is also the "newest" stays, and is not counted in the 3.
+- [x] **M2** `meta/runResult.ts`: everyone leaving during `extract` recorded `lost`. **Fix:** an `extracted` World ending wins over `left`. **Tests:** `runResult.test.ts`, plus room tests "M2: everyone leaves during the extraction" and "the extraction played to its end (run.extract_done)". The second boards the players at once, plays the full fly-out, and checks `extracted` with the seat numbers. It also covers the AC 4 gap I noted before.
+- [x] **L1** `resumed` is idempotent per claim. A new `last_resume` column holds the claiming room's code; `resumed(row, claimKey)` adds a night only when the code is different. **Test:** `runResults.test.ts`, the same key twice counts once.
+- [x] **L2** The deadlock was reachable: a merged guest G < A was locked before A, while a delete of A holds A and then deletes G. **Fix:** `knownAccounts` now locks in `deleteAccount`'s order: each account first, then its merged guests. This is ordered by `coalesce(merged_into, id)`, then guests last, then id. Both finishers use it. **Tests:** `realPostgresDelete.test.ts` has two new cases:
+  - a forced order on a raw connection: hold A FOR UPDATE, start the finish, then delete G. Probe: plain id order makes the finish fail.
+  - a timed race ×10.
+  - Note for the main session: `savedRunsRepo.knownAccounts` has the same plain id order. Not changed here.
+- [x] **L3** `expireAbandoned` now counts a run only when its own `finishIn` won. The expired save is still deleted; it is garbage once the run is finished. The orphan UPDATE is capped at `batch`, oldest first. **Test:** `runResults.test.ts` "review L3".
+- [x] **L4** Two paths now finish the row `lost` instead of leaving it to the orphan rule:
+  - the waiting-only all-left path when its `makeResumable` fails: the save is still taken in the calm phase, and `finishIfNotSaved` finishes the row if it returned null;
+  - `onDispose`'s `dropSave("lost")`.
+  The deploy.md sentence is fixed (a lost finish → counted later as abandoned). **Test:** "L4: only a waiting joiner is left in the vote and the save FAILS". Probe: without the fix, the row stays open.
+- [x] **L5** New tests: calm all-left through `finalLeave` finishes nothing (row open), and the real-PG merged-guest delete case (L2).
+- [x] **L6** (main-session B-code 10.7-B10) A wipe in endless, after Stay, ends `endless`, with `extracted = false`. Leaving in endless stays `lost`; Stay then Extract stays `extracted`. The check constraint gets `'endless'`. Migration 0009 is regenerated, since it is not on master yet. Stats:
+  - runs/week has its own column: `N runs · E endless · A abandoned`;
+  - first-3 and runs-to-extraction count it as played, not extracted.
+  **Tests:** `runResult.test.ts`, `statsCommand.test.ts`.
+- [x] **L7** Accepted by the main session as a known gap (see Known gaps in the Implementation Plan).
+- [x] **Nits:** `player_count` = the seat rows really written (duplicates removed). The weapon share is now the share of RUNS: a run counts a weapon once if any seat bought it (Q1 wording).
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -225,3 +250,5 @@ Builder session (gds-dev-story), 2026-11-27.
   `PlayerState.weaponsBought` + save v2, deferred D2 test; Status → review.
 - 2026-11-27: merged master after PR #40 (10.6): migration regenerated as 0009, keep-both in schema, index, package.json,
   accountsRepo LOCK ORDER, merge.ts, db.test, testQueries, realPostgresDelete, deploy.md; housekeeping step 2.
+- 2026-11-27: review fixes H1, M1 (+ D8), M2, L1–L6, nits (Senior Developer Review (AI)); migration 0009 regenerated
+  (`endless` ending, `last_resume`).

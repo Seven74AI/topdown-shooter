@@ -8,7 +8,7 @@
  * last autosave) makes it 'saved' for 7 days; `claim` is the only way back to 'open' (one conditional UPDATE: S3 — two
  * resumes race, one wins); `deleteRun` when the run is lost mid-wave or finished; `releaseOpenOnBoot` after a crash.
  */
-import { and, asc, desc, eq, gt, inArray, lt, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, notExists, sql } from "drizzle-orm";
 import { scrubSeats } from "./scrubSeats";
 import { boundedTransaction, type BoundedOptions, type Tx } from "./boundedTx";
 import type { Database } from "./client";
@@ -67,8 +67,11 @@ export interface SavedRunsRepo {
   /** S3: the only way to open a save — 'saved', not expired, linked to this account → 'open' for `roomCode`. */
   claim(id: string, accountId: string, roomCode: string): Promise<ClaimResult>;
   /** E8-S6: every 'open' row (a process that died without a clean stop) becomes resumable. Returns them. */
-  releaseOpenOnBoot(expiresAt?: Date): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
-  /** E8-S11: the account keeps its newest `keep` resumable runs; older links go, a run nobody is linked to is deleted. Expired runs go too. */
+  releaseOpenOnBoot(): Promise<{ id: string; snapshot: Record<string, unknown> }[]>;
+  /**
+   * E8-S11: the account keeps its newest `keep` resumable (unexpired) runs; older links go, a run nobody is linked to is
+   * deleted. Story 10.7 review M1: expired runs are left alone (the housekeeping step finishes them as abandoned, then deletes them).
+   */
   pruneAccount(accountId: string, keep?: number): Promise<{ unlinked: number; deleted: string[] }>;
   /**
    * Review M2: resumable runs (not expired) with a linked account that has no `run_rewards` row for the run yet — a save
@@ -207,12 +210,11 @@ export function savedRunsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bou
       ),
     pruneAccount: (accountId, keep = SAVES_PER_ACCOUNT) =>
       write("savedRuns.pruneAccount", async (tx) => {
-        await tx.delete(savedRuns).where(and(eq(savedRuns.status, "saved"), lt(savedRuns.expiresAt, sql`now()`)));
         const mine = await tx
           .select({ id: savedRuns.id })
           .from(savedRunPlayers)
           .innerJoin(savedRuns, eq(savedRuns.id, savedRunPlayers.savedRunId))
-          .where(and(eq(savedRunPlayers.accountId, accountId), eq(savedRuns.status, "saved")))
+          .where(and(eq(savedRunPlayers.accountId, accountId), eq(savedRuns.status, "saved"), gt(savedRuns.expiresAt, sql`now()`)))
           .orderBy(desc(sql`coalesce(${savedRuns.savedAt}, ${savedRuns.updatedAt})`), desc(savedRuns.id));
         const old = mine.slice(keep).map((r) => r.id);
         if (old.length === 0) return { unlinked: 0, deleted: [] };

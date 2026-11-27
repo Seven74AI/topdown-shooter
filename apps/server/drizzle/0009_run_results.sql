@@ -21,7 +21,8 @@ CREATE TABLE "run_results" (
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"ended_at" timestamp with time zone,
 	"nights_played" integer DEFAULT 1 NOT NULL,
-	CONSTRAINT "run_results_ending" CHECK ("run_results"."ending" is null or "run_results"."ending" in ('wiped', 'extracted', 'lost', 'abandoned'))
+	"last_resume" text,
+	CONSTRAINT "run_results_ending" CHECK ("run_results"."ending" is null or "run_results"."ending" in ('wiped', 'extracted', 'lost', 'endless', 'abandoned'))
 );
 --> statement-breakpoint
 ALTER TABLE "run_result_players" ADD CONSTRAINT "run_result_players_run_id_run_results_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."run_results"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

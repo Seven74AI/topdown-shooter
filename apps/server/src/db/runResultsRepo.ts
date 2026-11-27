@@ -26,7 +26,7 @@ import { log as defaultLog } from "../ops/logger";
 /** B3: an open row this old with no saved run at all is finished as abandoned (one day past a save's life). */
 export const ORPHAN_RUN_MS = SAVE_KEEP_MS + 24 * 3600 * 1000;
 
-export type RunResultEnding = "wiped" | "extracted" | "lost" | "abandoned";
+export type RunResultEnding = "wiped" | "extracted" | "lost" | "endless" | "abandoned";
 
 /** What a run is at its first Start. */
 export interface RunStartRow {
@@ -75,8 +75,11 @@ export interface StatsSeat {
 export interface RunResultsRepo {
   /** A fresh run started (an open row; a repeat does nothing). */
   start(row: RunStartRow): Promise<void>;
-  /** A resumed run started: +1 night on its open row (a lost row is inserted as a resumed one: 2 nights). */
-  resumed(row: RunStartRow): Promise<void>;
+  /**
+   * A resumed run started: +1 night on its open row (a lost row is inserted as a resumed one: 2 nights). Review L1:
+   * `claimKey` (the claiming room's code) counts once: a retry after a committed-but-errored attempt adds nothing.
+   */
+  resumed(row: RunStartRow, claimKey: string): Promise<void>;
   /** The run ended (B2, B4): true when THIS call finished it (its seat rows written), false when it was already finished. */
   finish(row: RunEndRow, seats: readonly RunSeatRow[]): Promise<boolean>;
   /** B3: finishes up to `batch` expired unresumed saves (and old orphan rows) as abandoned; returns how many runs. */
@@ -87,11 +90,20 @@ export interface RunResultsRepo {
 
 type Log = Pick<typeof defaultLog, "warn">;
 
-/** The seats' accounts that exist, locked FOR KEY SHARE in id order (LOCK ORDER 2). */
+/**
+ * The seats' accounts that exist, locked FOR KEY SHARE (LOCK ORDER 2) in `deleteAccount`'s own order (review L2): each
+ * account before its merged guests (by the account they are merged into, then guests last, then id). In plain id order
+ * a merged guest G < A would be locked before A while a delete of A holds A and then deletes G: a deadlock.
+ */
 async function knownAccounts(tx: Tx, seats: readonly RunSeatRow[]): Promise<Set<string>> {
   const ids = [...new Set(seats.map((s) => s.accountId).filter((a): a is string => isRunId(a)))];
   if (ids.length === 0) return new Set();
-  const rows = await tx.select({ id: accounts.id }).from(accounts).where(inArray(accounts.id, ids)).orderBy(asc(accounts.id)).for("key share");
+  const rows = await tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(inArray(accounts.id, ids))
+    .orderBy(sql`coalesce(${accounts.mergedInto}, ${accounts.id})`, sql`${accounts.mergedInto} is not null`, asc(accounts.id))
+    .for("key share");
   return new Set(rows.map((r) => r.id));
 }
 
@@ -107,12 +119,13 @@ async function finishIn(tx: Tx, values: typeof runResults.$inferInsert, seats: r
     .onConflictDoUpdate({ target: runResults.id, set, setWhere: isNull(runResults.endedAt) })
     .returning({ id: runResults.id });
   if (won.length === 0) return false;
-  const rows = seats
-    .filter((s, i) => seats.findIndex((x) => x.seat === s.seat) === i)
-    .map((s) => ({ runId: values.id, seat: s.seat.slice(0, 64), accountId: s.accountId !== null && known.has(s.accountId) ? s.accountId : null, slot: int(s.slot), loadout: s.loadout.slice(0, 200), wavesIn: int(s.wavesIn), kills: int(s.kills) }));
+  const rows = uniqueSeats(seats).map((s) => ({ runId: values.id, seat: s.seat.slice(0, 64), accountId: s.accountId !== null && known.has(s.accountId) ? s.accountId : null, slot: int(s.slot), loadout: s.loadout.slice(0, 200), wavesIn: int(s.wavesIn), kills: int(s.kills) }));
   if (rows.length > 0) await tx.insert(runResultPlayers).values(rows).onConflictDoNothing();
   return true;
 }
+
+/** One row per seat id (the first wins). */
+const uniqueSeats = (seats: readonly RunSeatRow[]): RunSeatRow[] => seats.filter((s, i) => seats.findIndex((x) => x.seat === s.seat) === i);
 
 /** The seats of a saved run's snapshot (through `migrateRunSave`, so an older save still reads), or null unreadable. */
 export function savedSeats(snapshot: unknown): { seats: RunSeatRow[]; endless: boolean } | null {
@@ -135,13 +148,13 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
       if (!isRunId(r.id)) return;
       await write("runResults.start", (tx) => tx.insert(runResults).values({ id: r.id, district: r.district, seed: r.seed }).onConflictDoNothing());
     },
-    resumed: async (r) => {
+    resumed: async (r, claimKey) => {
       if (!isRunId(r.id)) return;
       await write("runResults.resumed", (tx) =>
         tx
           .insert(runResults)
-          .values({ id: r.id, district: r.district, seed: r.seed, nightsPlayed: 2 })
-          .onConflictDoUpdate({ target: runResults.id, set: { nightsPlayed: sql`${runResults.nightsPlayed} + 1` }, setWhere: isNull(runResults.endedAt) }),
+          .values({ id: r.id, district: r.district, seed: r.seed, nightsPlayed: 2, lastResume: claimKey })
+          .onConflictDoUpdate({ target: runResults.id, set: { nightsPlayed: sql`${runResults.nightsPlayed} + 1`, lastResume: claimKey }, setWhere: sql`${runResults.endedAt} is null and ${runResults.lastResume} is distinct from ${claimKey}` }),
       );
     },
     finish: async (r, seats) => {
@@ -152,7 +165,7 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
           id: r.id,
           district: r.district,
           seed: r.seed,
-          playerCount: seats.length,
+          playerCount: uniqueSeats(seats).length, // review nit: the rows really written
           waveReached: int(r.waveReached),
           extracted: r.ending === "extracted",
           ending: r.ending,
@@ -194,7 +207,7 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
             id: s.id,
             district: s.district,
             seed: s.seed,
-            playerCount: seats.length,
+            playerCount: uniqueSeats(seats).length,
             waveReached: int(s.wave),
             extracted: false,
             ending: "abandoned",
@@ -202,25 +215,23 @@ export function runResultsRepo(database: Database, timeoutMs = DB_TIMEOUT_MS, bo
             startedAt: row.createdAt,
             endedAt: row.expiresAt ?? sql`now()`,
           } as unknown as typeof runResults.$inferInsert;
-          await finishIn(tx, values, seats, known);
-          return true;
+          // Review L3: counted only when THIS step finished it (the room may have won). The save is deleted either way: an
+          // expired save of a run that is already finished is garbage nobody can resume.
+          return finishIn(tx, values, seats, known);
         });
         if (finished) done++;
       }
-      // B3: open rows this old with no saved run at all (a crash before any autosave, a pruned save): no seats.
-      const orphans = await write("runResults.expireOrphans", (tx) =>
-        tx
+      // B3: open rows this old with no saved run at all (a crash before any autosave, a lost room): no seats. Review L3:
+      // at most `batch` per run (oldest first).
+      const orphans = await write("runResults.expireOrphans", (tx) => {
+        const old = and(isNull(runResults.endedAt), lt(runResults.startedAt, sql`now() - ${`${ORPHAN_RUN_MS} milliseconds`}::interval`), notExists(tx.select({ x: sql`1` }).from(savedRuns).where(eq(savedRuns.id, runResults.id))));
+        const ids = tx.select({ id: runResults.id }).from(runResults).where(old).orderBy(asc(runResults.startedAt)).limit(batch);
+        return tx
           .update(runResults)
           .set({ ending: "abandoned", endedAt: sql`now()`, extracted: false })
-          .where(
-            and(
-              isNull(runResults.endedAt),
-              lt(runResults.startedAt, sql`now() - ${`${ORPHAN_RUN_MS} milliseconds`}::interval`),
-              notExists(tx.select({ x: sql`1` }).from(savedRuns).where(eq(savedRuns.id, runResults.id))),
-            ),
-          )
-          .returning({ id: runResults.id }),
-      );
+          .where(and(old, inArray(runResults.id, ids)))
+          .returning({ id: runResults.id });
+      });
       return done + orphans.length;
     },
     statsRows: (since) =>

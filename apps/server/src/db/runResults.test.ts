@@ -100,13 +100,14 @@ describe("Story 10.7: start, resumed, finish (B1, B4, B8)", () => {
     const repo = runResultsRepo(d);
     await repo.start(start);
     await repo.start(start); // a repeat start does nothing
-    await repo.resumed(start);
-    await repo.resumed(start);
+    await repo.resumed(start, "ROOM1");
+    await repo.resumed(start, "ROOM1"); // review L1: a retry of the same claim counts once
+    await repo.resumed(start, "ROOM2");
     expect((await runRow(d))?.nights_played).toBe(3);
     await repo.finish(end(), []);
-    await repo.resumed(start);
+    await repo.resumed(start, "ROOM3");
     expect((await runRow(d))?.nights_played).toBe(3);
-    await repo.resumed({ ...start, id: RUN2 });
+    await repo.resumed({ ...start, id: RUN2 }, "ROOM4");
     expect((await runRow(d, RUN2))?.nights_played).toBe(2);
   });
 
@@ -122,7 +123,7 @@ describe("Story 10.7: start, resumed, finish (B1, B4, B8)", () => {
     const repo = runResultsRepo(d);
     await repo.finish(end(), [seat(0, null), { ...seat(0, null), seat: "p0#1" }, seat(0, null)]);
     expect((await seatRows(d)).map((s) => s.seat)).toEqual(["p0#0", "p0#1"]);
-    expect((await runRow(d))?.player_count).toBe(3); // as the room passed it (its seats are unique by construction)
+    expect((await runRow(d))?.player_count).toBe(2); // review nit: the rows really written
   });
 });
 
@@ -215,5 +216,24 @@ describe("Story 10.7 AC 5 (B3): the expiry step", () => {
     expect(await runRow(d)).toMatchObject({ ending: "abandoned", player_count: 1, nights_played: 1 });
     expect(await runRow(d, RUN2)).toMatchObject({ ending: "abandoned", player_count: 0 });
     expect(warn).toHaveBeenCalledWith({ runId: RUN2 }, "run_result_unreadable_save");
+  });
+
+  it("review L3: an expired save of a run the room already finished counts 0 (its garbage save still goes); orphans at most `batch` per run", async () => {
+    const d = fresh();
+    const db = await d.db();
+    const a = await guest(d);
+    const repo = runResultsRepo(d);
+    await repo.start(start);
+    await savedRunsRepo(d).saveResumable(saveRow(RUN, snapshot(RUN, []), [a.id]), new Date());
+    await db.execute(sql`update saved_runs set expires_at = now() - interval '1 minute'`);
+    expect(await repo.finish(end(), [seat(0, null)])).toBe(true); // the room won
+    expect(await repo.expireAbandoned(10)).toBe(0);
+    expect(await runRow(d)).toMatchObject({ ending: "wiped", player_count: 1 });
+    expect(await rows(db, sql`select id from saved_runs`)).toEqual([]);
+    for (const id of [RUN2, RUN3]) await repo.start({ ...start, id });
+    await db.execute(sql`update run_results set started_at = now() - ${`${ORPHAN_RUN_MS + 60_000} milliseconds`}::interval where id in (${RUN2}, ${RUN3})`);
+    expect(await repo.expireAbandoned(1)).toBe(1);
+    expect(await repo.expireAbandoned(1)).toBe(1);
+    expect(await repo.expireAbandoned(1)).toBe(0);
   });
 });

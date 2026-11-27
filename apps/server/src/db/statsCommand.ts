@@ -4,11 +4,13 @@
  * account set.
  *
  * - Runs per week: ISO week of `ended_at` (Monday-based, this process's time zone); abandoned runs are their own
- *   column (Q2 = A) and are left out of the three other stats.
+ *   column (Q2 = A) and are left out of the three other stats. Endless wipes (B-code 10.7-B10) are their own column too,
+ *   and count in the other stats as played, not extracted.
  * - Each group's first 3 runs: group = the sorted set of accounts in a run (merged guests already mapped by the query,
  *   B6; a deleted account is its own anonymous member, so its run's group is unique).
  * - Runs to first extraction per account, as a distribution.
- * - Weapons bought (Q1 = C): each weapon's share of player rows that bought it, `⚠ over half` above 50 %.
+ * - Weapons bought (Q1 = C): each weapon's share of RUNS (a run counts a weapon once if any seat bought it; review
+ *   nit), `⚠ over half` above 50 %.
  */
 import { createHash } from "node:crypto";
 import type { StatsRun, StatsSeat } from "./runResultsRepo";
@@ -49,14 +51,15 @@ export function formatStats(runs: readonly StatsRun[], seats: readonly StatsSeat
 
   // 1. Runs per week (abandoned in their own column, Q2 = A).
   out.push("", "Runs per week");
-  const weeks = new Map<string, { monday: string; runs: number; abandoned: number }>();
+  const weeks = new Map<string, { monday: string; runs: number; endless: number; abandoned: number }>();
   for (const r of runs) {
     const w = isoWeek(r.endedAt);
-    const row = weeks.get(w.key) ?? weeks.set(w.key, { monday: w.monday, runs: 0, abandoned: 0 }).get(w.key)!;
+    const row = weeks.get(w.key) ?? weeks.set(w.key, { monday: w.monday, runs: 0, endless: 0, abandoned: 0 }).get(w.key)!;
     if (r.ending === "abandoned") row.abandoned++;
+    else if (r.ending === "endless") row.endless++;
     else row.runs++;
   }
-  for (const [key, w] of [...weeks.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) out.push(`  ${key} (${w.monday})  ${plural(w.runs, "run")} · ${w.abandoned} abandoned`);
+  for (const [key, w] of [...weeks.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) out.push(`  ${key} (${w.monday})  ${plural(w.runs, "run")} · ${w.endless} endless · ${w.abandoned} abandoned`);
 
   // The three other stats read played runs only (Q2 = A), oldest first.
   const played = runs.filter((r) => r.ending !== "abandoned");
@@ -106,22 +109,23 @@ export function formatStats(runs: readonly StatsRun[], seats: readonly StatsSeat
     out.push(`  ${parts.join(" · ")}`);
   }
 
-  // 4. Weapons bought (Q1 = C): each weapon's share of player rows.
-  const rows = played.flatMap((r) => byRun.get(r.id) ?? []);
-  out.push("", `Weapons bought (share of ${plural(rows.length, "player run")})`);
-  if (rows.length === 0) out.push("  (none)");
+  // 4. Weapons bought (Q1 = C): each weapon's share of runs (a run counts it once if any of its seats bought it).
+  const withSeats = played.filter((r) => (byRun.get(r.id) ?? []).length > 0);
+  out.push("", `Weapons bought (share of ${plural(withSeats.length, "run")})`);
+  if (withSeats.length === 0) out.push("  (none)");
   else {
     const count = new Map<string, number>();
     let none = 0;
-    for (const s of rows) {
-      const ws = s.loadout === "" ? [] : [...new Set(s.loadout.split("+"))];
-      if (ws.length === 0) none++;
+    for (const r of withSeats) {
+      const ws = new Set((byRun.get(r.id) ?? []).flatMap((s) => (s.loadout === "" ? [] : s.loadout.split("+"))));
+      if (ws.size === 0) none++;
       for (const w of ws) count.set(w, (count.get(w) ?? 0) + 1);
     }
+    const n0 = withSeats.length;
     const lines = [...count.entries()].sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1));
     const width = Math.max(10, ...lines.map(([w]) => w.length));
-    for (const [w, n] of lines) out.push(`  ${w.padEnd(width)} ${String(pct(n, rows.length)).padStart(3)} %${2 * n > rows.length ? "  ⚠ over half" : ""}`);
-    out.push(`  ${"(none)".padEnd(width)} ${String(pct(none, rows.length)).padStart(3)} %  bought no weapon`);
+    for (const [w, n] of lines) out.push(`  ${w.padEnd(width)} ${String(pct(n, n0)).padStart(3)} %${2 * n > n0 ? "  ⚠ over half" : ""}`);
+    out.push(`  ${"(none)".padEnd(width)} ${String(pct(none, n0)).padStart(3)} %  no weapon bought`);
   }
   return out;
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import pg from "pg";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { log } from "../ops/logger";
@@ -76,6 +77,52 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
       const rows = ((await (await database.db()).execute(sql`select account_id, slot, waves_in from run_result_players where run_id = ${run} order by slot`)) as unknown as { rows: { account_id: string | null; slot: number; waves_in: number }[] }).rows;
       expect(rows.map((r) => r.account_id)).toEqual(accs.map((a) => (a === victim ? null : a.id)));
       expect(rows.every((r) => r.waves_in === 4)).toBe(true);
+    }
+  });
+
+  it("Story 10.7 review L2 (+ L5): a finish naming an account A AND its merged guest G (G's id < A's) races Delete my progress of A, ×10 → no deadlock (40P01), no 503; both seats nulled, the run kept", async () => {
+    const results = runResultsRepo(database);
+    const db = await database.db();
+    for (let k = 0; k < 10; k++) {
+      const a = await acct();
+      let g = await acct();
+      while (g.id >= a.id) g = await acct(); // the merged guest sorts BEFORE the account (the deadlock order)
+      await db.execute(sql`update accounts set merged_into = ${a.id} where id = ${g.id}`);
+      const run = randomUUID();
+      const seats = [a, g].map((x, i) => ({ seat: `p${i}#1`, accountId: x.id, slot: i, loadout: "", wavesIn: 2, kills: 0 }));
+      const [won, del] = await Promise.all([results.finish({ id: run, district: "downtown", seed: 1, waveReached: 2, ending: "wiped", endless: false, nightMs: 1000 }, seats), accountsRepo(database).deleteAccount(a.token, a.id, "p", new Set([a.token]))]);
+      expect(won).toBe(true);
+      expect(del.outcome).toBe("deleted");
+      const rows = ((await db.execute(sql`select account_id from run_result_players where run_id = ${run} order by slot`)) as unknown as { rows: { account_id: string | null }[] }).rows;
+      expect(rows).toEqual([{ account_id: null }, { account_id: null }]);
+    }
+  });
+
+  it("Story 10.7 review L2, forced order: a delete holding A (FOR UPDATE) and then deleting A's merged guest G (G < A) while a finish of [A, G] waits → the delete goes through (the finish locks A before G; plain id order deadlocks here)", async () => {
+    const results = runResultsRepo(database);
+    const db = await database.db();
+    const a = await acct();
+    let g = await acct();
+    while (g.id >= a.id) g = await acct();
+    await db.execute(sql`update accounts set merged_into = ${a.id} where id = ${g.id}`);
+    const run = randomUUID();
+    const tx = new pg.Client({ connectionString: URL as string });
+    await tx.connect();
+    try {
+      await tx.query("BEGIN");
+      await tx.query("SET LOCAL lock_timeout = '3s'");
+      await tx.query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE", [a.id]); // deleteAccount's account lock
+      const finishing = results.finish({ id: run, district: "downtown", seed: 1, waveReached: 1, ending: "wiped", endless: false, nightMs: 0 }, [a, g].map((x, i) => ({ seat: `p${i}#1`, accountId: x.id, slot: i, loadout: "", wavesIn: 1, kills: 0 })));
+      await new Promise((r) => setTimeout(r, 300)); // the finish is now waiting on its account locks
+      await tx.query("DELETE FROM accounts WHERE id = $1", [g.id]); // then the merged guest (deleteAccount's order): never a 40P01
+      await tx.query("DELETE FROM accounts WHERE id = $1", [a.id]);
+      await tx.query("COMMIT");
+      expect(await finishing).toBe(true);
+      const rows = ((await db.execute(sql`select account_id from run_result_players where run_id = ${run}`)) as unknown as { rows: { account_id: string | null }[] }).rows;
+      expect(rows).toEqual([{ account_id: null }, { account_id: null }]); // both gone first: written as no account
+    } finally {
+      await tx.query("ROLLBACK").catch(() => undefined);
+      await tx.end();
     }
   });
 

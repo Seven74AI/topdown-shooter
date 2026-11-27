@@ -75,7 +75,7 @@ describe.skipIf(!URL)("Story 10.7: run stats rows on real PostgreSQL (TEST_DATAB
       await Promise.all(
         Array.from({ length: 8 }, async (_, i) => {
           const c = await saves.claim(id, i % 2 === 0 ? a : b, `R${round}${i}`);
-          if (c.outcome === "claimed") await repo.resumed({ id, district: "downtown", seed: 1 });
+          if (c.outcome === "claimed") await repo.resumed({ id, district: "downtown", seed: 1 }, `R${round}${i}`);
         }),
       );
       expect((await q<{ n: number }>(sql`select nights_played as n from run_results where id = ${id}`))[0]?.n).toBe(2);

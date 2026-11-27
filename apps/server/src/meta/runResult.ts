@@ -21,11 +21,12 @@ export function seatRow(p: Readonly<ResultPlayer>, seat: string, slot: number, a
 }
 
 /**
- * The run's row at its end (B2). `left`: the run is over because the team left (all gone mid-wave, a quit) → `lost`
- * whatever the World says; otherwise the World's ending (`none` → `lost`).
+ * The run's row at its end (B2). An extraction is `extracted` however it ended (review M2: everyone leaving during the
+ * fly-out still extracted). Otherwise `left` (the team left: all gone mid-wave, a quit) → `lost`; a wipe in endless
+ * (after Stay) → `endless` (main-session B-code 10.7-B10, review L6); else the World's ending (`none` → `lost`).
  */
 export function resultRow(world: Readonly<World>, run: { id: string; district: string; seed: number; nightMs: number }, waveReached: number, left: boolean): RunEndRow {
   const e = world.run.ending;
-  const ending: RunEndRow["ending"] = left ? "lost" : e === "wiped" || e === "extracted" ? e : "lost";
+  const ending: RunEndRow["ending"] = e === "extracted" ? "extracted" : left ? "lost" : world.run.endless ? "endless" : e === "wiped" ? "wiped" : "lost";
   return { id: run.id, district: run.district, seed: run.seed, waveReached, ending, endless: world.run.endless, nightMs: Math.max(0, run.nightMs) };
 }

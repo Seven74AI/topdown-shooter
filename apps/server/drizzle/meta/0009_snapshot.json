@@ -1,5 +1,5 @@
 {
-  "id": "849a9517-ad5d-4933-9f94-f44f77cfb89c",
+  "id": "6f95917c-31be-448c-a5c5-fb7cbcaf2329",
   "prevId": "30d918c1-078d-41aa-b628-e3be8d1576b1",
   "version": "7",
   "dialect": "postgresql",
@@ -624,6 +624,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 1
+        },
+        "last_resume": {
+          "name": "last_resume",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -650,7 +656,7 @@
       "checkConstraints": {
         "run_results_ending": {
           "name": "run_results_ending",
-          "value": "\"run_results\".\"ending\" is null or \"run_results\".\"ending\" in ('wiped', 'extracted', 'lost', 'abandoned')"
+          "value": "\"run_results\".\"ending\" is null or \"run_results\".\"ending\" in ('wiped', 'extracted', 'lost', 'endless', 'abandoned')"
         }
       },
       "isRLSEnabled": false

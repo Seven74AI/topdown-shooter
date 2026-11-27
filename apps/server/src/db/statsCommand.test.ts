@@ -34,6 +34,7 @@ describe("Story 10.7: npm run stats", () => {
     const r4 = run(day(2026, 12, 1), 12, "extracted"); // the 4th run of the same group: not printed
     const r5 = run(day(2026, 12, 1, 13), 3, "wiped"); // a group of one deleted account + b
     const r6 = run(day(2026, 12, 2), 0, "abandoned");
+    const r7 = run(day(2026, 12, 3), 14, "endless"); // B-code 10.7-B10: its own column; played, not extracted
     const s = [
       ...seats(r1, ["a", "b"], ["smg", "shotgun+smg"]),
       ...seats(r2, ["b", "a"], ["smg", ""]),
@@ -41,24 +42,27 @@ describe("Story 10.7: npm run stats", () => {
       ...seats(r4, ["a", "b"]),
       ...seats(r5, [null, "b"], ["fire_axe", "smg"]),
       ...seats(r6, ["c"], ["minigun"]),
+      ...seats(r7, ["d"], [""]),
     ];
-    const out = formatStats([r1, r2, r3, r4, r5, r6], s);
+    const out = formatStats([r1, r2, r3, r4, r5, r6, r7], s);
     const text = out.join("\n");
     expect(out[0]).toBe("Run stats (all finished runs)");
-    expect(text).toContain("2026-W48 (Mon 23 Nov)  2 runs · 0 abandoned");
-    expect(text).toContain("2026-W49 (Mon 30 Nov)  3 runs · 1 abandoned");
+    expect(text).toContain("2026-W48 (Mon 23 Nov)  2 runs · 0 endless · 0 abandoned");
+    expect(text).toContain("2026-W49 (Mon 30 Nov)  3 runs · 1 endless · 1 abandoned");
     const groups = out.filter((l) => l.includes(" · group "));
-    expect(groups).toHaveLength(2);
+    expect(groups).toHaveLength(3);
+    expect(groups[2]).toMatch(/^ {2}1 player · group [0-9a-f]{6} · 14$/); // the endless run: no ✓
     expect(groups[0]).toMatch(/^ {2}2 players · group [0-9a-f]{6} · 6, 8, 10✓$/);
     expect(groups[1]).toMatch(/^ {2}2 players · group [0-9a-f]{6} · 3$/);
     expect(text).not.toMatch(/\b[abc]\b · /); // no member id is printed
     // a: r1, r2, r3✓ → 3 runs; b: same → 3 runs; c only abandoned (left out); the deleted seat is nobody's.
-    expect(text).toContain("3 runs: 2 accounts · not yet: 0");
-    // Weapons over the 10 played player rows: smg 6 (60 % ⚠), shotgun 1, fire_axe 1, none 3; minigun (abandoned) absent.
-    expect(text).toContain("Weapons bought (share of 10 player runs)");
-    expect(out.find((l) => l.trim().startsWith("smg"))).toMatch(/60 % {2}⚠ over half$/);
-    expect(out.find((l) => l.trim().startsWith("shotgun"))).toMatch(/10 %$/);
-    expect(out.find((l) => l.trim().startsWith("(none)"))).toMatch(/30 % {2}bought no weapon$/);
+    expect(text).toContain("3 runs: 2 accounts · not yet: 1"); // d: one endless run, never extracted
+    // Weapons over the 6 played runs (a run counts a weapon once): smg in r1, r2, r3, r5 (67 % ⚠), shotgun r1, fire_axe
+    // r5 (17 %), none r4, r7 (33 %); minigun (abandoned) absent.
+    expect(text).toContain("Weapons bought (share of 6 runs)");
+    expect(out.find((l) => l.trim().startsWith("smg"))).toMatch(/67 % {2}⚠ over half$/);
+    expect(out.find((l) => l.trim().startsWith("shotgun"))).toMatch(/17 %$/);
+    expect(out.find((l) => l.trim().startsWith("(none)"))).toMatch(/33 % {2}no weapon bought$/);
     expect(text).not.toContain("minigun");
   });
 
@@ -66,9 +70,10 @@ describe("Story 10.7: npm run stats", () => {
     const r1 = run(day(2026, 11, 2), 10, "extracted");
     const r2 = run(day(2026, 11, 3), 4, "wiped");
     const r3 = run(day(2026, 11, 4), 10, "extracted");
-    const out = formatStats([r1, r2, r3], [...seats(r1, ["a"], ["smg"]), ...seats(r2, ["b"], [""]), ...seats(r3, ["b"], ["smg"]), ...seats(r3, ["c"], [""])], new Date(2026, 10, 1)).join("\n");
+    const r4 = run(day(2026, 11, 5), 2, "wiped");
+    const out = formatStats([r1, r2, r3, r4], [...seats(r1, ["a"], ["smg"]), ...seats(r2, ["b"], [""]), ...seats(r3, ["b"], ["smg"]), ...seats(r3, ["c"], [""]), ...seats(r4, ["d"], [""])], new Date(2026, 10, 1)).join("\n");
     expect(out).toContain("since");
-    expect(out).toContain("1 run: 2 accounts · 2 runs: 1 · not yet: 0");
+    expect(out).toContain("1 run: 2 accounts · 2 runs: 1 · not yet: 1");
     expect(out).toMatch(/smg +50 %\n/);
     const only = formatStats([run(day(2026, 11, 2), 3, "wiped")], seats(run(day(2026, 11, 2), 3, "wiped"), [])).join("\n");
     expect(only).toContain("(none)");
