@@ -146,6 +146,49 @@ export const paidBags = pgTable("paid_bags", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Story 10.7 (AC 1, B1): one row per online run, for the run stats (`npm run stats`). `id` IS the run id (7.2's
+ * `runId`, kept across resumes). Created at the run's first Start (`ended_at` null: open), +1 `nights_played` per
+ * resume, finished once (`ended_at` set) by the room at the run's end or by the housekeeping step when its save expired
+ * unresumed (`ending = 'abandoned'`). The stats read finished rows only. Only `runResultsRepo` touches it.
+ */
+export const runResults = pgTable("run_results", {
+  id: uuid("id").primaryKey(),
+  district: text("district").notNull(),
+  seed: bigint("seed", { mode: "number" }).notNull(),
+  playerCount: integer("player_count").notNull().default(0),
+  waveReached: integer("wave_reached").notNull().default(0),
+  extracted: boolean("extracted").notNull().default(false),
+  /** Null while the run is open. */
+  ending: text("ending"),
+  endless: boolean("endless").notNull().default(false),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  nightsPlayed: integer("nights_played").notNull().default(1),
+}, (t) => [
+  check("run_results_ending", sql`${t.ending} is null or ${t.ending} in ('wiped', 'extracted', 'lost', 'abandoned')`),
+  index("run_results_ended_idx").on(t.endedAt),
+]);
+
+/**
+ * Story 10.7 (AC 1, 2; B5): one row per seat that was in a finished run. `seat` is the seat id (`playerId#gen`, 8.3 H1:
+ * a reused player id or slot is a new seat, so the key is the seat, not the slot). `account_id` is nulled when the
+ * account is deleted (10.1: the run numbers stay, nobody is named). `loadout` = the weapons the seat bought, sorted,
+ * joined by "+" ("" none: designer Q1 = C). `kills` = own kills (7.11 counter) as at the bank (frozen during `extract`,
+ * Q4 = B). No names.
+ */
+export const runResultPlayers = pgTable("run_result_players", {
+  runId: uuid("run_id")
+    .notNull()
+    .references(() => runResults.id, { onDelete: "cascade" }),
+  seat: text("seat").notNull(),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+  slot: integer("slot").notNull(),
+  loadout: text("loadout").notNull(),
+  wavesIn: integer("waves_in").notNull(),
+  kills: integer("kills").notNull().default(0),
+}, (t) => [primaryKey({ name: "run_result_players_pk", columns: [t.runId, t.seat] }), index("run_result_players_account_idx").on(t.accountId)]);
+
 /** Story 7.11: `progress.stats`. */
 export interface LifetimeStatsRow {
   revives: number;

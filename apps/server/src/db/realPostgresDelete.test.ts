@@ -8,6 +8,7 @@ import { deviceTokensRepo } from "./deviceTokensRepo";
 import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { savedRunsRepo } from "./savedRunsRepo";
+import { runResultsRepo } from "./runResultsRepo";
 
 /**
  * Story 10.1 review (M2, L3, L4, M3, L6): Delete my progress racing logins and banks on a REAL PostgreSQL (PGlite runs on
@@ -55,6 +56,23 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
       }
     }
     expect(deleted + kept).toBe(20);
+  });
+
+  it("Story 10.7 (B5): a 4-seat run finish and Delete my progress of one seat's account at once, ×10 → the finish commits 4 rows (the deleted seat's account null), the delete is 'deleted', no 23503, no 503", async () => {
+    const results = runResultsRepo(database);
+    for (let k = 0; k < 10; k++) {
+      const accs = [await acct(), await acct(), await acct(), await acct()];
+      const run = randomUUID();
+      await results.start({ id: run, district: "downtown", seed: 1 });
+      const seats = accs.map((a, i) => ({ seat: `p${i}#1`, accountId: a.id, slot: i, loadout: "smg", wavesIn: 4, kills: i }));
+      const victim = accs[k % 4]!;
+      const [won, del] = await Promise.all([results.finish({ id: run, district: "downtown", seed: 1, waveReached: 4, ending: "wiped", endless: false, nightMs: 1000 }, seats), accountsRepo(database).deleteAccount(victim.token, victim.id, "p", new Set([victim.token]))]);
+      expect(won).toBe(true);
+      expect(del.outcome).toBe("deleted");
+      const rows = ((await (await database.db()).execute(sql`select account_id, slot, waves_in from run_result_players where run_id = ${run} order by slot`)) as unknown as { rows: { account_id: string | null; slot: number; waves_in: number }[] }).rows;
+      expect(rows.map((r) => r.account_id)).toEqual(accs.map((a) => (a === victim ? null : a.id)));
+      expect(rows.every((r) => r.waves_in === 4)).toBe(true);
+    }
   });
 
   /** An account with two devices D and E (both checked by the route). */

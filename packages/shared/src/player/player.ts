@@ -176,6 +176,12 @@ export interface PlayerState {
   downs10: number;
   barricades: number;
   barricadesPending: number[];
+  /**
+   * Story 10.7 (designer Q1 = C): the weapon ids this player BOUGHT this run (a shop card; never the starting Pistol, a
+   * crate or a supply-drop weapon), each once, in buy order. Server bookkeeping for the run stats (`run_result_players
+   * .loadout`): not in the schema, not mirrored. Grows only on a buy (never per tick).
+   */
+  weaponsBought: string[];
   /** Review M2 (B31): who downed this player (a teammate's blast or fire), null: a zombie, a world hazard or standing. */
   downedBy: string | null;
 }
@@ -260,6 +266,7 @@ export function addPlayer(world: World, id: string, x: number, y: number, init: 
     downs10: 0,
     barricades: 0,
     barricadesPending: [],
+    weaponsBought: [],
     downedBy: null,
   };
   world.players.set(id, player);

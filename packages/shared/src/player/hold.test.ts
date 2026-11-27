@@ -105,6 +105,7 @@ const FIELD_RULES: Record<keyof PlayerState, "kept" | "placed" | "reset"> = {
   downs10: "kept",
   barricades: "kept",
   barricadesPending: "kept",
+  weaponsBought: "kept", // Story 10.7: the run stats' loadout rides with the seat
   downedBy: "kept", // review M2: only read on the next player.revived (a fresh down resets it)
 };
 
@@ -135,6 +136,7 @@ function scramble(world: World, p: PlayerState): void {
   p.downs10 = 1;
   p.barricades = 7;
   p.barricadesPending.push(42);
+  p.weaponsBought.push("smg");
   p.downedBy = "p3";
   p.slowTicksLeft = 5;
   p.slowPct = 30;

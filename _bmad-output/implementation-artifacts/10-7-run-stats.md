@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.7: Run stats
 
-Status: ready-for-dev
+Status: review
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. **Awaiting designer Q-codes 10.7-Q1…Q4.** None of them is a look, and none blocks the server work: T1–T4 can start at once, and only the stats script's output (T5) waits on Q1–Q3. **Migration order:** **10.6 lands first** (`0008_*`). This story **regenerates its migration on top of master** (it becomes `0009_*`; never rename one: Drizzle skips an older journal `when`, AGENTS §2). If 10.7 happens to be ready first, it takes `0008` and 10.6 regenerates instead. The main session decides at merge time.)
 
@@ -50,17 +50,17 @@ so that I can check the success metrics.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 DB (AC 1, 6; B5)**: `schema.ts` `runResults`, `runResultPlayers`. Migration (regenerate on top of master after 10.6 merges). New `apps/server/src/db/runResultsRepo.ts`: `start(run)`, `resumed(runId)`, `finish(runId, result, players)` (B4/B5 transaction, upsert per B8), `expireAbandoned(now, batch)` (B3; reads `saved_runs` through its own query in this repo: only repos touch tables, `noDbImports.test.ts`), `statsRows(since)`. LOCK ORDER comment in `accountsRepo.ts`.
-- [ ] **T2 Room hooks (AC 2–4; B1, B2, B8)** in `apps/server/src/rooms/RunRoom.ts`:
-  - [ ] `startRun` right after `this.bank = new RunBank(…)` (:1865): `start()` for a fresh run; for a resume, `resumed(runId)` only after the claim succeeded (`claim` at :2271 → `"claimed"`).
-  - [ ] Collect the per-seat rows at each seat's **bank** (consented Leave → `bank`, end → `bankRunEnd`): a small `RunResultSeats` map keyed by **seat id** (8.3 H1: a reused player id is a new seat), overwritten on a top-up bank (8.2 `reopen`). Build it from the same `PlayerState` copy the bank takes, never from a later state.
-  - [ ] `endRun` (:2015): when `keepSave` is false, `finish()` fire-and-forget (B8). Do nothing when `keepSave` is true.
-  - [ ] A pure helper `apps/server/src/meta/runResult.ts` (`loadoutKey(loadout)`, `resultRow(world, ending)`, `seatRow(player, slot, accountId)`) so the numbers are unit-tested without a room.
-- [ ] **T3 Expiry step (AC 5; B3)**: add `expireAbandonedRuns` to `ops/housekeeping.ts` (create the file per 10.6-B5 if 10.6 hasn't merged). Seats come from the snapshot through `migrateRunSave` (`packages/shared/src/save/migrations.ts`), so an older save still reads. An unreadable snapshot → a row with no player rows and a `run_result_unreadable_save` warn. If you touch `savedRunsRepo.ts`, also do deferred-work **D8** (remove the dead `releaseOpenOnBoot` parameter).
-- [ ] **T4 X8 test (AC 7)**: in `apps/server/src/run/` (a RunController-level test is enough: `playToBuild`-style helpers, `systems` as needed).
-- [ ] **T5 Stats script (AC 8; Q1–Q3)**: `apps/server/src/db/statsCommand.ts` (pure: rows in → text out, unit-tested with fixture rows) + `statsCli.ts`, the `"stats"` script in `apps/server/package.json`, `docs/deploy.md`.
-- [ ] **T6 Tests**: see the test plan.
-- [ ] **T7 Hand-back**: `gate:fast` + `test:changed` (RunRoom tests are in the slow areas: `test:slow` for `apps/server/src/rooms`). Branch `story-10-7`, PR "Story 10.7: Run stats".
+- [x] **T1 DB (AC 1, 6; B5)**: `schema.ts` `runResults`, `runResultPlayers`. Migration (regenerate on top of master after 10.6 merges). New `apps/server/src/db/runResultsRepo.ts`: `start(run)`, `resumed(runId)`, `finish(runId, result, players)` (B4/B5 transaction, upsert per B8), `expireAbandoned(now, batch)` (B3; reads `saved_runs` through its own query in this repo: only repos touch tables, `noDbImports.test.ts`), `statsRows(since)`. LOCK ORDER comment in `accountsRepo.ts`.
+- [x] **T2 Room hooks (AC 2–4; B1, B2, B8)** in `apps/server/src/rooms/RunRoom.ts`:
+  - [x] `startRun` right after `this.bank = new RunBank(…)` (:1865): `start()` for a fresh run; for a resume, `resumed(runId)` only after the claim succeeded (`claim` at :2271 → `"claimed"`).
+  - [x] Collect the per-seat rows at each seat's **bank** (consented Leave → `bank`, end → `bankRunEnd`): a small `RunResultSeats` map keyed by **seat id** (8.3 H1: a reused player id is a new seat), overwritten on a top-up bank (8.2 `reopen`). Build it from the same `PlayerState` copy the bank takes, never from a later state.
+  - [x] `endRun` (:2015): when `keepSave` is false, `finish()` fire-and-forget (B8). Do nothing when `keepSave` is true.
+  - [x] A pure helper `apps/server/src/meta/runResult.ts` (`loadoutKey(loadout)`, `resultRow(world, ending)`, `seatRow(player, slot, accountId)`) so the numbers are unit-tested without a room.
+- [x] **T3 Expiry step (AC 5; B3)**: add `expireAbandonedRuns` to `ops/housekeeping.ts` (create the file per 10.6-B5 if 10.6 hasn't merged). Seats come from the snapshot through `migrateRunSave` (`packages/shared/src/save/migrations.ts`), so an older save still reads. An unreadable snapshot → a row with no player rows and a `run_result_unreadable_save` warn. If you touch `savedRunsRepo.ts`, also do deferred-work **D8** (remove the dead `releaseOpenOnBoot` parameter).
+- [x] **T4 X8 test (AC 7)**: in `apps/server/src/run/` (a RunController-level test is enough: `playToBuild`-style helpers, `systems` as needed).
+- [x] **T5 Stats script (AC 8; Q1–Q3)**: `apps/server/src/db/statsCommand.ts` (pure: rows in → text out, unit-tested with fixture rows) + `statsCli.ts`, the `"stats"` script in `apps/server/package.json`, `docs/deploy.md`.
+- [x] **T6 Tests**: see the test plan.
+- [x] **T7 Hand-back**: `gate:fast` + `test:changed` (RunRoom tests are in the slow areas: `test:slow` for `apps/server/src/rooms`). Branch `story-10-7`, PR "Story 10.7: Run stats".
 
 ## Dev Notes
 
@@ -120,16 +120,105 @@ PGlite repo tests. Real-PostgreSQL tests skip without `TEST_DATABASE_URL` (CI `p
 
 ### Agent Model Used
 
+Builder session (gds-dev-story), 2026-11-27.
+
 ### Debug Log References
 
+- First gate:fast: 6 room test files red because every Start now wrote a `run_results` row through the test server's
+  lazy in-memory PGlite (opened + migrated mid-run: CPU, timing asserts). Fix: `createGameServer({ recordRunStats })`
+  (default true); `bootTestServer` passes `recordRunStats: options.database !== undefined` (only tests that pass their
+  own database record). `RunRoom.account.test` forbids `.then(` in RunRoom: the finish chains through
+  `recordRunResult(…, after)` instead. `carCorner.test` GOLDEN_DIGEST re-pinned (the snapshot holds the new empty
+  `weaponsBought`; simulation unchanged).
+- Real PostgreSQL 16 run locally (scratch cluster, `TEST_DATABASE_URL=postgres://postgres@127.0.0.1:54329/t107`):
+  `realPostgres* --no-file-parallelism` 45/45, three runs of `realPostgresRunResults` green.
+
 ### Implementation Plan / decisions (B-codes)
+
+- **I1 (Q1 = C needs a record that didn't exist):** `PlayerState.weaponsBought: string[]` (shared, server bookkeeping,
+  not mirrored), pushed once per id in `buyCard` on a weapon card (never the start Pistol, a crate or a supply drop).
+  The story said "no shared changes", written before Q1 was picked; C can't be done without it. PlayerState is saved
+  whole, so the save shape changes: **`SAVE_SCHEMA_VERSION` 1 → 2**, step `1: (s) => s`, `SHAPES[2]`; a v1 seat gets
+  `weaponsBought = []` in `restoreRunSave` AFTER the digest check (the v1 digest was taken without it). A rollback to
+  an older server refuses v2 saves as `newer` (the documented 8.4 behaviour: released untouched).
+- **I2 (deviation from AC 1's PK):** `run_result_players` PK is (`run_id`, `seat`) with a `seat` text column (the seat id
+  `playerId#gen`), not (`run_id`, `slot`): 8.3's removed seat and the newcomer in its slot are two seats in one slot
+  (the test plan's "reused player id = 2 rows"). `slot` is still stored. Plus `kills` int (Q4 = B).
+- **I3:** `run_results.ending` is null while the row is open (check: null or the 4 values); `wave_reached`,
+  `player_count`, `extracted`, `endless` default 0/false until the finish.
+- **I4 (lock order):** both finishers take the seats' accounts FOR KEY SHARE (id order) FIRST, then the run row (new LOCK
+  ORDER entry 5 in `accountsRepo.ts`), like `savedRunsRepo` put (2 → 4); the expiry step is 2 → 4 (it deletes the save
+  while still expired `'saved'`) → 5. B5 put the run row first; this order matches the existing doc and can't cycle
+  with `deleteAccount` (2 → 4 → its ON DELETE SET NULL on 5).
+- **I5 (seat rows):** `RunBank` keeps a `resultRows` map by seat id, filled at each `bank()` from `BankSeat.result`
+  (built by the room from the same PlayerState the bank reads: `bankLeaver`, `removeRemembered`) and in `bankRunEnd`
+  for every seat not already banked (its banks may wait on the loot finder's). A `reopen`ed seat (8.2 top-up) is
+  overwritten by its end bank. `nothingFor` (waiting joiners) adds none.
+- **I6 (where the finish happens):** `endRun` with `keepSave = false` (wipe, extract_done, waiting-only with no save →
+  `lost`) and `finalLeave`'s `bankNow` (everyone gone mid-wave, or the calm save failed → `lost`). Nothing on a saved
+  end. Start / resumed at `startRun` (resumed only after a successful claim + Start). All fire and forget through
+  `run/roomRunResults.ts` (one retry after `BANK_RETRY_MS`, then `run_result_failed {runId, op, why}`).
+- **I7 (housekeeping):** 10.6 hadn't merged: `ops/housekeeping.ts` + `db/housekeepingCli.ts` created with 10.6's exact
+  contract (steps list, `runHousekeeping`, `startHousekeeping` 5 min then 24 h, unref'd) holding only this story's
+  `expireAbandonedRuns` step; keep-both at the merge. B3 said "at boot": the 10.6 contract's 5-min first run is kept.
+- **I8 (orphans):** open rows older than `ORPHAN_RUN_MS` (= `SAVE_KEEP_MS` + 1 day, derived) with no `saved_runs` row
+  are finished `abandoned`, `ended_at = now()`, no seats.
+- **I9 (stats text):** a group line is `N players · group <sha256[:6]> · 6, 8, 10✓`; first extraction is the
+  distribution line of AC 8; weapons: each weapon's share of played player rows plus a `(none)` line.
+- **Known gaps (not built, for the reviewer):** (a) a seat the host REMOVED on an earlier night of a multi-night run has
+  no row at the end (its bank was in an earlier room; removed seats aren't in the save); (b) a run whose save is pruned
+  by `pruneAccount` (lazy expiry delete, keep-3) or a room disposed mid-run without a stored save is finished by the
+  orphan rule with no seats; (c) the waiting-only all-left path (`keep = true`) whose `makeResumable` then fails leaves
+  the row open → orphan rule.
 
 ### Completion Notes List
 
 - Story context created with `gds-create-story` (story writer session, 2026-11-27).
+- T1: migration `0008_run_results` (generated; regenerate to 0009 on top of 10.6), `runResultsRepo` (start, resumed,
+  finish, expireAbandoned, statsRows), `savedSeats` (snapshot → seats through `migrateRunSave`), LOCK ORDER entry 5,
+  `ACCOUNT_TABLE_MERGES.runResultPlayers`, db.test table list.
+- T2: room hooks (`startRun`, `bankLeaver`, `removeRemembered`, `bankMembers` + slot, `endRun`, `finalLeave` bankNow),
+  pure `meta/runResult.ts`, `RunBank.resultSeats`, `run/roomRunResults.ts`, `app.ts` wiring.
+- T3: `expireAbandonedRuns` housekeeping step (B3), `index.ts` schedule, `npm run housekeeping`.
+- T4: `run/runResultX8.test.ts`: a 3-player run voted into `extract`, stepped to Results with the fly-out horde
+  really spawned; seat rows (waves in, loadout, kills) at the end = at extract start, through `RunBank.bankRunEnd`.
+- T5: `statsCommand.ts` (pure) + `statsCli.ts`, `npm run stats`, docs/deploy.md › Database "Run stats". Checked by hand on
+  real PostgreSQL: the tables print; an empty database prints "No finished runs yet" (exit 0); a bad `--since` exits 2.
+- T6 tests: `meta/runResult.test.ts`, `db/runResults.test.ts` (PGlite: migration, start/finish, B8 upsert, double finish,
+  3 nights, deleted/made-up account, reused slot, account delete + merged guest nulling, expiry + orphan + unreadable
+  save), `db/statsCommand.test.ts`, `rooms/RunRoom.runResults.test.ts` (wipe, all-left lost, solo, Save and quit = open,
+  Leave-then-rejoin = one row, removed seat + newcomer = 2 rows with a waiting joiner getting none, 3 nights), `run/runResultX8.test.ts`,
+  `realPostgresRunResults.test.ts` (finish vs expiry ×20 with both outcomes asserted; 8 claims + resumed ×5),
+  `realPostgresDelete.test.ts` (+ finish vs delete ×10), `tools/checks/practiceNoRunResults.test.ts` (AC 3),
+  shared: `shopCards.test.ts` (+ weaponsBought), `migrations.test.ts` (v2 shape, v1 restores with `[]`).
+- **Deferred D2 folded in:** `realPostgresSaves.test.ts` "deferred D2" case (×10: bank 20, then 3 × 35 + 2 × 50 top-ups at
+  once → one row of 50, Supplies and lifetime +50, runs +1 once). Green on real PostgreSQL 16 locally; the CI postgres
+  job runs it.
+- AC 4 note: the room's 3-night test ends with a wipe, not an extract (a room extraction is a ~20 s walk + fly-out); the
+  extract ending is covered by the X8 test through the same `RunBank` path.
 
 ### File List
+
+- New: `apps/server/drizzle/0008_run_results.sql`, `apps/server/drizzle/meta/0008_snapshot.json`,
+  `apps/server/src/db/runResultsRepo.ts`, `apps/server/src/db/statsCommand.ts`, `apps/server/src/db/statsCli.ts`,
+  `apps/server/src/db/housekeepingCli.ts`, `apps/server/src/ops/housekeeping.ts`, `apps/server/src/meta/runResult.ts`,
+  `apps/server/src/run/roomRunResults.ts`; tests `apps/server/src/db/runResults.test.ts`,
+  `apps/server/src/db/realPostgresRunResults.test.ts`, `apps/server/src/db/statsCommand.test.ts`,
+  `apps/server/src/meta/runResult.test.ts`, `apps/server/src/rooms/RunRoom.runResults.test.ts`,
+  `apps/server/src/run/runResultX8.test.ts`, `tools/checks/practiceNoRunResults.test.ts`.
+- Changed: `apps/server/drizzle/meta/_journal.json`, `apps/server/package.json`, `apps/server/src/app.ts`,
+  `apps/server/src/index.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/accountsRepo.ts` (comment),
+  `apps/server/src/db/testQueries.ts`, `apps/server/src/db/db.test.ts`, `apps/server/src/db/realPostgresDelete.test.ts`,
+  `apps/server/src/db/realPostgresSaves.test.ts`, `apps/server/src/meta/banking.ts`, `apps/server/src/meta/merge.ts`,
+  `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/test/bootTestServer.ts`, `packages/shared/src/player/player.ts`,
+  `packages/shared/src/economy/shopCards.ts`, `packages/shared/src/save/runSave.ts`, `packages/shared/src/save/migrations.ts`,
+  `packages/shared/src/save/restore.ts`, tests `packages/shared/src/economy/shopCards.test.ts`,
+  `packages/shared/src/player/hold.test.ts`, `packages/shared/src/save/migrations.test.ts`,
+  `packages/shared/src/save/runSave.coverage.test.ts`, `packages/shared/src/zombies/carCorner.test.ts`, `docs/deploy.md`,
+  `_bmad-output/implementation-artifacts/deferred-work.md` (D2 closed), this file.
 
 ### Change Log
 
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.7-Q1…Q4).
+- 2026-11-27: built (gds-dev-story): run_results tables + repo, room hooks, expiry housekeeping step, `npm run stats`,
+  `PlayerState.weaponsBought` + save v2, deferred D2 test; Status → review.

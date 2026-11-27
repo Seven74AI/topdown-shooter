@@ -20,6 +20,8 @@ import { log } from "./ops/logger";
 import { RunRoom } from "./rooms/RunRoom";
 import { savedRunsRepo, type SavedRunsRepo } from "./db/savedRunsRepo";
 import { setRoomSaves } from "./run/roomSaves";
+import { runResultsRepo } from "./db/runResultsRepo";
+import { setRoomRunResults } from "./run/roomRunResults";
 import { createSavedRunsRoute } from "./auth/savedRunsRoute";
 import { savedRunsIpLimiter } from "./net/rateLimit";
 
@@ -42,6 +44,11 @@ export interface GameServerOptions {
   sessionSecret?: string;
   /** Story 7.6 review L1: re-check a join ticket's device row (default true; off only in tests with made-up accounts). */
   checkTicketRows?: boolean;
+  /**
+   * Story 10.7: write the run stats rows (default true). `bootTestServer` turns it off unless the test passes its own
+   * database, so a room test never opens the lazy PGlite just for them.
+   */
+  recordRunStats?: boolean;
 }
 
 /**
@@ -57,6 +64,7 @@ export function createGameServer({
   database = openPglite(),
   sessionSecret = randomSessionSecret(),
   checkTicketRows = true,
+  recordRunStats = true,
 }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   const accounts = accountsRepo(database);
@@ -81,6 +89,7 @@ export function createGameServer({
   setRoomAccounts({ sessionSecret, accounts, progress, checkTicketRows }); // Story 7.2: banking; 7.6 L1: ticket row check
   const saves: SavedRunsRepo = savedRunsRepo(database);
   setRoomSaves(saves); // Stories 8.4–8.6: autosaves, Save and quit, resume
+  setRoomRunResults(recordRunStats ? runResultsRepo(database) : null); // Story 10.7: the run stats rows
   const savedRuns = createSavedRunsRoute({ accounts, saves, allowedOrigins, ipLimiter: savedRunsIpLimiter }); // Story 8.6
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },

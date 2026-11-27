@@ -17,11 +17,13 @@ import { scrubSeats } from "./scrubSeats";
  *   1. device_tokens rows — all of them for one account, sorted by token_hash (`ORDER BY token_hash FOR UPDATE`);
  *   2. accounts rows — the account first, then its merged guests; several accounts in id order;
  *   3. guest-side rows (the merged guest's account / progress rows);
- *   4. saved_runs (and saved_run_players).
+ *   4. saved_runs (and saved_run_players);
+ *   5. run_results (and run_result_players) — Story 10.7.
  *
  * Paths: `deleteAccount` (1 → 2 → 3 → 4), `deviceTokensRepo.logIn` / reset (1 → 2 → merge 3), `deviceTokensRepo.logOut`
  * (1 only), `progressRepo.addSupplies` (2: payee before the merged guest's seat row), `savedRunsRepo` put (2 as KEY SHARE
- * → 4). A new path that locks two of these points here.
+ * → 4), `runResultsRepo.finish` (2 as KEY SHARE → 5), `runResultsRepo.expireAbandoned` (2 as KEY SHARE → 4 → 5); the
+ * delete's ON DELETE SET NULL on run_result_players (5) comes after its account rows (2). A new path that locks two of these points here.
  */
 
 /** What the rest of the server may know about an account (never a hash). */

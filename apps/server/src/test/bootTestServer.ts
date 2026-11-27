@@ -20,7 +20,8 @@ export async function bootTestServer(
 ): Promise<{ colyseus: ColyseusTestServer; port: number }> {
   log.level = process.env.LOG_LEVEL ?? "silent";
   const port = await freePort();
-  const server = createGameServer({ allowSoloStart: true, ...options });
+  // Story 10.7: run stats rows only with a database the test passed (never the lazy PGlite opened just for them).
+  const server = createGameServer({ allowSoloStart: true, recordRunStats: options.database !== undefined, ...options });
   await server.listen(port, "127.0.0.1");
   const colyseus = new ColyseusTestServer(server);
   const cleanup = colyseus.cleanup.bind(colyseus);

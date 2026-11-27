@@ -146,4 +146,5 @@ export const ACCOUNT_TABLE_MERGES = {
   deviceTokens: "the guest's devices are deleted (the device that logged in gets a fresh row)",
   runRewards: "kept on the guest as history (a late bank of the guest pays the account: mergedInto)",
   savedRunPlayers: "re-pointed to the account (a run both played keeps one link); a resume maps the save's guest seat by mergedInto",
+  runResultPlayers: "kept on the guest as history (Story 10.7 B6: the stats map it through mergedInto)",
 } as const;

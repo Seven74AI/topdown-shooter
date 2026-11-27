@@ -336,6 +336,20 @@ describe("buying and rerolling (Story 5.13 AC 5–6; F3–F5, B3, B5, B6, B10, B
     expect(after.rev).toBe(o.rev); // buys don't change rev
   });
 
+  it("Story 10.7 (Q1 = C): a bought weapon is recorded once in weaponsBought; gear, a refused buy and the start Pistol are not", () => {
+    const { world, p, o, c, item } = withCard("weapon");
+    expect(p.weaponsBought).toEqual([]); // the starting Pistol is never "bought"
+    const g = o.cards.findIndex((id) => kindOf(id) === "gear");
+    expect(buyCard(world, "p0", o.build, o.rev, g, o.cards[g] as string, null).ok).toBe(true);
+    expect(p.weaponsBought).toEqual([]);
+    p.wallet = 0;
+    expect(buyCard(world, "p0", o.build, o.rev, c, item, null).ok).toBe(false);
+    expect(p.weaponsBought).toEqual([]);
+    p.wallet = 2000;
+    expect(buyCard(world, "p0", o.build, o.rev, c, item, null).ok).toBe(true);
+    expect(p.weaponsBought).toEqual([item]);
+  });
+
   it("both slots full: slot_required, then the chosen slot is replaced", () => {
     const { world, p, o, c, item } = withCard("weapon");
     setLoadout(balance, p.loadout, ["pistol", item === "machete" ? "smg" : "machete"]);

@@ -15,7 +15,7 @@ import v1json from "./fixtures/runSave.v1.json";
 
 const v1 = v1json as unknown as Record<string, unknown>;
 /** The shape hash of every save version (append one per bump; never change an old one). */
-const SHAPES: Record<number, string> = { 1: "ce5075fe" };
+const SHAPES: Record<number, string> = { 1: "ce5075fe", 2: "36cd5e58" }; // v2: Story 10.7 PlayerState.weaponsBought
 
 /** Every key path of a JSON value (array items as `[]`) with the value types seen there, sorted: the save's shape. */
 function shape(v: unknown, path = "", out = new Map<string, Set<string>>()): Map<string, Set<string>> {
@@ -61,6 +61,15 @@ describe("Story 8.4 S6: save migrations", () => {
 
   it("the committed fixture has the current version's shape (re-record it with the shape)", () => {
     expect(shapeHash(shapeList(v1))).toBe(SHAPES[1]);
+  });
+
+  it("Story 10.7: a version-1 seat restores with an empty weaponsBought", () => {
+    const m = migrateRunSave(v1);
+    expect(m.ok && m.save.schemaVersion).toBe(2);
+    if (!m.ok) return;
+    expect((m.save.seats[0]?.player as Record<string, unknown>).weaponsBought).toBeUndefined();
+    const r = restoreRunSave(m.save, { balance: loadBalance(), map: DOWNTOWN_MAP });
+    for (const x of [...r.present, ...r.away]) expect(x.player.weaponsBought).toEqual([]);
   });
 
   it("steps run in order, each stamped with its new version", () => {

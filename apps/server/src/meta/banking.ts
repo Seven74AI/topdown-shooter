@@ -23,6 +23,8 @@ import type { ProgressRepo, RunMetaWrites } from "../db/progressRepo";
 import { dbErrText } from "../db/timeout";
 import { DEFAULT_DISTRICT, type PlayerState } from "@topdown/shared";
 import { runFacts, seatMeta, statsDelta, type LootFind, type NewItem, type RunFacts } from "./runMeta";
+import type { RunSeatRow } from "../db/runResultsRepo";
+import { seatRow, type ResultPlayer } from "./runResult";
 
 /** Review M1: what every `supplies_bank_failed` line tells the person who grants a run by hand. */
 export const HAND_GRANT_NOTE = "before a hand grant, check run_rewards (run_id, account_id): a row means it was banked";
@@ -51,6 +53,8 @@ export interface BankSeat {
   readonly meta?: { readonly player: MetaPlayer; readonly facts: RunFacts };
   /** 7.12 (D1): the bag's find, shown on every teammate's Results ("Ana found: Traffic cone"). */
   readonly teamLoot?: TeamLoot;
+  /** Story 10.7: the seat's run stats row, built at this bank from the same PlayerState (absent: no row, e.g. 7.2's tests). */
+  readonly result?: RunSeatRow;
 }
 
 /** The PlayerState fields the meta writes read (a copy). */
@@ -195,6 +199,16 @@ export class RunBank {
   private readonly gens = new Map<string, number>();
   /** Review H1: the seat that found the loot bag (`noteLootFinder`), so a reused player id is never taken for it. */
   private lootFinder: string | null = null;
+  /**
+   * Story 10.7 (AC 2): by seat id, each banked seat's run stats row, overwritten by its next bank after a `reopen` (8.2
+   * top-up: one row with the final numbers). A waiting joiner (`nothingFor`) gets none.
+   */
+  private readonly resultRows = new Map<string, RunSeatRow>();
+
+  /** Story 10.7: the run stats rows of every seat banked so far (the room's `finish` at the run's end). */
+  resultSeats(): RunSeatRow[] {
+    return [...this.resultRows.values()];
+  }
 
   /** Story 8.4–8.6 review H1: the finding seat (saved with the run, noted again by a resumed run's bank). */
   get lootFinderSeat(): string | null {
@@ -271,6 +285,7 @@ export class RunBank {
       return earlier;
     }
     const gen = this.gens.get(key) ?? 0;
+    if (seat.result) this.resultRows.set(key, seat.result); // Story 10.7: taken at this bank, never from a later state
     const p = this.run(seat).then((m) => {
       if ((this.gens.get(key) ?? 0) !== gen) return m; // review L1: reopened meanwhile (a top-up follows): not this result
       this.done.set(key, m);
@@ -287,8 +302,8 @@ export class RunBank {
    */
   bankRunEnd(
     world: Readonly<World>,
-    members: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly seatId?: string }>,
-    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly seatId?: string; readonly player: RunRecord & { readonly lockedUsed?: number } }>,
+    members: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly seatId?: string; readonly slot?: number }>,
+    remembered: Iterable<{ readonly playerId: string; readonly accountId: string | null; readonly seatId?: string; readonly slot?: number; readonly player: RunRecord & { readonly lockedUsed?: number } }>,
   ): Promise<RunRewards[]> {
     const ending: RunEnding = world.run.ending;
     const facts = runFacts(world, this.deps.district ?? DEFAULT_DISTRICT); // Stories 7.7 / 7.11 / 7.12
@@ -296,14 +311,19 @@ export class RunBank {
     for (const m of members) {
       const p = world.players.get(m.playerId) ?? world.heldPlayers.get(m.playerId)?.player;
       if (!p) continue;
-      seats.push({ playerId: m.playerId, ...(m.seatId ? { seatId: m.seatId } : {}), accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed, meta: { player: metaPlayer(p), facts } });
+      const result = m.slot === undefined ? {} : { result: seatRow(p, m.seatId ?? m.playerId, m.slot, m.accountId) }; // Story 10.7
+      seats.push({ playerId: m.playerId, ...(m.seatId ? { seatId: m.seatId } : {}), accountId: m.accountId, record: copyRecord(p), ending: suppliesEnding(ending, true), lockedUsed: p.lockedUsed, meta: { player: metaPlayer(p), facts }, ...result });
     }
     for (const s of remembered) {
       // 8.1 F8 + 7.12: a remembered seat's state stays in the room; its PlayerState is the seat's own.
       const p = (s as { readonly player: RunRecord & Partial<PlayerState> }).player;
       const meta = typeof p.waveMask === "number" ? { player: metaPlayer(p as PlayerState), facts } : undefined;
-      seats.push({ playerId: s.playerId, ...(s.seatId ? { seatId: s.seatId } : {}), accountId: s.accountId, record: copyRecord(p), ending: "quit", ...(p.lockedUsed !== undefined ? { lockedUsed: p.lockedUsed } : {}), ...(meta ? { meta } : {}) });
+      const result = s.slot === undefined || typeof p.kills !== "number" ? {} : { result: seatRow(p as unknown as ResultPlayer, s.seatId ?? s.playerId, s.slot, s.accountId) }; // Story 10.7
+      seats.push({ ...result, playerId: s.playerId, ...(s.seatId ? { seatId: s.seatId } : {}), accountId: s.accountId, record: copyRecord(p), ending: "quit", ...(p.lockedUsed !== undefined ? { lockedUsed: p.lockedUsed } : {}), ...(meta ? { meta } : {}) });
     }
+    // Story 10.7: the seats' run stats rows now (their banks below may wait on the finder's); a seat already banked keeps
+    // the row of that bank (its frozen state), unless `reopen`ed (then this end's numbers).
+    for (const x of seats) if (x.result && !this.banks.has(seatKeyOf(x))) this.resultRows.set(seatKeyOf(x), x.result);
     // 7.12 D1: the finder banks first (or banked when it left), so every teammate's Results names the item.
     const finder = facts.lootFoundBy;
     // Review H1 (8.3): the finder is a SEAT (`isFinder`; `bank` nulls the facts of a reused id). The teammates' line comes

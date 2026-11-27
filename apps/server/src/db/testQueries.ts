@@ -44,3 +44,15 @@ export async function savedRunForTest(database: Database, id: string): Promise<{
   const r = ((await db.execute(sql`select snapshot, names from saved_runs where id = ${id}::uuid`)) as unknown as { rows: { snapshot: Record<string, unknown>; names: { name: string; slot: number }[] }[] }).rows[0];
   return r ?? null;
 }
+
+/** Story 10.7 (tests only): a run's `run_results` row (snake_case columns), or undefined. */
+export async function runResultForTest(database: Database, id: string): Promise<Record<string, unknown> | undefined> {
+  const db = await database.db();
+  return ((await db.execute(sql`select * from run_results where id = ${id}::uuid`)) as unknown as { rows: Record<string, unknown>[] }).rows[0];
+}
+
+/** Story 10.7 (tests only): a run's seat rows, by slot then seat id. */
+export async function runResultSeatsForTest(database: Database, id: string): Promise<{ seat: string; account_id: string | null; slot: number; loadout: string; waves_in: number; kills: number }[]> {
+  const db = await database.db();
+  return ((await db.execute(sql`select seat, account_id, slot, loadout, waves_in, kills from run_result_players where run_id = ${id}::uuid order by slot, seat`)) as unknown as { rows: { seat: string; account_id: string | null; slot: number; loadout: string; waves_in: number; kills: number }[] }).rows;
+}

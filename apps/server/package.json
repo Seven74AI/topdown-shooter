@@ -8,7 +8,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrateCli.ts",
-    "admin": "tsx src/db/adminCli.ts"
+    "admin": "tsx src/db/adminCli.ts",
+    "housekeeping": "tsx src/db/housekeepingCli.ts",
+    "stats": "tsx src/db/statsCli.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.29",
