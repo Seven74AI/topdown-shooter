@@ -7,6 +7,7 @@ import { GAME_TITLE } from "@topdown/shared";
 const CLIENT = join(import.meta.dirname, "..", "..", "apps", "client");
 const PUBLIC = join(CLIENT, "public");
 const manifest = JSON.parse(readFileSync(join(PUBLIC, "manifest.webmanifest"), "utf8")) as {
+  id: string;
   name: string;
   short_name: string;
   start_url: string;
@@ -29,6 +30,7 @@ function pngSize(file: string): [number, number] {
 
 describe("Story 10.5: manifest.webmanifest", () => {
   it("B2 fields and the Q2 name", () => {
+    expect(manifest.id).toBe("/"); // review nit 2: a stable app identity, whatever start_url says later
     expect(manifest.name).toBe("Hordes");
     expect(manifest.short_name).toBe("Hordes");
     expect(manifest.short_name.length).toBeLessThanOrEqual(12); // iOS / Android cut the label at about 12

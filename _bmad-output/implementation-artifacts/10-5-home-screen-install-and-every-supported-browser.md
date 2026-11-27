@@ -83,7 +83,7 @@ Exact version pins (no new dependency expected: node canvas for `tools/art` is a
 - **Client shell:** `apps/client/index.html`, `apps/client/public/**`. These **overlap 10.4 (fast loading)**, which is likely to touch `index.html` (preload, inline CSS) and maybe `vite.config.ts`. Run 10.5 after 10.4, or merge `index.html` by hand (keep-both of `<head>` lines is trivial).
 - **`deploy/Caddyfile`:** also touched by **10.6** (`/api` body size for the report path) and maybe **10.4** (cache headers). They touch different blocks, so the conflict is trivial.
 - **`hudLayout.test.ts`** (+ HUD layout code if a 47 px case fails): overlaps **10.2** if 10.2 moves HUD elements, and the deferred-work **D6** (edge arrows) if it is folded into 10.2.
-- **CI:** new workflow file only; `.github/workflows/ci.yml` unchanged.
+- **CI:** new workflow `.github/workflows/browsers.yml`, and `.github/workflows/ci.yml`'s docker smoke gained the manifest / icon header checks (after 10.4's asset header lines; review nit 1).
 - No server, DB, shared or netEvents changes: runs in parallel with 10.6 and 10.7.
 
 ## Test plan
@@ -134,9 +134,19 @@ Claude (builder session, 2026-11-27)
 ### File List
 
 - New: `apps/client/public/manifest.webmanifest`, `apps/client/public/icons/{icon-192,icon-512,icon-maskable-512,apple-touch-icon-180,favicon-32}.png`, `apps/client/src/install/installHint.ts`, `apps/client/src/install/installHint.test.ts`, `tools/art/icons/drawIcon.ts`, `tools/art/icons/drawIcon.test.ts`, `tools/art/icons/icons.json`, `tools/checks/installManifest.test.ts`, `tools/checks/installHintDomLayout.test.ts`, `tools/checks/safeAreaDomLayout.test.ts`, `tools/checks/browserSmoke.ts`, `.github/workflows/browsers.yml`, `docs/qa/browsers.md`, `docs/qa/browsers/*.png`
-- Changed: `apps/client/index.html`, `apps/client/src/main.ts`, `apps/client/src/ui/ResultsScreen.tsx`, `apps/client/src/ui/overlay.css`, `apps/client/src/ui/connectionModel.ts`, `apps/client/src/scenes/{hudTopLayout,bossBar,pingWheel,PingHud,HudScene,consumableButton,handCluster,buildBar}.ts`, `apps/client/src/render/{eventArrow,pingArrows}.ts`, `apps/client/src/scenes/{hudLayout,buildBar}.test.ts`, `packages/shared/src/config/constants{,.test}.ts`, `deploy/Caddyfile`, `tools/perf/serveDist.cjs`, `tools/checks/{caddyCacheHeaders,heldChipsCss,pingWiring}.test.ts`, `.github/workflows/ci.yml` (docker smoke: manifest / icon headers), `package.json` (scripts `art:icons`, `smoke:browsers`)
+- Changed: `apps/client/index.html`, `apps/client/src/main.ts`, `apps/client/src/ui/ResultsScreen.tsx`, `apps/client/src/ui/overlay.css`, `apps/client/src/ui/connectionModel.ts`, `apps/client/src/scenes/{hudTopLayout,bossBar,pingWheel,PingHud,HudScene,consumableButton,handCluster,buildBar}.ts`, `apps/client/src/render/{eventArrow,pingArrows}.ts`, `apps/client/src/scenes/{hudLayout,buildBar}.test.ts`, `packages/shared/src/config/constants{,.test}.ts`, `deploy/Caddyfile`, `tools/perf/serveDist.cjs`, `tools/checks/{caddyCacheHeaders,heldChipsCss,pingWiring,accountUpgradeWiring}.test.ts`, `apps/client/src/debug/PerfOverlay.ts`, `.github/workflows/ci.yml` (docker smoke: manifest / icon headers), `package.json` (scripts `art:icons`, `smoke:browsers`)
+
+### Senior Developer Review (AI)
+
+- 2026-11-27, light review (one checker, main session): **APPROVED**, 4 nits.
+  - [x] N1: "Notes for the merge" said ci.yml unchanged; it gained the docker smoke's manifest / icon header checks. Corrected.
+  - [x] N2: `manifest.webmanifest` gets `"id": "/"` (a stable app identity); `installManifest.test.ts` checks it.
+  - [x] N3: `debug/PerfOverlay.ts` placed its text at `TOP + safe.top`; now `hudBandTop(safe.top)` like ☰ (B5).
+  - N4: no change (reviewer's call).
+  - Fixes checked by the main session (no re-review).
 
 ### Change Log
 
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.5-Q1…Q3).
 - 2026-11-27: built (manifest, IC3 icons, Hordes, Caddy, top-inset HUD B5, install hint, emulation + installable check, browser smoke + workflow). Status → review.
+- 2026-11-27: review nits 1–3 fixed.
