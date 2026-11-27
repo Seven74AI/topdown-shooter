@@ -54,7 +54,7 @@ import { BossHud } from "./BossHud";
 import { MAX_PLAYERS } from "@topdown/shared";
 import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark, waveLine } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
-import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
+import { MATE_ARROW_CSS_PX, MATE_ARROW_MARGIN_CSS_PX, MATE_ARROW_OUTLINE_CSS_PX, MATE_DOWNED_SCALE, createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
@@ -135,18 +135,16 @@ const NAME_STROKE_PX = 3;
 const NAME_STROKE = "#0b0d10";
 /** Gap between a downed teammate's countdown and their name, CSS px. */
 const NAME_GAP_PX = 2;
-const MATE_ARROW_SCALE = 1.3;
-/** Wider than the rush arrows' margin, so the two kinds don't overlap at the same edge spot. */
-const MATE_ARROW_MARGIN = ARROW_MARGIN + 12;
-const MATE_ARROW_OUTLINE_PX = 2;
+/** Wider than the rush arrows' margin, so the two kinds don't overlap at the same edge spot (10.2: in `teammateMarkers.ts`, shared with the ping arrows' keep-off). */
+const MATE_ARROW_MARGIN = MATE_ARROW_MARGIN_CSS_PX;
+const MATE_ARROW_OUTLINE_PX = MATE_ARROW_OUTLINE_CSS_PX;
 const MATE_ARROW_OUTLINE = 0xffffff;
 /** The downed "+" icon: arm length and thickness (CSS px), and its distance inside the arrow tip. */
 const CROSS_PX = 6;
 const CROSS_THICK_PX = 2.5;
 const CROSS_INSET_PX = 20;
 const CROSS_COLOR = 0xffffff;
-/** An off-screen DOWNED teammate's arrow is this much bigger (before the pulse), so it can't be missed. */
-const MATE_DOWNED_SCALE = 1.5;
+// An off-screen DOWNED teammate's arrow is MATE_DOWNED_SCALE bigger (before the pulse), so it can't be missed (`teammateMarkers.ts`).
 /** Their "Bo · 14 s" label: centred this far inward from the arrow tip (CSS px), in this colour. */
 const MATE_LABEL_INSET_PX = 62;
 const MATE_DOWNED_COLOR = "#ff6b6b";
@@ -793,7 +791,7 @@ export class HudScene extends Phaser.Scene {
     for (let slot = 0; slot < MAX_PLAYERS; slot++) {
       this.names.push(this.add.text(0, 0, "", this.nameStyle()).setOrigin(0.5).setVisible(false));
       this.ghostLabels.push(this.add.text(0, 0, "", this.ghostLabelStyle(slot)).setOrigin(0.5, 1).setVisible(false)); // Story 5.24
-      const a = ARROW_PX * MATE_ARROW_SCALE * this.arrowDpr;
+      const a = MATE_ARROW_CSS_PX * this.arrowDpr;
       this.mateArrows.push(
         this.add
           .triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, SLOT_COLORS[slot] ?? SLOT_COLORS[0])

@@ -1,4 +1,4 @@
-import { BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
+import { changeDecayStage, BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
@@ -86,6 +86,17 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
     spawned += n;
   }
   return spawned;
+}
+
+/**
+ * Story 10.2 B1 (`?stressstage=5`, with `?stress`): moves the stress world to decay stage `stage` through the
+ * decay engine's own whole change (`changeDecayStage`: the map's mutations, fires, push-outs, flow fields, the
+ * banner), so `?stress=150&stressstage=5&blackout=10` is wave 9's look (fog, power out, rubble, ash). Called
+ * BEFORE the Walkers spawn (they spawn round the new map's cover). Returns the stage now in force.
+ */
+export function applyStressStage(world: World, stage: number): number {
+  changeDecayStage(world, stage);
+  return world.decay.stage;
 }
 
 /** Story 5.9: floor buildings `?stressbuild=traps` lays (every player's whole allowance: 4 × 6). */

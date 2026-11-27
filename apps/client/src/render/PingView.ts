@@ -65,11 +65,12 @@ export class PingView {
   /**
    * One frame. (vx, vy, vw) the camera's world view (m), (sw, sh) the canvas (px), `k` px per CSS px, `insets` the
    * safe area (CSS px); `hud` the HUD rects a seen icon must be clear of (`waveControlRects`: not keep-offs for the
-   * arrows, B16) and `others` the other arrows' drawn rects (event, flag, loot badge; null = none).
+   * arrows, B16) and `others` the other arrows' drawn rects (event, flag, loot badge; null = none); `mates` (Story 10.2
+   * B4) per slot the teammate edge arrow's rect (null = none).
    */
-  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[]): void {
+  update(model: PingModel, nowMs: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[], mates?: readonly (Readonly<ScreenRect> | null)[]): void {
     const pxPerM = vw > 0 ? sw / vw : 1;
-    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, hud, others, this.arrows);
+    placePingArrows(model, vx, vy, pxPerM, sw, sh, insets, k, hud, others, this.arrows, mates);
     const iconM = (PING_ICON_CSS_PX * k) / pxPerM;
     const wordHM = (PING_WORD_CSS_PX * k) / pxPerM;
     const liftM = (PING_LIFT_CSS_PX * k) / pxPerM;

@@ -189,11 +189,12 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { STRESS_FLOOR_BUILDINGS, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { STRESS_FLOOR_BUILDINGS, applyStressStage, keepStressMolotovs, placeStressFloor, placeStressFort, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
 import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
+import { MATE_ARROW_MARGIN_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateMarkers, type TeammateMarker } from "../render/teammateMarkers"; // Story 10.2 B4
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
 import { eventArrowDrawnRect, type ScreenRect } from "../render/eventArrow";
 
@@ -913,6 +914,7 @@ export class GameScene extends Phaser.Scene {
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
+      if (opts.stressStage !== null) applyStressStage(world, opts.stressStage); // Story 10.2 B1: the wave 9 scene (before the Walkers and buildings)
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       if (opts.stressLights) placeStressLights(world, localId, cx, cy); // Story 5.10: 8 floodlights + 4 med stations
       if (opts.stressFort) placeStressFort(world, localId, cx, cy); // photoreal group 3: standing barricades
@@ -2099,6 +2101,10 @@ export class GameScene extends Phaser.Scene {
   private readonly pingLootRect = { x: 0, y: 0, w: 0, h: 0 };
   /** The other arrows the ping arrows keep off: the event arrow, the 6.10 flag arrow, the loot badge (null = none). */
   private readonly pingOthers: (ScreenRect | null)[] = [null, null, null];
+  /** Story 10.2 B4 (D6): per slot, the teammate edge arrow HudScene draws (null = none), a keep-off for the ping arrows. */
+  private readonly pingMates: (ScreenRect | null)[] = Array.from({ length: MAX_PLAYERS }, () => null);
+  private readonly pingMateRects: ScreenRect[] = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+  private readonly pingMarkers = createTeammateMarkers();
   private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
     const now = performance.now(); // the model's clock (decision 8.7 B4)
     const host = this.host;
@@ -2125,7 +2131,15 @@ export class GameScene extends Phaser.Scene {
     others[0] = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
     others[1] = flag ? eventArrowDrawnRect(flag, size, this.pingFlagRect) : null;
     others[2] = badge ? eventArrowDrawnRect(badge, size, this.pingLootRect) : null;
-    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, ev?.controlRects() ?? [], others);
+    // 10.2 B4 (D6): the teammate arrows from the HUD model (HudScene's own `teammateMarkers` call, same margin).
+    const mates = this.pingMates;
+    mates.fill(null);
+    const n = teammateMarkers(this.hudModel, sw, sh, MATE_ARROW_MARGIN_CSS_PX * k, this.pingMarkers);
+    for (let i = 0; i < n; i++) {
+      const mk = this.pingMarkers[i] as TeammateMarker;
+      if (mk.visible) mates[mk.slot] = teammateArrowRect(mk, k, this.pingMateRects[mk.slot] as ScreenRect);
+    }
+    this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, ev?.controlRects() ?? [], others, mates);
     const m = this.hudModel;
     m.pingArrowSlots = this.pingView?.arrowMask() ?? 0; // review M2: HudScene hides those senders' teammate arrows
   }

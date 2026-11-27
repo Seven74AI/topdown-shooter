@@ -103,6 +103,12 @@ export interface UrlOptions {
    */
   stressMolotovs: number;
   /**
+   * `?stressstage=5` (Story 10.2 B1, release-safe, only with `?stress`): the stress world is moved to that
+   * decay stage (1–5) after setup through the shared `applyDecayStage`, so `?stress=150&stressstage=5&blackout=10`
+   * is the wave 9 scene (fog, power out, rubble, ash) of the frame-rate pass. null otherwise.
+   */
+  stressStage: number | null;
+  /**
    * `?fx=low` (Story 4.12, release-safe): the low-quality fire — half the particles of every burning
    * car and survivor (caps and spawn rates halved). false otherwise.
    */
@@ -176,6 +182,12 @@ export function parseBlackoutPct(raw: string | null): number | null {
   return (BLACKOUT_LEVELS as readonly number[]).includes(n) ? n : null;
 }
 
+/** Story 10.2 B1: `?stressstage=` → 1–5 (whole number), anything else null. */
+export function parseStressStage(raw: string | null): number | null {
+  const v = raw?.trim() ?? "";
+  return /^[1-5]$/.test(v) ? Number(v) : null;
+}
+
 /** Story 5.12: `molotov` → 8, `molotov:N` → N (1–8), anything else → 0. */
 export function parseStressMolotovs(raw: string | null): number {
   const m = /^molotov(?::([1-8]))?$/.exec(raw?.trim().toLowerCase() ?? "");
@@ -189,9 +201,10 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
   const tuneRaw = q.get("tune");
   const soloRaw = q.get("solo");
   const stressFireRaw = q.get("stressfire");
+  const stress = parseStress(q.get("stress"));
   return {
     debug,
-    stress: parseStress(q.get("stress")),
+    stress,
     stressFire: stressFireRaw !== null && TRUE_VALUES.has(stressFireRaw.trim().toLowerCase()),
     loadout: parseLoadout(q.get("loadout")),
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
@@ -212,6 +225,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
     stressFort: q.get("stressbuild")?.trim().toLowerCase() === "fort",
+    stressStage: stress !== null ? parseStressStage(q.get("stressstage")) : null, // Story 10.2 B1
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3

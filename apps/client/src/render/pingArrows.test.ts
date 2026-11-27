@@ -5,6 +5,8 @@ import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRec
 import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
 import { PING_ARROW_CSS_PX, PING_OTHER_ARROWS, newPingArrows, pingIconRect, placePingArrows, type PingArrows } from "./pingArrows";
 import { PingModel } from "./pingModel";
+import { MATE_ARROW_MARGIN_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateMarkers, type TeammateMarker } from "./teammateMarkers";
+import { TEAMMATE_DOWNED, createHudModel } from "../scenes/hudModel";
 
 /**
  * Decision 8.7 B7 (with review M3's build keep-offs): at 568 × 320 the 3rd and 4th arrows crowded on one bearing may be ≤ 45° off.
@@ -288,7 +290,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     expect(arrows.at[0]).toBe(at0);
     expect(arrows.avoid[3]).toBe(avoid0);
     expect(arrows.avoid[3]?.[0]).toBe(arrows.others[0]);
-    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS]).toBe(arrows.drawn[0]);
+    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS + 4]).toBe(arrows.drawn[0]); // Story 10.2 B4: after the 4 teammate rects
   });
 });
 
@@ -372,4 +374,127 @@ describe("Story 8.7 re-review M1 / M2 + B16: true bearing, no flicker", () => {
       }, 240_000);
     }
   }
+});
+
+describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", () => {
+  const MATE_SIZES: readonly [number, number][] = [
+    [568, 320],
+    [844, 390],
+  ];
+  /** HudScene's teammate arrow for a teammate at bearing `b` (far off screen), as `teammateMarkers` places it. */
+  function mateRect(w: number, h: number, b: number, slot: number, downed: boolean, marks: TeammateMarker[], out: ScreenRect): ScreenRect | null {
+    const model = { ...createHudModel(), camX: -w / 2, camY: -h / 2, camZoom: 1, teammateCount: 1 };
+    model.teammateSlot[0] = slot;
+    model.teammateFlags[0] = downed ? TEAMMATE_DOWNED : 0;
+    model.teammates[0] = Math.cos(b) * R;
+    model.teammates[1] = Math.sin(b) * R;
+    const n = teammateMarkers(model, w, h, MATE_ARROW_MARGIN_CSS_PX, marks);
+    const mk = marks[0] as TeammateMarker;
+    return n === 1 && mk.visible ? teammateArrowRect(mk, 1, out) : null;
+  }
+
+  for (const [w, h] of MATE_SIZES) {
+    it(`${w} × ${h}: a teammate off screen and a ping on the same bearing (and 1° / 3° off), swept at 0.01° both ways and oscillated — never overlapping, 40 px / 10° hysteresis kept`, () => {
+      const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+      const marks = createTeammateMarkers();
+      const mr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
+      let frames = 0;
+      for (const downed of [false, true]) {
+        for (const off of [0, 1, 3]) {
+          for (const dir of [1, -1]) {
+            const m = new PingModel();
+            const arrows = newPingArrows();
+            const mates: (ScreenRect | null)[] = [null, null, null, null];
+            let px = Number.NaN;
+            let py = Number.NaN;
+            let big = 0;
+            for (let i = 0; i <= 36_000; i++) {
+              const b = ((dir * i) / 100) * (Math.PI / 180);
+              const pb = b + (off * Math.PI) / 180;
+              mates[1] = mateRect(w, h, b, 1, downed, marks, mr);
+              expect(mates[1]).not.toBeNull();
+              m.show(0, 0, Math.cos(pb) * R, Math.sin(pb) * R, 0); // my own ping (slot 0), beside teammate 1's arrow
+              placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], arrows, mates);
+              expect(arrows.shown[0]).toBe(true);
+              const r = eventArrowDrawnRect(arrows.at[0] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
+              expect(overlaps(r, mates[1] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} downed=${downed} off=${off}° @${((dir * i) / 100).toFixed(2)}°`).toBe(false);
+              checkRules(arrows, w, h, [pb, 0, 0, 0], `${w}x${h} downed=${downed} off=${off}° mate @${((dir * i) / 100).toFixed(2)}°`);
+              const at = arrows.at[0] as { x: number; y: number };
+              if (!Number.isNaN(px) && Math.hypot(at.x - px, at.y - py) > 40) big++;
+              px = at.x;
+              py = at.y;
+              frames++;
+            }
+            // the keep-off moves with the teammate: its spot jumps more often than alone, but never flickers (below)
+            expect(big, `${w}x${h} downed=${downed} off=${off}°: jumps > 40 px in one turn`).toBeLessThanOrEqual(12);
+          }
+        }
+      }
+      expect(frames).toBe(2 * 3 * 2 * 36_001);
+    }, 120_000);
+
+    it(`${w} × ${h}: oscillating ±0.01° … ±0.5° round every jump of that sweep flips at most once`, () => {
+      const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+      const marks = createTeammateMarkers();
+      const mr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
+      const mates: (ScreenRect | null)[] = [null, null, null, null];
+      const run = (m: PingModel, arrows: PingArrows, deg: number): { x: number; y: number } => {
+        const b = (deg * Math.PI) / 180;
+        mates[1] = mateRect(w, h, b, 1, false, marks, mr);
+        m.show(0, 0, Math.cos(b) * R, Math.sin(b) * R, 0);
+        placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], arrows, mates);
+        const r = eventArrowDrawnRect(arrows.at[0] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
+        expect(overlaps(r, mates[1] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} @${deg}°`).toBe(false);
+        return arrows.at[0] as { x: number; y: number };
+      };
+      const jumps: number[] = [];
+      {
+        const m = new PingModel();
+        const arrows = newPingArrows();
+        let p = { x: Number.NaN, y: Number.NaN };
+        for (let i = 0; i <= 36_000; i++) {
+          const at = run(m, arrows, i / 100);
+          if (!Number.isNaN(p.x) && Math.hypot(at.x - p.x, at.y - p.y) > 40) jumps.push(i / 100);
+          p = { x: at.x, y: at.y };
+        }
+      }
+      for (const deg of jumps) {
+        for (const amp of [0.01, 0.1, 0.5]) {
+          const m = new PingModel();
+          const arrows = newPingArrows();
+          let flips = 0;
+          let p = { x: Number.NaN, y: Number.NaN };
+          for (let j = 0; j < 40; j++) {
+            const at = run(m, arrows, deg + (j % 2 === 0 ? -amp : amp));
+            if (!Number.isNaN(p.x) && Math.hypot(at.x - p.x, at.y - p.y) > 40) flips++;
+            p = { x: at.x, y: at.y };
+          }
+          expect(flips, `${w}x${h}: oscillating ±${amp}° round the jump at ${deg}°`).toBeLessThanOrEqual(1);
+        }
+      }
+      console.info(`[ping arrows D6] ${w}×${h}: ${jumps.length} jumps beside a teammate arrow, each oscillated`);
+    }, 120_000);
+  }
+
+  it("a teammate's own ping arrow stands in for their arrow (8.7 M2): it is not kept off it", () => {
+    const [w, h] = [844, 390];
+    const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+    const marks = createTeammateMarkers();
+    const b = 0.3;
+    const mates: (ScreenRect | null)[] = [null, mateRect(w, h, b, 1, false, marks, { x: 0, y: 0, w: 0, h: 0 }), null, null];
+    const m = new PingModel();
+    m.show(1, 0, Math.cos(b) * R, Math.sin(b) * R, 0); // teammate 1's own ping, on their bearing
+    const alone = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows());
+    const withMate = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows(), mates);
+    expect(withMate.shown[1]).toBe(true);
+    expect(withMate.at[1]).toEqual(alone.at[1]); // same spot: HudScene hides teammate 1's arrow
+    expect(withMate.mates[1]?.x).toBeLessThan(-1e5); // parked
+  });
+
+  it("no allocation: the keep-off rects are the preallocated ones (PING_OTHER_ARROWS + MAX_PLAYERS teammates in every avoid list)", () => {
+    const a = newPingArrows();
+    expect(a.mates).toHaveLength(4);
+    for (let n = 0; n < 4; n++) expect(a.avoid[n]).toHaveLength(PING_OTHER_ARROWS + 4 + n);
+    expect(a.avoid[3]?.[PING_OTHER_ARROWS + 1]).toBe(a.mates[1]);
+  });
 });

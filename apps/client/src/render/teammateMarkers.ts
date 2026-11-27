@@ -1,6 +1,15 @@
 import { MAX_PLAYERS } from "@topdown/shared";
 import { edgeArrow } from "./edgeArrow";
 import { TEAMMATE_DOWNED, TEAMMATE_OUT, type HudModel } from "../scenes/hudModel";
+import { PULSE_SCALE_AMP } from "./pulse";
+import type { ScreenRect } from "./eventArrow";
+
+/** Story 2.9: the teammate edge arrow's size (CSS px; HudScene's rush `ARROW_PX` 14 × 1.3) and edge margin (rush 28 + 12). */
+export const MATE_ARROW_CSS_PX = 14 * 1.3;
+export const MATE_ARROW_MARGIN_CSS_PX = 28 + 12;
+/** Its white outline (CSS px) and the downed arrow's size (× 1.5, then the revive pulse up to × 1.25). */
+export const MATE_ARROW_OUTLINE_CSS_PX = 2;
+export const MATE_DOWNED_SCALE = 1.5;
 
 /** One teammate's HUD marker (Story 2.9). Screen coordinates are canvas pixels. */
 export interface TeammateMarker {
@@ -48,4 +57,32 @@ export function teammateMarkers(model: MarkerModel, screenW: number, screenH: nu
     }
   }
   return used;
+}
+
+/**
+ * Story 10.2 B4 (D6): the rect (canvas px) a teammate's edge arrow covers, into `out`: the bounds of HudScene's triangle
+ * (tip `a` ahead, back corners 0.6 a behind and 0.7 a aside) turned to the arrow's bearing, at its largest (downed:
+ * × 1.5 × the revive pulse's peak), grown on every side by the outline's mitred tip (half the stroke / sin 23.6° ≈
+ * 1.25 × the stroke). The pulse never makes it bigger than this; `k` px per CSS px. No allocation.
+ */
+export function teammateArrowRect(m: Readonly<TeammateMarker>, k: number, out: ScreenRect): ScreenRect {
+  const scale = (m.downed ? MATE_DOWNED_SCALE * (1 + PULSE_SCALE_AMP) : 1) * k;
+  const a = MATE_ARROW_CSS_PX * scale;
+  const c = Math.cos(m.angle);
+  const s = Math.sin(m.angle);
+  // the three corners turned by the bearing: (a, 0), (−0.6a, ±0.7a)
+  const x0 = a * c;
+  const y0 = a * s;
+  const x1 = -0.6 * a * c - 0.7 * a * s;
+  const y1 = -0.6 * a * s + 0.7 * a * c;
+  const x2 = -0.6 * a * c + 0.7 * a * s;
+  const y2 = -0.6 * a * s - 0.7 * a * c;
+  const pad = 1.25 * MATE_ARROW_OUTLINE_CSS_PX * scale;
+  const minX = Math.min(x0, x1, x2) - pad;
+  const minY = Math.min(y0, y1, y2) - pad;
+  out.x = m.x + minX;
+  out.y = m.y + minY;
+  out.w = Math.max(x0, x1, x2) + pad - minX;
+  out.h = Math.max(y0, y1, y2) + pad - minY;
+  return out;
 }

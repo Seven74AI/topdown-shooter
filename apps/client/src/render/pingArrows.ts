@@ -104,6 +104,12 @@ export interface PingArrows {
   readonly hud: ScreenRect[];
   /** The other arrows' drawn rects (event, flag, loot badge), grown by the pair gap; parked far off when absent. */
   readonly others: ScreenRect[];
+  /**
+   * Story 10.2 B4 (D6): per slot, the teammate edge arrow's rect (`teammateArrowRect`), grown by the pair gap; parked
+   * far off when that teammate has no arrow, or when their own ping shows as an edge arrow (it stands in for their
+   * arrow: 8.7 review M2).
+   */
+  readonly mates: ScreenRect[];
   readonly avoid: ScreenRect[][];
   /** Per slot: the ping is seen as its world icon this frame (review M1). */
   readonly icon: boolean[];
@@ -123,16 +129,18 @@ export const PING_OTHER_ARROWS = 3;
 
 export function newPingArrows(): PingArrows {
   const others = Array.from({ length: PING_OTHER_ARROWS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+  const mates = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
   const drawn = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
-  // avoid[n] = the other arrows + the first n drawn rects (slot order of placement this frame)
+  // avoid[n] = the other arrows + the teammate arrows (10.2 B4) + the first n drawn rects (slot order of placement this frame)
   const avoid: ScreenRect[][] = [];
-  for (let n = 0; n < MAX_PLAYERS; n++) avoid.push([...others, ...drawn.slice(0, n)]);
+  for (let n = 0; n < MAX_PLAYERS; n++) avoid.push([...others, ...mates, ...drawn.slice(0, n)]);
   return {
     at: Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, angle: 0, side: 0 })),
     shown: Array.from({ length: MAX_PLAYERS }, () => false),
     drawn,
     hud: Array.from({ length: HUD_RECTS }, () => ({ x: 0, y: 0, w: 0, h: 0 })),
     others,
+    mates,
     avoid,
     icon: Array.from({ length: MAX_PLAYERS }, () => false),
     wordBelow: Array.from({ length: MAX_PLAYERS }, () => false),
@@ -143,6 +151,7 @@ export function newPingArrows(): PingArrows {
 }
 
 const OFF = -1e6;
+const NO_MATES: readonly null[] = [];
 /** A point this far out along the bearing is off every screen (the arrow placement's "off screen" input). */
 const FAR_PX = 1e5;
 const DIR_X = [0, 0, -1, 1];
@@ -243,8 +252,10 @@ function copyRect(src: Readonly<ScreenRect> | null | undefined, d: ScreenRect, g
  * survivor, the 40 px / 10° jump hysteresis) with NO HUD control as a keep-off — so at its true bearing — in slot order,
  * each keeping `PAIR_GAP_CSS_PX` off the other arrows (`others`: event arrow, flag arrow, loot badge; null = none), the
  * seen icons' discs and the arrows placed before it; crowded on one bearing, the "beside" fallback (B7).
+ * Story 10.2 B4 (D6): `mates[slot]` (null = none) is the teammate edge arrow drawn for that slot this frame
+ * (`teammateArrowRect`); the ping arrows keep the pair gap off it too, except the slot's own (its ping arrow stands in).
  */
-export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM: number, sw: number, sh: number, insets: Insets, k: number, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[], out: PingArrows): PingArrows {
+export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM: number, sw: number, sh: number, insets: Insets, k: number, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[], out: PingArrows, mates: readonly (Readonly<ScreenRect> | null)[] = NO_MATES): PingArrows {
   const size = PING_ARROW_CSS_PX * k;
   out.sizePx = size;
   for (let i = 0; i < HUD_RECTS; i++) copyRect(hud[i], out.hud[i] as ScreenRect, 0);
@@ -270,6 +281,8 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     growRect(d, PAIR_GAP_CSS_PX * k);
     placed++;
   }
+  // 10.2 B4: the teammate arrows, but not the one of a slot whose ping gets an arrow (HudScene hides that one, M2)
+  for (let i = 0; i < MAX_PLAYERS; i++) copyRect(model.live(i) && !out.icon[i] ? null : mates[i], out.mates[i] as ScreenRect, PAIR_GAP_CSS_PX * k);
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = model.live(i);
     const at = out.at[i] as EventArrowPlace;
