@@ -429,10 +429,11 @@ So that I can test co-op situations in production.
 ## Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
 
-### Epic 12: Extraction cinematic
+**FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
+
+## Epic 12: Extraction cinematic
 A won run ends like a film: no building can seal a pocket of the map, decay losses are not refunded, and on Extract the survivors walk to the helicopter, board and fly out over the horde into the sunrise (party-mode session 2026-11-25, quick stories 12.1–12.4; with Story 8.12, only connected, standing players vote).
 **FRs touched:** FR58 (no refund), FR66, FR67
-**FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
 
 ## Epic 1: Core combat on one phone
 
@@ -3768,7 +3769,7 @@ The host can pick **Random city**: a new 70 × 70 m city generated from rules on
 
 Source: forge session `_bmad-output/forge/random-map-generator/` (`forged-idea.md`, HARDENED) and `sprint-change-proposal-2026-11-24-random-city.md` (designer 2026-11-24: Q1 generic rules for stages 4–5 and the Epic 6 anchors, Q2 post-v1, Q3 the city code brings back the layout only). **Built after Epic 10.** Depends on: Epic 6 (rubble, events layer, boss entries, evac pad), Story 7.7 (lobby picker), Story 8.4 (saved runs), Story 10.7 (run stats). Build order: 11.1 → 11.2 → (11.3 ∥ 11.4) → 11.5 → (11.6 ∥ 11.7). First version: generated streets, plain buildings, cars, barriers, generic decay and one landmark recipe (the gas station); more recipes later.
 
-*(Readiness check 2026-11-26, dependencies the ACs don't name yet: (a) saved runs must store `citySeed` + `generatorVersion`. This is a save format change: bump `SAVE_SCHEMA_VERSION` (1 today, `packages/shared/src/save/runSave.ts`) with a migration step. Restore refuses a save whose `mapVersion` differs (`save/restore.ts`). (b) The new join fields need a `NET_PROTOCOL_VERSION` bump (4 since Story 8.13). (c) The join check is Downtown-only today: the client sends `DOWNTOWN_MAP.version` and the server maps only `downtown` (`RunRoom.ts` `DISTRICT_MAPS`). 11.7's generator-version + digest check replaces it. (d) Since 6.2, `legalDecayMasks` includes look bits, so 11.2's check A should use `gameplayDecayMasks`. (e) 11.6 predates the 9.14 pre-rendered street-props atlas: see the readiness report's needs-designer question.)*
+*(Readiness check 2026-11-26, dependencies the ACs don't name yet: (a) saved runs must store `citySeed` + `generatorVersion`. This is a save format change: bump `SAVE_SCHEMA_VERSION` (2 since Epic 8; Epic 11 makes it 3, `packages/shared/src/save/runSave.ts`) with a migration step. Restore refuses a save whose `mapVersion` differs (`save/restore.ts`). (b) The new join fields need a `NET_PROTOCOL_VERSION` bump: Epic 11 takes **7**, or the next free number when it lands (6 since Story 10.12); free net-event kinds start at 76. (c) The join check is Downtown-only today: the client sends `DOWNTOWN_MAP.version` and the server maps only `downtown` (`RunRoom.ts` `DISTRICT_MAPS`). 11.7's generator-version + digest check replaces it. (d) Since 6.2, `legalDecayMasks` includes look bits, so 11.2's check A should use `gameplayDecayMasks`. (e) 11.6 predates the 9.14 pre-rendered street-props atlas: see the readiness report's needs-designer question. (f) Epic 12 cross-check 2026-11-27 (`epic-11-vs-12-readiness-2026-11-27.md`, `sprint-change-proposal-2026-11-27-epic-11-vs-12.md`, designer picks D1 C, D2 A, D3 B, D4 A, D5 A): every map needs exactly one clear `evac_pad`, no map-level pocket and a fly-out horde that reaches the pad; the lines below marked "(E12 cross-check)" come from it.)*
 
 ### Story 11.1: A new city from a seed
 
@@ -3795,7 +3796,9 @@ So that every run asks us to read new streets.
 
 **Given** the generator on the Xiaomi Mi 11i and on the server
 **When** a city is built, retries included
-**Then** it takes ≤ 150 ms on the phone and ≤ 20 ms on the server; at most 20 tries per seed, then the next value of the `city` stream is used
+**Then** the server builds and checks the city once at run start (checks A–G and anchors, retries included), aiming at ≤ 500 ms; this is a target, not a limit: a better city wins over a faster one, and the time is recorded (designer D2 A, 2026-11-27, "I don't care if it takes 2 s … if the experience on it is better")
+**And** the server sends the seed it accepted; each phone builds only that city, without the checks, aiming at ≤ 150 ms (E12 cross-check F2)
+**And** at most 20 tries per seed, then the next value of the `city` stream is used
 
 ### Story 11.2: Every city is fair (checks A–G and anchors)
 
@@ -3808,7 +3811,7 @@ So that a bad layout never ruins a run.
 **Given** `checkCity(map)`
 **When** it runs on a generated city
 **Then** each check is its own tested function (FR91):
-- **A** no area is ever sealed off, at every stage × every legal variant mask (`legalDecayMasks`, the 4.5/6.2 pattern);
+- **A** no area is ever sealed off: `verticesOutsideMainRegion(world) === 0` (Story 12.1's `pathOpen` grid, 0.4 m player clearance, anchored at the `evac_pad`) at every stage × every `gameplayDecayMasks` mask (the 4.5/6.2 pattern; E12 cross-check F3: one grid, so 12.1's stage re-check and the check never disagree);
 - **B** every spawn point reaches the players;
 - **C** an open start area near the middle, buildable in wave 1 and never touched by any decay mutation;
 - **D** no 15 × 15 m square without cover;
@@ -3821,6 +3824,8 @@ So that a bad layout never ruins a run.
 **When** the **anchor check** runs
 **Then** the city has 4 main-street ends at least 4 m clear at every stage (Behemoth entries), an `evac_pad` point inside area C, and crate, survivor and safe spots plus stampede lanes on open road and reachable (Story 6.8's tests run on generated maps too)
 **And** the `evac_pad` sits in the main walkable region, and Story 12.1's `seals_path` check runs on the generated map (X11, designer "ok" 2026-11-26)
+**And** the city has exactly one `evac_pad`, its 3 m `evac.padRadiusM` circle is free of solids and cover at every stage × mask, and a city with 0 or 2 pads is rejected (test) (E12 cross-check F4)
+**And** the pad's x lets the helicopter cross the east edge at least 1 s before the fly-out ends (`flyOutDxM`, checked over the 1,000 seeds) (E12 cross-check F11)
 **And** the boss entries are map data (`events` layer), no longer names in `boss.json › entryPoints`; Downtown gets its 4 street ends as map objects, with the same behaviour and tests
 
 **Given** a city that fails any check
@@ -3844,12 +3849,16 @@ So that wave 9 in a random city doesn't play like wave 1.
 **Then** they emit decay groups with `pick N` that `applyDecayStage` already applies, with no new decay code path (ADR-05, FR92):
 - stage 2: curb cars move into the road, police lines, manholes and windows open as spawns;
 - stage 3: cars burn (4.8's fire rules);
-- stage 4: rubble closes 1 of 3 candidate side streets or dead ends wall to wall, and 2 building walls open as breaches (6.2's "buried" and ≥ 6 m rules);
+- stage 4: rubble closes 1 of 3 candidate side streets or dead ends wall to wall, and 2 building walls open as breaches (6.2's "buried" and ≥ 6 m rules); rubble in a dead end sits at its closed end or fills it to the end, so nothing behind rubble is left as a free pocket (check A; E12 cross-check F3);
 - stage 5: Story 6.4's power-out, fog and the run's weather style.
 
 **Given** any generated city
 **When** variant bits are counted
 **Then** they stay ≤ `MAX_DECAY_VARIANTS` (32)
+
+**Given** a generated city's decay destroys a building (new cover, fire, 12.1's 0.8 m margin or its stage re-check)
+**When** it is destroyed
+**Then** there is no refund and no warning beforehand (Story 12.4, "bad luck"; designer D5 A, 2026-11-27), with a test on a generated city (E12 cross-check F12)
 
 **Given** Downtown
 **When** its tests and recorded seeds run
@@ -3899,7 +3908,15 @@ So that the bigger map doesn't make waves feel empty.
 **Given** a sim of 8 seeds × 10 waves
 **When** waves 1–2 are measured
 **Then** the time to first contact and the zombies within 15 m of the team are within ± 20 % of Downtown's; if not, stage-1 edge spawns use the third of the edge nearest the team
-**And** a full 10-wave bot run reaches the Behemoth and the evacuation vote
+**And** a full 10-wave bot run reaches the Behemoth, the evacuation vote and the extraction (Story 12.2): everyone boards, `run.lifted`, ending `extracted`, Results; the share of walks ended by the timeout cut is recorded per seed (no pass line: in a big city far survivors get the cut, designer D1 C, 2026-11-27), and the money lost to decay per run is logged for 10.8 (E12 cross-check F5, F1, F12)
+
+**Given** a Random city extraction
+**When** the fly-out horde spawns (`evac.flyOutHorde`)
+**Then** it uses the open spawn points within 25 m of the pad (at least the nearest 4), a `districts.json` override; Downtown keeps every open spawn point (designer D3 B, 2026-11-27; E12 cross-check F6)
+
+**Given** a 70 × 70 m city at 4× CPU (`PERF_ASSERT=1`, machine load recorded)
+**When** Story 12.1's path check runs
+**Then** a placement check takes < 3 ms, a ghost drag has no frame over budget, and the build-start re-check with 100 walls has a median < 30 ms and a max < 50 ms (one 20 Hz tick) (E12 cross-check F7)
 
 ### Story 11.6: Art drawn by type
 
@@ -3924,7 +3941,11 @@ So that it feels like the same game as Downtown.
 
 **Given** the designer
 **When** the look is proposed before the build
-**Then** they see screenshots (9.14 atlas frames plus code drawings) of 3 seeds × 5 stages and pick
+**Then** they see screenshots (9.14 atlas frames plus code drawings) of 3 seeds × 5 stages, plus the extraction on each seed (walk, lift-off, white), and pick (E12 cross-check F11)
+
+**Given** one generated city
+**When** Story 10.2's wave-9 stress row and Story 10.3's texture row are re-run on it
+**Then** both are recorded next to Downtown's (E12 cross-check F14)
 
 ### Story 11.7: Pick Random city, share its code
 
@@ -3952,10 +3973,11 @@ So that we can play the same streets again or send them to friends.
 **When** the run starts
 **Then** the same layout is generated, and decay picks, events and shop cards come from the new run's seed (Q3)
 **And** a code from an older generator shows "This city is from an older version"
+**And** Story 10.12's "Restart with seed" keeps the typed city: only decay picks, events and shop cards change with the new seed (designer D4 A, 2026-11-27; E12 cross-check F10)
 
 **Given** a saved run (Story 8.4) and run stats (Story 10.7)
 **When** a Random city run is saved or recorded
-**Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
+**Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88), and `npm run stats` groups every `random:` row as one "Random city" line with the codes listed under it (test; E12 cross-check F9)
 
 **Given** a saved Random city run whose `generatorVersion` is older than the server's (designer 2026-11-25)
 **When** the Saved games list shows it

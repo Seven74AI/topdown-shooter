@@ -1,7 +1,7 @@
 # Sprint change proposal: Epic 11 after Epic 12 (2026-11-27)
 
 **Trigger:** the Epic 11 vs Epic 12 readiness check (`epic-11-vs-12-readiness-2026-11-27.md`, findings F1–F14). Epic 11 (random city, backlog, post-v1) was planned before Epic 12 (extraction cinematic, done) was built.
-**Mode:** batch. **Scope:** minor. Only epics.md's Epic 11 text changes (plus one line in ADR-06 and a note in the 12.2 story file). No code and no Epic 12 change. **Status: waiting for the designer's picks D1–D5. Nothing is applied yet.**
+**Mode:** batch. **Scope:** minor. Only epics.md's Epic 11 text changes (plus one line in ADR-06 and a note in the 12.2 story file). No code and no Epic 12 change. **Status: APPLIED 2026-11-27.** Designer picks: **D1 C** (accept the cut; the cut share is recorded, no pass line), **D2 A** ("I think we can say 500ms to try to stay fast but we shouldn't limit ourselves because of it … I don't care if it takes 2s to generate a map if the experience on it is better": 500 ms is a target, not a limit), **D3 B**, **D4 A**, **D5 A**. Since D1 = C, the GDD and FR67 are unchanged.
 
 ## 1. Issue summary
 

@@ -168,7 +168,7 @@ test, and updates to the vote / state machine / net events / room / carCorner / 
 - Camera: `GameScene` centres on my body (at the pad once boarded) — replace that block (search "Story 12.2: aboard").
 - HUD: `hudModel.extracting` is true for the whole phase (the director can hide the rest of the HUD from it).
 - Out players / held seats are boarded at tick 0 of the phase (the crew "pull-in" visual is 12.3's).
-- Net kinds used: 68–71. NET_PROTOCOL_VERSION = 5 (Epic 11 takes 6).
+- Net kinds used: 68–71. NET_PROTOCOL_VERSION = 5 (Epic 11 takes 6; corrected 2026-11-27: 10.12 took 6, so Epic 11 takes 7).
 
 ## Senior Developer Review (AI)
 
