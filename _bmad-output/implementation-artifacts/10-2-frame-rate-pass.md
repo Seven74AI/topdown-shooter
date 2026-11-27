@@ -161,3 +161,26 @@ Claude (builder session, gds-dev-story).
 - `tools/perf/fps.cjs` (new), `tools/perf/README.md` (new)
 - `docs/perf/epic-10-fps.md` (new), `docs/perf/img/epic10-*` (new)
 - `_bmad-output/implementation-artifacts/deferred-work.md` — D6 closed
+
+## Senior Developer Review (AI)
+
+**Full review (fresh agent, via the main session, 2026-11-27): CHANGES REQUESTED.** Builder fixes, each minimal, on
+`story-10-2` after merging master (10.5 `d5f41147`, 10.7; merge `65c09037`):
+
+| # | finding | fix | commit |
+| --- | --- | --- | --- |
+| H1 | `autoQuality.boot()` called the `localStorage` getter outside the try: blocked storage threw a SecurityError at boot, so the page was blank | `readStored` takes the getter and calls it inside the try. Test: a getter that throws (boot doesn't throw, the result still applies). Browser check: `localStorage` getter throwing SecurityError → `?solo` runs and the start screen renders, no page errors | `88210f2d` |
+| H2 | Phaser stops its loop while hidden, so `hidden` was never seen; the first frame after an app switch read ~5 FPS and lowered quality for good | `lastMs` kept; a frame gap > `AUTO_QUALITY_MAX_GAP_MS` (250 ms) cancels the try (idle, nothing stored). Tests: a real 3 s gap mid-window (nothing lowered or stored; the next try passes at 50 FPS); a steady 5 FPS phone still drops two steps | `88210f2d` |
+| M1 | AC 3 vs the designer's 9.3 | **Open: a designer call through the main session.** Target and AC 3 unchanged until the answer arrives | — |
+| M2 | the claimed serve-helper port / bundle check wasn't in `fps.cjs` / README | `label=dist:<dir>` targets are served IN `fps.cjs` (10.4's `serveDist`, OS-picked port: no `vite preview`, nothing to kill, no port to clash); the served index must load that dist's main bundle before measuring. README pattern rewritten. Checked with two dists (served, bundle-checked, nothing left running) | `b80a77d8` |
+| L1 | D6 used last frame's camera / teammates | the ping step runs after this frame's camera + teammate update, so its keep-offs are the arrows HudScene draws this frame (same model, same margin). Wiring check: `updatePings` after `updateTeammates` | `1b05bddc` |
+| L2 | mirror textures leaked per GameScene restart | the GPU layers track every canvas they mirror and remove those textures + registry entries at `destroy` (`removeMirror`). Test: two scene lifetimes leave no `fx_mirror_*` key or registry entry | `83a533fc` |
+| L3 | the downed "+" and red countdown label weren't in the keep-off | `teammateArrowRect` covers the "+" at its largest. New `teammateLabelRect` is placed like HudScene's, from the size HudScene measured (`mateLabelW/H`, exact while the countdown is unchanged; else a generous guess). Tests: "+" inside the rect at every bearing; label rect; the downed sweep keeps off the label too; the label stays a keep-off while the teammate's ping stands in | `1b05bddc` |
+| L4 | keep a mate rect whenever HudScene still draws that arrow | a slot's arrow rect is parked only while its own ping is placed, and stays parked only if that ping arrow is shown (restored otherwise). Pings placed earlier keep off it. Test: 0.5° sweep, the earlier ping never overlaps it | `1b05bddc` |
+| L5 | GPU→2D fallback left the GPU image up | hides it and remakes the 2D canvas (w / h reset). Test: the DynamicTexture can't be made → 2D texture + canvas at the new size, GPU image hidden, still shown | `83a533fc` |
+| L6 | doc gaps | top-10 profiles (before / after, both scenes), each candidate lever's outcome, heap sampling at 1× (findings; the sim's allocations are proposed as a deferred-work row, not pooled: B5), parked phone rows marked in `epic-1-stress.md` | `92d86df1` |
+| L7 | no wiring test for the GameScene gating | `tools/checks/autoQualityWiring.test.ts`: one call per frame, the exact gate, the toast, boot before the cap and the game, off under `?stress` | `83a533fc` |
+| N4 | a stored step applied under `?stress` | `boot()` returns at once when disabled (`?stress`). Test | `88210f2d` |
+| N6 | share the constants | the cross / label / name-size constants live in `teammateMarkers.ts`; HudScene imports them | `1b05bddc` |
+| N5, N7 | (wording not received yet) | pending the main session's text | — |
+| N1–N3 | — | no change (as reviewed) | — |
