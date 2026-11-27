@@ -32,7 +32,7 @@
       #game.mouse-mode {
         cursor: crosshair;
       }
-      /* Story 10.4 (10.4-Q1): the loading screen, drawn before any script arrives; removed by main.ts at the first screen. */
+      /* Story 10.4 (10.4-Q1 = B, designer 2026-11-27; title "Hordes", 10.5-Q2): the loading screen, drawn before any script arrives; removed by main.ts at the first screen. */
       #boot-loader {
         position: fixed;
         inset: 0;
@@ -53,8 +53,7 @@
         line-height: 1;
       }
       .bl__bar,
-      .bl__line,
-      .bl__spin {
+      .bl__line {
         position: absolute;
         left: 50%;
         top: calc(50% + 34px);
@@ -82,37 +81,15 @@
         color: #8f97a2;
         font-variant-numeric: tabular-nums;
       }
-      .bl__spin {
-        width: 18px;
-        height: 18px;
-        margin-left: -11px;
-        border: 2px solid #3b4048;
-        border-top-color: #f59e2c;
-        border-radius: 50%;
-        animation: bl-spin 0.9s linear infinite;
-      }
-      @keyframes bl-spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      .bl--a .bl__line,
-      .bl--a .bl__spin,
-      .bl--b .bl__spin,
-      .bl--c .bl__bar,
-      .bl--c .bl__line {
-        display: none;
-      }
     </style>
   </head>
   <body>
     <div id="game"></div>
     <div id="ui"></div>
-    <div id="boot-loader" class="bl bl--b" data-progress="0">
-      <div class="bl__title">topdown-shooter</div>
+    <div id="boot-loader" data-progress="0">
+      <div class="bl__title">Hordes</div>
       <div class="bl__bar"><div class="bl__fill"></div></div>
       <div class="bl__line">Downloading…</div>
-      <div class="bl__spin"></div>
     </div>
     <!-- boot-loader-script -->
     <script type="module" src="/src/main.ts"></script>
