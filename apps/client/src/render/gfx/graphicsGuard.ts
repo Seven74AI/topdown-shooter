@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { CANVAS_MODE_TEXT, GFX_RESET_ONLINE_TEXT, GFX_RESET_TEXT, LostWatchdog, gfxStatus, rendererKind } from "./gfxStatus";
 import { RebuildPhase, textureRegistry } from "./textureRegistry";
+import { clientLog } from "../../debug/clientLog";
 
 /** How often a lost context is checked against the watchdog (ms). Nothing runs while the context is fine. */
 const WATCH_INTERVAL_MS = 1000;
@@ -54,6 +55,7 @@ export function installGraphicsGuard(game: Phaser.Game, isOnline: () => boolean)
   renderer.on(Phaser.Renderer.Events.LOSE_WEBGL, () => {
     gfxStatus.lost = true;
     gfxStatus.lostCount++;
+    clientLog.note("webgl.lost", { count: gfxStatus.lostCount }); // Story 10.6
     watchdog.lost(performance.now(), visible());
     stopTimer();
     timer = setInterval(() => {
@@ -68,6 +70,7 @@ export function installGraphicsGuard(game: Phaser.Game, isOnline: () => boolean)
     watchdog.restored();
     gfxStatus.lost = false;
     gfxStatus.restoreCount++;
+    clientLog.note("webgl.restored", { count: gfxStatus.restoreCount }); // Story 10.6
     textureRegistry.rebuildAll();
     // A late restore after the reload notice: the game is back, the notice can go.
     if (gfxStatus.getNotice()?.action === "reload") gfxStatus.showNotice(null);

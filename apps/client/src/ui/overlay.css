@@ -3621,3 +3621,68 @@ button.lobby__district {
   background: #4a2a2a;
   color: #d9c3c3;
 }
+
+/* Story 10.6 (RP1): Report a problem, 10.1's Delete confirm card (Lumen LF5). */
+.ac-card.rp-card {
+  --ph-accent: #f59a2c;
+  --ph-accent-hi: #ffc46b;
+  width: min(480px, 100%);
+}
+.rp-what {
+  margin: 0;
+  color: #d9dde2;
+  font: 500 14px/1.35 system-ui, sans-serif;
+}
+.rp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.menu__input.rp-note {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  resize: none;
+  font: 500 15px/1.3 system-ui, sans-serif;
+  border-color: #50565e;
+  background: #15171a;
+}
+.menu__input.rp-note:focus {
+  outline: none;
+  border-color: #f59a2c;
+}
+.rp-count {
+  align-self: flex-end;
+  color: #9aa1aa;
+  font: 600 12px/1 system-ui, sans-serif;
+}
+.rp-count--warn {
+  color: #ffc46b;
+}
+.rp-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.rp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.rp-sent {
+  margin: 0;
+  color: #ffc46b;
+  font: 800 20px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+@media (max-height: 340px) {
+  .ac-card.rp-card {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .menu__input.rp-note {
+    min-height: 48px;
+  }
+}

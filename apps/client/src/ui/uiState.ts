@@ -29,9 +29,10 @@ export type UiScreen =
   | { kind: "survivor"; back: SurvivorBack }
   /**
    * Story 10.1 (AC 1, 7; B16): the start screen's Settings screen (`main`) or its Delete my progress confirm
-   * (`delete`). Back returns to the start screen (from the confirm: to `main`). Never in a run.
+   * (`delete`). Back returns to the start screen (from the confirm: to `main`). Never in a run. Story 10.6 (Q2 B):
+   * `report` = the Report a problem card; Back / Cancel / Close return to `main`.
    */
-  | { kind: "settings"; view: "main" | "delete" }
+  | { kind: "settings"; view: "main" | "delete" | "report" }
   /**
    * A run is on screen (solo or online). `menu` (Story 2.11): the in-run menu over the live game,
    * so the HUD and the game keep rendering underneath. `online`: the game keeps running.
@@ -76,15 +77,16 @@ export const openProgress = (from: ProgressBack): UiScreen => ({ kind: "progress
  * host's `players` list (Remove per seat) and `confirmRemove` ("Remove <name> from this run? They can't come back.").
  * `settings`: the Settings view (Story 10.1: the whole `SettingsPanel`; Delete my progress stays on the start screen).
  */
-export type MenuState = "closed" | "open" | "confirmLeave" | "players" | "confirmRemove" | "confirmSave" | "settings";
+export type MenuState = "closed" | "open" | "confirmLeave" | "players" | "confirmRemove" | "confirmSave" | "settings" | "report";
 
 /**
  * What the player did: `toggle` (☰ or Esc), `resume`, `leave` (Leave game: asks first), `cancel`
  * (the confirm step's Cancel), `confirm` (the confirm step's Leave). Story 8.3: `players` (open the
  * host's Players list), `remove` (a seat's Remove: asks first), `back` (Players or Settings → the menu).
- * `settings` opens the Settings view.
+ * `settings` opens the Settings view. Story 10.6: `report` opens Report a problem from Settings (`back` / `cancel`
+ * return to Settings).
  */
-export type MenuAction = "toggle" | "resume" | "leave" | "cancel" | "confirm" | "players" | "remove" | "back" | "save" | "settings";
+export type MenuAction = "toggle" | "resume" | "leave" | "cancel" | "confirm" | "players" | "remove" | "back" | "save" | "settings" | "report";
 
 /**
  * The in-run menu's state machine (Story 2.11). Returns the next state, or "left" when the player
@@ -102,6 +104,7 @@ export function menuStep(state: MenuState, action: MenuAction): MenuState | "lef
       if (state === "confirmSave") return "open"; // Story 8.5
       if (state === "confirmRemove") return "players"; // Story 8.3
       if (state === "players" || state === "settings") return "open";
+      if (state === "report") return "settings"; // Story 10.6
       return state === "confirmLeave" ? "open" : state;
     case "confirm":
       if (state === "confirmRemove") return "players"; // Story 8.3: the menu already sent `host.remove`
@@ -111,9 +114,12 @@ export function menuStep(state: MenuState, action: MenuAction): MenuState | "lef
     case "remove":
       return state === "players" ? "confirmRemove" : state;
     case "back":
+      if (state === "report") return "settings"; // Story 10.6
       return state === "players" || state === "settings" ? "open" : state;
     case "settings":
       return state === "open" ? "settings" : state;
+    case "report": // Story 10.6 (Q2 B): only from the Settings view
+      return state === "settings" ? "report" : state;
     case "save": // Story 8.5 (AC 10): Save and quit asks first (the confirm's Save sends `run.save_quit`; the menu stays until 4023)
       return state === "open" ? "confirmSave" : state;
   }

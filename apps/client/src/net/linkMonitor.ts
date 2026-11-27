@@ -1,4 +1,5 @@
 import { RECONNECT, SeatRecovery, Watchdog, configureReconnection, type RecoveryJoin, type ReconnectionLike } from "@topdown/shared";
+import { clientLog } from "../debug/clientLog";
 
 /** Story 8.1: what the phone's link to its seat is doing (the reconnecting overlay reads it). */
 export type LinkStatus = "ok" | "reconnecting" | "seat_kept";
@@ -26,6 +27,7 @@ class LinkStore {
   }
   set(status: LinkStatus, sinceMs: number): void {
     if (this.snap.status === status) return;
+    clientLog.note("link", { status }); // Story 10.6
     this.snap = { status, sinceMs };
     for (const l of this.listeners) l(this.snap);
   }

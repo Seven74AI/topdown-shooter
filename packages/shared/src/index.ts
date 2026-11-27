@@ -854,3 +854,27 @@ export {
 export { SaveRestoreError, restoreRunSave, resumeSavedRun, type RestoreOptions, type Restored, type RestoredSeat } from "./save/restore";
 export { SAVE_MIGRATIONS, migrateRunSave, type MigrateResult, type SaveMigration } from "./save/migrations";
 export { playToBuild, type PlayedRun } from "./save/saveFixtures"; // tests and tools only (measurements, real-PG tests)
+// Story 10.6: Report a problem (one HTTP route, protocol limits).
+export {
+  ACCOUNT_REPORT_PATH,
+  cleanReportText,
+  cutText,
+  REPORT_CODE_ALPHABET,
+  REPORT_CODE_LENGTH,
+  REPORT_DAILY_MAX,
+  REPORT_KEEP_DAYS,
+  REPORT_LINE_MAX,
+  REPORT_LINES_MAX,
+  REPORT_MAX_BYTES,
+  REPORT_NOTE_MAX,
+  REPORT_NOTE_WARN,
+  reportCodeSchema,
+  reportDeviceSchema,
+  reportPayloadSchema,
+  reportRequestSchema,
+  reportResponseSchema,
+  type ReportDevice,
+  type ReportPayload,
+  type ReportRequest,
+  type ReportResponse,
+} from "./net/report";

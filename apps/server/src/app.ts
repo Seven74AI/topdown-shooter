@@ -21,7 +21,9 @@ import { RunRoom } from "./rooms/RunRoom";
 import { savedRunsRepo, type SavedRunsRepo } from "./db/savedRunsRepo";
 import { setRoomSaves } from "./run/roomSaves";
 import { createSavedRunsRoute } from "./auth/savedRunsRoute";
-import { savedRunsIpLimiter } from "./net/rateLimit";
+import { reportIpDayLimiter, reportIpLimiter, savedRunsIpLimiter } from "./net/rateLimit";
+import { reportsRepo } from "./db/reportsRepo";
+import { createReportRoute } from "./auth/reportRoute";
 
 export interface GameServerOptions {
   /**
@@ -45,7 +47,7 @@ export interface GameServerOptions {
 }
 
 /**
- * The game server: the `run` room, `GET /health`, `POST /account/session` (Story 7.1), `POST /account/unlock` (7.3), `POST /account/training` (7.5), `POST /account/upgrade|login|recover|logout` (7.6), `POST /account/look` (7.10), `POST /account/settings|delete` (10.1), a WebSocket transport that refuses frames over
+ * The game server: the `run` room, `GET /health`, `POST /account/session` (Story 7.1), `POST /account/unlock` (7.3), `POST /account/training` (7.5), `POST /account/upgrade|login|recover|logout` (7.6), `POST /account/look` (7.10), `POST /account/settings|delete` (10.1), `POST /account/report` (10.6), a WebSocket transport that refuses frames over
  * 1 KB (Story 2.1 AC 5) and upgrades from other origins (Story 2.2 AC 2), on our own HTTP server
  * that refuses oversized request bodies before Colyseus buffers them (Story 2.1 review).
  * Not listening yet: `index.ts` (or a test) calls `listen(port)`.
@@ -82,9 +84,11 @@ export function createGameServer({
   const saves: SavedRunsRepo = savedRunsRepo(database);
   setRoomSaves(saves); // Stories 8.4–8.6: autosaves, Save and quit, resume
   const savedRuns = createSavedRunsRoute({ accounts, saves, allowedOrigins, ipLimiter: savedRunsIpLimiter }); // Story 8.6
+  // Story 10.6: Report a problem (the one 64 KB body path, B2)
+  const accountReport = createReportRoute({ reports: reportsRepo(database), allowedOrigins, ipLimiter: reportIpLimiter, ipDayLimiter: reportIpDayLimiter, logGate: rateLimitLogGate });
   const server = defineServer({
     rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
-    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook, accountSettings, accountDelete, savedRuns }),
+    routes: createRouter({ health, accountSession, accountUnlock, accountTraining, accountUpgrade, accountLogin, accountRecover, accountLogout, accountLook, accountSettings, accountDelete, savedRuns, accountReport }),
     transport: new WebSocketTransport({
       server: createGuardedHttpServer(),
       maxPayload: MAX_CLIENT_MESSAGE_BYTES,

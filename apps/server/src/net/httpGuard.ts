@@ -1,20 +1,30 @@
 import http from "node:http";
+import { ACCOUNT_REPORT_PATH, REPORT_MAX_BYTES } from "@topdown/shared";
 
 /** Largest HTTP request body accepted (matchmaking JSON is a few hundred bytes). */
 export const MAX_HTTP_BODY_BYTES = 2048;
+
+/**
+ * Story 10.6 (B2): the one per-path exception, `POST /account/report` (64 KB: a note and 200 log lines). Matched on the
+ * exact path (a query string is ignored); every other path keeps the 2 KB cap.
+ */
+export function maxBodyBytes(url: string | undefined): number {
+  const path = (url ?? "").split("?")[0];
+  return path === ACCOUNT_REPORT_PATH ? REPORT_MAX_BYTES : MAX_HTTP_BODY_BYTES;
+}
 
 /**
  * Why a request must be refused before any handler reads its body, or null to let it through.
  * Colyseus buffers matchmaking bodies without a limit and parses them before `onAuth` can measure
  * them, so an unauthenticated 50 MB POST would cost memory and CPU (Story 2.1 review).
  */
-export function refuseReason(method: string | undefined, contentLength: string | undefined, chunked: boolean): 411 | 413 | null {
+export function refuseReason(method: string | undefined, contentLength: string | undefined, chunked: boolean, url?: string): 411 | 413 | null {
   const hasBody = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
   if (!hasBody) return null;
   if (contentLength === undefined) return chunked ? 411 : null; // no length + chunked: unbounded
   const n = Number(contentLength);
   if (!Number.isFinite(n) || n < 0) return 413;
-  return n > MAX_HTTP_BODY_BYTES ? 413 : null;
+  return n > maxBodyBytes(url) ? 413 : null;
 }
 
 /**
@@ -28,7 +38,7 @@ export function createGuardedHttpServer(): http.Server {
     if (event === "request") {
       const req = args[0] as http.IncomingMessage;
       const res = args[1] as http.ServerResponse;
-      const code = refuseReason(req.method, req.headers["content-length"], (req.headers["transfer-encoding"] ?? "").includes("chunked"));
+      const code = refuseReason(req.method, req.headers["content-length"], (req.headers["transfer-encoding"] ?? "").includes("chunked"), req.url);
       if (code !== null) {
         res.writeHead(code, { "content-type": "text/plain", connection: "close" });
         res.end(code === 413 ? "Request too large" : "Length required");
