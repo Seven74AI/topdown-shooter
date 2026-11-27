@@ -105,9 +105,10 @@ export interface PingArrows {
   /** The other arrows' drawn rects (event, flag, loot badge), grown by the pair gap; parked far off when absent. */
   readonly others: ScreenRect[];
   /**
-   * Story 10.2 B4 (D6): per slot, the teammate edge arrow's rect (`teammateArrowRect`), grown by the pair gap; parked
-   * far off when that teammate has no arrow, or when their own ping shows as an edge arrow (it stands in for their
-   * arrow: 8.7 review M2).
+   * Story 10.2 B4 (D6): per slot two rects, grown by the pair gap: `mates[2·slot]` the teammate edge arrow (with the
+   * downed "+", `teammateArrowRect`) and `mates[2·slot + 1]` the downed red label (`teammateLabelRect`); parked far off
+   * when absent. Review L4: a slot's ARROW rect is parked only when that slot's own ping arrow is shown (HudScene
+   * then hides the teammate arrow: 8.7 review M2); the label stays drawn, so it is always kept off.
    */
   readonly mates: ScreenRect[];
   readonly avoid: ScreenRect[][];
@@ -129,7 +130,7 @@ export const PING_OTHER_ARROWS = 3;
 
 export function newPingArrows(): PingArrows {
   const others = Array.from({ length: PING_OTHER_ARROWS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
-  const mates = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+  const mates = Array.from({ length: 2 * MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
   const drawn = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
   // avoid[n] = the other arrows + the teammate arrows (10.2 B4) + the first n drawn rects (slot order of placement this frame)
   const avoid: ScreenRect[][] = [];
@@ -152,6 +153,7 @@ export function newPingArrows(): PingArrows {
 
 const OFF = -1e6;
 const NO_MATES: readonly null[] = [];
+const mateScratch: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
 /** A point this far out along the bearing is off every screen (the arrow placement's "off screen" input). */
 const FAR_PX = 1e5;
 const DIR_X = [0, 0, -1, 1];
@@ -252,8 +254,9 @@ function copyRect(src: Readonly<ScreenRect> | null | undefined, d: ScreenRect, g
  * survivor, the 40 px / 10° jump hysteresis) with NO HUD control as a keep-off — so at its true bearing — in slot order,
  * each keeping `PAIR_GAP_CSS_PX` off the other arrows (`others`: event arrow, flag arrow, loot badge; null = none), the
  * seen icons' discs and the arrows placed before it; crowded on one bearing, the "beside" fallback (B7).
- * Story 10.2 B4 (D6): `mates[slot]` (null = none) is the teammate edge arrow drawn for that slot this frame
- * (`teammateArrowRect`); the ping arrows keep the pair gap off it too, except the slot's own (its ping arrow stands in).
+ * Story 10.2 B4 (D6): `mates[2·slot]` / `mates[2·slot + 1]` (null = none) are the teammate edge arrow and the downed
+ * label HudScene draws for that slot this frame; the ping arrows keep the pair gap off them too, except a slot's own
+ * arrow while its ping arrow is shown (it stands in, M2).
  */
 export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM: number, sw: number, sh: number, insets: Insets, k: number, hud: readonly ScreenRect[], others: readonly (Readonly<ScreenRect> | null)[], out: PingArrows, mates: readonly (Readonly<ScreenRect> | null)[] = NO_MATES): PingArrows {
   const size = PING_ARROW_CSS_PX * k;
@@ -281,8 +284,9 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     growRect(d, PAIR_GAP_CSS_PX * k);
     placed++;
   }
-  // 10.2 B4: the teammate arrows, but not the one of a slot whose ping gets an arrow (HudScene hides that one, M2)
-  for (let i = 0; i < MAX_PLAYERS; i++) copyRect(model.live(i) && !out.icon[i] ? null : mates[i], out.mates[i] as ScreenRect, PAIR_GAP_CSS_PX * k);
+  // 10.2 B4: every teammate arrow and downed label HudScene draws this frame (review L4: a slot's arrow is parked below
+  // only while its own ping is placed, and stays parked only if that ping arrow is shown)
+  for (let i = 0; i < 2 * MAX_PLAYERS; i++) copyRect(mates[i], out.mates[i] as ScreenRect, PAIR_GAP_CSS_PX * k);
   for (let i = 0; i < MAX_PLAYERS; i++) {
     const p = model.live(i);
     const at = out.at[i] as EventArrowPlace;
@@ -295,6 +299,14 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     const sx = (p.x - vx) * pxPerM;
     const sy = (p.y - vy) * pxPerM;
     const avoid = out.avoid[placed] as ScreenRect[];
+    const mine = out.mates[2 * i] as ScreenRect; // my teammate arrow: my ping arrow stands in for it (M2)
+    const saved = mateScratch;
+    saved.x = mine.x;
+    saved.y = mine.y;
+    saved.w = mine.w;
+    saved.h = mine.h;
+    mine.x = mine.y = OFF;
+    mine.w = mine.h = 0;
     let dx = sx - sw / 2;
     let dy = sy - sh / 2;
     const len = Math.hypot(dx, dy);
@@ -309,6 +321,7 @@ export function placePingArrows(model: PingModel, vx: number, vy: number, pxPerM
     // Crowding (several pings on one bearing, 568 × 320's corners): when the spot is over 30° off, the arrow sits
     // right beside one placed before it instead (the 6.10 pair rule's spots), held while legal and ≤ 30°.
     if (placed > 0) besideFallback(i, placed, sw, sh, insets, k, size, avoid, out);
+    if (!out.shown[i]) Object.assign(mine, saved); // no ping arrow: HudScene draws the teammate arrow, later pings keep off it
     const r = eventArrowDrawnRect(at, size, drawnScratch);
     const d = out.drawn[placed] as ScreenRect;
     d.x = r.x - PAIR_GAP_CSS_PX * k;

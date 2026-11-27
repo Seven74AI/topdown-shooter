@@ -274,6 +274,13 @@ export interface HudModel {
   /** Name per slot (index = slot), assigned only when it changes. */
   readonly teammateNames: string[];
   /**
+   * Story 10.2 review L3 (written by HudScene): per slot, the downed label's countdown it last drew (−1: no red label)
+   * and that text's size (canvas px), for the ping arrows' keep-off.
+   */
+  readonly mateLabelSecs: Int32Array;
+  readonly mateLabelW: Float32Array;
+  readonly mateLabelH: Float32Array;
+  /**
    * Story 5.24: a teammate's ghost label per slot (index = slot): anchor in world metres (x, y: the
    * label's bottom centre), shown flag, and its text ("Bo · Auto-turret", assigned only when it changes).
    */
@@ -477,6 +484,9 @@ export const createHudModel = (): HudModel => ({
   teammateSecs: new Int16Array(MAX_PLAYERS),
   teammateCount: 0,
   teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
+  mateLabelSecs: new Int32Array(MAX_PLAYERS).fill(-1),
+  mateLabelW: new Float32Array(MAX_PLAYERS),
+  mateLabelH: new Float32Array(MAX_PLAYERS),
   ghostLabelAt: new Float32Array(MAX_PLAYERS * 2),
   ghostLabelShown: new Uint8Array(MAX_PLAYERS),
   ghostLabelText: new Array<string>(MAX_PLAYERS).fill(""),

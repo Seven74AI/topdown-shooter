@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEAMMATE_DOWNED, TEAMMATE_OUT, createHudModel, type HudModel } from "../scenes/hudModel";
-import { MATE_ARROW_CSS_PX, MATE_ARROW_OUTLINE_CSS_PX, MATE_DOWNED_SCALE, createTeammateMarkers, teammateArrowRect, teammateMarkers } from "./teammateMarkers";
+import { MATE_ARROW_CSS_PX, MATE_ARROW_OUTLINE_CSS_PX, MATE_CROSS_CSS_PX, MATE_CROSS_INSET_CSS_PX, MATE_DOWNED_SCALE, MATE_LABEL_INSET_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateLabelRect, teammateMarkers } from "./teammateMarkers";
 import { PULSE_SCALE_AMP } from "./pulse";
 
 /** 800 × 400 px screen showing world x 10–50, y 0–20 (20 px per metre). */
@@ -98,9 +98,35 @@ describe("teammateArrowRect (Story 10.2 B4, D6)", () => {
             expect(y - stroke).toBeGreaterThanOrEqual(out.y);
             expect(y + stroke).toBeLessThanOrEqual(out.y + out.h);
           }
-          expect(out.w).toBeLessThanOrEqual(2 * a + 6 * scale); // not a blanket square
+          if (downed) {
+            // review L3: the "+" inside the tip (at its largest) is inside too
+            const cx = m.x - c * MATE_CROSS_INSET_CSS_PX * scale;
+            const cy = m.y - s * MATE_CROSS_INSET_CSS_PX * scale;
+            const arm = MATE_CROSS_CSS_PX * scale;
+            expect(cx - arm).toBeGreaterThanOrEqual(out.x - 1e-9);
+            expect(cx + arm).toBeLessThanOrEqual(out.x + out.w + 1e-9);
+            expect(cy - arm).toBeGreaterThanOrEqual(out.y - 1e-9);
+            expect(cy + arm).toBeLessThanOrEqual(out.y + out.h + 1e-9);
+          } else expect(out.w).toBeLessThanOrEqual(2 * a + 6 * scale); // not a blanket square
         }
       }
     }
+  });
+});
+
+describe("teammateLabelRect (Story 10.2 review L3)", () => {
+  it("only for an off-screen downed teammate; centred 62 × 1.5 px inward, padded, kept on screen", () => {
+    const m = createTeammateMarkers()[0]!;
+    const out = { x: 0, y: 0, w: 0, h: 0 };
+    Object.assign(m, { visible: true, downed: false, x: 800, y: 195, angle: 0 });
+    expect(teammateLabelRect(m, 1, 100, 20, 844, 390, out)).toBe(false);
+    m.downed = true;
+    expect(teammateLabelRect(m, 1, 100, 20, 844, 390, out)).toBe(true);
+    expect(out.x + out.w / 2).toBeCloseTo(800 - MATE_LABEL_INSET_CSS_PX * 1.5, 9);
+    expect([out.w, out.h]).toEqual([108, 28]);
+    Object.assign(m, { x: 10, y: 5, angle: Math.PI }); // left edge: kept on screen
+    teammateLabelRect(m, 2, 100, 20, 844, 390, out);
+    expect(out.x).toBeGreaterThanOrEqual(0);
+    expect(out.y).toBeGreaterThanOrEqual(0);
   });
 });

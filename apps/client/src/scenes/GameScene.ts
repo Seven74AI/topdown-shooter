@@ -195,7 +195,7 @@ import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
 import { PING_FADE_MS, PingView } from "../render/PingView"; // Story 8.7
-import { MATE_ARROW_MARGIN_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateMarkers, type TeammateMarker } from "../render/teammateMarkers"; // Story 10.2 B4
+import { MATE_ARROW_MARGIN_CSS_PX, MATE_NAME_TEXT_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateLabelRect, teammateLabelWidthGuess, teammateMarkers, type TeammateMarker } from "../render/teammateMarkers"; // Story 10.2 B4
 import { PING_SFX_VOLUME, pingFrame, pingPan } from "./pingFrame"; // Story 8.7
 import { eventArrowDrawnRect, type ScreenRect } from "../render/eventArrow";
 
@@ -2111,8 +2111,8 @@ export class GameScene extends Phaser.Scene {
   /** The other arrows the ping arrows keep off: the event arrow, the 6.10 flag arrow, the loot badge (null = none). */
   private readonly pingOthers: (ScreenRect | null)[] = [null, null, null];
   /** Story 10.2 B4 (D6): per slot, the teammate edge arrow HudScene draws (null = none), a keep-off for the ping arrows. */
-  private readonly pingMates: (ScreenRect | null)[] = Array.from({ length: MAX_PLAYERS }, () => null);
-  private readonly pingMateRects: ScreenRect[] = Array.from({ length: MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+  private readonly pingMates: (ScreenRect | null)[] = Array.from({ length: 2 * MAX_PLAYERS }, () => null);
+  private readonly pingMateRects: ScreenRect[] = Array.from({ length: 2 * MAX_PLAYERS }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
   private readonly pingMarkers = createTeammateMarkers();
   private updatePings(pings: NonNullable<SceneHost["pings"]>, vx: number, vy: number, vw: number): void {
     const now = performance.now(); // the model's clock (decision 8.7 B4)
@@ -2140,13 +2140,22 @@ export class GameScene extends Phaser.Scene {
     others[0] = arrow ? eventArrowDrawnRect(arrow, size, this.pingArrowRect) : null;
     others[1] = flag ? eventArrowDrawnRect(flag, size, this.pingFlagRect) : null;
     others[2] = badge ? eventArrowDrawnRect(badge, size, this.pingLootRect) : null;
-    // 10.2 B4 (D6): the teammate arrows from the HUD model (HudScene's own `teammateMarkers` call, same margin).
+    // 10.2 B4 (D6): the teammate arrows (+ the downed "+" and red label, review L3) HudScene draws this frame: its own
+    // `teammateMarkers` call on this frame's HUD model, same margin.
     const mates = this.pingMates;
     mates.fill(null);
-    const n = teammateMarkers(this.hudModel, sw, sh, MATE_ARROW_MARGIN_CSS_PX * k, this.pingMarkers);
+    const m0 = this.hudModel;
+    const n = teammateMarkers(m0, sw, sh, MATE_ARROW_MARGIN_CSS_PX * k, this.pingMarkers);
     for (let i = 0; i < n; i++) {
       const mk = this.pingMarkers[i] as TeammateMarker;
-      if (mk.visible) mates[mk.slot] = teammateArrowRect(mk, k, this.pingMateRects[mk.slot] as ScreenRect);
+      if (!mk.visible) continue;
+      mates[2 * mk.slot] = teammateArrowRect(mk, k, this.pingMateRects[2 * mk.slot] as ScreenRect);
+      // the label's size as HudScene measured it (last frame: exact while the countdown it drew is the same), else a generous guess
+      const measured = m0.mateLabelSecs[mk.slot] === mk.secs;
+      const tw = measured ? (m0.mateLabelW[mk.slot] as number) : Math.max(m0.mateLabelW[mk.slot] as number, teammateLabelWidthGuess((m0.teammateNames[mk.slot] ?? "").length, k));
+      const th = Math.max(m0.mateLabelH[mk.slot] as number, MATE_NAME_TEXT_CSS_PX * 1.4 * k);
+      const lr = this.pingMateRects[2 * mk.slot + 1] as ScreenRect;
+      if (teammateLabelRect(mk, k, tw, th, sw, sh, lr)) mates[2 * mk.slot + 1] = lr;
     }
     this.pingView?.update(pings, now, vx, vy, vw, sw, sh, k, this.eventInsets, ev?.controlRects() ?? [], others, mates);
     const m = this.hudModel;
@@ -2374,7 +2383,6 @@ export class GameScene extends Phaser.Scene {
     this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     // Story 7.12: the bag from the World's loot record (server ticks); its badge keeps off the HUD and the event's arrow.
     if (this.eventView) this.lootView?.update(host.serverTick, ev.x, ev.y, ev.width, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets, this.eventView.controlRects(), this.eventView.edgeArrowAt());
-    if (this.pingView && host.pings && this.eventView) this.updatePings(host.pings, ev.x, ev.y, ev.width); // Story 8.7
     this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
@@ -2498,6 +2506,9 @@ export class GameScene extends Phaser.Scene {
       const swapTicks = ticksFor(host.world.balance.player.swapS);
       this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? (swapTicks - player.loadout.swapTicks + 1) / swapTicks : -1;
     }
+    // Story 8.7; Story 10.2 review L1: after this frame's camera and teammates (hudModel), so the teammate arrows the ping
+    // arrows keep off are the ones HudScene draws this frame
+    if (this.pingView && host.pings && this.eventView) this.updatePings(host.pings, ev.x, ev.y, ev.width);
     // Story 4.9: after the camera target is known (hudModel.camX/camY are this frame's view).
     const zoom = this.cameras.main.zoom;
     // Online: the first bake waits until the mirror has the server's decay stage (review L: no

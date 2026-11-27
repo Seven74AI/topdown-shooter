@@ -5,7 +5,7 @@ import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRec
 import { PAIR_GAP_CSS_PX } from "./eventArrowPair";
 import { PING_ARROW_CSS_PX, PING_OTHER_ARROWS, newPingArrows, pingIconRect, placePingArrows, type PingArrows } from "./pingArrows";
 import { PingModel } from "./pingModel";
-import { MATE_ARROW_MARGIN_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateMarkers, type TeammateMarker } from "./teammateMarkers";
+import { MATE_ARROW_MARGIN_CSS_PX, createTeammateMarkers, teammateArrowRect, teammateLabelRect, teammateMarkers, type TeammateMarker } from "./teammateMarkers";
 import { TEAMMATE_DOWNED, createHudModel } from "../scenes/hudModel";
 
 /**
@@ -290,7 +290,7 @@ describe("Story 8.7: ping edge arrows (placePingArrows)", () => {
     expect(arrows.at[0]).toBe(at0);
     expect(arrows.avoid[3]).toBe(avoid0);
     expect(arrows.avoid[3]?.[0]).toBe(arrows.others[0]);
-    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS + 4]).toBe(arrows.drawn[0]); // Story 10.2 B4: after the 4 teammate rects
+    expect(arrows.avoid[3]?.[PING_OTHER_ARROWS + 8]).toBe(arrows.drawn[0]); // Story 10.2 B4: after the 8 teammate rects (arrow + label per slot)
   });
 });
 
@@ -392,6 +392,8 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
     const mk = marks[0] as TeammateMarker;
     return n === 1 && mk.visible ? teammateArrowRect(mk, 1, out) : null;
   }
+  /** Review L3: the downed red label ("Teammate · 14 s" measured ~120 × 20 px at k = 1), placed like HudScene's. */
+  const labelRect = (marks: TeammateMarker[], w: number, h: number, out: ScreenRect): ScreenRect | null => (teammateLabelRect(marks[0] as TeammateMarker, 1, 120, 20, w, h, out) ? out : null);
 
   for (const [w, h] of MATE_SIZES) {
     // CI cap (30 s per test, docs/ci.md): one test per case; each sweeps both ways
@@ -405,20 +407,24 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
           for (const dir of [1, -1]) {
             const m = new PingModel();
             const arrows = newPingArrows();
-            const mates: (ScreenRect | null)[] = [null, null, null, null];
+            const mates: (ScreenRect | null)[] = [null, null, null, null, null, null, null, null];
+            const lr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
             let px = Number.NaN;
             let py = Number.NaN;
             let big = 0;
             for (let i = 0; i <= 36_000; i++) {
               const b = ((dir * i) / 100) * (Math.PI / 180);
               const pb = b + (off * Math.PI) / 180;
-              mates[1] = mateRect(w, h, b, 1, downed, marks, mr);
-              expect(mates[1]).not.toBeNull();
+              mates[2] = mateRect(w, h, b, 1, downed, marks, mr);
+              mates[3] = downed ? labelRect(marks, w, h, lr) : null; // review L3: a downed teammate's red label too
+              expect(mates[2]).not.toBeNull();
+              expect(mates[3] !== null).toBe(downed);
               m.show(0, 0, Math.cos(pb) * R, Math.sin(pb) * R, 0); // my own ping (slot 0), beside teammate 1's arrow
               placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], arrows, mates);
               expect(arrows.shown[0]).toBe(true);
               const r = eventArrowDrawnRect(arrows.at[0] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
-              expect(overlaps(r, mates[1] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} downed=${downed} off=${off}° @${((dir * i) / 100).toFixed(2)}°`).toBe(false);
+              expect(overlaps(r, mates[2] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} downed=${downed} off=${off}° @${((dir * i) / 100).toFixed(2)}°`).toBe(false);
+              if (downed) expect(overlaps(r, lr, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} label off=${off}° @${((dir * i) / 100).toFixed(2)}°`).toBe(false);
               checkRules(arrows, w, h, [pb, 0, 0, 0], `${w}x${h} downed=${downed} off=${off}° mate @${((dir * i) / 100).toFixed(2)}°`);
               const at = arrows.at[0] as { x: number; y: number };
               if (!Number.isNaN(px) && Math.hypot(at.x - px, at.y - py) > 40) big++;
@@ -438,14 +444,14 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
       const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
       const marks = createTeammateMarkers();
       const mr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
-      const mates: (ScreenRect | null)[] = [null, null, null, null];
+      const mates: (ScreenRect | null)[] = [null, null, null, null, null, null, null, null];
       const run = (m: PingModel, arrows: PingArrows, deg: number): { x: number; y: number } => {
         const b = (deg * Math.PI) / 180;
-        mates[1] = mateRect(w, h, b, 1, false, marks, mr);
+        mates[2] = mateRect(w, h, b, 1, false, marks, mr);
         m.show(0, 0, Math.cos(b) * R, Math.sin(b) * R, 0);
         placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], arrows, mates);
         const r = eventArrowDrawnRect(arrows.at[0] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
-        expect(overlaps(r, mates[1] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} @${deg}°`).toBe(false);
+        expect(overlaps(r, mates[2] as ScreenRect, PAIR_GAP_CSS_PX - 1e-6), `${w}x${h} @${deg}°`).toBe(false);
         return arrows.at[0] as { x: number; y: number };
       };
       const jumps: number[] = [];
@@ -482,20 +488,56 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
     const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
     const marks = createTeammateMarkers();
     const b = 0.3;
-    const mates: (ScreenRect | null)[] = [null, mateRect(w, h, b, 1, false, marks, { x: 0, y: 0, w: 0, h: 0 }), null, null];
+    const mates: (ScreenRect | null)[] = [null, null, mateRect(w, h, b, 1, false, marks, { x: 0, y: 0, w: 0, h: 0 }), null, null, null, null, null];
     const m = new PingModel();
     m.show(1, 0, Math.cos(b) * R, Math.sin(b) * R, 0); // teammate 1's own ping, on their bearing
     const alone = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows());
     const withMate = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows(), mates);
     expect(withMate.shown[1]).toBe(true);
     expect(withMate.at[1]).toEqual(alone.at[1]); // same spot: HudScene hides teammate 1's arrow
-    expect(withMate.mates[1]?.x).toBeLessThan(-1e5); // parked
+    expect(withMate.mates[2]?.x).toBeLessThan(-1e5); // parked: its ping arrow is shown
   });
 
-  it("no allocation: the keep-off rects are the preallocated ones (PING_OTHER_ARROWS + MAX_PLAYERS teammates in every avoid list)", () => {
+  it("review L4: a teammate's arrow rect is parked only by their OWN shown ping arrow: a ping placed before it keeps off it", () => {
+    const [w, h] = [844, 390];
+    const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+    const marks = createTeammateMarkers();
+    for (let deg = 0; deg < 360; deg += 0.5) {
+      const b = (deg * Math.PI) / 180;
+      const arrowRect = mateRect(w, h, b, 1, false, marks, { x: 0, y: 0, w: 0, h: 0 }) as ScreenRect;
+      const mates: (ScreenRect | null)[] = [null, null, arrowRect, null, null, null, null, null];
+      const m = new PingModel();
+      m.show(0, 0, Math.cos(b) * R, Math.sin(b) * R, 0); // my ping (slot 0, placed first) on teammate 1's bearing
+      m.show(1, 1, Math.cos(b + 0.4) * R, Math.sin(b + 0.4) * R, 0); // teammate 1's own ping elsewhere
+      const a = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows(), mates);
+      expect(a.shown[0] && a.shown[1]).toBe(true);
+      const r0 = eventArrowDrawnRect(a.at[0] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
+      expect(overlaps(r0, arrowRect, PAIR_GAP_CSS_PX - 1e-6), `@${deg}°`).toBe(false);
+      expect(a.mates[2]?.x).toBeLessThan(-1e5); // parked once teammate 1's ping arrow was shown (HudScene hides the arrow)
+    }
+  });
+
+  it("review L3: the downed label is always kept off, even while the teammate's own ping stands in for the arrow", () => {
+    const [w, h] = [844, 390];
+    const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+    const marks = createTeammateMarkers();
+    const b = 2.0;
+    const ar = mateRect(w, h, b, 1, true, marks, { x: 0, y: 0, w: 0, h: 0 }) as ScreenRect;
+    const lr = labelRect(marks, w, h, { x: 0, y: 0, w: 0, h: 0 }) as ScreenRect;
+    const m = new PingModel();
+    m.show(1, 0, Math.cos(b) * R, Math.sin(b) * R, 0); // their ping stands in for the arrow
+    const a = placePingArrows(m, -w / 2, -h / 2, 1, w, h, INSET, 1, controls, [null, null, null], newPingArrows(), [null, null, ar, lr, null, null, null, null]);
+    expect(a.shown[1]).toBe(true);
+    expect(a.mates[2]?.x).toBeLessThan(-1e5); // the arrow is hidden (M2)
+    expect(a.mates[3]?.x).toBeCloseTo(lr.x - PAIR_GAP_CSS_PX, 9); // the red label stays a keep-off
+    const r = eventArrowDrawnRect(a.at[1] as { x: number; y: number; angle: number }, PING_ARROW_CSS_PX, { x: 0, y: 0, w: 0, h: 0 });
+    expect(overlaps(r, lr, PAIR_GAP_CSS_PX - 1e-6)).toBe(false);
+  });
+
+  it("no allocation: the keep-off rects are the preallocated ones (PING_OTHER_ARROWS + 2 × MAX_PLAYERS teammate rects in every avoid list)", () => {
     const a = newPingArrows();
-    expect(a.mates).toHaveLength(4);
-    for (let n = 0; n < 4; n++) expect(a.avoid[n]).toHaveLength(PING_OTHER_ARROWS + 4 + n);
-    expect(a.avoid[3]?.[PING_OTHER_ARROWS + 1]).toBe(a.mates[1]);
+    expect(a.mates).toHaveLength(8);
+    for (let n = 0; n < 4; n++) expect(a.avoid[n]).toHaveLength(PING_OTHER_ARROWS + 8 + n);
+    expect(a.avoid[3]?.[PING_OTHER_ARROWS + 2]).toBe(a.mates[2]);
   });
 });
