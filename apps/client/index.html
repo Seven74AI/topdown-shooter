@@ -32,11 +32,89 @@
       #game.mouse-mode {
         cursor: crosshair;
       }
+      /* Story 10.4 (10.4-Q1): the loading screen, drawn before any script arrives; removed by main.ts at the first screen. */
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        background: #000;
+        color: #fff;
+        font-family: system-ui, sans-serif;
+      }
+      .bl__title {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        text-align: center;
+        font-size: 32px;
+        line-height: 1;
+      }
+      .bl__bar,
+      .bl__line,
+      .bl__spin {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + 34px);
+      }
+      .bl__bar {
+        width: 240px;
+        height: 4px;
+        margin-left: -120px;
+        background: #3b4048;
+        overflow: hidden;
+      }
+      .bl__fill {
+        height: 100%;
+        background: #f59e2c;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.2s linear;
+      }
+      .bl__line {
+        top: calc(50% + 50px);
+        width: 300px;
+        margin-left: -150px;
+        text-align: center;
+        font-size: 13px;
+        color: #8f97a2;
+        font-variant-numeric: tabular-nums;
+      }
+      .bl__spin {
+        width: 18px;
+        height: 18px;
+        margin-left: -11px;
+        border: 2px solid #3b4048;
+        border-top-color: #f59e2c;
+        border-radius: 50%;
+        animation: bl-spin 0.9s linear infinite;
+      }
+      @keyframes bl-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .bl--a .bl__line,
+      .bl--a .bl__spin,
+      .bl--b .bl__spin,
+      .bl--c .bl__bar,
+      .bl--c .bl__line {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
     <div id="ui"></div>
+    <div id="boot-loader" class="bl bl--b" data-progress="0">
+      <div class="bl__title">topdown-shooter</div>
+      <div class="bl__bar"><div class="bl__fill"></div></div>
+      <div class="bl__line">Downloading…</div>
+      <div class="bl__spin"></div>
+    </div>
+    <!-- boot-loader-script -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

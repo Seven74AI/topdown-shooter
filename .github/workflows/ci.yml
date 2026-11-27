@@ -209,6 +209,10 @@ jobs:
           grep -qi '^x-content-type-options: nosniff' headers.txt
           grep -qi '^x-frame-options: DENY' headers.txt
           ! grep -qi '^server:' headers.txt
+          # Story 10.4 (B3): a real hashed file (named in index.html; the hash changes per build) is immutable for a year.
+          asset="$(curl -sS "$base/" | grep -o '/assets/[^"]*\.js' | head -1)"; [ -n "$asset" ]
+          curl -sS -D - -o /dev/null "$base$asset" | tee asset-headers.txt
+          grep -qi '^cache-control: public, max-age=31536000, immutable' asset-headers.txt
       - name: Stack status and logs
         if: failure()
         run: |
