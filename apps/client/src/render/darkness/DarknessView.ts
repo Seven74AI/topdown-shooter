@@ -157,9 +157,14 @@ export class DarknessView {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    g.clearRect(0, 0, this.w, this.h);
-    if (this.alpha <= 0) return;
+    if (this.alpha <= 0) {
+      g.clearRect(0, 0, this.w, this.h);
+      return;
+    }
     const look = this.look;
+    // Story 10.2 (T3 L1): one pass, not clear + fill: "copy" REPLACES every pixel with the dark colour at `alpha`
+    // (the same pixels as clearRect then a source-over fill, one full-canvas pass less per frame).
+    g.globalCompositeOperation = "copy";
     g.fillStyle = look.fill;
     g.globalAlpha = this.alpha;
     g.fillRect(0, 0, this.w, this.h);

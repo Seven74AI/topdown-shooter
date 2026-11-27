@@ -91,12 +91,15 @@ function paintNoise(g: CanvasRenderingContext2D, S: number): void {
   g.putImageData(im, 0, 0);
 }
 
-/** The ring mask: alpha 0 inside `inner` (share of the radius), linear to 1 at the edge, 1 in the corners. */
-function paintRing(g: CanvasRenderingContext2D, S: number, inner: number): void {
+/**
+ * The ring mask: alpha 0 inside `inner` (share of the radius), linear to 1 at the edge, 1 in the corners. Story 10.2
+ * (T3 L1): drawn in the style's colour (`rgb`), so the fog canvas needs no colour pass (`source-in`) afterwards.
+ */
+function paintRing(g: CanvasRenderingContext2D, S: number, inner: number, rgb = "255,255,255"): void {
   g.clearRect(0, 0, S, S);
   const gr = g.createRadialGradient(S / 2, S / 2, (S / 2) * inner, S / 2, S / 2, S / 2);
-  gr.addColorStop(0, "rgba(255,255,255,0)");
-  gr.addColorStop(1, "rgba(255,255,255,1)");
+  gr.addColorStop(0, `rgba(${rgb},0)`);
+  gr.addColorStop(1, `rgba(${rgb},1)`);
   g.fillStyle = gr;
   g.fillRect(0, 0, S, S);
 }
@@ -106,8 +109,17 @@ export class FogView {
   private readonly noise: HTMLCanvasElement;
   private readonly ring: HTMLCanvasElement;
   private ringInner = -1;
+  /** Story 10.2 L1: the style the ring was painted in (−1: none yet). */
+  private ringStyle = -1;
   private fogCanvas: HTMLCanvasElement | null = null;
   private noisePattern: CanvasPattern | null = null;
+  /**
+   * Story 10.2 (T3 L2): the noise tile pre-scaled to its size on the darkness canvas (`NOISE_TILE_M` × k px, made once
+   * per k with the wrapping pattern fill, so no seam), so the two noise passes per frame are translate-only pattern
+   * fills instead of resampling the 128 px tile over the whole canvas. `tilePx` 0 = remake.
+   */
+  private readonly tile: HTMLCanvasElement;
+  private tilePx = 0;
   private readonly geo: Phaser.GameObjects.Graphics;
   private geoKey = "";
   private readonly unregister: () => void;
@@ -132,14 +144,17 @@ export class FogView {
     this.noise.width = this.noise.height = NOISE_PX;
     this.ring = makeCanvas();
     this.ring.width = this.ring.height = RING_PX;
+    this.tile = makeCanvas();
     const repaint = (): void => {
       const g = this.noise.getContext("2d");
       if (g) paintNoise(g, NOISE_PX);
       this.noisePattern = null;
+      this.tilePx = 0;
       this.ringInner = -1;
+      this.ringStyle = -1;
     };
     repaint();
-    this.unregister = textureRegistry.register("fx_fog_noise", RebuildPhase.cache, repaint, [this.noise as unknown as RestorableCanvas, this.ring as unknown as RestorableCanvas]);
+    this.unregister = textureRegistry.register("fx_fog_noise", RebuildPhase.cache, repaint, [this.noise as unknown as RestorableCanvas, this.ring as unknown as RestorableCanvas, this.tile as unknown as RestorableCanvas]);
     this.colourFill = FOG_LOOKS.map((l) => `rgb(${l.rgb})`);
     this.geo = scene.add.graphics().setDepth(FOG_DEPTH).setVisible(false);
   }
@@ -201,48 +216,47 @@ export class FogView {
     this.darkPaints++;
     const r = this.fog.radii;
     const inner = r.clearM / r.radiusM;
-    if (inner !== this.ringInner) {
+    if (inner !== this.ringInner || this.style !== this.ringStyle) {
       const rg = this.ring.getContext("2d");
-      if (rg) paintRing(rg, RING_PX, inner);
+      if (rg) paintRing(rg, RING_PX, inner, look.rgb);
       this.ringInner = inner;
+      this.ringStyle = this.style;
     }
     f.setTransform(1, 0, 0, 1, 0, 0);
-    f.globalCompositeOperation = "source-over";
     f.globalAlpha = 1;
-    f.clearRect(0, 0, w, h);
-    // The mask: the ring stamp at the viewer, opaque everywhere outside its square.
+    // The mask, already in the style's colour (10.2 L1): the ring stamp at the viewer drawn with "copy" (it replaces
+    // the whole canvas: transparent outside its square, so no clearRect pass), then opaque everywhere outside it.
     const cx = (this.fog.viewerX - vx) * k;
     const cy = (this.fog.viewerY - vy) * k;
     const R = r.radiusM * k;
+    f.globalCompositeOperation = "copy";
     f.drawImage(this.ring, cx - R, cy - R, 2 * R, 2 * R);
-    f.fillStyle = "#fff";
+    f.globalCompositeOperation = "source-over";
+    f.fillStyle = this.colourFill[this.style] as string;
     f.fillRect(0, 0, w, Math.max(0, cy - R));
     f.fillRect(0, cy + R, w, Math.max(0, h - cy - R));
     f.fillRect(0, cy - R, Math.max(0, cx - R), 2 * R);
     f.fillRect(cx + R, cy - R, Math.max(0, w - cx - R), 2 * R);
     // CO2: two drifting noise layers thin the mask (`?fx=low`: plain haze).
     if (look.noise && fogNoiseOn(this.lowFx, getSettings().fog)) {
-      if (!this.noisePattern) this.noisePattern = f.createPattern(this.noise, "repeat");
+      const tp = Math.max(8, Math.round(NOISE_TILE_M * k));
+      if (tp !== this.tilePx) this.makeTile(tp);
       const pat = this.noisePattern;
       if (pat) {
-        f.globalCompositeOperation = "destination-out"; // the noise thins the fog into drifting wisps (then the colour)
+        f.globalCompositeOperation = "destination-out"; // the noise thins the fog into drifting wisps
         f.fillStyle = pat;
-        const sc = (NOISE_TILE_M * k) / NOISE_PX;
         for (let L = 0; L < 2; L++) {
-          const ox = (((this.t * (NOISE_SPEED_MPS[L] as number) - vx) * k) % (NOISE_TILE_M * k)) + L * 37;
-          const oy = (((this.t * 0.12 - vy) * k) % (NOISE_TILE_M * k)) + L * 53;
-          f.setTransform(sc, 0, 0, sc, ox, oy);
+          const ox = (((this.t * (NOISE_SPEED_MPS[L] as number) - vx) * k) % tp) + L * 37;
+          const oy = (((this.t * 0.12 - vy) * k) % tp) + L * 53;
+          f.setTransform(1, 0, 0, 1, ox, oy);
           f.globalAlpha = NOISE_ALPHA[L] as number;
-          f.fillRect(-ox / sc - NOISE_PX, -oy / sc - NOISE_PX, w / sc + 2 * NOISE_PX, h / sc + 2 * NOISE_PX);
+          f.fillRect(-ox - tp, -oy - tp, w + 2 * tp, h + 2 * tp);
         }
         f.setTransform(1, 0, 0, 1, 0, 0);
         f.globalAlpha = 1;
       }
     }
-    // The colour (source-in keeps the mask's alpha).
-    f.globalCompositeOperation = "source-in";
-    f.fillStyle = this.colourFill[this.style] as string;
-    f.fillRect(0, 0, w, h);
+    // (10.2 L1: no colour pass — the mask is drawn in the colour, and destination-out keeps the colour.)
     // Beams see through the fog (D2): every survivor's cone stamp erased (the plan's cones).
     const plan = this.plan;
     if (plan) {
@@ -268,6 +282,24 @@ export class FogView {
     g.globalAlpha = look.alpha * (1 - this.fog.lift); // Story 12.3: the fog lifts
     g.drawImage(fc, 0, 0);
     g.globalAlpha = 1;
+  }
+
+  /** L2: the tile at `tp` px (the 128 px noise through its own wrapping pattern: seamless) and its pattern. */
+  private makeTile(tp: number): void {
+    this.tilePx = tp;
+    this.tile.width = this.tile.height = tp;
+    const t = this.tile.getContext("2d");
+    const src = t?.createPattern(this.noise, "repeat");
+    if (!t || !src) {
+      this.noisePattern = null;
+      return;
+    }
+    const sc = tp / NOISE_PX;
+    t.setTransform(sc, 0, 0, sc, 0, 0);
+    t.fillStyle = src;
+    t.fillRect(0, 0, NOISE_PX, NOISE_PX);
+    t.setTransform(1, 0, 0, 1, 0, 0);
+    this.noisePattern = t.createPattern(this.tile, "repeat");
   }
 
   destroy(): void {
