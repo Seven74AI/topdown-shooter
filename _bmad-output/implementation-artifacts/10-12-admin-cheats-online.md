@@ -8,6 +8,16 @@ Status: ready-for-dev
 
 (Added 2026-11-26 with 10.11. AD-3 A (designer 2026-11-26): an admin cheat used online → **nobody in that room earns rewards for the run**, and Results says **"Admin cheats used"**. Written with `gds-create-story` from the real code at `4ee22a7` (10.7 run stats merged). The designer picks 10.12-Q1…Q6 below before the build. B-codes are technical choices made here; the builder adds its own.)
 
+> **Designer decisions 2026-11-27 (these SUPERSEDE AD-3 A and every Q-code below; the builder rewrites the tasks to match first):**
+> - **Q1: every cheat works online, "Restart with seed" included** (it restarts the room's run for everyone, like the solo cheat). The view tools (perf overlay, collision / grid view) stay local to the admin's phone.
+> - **AD-3 reversed: cheats cost nobody rewards.** Cheated runs bank Supplies, loot, milestones and districts exactly like clean runs. There is no zero-pay path, no "Admin cheats used" on Results, and no `run.rewards` change. (Q5 has nothing left to decide.)
+> - **Q2: teammates are not told.** No banner, no toast, no Results line.
+> - **Q3 A:** the run is still marked `cheated` in `run_results` (migration after 0009). `npm run stats` leaves cheated runs out of every number and prints one line, "Cheated runs left out: N". So the run must stay marked through save and resume (save format v2 → v3, or the flag lives only in `run_results`, which the builder decides as a B-code).
+> - **Q4 B:** online god mode protects the admin's own survivor only (a per-player flag).
+> - **Q6 B: no confirm step.**
+> - Unchanged: the server checks admin itself (never trusts the client). A non-admin's cheat message is refused and logged.
+
+
 ## Story
 
 As an admin in an online game,

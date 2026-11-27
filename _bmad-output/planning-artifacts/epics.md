@@ -414,7 +414,7 @@ So that I can test any wave, weapon or event on a real phone without a dev build
 
 ### Story 10.12: Admin cheats online
 
-(Added 2026-11-26 with 10.11; backlog. AD-3 A: when an admin uses a cheat online, nobody in that room earns rewards for the run and Results says "Admin cheats used".)
+(Added 2026-11-26 with 10.11. AD-3 A (nobody earns, Results says "Admin cheats used") was **reversed by the designer on 2026-11-27**: cheats cost nobody rewards and teammates are not told. Every cheat works online, "Restart with seed" included. God mode protects the admin only, and there is no confirm step. Cheated runs are marked and left out of `npm run stats`. Story file `10-12-admin-cheats-online.md`.)
 
 As an admin in an online game,
 I want the cheat panel to work through the server,
@@ -424,7 +424,7 @@ So that I can test co-op situations in production.
 
 **Given** an admin (checked by the server, never trusted from the client) in an online room
 **When** they use a cheat
-**Then** the server applies it, the run is marked cheated, nobody in the room earns Supplies, loot or milestones for it, and Results says "Admin cheats used" (AD-3 A)
+**Then** the server applies it, and the run is marked cheated in the run stats, which leave it out of their numbers. Rewards are paid as normal and teammates are not told (designer 2026-11-27, reversing AD-3 A).
 
 ## Epic 11: Random city (post-v1)
 The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.

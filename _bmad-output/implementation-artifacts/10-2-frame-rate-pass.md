@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.2: Frame-rate pass (headless, wave 9 blackout)
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Correct-course 2026-11-26: the real-phone ACs are **parked** (designer 2026-11-25, "forget the real phone test for now"); the buildable part is headless Chromium 844 × 390 DPR 2 with CDP CPU throttling 1× / 4×, measured the 9.13 way. Depends on 10.1 (done: `setSettingsDefaults` hook). Carries deferred-work **D6** (teammate edge arrow over a ping arrow). **Three designer choices are open: 10.2-Q1…Q3 below. Don't build T3/T4 before they are answered**; T1, T2 and T5 can start.)
 
@@ -193,3 +193,9 @@ Claude (builder session, gds-dev-story).
 | --- | --- | --- | --- |
 | R1-L1 | `AUTO_QUALITY_MAX_GAP_MS = 250`: a phone under 4 FPS, or a 6–12 FPS phone with a hitch over 250 ms every 10 s, was never lowered | the limit is now 1000 ms: a longer gap is a pause or app switch and cancels the try (nothing stored); a frame of 250–1000 ms is a slow frame and counts. Tests: steady 300 ms frames → step 2 (stored); 9 FPS with a 600 ms hitch every 25 frames → step 2; a 3 s gap → nothing stored (kept) | `578e1265` |
 | R1-L2 | the comment ("250 ms = a 4 FPS frame, below anything the check can call") | rewritten with the fix | `578e1265` |
+
+## Main session close-out (2026-11-27)
+
+- **Review M1 / AC 3, the designer's answer (2026-11-27, "Good"):** wave 9 at 4× DPR 2 averaged 9.1 FPS (8.8 / 9.4), +38 % on the pinned worst-fog baseline of 6.6 (B7). That passes Q1 A. The 9.3 figure was +25 % of the first, unpinned 7.4. 30 FPS stays the target for the parked real-phone check.
+- Full three-layer review (2 high, 2 medium, 7 low, 7 nit) → fix round → narrow re-review 1 APPROVED (R1-L1, R1-L2) → main-session check of 578e1265 (pause limit 1000 ms, slower frames count; tests). CI green on cd5135eb. Master had moved docs-only since; the merge was clean.
+- PR #43 merged 60b8aad2. D6 closed; D13 (per-tick sim allocations) opened for 10.3.
