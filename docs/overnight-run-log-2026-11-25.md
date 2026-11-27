@@ -246,3 +246,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 10:12 10.6 PR #40 merged cd9a944a (full review → 2 narrow re-reviews, approved). 10.5 builder next; 10.7 told to regenerate its migration on top of 0008.
 - 10:19 Master CI green on cd9a944a (#40, 10.6). Builder 10.5 started (session_01CgLgPX9PioZsbg6tUPi3pX).
 - 11:17 10.7 re-review 1 APPROVED (last low + 2 nits → main-session check). 10.5 PR #42 green (13e7988); browsers workflow 9/9 on Chromium/Firefox/WebKit/Edge; light review started (session_01CgLgPW6QcD75Ss9z8UcZfv).
+- 11:26 10.7 PR #41 merged 3db1a5f6 (full review H1/M1/M2 → re-review 1 approved → main-session check). 10.12 can start (it touches RunRoom start/end too).

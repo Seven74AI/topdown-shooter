@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.7: Run stats
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. **Awaiting designer Q-codes 10.7-Q1…Q4.** None of them is a look, and none blocks the server work: T1–T4 can start at once, and only the stats script's output (T5) waits on Q1–Q3. **Migration order:** **10.6 lands first** (`0008_*`). This story **regenerates its migration on top of master** (it becomes `0009_*`; never rename one: Drizzle skips an older journal `when`, AGENTS §2). If 10.7 happens to be ready first, it takes `0008` and 10.6 regenerates instead. The main session decides at merge time.)
 
@@ -256,3 +256,8 @@ Builder session (gds-dev-story), 2026-11-27.
   accountsRepo LOCK ORDER, merge.ts, db.test, testQueries, realPostgresDelete, deploy.md; housekeeping step 2.
 - 2026-11-27: review fixes H1, M1 (+ D8), M2, L1–L6, nits (Senior Developer Review (AI)); migration 0009 regenerated
   (`endless` ending, `last_resume`).
+
+## Main session close-out (2026-11-27)
+
+- Full three-layer review (1 high, 2 medium, 7 lows) → fix round (+ main-session B-code 10.7-B10: a wipe after Stay records ending 'endless', extracted = false) → narrow re-review 1 APPROVED → main-session check of f1c6eb0 (random claim key per Start, run inputs captured at the call site for finishIfNotSaved, comment, D12). Diff read; CI green on f1c6eb0. Master had moved docs-only since; the merge was clean.
+- PR #41 merged 3db1a5f6. D2 and D8 closed by this story; D12 opened.
