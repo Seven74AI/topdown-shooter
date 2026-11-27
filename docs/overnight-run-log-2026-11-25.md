@@ -254,3 +254,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 12:40 10.2: review fixes (H1, H2, M2, lows) → re-review 1 APPROVED → main-session check of 578e1265 (pause limit 1000 ms; slower frames count). PR #43 green on cd5135eb. Merge waits only for the designer's M1 answer (9.1 FPS vs the 9.3 number).
 - 12:50 Designer: 10.2 M1, 9.1 FPS passes ("Good"). 10.2 PR #43 merged 60b8aad2.
 - 12:52 Designer on 10.12: every cheat online, Restart with seed included; AD-3 REVERSED (no reward removal, teammates not told); stats mark + leave out; god mode admin only; no confirm. Recorded in the 10.12 story file and epics.md.
+- 13:24 Master CI green on d5f41147 (#42, 10.5) and 60b8aad2 (#43, 10.2). Builders started: 10.12 (session_01CgLgPTzNvAfJzhQVbjahDo), 10.3 (session_01CgLgPW13eUimNjZy3tirrj).
