@@ -230,3 +230,6 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 00:22 Master CI green on 10387c0b (#37). Epic 12 done (12.1–12.4).
 - 07:25 (11-27) Designer "All ok": every open 12.2/12.3 feel choice kept as built; fly-out horde 150 merged (PR #38, b8266485).
 - 07:35 Master CI green on b8266485 (#38). HANDOFF updated for a fresh session.
+
+## 2026-11-27 (new session: Epic 10)
+- 07:44 Check before: nothing changed since the handoff (master 9fa9c8d green, no open PRs, no unmerged branches). Story writers started: 10.2–10.4 + D5 cut.test sweep (session_01CgLgPWETniyRqao35nC7Fq), 10.5–10.7 + D2 check (session_01CgLgPVvbkde5aGPTH95L1G).
