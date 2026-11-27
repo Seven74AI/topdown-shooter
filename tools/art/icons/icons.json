@@ -1,0 +1,15 @@
+{
+  "option": "IC3",
+  "sources": [
+    "docs/art/icon/icons.js",
+    "tools/art/icons/drawIcon.ts"
+  ],
+  "sourcesHash": "a20859c5de480446",
+  "files": {
+    "icon-192.png": "08c7602193ea505bba1b876f53855001a905620feaa8070412e0fa46e44b8baa",
+    "icon-512.png": "27959e47c158ac3db796d8d9ca8b2fd90b344849b227313125479fd78dfdd288",
+    "icon-maskable-512.png": "27959e47c158ac3db796d8d9ca8b2fd90b344849b227313125479fd78dfdd288",
+    "apple-touch-icon-180.png": "8b90ef1d5210861fa09cdb3f5897fe3731419afb791cde93bf75a1ad0ec7dede",
+    "favicon-32.png": "4c8fe5f9360b8d75d2e2cd2573f97ca06010d89de1203d6ddd956a51c4f79ad6"
+  }
+}

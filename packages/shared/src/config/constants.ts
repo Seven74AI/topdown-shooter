@@ -1,5 +1,5 @@
 /** Display name of the game; shown by the client's BootScene. */
-export const GAME_TITLE = "topdown-shooter";
+export const GAME_TITLE = "Hordes"; // Story 10.5 (Q2 = A): the name under the icon, the window title and the start screen
 
 /** Fixed simulation tick rate shared by client prediction and server (architecture › Networking). */
 export const TICK_RATE_HZ = 20;

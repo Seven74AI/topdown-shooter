@@ -8,7 +8,7 @@ import { bossBarHidden, layoutBossBanner, layoutBossBar } from "./bossBar";
 import { hudFrameCssSize } from "../render/city/hudWarnArt";
 import { EVENT_ARROW_MAX_BEARING_ERR_RAD, eventArrowDrawnRect, newWaveControlRects, placeEventArrow, waveControlRects } from "../render/eventArrow";
 import { LOOT_FOUND_MINE } from "../render/lootBagCue";
-import { WIDEST_LOOT_LINE, layoutLootLine, layoutPingButton } from "./hudTopLayout";
+import { WIDEST_LOOT_LINE, hudBandTop, layoutLootLine, layoutPingButton } from "./hudTopLayout";
 import { layoutPingWheel, newPingChipRects } from "./pingWheel";
 import { BANNER_TEXT_PX, LINE_HEIGHT, WIDEST_WAVE_LINE, WIDEST_WAVE_LINE_COMPACT, fitWaveText, bannerWrapWidth, layoutBanner, layoutHpBar, layoutHpBlock, layoutHpRow, layoutMoneyLine, layoutWaveLine, placeWaveText } from "./hudTopLayout";
 import { waveLine } from "./hudModel";
@@ -45,13 +45,34 @@ const SIZES: readonly [number, number][] = [
   [568, 320],
   [640, 360],
 ];
-const INSET = { left: 44, right: 44, top: 0, bottom: 21 } as const;
+/** The usual insets (sides 44, bottom 21, no top). Story 10.5 (AC 4) swaps in TOP_INSET for its 47 px top cases. */
+type Inset = { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number };
+const BASE_INSET: Inset = { left: 44, right: 44, top: 0, bottom: 21 };
+/**
+ * Story 10.5 (AC 4, epic Q4; decision 10.5-B5): a top inset (a top notch, a status bar over an installed app, an iPad)
+ * with the usual side and bottom insets: 47 px at 844 × 390, 20 px at 568 × 320 (568-wide iPhones have no top inset in
+ * landscape; with 47 px the band left above the survivor's 48 px is 65 px, and the HP block + boss bar need 71).
+ */
+const TOP_CASES: readonly { w: number; h: number; inset: Inset }[] = [
+  { w: 568, h: 320, inset: { left: 44, right: 44, top: 20, bottom: 21 } },
+  { w: 844, h: 390, inset: { left: 44, right: 44, top: 47, bottom: 21 } },
+];
+let INSET: Inset = BASE_INSET;
+/** Runs `fn` with `inset` as the test's INSET (every helper reads it), then puts the usual insets back. */
+function withInset(inset: Inset, fn: () => void): void {
+  INSET = inset;
+  try {
+    fn();
+  } finally {
+    INSET = BASE_INSET;
+  }
+}
 const K = 1; // CSS px (the layouts scale every number by dpr alike)
 
 /** ☰ (Story 2.11, HudScene › layoutMenuButton): top right inside the safe area. */
 function menu(w: number): Box {
   const s = MENU_BUTTON_CSS_PX * K;
-  return { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + INSET.right) * K - s, y: (MENU_BUTTON_INSET_CSS_PX + INSET.top) * K, w: s, h: s };
+  return { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + INSET.right) * K - s, y: (MENU_BUTTON_INSET_CSS_PX + hudBandTop(INSET.top)) * K, w: s, h: s };
 }
 
 /** Story 6.5: the boss bar block (name + HP bar), HudScene › BossHud via `layoutBossBar`. */
@@ -67,7 +88,7 @@ function bossBar(w: number): Box {
  * small screens; the chips aren't pressable (pointer-events: none).
  */
 function heldChipsBox(): Box {
-  return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
+  return { id: "held_chips", x: INSET.left + HELD_CHIPS.leftPx, y: hudBandTop(INSET.top) + HELD_CHIPS.topPx, w: HELD_CHIPS.maxWidthPx, h: 3 * HELD_CHIPS.rowPx };
 }
 
 /** Story 8.7 (AC 2): the ping button, left of ☰ (HudScene draws it from `layoutPingButton`). */
@@ -75,8 +96,8 @@ function pingBtn(w: number): Box {
   return { id: "ping", ...layoutPingButton(w, INSET, K, { x: 0, y: 0, w: 0, h: 0 }) };
 }
 /** Story 8.7 (AC 3, B5): the open wheel's four chips (HudScene draws and hit-tests them from `layoutPingWheel`). */
-function pingChips(w: number, column = false): Box[] {
-  return layoutPingWheel(w, INSET, K, newPingChipRects(), column).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
+function pingChips(w: number, h: number, column = false): Box[] {
+  return layoutPingWheel(w, INSET, K, newPingChipRects(), column, h).map((r, i) => ({ id: `ping_chip${i}`, ...r }));
 }
 
 /** Every mode's pressable controls. */
@@ -92,7 +113,7 @@ function modes(w: number, h: number): Record<string, Box[]> {
   ];
   const cells: Box[] = Array.from({ length: PANEL_CELLS }, (_, s) => ({ id: s === PANEL_CELLS - 1 ? "build" : `ptile${s}`, x: pn.x[s] as number, y: pn.y[s] as number, w: pn.tile, h: pn.tile })); // the 9th cell is Close (the `build` button)
   const wave = layoutRightButtons(w, h, INSET.right, INSET.bottom, K, false, 0, 0, newRightButtonsLayout());
-  const row = layoutRowAboveCluster(w, h, INSET.right, INSET.bottom, K, cl.top, cl.right, newRightButtonsLayout());
+  const row = layoutRowAboveCluster(w, h, INSET.right, INSET.bottom, K, cl.top, cl.right, newRightButtonsLayout(), INSET.top); // Story 10.5: as HudScene passes it
   const rw = READY_BUTTON_W_CSS_PX * K;
   const rh = READY_BUTTON_H_CSS_PX * K;
   const ready: Box = { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), K), y: h - (READY_BUTTON_BOTTOM_CSS_PX + INSET.bottom) * K - rh, w: rw, h: rh };
@@ -113,11 +134,11 @@ function modes(w: number, h: number): Record<string, Box[]> {
     build_open: [menu(w), pingBtn(w), ...cells, ready],
     // Story 8.7 (B5 amended, designer 2026-11-25): the wheel open — swap and the build bar hide; quick-use STAYS, so
     // the chips stand in one column (wave, build); in the vote (no quick-use) they are the 2 × 2 block.
-    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w, true), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
-    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w, true), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size), sq("consumable", row.consX, row.consY, row.size)],
+    ping_wheel_wave: [menu(w), pingBtn(w), ...pingChips(w, h, true), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
+    ping_wheel_build: [menu(w), pingBtn(w), ...pingChips(w, h, true), ready, sq("undo", undoBar.x, undoBar.y, undoBar.size), sq("consumable", row.consX, row.consY, row.size)],
     ping_wheel_vote: (() => {
       const v = layoutEvacVote(w, h, INSET.bottom);
-      return [menu(w), pingBtn(w), ...pingChips(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+      return [menu(w), pingBtn(w), ...pingChips(w, h), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
     })(),
     holding: [
       menu(w),
@@ -151,7 +172,7 @@ function violations(w: number, h: number): Map<string, number> {
   const out = new Map<string, number>();
   for (const [mode, boxes] of Object.entries(modes(w, h))) {
     for (const b of boxes) {
-      if (b.x < INSET.left * K - 1e-6 || b.x + b.w > w - INSET.right * K + 1e-6 || b.y < 0 || b.y + b.h > h - INSET.bottom * K + 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: outside the safe area`, 1);
+      if (b.x < INSET.left * K - 1e-6 || b.x + b.w > w - INSET.right * K + 1e-6 || b.y < INSET.top * K - 1e-6 || b.y + b.h > h - INSET.bottom * K + 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: outside the safe area`, 1);
       const gap = rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2);
       if (gap < CENTRE_CLEAR_CSS_PX * K - 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: within 48 px of the centre`, gap);
       if (b.x + b.w / 2 < w / 2) out.set(`${w}x${h} ${mode} ${b.id}: in the move-stick half`, w / 2 - (b.x + b.w / 2));
@@ -207,20 +228,135 @@ const KNOWN_LIST: [string, number][] = [
 ];
 const KNOWN_AS_BUILT = new Map<string, number>(KNOWN_LIST);
 
+/**
+ * Story 10.10 re-review 2: the one layout where the closed cluster cannot fit at all — 568 × 320 with 44/21 side / bottom
+ * insets AND a 20 px top inset (no phone has a landscape top inset at that size): between ping (bottom 80; 72 since
+ * Story 10.5's B5) and ↶'s one spot (top 129) there are 49 px (57) for the 64 px row, so it would overlap one of them. Only
+ * its open panel is checked (review 7's case). Story 10.5 reuses this entry for its 568 × 320 + 20 px case (B5).
+ */
+const CLOSED_INFEASIBLE = new Set(["568x320 44/21/20"]);
+/** Those modes' overlaps of 5.12's row (quick-use, swap) with ↶, the closed-cluster case above. */
+const closedRowOverlap = (k: string): boolean => /^\d+x\d+ (build|build_short|ping_wheel_build) (consumable overlaps undo|swap overlaps undo|undo overlaps consumable|undo overlaps swap)$/.test(k);
+
+/** Every mode at one size: controls listed, nothing breaks a rule beyond the as-built baseline (which may not get worse). */
+function checkModes(w: number, h: number): void {
+  const m = modes(w, h);
+  for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" || mode === "waiting" ? 1 : 3); // liveness (8.1's modal panel has one control; 8.2's waiting joiner only ☰)
+  const v = violations(w, h);
+  expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
+  for (const [k, now] of v) {
+    const was = KNOWN_AS_BUILT.get(k) as number;
+    if (k.endsWith("of the centre")) expect(now, `${k}: moved closer to the survivor`).toBeGreaterThanOrEqual(was - TOLERANCE_PX);
+    else expect(now, `${k}: moved further into the move-stick half`).toBeLessThanOrEqual(was + TOLERANCE_PX);
+  }
+  expect([...KNOWN_AS_BUILT.keys()].filter((x) => x.startsWith(`${w}x${h} `) && !v.has(x)), "a baseline line no longer happens: delete it").toEqual([]);
+}
+
+/** Story 6.14: the top band (HP bar, HP row, money, wave line, boss bar, ☰, banners, the boss arrival banner) at one size. */
+function checkTopBand(w: number, h: number): void {
+  const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
+  const top: Box[] = [
+    menu(w),
+    { ...layoutHpBar(INSET, K, r0()), id: "hp_bar" },
+    { ...layoutHpRow(INSET, K, r0()), id: "hp_row" },
+    { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
+    { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
+  ];
+  const boss = bossBar(w);
+  const inSafe = (b: Box): void => {
+    expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+    expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+    expect(b.y, `${b.id} top`).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
+    expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+  };
+  const apart = (list: Box[]): void => {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) expect(overlaps(list[i]!, list[j]!), `${w}x${h}: ${list[i]!.id} overlaps ${list[j]!.id}`).toBe(false);
+  };
+  for (const b of [...top, boss]) inSafe(b);
+  apart([...top, boss]);
+  expect(boss.y + boss.h, "the boss bar stays in the upper third").toBeLessThan(h / 3);
+  // The drawn wave text (a 10-wave line, an endless line, the widest one) stays inside its rect.
+  const wave = top[4]!;
+  // Story 8.7 (B3): beside the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
+  // Its width here: the full width × the compact/full length ratio of the widest strings (same font, same digits).
+  const ratio = WIDEST_WAVE_LINE_COMPACT.length / WIDEST_WAVE_LINE.length;
+  for (const textW of [150, 200, 261.5]) {
+    const at = fitWaveText(w, INSET, K, textW, textW * ratio, { x: 0, scale: 1, compact: false });
+    const drawnW = at.compact ? textW * ratio : textW;
+    expect(at.x - (drawnW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
+    expect(at.x + (drawnW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
+    expect(at.scale, "the wave line never under 11 px (16 px × 11/16)").toBeGreaterThanOrEqual(11 / 16);
+    if (w >= 640) expect(at.compact, `${w} px: the full line fits`).toBe(false);
+  }
+  expect(placeWaveText(w, INSET, K, 150, { x: 0, scale: 1 }).scale, "a usual line needs no compact form").toBeGreaterThan(0.85);
+  expect(waveLine({ wave: 10, remaining: 400, buildSecs: -1, endless: false, voting: false }).length).toBeLessThan(WIDEST_WAVE_LINE.length);
+  // Banners: short / wide / the wrap width, 1–3 lines, with and without the boss bar.
+  const wrap = bannerWrapWidth(w, INSET, K);
+  let banners = 0;
+  for (const textW of [90, 240, wrap]) {
+    for (const lines of [1, 2, 3]) {
+      for (const shown of [false, true]) {
+        const r = layoutBanner(w, h, INSET, K, textW, lines * BANNER_TEXT_PX * LINE_HEIGHT * K, shown ? boss : null, r0());
+        const b: Box = { ...r, id: `banner ${Math.round(textW)}px × ${lines}${shown ? " + boss" : ""}` };
+        inSafe(b);
+        apart([...top, ...(shown ? [boss] : []), b]);
+        banners++;
+      }
+    }
+  }
+  expect(banners).toBe(18);
+  // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar (or, on a short screen, in its place
+  // while the bar is hidden), clear of the whole top band, and ≥ 48 px from the survivor (review M2, brief 31).
+  // review R7: also under a 20 px top inset (a notch or status bar on top)
+  for (const insetTop of [INSET.top, 20]) {
+    const ab = layoutBossBanner(w, h, INSET.left, insetTop, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 });
+    const arrival: Box = { x: ab.x, y: ab.y, w: ab.w, h: ab.h, id: `boss_arrival_banner (top inset ${insetTop})` };
+    expect(arrival.y, "below the top inset").toBeGreaterThanOrEqual(insetTop * K - 1e-6);
+    inSafe(arrival);
+    if (insetTop === INSET.top) apart([...top, ...(ab.overBar ? [] : [boss]), arrival]);
+    expect(rectCentreGap(arrival.x, arrival.y, arrival.w, arrival.h, w / 2, h / 2), `${w}x${h} inset ${insetTop}: the arrival banner keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+    // the plate's words stay readable: it reads "THE BEHEMOTH" in 34 px Oswald 700 at full size, and at the floor
+    // (35 % of its art) that's ≥ 11.9 px caps: at least the boss bar's own name (BOSS_BAR_NAME_CSS_PX, 11 px). The
+    // tightest case is 568 × 320 under a 20 px top inset (41 %); without the inset every size keeps ≥ 60 %.
+    expect(ab.w, "still readable").toBeGreaterThanOrEqual(hudFrameCssSize("banner").w * (insetTop === 0 ? 0.6 : 0.35) * K - 1e-6);
+    expect(34 * (ab.w / hudFrameCssSize("banner").w)).toBeGreaterThanOrEqual(BOSS_BAR_NAME_CSS_PX);
+  }
+  // review R6: the bar hides only while the banner shows in its place
+  expect(bossBarHidden(true, true, true)).toBe(true);
+  expect(bossBarHidden(true, true, false)).toBe(false);
+  expect(bossBarHidden(true, false, true)).toBe(false);
+  expect(bossBarHidden(false, false, false)).toBe(true);
+}
+
+/** Story 7.12: the loot line keeps off the top band and inside the safe area at one size. */
+function checkLootLine(w: number, h: number): void {
+  const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
+  const band: Box[] = [
+    menu(w),
+    { ...layoutHpBlock(INSET, K, r0()), id: "hp_block" },
+    { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
+    { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
+    bossBar(w),
+  ];
+  // 18 px bold system-ui: ≈ 10 px per ordinary character, 17 px per "W" (Chromium measures less)
+  const widths = [{ t: LOOT_FOUND_MINE, px: 95 }, { t: "Ana found a bag!", px: 150 }, { t: WIDEST_LOOT_LINE, px: 16 * 17 + 13 * 10 }];
+  for (const [{ t, px }, shown] of widths.flatMap((x) => [[x, false], [x, true]] as const)) {
+    const r = layoutLootLine(w, INSET, K, px * K, { x: 0, y: 0, w: 0, h: 0, scale: 1 }, shown ? band[4]! : null, h);
+    const b: Box = { id: `loot line "${t}"${shown ? " (boss bar)" : ""}`, x: r.x, y: r.y, w: r.w, h: r.h };
+    const others = shown ? band : band.slice(0, 4);
+    expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
+    expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
+    expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
+    for (const o of others) expect(overlaps(b, o), `${w}x${h}: ${b.id} overlaps ${o.id}`).toBe(false);
+    expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${b.id}: keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
+    expect(18 * r.scale, `${b.id}: text ≥ 11 px`).toBeGreaterThanOrEqual(11);
+    if (px <= 150 && !shown) expect(r.scale).toBe(1);
+  }
+}
+
 describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   for (const [w, h] of SIZES) {
-    it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => {
-      const m = modes(w, h);
-      for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" || mode === "waiting" ? 1 : 3); // liveness (8.1's modal panel has one control; 8.2's waiting joiner only ☰)
-      const v = violations(w, h);
-      expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
-      for (const [k, now] of v) {
-        const was = KNOWN_AS_BUILT.get(k) as number;
-        if (k.endsWith("of the centre")) expect(now, `${k}: moved closer to the survivor`).toBeGreaterThanOrEqual(was - TOLERANCE_PX);
-        else expect(now, `${k}: moved further into the move-stick half`).toBeLessThanOrEqual(was + TOLERANCE_PX);
-      }
-      expect([...KNOWN_AS_BUILT.keys()].filter((x) => x.startsWith(`${w}x${h} `) && !v.has(x)), "a baseline line no longer happens: delete it").toEqual([]);
-    });
+    it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => checkModes(w, h));
   }
 
   it("the baseline holds no overlap and nothing outside the safe area (only the centre gap and the move-stick half)", () => {
@@ -275,110 +411,14 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   // widest, the money line, the wave line, the boss bar, ☰ and the centre banner — never overlap each
   // other and stay inside the safe area (568 × 320 had the HP bar over the wave line's start).
   for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
-    it(`Story 6.14: ${w} × ${h}: the HP bar, HP row, money line, wave line, boss bar, ☰ and the banners (1–3 lines, with and without the boss bar) never overlap; all inside the safe area`, () => {
-      const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
-      const top: Box[] = [
-        menu(w),
-        { ...layoutHpBar(INSET, K, r0()), id: "hp_bar" },
-        { ...layoutHpRow(INSET, K, r0()), id: "hp_row" },
-        { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
-        { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
-      ];
-      const boss = bossBar(w);
-      const inSafe = (b: Box): void => {
-        expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
-        expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
-        expect(b.y, `${b.id} top`).toBeGreaterThanOrEqual(INSET.top * K - 1e-6);
-        expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
-      };
-      const apart = (list: Box[]): void => {
-        for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) expect(overlaps(list[i]!, list[j]!), `${w}x${h}: ${list[i]!.id} overlaps ${list[j]!.id}`).toBe(false);
-      };
-      for (const b of [...top, boss]) inSafe(b);
-      apart([...top, boss]);
-      expect(boss.y + boss.h, "the boss bar stays in the upper third").toBeLessThan(h / 3);
-      // The drawn wave text (a 10-wave line, an endless line, the widest one) stays inside its rect.
-      const wave = top[4]!;
-      // Story 8.7 (B3): beside the ping button a line that would drop under 11 px is drawn compact ("Wave 12 · 350 left").
-      // Its width here: the full width × the compact/full length ratio of the widest strings (same font, same digits).
-      const ratio = WIDEST_WAVE_LINE_COMPACT.length / WIDEST_WAVE_LINE.length;
-      for (const textW of [150, 200, 261.5]) {
-        const at = fitWaveText(w, INSET, K, textW, textW * ratio, { x: 0, scale: 1, compact: false });
-        const drawnW = at.compact ? textW * ratio : textW;
-        expect(at.x - (drawnW * at.scale) / 2, `wave text ${textW} px: left`).toBeGreaterThanOrEqual(wave.x - 1e-6);
-        expect(at.x + (drawnW * at.scale) / 2, `wave text ${textW} px: right`).toBeLessThanOrEqual(wave.x + wave.w + 1e-6);
-        expect(at.scale, "the wave line never under 11 px (16 px × 11/16)").toBeGreaterThanOrEqual(11 / 16);
-        if (w >= 640) expect(at.compact, `${w} px: the full line fits`).toBe(false);
-      }
-      expect(placeWaveText(w, INSET, K, 150, { x: 0, scale: 1 }).scale, "a usual line needs no compact form").toBeGreaterThan(0.85);
-      expect(waveLine({ wave: 10, remaining: 400, buildSecs: -1, endless: false, voting: false }).length).toBeLessThan(WIDEST_WAVE_LINE.length);
-      // Banners: short / wide / the wrap width, 1–3 lines, with and without the boss bar.
-      const wrap = bannerWrapWidth(w, INSET, K);
-      let banners = 0;
-      for (const textW of [90, 240, wrap]) {
-        for (const lines of [1, 2, 3]) {
-          for (const shown of [false, true]) {
-            const r = layoutBanner(w, h, INSET, K, textW, lines * BANNER_TEXT_PX * LINE_HEIGHT * K, shown ? boss : null, r0());
-            const b: Box = { ...r, id: `banner ${Math.round(textW)}px × ${lines}${shown ? " + boss" : ""}` };
-            inSafe(b);
-            apart([...top, ...(shown ? [boss] : []), b]);
-            banners++;
-          }
-        }
-      }
-      expect(banners).toBe(18);
-      // The boss arrival banner (P1 "THE BEHEMOTH", BossHud): under the boss bar (or, on a short screen, in its place
-      // while the bar is hidden), clear of the whole top band, and ≥ 48 px from the survivor (review M2, brief 31).
-      // review R7: also under a 20 px top inset (a notch or status bar on top)
-      for (const insetTop of [INSET.top, 20]) {
-        const ab = layoutBossBanner(w, h, INSET.left, insetTop, INSET.right, K, hudFrameCssSize("banner"), { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 });
-        const arrival: Box = { x: ab.x, y: ab.y, w: ab.w, h: ab.h, id: `boss_arrival_banner (top inset ${insetTop})` };
-        expect(arrival.y, "below the top inset").toBeGreaterThanOrEqual(insetTop * K - 1e-6);
-        inSafe(arrival);
-        if (insetTop === INSET.top) apart([...top, ...(ab.overBar ? [] : [boss]), arrival]);
-        expect(rectCentreGap(arrival.x, arrival.y, arrival.w, arrival.h, w / 2, h / 2), `${w}x${h} inset ${insetTop}: the arrival banner keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
-        // the plate's words stay readable: it reads "THE BEHEMOTH" in 34 px Oswald 700 at full size, and at the floor
-        // (35 % of its art) that's ≥ 11.9 px caps: at least the boss bar's own name (BOSS_BAR_NAME_CSS_PX, 11 px). The
-        // tightest case is 568 × 320 under a 20 px top inset (41 %); without the inset every size keeps ≥ 60 %.
-        expect(ab.w, "still readable").toBeGreaterThanOrEqual(hudFrameCssSize("banner").w * (insetTop === 0 ? 0.6 : 0.35) * K - 1e-6);
-        expect(34 * (ab.w / hudFrameCssSize("banner").w)).toBeGreaterThanOrEqual(BOSS_BAR_NAME_CSS_PX);
-      }
-      // review R6: the bar hides only while the banner shows in its place
-      expect(bossBarHidden(true, true, true)).toBe(true);
-      expect(bossBarHidden(true, true, false)).toBe(false);
-      expect(bossBarHidden(true, false, true)).toBe(false);
-      expect(bossBarHidden(false, false, false)).toBe(true);
-    });
+    it(`Story 6.14: ${w} × ${h}: the HP bar, HP row, money line, wave line, boss bar, ☰ and the banners (1–3 lines, with and without the boss bar) never overlap; all inside the safe area`, () => checkTopBand(w, h));
   }
 
   // Story 7.12 (BF2, brief 31 / R11): the "Bag found!" / "<name> found a bag!" line with its bag icon
   // (the toast line), at its shortest, a usual name and the widest (16 × "W"), with and without the
   // boss bar: inside the safe area, off the HP block, money line, wave line, boss bar and ☰, text ≥ 11 px.
   for (const [w, h] of [...SIZES, [800, 360], [844, 390]] as const) {
-    it(`Story 7.12: ${w} × ${h}: the loot line (icon + text) keeps off the top band and inside the safe area`, () => {
-      const r0 = (): Box => ({ id: "", x: 0, y: 0, w: 0, h: 0 });
-      const band: Box[] = [
-        menu(w),
-        { ...layoutHpBlock(INSET, K, r0()), id: "hp_block" },
-        { ...layoutMoneyLine(INSET, K, r0()), id: "money_line" },
-        { ...layoutWaveLine(w, INSET, K, r0()), id: "wave_line" },
-        bossBar(w),
-      ];
-      // 18 px bold system-ui: ≈ 10 px per ordinary character, 17 px per "W" (Chromium measures less)
-      const widths = [{ t: LOOT_FOUND_MINE, px: 95 }, { t: "Ana found a bag!", px: 150 }, { t: WIDEST_LOOT_LINE, px: 16 * 17 + 13 * 10 }];
-      for (const [{ t, px }, shown] of widths.flatMap((x) => [[x, false], [x, true]] as const)) {
-        const r = layoutLootLine(w, INSET, K, px * K, { x: 0, y: 0, w: 0, h: 0, scale: 1 }, shown ? band[4]! : null, h);
-        const b: Box = { id: `loot line "${t}"${shown ? " (boss bar)" : ""}`, x: r.x, y: r.y, w: r.w, h: r.h };
-        const others = shown ? band : band.slice(0, 4);
-        expect(b.x, `${b.id} left`).toBeGreaterThanOrEqual(INSET.left * K - 1e-6);
-        expect(b.x + b.w, `${b.id} right`).toBeLessThanOrEqual(w - INSET.right * K + 1e-6);
-        expect(b.y + b.h, `${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom * K + 1e-6);
-        for (const o of others) expect(overlaps(b, o), `${w}x${h}: ${b.id} overlaps ${o.id}`).toBe(false);
-        expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${b.id}: keeps the survivor's 48 px`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * K - 1e-6);
-        expect(18 * r.scale, `${b.id}: text ≥ 11 px`).toBeGreaterThanOrEqual(11);
-        if (px <= 150 && !shown) expect(r.scale).toBe(1);
-      }
-    });
+    it(`Story 7.12: ${w} × ${h}: the loot line (icon + text) keeps off the top band and inside the safe area`, () => checkLootLine(w, h));
   }
 
   it("the checks bite: a box at the centre is caught (self-check)", () => {
@@ -894,52 +934,55 @@ describe("Story 6.8 re-review 3 RR3-1: no strobe where the arrow must jump", () 
  * 1920 × 1080, and under a 20 px top inset: inside the safe area, off every other control of the modes they show in,
  * clear of the survivor's 48 px, in the right half; the chips ≥ 44 px and apart.
  */
+/** Story 8.7: the ping button and wheel at one size (every mode that shows them). */
+function checkPing(w: number, h: number): void {
+  const m = modes(w, h);
+  let checked = 0;
+  for (const [mode, boxes] of Object.entries(m)) {
+    const mine = boxes.filter((b) => b.id === "ping" || b.id.startsWith("ping_chip"));
+    if (mode === "holding" || mode === "reconnecting" || mode === "selected" || mode === "waiting") {
+      expect(mine, `${mode}: no ping button`).toEqual([]);
+      continue;
+    }
+    expect(mine.length, mode).toBe(mode.startsWith("ping_wheel") ? 5 : 1);
+    for (const b of mine) {
+      expect(b.x, `${mode} ${b.id} left`).toBeGreaterThanOrEqual(INSET.left);
+      expect(b.x + b.w, `${mode} ${b.id} right`).toBeLessThanOrEqual(w - INSET.right + 1e-6);
+      expect(b.y + b.h, `${mode} ${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom);
+      expect(Math.min(b.w, b.h), `${b.id} ≥ 44 px`).toBeGreaterThanOrEqual(44);
+      expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${mode} ${b.id}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+      expect(b.x + b.w / 2, `${mode} ${b.id}: right half`).toBeGreaterThan(w / 2);
+      for (const o of boxes) if (o !== b) expect(overlaps(b, o), `${w}x${h} ${mode}: ${b.id} overlaps ${o.id}`).toBe(false);
+      checked++;
+    }
+  }
+  expect(checked).toBe(3 + 2 + 3 * 5); // liveness: wave, build, vote, Story 10.10's build_short + build_open, and the three open-wheel modes
+  // B5 amended (designer 2026-11-25): wheel open, quick-use visible, no overlap — in a wave and in a build phase
+  for (const mode of ["ping_wheel_wave", "ping_wheel_build"]) {
+    const boxes = m[mode] as Box[];
+    const cons = boxes.find((b) => b.id === "consumable");
+    expect(cons, `${mode}: quick-use shown`).toBeDefined();
+    for (const c of boxes.filter((b) => b.id.startsWith("ping_chip"))) expect(overlaps(c, cons as Box), `${w}x${h} ${mode}: ${c.id} on quick-use`).toBe(false);
+  }
+  // the band: the ping button keeps off the wave line and the boss bar keeps its 12 px gap to it
+  const r0 = { x: 0, y: 0, w: 0, h: 0 };
+  const wl = layoutWaveLine(w, INSET, K, { ...r0 });
+  const p = pingBtn(w);
+  expect(wl.x + wl.w, "wave line ends a band gap before the ping button").toBeLessThanOrEqual(p.x - 6 + 1e-6);
+  const boss = bossBar(w);
+  expect(overlaps(boss, p)).toBe(false);
+  expect(p.x - (boss.x + boss.w), "review L4: the boss bar keeps its 12 px gap to the ping button").toBeGreaterThanOrEqual(BOSS_BAR_GAP_CSS_PX - 1e-6);
+  // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
+  const top = { ...INSET, top: 20 };
+  for (const c of [...layoutPingWheel(w, top, K, newPingChipRects()), ...layoutPingWheel(w, top, K, newPingChipRects(), true)]) {
+    expect(c.y + c.h).toBeLessThanOrEqual(h - top.bottom);
+    expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+  }
+}
+
 describe("Story 8.7: the ping button and wheel at every test size", () => {
   for (const [w, h] of [...SIZES, [800, 360], [844, 390], [1280, 720], [1920, 1080]] as const) {
-    it(`${w} × ${h}`, () => {
-      const m = modes(w, h);
-      let checked = 0;
-      for (const [mode, boxes] of Object.entries(m)) {
-        const mine = boxes.filter((b) => b.id === "ping" || b.id.startsWith("ping_chip"));
-        if (mode === "holding" || mode === "reconnecting" || mode === "selected" || mode === "waiting") {
-          expect(mine, `${mode}: no ping button`).toEqual([]);
-          continue;
-        }
-        expect(mine.length, mode).toBe(mode.startsWith("ping_wheel") ? 5 : 1);
-        for (const b of mine) {
-          expect(b.x, `${mode} ${b.id} left`).toBeGreaterThanOrEqual(INSET.left);
-          expect(b.x + b.w, `${mode} ${b.id} right`).toBeLessThanOrEqual(w - INSET.right + 1e-6);
-          expect(b.y + b.h, `${mode} ${b.id} bottom`).toBeLessThanOrEqual(h - INSET.bottom);
-          expect(Math.min(b.w, b.h), `${b.id} ≥ 44 px`).toBeGreaterThanOrEqual(44);
-          expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${mode} ${b.id}: survivor`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
-          expect(b.x + b.w / 2, `${mode} ${b.id}: right half`).toBeGreaterThan(w / 2);
-          for (const o of boxes) if (o !== b) expect(overlaps(b, o), `${w}x${h} ${mode}: ${b.id} overlaps ${o.id}`).toBe(false);
-          checked++;
-        }
-      }
-      expect(checked).toBe(3 + 2 + 3 * 5); // liveness: wave, build, vote, Story 10.10's build_short + build_open, and the three open-wheel modes
-      // B5 amended (designer 2026-11-25): wheel open, quick-use visible, no overlap — in a wave and in a build phase
-      for (const mode of ["ping_wheel_wave", "ping_wheel_build"]) {
-        const boxes = m[mode] as Box[];
-        const cons = boxes.find((b) => b.id === "consumable");
-        expect(cons, `${mode}: quick-use shown`).toBeDefined();
-        for (const c of boxes.filter((b) => b.id.startsWith("ping_chip"))) expect(overlaps(c, cons as Box), `${w}x${h} ${mode}: ${c.id} on quick-use`).toBe(false);
-      }
-      // the band: the ping button keeps off the wave line and the boss bar keeps its 12 px gap to it
-      const r0 = { x: 0, y: 0, w: 0, h: 0 };
-      const wl = layoutWaveLine(w, INSET, K, { ...r0 });
-      const p = pingBtn(w);
-      expect(wl.x + wl.w, "wave line ends a band gap before the ping button").toBeLessThanOrEqual(p.x - 6 + 1e-6);
-      const boss = bossBar(w);
-      expect(overlaps(boss, p)).toBe(false);
-      expect(p.x - (boss.x + boss.w), "review L4: the boss bar keeps its 12 px gap to the ping button").toBeGreaterThanOrEqual(BOSS_BAR_GAP_CSS_PX - 1e-6);
-      // under a 20 px top inset (a notch on top) the wheel still fits and keeps off the survivor
-      const top = { ...INSET, top: 20 };
-      for (const c of [...layoutPingWheel(w, top, K, newPingChipRects()), ...layoutPingWheel(w, top, K, newPingChipRects(), true)]) {
-        expect(c.y + c.h).toBeLessThanOrEqual(h - top.bottom);
-        expect(rectCentreGap(c.x, c.y, c.w, c.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
-      }
-    });
+    it(`${w} × ${h}`, () => checkPing(w, h));
   }
 });
 
@@ -968,18 +1011,12 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
     ["568x320 44/21/0 closed: consumable / ping", 0],
     ["568x320 44/21/0 closed: swap / ping", 0],
     ["568x320 44/21/0 closed: swap / menu", 0],
-    // re-review 2: a 20 px top inset — the row clamped under ping / ☰ (0 px), 6 px above ↶
-    ["568x320 0/0/20 closed: undo / consumable", 6],
-    ["568x320 0/0/20 closed: consumable / ping", 0],
-    ["568x320 0/0/20 closed: swap / ping", 0],
-    ["568x320 0/0/20 closed: swap / menu", 0],
+    // re-review 2: a 20 px top inset — the row was clamped under ping / ☰ (0 px), 6 px above ↶. Story 10.5 (B5): ☰ and
+    // ping sit 8 px higher, so the row keeps its 12 px above ↶ and is 2 px under ping / ☰.
+    ["568x320 0/0/20 closed: consumable / ping", 2],
+    ["568x320 0/0/20 closed: swap / ping", 2],
+    ["568x320 0/0/20 closed: swap / menu", 2],
   ]);
-  /**
-   * Re-review 2: the one layout where the closed cluster cannot fit at all — 568 × 320 with 44/21 side / bottom insets AND a
-   * 20 px top inset (no phone has a landscape top inset at that size): between ping (bottom 80) and ↶'s one spot (top 129)
-   * there are 49 px for the 64 px row, so it would overlap one of them. Only its open panel is checked (review 7's case).
-   */
-  const CLOSED_INFEASIBLE = new Set(["568x320 44/21/20"]);
   for (const [w, h] of BUILD_SIZES) {
     for (const ins of INSETS) {
       it(`${w} × ${h}, insets ${ins.right}/${ins.bottom}/top ${ins.top}: inside the safe area, ≥ 48 px from the survivor, in the right half, no overlap, ≥ 12 px between separate controls (8 px inside a tile group); the open card ≥ 12 px from ping / ☰`, () => {
@@ -988,7 +1025,7 @@ describe("Story 10.10 (AC 5, 11): the Build cluster and panel at 568 × 320 … 
         const row = layoutRowAboveCluster(w, h, ins.right, ins.bottom, 1, cl.top, cl.right, newRightButtonsLayout(), ins.top);
         const undo = layoutUndoChip(w, h, ins.right, ins.bottom, 1, { x: 0, y: 0, size: 0 });
         const ms = MENU_BUTTON_CSS_PX;
-        const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: ms, h: ms };
+        const menuBox: Box = { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - ms, y: MENU_BUTTON_INSET_CSS_PX + hudBandTop(ins.top), w: ms, h: ms };
         const ping: Box = { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) };
         const rw = READY_BUTTON_W_CSS_PX;
         const rh = READY_BUTTON_H_CSS_PX;
@@ -1100,7 +1137,7 @@ describe("Story 10.10 review 1, 2 + re-review 1: holding-mode Place / ⟳ / ✕ 
           { id: "swap", x: row.swapX, y: row.swapY, w: row.size, h: row.size },
           { id: "ready", x: readyLeftX(w, rw, readyClearLeft(pn), 1), y: h - (READY_BUTTON_BOTTOM_CSS_PX + ins.bottom) - rh, w: rw, h: rh },
           { id: "ping", ...layoutPingButton(w, ins, 1, { x: 0, y: 0, w: 0, h: 0 }) },
-          { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + ins.top, w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX }, // re-review 2: ☰ too
+          { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + ins.right) - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + hudBandTop(ins.top), w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX }, // re-review 2: ☰ too
         ];
         // re-review 2 (M): ↶'s one spot vs the open panel's cells. Only type cells (0–5 and the quick type's 7, B13) may lie
         // over it: a pick there starts the hold, and ↶'s press is dropped within barQuietMs of it (`dropUndoAfterPick`).
@@ -1130,4 +1167,61 @@ describe("Story 10.10 review 1, 2 + re-review 1: holding-mode Place / ⟳ / ✕ 
       });
     }
   }
+});
+
+/**
+ * Story 10.5 (AC 4, epic Q4 "ok" 2026-11-26; decision 10.5-B5): a TOP inset with the usual 44 / 21 side and bottom
+ * insets, across every HUD mode: the same checks as the usual insets — no control breaks a rule the same size doesn't
+ * already break with the usual insets (568 × 320: exactly the as-built baseline list, which is NOT widened; 844 × 390
+ * shows the same Ready / vote / action-bar lines there), nothing overlaps, all inside the safe rect, text ≥ 11 px.
+ */
+describe("Story 10.5 (AC 4): a top inset — 20 px at 568 × 320, 47 px at 844 × 390", () => {
+  for (const { w, h, inset } of TOP_CASES) {
+    const tag = `${w} × ${h} + ${inset.top} px top`;
+    it(`${tag}: every mode — no rule break beyond the same size with the usual insets (none worse); every control below the top inset`, () => {
+      const base = violations(w, h);
+      if (SIZES.some(([sw, sh]) => sw === w && sh === h)) expect([...base.keys()].sort()).toEqual([...KNOWN_AS_BUILT.keys()].filter((x) => x.startsWith(`${w}x${h} `)).sort());
+      withInset(inset, () => {
+        const m = modes(w, h);
+        for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(mode === "reconnecting" || mode === "waiting" ? 1 : 3);
+        const v = violations(w, h);
+        // B5: only 10.10's CLOSED_INFEASIBLE case (568 × 320 + 20 px: the closed cluster's row vs ↶) is let through
+        const infeasible = CLOSED_INFEASIBLE.has(`${w}x${h} ${inset.right}/${inset.bottom}/${inset.top}`);
+        const fresh = [...v.keys()].filter((x) => !base.has(x));
+        expect(fresh.filter((x) => !(infeasible && closedRowOverlap(x))), "new HUD layout breaks under the top inset").toEqual([]);
+        if (infeasible) expect(fresh.filter(closedRowOverlap).length, "liveness: the known case still happens (else delete the exception)").toBeGreaterThan(0);
+        for (const [k, now] of v) {
+          if (!base.has(k)) continue; // the CLOSED_INFEASIBLE lines above
+          const was = base.get(k) as number;
+          if (k.endsWith("of the centre")) expect(now, `${k}: moved closer to the survivor`).toBeGreaterThanOrEqual(was - TOLERANCE_PX);
+          else expect(now, `${k}: moved further into the move-stick half`).toBeLessThanOrEqual(was + TOLERANCE_PX);
+        }
+        for (const [mode, boxes] of Object.entries(m)) for (const b of boxes) expect(b.y, `${w}x${h} ${mode} ${b.id}: below the top inset`).toBeGreaterThanOrEqual(inset.top - 1e-6);
+      });
+    });
+    it(`${tag}: the top band, banners and boss arrival banner`, () => withInset(inset, () => checkTopBand(w, h)));
+    it(`${tag}: the loot line`, () => withInset(inset, () => checkLootLine(w, h)));
+    it(`${tag}: the ping button and wheel`, () => withInset(inset, () => checkPing(w, h)));
+    it(`${tag}: the held-teammate chips stay under the money line, clear of every control and the survivor`, () =>
+      withInset(inset, () => {
+        const chips = heldChipsBox();
+        const money = layoutMoneyLine(INSET, K, { x: 0, y: 0, w: 0, h: 0 });
+        expect(chips.y).toBeGreaterThanOrEqual(money.y + money.h);
+        expect(rectCentreGap(chips.x, chips.y, chips.w, chips.h, w / 2, h / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+        for (const [mode, boxes] of Object.entries(modes(w, h))) if (mode !== "reconnecting") for (const b of boxes) expect(overlaps(chips, b), `${w}x${h} ${mode} ${b.id}`).toBe(false);
+      }));
+  }
+
+  it("B5: the top band overlaps the inset — the first row (☰, wave line) sits max(12, inset + 4) px down; no inset: unchanged", () => {
+    for (const t of [0, 4, 8, 20, 47]) {
+      const ins = { left: 0, right: 0, top: t, bottom: 0 };
+      expect(layoutWaveLine(844, ins, K, { x: 0, y: 0, w: 0, h: 0 }).y).toBe(Math.max(12, t + 4));
+      expect(layoutPingButton(844, ins, K, { x: 0, y: 0, w: 0, h: 0 }).y).toBe(Math.max(12, t + 4));
+      expect(layoutHpBar(ins, K, { x: 0, y: 0, w: 0, h: 0 }).y).toBeGreaterThanOrEqual(t); // the HP bar's backing stays out of the inset
+    }
+  });
+
+  it("the usual insets are back after each case (no leak into the other tests)", () => {
+    expect(INSET).toBe(BASE_INSET);
+  });
 });

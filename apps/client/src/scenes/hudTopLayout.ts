@@ -15,6 +15,16 @@ export const LINE_HEIGHT = 1.3;
 export const WAVE_TOP_PX = 12;
 export const WAVE_TEXT_PX = 16;
 /**
+ * Story 10.5 (decision 10.5-B5, main session 2026-11-27): the top band's own margins OVERLAP a top safe-area inset
+ * instead of stacking under it (the CSS `max(margin, env(safe-area-inset-top) + gap)` idea): every top-band y is
+ * counted from `hudBandTop(inset)`, so the first row (☰, ping, wave line: 12 px margins) sits at
+ * max(12, inset + 4) px and the rest keeps its spacing under it. 0 inset: unchanged; 47 px: 8 px higher.
+ */
+export const TOP_BAND_INSET_OVERLAP_CSS_PX = 8;
+export function hudBandTop(insetTop: number): number {
+  return Math.max(0, insetTop - TOP_BAND_INSET_OVERLAP_CSS_PX);
+}
+/**
  * Re-review 3 RR3-3: the widest strings the HUD can show — built with the same functions HudScene uses
  * (`waveLine`, `hpRowText`). HudScene measures them with its own text styles at create and reports
  * the widths (`reportHudTextWidths`); the layouts reserve max(the fallback below, the measurement).
@@ -84,7 +94,7 @@ export interface HudInsets {
  */
 export function layoutHpBlock(insets: HudInsets, k: number, out: HudRect): HudRect {
   out.x = (HP_MARGIN + insets.left - 2) * k;
-  out.y = (HP_MARGIN + insets.top - 2) * k;
+  out.y = (HP_MARGIN + hudBandTop(insets.top) - 2) * k;
   out.w = (hpRowW() + 2) * k;
   out.h = (2 + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT) * k;
   return out;
@@ -93,7 +103,7 @@ export function layoutHpBlock(insets: HudInsets, k: number, out: HudRect): HudRe
 /** The money line under the HP row (its own short rect: re-review 3 RR3-2). */
 export function layoutMoneyLine(insets: HudInsets, k: number, out: HudRect): HudRect {
   out.x = (HP_MARGIN + insets.left - 2) * k;
-  out.y = (HP_MARGIN + insets.top + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT) * k;
+  out.y = (HP_MARGIN + hudBandTop(insets.top) + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT) * k;
   out.w = (moneyW() + 2) * k;
   out.h = (MONEY_GAP_PX + MONEY_TEXT_PX * LINE_HEIGHT) * k;
   return out;
@@ -110,7 +120,7 @@ export const BANNER_SIDE_CSS_PX = 8;
 /** The HP bar with its 2 px backing (top left). */
 export function layoutHpBar(insets: HudInsets, k: number, out: HudRect): HudRect {
   out.x = (HP_MARGIN + insets.left - 2) * k;
-  out.y = (HP_MARGIN + insets.top - 2) * k;
+  out.y = (HP_MARGIN + hudBandTop(insets.top) - 2) * k;
   out.w = (HP_BAR_W + 4) * k;
   out.h = (HP_BAR_H + 4) * k;
   return out;
@@ -119,7 +129,7 @@ export function layoutHpBar(insets: HudInsets, k: number, out: HudRect): HudRect
 /** Story 6.14: the HP row under the bar (HP text + gear icons, at its widest). */
 export function layoutHpRow(insets: HudInsets, k: number, out: HudRect): HudRect {
   layoutHpBlock(insets, k, out);
-  const top = (HP_MARGIN + insets.top + HP_BAR_H + 2) * k;
+  const top = (HP_MARGIN + hudBandTop(insets.top) + HP_BAR_H + 2) * k;
   out.h = out.y + out.h - top;
   out.y = top;
   return out;
@@ -138,7 +148,7 @@ export function pingButtonLeft(width: number, insets: Pick<HudInsets, "right">, 
  */
 export function layoutPingButton(width: number, insets: Pick<HudInsets, "right" | "top">, k: number, out: HudRect): HudRect {
   out.x = pingButtonLeft(width, insets, k);
-  out.y = (MENU_BUTTON_INSET_CSS_PX + insets.top) * k;
+  out.y = (MENU_BUTTON_INSET_CSS_PX + hudBandTop(insets.top)) * k;
   out.w = out.h = PING_BUTTON_CSS_PX * k;
   return out;
 }
@@ -157,7 +167,7 @@ export function layoutWaveLine(width: number, insets: HudInsets, k: number, out:
   const pingLeft = pingButtonLeft(width, insets, k);
   out.x = left;
   out.w = Math.max(0, Math.min(reserve, pingLeft - gap - left));
-  out.y = (WAVE_TOP_PX + insets.top) * k;
+  out.y = (WAVE_TOP_PX + hudBandTop(insets.top)) * k;
   out.h = WAVE_TEXT_PX * LINE_HEIGHT * k;
   return out;
 }
@@ -246,13 +256,15 @@ const moneyScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
 export function layoutLootLine(width: number, insets: HudInsets, k: number, textW: number, out: HudRect & { scale: number }, boss: Readonly<HudRect> | null = null, height = Infinity): HudRect & { scale: number } {
   const gap = HUD_BAND_GAP_CSS_PX * k;
   const fullH = Math.max(LOOT_ICON_CSS_PX, TOAST_TEXT_CSS_PX * LINE_HEIGHT) * k;
-  out.y = (TOAST_TOP_CSS_PX + insets.top) * k;
+  out.y = (TOAST_TOP_CSS_PX + hudBandTop(insets.top)) * k;
   out.scale = 1;
   if (boss && out.y < boss.y + boss.h + gap && boss.y < out.y + fullH + gap) {
     // under the boss bar; on a short screen (568 × 320) the line shrinks (≥ 11 px text) and the gap
     // narrows (≥ 2 px) so it keeps the survivor's `LOOT_LINE_CENTRE_CLEAR_CSS_PX`
     const room = height / 2 - LOOT_LINE_CENTRE_CLEAR_CSS_PX * k - (boss.y + boss.h);
-    const g = Math.max(2 * k, Math.min(gap, room - fullH * LOOT_LINE_MIN_SCALE));
+    // Story 10.5 (B5): under a top inset (568 × 320 + 20 px) the gap may close to 0 (touching, never overlapping)
+    // before the line would cross the survivor's clear zone.
+    const g = Math.max(0, Math.min(gap, room - fullH * LOOT_LINE_MIN_SCALE));
     out.y = boss.y + boss.h + g;
     out.scale = Math.max(LOOT_LINE_MIN_SCALE, Math.min(1, (room - g) / fullH));
   }

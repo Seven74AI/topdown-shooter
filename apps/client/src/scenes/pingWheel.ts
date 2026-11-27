@@ -32,7 +32,7 @@ const btnScratch: HudRect = { x: 0, y: 0, w: 0, h: 0 };
  * The chips: a 2 × 2 block whose right edge is ☰'s right edge, its top a band gap under the lower of the ping button
  * and the boss bar's row. Read left → right, top → bottom (keys 1–4): Help! · Over here / Big one! · Ready.
  */
-export function layoutPingWheel(width: number, insets: HudInsets, k: number, out: PingChipRects, column = false): PingChipRects {
+export function layoutPingWheel(width: number, insets: HudInsets, k: number, out: PingChipRects, column = false, height = Infinity): PingChipRects {
   const cw = PING_CHIP_W_CSS_PX * k;
   const ch = PING_CHIP_H_CSS_PX * k;
   const gap = PING_CHIP_GAP_CSS_PX * k;
@@ -42,12 +42,16 @@ export function layoutPingWheel(width: number, insets: HudInsets, k: number, out
     // B5 as amended (designer 2026-11-25, L8): quick-use stays up while the wheel is open, so the chips stand in one
     // column right-aligned with ☰, from just under the ping button (x ≥ the ping button's middle: right of quick-use in
     // a wave and in a build phase, right of the boss bar), top → bottom = keys 1–4.
+    // Story 10.5 (AC 4): under a tall top inset (47 px at 568 × 320) four chips with the usual gap would cross the
+    // bottom inset: the gaps shrink to fit (≥ 2 px); the chips keep their 44 px.
+    const top = btn.y + btn.h + HUD_BAND_GAP_CSS_PX * k;
+    const g = height === Infinity ? gap : Math.max(2 * k, Math.min(gap, (height - insets.bottom * k - top - 4 * ch) / 3));
     for (let i = 0; i < 4; i++) {
       const r = out[i] as HudRect;
       r.w = cw;
       r.h = ch;
       r.x = right - cw;
-      r.y = btn.y + btn.h + HUD_BAND_GAP_CSS_PX * k + i * (ch + gap);
+      r.y = top + i * (ch + g);
     }
     return out;
   }

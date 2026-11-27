@@ -76,6 +76,18 @@
 		file_server
 	}
 
+	# Story 10.5 (AC 1): the home-screen install files (unhashed, from apps/client/public): a short cache (1 h), never
+	# the immutable year of /assets/*, so a new icon reaches installed phones. The manifest's own MIME type is set here
+	# (Caddy's built-in table has no .webmanifest). No try_files: a missing icon is a 404, never index.html.
+	@install path /manifest.webmanifest /icons/*
+	handle @install {
+		root * /srv/client
+		@exists file
+		header @exists Cache-Control "public, max-age=3600"
+		header /manifest.webmanifest Content-Type "application/manifest+json"
+		file_server
+	}
+
 	# Everything else: index.html and unhashed files, always revalidated. Unknown paths such as the
 	# share link /j/<code> load the app.
 	handle {

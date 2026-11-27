@@ -1,4 +1,5 @@
 import { BUILD_COUNT_GAP_CSS_PX, BUILD_COUNT_TEXT_CSS_PX, HAND_CANCEL, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
+import { hudBandTop } from "./hudTopLayout";
 /**
  * Story 5.12 (AC 1, 7): the consumable button's rules, pure (unit-tested; the HUD and GameScene only
  * call these).
@@ -139,7 +140,7 @@ export function layoutRowAboveCluster(width: number, height: number, insetRight:
   // never higher than just under ping / ☰ (568 × 320 with 44/21 insets: touching ping's bottom, 5 px from ↶).
   out.swapX = clusterRight - size;
   out.consX = out.swapX - gap - size;
-  const pingBottom = (insetTop + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX) * k;
+  const pingBottom = (hudBandTop(insetTop) + MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX) * k;
   out.consY = out.swapY = Math.max(pingBottom, Math.min(clusterTop - gap - size, out.consY));
   return out;
 }

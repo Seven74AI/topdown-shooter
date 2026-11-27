@@ -1224,7 +1224,7 @@ p.in-run-menu__title {
 /* Story 8.1 (AC 1): grey "Bo · reconnecting 1:43" chips and "Bo is back", top left under the money line (hudLayout.test.ts › heldChipsBox). Not pressable. */
 .held-chips {
   position: fixed;
-  top: 86px;
+  top: calc(max(0px, env(safe-area-inset-top, 0px) - 8px) + 86px); /* Story 10.5 (AC 4, B5): under the money line with a top inset too (hudBandTop) */
   left: calc(env(safe-area-inset-left, 0px) + 16px);
   max-width: 170px;
   z-index: 3;
