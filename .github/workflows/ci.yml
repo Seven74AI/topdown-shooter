@@ -204,11 +204,23 @@ jobs:
           check 404 "$base/assets/nope.js"
           head -c 9000 /dev/zero | tr '\0' a > big.txt
           check 413 -X POST --data-binary @big.txt "$base/api/matchmake/create/run"
+          # Story 10.6 (B2): /api/account/report alone passes 9 KB through Caddy and Node (the route answers: 401, no cookie) and stops 70 KB.
+          { printf '{"x":"'; cat big.txt; printf '"}'; } > big.json
+          check 401 -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' --data-binary @big.json "$base/api/account/report"
+          # re-review RR-M1: a body just under the server's 65,536 bytes passes Caddy too (64KiB, not 64KB = 64,000)
+          { printf '{"x":"'; head -c 65000 /dev/zero | tr '\0' a; printf '"}'; } > near.json
+          check 401 -X POST -H 'content-type: application/json' -H 'origin: https://hordes.sevend.io' --data-binary @near.json "$base/api/account/report"
+          head -c 70000 /dev/zero | tr '\0' a > huge.txt
+          check 413 -X POST --data-binary @huge.txt "$base/api/account/report"
           curl -sS -D - -o /dev/null "$base/" | tee headers.txt
           grep -qi '^cache-control: no-cache' headers.txt
           grep -qi '^x-content-type-options: nosniff' headers.txt
           grep -qi '^x-frame-options: DENY' headers.txt
           ! grep -qi '^server:' headers.txt
+          # Story 10.4 (B3): a real hashed file (named in index.html; the hash changes per build) is immutable for a year.
+          asset="$(curl -sS "$base/" | grep -o '/assets/[^"]*\.js' | head -1)"; [ -n "$asset" ]
+          curl -sS -D - -o /dev/null "$base$asset" | tee asset-headers.txt
+          grep -qi '^cache-control: public, max-age=31536000, immutable' asset-headers.txt
       - name: Stack status and logs
         if: failure()
         run: |

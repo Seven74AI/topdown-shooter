@@ -9,6 +9,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrateCli.ts",
     "admin": "tsx src/db/adminCli.ts",
+    "reports": "tsx src/db/reportsCli.ts",
     "housekeeping": "tsx src/db/housekeepingCli.ts",
     "stats": "tsx src/db/statsCli.ts"
   },

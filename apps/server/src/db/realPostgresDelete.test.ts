@@ -9,6 +9,10 @@ import { migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { savedRunsRepo } from "./savedRunsRepo";
 import { runResultsRepo } from "./runResultsRepo";
+import { reportsRepo } from "./reportsRepo";
+import type { ReportPayload } from "@topdown/shared";
+
+const reportPayload: ReportPayload = { lines: ["l"], device: { userAgent: "t", screen: { w: 1, h: 1 }, viewport: { w: 1, h: 1 }, dpr: 1, safeArea: { top: 0, right: 0, bottom: 0, left: 0 }, input: "touch", language: "en", installed: false } };
 
 /**
  * Story 10.1 review (M2, L3, L4, M3, L6): Delete my progress racing logins and banks on a REAL PostgreSQL (PGlite runs on
@@ -266,5 +270,55 @@ describe.skipIf(!URL)("Story 10.1: Delete my progress on real PostgreSQL (TEST_D
     expect((await accountsRepo(database).deleteAccount(finder.token, finder.id, "p", new Set([finder.token]))).outcome).toBe("deleted");
     expect(await count(sql`select count(*)::int as n from paid_bags where run_id = ${run}`)).toBe(1);
     expect((await repo.addSupplies(run, other.id, () => ({ supplies: 1, breakdown: {} }), meta("hat:blue"))).breakdown.loot).toBeUndefined();
+  });
+
+  it("Story 10.6 (AC 8, B4): an account with 2 reports and a merged guest with 1 → after the delete all 3 rows stay with account_id null", async () => {
+    const a = await acct();
+    const reports = reportsRepo(database);
+    const g = hex();
+    const guest = await accountsRepo(database).createGuest(g, "");
+    expect((await reports.insert(g, "guest's", reportPayload)).outcome).toBe("stored");
+    // merge the guest into the account (a login from the guest's phone)
+    expect((await deviceTokensRepo(database).logIn({ oldTokenHash: g, newTokenHash: hex(), accountId: a.id, expectPasswordHash: "p" })).outcome).toBe("ok");
+    expect(await count(sql`select count(*)::int as n from accounts where id = ${guest.id} and merged_into = ${a.id}`)).toBe(1);
+    const ids: string[] = [];
+    for (const n of ["one", "two"]) {
+      const r = await reports.insert(a.token, n, reportPayload);
+      if (r.outcome !== "stored") throw new Error(r.outcome);
+      ids.push(r.id);
+    }
+    const devices = new Set(await accountsRepo(database).deviceHashes(a.id));
+    expect((await accountsRepo(database).deleteAccount(a.token, a.id, "p", devices)).outcome).toBe("deleted");
+    expect(await count(sql`select count(*)::int as n from problem_reports where id in (${ids[0]}, ${ids[1]}) and account_id is null`)).toBe(2);
+    expect(await count(sql`select count(*)::int as n from problem_reports where note = 'guest''s' and account_id is null`)).toBeGreaterThanOrEqual(1);
+    expect(await count(sql`select count(*)::int as n from problem_reports where account_id in (${a.id}, ${guest.id})`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from progress where account_id = ${a.id}`)).toBe(0);
+  });
+
+  it("Story 10.6 (B4): a delete and 5 reports of the same account at once, ×10: the delete wins every time; each report is stored then nulled, or answered no_account; never 23503, never an error", async () => {
+    let stored = 0;
+    let refused = 0;
+    for (let k = 0; k < 10; k++) {
+      const a = await acct();
+      const reports = reportsRepo(database);
+      const results = await Promise.allSettled([
+        accountsRepo(database).deleteAccount(a.token, a.id, "p", new Set([a.token])),
+        ...Array.from({ length: 5 }, (_, i) => reports.insert(a.token, `race ${k}.${i}`, reportPayload)),
+      ]);
+      expect(countErrors("report-vs-delete", results)).toBe(0);
+      const del = results[0] as PromiseFulfilledResult<{ outcome: string }>;
+      expect(del.value.outcome).toBe("deleted");
+      for (const r of results.slice(1) as PromiseFulfilledResult<{ outcome: string }>[]) {
+        if (r.value.outcome === "stored") stored++;
+        else {
+          expect(r.value.outcome).toBe("no_account");
+          refused++;
+        }
+      }
+      expect(await count(sql`select count(*)::int as n from problem_reports where note like ${`race ${k}.%`} and account_id is not null`)).toBe(0);
+      expect(await count(sql`select count(*)::int as n from problem_reports p left join accounts a on a.id = p.account_id where p.account_id is not null and a.id is null`)).toBe(0);
+    }
+    expect(stored + refused).toBe(50);
+    tally(`report-vs-delete stored ${stored} refused ${refused}`);
   });
 });

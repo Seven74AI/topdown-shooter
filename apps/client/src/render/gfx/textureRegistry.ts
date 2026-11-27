@@ -10,6 +10,7 @@
  * Memory: only the callbacks are kept here, no extra canvas copies (the canvases are the ones Phaser
  * already references). Pure (no Phaser, no DOM types needed): unit-tested in node.
  */
+import { clientLog } from "../../debug/clientLog";
 
 /** Rebuild order: caches are dropped first, then the atlases are redrawn, then what is drawn FROM them. */
 export const RebuildPhase = {
@@ -144,6 +145,7 @@ export class TextureRegistry {
     }
     this.rebuildCount++;
     this.lastReport = report;
+    clientLog.note("texture.rebuild", { rebuilt: report.rebuilt, failed: report.failed.length }); // Story 10.6 (an event, not per frame)
     return report;
   }
 

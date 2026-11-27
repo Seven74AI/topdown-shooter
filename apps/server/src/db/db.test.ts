@@ -33,10 +33,10 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 
 describe("migrations (Story 7.1 AC 2)", () => {
-  it("the committed SQL creates exactly these tables: accounts and progress (7.1), run_rewards (7.2), device_tokens (7.6), saved_runs + saved_run_players (8.4), paid_bags (10.1 review L6), run_results + run_result_players (10.7)", () => {
+  it("the committed SQL creates exactly these tables: accounts and progress (7.1), run_rewards (7.2), device_tokens (7.6), saved_runs + saved_run_players (8.4), paid_bags (10.1 review L6), problem_reports (10.6), run_results + run_result_players (10.7)", () => {
     const files = readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql"));
     const creates = files.flatMap((f) => [...readFileSync(join(MIGRATIONS_FOLDER, f), "utf8").matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1]));
-    expect(creates.sort()).toEqual(["accounts", "device_tokens", "paid_bags", "progress", "run_result_players", "run_results", "run_rewards", "saved_run_players", "saved_runs"]);
+    expect(creates.sort()).toEqual(["accounts", "device_tokens", "paid_bags", "problem_reports", "progress", "run_result_players", "run_results", "run_rewards", "saved_run_players", "saved_runs"]);
   });
 
   it("applies once, and a second run is a no-op (same tables, one recorded migration, rows kept)", async () => {
@@ -45,7 +45,7 @@ describe("migrations (Story 7.1 AC 2)", () => {
     await accountsRepo(database).createGuest(HASH_A, "Ana");
     await migrateDb({ kind: "pglite", db });
     const tables = await rows<{ table_name: string }>(db, sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`);
-    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "device_tokens", "paid_bags", "progress", "run_result_players", "run_results", "run_rewards", "saved_run_players", "saved_runs"]);
+    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "device_tokens", "paid_bags", "problem_reports", "progress", "run_result_players", "run_results", "run_rewards", "saved_run_players", "saved_runs"]);
     const applied = await rows<{ n: number }>(db, sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
     expect(applied[0]?.n).toBe(readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql")).length);
     const accounts = await rows<{ n: number }>(db, sql`select count(*)::int as n from accounts`);

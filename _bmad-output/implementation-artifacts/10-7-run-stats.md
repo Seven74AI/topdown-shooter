@@ -158,7 +158,7 @@ Builder session (gds-dev-story), 2026-11-27.
   `lost`) and `finalLeave`'s `bankNow` (everyone gone mid-wave, or the calm save failed → `lost`). Nothing on a saved
   end. Start / resumed at `startRun` (resumed only after a successful claim + Start). All fire and forget through
   `run/roomRunResults.ts` (one retry after `BANK_RETRY_MS`, then `run_result_failed {runId, op, why}`).
-- **I7 (housekeeping):** 10.6 hadn't merged: `ops/housekeeping.ts` + `db/housekeepingCli.ts` created with 10.6's exact
+- **I7 (housekeeping):** built before 10.6 merged: `ops/housekeeping.ts` + `db/housekeepingCli.ts` created with 10.6's exact
   contract (steps list, `runHousekeeping`, `startHousekeeping` 5 min then 24 h, unref'd) holding only this story's
   `expireAbandonedRuns` step; keep-both at the merge. B3 said "at boot": the 10.6 contract's 5-min first run is kept.
 - **I8 (orphans):** open rows older than `ORPHAN_RUN_MS` (= `SAVE_KEEP_MS` + 1 day, derived) with no `saved_runs` row
@@ -174,7 +174,7 @@ Builder session (gds-dev-story), 2026-11-27.
 ### Completion Notes List
 
 - Story context created with `gds-create-story` (story writer session, 2026-11-27).
-- T1: migration `0008_run_results` (generated; regenerate to 0009 on top of 10.6), `runResultsRepo` (start, resumed,
+- T1: migration `0009_run_results` (first generated as 0008; regenerated on top of 10.6's `0008_problem_reports` after PR #40 merged), `runResultsRepo` (start, resumed,
   finish, expireAbandoned, statsRows), `savedSeats` (snapshot → seats through `migrateRunSave`), LOCK ORDER entry 5,
   `ACCOUNT_TABLE_MERGES.runResultPlayers`, db.test table list.
 - T2: room hooks (`startRun`, `bankLeaver`, `removeRemembered`, `bankMembers` + slot, `endRun`, `finalLeave` bankNow),
@@ -199,16 +199,17 @@ Builder session (gds-dev-story), 2026-11-27.
 
 ### File List
 
-- New: `apps/server/drizzle/0008_run_results.sql`, `apps/server/drizzle/meta/0008_snapshot.json`,
+- New: `apps/server/drizzle/0009_run_results.sql`, `apps/server/drizzle/meta/0009_snapshot.json`,
   `apps/server/src/db/runResultsRepo.ts`, `apps/server/src/db/statsCommand.ts`, `apps/server/src/db/statsCli.ts`,
-  `apps/server/src/db/housekeepingCli.ts`, `apps/server/src/ops/housekeeping.ts`, `apps/server/src/meta/runResult.ts`,
+  `apps/server/src/meta/runResult.ts`,
   `apps/server/src/run/roomRunResults.ts`; tests `apps/server/src/db/runResults.test.ts`,
   `apps/server/src/db/realPostgresRunResults.test.ts`, `apps/server/src/db/statsCommand.test.ts`,
   `apps/server/src/meta/runResult.test.ts`, `apps/server/src/rooms/RunRoom.runResults.test.ts`,
   `apps/server/src/run/runResultX8.test.ts`, `tools/checks/practiceNoRunResults.test.ts`.
 - Changed: `apps/server/drizzle/meta/_journal.json`, `apps/server/package.json`, `apps/server/src/app.ts`,
   `apps/server/src/index.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/accountsRepo.ts` (comment),
-  `apps/server/src/db/testQueries.ts`, `apps/server/src/db/db.test.ts`, `apps/server/src/db/realPostgresDelete.test.ts`,
+  `apps/server/src/db/testQueries.ts`, `apps/server/src/db/db.test.ts`, `apps/server/src/ops/housekeeping.ts` (+ step 2),
+  `apps/server/src/ops/housekeeping.test.ts` (deps stub), `apps/server/src/db/housekeepingCli.ts` (+ runResults), `apps/server/src/db/realPostgresDelete.test.ts`,
   `apps/server/src/db/realPostgresSaves.test.ts`, `apps/server/src/meta/banking.ts`, `apps/server/src/meta/merge.ts`,
   `apps/server/src/rooms/RunRoom.ts`, `apps/server/src/test/bootTestServer.ts`, `packages/shared/src/player/player.ts`,
   `packages/shared/src/economy/shopCards.ts`, `packages/shared/src/save/runSave.ts`, `packages/shared/src/save/migrations.ts`,
@@ -222,3 +223,5 @@ Builder session (gds-dev-story), 2026-11-27.
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.7-Q1…Q4).
 - 2026-11-27: built (gds-dev-story): run_results tables + repo, room hooks, expiry housekeeping step, `npm run stats`,
   `PlayerState.weaponsBought` + save v2, deferred D2 test; Status → review.
+- 2026-11-27: merged master after PR #40 (10.6): migration regenerated as 0009, keep-both in schema, index, package.json,
+  accountsRepo LOCK ORDER, merge.ts, db.test, testQueries, realPostgresDelete, deploy.md; housekeeping step 2.

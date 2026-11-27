@@ -5,6 +5,7 @@ import { SETTINGS_TEXT } from "./settingsRows";
 import { accountStore, type AccountSnapshot } from "../net/accountStore";
 import { deleteMyProgress } from "../net/account";
 import { resetPhoneAfterDelete } from "../net/deleteProgress";
+import { REPORT_TEXT, ReportCard } from "./ReportScreen";
 
 /**
  * Story 10.1 (AC 1, 7, 10; B15, B16): the start screen's Settings screen (Lumen LF5, the hub's header) and its
@@ -29,7 +30,16 @@ export function SettingsScreen() {
     setAskPassword(false);
   }, [view]);
   if (screen.kind !== "settings") return null;
-  const back = () => uiStore.set(screen.view === "delete" ? { kind: "settings", view: "main" } : { kind: "start" });
+  const back = () => uiStore.set(screen.view === "main" ? { kind: "start" } : { kind: "settings", view: "main" });
+
+  if (screen.view === "report") {
+    // Story 10.6 (Q1 RP1, Q2 B): the Report a problem card over Settings; Cancel / Esc / Close go back to `main`.
+    return (
+      <div class="menu ph ac--modal st-modal" role="dialog" aria-modal="true" aria-labelledby="rp-title" data-testid="settings-report">
+        <ReportCard onClose={back} />
+      </div>
+    );
+  }
 
   if (screen.view === "delete") {
     const username = account.username;
@@ -101,6 +111,17 @@ export function SettingsScreen() {
         </header>
         <div class="st-body">
           <SettingsPanel idPrefix="st" />
+          <section class="st-group" aria-labelledby="st-help">
+            <h2 id="st-help" class="st-group__title">
+              {SETTINGS_TEXT.helpGroup}
+            </h2>
+            <div class="st-row">
+              <button type="button" class="btn btn--secondary st-delete-open" data-testid="settings-report-open" onClick={() => uiStore.set({ kind: "settings", view: "report" })}>
+                {REPORT_TEXT.open}
+              </button>
+              <p class="st-hint">{REPORT_TEXT.openHint}</p>
+            </div>
+          </section>
           <section class="st-group" aria-labelledby="st-progress">
             <h2 id="st-progress" class="st-group__title">
               {SETTINGS_TEXT.progressGroup}

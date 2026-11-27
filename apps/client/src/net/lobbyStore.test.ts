@@ -4,6 +4,7 @@ import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from
 import { START_HINT, START_HINT_SHORT, lobbyStore, lobbyView, parseLeftSeats, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
 import { FakeRoom, fakePlayer } from "./fakeRoom";
+import { runContext } from "../debug/clientLog";
 
 const player = (slot: number, name: string, ready = false): PlayerStateView => fakePlayer(slot, { name, ready });
 
@@ -150,6 +151,25 @@ function fakeRoom() {
 const tick = () => new Promise<void>((r) => queueMicrotask(r));
 
 describe("lobbyStore", () => {
+  it("Story 10.6 review L1: the report's room id and phase are set on join and cleared on leave and on a lost room", async () => {
+    for (const end of ["leave", "drop"] as const) {
+      const f = fakeRoom();
+      let changed: () => void = () => {};
+      lobbyStore.attach(f.room, { watch: (_r, onChange) => ((changed = onChange), () => {}), onLost: vi.fn(), onPhase: vi.fn() });
+      await tick();
+      expect(runContext.roomId).toBe("ABCD");
+      f.state.phase = "build";
+      f.message(S2C.RUN_JOINED, { playerId: "p0", slot: 0, tickRateHz: 20 });
+      changed();
+      await tick();
+      expect(runContext.phase).toBe("build");
+      f.state.phase = "lobby";
+      if (end === "leave") lobbyStore.leave();
+      else f.drop();
+      expect(runContext, end).toEqual({ roomId: null, phase: null });
+    }
+  });
+
   it("snapshots on changes, learns the local player from run.joined and reports phase changes", async () => {
     const f = fakeRoom();
     let changed: () => void = () => {};

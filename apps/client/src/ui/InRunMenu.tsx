@@ -5,6 +5,10 @@ import { lobbyStore, saveQuitStore, type LobbySnapshot, type SaveQuitState } fro
 import { pendingPlacements } from "./pendingPlacements";
 import { SettingsPanel } from "./SettingsPanel";
 import { SETTINGS_TEXT } from "./settingsRows";
+import { REPORT_TEXT, ReportCard } from "./ReportScreen";
+
+/** Story 10.6: a stable callback (the card's Esc listener depends on it). */
+const closeReport = () => uiStore.request("menu", "back");
 
 /**
  * The in-run menu (Story 2.11) over the live game: a light backdrop so the danger stays visible,
@@ -96,6 +100,14 @@ export function InRunMenu() {
       </div>
     );
   }
+  if (screen.menu === "report") {
+    // Story 10.6 (Q2 B): Report a problem from the in-run Settings (the run keeps going online; solo stays paused).
+    return (
+      <div class="in-run-menu in-run-menu--list in-run-menu--settings rp-in-run" role="dialog" aria-modal="true" aria-labelledby="rp-title" data-testid="report-menu">
+        <ReportCard onClose={closeReport} />
+      </div>
+    );
+  }
   if (screen.menu === "settings") {
     // Story 10.1 (AC 1, B16): the same panel as the start screen's Settings; Delete my progress only there (no run).
     return (
@@ -105,6 +117,11 @@ export function InRunMenu() {
         </h2>
         {/* No autofocus on Back here: focusing it would open the long list scrolled to the bottom (☰ / Esc still close). */}
         <SettingsPanel idPrefix="irm" />
+        <div class="st-row">
+          <button type="button" class="btn btn--secondary st-delete-open" data-testid="settings-report-open" onClick={() => uiStore.request("menu", "report")}>
+            {REPORT_TEXT.open}
+          </button>
+        </div>
         <p class="in-run-menu__note st-hint">{SETTINGS_TEXT.inRunDeleteNote}</p>
         <div class="in-run-menu__items">
           <button type="button" class="btn btn--secondary in-run-menu__back" onClick={() => uiStore.request("menu", "back")}>

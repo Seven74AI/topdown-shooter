@@ -92,6 +92,8 @@ Go-live report (Story 2.2)
 
 After a merge to `master` with CI green: `cd /root/topdown-shooter && deploy/deploy.sh`. A deploy ends any game in progress, so ask the designer for a quiet moment first. Report the sha.
 
+Cache check (Story 10.4; once after each deploy, the Cloudflare tunnel may add its own headers): `a=$(curl -s https://hordes.sevend.io/ | grep -o '/assets/[^"]*\.js' | head -1); curl -sI "https://hordes.sevend.io$a" | grep -i cache-control` shows `public, max-age=31536000, immutable`, and `curl -sI https://hordes.sevend.io/ | grep -i cache-control` shows `no-cache`. Report both lines.
+
 ### First Epic 7 deploy (Story 7.1: the database arrives)
 
 Once, the first time you deploy a master that contains Story 7.1 (`deploy/backup.sh` exists). Details: `docs/deploy.md` › Database.

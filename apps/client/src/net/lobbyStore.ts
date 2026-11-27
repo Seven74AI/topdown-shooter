@@ -20,6 +20,7 @@ import { RunInbox, type NetRoomLike } from "./session";
 import { LinkMonitor, linkStore, type LinkRoom } from "./linkMonitor";
 import { seatStore } from "./seatStore";
 import { rewardsStore } from "./rewardsStore";
+import { clientLog, runContext } from "../debug/clientLog";
 
 /**
  * Story 7.2 (D4, re-review 2 N-RR2-2): how long a Leave mid-run keeps the socket open for its `run.rewards`. A bank
@@ -229,6 +230,8 @@ class LobbyStore {
     this.detach();
     this.room = room;
     this.joined = null;
+    runContext.roomId = room.roomId; // Story 10.6
+    clientLog.note("room.join", { room: room.roomId });
     this.fight = fight ?? room;
     this.runInbox = new RunInbox(this.fight);
     let phase: RunPhase = "lobby";
@@ -242,6 +245,9 @@ class LobbyStore {
       // is here (the session needs my player id); the full state arrives just before it.
       if (room.state.phase !== phase && (this.joined !== null || !inRunPhase(room.state.phase))) {
         phase = room.state.phase;
+        // Story 10.6: the report's run context and one log line per phase change
+        runContext.phase = phase;
+        clientLog.note("phase", { phase, room: room.roomId });
         onPhase(phase);
       }
     };
@@ -333,6 +339,7 @@ class LobbyStore {
     this.unwatch = watch(room, schedule);
     schedule();
     room.onLeave((code) => {
+      clientLog.note("room.leave", { code, room: room.roomId, shutdown: shuttingDown, mine: this.room !== room }); // Story 10.6
       if (this.room !== room) return; // we left on purpose
       // Story 8.3 (AC 12): removed by the host: never a reconnect or a takeover (4022 is terminal, never like 4000).
       if (removed || code === CLOSE_REMOVED) {
@@ -367,6 +374,7 @@ class LobbyStore {
       this.set(EMPTY);
       if (code === CLOSE_TAKEN_OVER) return onLost("taken_over"); // the seat is open in another tab now (D5)
       seatStore.clear();
+      clientLog.note("connection.lost", { reason: lostReason(code, shuttingDown), code }); // Story 10.6
       onLost(lostReason(code, shuttingDown), shutdownText);
     });
   }
@@ -446,6 +454,8 @@ class LobbyStore {
     this.unwatch = null;
     this.room = null;
     this.joined = null;
+    runContext.roomId = null; // Story 10.6 review L1: a report after leaving names no room
+    runContext.phase = null;
     this.runInbox?.close();
     this.runInbox = null;
     this.fight = null;

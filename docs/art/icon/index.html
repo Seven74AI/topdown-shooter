@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hordes icon options</title>
+<style>
+  :root { --bg: #1d1f22; --fg: #eee; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; }
+  canvas { display: block; margin: 0 0 24px; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<h1>Hordes home-screen icon (10.5-Q1)</h1>
+<div id="out"></div>
+<script src="icons.js"></script>
+<script src="sheets.js"></script>
+<script>
+  const out = document.getElementById("out");
+  const cmp = HordesSheets.comparison();
+  cmp.id = "comparison";
+  cmp.style.width = cmp.width / 2 + "px";
+  out.appendChild(cmp);
+  for (const opt of HordesIcons.OPTIONS) {
+    const s = HordesSheets.sheet(opt);
+    s.id = "sheet-" + opt.code;
+    out.appendChild(s);
+    const i = HordesIcons.render(opt, 512);
+    i.id = "icon-" + opt.code;
+    i.style.display = "none";
+    out.appendChild(i);
+  }
+  window.__ready = true;
+</script>
+</body>
+</html>

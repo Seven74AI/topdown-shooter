@@ -3,6 +3,7 @@
  * (architecture › Error Handling). Server refusals arrive as an SDK `MatchMakeError` whose
  * `message` is the `JoinRefusal` reason; Colyseus' own 522 errors are told apart by message.
  */
+import { clientLog } from "../debug/clientLog";
 export const JOIN_ERROR_TEXT = {
   balanceMismatch: "Please refresh",
   /** Story 8.10 (D5): the server's wire format changed (a tab left open across a deploy). */
@@ -41,6 +42,7 @@ export function joinErrorText(err: unknown): string {
   if (typeof err !== "object" || err === null) return JOIN_ERROR_TEXT.unreachable;
   const code = (err as { code?: unknown }).code;
   const message = String((err as { message?: unknown }).message ?? "");
+  clientLog.note("join.refused", { code: typeof code === "number" ? code : "none", reason: message.slice(0, 40) }); // Story 10.6
   if (typeof code !== "number") return JOIN_ERROR_TEXT.unreachable; // fetch/WebSocket failure
   switch (message) {
     case "balance_mismatch":

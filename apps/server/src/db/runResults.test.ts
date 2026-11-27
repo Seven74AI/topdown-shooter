@@ -26,6 +26,7 @@ const RUN2 = "1f1e2d3c-4b5a-4968-8776-655443322111";
 const RUN3 = "2f1e2d3c-4b5a-4968-8776-655443322112";
 let hashN = 0;
 const guest = (database: Database) => accountsRepo(database).createGuest((++hashN).toString(16).padStart(64, "0"), "Ana");
+const noReports = { deleteOlderThan: async () => 0 };
 const start = { id: RUN, district: "downtown", seed: 4_000_000_000 };
 const end = (over: Partial<RunEndRow> = {}): RunEndRow => ({ ...start, waveReached: 7, ending: "wiped", endless: false, nightMs: 60_000, ...over });
 const seat = (n: number, accountId: string | null, over: Partial<RunSeatRow> = {}): RunSeatRow => ({ seat: `p${n}#0`, accountId, slot: n, loadout: "smg", wavesIn: 6, kills: 40 + n, ...over });
@@ -180,8 +181,8 @@ describe("Story 10.7 AC 5 (B3): the expiry step", () => {
     await repo.start({ ...start, id: YOUNG });
     await db.execute(sql`update run_results set started_at = now() - ${`${ORPHAN_RUN_MS + 60_000} milliseconds`}::interval where id = ${ORPHAN}`);
 
-    const done = await runHousekeeping({ runResults: repo }, undefined, { info: () => {}, error: () => {} });
-    expect(done).toEqual({ expireAbandonedRuns: 2 });
+    const done = await runHousekeeping({ runResults: repo, reports: noReports }, undefined, { info: () => {}, error: () => {} });
+    expect(done).toEqual({ problemReports: 0, expireAbandonedRuns: 2 });
     const r = await runRow(d);
     expect(r).toMatchObject({ ending: "abandoned", extracted: false, wave_reached: 4, player_count: 1, district: "harbor" });
     expect(new Date(r?.ended_at as string).getTime()).toBe(expiresAt.getTime());
@@ -194,7 +195,7 @@ describe("Story 10.7 AC 5 (B3): the expiry step", () => {
     expect(await seatRows(d, ORPHAN)).toEqual([]);
     expect((await runRow(d, YOUNG))?.ended_at).toBeNull();
     // A second run finds nothing more; a later room finish of the abandoned run is refused (one finisher).
-    expect(await runHousekeeping({ runResults: repo }, undefined, { info: () => {}, error: () => {} })).toEqual({ expireAbandonedRuns: 0 });
+    expect(await runHousekeeping({ runResults: repo, reports: noReports }, undefined, { info: () => {}, error: () => {} })).toEqual({ problemReports: 0, expireAbandonedRuns: 0 });
     expect(await repo.finish(end(), [seat(0, null)])).toBe(false);
     // The stats: abandoned runs show only in runs/week.
     expect((await repo.statsRows(null)).runs.map((x) => x.ending).sort()).toEqual(["abandoned", "abandoned"]);
