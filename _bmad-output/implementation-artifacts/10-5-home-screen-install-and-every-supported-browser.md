@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.5: Home-screen install and every supported browser
 
-Status: review
+Status: done
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. **Awaiting designer Q-codes 10.5-Q1…Q3.** Q1 is a new look (the icon), so it needs a code-drawn proposal page before the build. T1–T2 and T4–T6 can start before Q1 is picked, with a placeholder icon. Real-phone ACs are **parked** (designer 2026-11-25, HANDOFF §5.2). The buildable part is Playwright desktop browsers plus device emulation.)
 
@@ -150,3 +150,8 @@ Claude (builder session, 2026-11-27)
 - 2026-11-27: story file written (ready-for-dev, awaiting 10.5-Q1…Q3).
 - 2026-11-27: built (manifest, IC3 icons, Hordes, Caddy, top-inset HUD B5, install hint, emulation + installable check, browser smoke + workflow). Status → review.
 - 2026-11-27: review nits 1–3 fixed.
+
+## Main session close-out (2026-11-27)
+
+- Light review: APPROVE, 4 nits. Main-session check of 38246dd (N1 doc, N2 manifest `"id": "/"` + test, N3 PerfOverlay uses `hudBandTop`): diff read; CI green on 38246dd, after 10.7 landed.
+- PR #42 merged d5f41147.
