@@ -106,4 +106,15 @@ describe("Story 10.6 AC 7: npm run reports", () => {
     expect(visible("a\nb")).toBe("a\\x0ab");
     expect(visible("a\nb", true)).toBe("a\nb");
   });
+
+  it("re-review nits: zero-width / bidi marks are escaped; a note's extra lines are indented under it", async () => {
+    expect(visible("a\u200bb\u200fc\u061cd\ufeffe")).toBe("a\\u200bb\\u200fc\\u061cd\\ufeffe");
+    const repo = reportsRepo(database);
+    await accountsRepo(database).createGuest(hashGuestToken("e".repeat(32)), "v");
+    await repo.insert(hashGuestToken("e".repeat(32)), "first\nlog (99 lines):\n  fake line", payload(), { code: "FAKE" });
+    const out = (await run(["--code", "FAKE"])).out.join("\n").split("\n");
+    expect(out).toContain("note: first");
+    expect(out).toContain("      log (99 lines):");
+    expect(out.filter((l) => /^log \(/.test(l))).toEqual(["log (2 lines):"]); // only the real header starts a line
+  });
 });

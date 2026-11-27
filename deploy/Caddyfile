@@ -27,12 +27,13 @@
 		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 
-	# Story 10.6 (B2): Report a problem carries a note and 200 log lines: the ONE path allowed 64KB (the server
-	# checks the same 64 KB). More specific than /api/*, so Caddy tries it first; every other path keeps 8KB.
+	# Story 10.6 (B2): Report a problem carries a note and 200 log lines: the ONE path allowed 64KiB = 65,536 bytes,
+	# the server's REPORT_MAX_BYTES (re-review RR-M1: Caddy's "64KB" is 64,000). More specific than /api/*, so Caddy
+	# tries it first; every other path keeps 8KB.
 	handle /api/account/report {
 		uri strip_prefix /api
 		request_body {
-			max_size 64KB
+			max_size 64KiB
 		}
 		reverse_proxy server:2567 {
 			header_up X-Real-IP {http.request.header.Cf-Connecting-Ip}

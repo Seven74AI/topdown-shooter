@@ -54,12 +54,13 @@ const iso = (d: Date) => d.toISOString().replace("T", " ").slice(0, 19);
 
 /**
  * Review M2: report text is untrusted player input. Every C0 / C1 control character (ESC sequences that clear the
- * screen or write the clipboard, OSC 52, …) and the bidi / line-separator controls are printed as visible escapes
+ * screen or write the clipboard, OSC 52, …), the bidi / zero-width / line-separator controls (U+061C, U+200B–U+200F,
+ * U+2028–U+202E, U+2066–U+2069, U+FEFF) are printed as visible escapes
  * (`\x1b`, `\u202e`); `keepNewlines` keeps `\n` (the full view's note).
  */
 export function visible(s: string, keepNewlines = false): string {
   // eslint-disable-next-line no-control-regex -- Story 10.6 review M1/M2: matching control characters is the point
-  return s.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, (c) => {
+  return s.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, (c) => {
     if (keepNewlines && c === "\n") return c;
     const code = c.charCodeAt(0);
     return code <= 0xff ? `\\x${code.toString(16).padStart(2, "0")}` : `\\u${code.toString(16).padStart(4, "0")}`;
@@ -75,7 +76,8 @@ function summary(r: ReportRow): string {
 
 function full(r: ReportRow, out: (line: string) => void): void {
   out(`report ${r.code}  ${r.id}  ${iso(r.createdAt)} UTC  ${r.accountKind}`);
-  out(`note: ${r.note === "" ? "(none)" : visible(r.note, true)}`);
+  // Re-review nit: the note's continuation lines are indented, so a note can't fake the "log (N lines):" structure.
+  out(`note: ${r.note === "" ? "(none)" : visible(r.note, true).replace(/\n/g, "\n      ")}`);
   const { lines, device, ...ctx } = r.payload ?? { lines: [], device: undefined };
   out(`run: ${visible(JSON.stringify(ctx))}`);
   out(`device: ${visible(JSON.stringify(device ?? null))}`);

@@ -154,6 +154,14 @@ Full review (fresh session, 2026-11-27): **changes requested**, no high. Every f
 | N3 | wave 0 unexplained | `docs/deploy.md`: `w0` = before wave 1, `w-` = not in a run | — |
 | N4 | T6 / T8 unticked | ticked | — |
 
+**Re-review round 1** (2026-11-27): all fixes approved except one medium and two nits, fixed:
+
+| # | Finding | Fix | Proof |
+| --- | --- | --- | --- |
+| RR-M1 | Caddy's `max_size 64KB` is 64,000 bytes (KiB = 1,024), but `fitBody` / `httpGuard` allow 65,536: a fitted body of 64,001–65,536 bytes got 413 in production every time | `max_size 64KiB` | CI docker smoke: a 65,008-byte body to `/api/account/report` passes Caddy and Node (401 without a cookie; it would have been 413 with 64KB); 70 KB still 413 |
+| nit | `visible()` let zero-width / bidi marks through | also escapes U+061C, U+200B–U+200F, U+FEFF | `reportsCommand.test.ts` |
+| nit | a note's newlines could fake the `log (N lines):` structure in `--full` | the note's continuation lines are indented 6 spaces | `reportsCommand.test.ts` (a note containing "log (99 lines):" never starts a line) |
+
 Designer pick 10.6-Q1 = RP1 (2026-11-27): the RP3 branch (`REPORT_LAYOUT`, the log `<details>`, its CSS) and the `rp3-*` stills are removed in this round.
 
 ### File List
