@@ -99,7 +99,7 @@ Exact version pins (no new dependency expected); every code-drawn texture throug
 
 ## Notes for the merge
 
-- **Touches:** `apps/client/index.html`, `apps/client/vite.config.ts` (manualChunks + manifest plugin; keep 10.11's `chunkFileNames` / `assetFileNames`), `apps/client/src/main.ts` (signal / hide calls only), `apps/client/src/scenes/BootScene.ts` (signal), new `tools/perf/serveDist.cjs`, `tools/perf/load.cjs`, new `tools/checks/caddyCacheHeaders.test.ts`, `tools/checks/noEagerAudio.test.ts`, `.github/workflows/ci.yml` (one docker smoke line), `docs/perf/epic-10-loading.md`, `docs/hermes-go-live.md` (one check line). Possibly `noCheatsInRelease.test.ts` if a chunk name it relies on changes (it shouldn't).
+- **Touches:** `apps/client/index.html`, `apps/client/vite.config.ts` (manualChunks + manifest plugin; keep 10.11's `chunkFileNames` / `assetFileNames`), `apps/client/src/main.ts` (one import + one `signalBootLoader(uiStore)` call, just before the Preact mount; BootScene.ts NOT touched, B11), new `apps/client/src/ui/bootLoaderSignal.ts`, new `apps/client/boot/bootLoader.js`, new `tools/perf/serveDist.cjs`, `tools/perf/load.cjs`, new `tools/checks/caddyCacheHeaders.test.ts`, `tools/checks/noEagerAudio.test.ts`, `.github/workflows/ci.yml` (one docker smoke line), `docs/perf/epic-10-loading.md`, `docs/hermes-go-live.md` (one check line). Possibly `noCheatsInRelease.test.ts` if a chunk name it relies on changes (it shouldn't).
 - **Overlap:** with **10.2** only on `main.ts` (different hunks: 10.2 canvas re-size, 10.4 boot signal) → **parallel OK**. With **10.3**: `main.ts` (trivial). With **10.5** (manifest, icons, apple meta in `index.html`; new short-cache lines in `deploy/Caddyfile`; no service worker, 10.5-B1) on `index.html` → don't run 10.4 and 10.5 at the same time, or 10.5 rebases on 10.4 (keep-both `<head>` lines). 10.4's Caddyfile test must check only its two rules, so 10.5's extra lines don't break it. `tools/perf/` is shared with 10.2: 10.4's files are separate (`serveDist.cjs`, `load.cjs`); 10.2 owns `fps.cjs`.
 - No migration, no netEvents kinds, no protocol bump.
 
@@ -107,8 +107,44 @@ Exact version pins (no new dependency expected); every code-drawn texture throug
 
 ### Agent Model Used
 
+Claude (builder session for 10.4, gds-dev-story)
+
 ### Debug Log References
+
+- Measures: `docs/perf/epic-10-loading.md` (raw JSON lines in the builder's scratchpad: `load-results.txt` = master + first branch run, `load-branch-final.txt` = final branch build).
+- The minifier Vite exposes (oxc `minifySync`) emits ES2015+ (`catch {}`, template strings), so the inline script is the hand-written ES5 source with comments/indentation stripped (B10).
 
 ### Completion Notes List
 
+- **10.4-Q1 = B** (designer 2026-11-27, "All ok"), title **"Hordes"** (10.5-Q2; loading screen + stills only). Options A/C removed from the code; stills of B (download + "Drawing the city…") at 844×390 and 568×320 DPR 2 in `docs/art/loading-screen/` (`stills.cjs` re-shoots them).
+- **AC 1 met:** Slow 4G, 4× CPU, first visit → playable 7.5 s median, 0.87 MB (master 7.5 s, 0.87 MB). **AC 3 met:** return visit 2.3 s, all `/assets/` from the cache, `index.html` revalidated. T5 levers not needed (no change made).
+- **AC 2:** the loading screen (plain HTML/CSS in `index.html` + inline 2.0 KB ES5 script `apps/client/boot/bootLoader.js`) fills from the build's first-load file list with gzip sizes (Vite plugin `bootLoaderPlugin`, B6) summed from `PerformanceObserver` resource entries, with a rate guess in between (180 KB/s until 10 % has landed, then the measured rate; capped at 98 % until the files finish; never backwards). `main.ts` signals "Drawing the city…" when its code runs and hides it two frames after the first screen change (start screen, lobby, or a `?solo` run). Browser check in every load run: visible at ~1 s, moving by 2 s, never backwards, gone after the start screen (12/12 branch runs ok). Unit tests: `tools/checks/bootLoader.test.ts`.
+- **AC 4:** `tools/checks/caddyCacheHeaders.test.ts` (the Caddyfile's two rules + serveDist serving the same, doctored-file proof); CI docker smoke checks a real hashed `/assets/*.js` named in `index.html` for the immutable header. Hermes's post-deploy curl check added to `docs/hermes-go-live.md`.
+- **AC 5:** `tools/checks/noEagerAudio.test.ts` (index.html + the entry's static import closure, with liveness and a doctored-input proof). No music file exists (doc says so).
+- **AC 6:** `release:check` green (cheat scan covers `vendor-phaser-*`); gallery builds (no loader in it: the plugin only touches pages with the placeholder); `admin-tools-*` names unchanged; `?solo` starts in every load run; the loading screen takes no touches (`pointer-events: none`) and never waits for anything.
+- **Decisions made while building:**
+  - **10.4-B9:** Vite's shared app chunk keeps its own name (`consumableIcons-*`): it is app code shared with the gallery page and changes every deploy anyway; renaming it adds a rule for no gain. B5's "the name goes away" was only true for Phaser.
+  - **10.4-B10:** the inline script is hand-written ES5, comment/indent-stripped by the plugin (no minifier: Vite 8's emits newer syntax). A test pins ≤ 2 KB and no ES2015 syntax.
+  - **10.4-B11:** only `main.ts` signals (one call, `signalBootLoader(uiStore)`); `BootScene.ts` is untouched. The first `uiStore.set` is the first screen on every path (start, lobby, resumed seat, `?solo`/`?stress` run).
+  - **10.4-B12:** "playable" in the tool = the Practice solo button visible and enabled (its handler is registered in the same Boot step); the `?solo` "run" mark is `window.__charBake` appearing (set in the Game scene's create, where the first city bake also runs), since release builds have no `__game` hook.
+  - **10.4-B13:** the loading-screen bar total is the first-load JS + CSS only (0.87 MB gzip): the line reads "x / 0.9 MB", not the story's "2.0 MB" (that counted the WebP and workers, which load after the start screen).
+- Not verified: a real phone on real 4G; Cloudflare edge headers (Hermes check); the resumed-seat path in a browser (needs the game server; covered by the unit test of the signal).
+- sprint-status not touched (the main session owns it).
+
 ### File List
+
+- `apps/client/index.html` (loading screen markup + CSS, script placeholder)
+- `apps/client/boot/bootLoader.js` (new: the loading screen's script)
+- `apps/client/vite.config.ts` (`manualChunks` → `vendor-phaser`; `bootLoaderPlugin`; `firstLoadPaths`, `loaderScript`)
+- `apps/client/src/main.ts` (one import + one call)
+- `apps/client/src/ui/bootLoaderSignal.ts` (new)
+- `tools/perf/serveDist.cjs`, `tools/perf/load.cjs` (new)
+- `tools/checks/bootLoader.test.ts`, `tools/checks/caddyCacheHeaders.test.ts`, `tools/checks/noEagerAudio.test.ts` (new)
+- `.github/workflows/ci.yml` (docker smoke: immutable header on a real asset)
+- `docs/perf/epic-10-loading.md` (new), `docs/hermes-go-live.md` (cache check line)
+- `docs/art/loading-screen/` (new: `stills.cjs`, 4 PNG stills of B)
+- `_bmad-output/implementation-artifacts/10-4-fast-loading.md`
+
+### Change Log
+
+- 2026-11-27: Story 10.4 built: vendor-phaser chunk, loading screen B ("Hordes") with a size manifest, measuring tools, cache + eager-audio guards, CI smoke line, before/after measures.
