@@ -4,7 +4,7 @@ baseline_commit: 09b5f6d2
 
 # Story 10.2: Frame-rate pass (headless, wave 9 blackout)
 
-Status: ready-for-dev
+Status: review
 
 (Written 2026-11-27 with `gds-create-story` from the real code at `09b5f6d2`. Correct-course 2026-11-26: the real-phone ACs are **parked** (designer 2026-11-25, "forget the real phone test for now"); the buildable part is headless Chromium 844 × 390 DPR 2 with CDP CPU throttling 1× / 4×, measured the 9.13 way. Depends on 10.1 (done: `setSettingsDefaults` hook). Carries deferred-work **D6** (teammate edge arrow over a ping arrow). **Three designer choices are open: 10.2-Q1…Q3 below. Don't build T3/T4 before they are answered**; T1, T2 and T5 can start.)
 
@@ -53,6 +53,11 @@ D6 (edge arrows) is decided by the builder as B-code 10.2-B4 (below): no new loo
 - **10.2-B2 (method, "the 9.13 way"):** one script `tools/perf/fps.cjs` (CommonJS like `docs/art/9-14/perf.cjs`, run with the preinstalled Playwright): viewport 844 × 390, DPR 2, CDP `Emulation.setCPUThrottlingRate` 1× and 4×, 8 s warm-up, 12 s rAF count, avg FPS, **1 % low** (1000 / 99th-percentile frame ms), frame-ms p95, 1-min load average (start/end mean), two rounds with the order reversed in round 2, master vs branch from separate worktrees/ports. Steady state: the warm-up starts after `window.__charBake.doneMs` (9.13). Release build (`vite build` + `vite preview`) for the recorded table; dev build allowed for exploring. Keep the script; 10.3 reuses its page/throttle helpers.
 - **10.2-B3 (bottleneck naming):** each lever is tried as an A/B with the script, and the frame is split with the existing perf probe (`perfProbe.ts`: update ms vs render ms; GPU fill = frame − update − render) plus one CDP `Profiler` capture at 4× (top 10 self-time functions written into the doc). "Rendering/GPU" vs "simulation" uses the 1.11 rule (`epic-1-stress.md`: simulation if tick avg > 8 ms).
 - **10.2-B4 (D6, edge arrows):** teammate edge arrows (`teammateMarkers.ts`, 2.9) keep their true bearing; ping arrows (`placePingArrows`, 8.7) treat each shown teammate arrow as one more keep-off rect (grown by `PAIR_GAP_CSS_PX`), like the event / flag / loot arrows already in `others` (`PING_OTHER_ARROWS` grows by `MAX_PLAYERS - 1`, rects preallocated, no per-frame allocation). Rush markers (1.7) are not touched.
+- **10.2-B6 (built: the scene's stage change):** `?stressstage` goes through the decay engine's whole change (`changeDecayStage`: mutations, fires, push-outs, flow fields, banner), applied BEFORE the Walkers and stress buildings spawn, rather than the bare `applyDecayStage` this file named, so no body is left inside the stage-5 rubble.
+- **10.2-B7 (built: a deterministic wave 9 scene):** the stress scene pins the Collapse weather to CO2 fog bank. The run's pick was random per load (CO1 / CO2 / CO4 seen), and only CO2 has the drifting noise, so two loads of one build differed by a style. CO2 is the worst case. The stress world sits in a build phase (waves paused), so its fog radius is the build's 14 m, not the wave's 10 m; the painted layer is full-screen either way, so the cost is the same. The read-only `window.__stress()` probe (under `?stress` only, release too) reports stage, darkness, phase, fog radius, style, alive, in view and the perf ring, and each table row asserts it.
+- **10.2-B8 (built: the blackout darkness on the GPU):** the darkness and its fog are drawn into a Phaser `DynamicTexture` (`render/darkness/glLayer.ts`): the same steps as the 2D canvas, with one GPU command per 2D call (fill, ERASE stamps for the cut-outs, the dawn ramp, the fog built in its own layer and drawn in at its alpha, the warm tints). There is no 2D paint and no `texImage2D` per frame. The 2D path stays for a canvas renderer and the node tests. Textures come from two new helpers in `canvasTexture.ts` (the only file allowed to make textures): `addMirrorTexture` (re-uploads a canvas its owner repaints) and `addFrameTexture` (redrawn every frame; its registry entry is a no-op). Phaser 4's `DynamicTexture.draw(gameObject)` reads the object at `render()`, so every command is a `stamp` / `repeat`, which copy their values.
+- **10.2-B9 (built: GPU fog layer at half size):** `FOG_GL_RES = 0.5`. The fog is a soft ring plus soft noise and reads the same in 3× brightened stills, and its fill costs a quarter. It is a one-line revert if the designer sees a difference.
+- **10.2-B10 (built: the auto check is ONE check):** as the main session relayed the designer's pick: in the first 10 s of the run's first wave, < 40 FPS → step 1 (Balanced + Rain Light), < 30 FPS → step 2 (Fast + Rain Light + Glow Low). This is a single measurement, not the story text's "second check". FPS = frames / wall-clock time (rAF, not Phaser's smoothed delta). A hidden tab or the wave ending inside the window cancels that try, and the next run's wave 1 tries again. The result (step 0–2) is stored in `topdown-shooter.autoQuality` and applied at every boot before the canvas is sized.
 - **10.2-B5 (no gameplay change):** no balance number, sim rule, netEvents kind or protocol change. A lever that changes what the player can see in play (fog vision, darkness depth, zombie eyes in the dark) is not allowed (10.1 AC 2: blackout darkness and the 10 m fog limit have no setting).
 
 ## Acceptance Criteria
@@ -68,17 +73,17 @@ D6 (edge arrows) is decided by the builder as B-code 10.2-B4 (below): no new loo
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Wave 9 scene (AC 1)** — `apps/client/src/debug/urlOptions.ts` (`stressStage: number | null`, only with `?stress`), `apps/client/src/scenes/GameScene.ts` stress branch (:913-927: after `setupStressWorld`, `applyDecayStage(world, stage, …)` — the same call the decay engine uses; check the CityView rebake lands before the warm-up), `stressScenario.ts` doc comment. Test in `urlOptions.test.ts` + a scene-level check (stage, alive).
-- [ ] **T2 Measuring tool + before table (AC 2)** — `tools/perf/fps.cjs` (+ `tools/perf/README.md`, 10 lines: how to run against two worktrees). Run master before any change; record in `docs/perf/epic-10-fps.md`. Profile at 4× and write the top self-time functions.
-- [ ] **T3 Optimizations (AC 2, 3; Q1)** — try, one A/B each, keep what helps without changing the look. Known candidates from earlier docs (measure, don't assume):
+- [x] **T1 Wave 9 scene (AC 1)** — `apps/client/src/debug/urlOptions.ts` (`stressStage: number | null`, only with `?stress`), `apps/client/src/scenes/GameScene.ts` stress branch (:913-927: after `setupStressWorld`, `applyDecayStage(world, stage, …)` — the same call the decay engine uses; check the CityView rebake lands before the warm-up), `stressScenario.ts` doc comment. Test in `urlOptions.test.ts` + a scene-level check (stage, alive).
+- [x] **T2 Measuring tool + before table (AC 2)** — `tools/perf/fps.cjs` (+ `tools/perf/README.md`, 10 lines: how to run against two worktrees). Run master before any change; record in `docs/perf/epic-10-fps.md`. Profile at 4× and write the top self-time functions.
+- [x] **T3 Optimizations (AC 2, 3; Q1)** — try, one A/B each, keep what helps without changing the look. Known candidates from earlier docs (measure, don't assume):
   - darkness: `render/darkness/DarknessView.ts` repaints a half-size canvas + one texture upload per frame; skip repaint/upload when no stamp moved more than 1 px and the light % is unchanged; 150 `EyesView` images → one blitter / batched draw;
   - fog: `render/fog/FogView.ts` / `screenFog.ts` full-screen layers at stage 5 (count them; merge if two full-screen blends stack);
   - weather: `rainLook.ts` drop count at stage 5 with ash;
   - characters: draw calls per frame (9.13 measured 14.1); the 12 / 6 anim caps are designer-approved, don't lower them without asking;
   - per-frame allocations (Chrome heap sampling at 1×, 10 s): any found → pooled (AGENTS §5).
-- [ ] **T4 Settings (AC 4, 5; Q2, Q3)** — `packages/shared/src/config/playerSettings.ts` (field + default), `apps/client/src/ui/settingsRows.ts` (row; extend the `choice` key union), `apps/client/src/display.ts` (`dpr()` reads the cap), `apps/client/src/main.ts` (re-size on change: `subscribeSettings`), new `apps/client/src/settings/autoQuality.ts` (Q3 B) called from GameScene's wave start. The server's `progress.settings` jsonb takes the new field with no migration (schema not strict; check `settingsSync.test.ts`).
-- [ ] **T5 D6 edge arrows (AC 6)** — `apps/client/src/render/pingArrows.ts` (`others` gains the teammate arrow rects), `apps/client/src/scenes/HudScene.ts` (:2259 `teammateMarkers` runs before `placePingArrows`; pass its drawn rects), `pingArrows.test.ts`.
-- [ ] **T6 Hand-back** — `gate:fast` + `test:changed` (touched DOM checks: `hudLayout`, settings DOM); browser stills of stage 1 / wave 9 (and each Resolution step) at DPR 1 for your own check; PR "Story 10.2: Frame-rate pass"; record any new decision as 10.2-B6+.
+- [x] **T4 Settings (AC 4, 5; Q2, Q3)** — `packages/shared/src/config/playerSettings.ts` (field + default), `apps/client/src/ui/settingsRows.ts` (row; extend the `choice` key union), `apps/client/src/display.ts` (`dpr()` reads the cap), `apps/client/src/main.ts` (re-size on change: `subscribeSettings`), new `apps/client/src/settings/autoQuality.ts` (Q3 B) called from GameScene's wave start. The server's `progress.settings` jsonb takes the new field with no migration (schema not strict; check `settingsSync.test.ts`).
+- [x] **T5 D6 edge arrows (AC 6)** — `apps/client/src/render/pingArrows.ts` (`others` gains the teammate arrow rects), `apps/client/src/scenes/HudScene.ts` (:2259 `teammateMarkers` runs before `placePingArrows`; pass its drawn rects), `pingArrows.test.ts`.
+- [x] **T6 Hand-back** — `gate:fast` + `test:changed` (touched DOM checks: `hudLayout`, settings DOM); browser stills of stage 1 / wave 9 (and each Resolution step) at DPR 1 for your own check; PR "Story 10.2: Frame-rate pass"; record any new decision as 10.2-B6+.
 
 ## Test plan
 
@@ -111,13 +116,48 @@ Every code-drawn texture through `addGeneratedTexture`; no per-frame allocation;
 - **Touches:** `apps/client/src/debug/urlOptions.ts`, `debug/stressScenario.ts`, `scenes/GameScene.ts` (stress branch; autoQuality hook at wave start), `scenes/HudScene.ts` (D6), `render/pingArrows.ts`, `render/darkness/*`, `render/fog/*`, `render/city/rainLook.ts` (only if a lever lands there), `display.ts`, `main.ts` (canvas re-size), `packages/shared/src/config/playerSettings.ts`, `ui/settingsRows.ts`, new `settings/autoQuality.ts`, new `tools/perf/fps.cjs`, `docs/perf/epic-10-fps.md`, `deferred-work.md` (D6 row).
 - **Overlap:** with **10.3** on `playerSettings.ts` / `settingsRows.ts` / `main.ts` (if 10.3-Q1 adds Battery saver) and on `tools/perf/` (10.3 reuses `fps.cjs` helpers) → run 10.3 **after** 10.2 (it should also measure the 10.2 tree). With **10.4** only on `main.ts` (10.4 adds boot progress calls; trivial conflict) → 10.4 can run **in parallel**. With 9.5 / 9.6 (film grain row) on `settingsRows.ts` / `playerSettings.ts`: keep-both lists.
 - No migration, no netEvents kinds, no protocol bump.
+- **As built (builder):** also touches `render/darkness/glLayer.ts` (new), `render/city/canvasTexture.ts` (two texture helpers: the Story 4.13 check allows textures only there), `render/teammateMarkers.ts`, `render/PingView.ts`, `settings/resolution.ts` + `settings/autoQuality.ts` (new), `packages/shared/src/index.ts` (`RESOLUTION_DPR` export). In `main.ts`, three lines replace the `deviceSize` definition (`autoQuality.boot()`, `applyResolutionCap`, `viewport`) and `bindResolution(game, viewport)` comes after the resize listener. 10.4's `signalBootLoader` line is merged and untouched.
+- **For 10.3:** `tools/perf/fps.cjs` exports `openPage`, `countFrames`, `frameStats`, `topSelf`, `SCENES`; a target can carry its own switches (`label=url|&x=y`); `RESOLUTION=balanced|fast` sets the stored setting. Battery saver goes next to `resolution` in `playerSettings.ts` / `settingsRows.ts` (keep-both). Serve with a port check: killing the `npx` wrapper PID leaves `vite preview` running.
+- **Designer FYI (look):** B9 draws the GPU fog at half size; brightened stills show no difference. `FOG_GL_RES = 1` reverts it (−0.4 FPS at wave 9 4×).
 
 ## Dev Agent Record
 
 ### Agent Model Used
 
+Claude (builder session, gds-dev-story).
+
 ### Debug Log References
+
+- Measurements: `docs/perf/epic-10-fps.md` (before, profile, every lever's A/B, after, Resolution rows); stills in `docs/perf/img/epic10-*`.
+- Two exploratory A/B rounds were void: a `kill` of the `npx` wrapper left the old `vite preview` on the port, and `--strictPort` failed silently. The serving helper now refuses a busy port and checks the bundle hash. This is recorded in the doc.
 
 ### Completion Notes List
 
+- AC 1: `?stress=150&stressstage=5&blackout=10` (B1, B6, B7). Unit tests: the parse (only with a valid `?stress`, 1–5, junk → null); the Downtown world reaches stage 5, power out, CO2 pinned (40 seeds), 150 alive with ≥ 140 in view after 40 ticks.
+- AC 2: `tools/perf/fps.cjs` + README; the before table and profile, every lever's A/B, the after table with each Resolution step. Bottleneck named per row (all rendering/GPU).
+- AC 3 (Q1 A): wave 9 at 4× DPR 2 goes from 6.6 to 9.1 (+38 %; 1 % low 5 → 6–6.7, p95 167–183 → 133 ms). Against the designer's "≥ 9.3" (+25 % of the first, random-style 7.4) it reads 8.8 / 9.4. No other row is worse by more than 0.5 FPS. The default look is unchanged (stills, brightened side-by-side, region means within 0.7 / 255).
+- AC 4 (Q2 A): `resolution` in the shared schema (default `sharp`, stored / synced, an older value without it still parses). The row is in Settings › Screen. `display.ts › dpr()` takes the cap (`setDprCap`), and `settings/resolution.ts` re-sizes the canvas live. Browser check: live switch, one page load, HUD at CSS size. `hudLayout` tests unchanged (they use `dpr()`).
+- AC 5 (Q3 B): `settings/autoQuality.ts` (B10). Unit tests: 45 / 39 / 29 FPS → 0 / 1 / 2 steps; a stored choice wins; no toast when every lowered field is the player's own; runs once; remembered; junk or throwing storage; never in build / lobby / `?stress`; a hidden tab or the wave ending cancels the try.
+- AC 6 (D6): ping arrows keep the pair gap off every shown teammate arrow, except the sender's own. Stateful 0.01° sweeps both ways and oscillation at 568 × 320 and 844 × 390, downed and not, offsets 0 / 1 / 3°: no overlap, 30° bearing rule, jumps never flicker. `teammateArrowRect` holds the turned triangle + stroke at every bearing. `deferred-work.md` D6 closed.
+- AC 7: no balance JSON, sim rule, netEvents kind or protocol change; `?fx=low` untouched. Replay digests come from the gate.
+- AC 8: phone rows not built, not claimed (parked).
+
 ### File List
+
+- `apps/client/src/debug/urlOptions.ts`, `urlOptions.test.ts` — `?stressstage`
+- `apps/client/src/debug/stressScenario.ts`, `stressScenario.test.ts` — `applyStressStage`, `pinStressCollapseStyle`, `stressProbe`
+- `apps/client/src/scenes/GameScene.ts` — stress stage + probe; D6 teammate rects into the ping view; auto quality per frame
+- `apps/client/src/scenes/HudScene.ts` — teammate arrow constants moved to `teammateMarkers.ts`
+- `apps/client/src/render/teammateMarkers.ts`, `teammateMarkers.test.ts` — `teammateArrowRect`
+- `apps/client/src/render/pingArrows.ts`, `pingArrows.test.ts`, `render/PingView.ts` — D6
+- `apps/client/src/render/darkness/DarknessView.ts`, `glLayer.ts` (new), `darknessGl.test.ts` (new), `fakeScene.testkit.ts` — B8, L1
+- `apps/client/src/render/fog/FogView.ts` — L1, L2, B8 `paintGl`, B9
+- `apps/client/src/render/city/canvasTexture.ts` — `addMirrorTexture`, `refreshMirror`, `addFrameTexture`, `removeFrameTexture`
+- `packages/shared/src/config/playerSettings.ts`, `packages/shared/src/index.ts` — `resolution`, `RESOLUTION_DPR`
+- `apps/client/src/display.ts` — `setDprCap`
+- `apps/client/src/settings/resolution.ts` (new), `resolution.test.ts` (new), `autoQuality.ts` (new), `autoQuality.test.ts` (new)
+- `apps/client/src/ui/settingsRows.ts`, `settingsRows.test.ts` — Resolution row
+- `apps/client/src/main.ts` — auto quality boot, Resolution cap + live re-size
+- `tools/perf/fps.cjs` (new), `tools/perf/README.md` (new)
+- `docs/perf/epic-10-fps.md` (new), `docs/perf/img/epic10-*` (new)
+- `_bmad-output/implementation-artifacts/deferred-work.md` — D6 closed
