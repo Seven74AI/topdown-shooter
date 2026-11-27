@@ -394,13 +394,14 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
   }
 
   for (const [w, h] of MATE_SIZES) {
-    it(`${w} × ${h}: a teammate off screen and a ping on the same bearing (and 1° / 3° off), swept at 0.01° both ways and oscillated — never overlapping, 40 px / 10° hysteresis kept`, () => {
-      const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
-      const marks = createTeammateMarkers();
-      const mr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
-      let frames = 0;
-      for (const downed of [false, true]) {
-        for (const off of [0, 1, 3]) {
+    // CI cap (30 s per test, docs/ci.md): one test per case; each sweeps both ways
+    for (const downed of [false, true]) {
+      for (const off of [0, 1, 3]) {
+        it(`${w} × ${h}: a ${downed ? "downed " : ""}teammate off screen and a ping ${off}° off their bearing, swept at 0.01° both ways — never overlapping, 30° rule, ≤ 12 jumps per turn`, () => {
+          const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
+          const marks = createTeammateMarkers();
+          const mr: ScreenRect = { x: 0, y: 0, w: 0, h: 0 };
+          let frames = 0;
           for (const dir of [1, -1]) {
             const m = new PingModel();
             const arrows = newPingArrows();
@@ -428,10 +429,10 @@ describe("Story 10.2 B4 (D6): ping arrows keep off the teammate edge arrows", ()
             // the keep-off moves with the teammate: its spot jumps more often than alone, but never flickers (below)
             expect(big, `${w}x${h} downed=${downed} off=${off}°: jumps > 40 px in one turn`).toBeLessThanOrEqual(12);
           }
-        }
+          expect(frames).toBe(2 * 36_001);
+        }, 120_000);
       }
-      expect(frames).toBe(2 * 3 * 2 * 36_001);
-    }, 120_000);
+    }
 
     it(`${w} × ${h}: oscillating ±0.01° … ±0.5° round every jump of that sweep flips at most once`, () => {
       const controls = waveControlRects(w, h, INSET, 1, newWaveControlRects());
