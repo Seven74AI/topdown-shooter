@@ -1,0 +1,57 @@
+name: Browsers
+
+# Story 10.5 (AC 7, NFR8; decision 10.5-B4): the browser smoke (tools/checks/browserSmoke.ts) on Chromium, Firefox,
+# WebKit and Microsoft Edge. NOT a required check and not on PRs: it would add ~6 min to every PR, and the cloud
+# containers have only Chromium. Run it by hand (Actions → Browsers → Run workflow, on any branch) and once a week;
+# record the results in docs/qa/browsers.md (the job summary and the smoke-*.json artifacts hold them).
+on:
+  # TEMPORARY (Story 10.5 T6): one run on the story branch, since workflow_dispatch only works once the file is on
+  # master. Removed before the merge.
+  push:
+    branches: [story-10-5]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays 04:17 UTC
+
+concurrency:
+  group: browsers-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit, msedge]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - name: Install ${{ matrix.browser }} (Playwright's pinned build; Edge = the stable channel)
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Smoke (start → lobby → wave 1 cleared → shop → barricade → wave 2; rotate overlay)
+        timeout-minutes: 6
+        run: npm run smoke:browsers -- --browser ${{ matrix.browser }} --out reports
+      - name: Result in the job summary
+        if: always()
+        run: |
+          f=reports/smoke-${{ matrix.browser }}.json
+          [ -f "$f" ] || { echo "no report" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const rows = r.steps.map((s) => `| ${s.step} | ${s.pass ? "pass" : "FAIL"} | ${s.seconds.toFixed(1)} | ${s.detail.replace(/\|/g, "/")} |`);
+            console.log([`### ${r.browser} ${r.version} (${r.os}): ${r.pass ? "PASS" : "FAIL"} in ${r.seconds.toFixed(0)} s`, "", "| Step | Result | s | Detail |", "| --- | --- | --- | --- |", ...rows].join("\n"));
+          ' "$f" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the report and stills
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: smoke-${{ matrix.browser }}
+          path: reports/
+          if-no-files-found: warn
