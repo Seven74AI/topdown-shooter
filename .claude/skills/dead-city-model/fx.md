@@ -111,3 +111,16 @@ Lessons:
     "his head is bug"). `relit.ts › relitBoss` adds the eyes the way `BossView` places them. Compare a context body
     with the game's view before showing it.
 
+## FX 5. Picks, round 2 (designer 2026-11-28)
+
+- Kept: MZ-A, SG-G, TR-G, HT-G, BL-G, BT-G, CS-A, BF-G, EX1-G, EX2-A, FS-A, BX-G, RD-G, PD-G, RN-G, SD-A, CL-A, P1-G.
+- New versions: ML-M, GR-R, MO-R, FI-R, AC-R, GA-M, EV-R, BD-R, TH-R, CR-R + ST (status icons), GD-R. The
+  designer's words are in `docs/art/photoreal-decisions.md`.
+- Lessons:
+  - **Dust comes from where the force meets the ground** ("the dust come from the ground"), not from the hands in
+    the air.
+  - **One kind of mark per kind of damage.** The slam cracks and the crater were drawn by different code and read
+    as two styles ("why slam cracks and craters are so different?").
+  - **A mix (`-M`) keeps the picked take whole** and lays the other take's named part over it ("just superpose the
+    A fog to G").
+

@@ -144,4 +144,27 @@ and the asset review in `docs/art/asset-review.md`.
   - The relit Behemoth had no eyes (designer 2026-11-28: "his head is bug"): 9.15 bakes the body without them and
     draws the eyes as their own layer. The page now adds that layer the way `BossView` does (calm level, dimmed in
     the stun).
+- **Picks, round 2 (designer 2026-11-28)**, every card reviewed:
+  - **Kept as is:** MZ-A, SG-G, TR-G, HT-G, BL-G, BT-G, CS-A, BF-G, EX1-G, EX2-A, FS-A, BX-G, RD-G, PD-G, RN-G,
+    SD-A, CL-A, P1-G.
+  - **New versions asked (codes `-M` = a mix, `-R` = a revised take):**
+    - **ML-M:** "Could we somehow mix MLA and MLG".
+    - **GR-R:** "GR shadows are strange, they more look like mirrored images. Plz make a new version."
+    - **MO-R:** "I like MOG, the fire and the cone, but our molotov is actually not a cone but a circle. Maybe we
+      could rethink the Molotov shape to a more conic form, it would be more realistic, also we could make the fire
+      grow for a bit, like 2m cone (I'm throwing random number) when it land and it grow to 3m or 4m after impact
+      before it start to fade". This changes the game's zone shape.
+    - **FI-R:** "FIB is good but I'd like to improve the circle, it's too much contrasting I think. Or something
+      more subtil."
+    - **AC-R:** "AC are not photoreal, plz improve".
+    - **GA-M:** "I think id pick GAA, but try a mix of A and G, like just superpose the A fog to G".
+    - **EV-R:** "EVA but with arrow for stampede, take inspiration of the boss warnings for the arrow".
+    - **BD-R:** "BDG but currently the dust seems to come from above his hands, whereas the dust come from the
+      ground."
+    - **TH-R:** "THA but the crater is bad, take inspiration from our other crater, you can do way better. Also use
+      same clockwork as SDA".
+    - **CR-R:** "CRA but no need to show CRASH, but we should show a stun icons. We probably should make some
+      animated status icon for both player and monsters because they could be affected by same statuses." This adds
+      a new card, **ST, animated status icons** (one set for survivors and zombies).
+    - **GD:** "why slam cracks and craters are so different?" The answer and a matched take (GD-R) follow.
 
