@@ -124,3 +124,19 @@ Lessons:
   - **A mix (`-M`) keeps the picked take whole** and lays the other take's named part over it ("just superpose the
     A fog to G").
 
+## FX 6. A revised take must change the design, not only the rendering (designer 2026-11-28)
+
+> "I'm pretty sure you didn't follow our skills on how to create models and animation. Because how is it possible
+> ACR ressemble exactly the other AC?"
+
+AC-R kept AC-G's composition (a splat inside a glowing circle) and only re-shaded the pixels. When the designer says a
+look is "not photoreal" or asks for a rethink:
+
+1. **Start again from the goal**, with the game's numbers.
+2. **Study the real thing first.** What does it look like in the world, and why (what made it, how it behaves over
+   time)? Write down 3–5 observed traits before drawing.
+3. **Derive the elements from those traits.** Each element has one job toward the goal.
+4. **Don't reuse the earlier takes' shapes, textures or layout.** Put the new take beside them and check at game
+   size that it reads as a different design. If it could be mistaken for an earlier take, it isn't done.
+5. **Say in the note what is different in design** (shape, composition, motion), not only in rendering.
+

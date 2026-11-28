@@ -182,4 +182,20 @@ and the asset review in `docs/art/asset-review.md`.
     light and a draining ring, colour by cause or meaning, stacked above the head (max 3). Possible sim gap noted:
     the gas slow ignores `protectTicks`.
   - **Waiting for the designer's picks** and the questions on each new look.
+- **Picks, round 3 (designer 2026-11-28):** ML-A, GR-R, MO-R, FI-R, GA-M, EV-R, BD-R, TH-R, CR-R, GD-R.
+  - **MO-R numbers:** "Recommended. And yes should stop at walls": 2 → 4.5 m in 1.0 s, 35° half-angle, back
+    0.8 m, hold to 3.4 s, fade by 4 s, damage unchanged; the cone is clipped at the first blocker along the throw.
+    This is a game change, for the build story.
+  - **Crater 6 m** (2 × the 3 m reach): "Yes".
+  - **Status icons:** "Yes, 24 max, ordered by most important zombie. For example we should always display the ones
+    of behemoth." Survivors and the Behemoth always show theirs; zombie icons are capped at 24, ordered by the
+    zombie's importance (Behemoth > Brute / Bloater / Spitter > Runner > Walker / Crawler, then nearest), halved
+    with `?fx=low`.
+  - **AC declined again:** "I'm pretty sure you didn't follow our skills on how to create models and animation.
+    Because how is it possible ACR ressemble exactly the other AC?" AC-R kept AC-G's composition (the same splat
+    inside the same glowing circle) and only re-shaded it. A new AC take is being made from the goal and the real
+    material (see the skill's FX 6).
+  - Q5 asked what "protected" means. It is Story 8.1's protection: a survivor who reconnects is protected for 2 s
+    (no damage, no shooting), and everyone standing is protected during the evacuation (12.75 s). Spit, zombie
+    hits and damage respect it; the Bloater gas slow does not.
 
