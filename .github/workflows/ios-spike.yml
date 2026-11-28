@@ -1,0 +1,88 @@
+# SPIKE-13-1: Story 13.1's iOS Simulator spike. Branch spike-13-1 only; never merged (the file never reaches master).
+# Unsigned Simulator build, no Apple account, no secrets. The game server is a local test server on the runner.
+name: ios-spike
+on:
+  push:
+    branches: [spike-13-1]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-spike
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Blackhole production (AC 3: nothing may reach it)
+        run: echo "0.0.0.0 hordes.sevend.io" | sudo tee -a /etc/hosts
+      - name: Versions
+        run: |
+          mkdir -p spike-out
+          { sw_vers; xcodebuild -version; node -v; npm -v; xcrun simctl list runtimes; } | tee spike-out/versions.txt
+      - name: npm ci
+        run: npm ci
+      - name: Build the client (spike env)
+        env:
+          VITE_SPIKE: "1"
+          VITE_SERVER_URL: http://127.0.0.1:2667
+          VITE_SPIKE_CTL: http://127.0.0.1:2668
+        run: npm run build
+      - name: cap sync ios
+        working-directory: apps/ios
+        run: npx cap sync ios
+      - name: xcodebuild (Simulator, unsigned)
+        working-directory: apps/ios
+        run: |
+          start=$(date +%s)
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -40
+          echo "xcodebuild_s=$(( $(date +%s) - start ))" | tee -a ../../spike-out/versions.txt
+          du -sh build/Build/Products/Debug-iphonesimulator/App.app | tee -a ../../spike-out/versions.txt
+          du -sh build/Build/Products/Debug-iphonesimulator/App.app/public | tee -a ../../spike-out/versions.txt
+      - name: Boot a notched iPhone Simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | node -e '
+            const d = JSON.parse(require("fs").readFileSync(0, "utf8")).devices;
+            const all = Object.entries(d).filter(([r]) => r.includes("iOS")).flatMap(([r, l]) => l.map((x) => ({ ...x, r })));
+            all.sort((a, b) => b.r.localeCompare(a.r, undefined, { numeric: true }));
+            const pick = all.find((x) => /^iPhone \d+ Pro$/.test(x.name)) ?? all.find((x) => x.name.startsWith("iPhone"));
+            console.error("device", pick.name, pick.r);
+            console.log(pick.udid);')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices | grep "$UDID" | tee -a spike-out/versions.txt
+          start=$(date +%s)
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          echo "sim_boot_s=$(( $(date +%s) - start ))" | tee -a spike-out/versions.txt
+          xcrun simctl install "$UDID" apps/ios/build/Build/Products/Debug-iphonesimulator/App.app
+      - name: Run the checks (F1-F10)
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          xcrun simctl spawn "$UDID" log stream --level debug --style compact \
+            --predicate 'eventMessage CONTAINS "SPIKE13" OR eventMessage CONTAINS "WebContent" OR process == "App"' > spike-out/oslog.txt 2>&1 &
+          LOGPID=$!
+          npx tsx tools/spike13/runner.ts --udid "$UDID" --bundle io.sevend.hordes.spike --out spike-out
+          kill $LOGPID || true
+      - name: Production untouched (AC 3)
+        if: always()
+        run: |
+          {
+            echo "== occurrences of the production host in the app's logs, the os log and the server log (requests would show here) =="
+            grep -rn "hordes.sevend.io" spike-out/*.log spike-out/*.ndjson spike-out/oslog.txt || echo "none"
+          } | tee spike-out/production-grep.txt
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-13-1
+          path: spike-out/

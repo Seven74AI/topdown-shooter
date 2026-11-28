@@ -309,6 +309,9 @@ if (joinCode !== null && !isRoomCode(joinCode)) uiStore.set({ kind: "start", err
 if (ui) render(h(App, { joinCode: joinCode !== null && isRoomCode(joinCode) ? joinCode : null }), ui);
 resumeSavedSeat(); // Story 8.1: a reload mid-run takes its seat back
 
+// SPIKE-13-1: the iOS spike's scripted checks (built in only with VITE_SPIKE set; branch spike-13-1 only)
+if (import.meta.env.VITE_SPIKE) void import("./spike13").then((m) => m.runSpike13(game)); // SPIKE-13-1
+
 if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this
   // block (checked by tools/checks/noCheatsInRelease.test.ts).

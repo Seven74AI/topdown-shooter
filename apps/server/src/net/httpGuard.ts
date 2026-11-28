@@ -35,6 +35,11 @@ export function createGuardedHttpServer(): http.Server {
   const server = http.createServer();
   const emit = server.emit.bind(server) as (event: string | symbol, ...args: unknown[]) => boolean;
   server.emit = ((event: string | symbol, ...args: unknown[]) => {
+    // SPIKE-13-1: log every request / upgrade the iOS app makes (Origin, cookie present) for F5 / F6
+    if (process.env.SPIKE13 && (event === "request" || event === "upgrade")) {
+      const q = args[0] as http.IncomingMessage; // SPIKE-13-1
+      console.log(`SPIKE13S ${String(event)} ${q.method} ${q.url} origin=${q.headers.origin ?? "-"} cookie=${q.headers.cookie ? "yes" : "no"} acrm=${q.headers["access-control-request-method"] ?? "-"}`); // SPIKE-13-1
+    }
     if (event === "request") {
       const req = args[0] as http.IncomingMessage;
       const res = args[1] as http.ServerResponse;

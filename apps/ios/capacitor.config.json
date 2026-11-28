@@ -1,0 +1,6 @@
+{
+  "appId": "io.sevend.hordes.spike",
+  "appName": "Hordes",
+  "webDir": "../client/dist",
+  "ios": { "webContentsDebuggingEnabled": true }
+}
