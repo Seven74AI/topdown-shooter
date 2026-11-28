@@ -202,4 +202,12 @@ and the asset review in `docs/art/asset-review.md`.
     lacks the guard that spit and zombie hits have (`isGodFor` / `protectTicks > 0`). A builder in its own cloud
     session fixes it through a PR (branch `bugfix-gas-protect`): a failing repro test first, the one-line guard, a
     check of any client mirror, gate:fast, CI.
+- **AC-N built** (2026-11-28, own cloud session, made per FX 6). Goal: dodge the glob (15 damage, 9 m/s, up to
+  6 m); where it lands, a 1 m circle hurts 2 HP per 0.4 s per body for exactly 3 s. The real-world traits it uses:
+  a viscous lump skids rather than splashes; on old asphalt the liquid wicks into the cracks; it fizzes; thick
+  liquid glows while a thin film only darkens; it ends by soaking in and charring the binder. The design: a
+  wobbling glob that lights the ground under it (no shadow); a skid with a ridge; the zone is a net of glowing
+  cracks over a wet, darker disc cut at exactly 1 m (no pool, no ring, no glowing fill); froth bursting at crack
+  crossings on each bead's own 0.4 s clock; vapour downwind; a charred crack scar after 3 s. No large additive
+  quad. Waiting for the designer's look, with Q1 crack density, Q2 froth rhythm, Q3 run-out, Q4 baked headings.
 
