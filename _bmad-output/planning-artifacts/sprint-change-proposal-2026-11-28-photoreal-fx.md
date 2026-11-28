@@ -148,3 +148,13 @@ Fixes made during the check:
 - 9.18 now lists every reader of the Molotov `radiusM` that must move to the cone;
 - 9.19's and 9.17's source-file names were corrected to the files that hold the picked looks;
 - the wording of 9.20's rain depth was made precise (below 1.5, above the street).
+
+## Designer answers (2026-11-28: "Ok with your reco")
+All seven questions take the recommendation:
+- Q1 A: effect pictures rendered offline into image atlases (+3–5 MB, background download, today's effects until it lands).
+- Q2 A: a zombie's status icons show only when the zombie is visible; survivors' and the Behemoth's always.
+- Q3 A: today's cues (tints, protection blink, flames, HUD glows, the boss bar flash) are all kept for now.
+- Q4 A: the Molotov aim marker shows the full teardrop along the throw, cut at walls.
+- Q5 A: the gas cloud's copy above the blackout is GA-G's rim at ghost strength, no ring.
+- Q6 A: fog, film grain, flashlight and floodlight textures stay as today (a later page if wanted).
+- Q7 A: rain at street level, under bodies too.

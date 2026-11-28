@@ -236,4 +236,7 @@ and the asset review in `docs/art/asset-review.md`.
 - **Group 5 picks complete.** Next: the build story for the effects (Story 9.6), with `gds-create-story`.
 - **Gas slow bug fixed:** PR #46 merged 2026-11-28 (476f5b5) after a fresh review (APPROVED, no findings) and green
   CI; master CI run 1146 green.
+- **Build planned** (2026-11-28): the correct course `sprint-change-proposal-2026-11-28-photoreal-fx.md`, and
+  stories 9.6 (foundation), 9.16–9.22, all ready-for-dev. The seven build questions take the recommendations
+  (designer: "Ok with your reco"; listed in the proposal). Builders start: 9.6, 9.18's sim part, 9.22's model.
 
