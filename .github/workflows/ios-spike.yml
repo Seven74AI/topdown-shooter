@@ -45,6 +45,10 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -40
           echo "xcodebuild_s=$(( $(date +%s) - start ))" | tee -a ../../spike-out/versions.txt
+          # Apple Silicon Simulators refuse to launch unsigned arm64 code ("denied by service delegate", run 2):
+          # an ad-hoc signature (no Apple account, no certificate) is enough.
+          codesign --force --deep --sign - --timestamp=none build/Build/Products/Debug-iphonesimulator/App.app
+          codesign -dv build/Build/Products/Debug-iphonesimulator/App.app 2>&1 | tee -a ../../spike-out/versions.txt
           du -sh build/Build/Products/Debug-iphonesimulator/App.app | tee -a ../../spike-out/versions.txt
           du -sh build/Build/Products/Debug-iphonesimulator/App.app/public | tee -a ../../spike-out/versions.txt
       - name: Boot a notched iPhone Simulator
@@ -71,7 +75,7 @@ jobs:
           xcrun simctl spawn "$UDID" log stream --level debug --style compact \
             --predicate 'eventMessage CONTAINS "SPIKE13" OR eventMessage CONTAINS "WebContent" OR process == "App"' > spike-out/oslog.txt 2>&1 &
           LOGPID=$!
-          npx tsx tools/spike13/runner.ts --udid "$UDID" --bundle io.sevend.hordes.spike --out spike-out
+          npx tsx tools/spike13/runner.ts --udid "$UDID" --bundle io.sevend.hordes.spike --out "$PWD/spike-out"
           kill $LOGPID || true
       - name: Production untouched (AC 3)
         if: always()

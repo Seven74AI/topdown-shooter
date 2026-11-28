@@ -7,7 +7,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { RunStateView } from "@topdown/shared";
 import { BotClient } from "../bots/botClient";
 
@@ -18,7 +18,7 @@ const arg = (n: string, d: string): string => {
 };
 const UDID = arg("udid", "booted");
 const BUNDLE = arg("bundle", "io.sevend.hordes.spike");
-const OUT = arg("out", join(ROOT, "spike-out"));
+const OUT = resolve(arg("out", join(ROOT, "spike-out")));
 const SERVER_PORT = 2667;
 const CTL_PORT = 2668;
 mkdirSync(OUT, { recursive: true });

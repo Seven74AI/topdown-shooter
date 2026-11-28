@@ -163,7 +163,7 @@ async function probe(game: Phaser.Game): Promise<void> {
   }
   try {
     // without a body token: does the cookie alone come back (= was it stored and sent)?
-    const res = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": "text/plain" }, body: "{}" });
+    const res = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: "{}" });
     out("F5_cookie_only", { status: res.status, body: (await res.text()).slice(0, 300) });
   } catch (e) {
     out("F5_cookie_only", { error: err(e) });
@@ -202,7 +202,7 @@ async function run(game: Phaser.Game, cmd: { op: string; arg?: string }): Promis
       await sleep(1000);
       const ac = new AudioContext();
       const fresh = ac.state;
-      await ac.resume().catch(() => {});
+      await Promise.race([ac.resume().catch(() => {}), sleep(2000)]); // a resume without a gesture can stay pending
       await sleep(300);
       out("F3_after", { ...(audioState(game) as object), freshContextAtCreate: fresh, freshContextAfterResume: ac.state });
       void ac.close();
@@ -273,7 +273,8 @@ export function runSpike13(game: Phaser.Game): void {
         fails = 0;
         if (cmd.op) {
           try {
-            await run(game, cmd as { op: string; arg?: string });
+            let done = false;
+            await Promise.race([run(game, cmd as { op: string; arg?: string }).finally(() => (done = true)), sleep(45_000).then(() => void (done || out("cmd_timeout", cmd.op)))]);
           } catch (e) {
             out("cmd_error", { op: cmd.op, error: err(e) });
           }
