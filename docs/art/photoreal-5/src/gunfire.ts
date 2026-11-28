@@ -39,6 +39,7 @@ import {
   type MuzzleKind,
 } from "./gunfire-art";
 import * as G from "./gunfire-g";
+import * as R2 from "./gunfire-r2";
 
 const DEG = Math.PI / 180;
 const on = (st: Stage, part: string): boolean => st.only === null || st.only === part;
@@ -937,7 +938,7 @@ const ML: FxCard = {
       g.fill();
       label(g, m.name, x, y + 0.45 * st.pxm, st.pxm, "center");
     }),
-  looks: [mlNow(), mlTake(), G.mlG()],
+  looks: [mlNow(), mlTake(), G.mlG(), R2.mlM()],
   plan: {
     goal: "Read the cut: which way the blade went and exactly what it could reach.",
     timing: "Machete 120 ms, axe 200 ms (<code>SWING_MS</code>, <code>AXE_SWING_MS</code>). Sweep: 60 ms (4 frames) / 90 ms, then fade to the same end.",
@@ -1407,6 +1408,10 @@ for (const [c, perf, f] of G_EXTRA) {
   c.perf += perf;
   (c as { findings?: readonly string[] }).findings = [...(c.findings ?? []), ...f];
 }
+
+/** Round 2 (designer 2026-11-28): the new looks' numbers and findings (gunfire-r2.ts), appended after the -G ones. */
+ML.perf += R2.ML_M_PERF;
+(ML as { findings?: readonly string[] }).findings = [...(ML.findings ?? []), ...R2.ML_M_FINDINGS];
 
 export const cards: FxCard[] = [MZ, SG, TR, HT, BL, BT, ML, CS, BF];
 void countSprite;
