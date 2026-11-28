@@ -222,4 +222,16 @@ and the asset review in `docs/art/asset-review.md`.
   FI-R, FS-A, BX-G, AC-N, GA-M, EV-R, RD-G, PD-G, RN-G, BD-R, SD-A, TH-R, CL-A, CR-R, P1-G, GD-R. **ST (status
   icons): the rules answered (above the head, 24 zombie icons max by importance, the Behemoth always), ST-A itself
   not yet picked.**
+- **Last open questions, the recommendations taken** (designer 2026-11-28: "Reco"):
+  1. **ST-A picked** (status icons).
+  2. HT-G / BL-G: the hit direction is added to `zombie.hit` / `zombie.killed` for the client (display only).
+  3. BF-G: the destroyed wreck stays 4 s although the cell frees at once (visual only).
+  4. EX2-A: its shock ring becomes pale concrete grey (white = pick-ups / people).
+  5. CR-R: the 0.3 s amber flash at the wall is kept, with the stun icon.
+  6. GA-M: GA-A's fog at full strength.
+  7. EV-R: the stampede arrow replaces today's drifting chevrons, about 6 m long in the game.
+  8. BD-R: the Behemoth's dust drawn under its body (a BossView change), in the effects build story.
+  9. RN-G: rain drawn under acid, gas and spit.
+  10. RD-G: the falling-debris sound plays on landing, not on spawn.
+- **Group 5 picks complete.** Next: the build story for the effects (Story 9.6), with `gds-create-story`.
 

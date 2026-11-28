@@ -140,3 +140,9 @@ look is "not photoreal" or asks for a rethink:
    size that it reads as a different design. If it could be mistaken for an earlier take, it isn't done.
 5. **Say in the note what is different in design** (shape, composition, motion), not only in rendering.
 
+## FX 7. Final picks (designer 2026-11-28)
+
+MZ-A, SG-G, TR-G, HT-G, BL-G, BT-G, ML-A, CS-A, BF-G, EX1-G, EX2-A (grey shock ring), GR-R, MO-R (game change: the
+cone, clipped at walls), FI-R, FS-A, BX-G, AC-N, GA-M, EV-R, RD-G, PD-G, RN-G, BD-R, SD-A, TH-R (crater 6 m), CL-A,
+CR-R, P1-G, GD-R, ST-A. The details and the designer's words are in `docs/art/photoreal-decisions.md`.
+
