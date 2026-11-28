@@ -200,6 +200,79 @@ function bakeTex(): Tex {
   return T;
 }
 
+/**
+ * FI-R's circle (designer 2026-11-28: "FIB is good but I'd like to improve the circle, it's too much contrasting I
+ * think. Or something more subtil."). Same two elements as FI-B (heat glow, heat line), less contrast:
+ *  - the glow fades out over the last 0.3 m INSIDE R (FI-B: full until R, then gone in 0.08 m outside);
+ *  - the line is a soft warm band (≈ 0.16 m wide at half height, ≈ 6 px at 36 px/m; FI-B ≈ 0.08 m, 3 px), centred
+ *    0.12 m inside R (down to 5 % at R, so no crisp outer rim), paler (255,170,110 vs 255,138,60) and broken by a slow
+ *    shimmer (0.55–1) so it reads as heat haze, not a drawn ring.
+ */
+interface SubTex {
+  heat: HTMLCanvasElement;
+  edge: HTMLCanvasElement;
+}
+let S: SubTex | null = null;
+/** Px per R in FI-R's textures (the texture spans R + 4 %, as FI-B's). */
+function bakeSubtle(): SubTex {
+  if (S) return S;
+  const HP = 192;
+  const heat = make(HP, HP);
+  {
+    const g = heat.getContext("2d")!;
+    const img = g.createImageData(HP, HP);
+    for (let y = 0; y < HP; y++)
+      for (let x = 0; x < HP; x++) {
+        const d = Math.hypot(x + 0.5 - HP / 2, y + 0.5 - HP / 2) / (HP / 2) / 0.96; // 1 = R
+        if (d >= 1) continue;
+        const inner = 0.12 + 0.88 * Math.pow(Math.max(0, 1 - d), 1.8);
+        const u = Math.min(1, Math.max(0, (1 - d) / 0.15)); // 0 at R, 1 at 0.85 R (0.3 m in)
+        const a = inner * (0.35 + 0.65 * u * u * (3 - 2 * u)); // the floor of warmth sinks to 35 % at the edge
+        const j = (y * HP + x) * 4;
+        img.data[j] = 255;
+        img.data[j + 1] = Math.round(120 + 70 * (1 - d));
+        img.data[j + 2] = Math.round(40 + 30 * (1 - d));
+        img.data[j + 3] = Math.round(255 * Math.min(1, a));
+      }
+    g.putImageData(img, 0, 0);
+  }
+  const EP = 256;
+  const edge = make(EP, EP);
+  {
+    const g = edge.getContext("2d")!;
+    const img = g.createImageData(EP, EP);
+    const R = (EP / 2) * 0.96;
+    const mPx = R / FI_R; // px per metre in the texture
+    const mid = R - 0.12 * mPx; // the band's peak 0.12 m inside R: at R it is down to 5 %, so no crisp outer rim
+    const sig = 0.1 * mPx; // FWHM ≈ 0.17 m
+    const r = rng(78);
+    const wob = Array.from({ length: 6 }, () => r());
+    for (let y = 0; y < EP; y++)
+      for (let x = 0; x < EP; x++) {
+        const dx = x + 0.5 - EP / 2;
+        const dy = y + 0.5 - EP / 2;
+        const d = Math.hypot(dx, dy);
+        if (d > R + 0.5) continue; // nothing past the edge
+        const band = (d - mid) / sig;
+        if (band < -3) continue;
+        const ang = Math.atan2(dy, dx);
+        let w = 0;
+        for (let k = 0; k < 6; k++) w += Math.sin(ang * (k + 3) + (wob[k] as number) * 6.28) / 6;
+        const shimmer = 0.775 + 0.45 * w * 0.5; // 0.55–1
+        const fadeOut = d > R ? Math.max(0, 1 - (d - R) / 0.5) : 1;
+        const a = Math.exp(-band * band) * shimmer * fadeOut;
+        const j = (y * EP + x) * 4;
+        img.data[j] = 255;
+        img.data[j + 1] = 170;
+        img.data[j + 2] = 110;
+        img.data[j + 3] = Math.round(255 * Math.min(1, a));
+      }
+    g.putImageData(img, 0, 0);
+  }
+  S = { heat, edge };
+  return S;
+}
+
 const hash = (n: number): number => {
   let x = (n | 0) ^ 0x9e3779b9;
   x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
@@ -211,6 +284,32 @@ const on = (st: Stage, id: string): boolean => st.only === null || st.only === i
 export const pulseAt = (t: number): number => Math.max(0, 1 - ((t % 0.5) / 0.25)) ** 2;
 
 export function fiCarLook(): Look {
+  return carLook("B");
+}
+
+/** FI-R: FI-B with a subtler circle (only the heat glow and heat line differ). */
+export function fiCarLookR(): Look {
+  const b = carLook("R");
+  return {
+    ...b,
+    code: "FI-R",
+    title: "FI-B with a quieter heat edge",
+    note: "FI-B kept whole: the same flames on the car, smoke, embers and soot. Only the circle changes, because the designer found it \"too much contrasting … something more subtil\". The heat glow now fades out over its last 0.3 m inside the 2 m edge instead of stopping hard, and the heat line becomes a soft, pale warm haze (about twice as wide, half as strong, broken by a slow shimmer) that still brightens a little on each 0.5 s damage tick. Numbers vs FI-B: line alpha 0.22 at rest / 0.40 on the tick (FI-B 0.50 / 0.85); line width ≈ 0.17 m = 6 px at game size, its peak 0.12 m inside the edge (FI-B ≈ 0.08 m = 3 px); glow alpha 0.24 + 0.06 × flicker (FI-B 0.30 + 0.08), its edge softened over 0.3 m (FI-B 0.08 m).",
+    goalFirst: {
+      ...b.goalFirst!,
+      composition: [
+        ...b.goalFirst!.composition,
+        "<b>FI-R:</b> the circle is the quietest thing on screen. The heat line's peak sits 0.12 m inside R and is down to 5 % at R (nothing past R); the line's tick (+0.18) stays under the glow's flicker range near the car, so it reads at the edge without drawing a ring.",
+      ],
+    },
+    textures: () => {
+      const s2 = bakeSubtle();
+      return [...b.textures().filter((x) => !x.name.startsWith("heat")), { name: "heat (zone glow), soft edge", canvas: s2.heat, note: "ADD, fades over the last 0.3 m inside R" }, { name: "heat line, soft haze", canvas: s2.edge, note: "ADD, ≈ 0.16 m wide" }];
+    },
+  };
+}
+
+function carLook(v: "B" | "R"): Look {
   return {
     code: "FI-B",
     title: "Flames on the car, heat in the circle",
@@ -238,6 +337,7 @@ export function fiCarLook(): Look {
     async bake() {
       await approvedCar();
       bakeTex();
+      if (v === "R") bakeSubtle();
     },
     textures: () => {
       const t = bakeTex();
@@ -294,8 +394,14 @@ export function fiCarLook(): Look {
         sprite(g, X.stain, px(ax), py(ay), 3.3, pxm, CAR_ANGLE, 0.95, false, 1.5);
       }
       // the heat: the circle, glow + line, one clock with the flames and the damage pulse
-      if (on(st, "heat")) sprite(g, X.heat, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.3 + 0.08 * fl, true);
-      if (on(st, "edge")) sprite(g, X.edge, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.5 + 0.35 * pulseAt(t), true);
+      if (v === "B") {
+        if (on(st, "heat")) sprite(g, X.heat, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.3 + 0.08 * fl, true);
+        if (on(st, "edge")) sprite(g, X.edge, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.5 + 0.35 * pulseAt(t), true);
+      } else {
+        const S2 = bakeSubtle();
+        if (on(st, "heat")) sprite(g, S2.heat, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.24 + 0.06 * fl, true);
+        if (on(st, "edge")) sprite(g, S2.edge, st.cx, st.cy, (2 * FI_R) / 0.96, pxm, 0, 0.22 + 0.18 * pulseAt(t), true);
+      }
       if (on(st, "light")) {
         const [lx, ly] = toZone(0.2, 0);
         sprite(g, A.pool, px(lx), py(ly), 3.2, pxm, 0, 0.22 * fl, true);
