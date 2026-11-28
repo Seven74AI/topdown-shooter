@@ -240,7 +240,13 @@ export function acnZone(seed: number, reveal = 1): HTMLCanvasElement {
         G *= 1 - dk;
         B *= 1 - dk;
       }
-      let A = 0.5;
+      // designer 2026-11-28: "the circle is way to clean try to make it blend a bit more": the wet sheet thins out
+      // unevenly toward R (the film runs further along some plates than others, some outer plates stay dry), so the
+      // dark patch blends into the street; only the acid in the cracks still ends at exactly R (the damage edge)
+      const ragged = fbm(x * 2.6 + 3, y * 2.6 + 1, seed + 91, 3);
+      const wetEdge = 1 - sstep(0.5 + 0.3 * ragged, 0.97 + 0.03 * ragged, r);
+      const dryPlate = sstep(0.55, 0.78, fbm(x * 5.5 + 7, y * 5.5 + 2, seed + 92, 2)) * sstep(0.45, 0.9, r);
+      let A = 0.5 * wetEdge * (1 - 0.75 * dryPlate);
       // 2. the acid in the cracks: it glows (core + a little light on the crack walls), more where it collects
       if (front > 0) {
         // the acid filled some runs of crack and only dampened others (it runs downhill), fuller near the hit
@@ -296,7 +302,9 @@ export function acnMark(seed: number): HTMLCanvasElement {
       const x = ((qx + 0.5) / N) * 2 - 1;
       const y = ((py + 0.5) / N) * 2 - 1;
       const r = Math.hypot(x, y);
-      const cov = clamp((ACN_R - r) / pxM + 0.5) * (0.85 + 0.15 * fbm(x * 3, y * 3, seed + 70, 2));
+      // blended like the zone's wet sheet (designer 2026-11-28): the stain thins out unevenly toward R
+      const raggedM = fbm(x * 2.6 + 3, y * 2.6 + 1, seed + 91, 3);
+      const cov = clamp((ACN_R - r) / pxM + 0.5) * (0.85 + 0.15 * fbm(x * 3, y * 3, seed + 70, 2)) * (1 - 0.8 * sstep(0.55 + 0.3 * raggedM, 1.0, r));
       if (cov <= 0) continue;
       const e = cz.e[k] as number;
       const w = cz.w[k] as number;

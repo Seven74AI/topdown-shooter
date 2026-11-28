@@ -210,4 +210,7 @@ and the asset review in `docs/art/asset-review.md`.
   cracks over a wet, darker disc cut at exactly 1 m (no pool, no ring, no glowing fill); froth bursting at crack
   crossings on each bead's own 0.4 s clock; vapour downwind; a charred crack scar after 3 s. No large additive
   quad. Waiting for the designer's look, with Q1 crack density, Q2 froth rhythm, Q3 run-out, Q4 baked headings.
+- **AC-N good, edge blended** (designer 2026-11-28: "ACN is good but the circle is way to clean try to make it
+  blend a bit more"). The wet patch now thins out unevenly from about 0.5–0.8 R to R, and some outer plates stay
+  dry; the charred mark fades the same way. Only the acid in the cracks still ends at exactly R (the damage edge).
 
