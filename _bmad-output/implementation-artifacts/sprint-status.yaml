@@ -1,5 +1,6 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-26-2026 (correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed, 8.13 added; designer "ok" to §6: 7.13 added)
+# last_updated: 11-28-2026 (correct-course photoreal FX: 9.6 re-based as the effects foundation, 9.16–9.22 added; sprint-change-proposal-2026-11-28-photoreal-fx.md)
+# previous: 11-26-2026 (correct-course: Epic 9 photoreal, Epic 10 order, Epics 1/4 closed, 8.13 added; designer "ok" to §6: 7.13 added)
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -49,7 +50,7 @@
 # - 8.12 and Epic 12 are in epics.md since 2026-11-26. Order: 8.12 -> 12.1 (+12.4) -> 12.2 -> 12.3, before 10.2 / 10.8 / 10.9.
 
 generated: 11-21-2026 18:20
-last_updated: 2026-11-27
+last_updated: 2026-11-28
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -213,7 +214,7 @@ development_status:
   9-3-survivor-animations: backlog  # weapon-family, reload, downed poses on the 9.13 bodies; proposal pick first
   9-4-zombie-and-behemoth-animations: backlog  # attack + death animations of the zombies; proposal pick first (its Behemoth part moved to 9.15, 2026-11-26)
   9-5-gore-and-dismemberment: backlog  # photoreal via proposal pick; depends on 10.1 (gore setting)
-  9-6-effects: backlog  # photoreal via proposal pick; depends on 10.1 (quality settings)
+  9-6-effects: ready-for-dev  # RE-BASED 2026-11-28 (correct-course photoreal FX): the effects FOUNDATION (FX atlases, loader/fallback, fxKit, one ?fx=low source, perf harness); first of the group-5 stories
   9-7-ui-art: backlog  # photoreal via proposal pick, from Lumen LF5
   9-8-ambience-and-audio-buses: backlog  # shrunk (readiness Q2): 3 buses, Breakdown loop, rain beds, 10.1 volumes; depends on 10.1
   9-9-adaptive-music: backlog
@@ -223,6 +224,13 @@ development_status:
   9-13-photoreal-characters-in-game: done  # 2026-11-25: PR #16 merged d559705e; take 4 relit + animated, worker bake, caps 12/6; review 3M fixed, re-review 1 clean, 2L+nit checked by main session; Mi 11i / iOS Safari not verified
   9-14-photoreal-street-props-in-game: done  # 2026-11-25 art orchestrator: story file written (pre-made image atlas B1, standing police lines with end drums B4); PR #22 merged 2026-11-26 00:19 (1fbf310e); open follow-ups FU1 (a late download failure never settles), FU2 in the story file
   9-15-photoreal-behemoth-in-game: done  # 2026-11-26: take C + G2 A + G3 E2 + G4 A + the action plan (docs/art/photoreal-decisions.md, Behemoth row); builder session story-9-15
+  9-16-photoreal-gunfire-hits-and-blood: ready-for-dev  # 2026-11-28: MZ-A SG-G TR-G HT-G BL-G BT-G ML-A CS-A BF-G; after 9.6
+  9-17-photoreal-explosions-thrown-rounds-and-fire: ready-for-dev  # 2026-11-28: EX1-G EX2-A GR-R FI-R FS-A (+ bottle flight); after 9.6
+  9-18-molotov-cone: ready-for-dev  # 2026-11-28: MO-R GAME RULE CHANGE (sim/net/balance); sim part may start before 9.6; full review
+  9-19-photoreal-acid-bloater-burst-and-gas: ready-for-dev  # 2026-11-28: AC-N BX-G GA-M; after 9.6
+  9-20-photoreal-event-smoke-dust-and-rain: ready-for-dev  # 2026-11-28: EV-R RD-G PD-G RN-G; after 9.6
+  9-21-photoreal-boss-warnings-and-ground-damage: ready-for-dev  # 2026-11-28: SD-A TH-R CL-A CR-R P1-G GD-R BD-R; after 9.6
+  9-22-status-icons: ready-for-dev  # 2026-11-28: ST-A NEW FEATURE (statuses from the sim); model may start before 9.6; full review
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish

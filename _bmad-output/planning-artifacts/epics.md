@@ -3215,7 +3215,7 @@ The game looks and sounds like Dead City. Can start after Epic 4 and runs alongs
 - **Pick first.** Each art group gets a before/after proposal page (`docs/art/photoreal-<n>/compare.html` style). The designer picks; only the approved look is built. Meshy and vector images are references only; the two-pick rule (first = base look, second = upgrade/skin look) and every picked look id are kept.
 - **Two ways into the game, chosen per group by the story:** (a) **worker relight**: today's code drawing, relit at load in a Web Worker (9.11 / 9.13: `render/city/relight.ts`, `*BakeWorker.ts`, main-thread sliced fallback, kept cache, graphics-restore re-bake), for anything animated or per-player; (b) **pre-rendered atlas**: rendered offline from the approved code into a lossless WebP atlas with a frame JSON and a drift hash (9.14: `npm run art:street-props`, `render/city/streetProps.webp`, `streetProps.json`), for static art. In both, the code drawing is the fallback and frame names stay `category_name_variant`.
 - **Budgets for every Epic 9 art story** (the 9.13 / 9.14 measuring method): atlases ≤ 2048 × 2048; each pre-rendered atlas ≤ 2 MB and the first-load download < 15 MB in total (music streamed); main-thread long task from a bake ≤ 6 ms at 1× CPU (report 1× and 4×); a group's full bake done within 15 s at 4× CPU; with `?stress=150` at 844 × 390 DPR 2, average FPS within **2 FPS** of master and frame-time p95 within **+1 ms** of master, at 1× and 4× CPU; animated extras capped and pooled (`controls.fx` caps, `?fx=low` halves them), no per-frame allocation.
-- **Gameplay unchanged:** no change to simulation, balance numbers (except new `controls.fx` caps), net messages, collision or the world digest.
+- **Gameplay unchanged:** no change to simulation, balance numbers (except new `controls.fx` caps), net messages, collision or the world digest, **except where the designer asks for a rule change on a proposal page: the Molotov cone (Story 9.18, group 5 MO-R) and status icons from the sim (Story 9.22, ST-A)** (correct-course `sprint-change-proposal-2026-11-28-photoreal-fx.md`).
 - **Order and dependencies:** 9.1 first (the spec). 9.5, 9.6 and 9.8 read settings that **Story 10.1** adds, so 10.1 is built before them.
 
 ### Story 9.1: Art and audio asset spec
@@ -3346,29 +3346,39 @@ So that the fight feels as brutal as Dead City should.
 **When** zombies die
 **Then** no dismemberment pieces spawn; blood still shows; the change applies without a reload
 
-### Story 9.6: Effects
+*(2026-11-28, correct-course photoreal FX: blood itself (one blood palette, pools sized by the zombie and thrown downrange, Crawler hand prints, chainsaw blood) is built in Story 9.16 from group 5's BL-G / BT-G / CS-A / HT-G; 9.5's decal cap applies to 9.16's pools and its dismemberment builds on them.)*
 
-*(Re-based 2026-11-26, correct-course: photoreal style through the designer's proposal-page pick. **Depends on Story 10.1** (the quality settings).)*
+### Story 9.6: Effects foundation
 
-As a player,
-I want muzzle flashes, fire, acid, gas, explosions, rain and fog that look real,
-So that the screen reads clearly even in chaos.
+*(Re-based 2026-11-26, correct-course: photoreal style through the designer's proposal-page pick. **Re-based again 2026-11-28** (`sprint-change-proposal-2026-11-28-photoreal-fx.md`): photoreal group 5 is picked in full (`docs/art/photoreal-decisions.md` › FX, 30 looks), so the effects are cut into this foundation and Stories 9.16–9.22 by real file overlap. Depends on Story 10.1 (done). Story file `9-6-effects.md`.)*
+
+As a builder of the effects stories (and, through them, a player),
+I want one way to get the approved effect pictures into the game, one low-effects switch, shared pooled parts and one perf harness,
+So that 9.16–9.22 can be built in parallel and every effect stays inside the phone budget.
 
 **Acceptance Criteria:**
 
-**Given** a proposal page of photoreal effects (before/after, built from the picked looks: fire-lab D (4.12), EX1 (launcher) and EX2 (mine, hand grenade), the FS1 / FS2 flame streams)
-**When** the designer picks
-**Then** the pick is recorded in `docs/art/photoreal-decisions.md`, and only the approved looks are built
+**Given** the photoreal group 5 page (`docs/art/photoreal-5/compare.html`)
+**When** the designer picked
+**Then** the picks are recorded in `docs/art/photoreal-decisions.md` (done 2026-11-28) and only the approved looks are built, in 9.16–9.22
 
-**Given** the approved look
-**When** effects play
-**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, film grain, flashlight and floodlight light textures use it (pre-rendered frames or worker relight, code fallback)
-**And** rain follows decay (drizzle from stage 1, heavy rain at stage 3) and fog comes at stage 5
+**Given** a family's atlas page (`docs/art/photoreal-5/src/atlas/<family>.atlas.ts`, importing the approved look's bake unchanged)
+**When** `npm run art:fx` runs
+**Then** it renders every family it finds (no shared list) into `apps/client/src/render/fx/atlas/<family>.webp` + `.json` (frames, `sourcesHash`, `imageSha`) like 9.14's street props, each ≤ 2048² and ≤ 2 MB, and a check test fails when a source or image drifts
 
-**Given** effects
-**When** they play
-**Then** they come from Phaser object pools with no per-frame allocation, and rain, fog visuals, film grain and light glow read Story 10.1's quality settings and change without a reload; blackout darkness and the 10 m fog vision limit ignore them (FR87)
-**And** at default settings `?stress=150` in a stage-3 rain wave with a flamethrower and a launcher firing stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
+**Given** the game starts
+**When** the FX atlases download in the background (after Boot, the 9.14 B26 way)
+**Then** a run whose view finds its family's atlas ready uses the new look, otherwise that run draws today's code-drawn effect (no blank effect, no texture swapped mid-run); every texture goes through `addGeneratedTexture` and survives a lost context
+
+**Given** `?fx=low` or Story 10.1's settings
+**When** any effect view reads its quality
+**Then** it reads one accessor (`render/fx/fxQuality.ts`) that merges `urlOptions()` / `soloUrlOptions()` and the settings, and halves the effect's caps; shared pooled parts (`render/fx/fxKit.ts`: fixed-size sprite pools that reuse the oldest, one wind, one key light, one blood palette) allocate nothing per frame
+
+**Given** the perf harness (`?stress=150&stressstage=3&stressfx=1`: a stage-3 rain wave, a flamethrower and a launcher firing)
+**When** a story measures it at 844 × 390 DPR 2 at 1× and 4× CPU against master
+**Then** the numbers, machine load and method are recorded in `docs/perf/epic-9-fx.md`, and this story's own change stays within 2 FPS and +1 ms p95 of master
+
+(Not on the group-5 page, so not built here: fog visuals, film grain, flashlight and floodlight light textures stay as today; the hidden film-grain setting stays hidden (proposal Q6).)
 
 ### Story 9.7: UI art
 
@@ -3528,6 +3538,119 @@ So that the whole street matches.
 **Then** cars, burnt cars, the bus, dumpster, gas pump, rubble and sandbags use that look, and the police sawhorse barriers stand (approved police set in `barricadeArt.ts`, traffic-drum corners), sorted with the bodies like the barricades
 
 (As built, story file `9-14-photoreal-street-props-in-game.md`: the props ship as an atlas pre-rendered offline from the approved code (B1); cars, the bus, dumpster, pump, rubble, sandbags and the concrete barrier stay flat in the baked ground; only the sawhorse police lines stand, with 9.12 silhouettes for bodies behind them (B3, B4). Frame names and sizes are unchanged (B2), so Story 11.6 can place them by kind.)
+
+### Story 9.16: Photoreal gunfire, hits and blood
+
+*(Added 2026-11-28, correct-course `sprint-change-proposal-2026-11-28-photoreal-fx.md`: group 5 picks MZ-A, SG-G, TR-G, HT-G, BL-G, BT-G, ML-A, CS-A (more blood), BF-G. After 9.6. Story file `9-16-photoreal-gunfire-hits-and-blood.md`.)*
+
+As a player,
+I want every shot, hit, kill, swing and building event drawn as the approved light and matter,
+So that I read who fired, what I hit, from where, and what happened to my buildings at a glance.
+
+**Acceptance Criteria:**
+
+**Given** the approved looks
+**When** guns fire, rounds fly, zombies are hit or die, a Crawler crawls, a melee weapon swings, a chainsaw cuts, or a building is repaired, upgraded, snapped, sold or destroyed
+**Then** each uses its picked look with the page's numbers and timings (muzzle flash per gun with a light pool and gun smoke; the shotgun bloom, 8 pellet tracers and dust kicks at 5 m; a head + one-frame tail per round, turret rounds cyan at 40 m/s; a lit hit flash that keeps the body's shape plus an exit jet and drops on the shot's line; one blood palette, pools sized by the zombie and thrown downrange; smear + hand prints; the blade's sweep; hot sparks and more blood; outlines in the building's own footprint, jaws, a print, broken halves staying 4 s and splinters by material)
+**And** the kill direction comes from the last `zombie.hit` (display only, no sim change), every pool is capped (new `controls.fx` caps, `?fx=low` halves them) and nothing allocates per frame
+**And** `?stress=150` stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU, plus an SMG / shotgun firefight scene measured
+
+### Story 9.17: Photoreal explosions, thrown rounds and fire
+
+*(Added 2026-11-28, correct-course: group 5 picks EX1-G, EX2-A (grey shock ring), GR-R, FI-R, FS-A, and the bottle's flight part of MO-R. After 9.6. Story file `9-17-photoreal-explosions-thrown-rounds-and-fire.md`.)*
+
+As a player,
+I want blasts, rounds in flight, burning cars and flame streams in the approved look,
+So that I read where it burst, how far it reached, where a throw will land and where fire hurts.
+
+**Acceptance Criteria:**
+
+**Given** a launcher blast, a mine or hand grenade, a round or thrown item in flight, a burning car, a flamethrower or gas torch
+**When** they play
+**Then** they use EX1-G (the reach is the fireball's light front, no amber ring, no sparks), EX2-A (lit dust ring, shadows under chunks, the shock ring pale concrete grey), GR-R (relit items over a flat shadow blob that sharpens as it falls; the Molotov rag tinted orange), FI-R (flames on the car's own shape, the 2 m circle drawn only by heat with a quiet edge, replacing CityView's ring) and FS-A, with the page's numbers
+**And** explosions honour `?fx=low` (today they don't), debris has shadows, nothing allocates per frame, and every sim number is unchanged
+**And** `?stress=150` with a launcher and a flamethrower firing stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
+
+### Story 9.18: The Molotov cone
+
+*(Added 2026-11-28, correct-course: group 5 MO-R, a **game rule change** (designer 2026-11-28: "Recommended. And yes should stop at walls"). The sim part may start before 9.6; the look after 9.6. Story file `9-18-molotov-cone.md`.)*
+
+As a player throwing a Molotov,
+I want the fire to run forward along my throw as a growing cone that stops at walls,
+So that it feels real and I can aim it down a zombie lane.
+
+**Acceptance Criteria:**
+
+**Given** a Molotov lands
+**When** its zone lights
+**Then** the sim burns a teardrop along the throw: reach 2 m at the landing tick growing to 4.5 m at +1.0 s (ease-out), 35° half-angle, 0.8 m behind the impact, damage 8/s in 0.5 s pulses for 4 s as today, the forward reach cut at the first shot blocker along the throw, the cover rule from the impact kept; timers in ticks; `consumables.json` + schema hold the numbers
+**And** `molotov.ignited` (kind 40) carries the throw direction (u8) and the clipped reach, so the client draws exactly the zone that burns ("the fire is exactly where it is drawn" tests move to the teardrop at 0.01 m steps)
+**And** the zone is drawn as MO-R (fuel, flames, heat and heat line in the same teardrop, growing with it; flames fade over the last 0.6 s; a teardrop scorch stays), the aim marker shows the teardrop (proposal Q4), bots aim the cone at the pack, and whole-run sims still finish
+
+### Story 9.19: Photoreal acid, Bloater burst and gas
+
+*(Added 2026-11-28, correct-course: group 5 picks AC-N (blended edge; Q1 0.24 m plates, Q2 per-bead 0.4 s cycle, Q3 run-out 0.11 s, Q4 unturned puddles + skid in 8 headings), BX-G, GA-M (GA-A's fog at full strength). After 9.6. Story file `9-19-photoreal-acid-bloater-burst-and-gas.md`.)*
+
+As a player,
+I want Spitter acid, the Bloater's burst and its gas cloud in the approved look,
+So that I see a glob coming and exactly where not to stand, and for how long.
+
+**Acceptance Criteria:**
+
+**Given** a Spitter glob, its puddle, a Bloater burst and its gas
+**When** they play
+**Then** they use AC-N (a wobbling lump lighting the street, a skid, glowing cracks over a wet disc cut at exactly 1 m with an unevenly blended wet edge, froth per bead on 0.4 s, vapour downwind, a charred scar after 3 s, no pool, no ring), BX-G (one front: the gas thrown to 2.5 m in 0.1 s is the blast reach and the cloud's rim, both rings cut) and GA-M (GA-G's rim + GA-A's two turning fog layers under it, no gas past 2.5 m while it slows, break-up at exactly 4 s)
+**And** the puddle no longer pops off at 35 %, the Bloater pool honours `?fx=low`, blackout copies follow the new looks (proposal Q5), and every sim number is unchanged
+**And** `?stress=150` with spitters and bloaters stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
+
+### Story 9.20: Photoreal event smoke, dust and rain
+
+*(Added 2026-11-28, correct-course: group 5 picks EV-R (EV-A + the stampede arrow replacing the chevrons, about 6 m), RD-G (the debris sound on landing), PD-G, RN-G (rain under acid, gas and spit). After 9.6. Story file `9-20-photoreal-event-smoke-dust-and-rain.md`.)*
+
+As a player,
+I want event smoke, the ruins' dust, place dust and rain in the approved look,
+So that the street feels alive without ever hiding a hazard or looking like one.
+
+**Acceptance Criteria:**
+
+**Given** a gas leak, a supply drop, a stampede warning, the Ruins' falling debris and CO3 ash, a building placed, and rain
+**When** they play
+**Then** they use EV-R (lit vapour, the burning flare and its signal smoke, lit stampede dust, and an amber arrow on the lane whose stem is the 3 s clock, replacing the chevron rows), RD-G (chips fall first, dust rises on their landing and drifts downwind, `debris_fall` plays on landing; RD-A's tumbling ash), PD-G (dust squeezed from under the footprint's edges, a contact shadow, two chips) and RN-G (a wet glossy street, short faint drops, dark dots and beads, no rings), with rain drawn under acid, gas and spit (proposal Q7)
+**And** event vapour, flare smoke, stampede dust, place dust and rain splashes honour `?fx=low`, and every sim number is unchanged
+**And** `?stress=150` in a stage-3 rain wave and in stage 4 stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
+
+### Story 9.21: Photoreal Behemoth warnings and ground damage
+
+*(Added 2026-11-28, correct-course: group 5 picks SD-A, TH-R (crater 6 m), CL-A, CR-R, P1-G, GD-R, BD-R. After 9.6. Story file `9-21-photoreal-boss-warnings-and-ground-damage.md`.)*
+
+As a player fighting the Behemoth,
+I want its warnings drawn as light on the street and its damage as one kind of broken asphalt,
+So that I read where, how long and when each attack lands, and the street keeps the mark.
+
+**Acceptance Criteria:**
+
+**Given** a slam, a throw, a charge, a crash, the P1 warning display and the ground damage
+**When** they play
+**Then** they use SD-A (the ring as rim segments of light, the 72 ticks, the head and the sparks, no 9.1 m full-disc quad), TH-R (SD-A's dial with 48 ticks round the 3 m rim, the white closing ring cut, the relit slab and its shadow), CL-A (edges of light, a sweep front, light chevrons), CR-R (the amber bar and 0.3 s flash at the wall, bits and dust at the wall, no CRASH word; the stun icon is Story 9.22's), P1-G (steady during a warning, a time bar under the plate, the hazard bar cut) and GD-R (slam cracks and the throw crater from `drawGroundDamage`, the crater 6 m = 2 × the 3 m reach, decals unrotated)
+**And** the Behemoth's dust is born under its body (BD-R: under the fists, away from the body, inside 4.2 m, grit above), every timing and sim number unchanged (9.15's `BOSS_DUST` and `bossAnim` kept)
+**And** `?stress=150` and the boss scene stay within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
+
+### Story 9.22: Status icons
+
+*(Added 2026-11-28, correct-course: group 5 ST-A, a **new feature** (designer 2026-11-28: "Yes, 24 max, ordered by most important zombie. For example we should always display the ones of behemoth"). The status model may start before 9.6; the icons after it. Story file `9-22-status-icons.md`.)*
+
+As a player,
+I want an animated icon above any body under a status I can act on, with its time left,
+So that I see at a glance who is down, burning, slowed, trapped, stunned, protected or healing.
+
+**Acceptance Criteria:**
+
+**Given** a survivor, a zombie or the Behemoth under a status the sim really has (stunned, trapped, burning, acid, slowed, downed (+ being revived), healing, protected)
+**When** it is drawn
+**Then** it shows ST-A's icon (a dark 0.56 m badge, one glyph of light in its cause's colour looping on the cause's own clock, a ring draining over the real time left; none for a zone status) above its head, at most 3 in a row in the order downed > burning > acid > slowed > stunned > trapped > protected > healing; the Behemoth's icons at × 1.5
+**And** the statuses come from the sim (local) or the replicated state and events (online), never from a guess the sim disagrees with (tests per status, solo and online)
+**And** survivors' and the Behemoth's icons always show; zombie icons are capped at 24 (12 with `?fx=low`) by importance (Behemoth > Brute / Bloater / Spitter > Runner > Walker / Crawler, then nearest), and a hidden zombie shows none (proposal Q2)
+**And** `?stress=150` with every zombie burning stays within 2 FPS and +1 ms p95 of master at 1× and 4× CPU
 
 ## Epic 10: Performance and polish
 
