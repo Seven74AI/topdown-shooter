@@ -15,12 +15,12 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Blackhole production (AC 3: nothing may reach it)
+      - name: Blackhole production (AC 3, nothing may reach it)
         run: echo "0.0.0.0 hordes.sevend.io" | sudo tee -a /etc/hosts
       - name: Versions
         run: |
@@ -82,7 +82,7 @@ jobs:
           } | tee spike-out/production-grep.txt
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: spike-13-1
           path: spike-out/
