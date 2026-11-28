@@ -141,4 +141,7 @@ and the asset review in `docs/art/asset-review.md`.
     scrolling;
   - every body under an effect is now the game's current picture (relit zombies and default survivor of 9.13, the
     relit 9.15 Behemoth) instead of the plain fallback frames.
+  - The relit Behemoth had no eyes (designer 2026-11-28: "his head is bug"): 9.15 bakes the body without them and
+    draws the eyes as their own layer. The page now adds that layer the way `BossView` does (calm level, dimmed in
+    the stun).
 

@@ -106,4 +106,8 @@ Lessons:
   draw the relit characters (Story 9.13) and the relit Behemoth (9.15) through `docs/art/photoreal-5/src/relit.ts`:
   the game's own bake, run on the page as the asset gallery runs it. When a story changes how a model looks in play,
   the proposal pages that show it as context switch to the new picture.
+  - **Draw a model's own play layers with it.** Since Story 9.15 the Behemoth's body is baked without eyes; the
+    eyes are a separate additive layer. A body drawn without that layer has an empty face (designer 2026-11-28:
+    "his head is bug"). `relit.ts › relitBoss` adds the eyes the way `BossView` places them. Compare a context body
+    with the game's view before showing it.
 

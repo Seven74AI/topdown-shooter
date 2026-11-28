@@ -11,6 +11,10 @@ import { ensureAtlases } from "../../../../apps/client/src/render/city/spriteAtl
 import { ensureCharacterSheets, gunSheetOf, picPixels, pumpCharacters, requestBodyRelight, walkFrames, zombieSheet } from "../../../../apps/client/src/render/city/charactersAtlas";
 import { ensureBossTextures } from "../../../../apps/client/src/render/city/bossAtlas";
 import { bossRelitKey, ensureBossRelit, finishBossRelitNow, requestBossLook } from "../../../../apps/client/src/render/city/bossRelit";
+import { BOSS_EYES, BOSS_EYE_FRAMES, BOSS_EYE_M } from "../../../../apps/client/src/render/city/bossAtlas";
+import { BOSS_POSES, BOSS_PX_PER_M } from "../../../../apps/client/src/render/city/bossFrames";
+import { BH_EYE_AHEAD_R, BH_EYE_SIDE_R, BH_R_M, behemothHeadM } from "../../../../apps/client/src/render/city/behemothArt";
+import { BOSS_ANIM } from "../../../../apps/client/src/render/bossAnim";
 import { resolveLook } from "../../../../apps/client/src/render/city/survivorLook";
 import { LOOK_FRAME_SIDE } from "../../../../apps/client/src/render/SurvivorLookTextures";
 import { DEFAULT_LOOK, type ZombieTypeId } from "@topdown/shared";
@@ -72,14 +76,37 @@ export function relitSurvivor(weapon: string): HTMLCanvasElement {
   }
   return c;
 }
-/** The Behemoth (BH1) as the game shows it since Story 9.15: relit pose `pose` ("walk_a", "slam_b", …). */
-export function relitBoss(pose: string): HTMLCanvasElement {
+/**
+ * The Behemoth (BH1) as the game shows it since Story 9.15: relit pose `pose` ("walk_a", "slam_b", …) WITH its eyes.
+ * Since 9.15 the body is baked without eyes and the eyes are their own layer (BossView › drawLayers: two additive
+ * `boss_eyes` glows at the pose's eye points, `behemothHeadM`). Without that layer the face is an empty brow ridge
+ * (designer 2026-11-28: "his head is bug"). Calm eyes at BOSS_ANIM's level (dimmed in the stun, none when dead).
+ */
+export function relitBoss(pose: string, eyes = true): HTMLCanvasElement {
   bootBoss();
-  const id = `b/${pose}`;
+  const id = `b/${pose}/${eyes}`;
   let c = cache.get(id);
   if (!c) {
     const name = `bossr_${pose}`;
-    c = frameCanvas(bossRelitKey(name), name);
+    const body = frameCanvas(bossRelitKey(name), name);
+    c = make(body.width, body.height);
+    const g = c.getContext("2d")!;
+    g.drawImage(body, 0, 0);
+    const spec = BOSS_POSES.find((p) => p.name === pose);
+    if (eyes && spec && spec.pose !== "dead") {
+      const level = spec.pose === "stun" ? BOSS_ANIM.eyes.stun : BOSS_ANIM.eyes.calm;
+      const head = behemothHeadM(spec.pose, spec.k, { x: 0, y: 0 });
+      const eye = frameCanvas(BOSS_EYES, BOSS_EYE_FRAMES[0]);
+      const px = BOSS_PX_PER_M;
+      const size = BOSS_EYE_M * px;
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = Math.min(1, level);
+      for (const side of [-1, 1]) {
+        const ex = c.width / 2 + (head.x + BH_EYE_AHEAD_R * BH_R_M) * px;
+        const ey = c.height / 2 + (head.y + side * BH_EYE_SIDE_R * BH_R_M) * px;
+        g.drawImage(eye, ex - size / 2, ey - size / 2, size, size);
+      }
+    }
     cache.set(id, c);
   }
   return c;
