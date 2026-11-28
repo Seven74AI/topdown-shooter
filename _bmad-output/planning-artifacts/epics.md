@@ -320,7 +320,7 @@ FR90–FR94: Epic 11 - Random city (generator, checks, decay rules, spawns, city
 
 ## Epic List
 
-Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside; **Story 10.1 (Settings) is built before Stories 9.5, 9.6 and 9.8**, which use its gore, quality and volume settings. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
+Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)** → **13 Native iOS app (post-v1; only the 13.1 spike runs now; sprint change proposal 2026-11-28 native iOS)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside; **Story 10.1 (Settings) is built before Stories 9.5, 9.6 and 9.8**, which use its gore, quality and volume settings. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones. *(Closed 2026-11-26, correct-course: 1.11 AC 3 is folded into 10.2 and 1.12 into the 10.9 game nights.)*
@@ -434,6 +434,10 @@ The host can pick Random city: a new 70 × 70 m city generated from rules on eve
 ## Epic 12: Extraction cinematic
 A won run ends like a film: no building can seal a pocket of the map, decay losses are not refunded, and on Extract the survivors walk to the helicopter, board and fly out over the horde into the sunrise (party-mode session 2026-11-25, quick stories 12.1–12.4; with Story 8.12, only connected, standing players vote).
 **FRs touched:** FR58 (no refund), FR66, FR67
+
+## Epic 13: Native iOS app (post-v1)
+The game is also an iOS App Store app: the same web build inside a native shell (Capacitor, ADR-07), playing in the same rooms as the browser version, which stays first-class for desktop players and for new players trying it before installing. Builds, tests and TestFlight uploads run on GitHub's macOS runners, with no Mac needed. Only the 13.1 spike runs before v1. The rest starts when 10.9 v1 has shipped, `NET_PROTOCOL_VERSION` has not changed for 14 days, and the designer has an Apple Developer membership (needed from 13.7).
+**FRs touched:** none changed (GDD platform line updated 2026-11-28) · NFR8 (supported platforms)
 
 ## Epic 1: Core combat on one phone
 
@@ -4083,3 +4087,139 @@ So that building next to crumbling parts of the city is a real gamble.
 **And** `decay.buildingRefundShare` is removed from `balanceSchema.ts` and `decay.json` (the schema rejects an old override), selling / take-back (5.20) is unchanged, economy sims and bot seeds are re-checked, and any end-of-run money change is noted for 10.8
 **And** the doc update covers every place the 50 % refund is written (X2, designer "ok" 2026-11-26): FR58, as-built notes on Stories 4.5 and 6.2 (its rubble AC), the `game-architecture.md` rule line and the HANDOFF Epic 4 summary
 **And** the story lands **before 10.8**, and the end-of-run money change is logged with its reason in `docs/balance/changelog.md` (X2)
+
+## Epic 13: Native iOS app (post-v1)
+
+(Added 2026-11-28 by `sprint-change-proposal-2026-11-28-native-ios.md`. Designer: "I'd like to turn Top down shooter to a native App", "keep the browser version for desktop users. And people could try the game in their browser before they go for the real app", and finish the browser version first with "one cheap spike now": "Yes I think that the right way to do it.")
+
+The same `apps/client` build ships twice: as the website (unchanged) and as an iOS app in a Capacitor shell (ADR-07). App and browser players share rooms, accounts and progress. **Gate:** only 13.1 runs now. 13.2–13.9 start when (1) 10.9 v1 has shipped, (2) `NET_PROTOCOL_VERSION` has not changed for 14 days (`docs/native/protocol-log.md`), and (3) for 13.7 on, the designer has an Apple Developer Program membership. Build order: 13.1 → 13.2 → (13.3 ∥ 13.4) → 13.5 → 13.6 → 13.7 → (13.8 ∥ 13.9). Run `gds-check-implementation-readiness` against the 13.1 report before 13.2. Standing rules for every story until then: AGENTS.md §7 (NR-1…NR-3).
+
+### Story 13.1: Native spike (iOS Simulator, branch only)
+
+(Story file `13-1-native-ios-spike.md`. Runs now, before v1. Time box: one builder day. No Apple account needed.)
+
+As the designer,
+I want the current game wrapped as an iOS app and run in the iOS Simulator on a cloud Mac, with a list of what breaks,
+So that I know the real cost of the app before Epic 13 starts, and nothing built before v1 makes it harder.
+
+**Acceptance Criteria:**
+
+**Given** branch `spike-13-1` from master
+**When** a GitHub Actions workflow on `macos-*` (push to that branch only) builds the client, wraps it with Capacitor and builds it for the iOS Simulator unsigned
+**Then** the app installs and launches in the Simulator, and a landscape screenshot of the start screen is saved as a workflow artifact
+
+**Given** the app in the Simulator, with a local test game server on the same runner (never production)
+**When** the checks F1–F10 of the story file run (boot and WebGL, Practice solo and `?stress=150`, audio unlock, storage kept across a relaunch, account session, online join with a bot, server URL and share links, browser-only APIs, safe areas and landscape, app size and build time)
+**Then** each check is recorded as **pass**, **fix** (with the fix and the 13.x story that owns it) or **blocker**, with evidence (log lines or a screenshot)
+
+**Given** the spike is done
+**When** it hands back
+**Then** `docs/native/spike-13-1.md` and its screenshots land on master as a docs-only push; the spike code stays on `spike-13-1` (never merged, not deleted); the report gives a revised size for 13.2–13.9 and lists anything that changes Epic 13
+
+### Story 13.2: App shell and two builds
+
+As a builder,
+I want an `apps/ios` Capacitor project that every PR builds next to the website,
+So that a change that breaks the app is caught like any other red check.
+
+**Acceptance Criteria:**
+
+**Given** a PR
+**When** CI runs
+**Then** a new `ios` job (macOS runner) builds the client and the Simulator app unsigned, and `gate` requires it. The website build and deploy are unchanged. The job's time is recorded in `docs/ci.md`
+**And** the web build stays the default: `npm run build` and `deploy/deploy.sh` are untouched, and `npm run build:ios` is the only new entry point
+**And** one `isNativeApp()` helper in `apps/client/src/platform/` is the only place that knows which shell runs the game (ADR-07: no game code forks per platform)
+
+### Story 13.3: Identity and storage in the app
+
+As a player of the app,
+I want my guest identity, account and settings to survive iOS clearing web data,
+So that I never lose my unlocks.
+
+**Acceptance Criteria:**
+
+**Given** the app
+**When** the game saves data
+**Then** every `*Store.ts` / `settings.ts` module goes through one storage helper (Capacitor Preferences in the app, `localStorage` in the browser), with the 29 direct calls of 2026-11-28 migrated and a lint rule against new ones
+**And** the account is named by a token header as well as the `__Host-tdg` cookie (the app can't send the cookie cross-site), with the same rate limits and the same 10.1 delete flow; the browser keeps using the cookie
+**And** progress made in the browser carries over to the app after logging in, and back (test)
+
+### Story 13.4: Server address, origins and links
+
+As a player of the app,
+I want online games and share links to work as in the browser,
+So that I can play with friends who use the website.
+
+**Acceptance Criteria:**
+
+**Given** the app
+**When** it connects
+**Then** `serverUrl()` points at the production server (build-time `VITE_SERVER_URL`), the server's origin check allows the app's origin (`PUBLIC_ORIGIN` list), and an app player and a browser player finish a run in the same room (smoke on the Simulator with a bot)
+**And** `shareLink()` always gives `https://hordes.sevend.io/j/<code>`; that link opens the app when it is installed (universal links: `apple-app-site-association` served by Caddy) and the browser game when it isn't
+
+### Story 13.5: Version window
+
+As a player of the app,
+I want to keep playing while an app update waits for Apple's review,
+So that a website deploy never locks me out.
+
+**Acceptance Criteria:**
+
+**Given** the server at protocol N
+**When** a client with protocol N−1 or N−2 (or down to `MIN_SUPPORTED_PROTOCOL`) joins
+**Then** it plays; below the minimum the app shows "Update the app" with an App Store button, and the browser still shows "Please reload"
+**And** the window's rule for builders is in AGENTS.md (a bump either keeps the older format readable or raises `MIN_SUPPORTED_PROTOCOL`, with a row in `docs/native/protocol-log.md`)
+**And** the designer picks live web updates (the app downloads the new web build at launch, allowed by App Review 3.3.1(b) for game content) or store-only releases, from a proposal with its cost (decision 13.5-Q1)
+
+### Story 13.6: Native touches
+
+As a player of the app,
+I want the app to feel like a real game app,
+So that it's better than the website and passes App Review rule 4.2 (more than a website).
+
+**Acceptance Criteria:**
+
+**Given** the app
+**When** I play
+**Then** hits, downs and the boss's slams use native haptics (the Settings vibration toggle drives them), the screen never sleeps during a run, the audio follows the iOS silent switch and resumes after a call, and the browser install hint never shows in the app
+**And** each extra is behind `isNativeApp()` and the browser game is unchanged (test)
+**And** Game Center (achievements, friends) is offered to the designer as a pick with its cost (decision 13.6-Q1), not built by default
+
+### Story 13.7: Signing and TestFlight
+
+As the designer,
+I want every master merge to reach my iPhone through TestFlight on its own,
+So that I test the app like the website, with no Mac.
+
+**Acceptance Criteria:**
+
+**Given** the designer's Apple Developer membership and an App Store Connect API key saved as GitHub secrets (the designer's steps, written in `docs/native/apple-setup.md`)
+**When** master turns green
+**Then** a macOS job signs the app (fastlane match), raises the build number and uploads it to TestFlight, and the job summary links the build
+**And** no secret is ever in the repo, a log or a story file
+
+### Story 13.8: From the browser to the app
+
+As a new player on an iPhone,
+I want to try the game in Safari and then get the app,
+So that I don't install anything before I know I like it.
+
+**Acceptance Criteria:**
+
+**Given** iPhone Safari
+**When** the game loads
+**Then** Apple's Smart App Banner offers the app, and the Results screen (where 10.5's install hint sits) offers "Get the app" once; desktop and Android see no change
+**And** the browser game stays complete: no feature is app-only except the 13.6 extras
+
+### Story 13.9: App Store release
+
+As the designer,
+I want the App Store listing ready for one click,
+So that shipping is my decision and everything else is done.
+
+**Acceptance Criteria:**
+
+**Given** a TestFlight build the designer approved
+**When** the release job runs
+**Then** the listing text, landscape screenshots (taken in the Simulator), privacy answers, age rating and a privacy policy page at `/privacy` are uploaded by fastlane, and the build waits in App Store Connect
+**And** **the designer clicks "Submit for Review"** (the one human gate); the Release role (like Hermes) reports the review status and any rejection, with a fix proposal

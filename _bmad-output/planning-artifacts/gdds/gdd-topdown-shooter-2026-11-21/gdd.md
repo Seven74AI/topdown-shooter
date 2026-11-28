@@ -312,7 +312,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 ### Platform-Specific Details
 - **Mobile browsers (primary):** Safari on iOS 16+, Chrome on Android 10+. Landscape only; respects notches and safe areas; can be added to the home screen.
 - **Desktop browsers (bonus):** current Chrome, Firefox, Safari, Edge with keyboard and mouse.
-- **No native app** and no app store in v1.
+- **No native app** and no app store in v1. **After v1: a native iOS app (Epic 13)** wraps the same web build; the browser game stays first-class (desktop players, and new players trying it before installing). Both play together in the same rooms (designer 2026-11-28; `sprint-change-proposal-2026-11-28-native-ios.md`).
 ### Asset Requirements (v1)
 - **District:** Downtown in 5 decay states, plus decay props (cars in 3 conditions, barriers, sandbags, rubble, fires, vegetation).
 - **Characters:** survivor body drawn from each player's look (customization, Stories 7.8–7.9; slot colour only on the ring, name and edge arrows), holding poses per weapon family incl. the Gas torch; 6 zombie types + the Behemoth, each with walk, attack and death animations, plus dismemberment pieces (arms, heads, torso halves).
@@ -356,7 +356,7 @@ This is a game for a group of friends, so success is simple and honest.
 - Players talk about decay moments ("the alley collapsed on us"). *(Pillar 3)*
 
 ## Out of Scope
-**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1; **Random city is planned post-v1 as Epic 11**) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
+**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1; **Random city is planned post-v1 as Epic 11**) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps (iOS follows v1 as Epic 13; Android not planned). **Solo** online runs are allowed (× 0.35) but not balance-tuned.
 **Not planned:** monetization (it is a game for friends) · story campaign · controller support.
 
 ## Assumptions and Dependencies
