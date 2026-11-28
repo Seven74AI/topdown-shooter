@@ -234,4 +234,6 @@ and the asset review in `docs/art/asset-review.md`.
   9. RN-G: rain drawn under acid, gas and spit.
   10. RD-G: the falling-debris sound plays on landing, not on spawn.
 - **Group 5 picks complete.** Next: the build story for the effects (Story 9.6), with `gds-create-story`.
+- **Gas slow bug fixed:** PR #46 merged 2026-11-28 (476f5b5) after a fresh review (APPROVED, no findings) and green
+  CI; master CI run 1146 green.
 
