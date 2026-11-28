@@ -178,6 +178,9 @@ Simulation timers count ticks; no per-tick allocation; no gameplay numbers inlin
 order); Colyseus rules unchanged (no new message); client never changes sim state; `bootTestServer()` for any server
 test; own ports; `gate:fast` + `test:slow` (sims, fuzz, bots); every sim test asserts something happened; expect whole-run
 sims to shift (5.12 zones are in many runs). Exact version pins.
+**Native readiness (AGENTS.md §7):** prefer **no** `NET_PROTOCOL_VERSION` bump (kind 40 gains trailing fields, decoded by
+length; `balance.version` already refuses old tabs). If you do bump, NR-3: add the row to `docs/native/protocol-log.md` in
+the same PR (7 is reserved by Epic 11: take the next free number and say so).
 
 ### Testing
 

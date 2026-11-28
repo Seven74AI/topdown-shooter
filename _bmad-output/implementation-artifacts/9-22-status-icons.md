@@ -125,7 +125,9 @@ so that I see at a glance who is down, burning, slowed, trapped, stunned, protec
 
 As 9.6. Rendering never changes sim state; Colyseus rules (`this.net.guard`, no zod in `onMessage`) if a message is
 added; `bootTestServer()` for server tests; per-client message guard (~10 non-input messages / s) not touched by a server
-event; no per-frame allocation; deterministic.
+event; no per-frame allocation; deterministic. **Native readiness (AGENTS.md §7):** a new net event needs no
+protocol bump; the horde-nibble option in B2 does, and then NR-3 applies (a row in `docs/native/protocol-log.md` in the
+same PR; 7 is reserved by Epic 11).
 
 ### Testing
 

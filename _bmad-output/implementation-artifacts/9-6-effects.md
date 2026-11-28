@@ -143,6 +143,8 @@ views. Fog visuals, film grain, flashlight and floodlight light textures stay as
 - Builders never run `npm run dev` (own ports, Vite config merged with a `/api` proxy; PID-only kills); `gate:fast` +
   touched slow tests; CI is the full gate. Exact version pins.
 - Verify in a real browser (Playwright + preinstalled Chromium); say what wasn't verified.
+- **Native readiness (AGENTS.md §7):** the atlas URLs come from Vite's `?url` imports (no `location.origin`, NR-2); no
+  saved data is added (if a downloaded-atlas cache is ever kept, it goes through a `*Store.ts` module, NR-1).
 
 ### Testing
 
