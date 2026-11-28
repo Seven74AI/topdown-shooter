@@ -275,7 +275,7 @@ development_status:
   # Gate for 13.2+: 10.9 v1 shipped + NET_PROTOCOL_VERSION unchanged 14 days (docs/native/protocol-log.md) + Apple Developer membership (13.7+)
   # Build order: 13.1 -> 13.2 -> (13.3 || 13.4) -> 13.5 -> 13.6 -> 13.7 -> (13.8 || 13.9)
   epic-13: in-progress
-  13-1-native-ios-spike: ready-for-dev  # story file 2026-11-28; Simulator only, no Apple account; local test server, never production
+  13-1-native-ios-spike: in-progress  # builder session_01CgLgPV2TCdmawgqNA1eWA1 started 2026-11-28 14:16 UTC, branch spike-13-1; story file 2026-11-28; Simulator only, no Apple account; local test server, never production
   13-2-app-shell-and-two-builds: backlog
   13-3-identity-and-storage-in-the-app: backlog
   13-4-server-address-origins-and-links: backlog
