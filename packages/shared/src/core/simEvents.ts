@@ -205,10 +205,23 @@ export type SimEvent =
   | { type: "consumable.used"; playerId: string; item: number }
   /**
    * Story 5.12: a molotov (consumable `item`) lit fire zone `zoneId` (u16) at (x, y), thrown by
-   * `playerId` (null: nobody / left). Radius and lifetime come from balance; the client draws the
-   * zone from this (no zone state on the wire) and applies the same cap rule.
+   * `playerId` (null: nobody / left). Shape and lifetime come from balance; the client draws the
+   * zone from this (no zone state on the wire) and applies the same cap rule. Story 9.18: the throw's
+   * unit direction (u8-heading quantised: B2) and the clip along it (m, whole cm); the sim always sets
+   * them, a decoded payload from before 9.18 has none (the client then guesses, AC 7).
    */
-  | { type: "molotov.ignited"; zoneId: number; item: number; x: number; y: number; playerId: string | null; /** Client only: seconds since it happened. */ ageS?: number }
+  | {
+      type: "molotov.ignited";
+      zoneId: number;
+      item: number;
+      x: number;
+      y: number;
+      playerId: string | null;
+      dirX?: number;
+      dirY?: number;
+      clipM?: number;
+      /** Client only: seconds since it happened. */ ageS?: number;
+    }
   // Story 6.5: the Behemoth (all global on the wire except boss.hit, local to its position).
   | { type: "boss.warning"; x: number; y: number; /** The tick it walks in (the warning's end). */ hitTick: number; /** Client only: seconds since it happened. */ ageS?: number }
   | { type: "boss.arrived"; x: number; y: number; maxHp: number; look: number; /** Client only. */ ageS?: number }

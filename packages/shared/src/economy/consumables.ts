@@ -6,6 +6,7 @@ import type { World } from "../core/world";
 import { spendMoney } from "./economy";
 import type { ShopError } from "./shop";
 import { inPool } from "../meta/pool";
+import { molotovConeShape, type MolotovConeShape } from "../hazards/molotovCone";
 
 /**
  * Story 5.12: consumables (FR8, FR49) — one quick-use slot per player, bought in a build phase.
@@ -31,10 +32,12 @@ export interface ThrowStats {
   readonly lobRangeM: number;
   readonly lobSpeedMps: number;
   readonly minFlightS: number;
-  /** The landing ring's radius: the blast or the fire zone. */
+  /** The landing ring's radius: the blast, or (a molotov) the cone's full reach (Story 9.18). */
   readonly blastRadiusM: number;
   /** A molotov (a fire zone lands), else a hand grenade (a blast). */
   readonly fire: boolean;
+  /** Story 9.18: a molotov's teardrop zone (null for a hand grenade). */
+  readonly cone: MolotovConeShape | null;
 }
 
 /** One row of the shop's Consumables section (cached, frozen). */
@@ -83,7 +86,15 @@ function table(balance: Balance): ConsumableTable {
       throws.push(
         s.kind === "heal"
           ? null
-          : Object.freeze({ minLobM: s.minThrowM ?? 0, lobRangeM: s.throwRangeM ?? 0, lobSpeedMps: s.throwSpeedMps ?? 1, minFlightS: s.minFlightS ?? 0, blastRadiusM: s.radiusM ?? 0, fire: s.kind === "molotov" }),
+          : Object.freeze({
+              minLobM: s.minThrowM ?? 0,
+              lobRangeM: s.throwRangeM ?? 0,
+              lobSpeedMps: s.throwSpeedMps ?? 1,
+              minFlightS: s.minFlightS ?? 0,
+              blastRadiusM: s.cone ? s.cone.reachEndM : (s.radiusM ?? 0),
+              fire: s.kind === "molotov",
+              cone: s.kind === "molotov" && s.cone ? molotovConeShape(s.cone) : null,
+            }),
       );
       durationTicks.push(s.durationS === undefined ? 0 : ticksFor(s.durationS));
       pulseTicks.push(s.pulseS === undefined ? 0 : ticksFor(s.pulseS));
@@ -148,6 +159,11 @@ export function throwStatsAt(balance: Balance, index: number): ThrowStats | null
 
 export function consumableStatsAt(balance: Balance, index: number): ConsumableItemStats | undefined {
   return table(balance).stats[index];
+}
+
+/** Story 9.18: a molotov's teardrop constants (null for other items or a bad index). */
+export function molotovConeAt(balance: Balance, index: number): MolotovConeShape | null {
+  return table(balance).throws[index]?.cone ?? null;
 }
 
 /** A molotov's zone lifetime / pulse in ticks (0 for other items). */

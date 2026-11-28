@@ -672,6 +672,7 @@ export {
   consumableStatsAt,
   isConsumable,
   molotovTicksAt,
+  molotovConeAt,
   shopConsumables,
   throwStatsAt,
   throwStatsOf,
@@ -683,6 +684,7 @@ export {
 } from "./economy/consumables";
 export { consumableCounters, createThrowAim, launcherRangeInHand, rememberAim, throwAimLength, throwDirection, throwVariant, tryUseConsumable, useConsumables, type ThrowAim } from "./combat/consumables";
 export { clearMolotovZones, createMolotovZones, igniteMolotov, molotovStats, molotovZoneAt, type MolotovZones } from "./hazards/molotov";
+export { coneClipCm, coneDirX, coneDirY, coneEaseOut, coneHeading, coneScaleAt, molotovConeShape, sdConeFull, sdMolotovZone, type MolotovConeConfig, type MolotovConeShape } from "./hazards/molotovCone";
 export { type ConsumableItemStats } from "./config/balanceSchema";
 export { EXPLOSION_KINDS, blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";

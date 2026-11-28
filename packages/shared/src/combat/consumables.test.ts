@@ -19,9 +19,10 @@ import { buyGear } from "../economy/gear";
 import { consumableCounters, throwAimLength } from "./consumables";
 import { grenadeCounters } from "./grenades";
 import { explosionCounters } from "./explosion";
-import { molotovStats } from "../hazards/molotov";
+import { igniteMolotov, molotovStats, molotovZoneAt } from "../hazards/molotov";
+import { sdConeFull } from "../hazards/molotovCone";
 import { firePulse } from "../decay/fire";
-import { throwStatsOf } from "../economy/consumables";
+import { molotovConeAt, throwStatsOf } from "../economy/consumables";
 import type { FireRecord } from "../decay/decayState";
 
 /**
@@ -401,30 +402,37 @@ describe("C-D grenades (AC 5)", () => {
   });
 });
 
-describe("Molotovs (AC 6; M-A … M-C)", () => {
-  function molotovAt(world: World, p: PlayerState, events: SimEvent[]) {
-    give(p, "molotovs", 2);
-    setInput(world, "p0", input(true, 1));
-    run(world, 1);
-    const l = of(events, "grenade.launched")[0]!;
-    const flight = l.landTick - world.tick + 1;
-    return { tx: l.tx, ty: l.ty, flight };
-  }
+/** Throws a molotov from p0 at aim length 1 (+x); the landing point and the ticks until it lands. */
+function molotovAt(world: World, p: PlayerState, events: SimEvent[]) {
+  give(p, "molotovs", 2);
+  setInput(world, "p0", input(true, 1));
+  run(world, 1);
+  const l = of(events, "grenade.launched")[0]!;
+  const flight = l.landTick - world.tick + 1;
+  return { tx: l.tx, ty: l.ty, flight };
+}
 
-  it("3 m radius, strict overlap; 80 ticks; a zombie inside for the whole 4 s takes 32 (8 pulses × 4); a player 16 (50 %)", () => {
+describe("Molotovs (AC 6; M-A … M-C)", () => {
+
+  it("Story 9.18: the teardrop, strict; 80 ticks; a zombie inside for the whole 4 s takes 32 (8 pulses × 4); a player behind the impact 16 (50 %)", () => {
     const { world, events, p } = setup({ players: 2 });
     const { tx, ty, flight } = molotovAt(world, p, events);
-    const inside = tank(world, tx + 3 + ZR - 0.01, ty);
-    const outside = tank(world, tx + 3 + ZR + 0.01, ty);
+    const inside = tank(world, tx + 1, ty);
+    // behind the impact: the back is 0.8 m at full size (0.36 m at landing): just outside it never burns
+    const outside = tank(world, tx - (0.8 + ZR + 0.01), ty);
+    // ahead, past the tip (4.5 m at full size)
+    const ahead = tank(world, tx + 4.5 + ZR + 0.01, ty);
+    // to the side of the impact, outside the 35° cone (the old 3 m circle burnt it)
+    const side = tank(world, tx, ty + 2.5);
     const mate = world.players.get("p1") as PlayerState;
-    mate.x = tx - 1;
+    mate.x = tx - 0.5;
     mate.y = ty;
     run(world, flight - 1, () => input(false));
     expect(of(events, "molotov.ignited")).toHaveLength(0);
     run(world, 1, () => input(false)); // the landing tick: lit, and its first damage-eligible tick
     const ig = of(events, "molotov.ignited");
     expect(ig).toHaveLength(1);
-    expect(ig[0]).toMatchObject({ item: 2, playerId: "p0" });
+    expect(ig[0]).toMatchObject({ item: 2, playerId: "p0", dirX: 1, dirY: 0, clipM: 4.5 });
     expect(world.molotovs.areas.count).toBe(1);
     run(world, 78, () => input(false));
     expect(world.molotovs.areas.count).toBe(1);
@@ -433,6 +441,8 @@ describe("Molotovs (AC 6; M-A … M-C)", () => {
     run(world, 40, () => input(false));
     expect(world.zombies.hp[inside]).toBe(1000 - 32);
     expect(world.zombies.hp[outside]).toBe(1000);
+    expect(world.zombies.hp[ahead]).toBe(1000);
+    expect(world.zombies.hp[side]).toBe(1000);
     expect(mate.hp).toBe(100 - 16);
     expect(molotovStats.zombieHits).toBe(8); // liveness
   });
@@ -470,14 +480,11 @@ describe("Molotovs (AC 6; M-A … M-C)", () => {
     expect(hp0 - (world.zombies.hp[z] as number)).toBe(4 * 5);
   });
 
-  it("M-D cover (acid rule): a zone lit at a car's face never burns behind the car; in front it burns; sandbags don't shield", () => {
+  it("M-D cover (acid rule) + 9.18 clip: a zone lit at a car's face burns its back part only, never behind the car; sandbags don't shield", () => {
     const map: DistrictMap = {
       ...PLACEHOLDER_MAP,
       name: "c-fire-cover",
-      cover: [
-        { name: "test_car", kind: "car", minStage: 1, minX: 15, minY: 6, maxX: 17, maxY: 10 },
-        { name: "test_bags", kind: "sandbags", minStage: 1, minX: 12.8, minY: 6.5, maxX: 13.4, maxY: 9.5 },
-      ],
+      cover: [{ name: "test_car", kind: "car", minStage: 1, minX: 15, minY: 6, maxX: 17, maxY: 10 }],
     };
     const { world, events, p } = setup({ map });
     give(p, "molotovs", 2);
@@ -489,14 +496,41 @@ describe("Molotovs (AC 6; M-A … M-C)", () => {
     const l = of(events, "grenade.launched")[0]!;
     expect(l.tx).toBeLessThan(15);
     expect(l.tx).toBeGreaterThan(14.9);
-    const behind = tank(world, 17.6, 8); // 2.65 m from the centre: inside the 3 m circle, behind the car
-    const front = tank(world, 14.2, 9.8);
-    const pastBags = tank(world, 12.3, 8); // the line from the centre crosses the sandbags (they don't shield)
+    const behind = tank(world, 17.6, 8); // behind the car, inside the uncut teardrop
+    const aside = tank(world, 15.5, 11.2); // past the car's face, beside the car: cut by the clip (the line to the centre is clear)
+    const back = tank(world, 14.6, 8.2); // in the round back from landing: burns
     run(world, 120, () => input(false));
     expect(molotovStats.ignited).toBe(1);
+    const ig = of(events, "molotov.ignited")[0]!;
+    expect(ig.clipM).toBeLessThanOrEqual(15 - l.tx + 1e-9); // the clip stops at the face
+    expect(ig.clipM).toBeGreaterThanOrEqual(0);
     expect(world.zombies.hp[behind]).toBe(1000);
-    expect(world.zombies.hp[front]).toBe(1000 - 32);
+    expect(world.zombies.hp[aside]).toBe(1000);
+    expect(world.zombies.hp[back]).toBe(1000 - 32);
+  });
+
+  it("M-D: sandbags across the throw don't shield (and don't clip); a car beside the cone shields what's behind it", () => {
+    const map: DistrictMap = {
+      ...PLACEHOLDER_MAP,
+      name: "c-fire-bags",
+      cover: [
+        { name: "test_bags", kind: "sandbags", minStage: 1, minX: 21.6, minY: 7, maxX: 22.2, maxY: 9 },
+        { name: "test_car", kind: "car", minStage: 1, minX: 21, minY: 9.2, maxX: 23, maxY: 9.6 },
+      ],
+    };
+    const { world, events } = setup({ map });
+    const item = 2;
+    // lit by hand at (20, 8) pointing +x
+    const pastBags = tank(world, 22.9, 8); // 2.9 m ahead, the line to the centre crosses the sandbags
+    const behindCar = tank(world, 22.2, 9.95); // inside the teardrop, the car between it and the centre
+    expect(igniteMolotov(world, item, 20, 8, "p0", 1, 0)).toBeGreaterThanOrEqual(0);
+    run(world, 60, () => input(false));
+    expect(of(events, "molotov.ignited")[0]?.clipM).toBe(4.5);
     expect(world.zombies.hp[pastBags]).toBeLessThan(1000);
+    expect(world.zombies.hp[behindCar]).toBe(1000);
+    // control: both are inside the full-size teardrop (only cover decides)
+    expect(refSd(2.9, 0)).toBeLessThan(-ZR);
+    expect(refSd(2.2, 1.95)).toBeLessThan(ZR);
   });
 
   it("molotov fire doesn't hurt buildings (D4) and doesn't rebuild the nav grid", () => {
@@ -555,6 +589,230 @@ describe("Molotovs (AC 6; M-A … M-C)", () => {
     expect(world.molotovs.areas.count).toBe(1);
     startBuild(world);
     expect(world.molotovs.areas.count).toBe(0);
+  });
+});
+
+/**
+ * Story 9.18: an INDEPENDENT copy of MO-R's `sdCone` (docs/art/photoreal-5/src/fire-r2.ts, with Math.hypot)
+ * from the designer's numbers, not from balance plumbing: 2 → 4.5 m over 1.0 s, 35°, back 0.8 m.
+ */
+const MO = { reach0: 2, reach1: 4.5, growS: 1.0, halfDeg: 35, back1: 0.8 };
+const SIN_A = Math.sin((MO.halfDeg * Math.PI) / 180);
+const SH_D = (MO.reach1 - MO.back1) / (1 + SIN_A);
+const SH_R1 = MO.back1 + SH_D * SIN_A;
+const SB = (MO.back1 - SH_R1) / SH_D;
+const SA = Math.sqrt(1 - SB * SB);
+function refSd(x: number, y: number): number {
+  const px = Math.abs(y);
+  const py = x;
+  const k = -SB * px + SA * py;
+  if (k < 0) return Math.hypot(px, py) - MO.back1;
+  if (k > SA * SH_D) return Math.hypot(px, py - SH_D) - SH_R1;
+  return SA * px + SB * py - MO.back1;
+}
+const refEase = (x: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const refK = (ageS: number): number => (MO.reach0 + (MO.reach1 - MO.reach0) * refEase(ageS / MO.growS)) / MO.reach1;
+
+describe("Story 9.18: the Molotov cone (AC 2–6, 16)", () => {
+  const MOL = 2;
+  /** An open-ground world (no cover) with one zone lit at (cx, cy) pointing (dx, dy); `world.tick` is then set by hand. */
+  function lit(dx = 1, dy = 0, map?: DistrictMap) {
+    const { world, events } = setup(map ? { map } : {});
+    const slot = igniteMolotov(world, MOL, 24, 16, "p0", dx, dy);
+    expect(slot).toBeGreaterThanOrEqual(0);
+    return { world, events, slot, born: world.tick };
+  }
+
+  it("the shape constants are the card's: d 2.35 m, r1 2.15 m, bounding circle", () => {
+    const c = molotovConeAt(balance, MOL)!;
+    expect(c.d).toBeCloseTo(2.35, 2);
+    expect(c.r1).toBeCloseTo(2.15, 2);
+    expect(c.r0).toBe(0.8);
+    expect(c.growTicks).toBe(20);
+    expect(throwStatsOf(balance, "molotovs")?.cone).toBe(c);
+    // the bounding circle holds the whole full-size teardrop
+    for (let a = 0; a < Math.PI * 2; a += 0.01) {
+      for (let rr = 0; rr < 5; rr += 0.01) {
+        const u = Math.cos(a) * rr;
+        const v = Math.sin(a) * rr;
+        if (sdConeFull(c, u, v) < 0) expect(Math.hypot(u - c.boundU, v)).toBeLessThan(c.boundR + 1e-9);
+      }
+    }
+  });
+
+  it("M-A at 0.01 m sweeps along and across the edge at ages 0, 0.25, 0.5, 1.0, 3.9 s: burns iff the reference sd·k < r (strict); the back is 0.36 m at landing, 0.8 m only at full size", () => {
+    const { world, born } = lit();
+    const c = molotovConeAt(balance, MOL)!;
+    let ins = 0;
+    let outs = 0;
+    let flips = 0;
+    for (const ageS of [0, 0.25, 0.5, 1.0, 3.9]) {
+      world.tick = born + Math.round(ageS / TICK_DT_S);
+      const k = refK(ageS);
+      for (const r of [0, ZR, R]) {
+        // lines along the throw (v fixed) and across it (u fixed), stepped 0.01 m with state carried over
+        for (const v of [0, 0.5, 1.2, 1.9]) {
+          let prev: boolean | null = null;
+          for (let u = -2; u <= 6; u += 0.01) {
+            const burns = molotovZoneAt(world, 24 + u, 16 + v, r) >= 0;
+            const ref = refSd(u / k, v / k) * k < r;
+            if (Math.abs(refSd(u / k, v / k) * k - r) > 1e-9) expect(burns, `age ${ageS} r ${r} u ${u.toFixed(2)} v ${v}`).toBe(ref);
+            if (prev !== null && prev !== burns) flips++;
+            prev = burns;
+            if (burns) ins++;
+            else outs++;
+          }
+        }
+        for (const u of [-0.5, 0, 1, c.d * k, 3.5]) {
+          for (let v = -3; v <= 3; v += 0.01) {
+            const burns = molotovZoneAt(world, 24 + u, 16 + v, r) >= 0;
+            if (Math.abs(refSd(u / k, v / k) * k - r) > 1e-9) expect(burns, `age ${ageS} r ${r} u ${u} v ${v.toFixed(2)}`).toBe(refSd(u / k, v / k) * k < r);
+          }
+        }
+      }
+      // the back along the axis (r = 0): 0.8·k
+      const back = MO.back1 * k;
+      expect(molotovZoneAt(world, 24 - back + 0.005, 16, 0)).toBeGreaterThanOrEqual(0);
+      expect(molotovZoneAt(world, 24 - back - 0.005, 16, 0)).toBe(-1);
+      // the tip: 4.5·k
+      expect(molotovZoneAt(world, 24 + MO.reach1 * k - 0.005, 16, 0)).toBeGreaterThanOrEqual(0);
+      expect(molotovZoneAt(world, 24 + MO.reach1 * k + 0.005, 16, 0)).toBe(-1);
+    }
+    expect(MO.back1 * refK(0)).toBeCloseTo(0.356, 3);
+    expect(ins).toBeGreaterThan(1000);
+    expect(outs).toBeGreaterThan(1000);
+    expect(flips).toBeGreaterThan(40); // the sweeps really crossed the edge
+  });
+
+  it("oscillation at the edge: a body stepping ±0.005 m across the tip flips every step, never sticks", () => {
+    const { world, born } = lit();
+    world.tick = born + 30;
+    const edge = 24 + 4.5 + ZR;
+    for (let i = 0; i < 200; i++) {
+      const x = edge + (i % 2 === 0 ? -0.005 : 0.005);
+      expect(molotovZoneAt(world, x, 16, ZR) >= 0).toBe(i % 2 === 0);
+    }
+  });
+
+  it("growth tick by tick: reach 2.0 m on the ignite tick, 4.5 m from +20 ticks, the ease-out between (strictly rising)", () => {
+    const { world, born } = lit();
+    let last = 0;
+    for (let t = 0; t <= 80; t++) {
+      world.tick = born + t;
+      // the tip found by bisection on the sim's own test (r = 0, on the axis)
+      let lo = 0;
+      let hi = 6;
+      for (let i = 0; i < 40; i++) {
+        const m = (lo + hi) / 2;
+        if (molotovZoneAt(world, 24 + m, 16, 0) >= 0) lo = m;
+        else hi = m;
+      }
+      const want = MO.reach0 + (MO.reach1 - MO.reach0) * refEase((t * TICK_DT_S) / MO.growS);
+      expect(lo).toBeCloseTo(want, 6);
+      if (t === 0) expect(lo).toBeCloseTo(2, 6);
+      if (t >= 20) expect(lo).toBeCloseTo(4.5, 6);
+      if (t > 0 && t <= 20) expect(lo).toBeGreaterThan(last);
+      last = lo;
+    }
+  });
+
+  it("direction: any throw direction, the cone is rotated with it (u8 heading, ≤ 0.71° off); a zero-length throw points +x", () => {
+    let checked = 0;
+    for (let a = 0; a < Math.PI * 2; a += 0.137) {
+      const { world, born, slot } = lit(Math.cos(a), Math.sin(a));
+      world.tick = born + 25;
+      const ux = world.molotovs.dirX[slot] as number;
+      const uy = world.molotovs.dirY[slot] as number;
+      expect(Math.hypot(ux, uy)).toBeCloseTo(1, 12);
+      const off = Math.abs(Math.atan2(Math.sin(a) * ux - Math.cos(a) * uy, Math.cos(a) * ux + Math.sin(a) * uy));
+      expect(off).toBeLessThanOrEqual(Math.PI / 256 + 1e-9);
+      // 4 m ahead burns, 1.2 m behind doesn't, 2.4 m to the side of the impact doesn't
+      expect(molotovZoneAt(world, 24 + ux * 4, 16 + uy * 4, 0)).toBeGreaterThanOrEqual(0);
+      expect(molotovZoneAt(world, 24 - ux * 1.2, 16 - uy * 1.2, 0)).toBe(-1);
+      expect(molotovZoneAt(world, 24 - uy * 2.4, 16 + ux * 2.4, 0)).toBe(-1);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(40);
+    const zero = lit(0, 0);
+    expect(zero.world.molotovs.dirX[zero.slot]).toBe(1);
+    expect(zero.world.molotovs.dirY[zero.slot]).toBe(0);
+  });
+
+  it("clip: a car 3 m ahead along the throw → nothing burns past its face (0.01 m sweep), the cone in front of it burns", () => {
+    const map: DistrictMap = { ...PLACEHOLDER_MAP, name: "c-cone-clip", cover: [{ name: "test_car", kind: "car", minStage: 1, minX: 27, minY: 15.5, maxX: 29, maxY: 16.5 }] };
+    const { world, born, slot } = lit(1, 0, map);
+    expect(world.molotovs.clipM[slot]).toBeCloseTo(3, 2);
+    expect(world.molotovs.clipM[slot]).toBeLessThanOrEqual(3);
+    world.tick = born + 30;
+    let burnt = 0;
+    for (let u = 0; u <= 5; u += 0.01) {
+      for (const v of [-1.8, -1, 1, 1.8]) {
+        const b = molotovZoneAt(world, 24 + u, 16 + v, 0) >= 0;
+        if (u > 3 + 1e-9) expect(b, `u ${u.toFixed(2)} v ${v}`).toBe(false);
+        if (b) burnt++;
+      }
+    }
+    expect(burnt).toBeGreaterThan(400);
+    // a body of radius r touching the face from in front still burns (its edge is in the fire)
+    expect(molotovZoneAt(world, 27 - ZR - 0.01, 17, ZR)).toBeGreaterThanOrEqual(0);
+    // control: without the car the same side point past the face burns
+    const open = lit(1, 0);
+    open.world.tick = open.born + 30;
+    expect(molotovZoneAt(open.world, 24 + 3.5, 16 + 1.5, 0)).toBeGreaterThanOrEqual(0);
+    expect(molotovZoneAt(world, 24 + 3.5, 16 + 1.5, 0)).toBe(-1);
+  });
+
+  it("a zone lit against a wall face burns its back part and almost nothing forward", () => {
+    const map: DistrictMap = { ...PLACEHOLDER_MAP, name: "c-cone-face", cover: [{ name: "test_car", kind: "car", minStage: 1, minX: 24.05, minY: 12, maxX: 27, maxY: 20 }] };
+    const { world, born, slot } = lit(1, 0, map);
+    expect(world.molotovs.clipM[slot]).toBeLessThanOrEqual(0.05);
+    world.tick = born + 30;
+    expect(molotovZoneAt(world, 23.5, 16, 0)).toBeGreaterThanOrEqual(0);
+    expect(molotovZoneAt(world, 24.04, 16.5, 0)).toBeGreaterThanOrEqual(0);
+    expect(molotovZoneAt(world, 24.1, 16, 0)).toBe(-1);
+  });
+
+  it("lane scenario: 20 Walkers in a lane along the throw, one Molotov → many burn, some die; the same pack off to the side → none", () => {
+    for (const offside of [false, true]) {
+      for (const k of Object.keys(molotovStats) as (keyof typeof molotovStats)[]) molotovStats[k] = 0;
+      const { world, events, p } = setup();
+      const { tx, ty, flight } = molotovAt(world, p, events);
+      const ids: number[] = [];
+      for (let i = 0; i < 20; i++) {
+        const u = 0.3 + (i >> 1) * 0.4; // 0.3 … 3.9 m ahead, two files
+        const v = (i & 1 ? 0.45 : -0.45) + (offside ? 3.2 : 0);
+        ids.push(spawnZombie(world, "walker", tx + u, ty + v));
+      }
+      run(world, flight + 90, () => input(false));
+      const burnt = ids.filter((id) => (world.zombies.hp[id] as number) < 10 || !isZombieAlive(world.zombies, id)).length;
+      if (!offside) {
+        expect(molotovStats.zombieHits).toBeGreaterThan(20);
+        expect(molotovStats.kills).toBeGreaterThan(0);
+        expect(burnt).toBeGreaterThanOrEqual(16);
+      } else {
+        expect(molotovStats.ignited).toBe(1); // liveness: the throw happened
+        expect(molotovStats.zombieHits).toBe(0);
+        expect(burnt).toBe(0);
+      }
+    }
+  });
+
+  it("walking lane: Walkers walking down the throw line into the cone burn (zombie AI on)", () => {
+    for (const k of Object.keys(molotovStats) as (keyof typeof molotovStats)[]) molotovStats[k] = 0;
+    const world = createWorld({ balance, seed: 7, systems: { waves: noop } });
+    addPlayer(world, "p0", 6, 16);
+    world.debug.godMode = true;
+    startBuild(world);
+    startWave(world);
+    const p = world.players.get("p0") as PlayerState;
+    for (let i = 0; i < 20; i++) spawnZombie(world, "walker", 19 + (i >> 1) * 0.9, 16 + (i & 1 ? 0.5 : -0.5));
+    give(p, "molotovs", 2);
+    setInput(world, "p0", input(true, 1));
+    run(world, 1);
+    run(world, 100, () => input(false));
+    expect(molotovStats.ignited).toBe(1);
+    expect(molotovStats.zombieHits).toBeGreaterThan(10);
+    expect(molotovStats.kills).toBeGreaterThan(0);
   });
 });
 

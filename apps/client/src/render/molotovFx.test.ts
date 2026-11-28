@@ -81,8 +81,8 @@ describe("MolotovFires: the client holds the server's zones (Story 5.12)", () =>
     expect(maxLive).toBe(8); // liveness: the cap was reached
     expect(fires.live.length).toBe(0);
     expect(flights.count).toBe(0); // every bottle ended at its fire
-    // the ring radius is the damage radius
-    expect(balance.consumables.items.molotovs?.radiusM).toBe(3);
+    // Story 9.18 interim (until T6 draws the teardrop): the ring at the cone's full reach
+    expect(balance.consumables.items.molotovs?.cone?.reachEndM).toBe(4.5);
   });
 
   it("a woken tab: an ignite older than its life draws nothing; a younger one is back-dated; a build start clears", () => {
@@ -92,7 +92,7 @@ describe("MolotovFires: the client holds the server's zones (Story 5.12)", () =>
     expect(fires.handle(e(4.5), 100)).toBe(true);
     expect(fires.live.length).toBe(0);
     fires.handle({ ...e(1), zoneId: 10 }, 100);
-    expect(fires.live.map((z) => [z.id, z.radiusM, z.startS])).toEqual([[10, 3, 99]]);
+    expect(fires.live.map((z) => [z.id, z.radiusM, z.startS])).toEqual([[10, 4.5, 99]]); // Story 9.18 interim: the cone's reach (T6 replaces the ring)
     fires.update(102.99);
     expect(fires.live.length).toBe(1);
     fires.update(103);

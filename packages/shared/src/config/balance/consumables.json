@@ -27,7 +27,7 @@
       "throwRangeM": 8,
       "throwSpeedMps": 12,
       "minFlightS": 0.3,
-      "radiusM": 3,
+      "cone": { "reachStartM": 2, "reachEndM": 4.5, "growS": 1, "halfAngleDeg": 35, "backM": 0.8 },
       "durationS": 4,
       "damagePerS": 8,
       "pulseS": 0.5

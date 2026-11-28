@@ -16,8 +16,9 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { createLobTarget, grenadeCounters, lobTarget } from "./grenades";
 import { explosionCounters } from "./explosion";
-import { molotovStats } from "../hazards/molotov";
-import { throwStatsOf } from "../economy/consumables";
+import { ageMolotovZones, igniteMolotov, molotovStats, molotovZoneAt } from "../hazards/molotov";
+import { shotBlockT } from "./cover";
+import { molotovConeAt, throwStatsOf } from "../economy/consumables";
 
 /**
  * Story 5.12 (brief line 7): thrown consumables and molotov fire zones are spatial, so they get a
@@ -207,4 +208,123 @@ describe("consumables fuzz (Story 5.12, brief line 7)", () => {
     expect(blastKills).toBeGreaterThanOrEqual(1);
     expect(explosionCounters.happened).toBeGreaterThan(0);
   }, 240_000);
+
+  it("(C) Story 9.18: random cones × layouts — dir/clip finite, the clip stops at the first blocker (independent 2 mm walk), the burn test is the reference teardrop + clip + cover, deterministic, zones end on time", () => {
+    const MOL = consumableIndexOf("molotovs");
+    const cone = molotovConeAt(balance, MOL)!;
+    const reach = cone.reachEndM;
+    const life = Math.round(4 / TICK_DT_S);
+    const faceTol = balance.consumables.fireFaceToleranceM;
+    let zones = 0;
+    let clipped = 0;
+    let probes = 0;
+    let burning = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const rng = createRng(seed * 977);
+      const make = (): World => {
+        const w = createWorld({ balance, seed, map, systems: { waves: () => {}, zombies: () => {} } });
+        w.decay.variants = MASKS[seed % MASKS.length] as number;
+        applyDecayStage(w, 1 + (seed % 3), w.decay.variants);
+        startBuild(w);
+        startWave(w);
+        return w;
+      };
+      const a = make();
+      const b = make();
+      for (let i = 0; i < 60; i++) {
+        const x = rng.range(1, map.widthM - 1);
+        const y = rng.range(1, map.heightM - 1);
+        if (insideAny(a.obstacles.shotBlockers, x, y, 0)) continue;
+        const ang = rng.range(0, Math.PI * 2);
+        const len = rng.next() < 0.1 ? 0 : rng.range(0.1, 8);
+        const sa = igniteMolotov(a, MOL, x, y, "p0", Math.cos(ang) * len, Math.sin(ang) * len);
+        const sb = igniteMolotov(b, MOL, x, y, "p0", Math.cos(ang) * len, Math.sin(ang) * len);
+        expect(sa).toBe(sb);
+        const m = a.molotovs;
+        const ux = m.dirX[sa] as number;
+        const uy = m.dirY[sa] as number;
+        const clip = m.clipM[sa] as number;
+        expect(Number.isFinite(ux) && Number.isFinite(uy) && Number.isFinite(clip)).toBe(true);
+        expect(Math.hypot(ux, uy)).toBeCloseTo(1, 12);
+        expect(clip).toBeGreaterThanOrEqual(0);
+        expect(clip).toBeLessThanOrEqual(reach);
+        expect(b.molotovs.dirX[sb]).toBe(ux);
+        expect(b.molotovs.clipM[sb]).toBe(clip);
+        zones++;
+        // independent: walk the throw line in 2 mm steps to the first point strictly inside a shot blocker
+        let free = reach;
+        for (let d = 0; d <= reach; d += SAMPLE_M) {
+          if (insideAny(a.obstacles.shotBlockers, x + ux * d, y + uy * d, 1e-6)) {
+            free = d;
+            break;
+          }
+        }
+        if (free < reach) clipped++;
+        expect(clip, `seed ${seed} zone ${i}`).toBeLessThanOrEqual(free + 1e-6);
+        expect(clip, `seed ${seed} zone ${i}`).toBeGreaterThanOrEqual(Math.min(reach, free) - 0.01 - SAMPLE_M);
+        // probes at random ages: the burn test is the independent teardrop + clip + the M-D cover rule
+        for (let q = 0; q < 40; q++) {
+          const age = rng.int(0, life - 1);
+          a.tick = b.tick = (m.areas.bornTick[sa] as number) + age;
+          const px = x + rng.range(-2, 6) * ux - rng.range(-3, 3) * uy;
+          const py = y + rng.range(-2, 6) * uy + rng.range(-3, 3) * ux;
+          const r = rng.range(0, 0.6);
+          const k = (2 + 2.5 * (1 - Math.pow(1 - Math.min(1, age / 20), 3))) / 4.5;
+          const u = (px - x) * ux + (py - y) * uy;
+          const v = (py - y) * ux - (px - x) * uy;
+          const sd = Math.max(refSd(u / k, v / k) * k, u - clip);
+          if (Math.abs(sd - r) < 1e-7) continue;
+          let want = sd < r;
+          if (want) {
+            const t = shotBlockT(a, px, py, x, y);
+            want = t < 0 || (1 - t) * Math.hypot(px - x, py - y) <= faceTol;
+          }
+          // only this zone is live in the probe (the others may overlap: test this slot alone)
+          const got = zoneBurnsAlone(a, sa, px, py, r);
+          expect(got, `seed ${seed} zone ${i} probe ${q}`).toBe(want);
+          expect(molotovZoneAt(a, px, py, r)).toBe(molotovZoneAt(b, px, py, r));
+          probes++;
+          if (got) burning++;
+        }
+        // the zone ends on time: free it again for the next one (one zone at a time)
+        a.tick = b.tick = m.areas.bornTick[sa] as number;
+        for (let t = 0; t < life; t++) {
+          expect(m.areas.active[sa]).toBe(1);
+          ageMolotovZones(a);
+          ageMolotovZones(b);
+        }
+        expect(m.areas.active[sa]).toBe(0);
+        expect(m.areas.count).toBe(0);
+        expect(b.molotovs.areas.count).toBe(0);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[consumables fuzz C] ${zones} cones, ${clipped} clipped by a blocker ahead, ${probes} probes, ${burning} burning`);
+    expect(zones).toBeGreaterThan(300);
+    expect(clipped).toBeGreaterThan(20);
+    expect(burning).toBeGreaterThan(1000);
+    expect(probes - burning).toBeGreaterThan(1000);
+  });
 });
+
+/** The one live zone `slot` alone burns (x, y, r) (the fuzz keeps one zone live at a time). */
+function zoneBurnsAlone(world: World, slot: number, x: number, y: number, r: number): boolean {
+  expect(world.molotovs.areas.count).toBe(1);
+  return molotovZoneAt(world, x, y, r) === slot;
+}
+
+/** Story 9.18: MO-R's `sdCone` (fire-r2.ts) from the designer's numbers, independent of the shared module. */
+const SIN_A = Math.sin((35 * Math.PI) / 180);
+const SH_D = (4.5 - 0.8) / (1 + SIN_A);
+const SH_R1 = 0.8 + SH_D * SIN_A;
+const SB = (0.8 - SH_R1) / SH_D;
+const SA = Math.sqrt(1 - SB * SB);
+function refSd(x: number, y: number): number {
+  const px = Math.abs(y);
+  const py = x;
+  const k = -SB * px + SA * py;
+  if (k < 0) return Math.hypot(px, py) - 0.8;
+  if (k > SA * SH_D) return Math.hypot(px, py - SH_D) - SH_R1;
+  return SA * px + SB * py - 0.8;
+}
+const consumableIndexOf = (id: string): number => Object.keys(balance.consumables.items).indexOf(id);
+

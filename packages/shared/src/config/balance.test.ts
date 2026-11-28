@@ -529,7 +529,8 @@ describe("consumables.json (Story 5.12)", () => {
     expect(Object.keys(b.consumables.items)).toEqual(["medkit", "grenades", "molotovs"]);
     expect(b.consumables.useCooldownS).toBe(0.5);
     expect(b.consumables.items.grenades).toMatchObject({ price: 80, pack: 3, damage: 40, radiusM: 2.5, throwRangeM: 8, minThrowM: 2 });
-    expect(b.consumables.items.molotovs).toMatchObject({ price: 100, pack: 2, radiusM: 3, durationS: 4, damagePerS: 8, pulseS: 0.5 });
+    expect(b.consumables.items.molotovs).toMatchObject({ price: 100, pack: 2, durationS: 4, damagePerS: 8, pulseS: 0.5, cone: { reachStartM: 2, reachEndM: 4.5, growS: 1, halfAngleDeg: 35, backM: 0.8 } });
+    expect(b.consumables.items.molotovs?.radiusM).toBeUndefined();
     expect(b.consumables.items.medkit).toMatchObject({ price: 60, pack: 1, healHp: 50 });
     const frac = raw();
     ((frac.consumables as Items).items.molotovs as Record<string, unknown>).durationS = 4.01;
@@ -549,6 +550,34 @@ describe("consumables.json (Story 5.12)", () => {
     const noRange = raw();
     delete ((noRange.consumables as Items).items.grenades as Record<string, unknown>).throwRangeM;
     expect(() => loadBalance(noRange)).toThrow(/a throwable needs/);
+    // Story 9.18: the molotov's cone (ranges, start ≤ end, whole-tick growth; no radiusM; only a molotov has one)
+    const cone = (f: (c: Record<string, unknown>) => void): RawBalanceFiles => {
+      const r = raw();
+      f(((r.consumables as Items).items.molotovs as { cone: Record<string, unknown> }).cone);
+      return r;
+    };
+    expect(() => loadBalance(cone((c) => (c.reachStartM = 5)))).toThrow(/reachStartM must be ≤ reachEndM/);
+    expect(() => loadBalance(cone((c) => (c.reachEndM = 8.5)))).toThrow(/reachEndM/);
+    expect(() => loadBalance(cone((c) => (c.reachStartM = 0.4)))).toThrow(/reachStartM/);
+    expect(() => loadBalance(cone((c) => (c.growS = 3.5)))).toThrow(/growS/);
+    expect(() => loadBalance(cone((c) => (c.growS = 0.33)))).toThrow(/growS must be a whole number of ticks/);
+    expect(() => loadBalance(cone((c) => (c.halfAngleDeg = 4)))).toThrow(/halfAngleDeg/);
+    expect(() => loadBalance(cone((c) => (c.halfAngleDeg = 81)))).toThrow(/halfAngleDeg/);
+    expect(() => loadBalance(cone((c) => (c.backM = 0.05)))).toThrow(/backM/);
+    expect(() => loadBalance(cone((c) => (c.extra = 1)))).toThrow();
+    expect(() => loadBalance(cone((c) => (c.growS = 0)))).not.toThrow();
+    const noCone = raw();
+    delete ((noCone.consumables as Items).items.molotovs as Record<string, unknown>).cone;
+    expect(() => loadBalance(noCone)).toThrow(/a molotov needs durationS, damagePerS, pulseS and cone/);
+    const oldRadius = raw();
+    ((oldRadius.consumables as Items).items.molotovs as Record<string, unknown>).radiusM = 3;
+    expect(() => loadBalance(oldRadius)).toThrow(/no radiusM/);
+    const grenadeCone = raw();
+    ((grenadeCone.consumables as Items).items.grenades as Record<string, unknown>).cone = { reachStartM: 2, reachEndM: 4.5, growS: 1, halfAngleDeg: 35, backM: 0.8 };
+    expect(() => loadBalance(grenadeCone)).toThrow(/only a molotov has a cone/);
+    const noBlast = raw();
+    delete ((noBlast.consumables as Items).items.grenades as Record<string, unknown>).radiusM;
+    expect(() => loadBalance(noBlast)).toThrow(/a grenade needs damage and radiusM/);
     const noHeal = raw();
     delete ((noHeal.consumables as Items).items.medkit as Record<string, unknown>).healHp;
     expect(() => loadBalance(noHeal)).toThrow(/a heal item needs healHp/);

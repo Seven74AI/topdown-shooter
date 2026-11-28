@@ -10,7 +10,8 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt } from "../buildings/buildings";
 import { setLoadout } from "../combat/loadout";
 import { ZOMBIE_STATE } from "../zombies/zombieTypes";
-import { setBuildReady, startBuild } from "../run/runStateMachine";
+import { setBuildReady, startBuild, startWave } from "../run/runStateMachine";
+import { consumableIndex, molotovConeAt } from "../economy/consumables";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 
 const balance = loadBalance();
@@ -280,5 +281,63 @@ describe("fix bloater-car-corner (review round 2): the hunt never routes a bot t
     const ty = 10.75 + v.huntStepY;
     const intoSlot = tx > 10 && ty > 10.5 && ty < 11;
     expect(intoSlot, `carrot (${tx.toFixed(2)}, ${ty.toFixed(2)}) is in the slot`).toBe(false);
+  });
+});
+
+describe("Story 9.18 (AC 9): a bot's Molotov aims the cone at the pack", () => {
+  /** A still lined-up pack ahead of the bot (+x), a Molotov in hand; returns how many zombies the fire touched. */
+  function throwAt(mode: "bot" | "centre"): { burnt: number; hits: number; target: { x: number; y: number; distM: number } } {
+    const world = createWorld({ balance, seed: 3, systems: { waves: () => {}, zombies: () => {} } });
+    addPlayer(world, "p0", 6, 16);
+    startBuild(world);
+    startWave(world);
+    const p = world.players.get("p0")!;
+    p.consumable = "molotovs";
+    p.consumableCount = 2;
+    const ids: number[] = [];
+    // two files along the throw line, 6.5 … 10.5 m from the bot (1 m spacing)
+    for (let i = 0; i < 10; i++) {
+      ids.push(spawnZombie(world, "walker", 12.5 + (i >> 1) * 1.0, 16 + (i & 1 ? 0.5 : -0.5)));
+      world.zombies.hp[ids[ids.length - 1] as number] = 1000;
+    }
+    const view = createBotView();
+    botViewFromWorld(world, "p0", view);
+    const t = view.throwTarget!;
+    expect(t).not.toBeNull();
+    const target = { x: t.x, y: t.y, distM: t.distM };
+    const input = { ...NEUTRAL_INPUT };
+    botInput(view, cfg, 1, input);
+    expect(input.consumable).toBe(true);
+    // the zombie it picked as the cluster centre (before the cone's shift back by d/2)
+    const back = molotovConeAt(balance, consumableIndex(balance, "molotovs"))!.d / 2;
+    const picked = { x: p.x + ((t.x - p.x) / t.distM) * (t.distM + back), y: p.y + ((t.y - p.y) / t.distM) * (t.distM + back) };
+    expect(ids.some((id) => Math.hypot((world.zombies.x[id] as number) - picked.x, (world.zombies.y[id] as number) - picked.y) < 1e-6)).toBe(true);
+    if (mode === "centre") {
+      // the 5.12 aim: at the picked cluster centre itself
+      const d = Math.hypot(picked.x - p.x, picked.y - p.y);
+      const len = Math.min(1, (d - view.self.muzzleM) / view.self.throwRangeM);
+      input.aimX = ((picked.x - p.x) / d) * len;
+      input.aimY = ((picked.y - p.y) / d) * len;
+    }
+    setInput(world, "p0", input);
+    step(world, TICK_DT_S);
+    for (let k = 0; k < 120; k++) {
+      setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 2 + k });
+      step(world, TICK_DT_S);
+    }
+    expect(world.molotovs.nextId).toBe(2); // liveness: one zone was lit
+    const burnt = ids.filter((id) => (world.zombies.hp[id] as number) < 1000).length;
+    return { burnt, hits: ids.reduce((s, id) => s + (1000 - (world.zombies.hp[id] as number)), 0), target };
+  }
+
+  it("lands short of the pack along the bot → pack line, and burns more of a lined-up pack than a throw at the centre", () => {
+    const bot = throwAt("bot");
+    const centre = throwAt("centre");
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[9.18 bot molotov] burnt ${bot.burnt}/10 (cone aim) vs ${centre.burnt}/10 (at the centre)`);
+    expect(bot.target.y).toBeCloseTo(16, 0);
+    expect(bot.target.x).toBeLessThan(12.5); // short of the pack's first rank
+    expect(bot.burnt).toBeGreaterThan(centre.burnt);
+    expect(bot.burnt).toBeGreaterThanOrEqual(6);
+    expect(centre.burnt).toBeGreaterThan(0); // liveness of the comparison
   });
 });

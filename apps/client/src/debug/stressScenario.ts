@@ -381,7 +381,8 @@ export function keepStressMolotovs(world: World, playerId: string, cx: number, c
   let lit = 0;
   for (let k = 0; world.molotovs.areas.count < cap && k < cap; k++) {
     const a = ((world.molotovs.nextId + k) % cap) * ((2 * Math.PI) / cap);
-    if (igniteMolotov(world, item, cx + Math.cos(a) * STRESS_MOLOTOV_RING_M, cy + Math.sin(a) * STRESS_MOLOTOV_RING_M, playerId) >= 0) lit++;
+    // Story 9.18 (AC 18): each cone points inward, toward the survivor (as if thrown from beyond the ring).
+    if (igniteMolotov(world, item, cx + Math.cos(a) * STRESS_MOLOTOV_RING_M, cy + Math.sin(a) * STRESS_MOLOTOV_RING_M, playerId, -Math.cos(a), -Math.sin(a)) >= 0) lit++;
   }
   return lit;
 }

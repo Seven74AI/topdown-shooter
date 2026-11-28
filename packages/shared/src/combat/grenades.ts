@@ -288,13 +288,14 @@ const spec = createExplosionSpec();
  * EX2 `hand_grenade` look; zombies full, players the friendly-fire share, no building damage: 5.5
  * D4), a molotov lights a fire zone (`hazards/molotov.ts`).
  */
-function landConsumable(world: World, item: number, owner: string | null): void {
+function landConsumable(world: World, item: number, owner: string | null, dirX: number, dirY: number): void {
   const s = consumableStatsAt(world.balance, item);
   if (!s) return;
   const present = owner !== null && world.players.has(owner);
   if (s.kind === "molotov") {
     grenadeCounters.molotovsLanded++;
-    igniteMolotov(world, item, spec.x, spec.y, present ? owner : null);
+    // Story 9.18 (AC 3): the cone points along the throw (start → landing), fixed at landing.
+    igniteMolotov(world, item, spec.x, spec.y, present ? owner : null, dirX, dirY);
     return;
   }
   if (s.kind !== "grenade") return;
@@ -327,9 +328,11 @@ export function updateGrenades(world: World): void {
     spec.grenadeId = pool.id[i] as number;
     const level = pool.level[i] as number;
     const item = pool.item[i] as number;
+    const dirX = spec.x - (pool.x0[i] as number);
+    const dirY = spec.y - (pool.y0[i] as number);
     freeGrenade(pool, i); // first: a blast never sees its own round
     if (item > 0) {
-      landConsumable(world, item - 1, owner);
+      landConsumable(world, item - 1, owner, dirX, dirY);
       if (i > pool.count) i = pool.count;
       continue;
     }

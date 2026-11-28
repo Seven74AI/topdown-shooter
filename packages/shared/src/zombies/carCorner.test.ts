@@ -257,5 +257,7 @@ describe("Bloaters in the Downtown car corner (fix bloater-car-corner)", () => {
  * liftBeatS, flyOutS, flyOutHorde) change `balance.version`; this scenario never reaches a vote.
  * Story 10.7: re-pinned (was 2415701599) only because the snapshot holds the new `PlayerState.weaponsBought` (an empty
  * list here: nobody buys); the simulation is unchanged.
+ * Story 9.18: re-pinned (was 4002033413) only because the molotov's `cone` (replacing its `radiusM`) changes
+ * `balance.version`; this scenario throws no molotov (no zone in the snapshot).
  */
-const GOLDEN_DIGEST = 4002033413;
+const GOLDEN_DIGEST = 2893705487;

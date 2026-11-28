@@ -1226,8 +1226,9 @@ export const gearSchema = z
 /**
  * Story 5.12: one consumable (FR8, FR49). `kind` picks the use: `heal` (the medkit: `healHp`
  * instantly, capped at max HP), `grenade` (a thrown hand grenade: 5.5's lob, then `explode` with
- * `damage` in `radiusM`), `molotov` (the same lob, then a fire zone of `radiusM` for `durationS`
- * burning `damagePerS` on a per-body clock every `pulseS`). Durations are whole ticks; the pulse
+ * `damage` in `radiusM`), `molotov` (the same lob, then a fire zone for `durationS` burning
+ * `damagePerS` on a per-body clock every `pulseS`; Story 9.18: the zone is a teardrop `cone` along the
+ * throw, growing from `reachStartM` to `reachEndM` over `growS`, see `hazards/molotovCone.ts`). Durations are whole ticks; the pulse
  * damage and its friendly-fire half are whole numbers (no float HP).
  */
 export const consumableItemSchema = z
@@ -1251,12 +1252,30 @@ export const consumableItemSchema = z
     durationS: z.number().positive().optional(),
     damagePerS: z.number().int().min(1).optional(),
     pulseS: z.number().positive().optional(),
+    /** Story 9.18 (MO-R): the molotov's teardrop zone along the throw. */
+    cone: z
+      .object({
+        /** Tip distance ahead of the impact at landing and after `growS` (m). */
+        reachStartM: z.number().min(0.5).max(8),
+        reachEndM: z.number().min(0.5).max(8),
+        /** Growth time (s, ease-out; whole ticks); 0 = full size at once. */
+        growS: z.number().min(0).max(3).refine(wholeTicks, "cone.growS must be a whole number of ticks"),
+        /** The cone's half-angle (degrees). */
+        halfAngleDeg: z.number().min(5).max(80),
+        /** The round back's radius around the impact at full size (m). */
+        backM: z.number().min(0.1).max(3),
+      })
+      .strict()
+      .refine((c) => c.reachStartM <= c.reachEndM, "cone.reachStartM must be ≤ reachEndM")
+      .refine((c) => c.backM < c.reachEndM, "cone.backM must be < reachEndM")
+      .optional(),
   })
   .strict()
   .refine((c) => c.kind !== "heal" || c.healHp !== undefined, "a heal item needs healHp")
-  .refine((c) => c.kind === "heal" || (c.minThrowM !== undefined && c.throwRangeM !== undefined && c.throwSpeedMps !== undefined && c.minFlightS !== undefined && c.radiusM !== undefined && c.minThrowM <= c.throwRangeM), "a throwable needs minThrowM ≤ throwRangeM, throwSpeedMps, minFlightS and radiusM")
-  .refine((c) => c.kind !== "grenade" || c.damage !== undefined, "a grenade needs damage")
-  .refine((c) => c.kind !== "molotov" || (c.durationS !== undefined && c.damagePerS !== undefined && c.pulseS !== undefined), "a molotov needs durationS, damagePerS and pulseS")
+  .refine((c) => c.kind === "heal" || (c.minThrowM !== undefined && c.throwRangeM !== undefined && c.throwSpeedMps !== undefined && c.minFlightS !== undefined && c.minThrowM <= c.throwRangeM), "a throwable needs minThrowM ≤ throwRangeM, throwSpeedMps and minFlightS")
+  .refine((c) => c.kind !== "grenade" || (c.damage !== undefined && c.radiusM !== undefined), "a grenade needs damage and radiusM")
+  .refine((c) => c.kind !== "molotov" || (c.durationS !== undefined && c.damagePerS !== undefined && c.pulseS !== undefined && c.cone !== undefined && c.radiusM === undefined), "a molotov needs durationS, damagePerS, pulseS and cone (no radiusM: Story 9.18)")
+  .refine((c) => c.kind === "molotov" || c.cone === undefined, "only a molotov has a cone")
   .refine((c) => c.durationS === undefined || (wholeTicks(c.durationS) && Math.round(c.durationS * TICK_RATE_HZ) <= 65535), "durationS must be a whole number of ticks (≤ 65,535)")
   .refine((c) => c.pulseS === undefined || wholeTicks(c.pulseS), "pulseS must be a whole number of ticks")
   .refine((c) => c.damagePerS === undefined || c.pulseS === undefined || evenWhole(c.damagePerS * c.pulseS), "damagePerS × pulseS must be an even whole number (players take half)");

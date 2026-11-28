@@ -125,13 +125,13 @@ function snapshotAreas(world: World) {
   return out;
 }
 
-/** Story 5.12: the molotov fire zones (live slots, with thrower and item) and the id counter. */
+/** Story 5.12: the molotov fire zones (live slots, with thrower and item) and the id counter; Story 9.18: the heading and clip. */
 function snapshotMolotovs(world: World) {
   const m = world.molotovs;
   const a = m.areas;
   const out = [];
   for (let i = 0; i < a.capacity; i++) {
-    if (a.active[i] === 1) out.push({ slot: i, id: a.id[i], x: a.x[i], y: a.y[i], radiusM: a.radiusM[i], ticksLeft: a.ticksLeft[i], bornTick: a.bornTick[i], owner: m.owner[i] ?? null, item: m.item[i] });
+    if (a.active[i] === 1) out.push({ slot: i, id: a.id[i], x: a.x[i], y: a.y[i], radiusM: a.radiusM[i], ticksLeft: a.ticksLeft[i], bornTick: a.bornTick[i], owner: m.owner[i] ?? null, item: m.item[i], heading: m.heading[i], clipM: m.clipM[i] });
   }
   return { list: out, nextId: m.nextId };
 }

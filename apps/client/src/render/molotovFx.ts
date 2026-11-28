@@ -1,4 +1,4 @@
-import { AREA_KIND, TICK_DT_S, clearAreas, consumableStatsAt, createAreaPool, molotovTicksAt, spawnArea, throwVariant, type AreaPool, type Balance, type SimEvent } from "@topdown/shared";
+import { AREA_KIND, TICK_DT_S, clearAreas, createAreaPool, molotovTicksAt, spawnArea, throwStatsAt, throwVariant, type AreaPool, type Balance, type SimEvent } from "@topdown/shared";
 
 /**
  * Story 5.12: the client's copy of the molotov fire zones (M-A: the fire is drawn exactly where it
@@ -83,7 +83,8 @@ export class MolotovFires {
     const t = molotovTicksAt(this.balance, e.item);
     const durS = t.durationTicks * TICK_DT_S;
     const startS = nowS - (e.ageS ?? 0);
-    const r = consumableStatsAt(this.balance, e.item)?.radiusM ?? 0;
+    // Story 9.18 interim (phase 1, until T6 draws the teardrop): the ring at the cone's full reach.
+    const r = throwStatsAt(this.balance, e.item)?.blastRadiusM ?? 0;
     // The cap rule on the same events in the same order (an expired zone is freed first in `update`).
     this.update(nowS);
     const slot = spawnArea(this.pool, this.capacity, AREA_KIND.FIRE, e.zoneId, e.x, e.y, r, Math.max(1, t.durationTicks), this.born++);

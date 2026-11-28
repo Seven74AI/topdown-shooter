@@ -13,7 +13,7 @@ import { isRushState } from "../zombies/zombieTypes";
 import { bulletLineClear } from "../combat/cover";
 import { bossBodyOn } from "../boss/bossState";
 import { flowCellAt, flowCellCenterX, flowCellCenterY, flowEdgeClosed } from "../zombies/flowField";
-import { consumableStats } from "../economy/consumables";
+import { consumableIndex, consumableStats, molotovConeAt } from "../economy/consumables";
 
 /**
  * A simple bot (Story 2.10, AC 5) for load tests (2.10), economy runs (3.10, 6.1) and balance
@@ -604,13 +604,35 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
     out.nearestZombie = out.zombie;
   }
   // Story 5.12: the densest cluster within throw range (waves only; at most CLUSTER_CANDIDATES tried).
-  if (self.throwRangeM > 0 && world.run.phase === "wave" && cs && p.consumableCooldownTicks === 0) findCluster(world, p, self.muzzleM + self.throwRangeM, cs.radiusM ?? 0, world.balance.bots.throwClusterMin, out);
+  if (self.throwRangeM > 0 && world.run.phase === "wave" && cs && p.consumableCooldownTicks === 0) {
+    const cone = cs.kind === "molotov" ? molotovConeAt(world.balance, consumableIndex(world.balance, p.consumable ?? "")) : null;
+    if (!cone) {
+      findCluster(world, p, self.muzzleM + self.throwRangeM, cs.radiusM ?? 0, cs.radiusM ?? 0, world.balance.bots.throwClusterMin, out);
+      return;
+    }
+    // Story 9.18 (AC 9): a molotov's teardrop runs forward from the impact. Count the pack in its front
+    // circle's radius, never pick one whose cone's back would reach me, then land short of the pack's
+    // centre by half the front circle's distance so the cone covers it.
+    const back = cone.d / 2;
+    findCluster(world, p, self.muzzleM + self.throwRangeM, cone.r1, back + cone.r0, world.balance.bots.throwClusterMin, out);
+    const t = out.throwTarget as BotZombie | null; // set by findCluster (TS narrowed it to null above)
+    if (t && t.distM > 0) {
+      const dx = (t.x - p.x) / t.distM;
+      const dy = (t.y - p.y) / t.distM;
+      const minD = Math.max(self.muzzleM + (cs.minThrowM ?? 0), cone.r0 + p.radiusM);
+      const d = Math.min(self.muzzleM + self.throwRangeM, Math.max(minD, t.distM - back));
+      t.x = p.x + dx * d;
+      t.y = p.y + dy * d;
+      t.distM = d;
+    }
+  }
 }
 
 /** Story 5.12: zombies tried as a cluster centre (nearest-first is not needed: the first ones in range). */
 const CLUSTER_CANDIDATES = 48;
 
-function findCluster(world: World, p: PlayerState, reachM: number, radiusM: number, min: number, out: BotView): void {
+/** `clearM`: a centre nearer me than `clearM + my radius` is never picked (the blast or the fire would reach me). */
+function findCluster(world: World, p: PlayerState, reachM: number, radiusM: number, clearM: number, min: number, out: BotView): void {
   const zs = world.zombies;
   const reach2 = reachM * reachM;
   const r2 = radiusM * radiusM;
@@ -624,7 +646,7 @@ function findCluster(world: World, p: PlayerState, reachM: number, radiusM: numb
     const dy = cy - p.y;
     const d2 = dx * dx + dy * dy;
     // never at my own feet (the throw's minimum plus the blast must clear me)
-    if (d2 > reach2 || d2 < (radiusM + p.radiusM) * (radiusM + p.radiusM)) continue;
+    if (d2 > reach2 || d2 < (clearM + p.radiusM) * (clearM + p.radiusM)) continue;
     tried++;
     let n = 0;
     for (let k = 0; k < zs.aliveCount; k++) {

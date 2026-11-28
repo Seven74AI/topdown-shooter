@@ -1,6 +1,6 @@
 # Story 9.18: The Molotov cone
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Written 2026-11-28 with gds-create-story from the real code (sim, net, client) and the approved group-5 card MO-R
      (docs/art/photoreal-5/src/fire-r2.ts › MO_R, sdCone, and fire-gmo.ts). Correct-course:
@@ -123,12 +123,12 @@ so that it feels real and I can aim it down a zombie lane.
 
 ## Tasks / Subtasks
 
-- [ ] T1 Balance + schema (AC 1). *(T1–T5 may start before 9.6 lands.)*
-- [ ] T2 `hazards/molotov.ts`: per-slot dir, clip, start tick; `sdCone` + growth in a pure `hazards/molotovCone.ts`
+- [x] T1 Balance + schema (AC 1). *(T1–T5 may start before 9.6 lands.)*
+- [x] T2 `hazards/molotov.ts`: per-slot dir, clip, start tick; `sdCone` + growth in a pure `hazards/molotovCone.ts`
   shared with the client (AC 2–6).
-- [ ] T3 `combat/grenades.ts` passes the direction (AC 3).
-- [ ] T4 Net (AC 7), saves (AC 8), bots (AC 9).
-- [ ] T5 Shared tests (AC 16).
+- [x] T3 `combat/grenades.ts` passes the direction (AC 3).
+- [x] T4 Net (AC 7), saves (AC 8), bots (AC 9).
+- [x] T5 Shared tests (AC 16).
 - [ ] T6 `docs/art/photoreal-5/src/atlas/molotov.atlas.ts`; MolotovView / molotovFx (AC 10–12) (after 9.6).
 - [ ] T7 Aim marker, darkness (AC 13, 14).
 - [ ] T8 Client tests, browser stills, perf, readability sheet 174–177, GDD already updated (check the wording).
@@ -210,8 +210,99 @@ AC 16–18. Use stateful 0.01 m sweeps and oscillation at the edge (AGENTS.md §
 
 ### Agent Model Used
 
+Builder session (gds-dev-story), 2026-11-28.
+
 ### Debug Log References
+
+- `consumables.test.ts` › "walking lane" first read 0 ignites: the test's `run(…, next)` overwrote the tap input before
+  the first step (a test bug, not the sim); fixed by stepping the tap tick on its own like `molotovAt`.
 
 ### Completion Notes List
 
+**Phase 1 (T1–T5, sim / net / balance; before 9.6).** Phase 2 (T6–T8: look, aim marker, darkness) waits for 9.6.
+
+- **T1 balance + schema (AC 1).** `consumables.json › molotovs`: `radiusM` → `cone { reachStartM 2, reachEndM 4.5,
+  growS 1, halfAngleDeg 35, backM 0.8 }`. `balanceSchema.ts`: `cone` object (reach 0.5–8, growS 0–3 in whole ticks,
+  halfAngle 5–80, back 0.1–3, start ≤ end, back < end; strict); the throwable refine split by kind: a grenade needs
+  `damage` + `radiusM`, a molotov needs `cone` and must NOT have `radiusM`, only a molotov has a `cone`.
+  `balance.version` changes (hash): golden re-pinned in `zombies/carCorner.test.ts` (4002033413 → 2893705487; no
+  molotov in that scenario). `ThrowStats` gains `cone` (the shape, cached once per balance) and a molotov's
+  `blastRadiusM` is now the cone's full reach (4.5; read only by the client's marker/ring until T6/T7).
+  `radiusM` readers moved: `molotovFx.ts:86` now reads `throwStatsAt(…).blastRadiusM` (**interim**: the old ring at
+  4.5 m until T6 replaces the drawing; `MolotovView.ts` / `darknessPlan.ts` read `z.radiusM` from there and move in
+  T6/T7), bots (cone), `stressScenario.ts:384` (directions, inward). HUD / shop text print no radius (checked).
+- **T2 `hazards/molotovCone.ts` (new, pure, AC 2) + `hazards/molotov.ts` (AC 3–6).** `molotovConeShape` precomputes
+  r0, d, r1, the side-line constants and the bounding circle; `coneScaleAt` (ticks, ease-out), `sdConeFull` (the page's
+  `sdCone`, sqrt instead of hypot), `sdMolotovZone` = max(sdCone(p/k)·k, u − clipM), `coneHeading/coneDirX/coneDirY`
+  (u8 heading → vector, one formula for sim and client), `coneClipCm`. `MolotovZones` gains per-slot `heading`
+  (Uint8Array), `dirX/dirY/clipM` (**Float64Array**, not Float32: the vectors must equal the client's cos/sin to the
+  bit, B2), `cone` (shape reference). Growth uses `areaPool.bornTick` (no new start tick). `molotovZoneAt`: same
+  signature and slot order; B4 bounding-circle reject, then the teardrop + clip (B3, half-plane), then M-D cover
+  unchanged. The pool's `radiusM` holds the bounding reach (never used as a circle test for fire). Header rules
+  rewritten (M-A teardrop).
+- **T3 `combat/grenades.ts` (AC 3):** `updateGrenades` reads the round's start (x0, y0) before freeing it;
+  `landConsumable` passes start → landing to `igniteMolotov`. A zero vector → heading 0 → (1, 0).
+- **T4 net (AC 7):** kind 40 kept; appends heading (index 6) and clip cm (index 7); decode reads them when present
+  (older 6-field payloads: no dir/clip; the client keeps its launch-ring guess, T6). SimEvent `dirX?, dirY?, clipM?`
+  (optional only for those older payloads; the sim always sets them). **No `NET_PROTOCOL_VERSION` bump** (decoded by
+  length; `balance.version` already refuses old tabs), so no NR-3 row. Impact x/y stay cm-rounded on the wire as
+  before 9.18 (≤ 5 mm between sim and client; pre-existing).
+  **Saves (AC 8):** zones are not saved: `save/runSave.ts:207` refuses a save while any zone is live and stores only
+  `molotovsNextId`; no save schema change. **Digest:** `worldSnapshot` molotov rows gain `heading` and `clipM`.
+  **Bots (AC 9):** a molotov counts its pack within the front circle's radius r1 (2.15 m), never picks a centre nearer
+  than d/2 + r0 + its radius, and lands d/2 (1.18 m) short of it along bot → pack, clamped to [muzzle + minThrow,
+  muzzle + range]. (AC 9 says "reach at ~0.5 s ≈ 2.3 m · ½"; I read 2.3 m as the front circle's distance d = 2.35 m,
+  so the shift is d/2 = 1.18 m.)
+- **T5 tests (AC 16):** `consumables.test.ts`: the 5.12 circle tests moved to the teardrop (inside / behind the back /
+  past the tip / beside the impact; the car-face case now asserts the clip and the back burning; a new sandbags +
+  side-car test) and a new describe "Story 9.18: the Molotov cone" — shape constants (d 2.35, r1 2.15) and bounding
+  circle; **M-A at 0.01 m sweeps** along (4 lines) and across (5 lines) at ages 0, 0.25, 0.5, 1.0, 3.9 s for r = 0,
+  zombie, player against an independent copy of the page's `sdCone` (hypot), back 0.356 m at landing / 0.8 m at full
+  size, tip 4.5·k; ±0.005 m oscillation at the tip; growth tick by tick (bisection on the sim's own test: 2.0 m at
+  tick 0, 4.5 m from tick 20, strictly rising, the ease-out); 46 directions (≤ 0.70° heading error); clip by a car
+  3 m ahead (0.01 m sweep: nothing past the face; control without the car); a zone lit at a face; **lane scenario**
+  (20 still Walkers along the throw → > 20 hits, kills > 0, ≥ 16 of 20 burnt; the same pack 3.2 m to the side → 0 hits)
+  and a **walking lane** (AI on: Walkers walking down the throw line into the cone → hits > 10, kills > 0).
+  `consumables.fuzz.test.ts (C)`: 8 Downtown layouts × random impacts/directions → finite dir/clip, clip ≤ the first
+  shot-blocker point found by an independent 2 mm walk (and within 1 cm of it), 12,720 probes at random ages match
+  the reference teardrop + clip + cover, two worlds identical, every zone ends after exactly 80 ticks (318 cones, 112
+  clipped). `netEvents.test.ts`: all 256 headings × 4 clips round-trip to the bit; an old 6-field payload decodes
+  without dir/clip. `balance.test.ts`: cone ranges, start ≤ end, whole-tick growS, no radiusM, grenade has no cone.
+  `botPolicy.test.ts`: a bot's Molotov at a lined-up pack lands short of it and burns 10/10 vs 9/10 for a throw at
+  the cluster centre.
+- **Checks (phase 1):** `gate:fast` green (typecheck, lint, 5,307 unit tests, release:check). `test:slow` green
+  (78 files, 774 tests, 509 s on 3 workers). Perf: `PERF_ASSERT=1 tickCostConsumables` (4 players, 150 Walkers,
+  8 cone zones + grenades on Downtown): added tick p99 0.259 ms (1,049 burns), load 1.48 — under the 0.3 ms budget.
+- **Balance impact (record for 10.8, not tuned):** full cone 16.4 m² vs 28.3 m² (58 %); area × time 61 m²·s vs 113
+  (54 %). `fiveWaveSim` molotov runs (3 bots, Molotovs only, seeds 1–2): master 38 zones / 420 burns, seed 1 wiped W4
+  (kills 286, earned 1,041), seed 2 wiped W5 (kills 425, earned 1,641); 9.18: 45 zones / 420 burns, seed 1 wiped W6
+  (kills 629, earned 2,675), seed 2 wiped W4 (kills 304, earned 1,063). The runs diverge (bot runs are chaotic: the
+  new bot aim and the smaller zone both change them), so no clean money/kill shift can be read from two seeds;
+  burns per zone 11.1 → 9.3 (−16 %). Every whole-run sim still finishes.
+
 ### File List
+
+- `packages/shared/src/hazards/molotovCone.ts` (new)
+- `packages/shared/src/hazards/molotov.ts`
+- `packages/shared/src/combat/grenades.ts`
+- `packages/shared/src/config/balance/consumables.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/economy/consumables.ts`
+- `packages/shared/src/core/simEvents.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/net/netEvents.ts`
+- `packages/shared/src/bots/botPolicy.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/combat/consumables.test.ts`
+- `packages/shared/src/combat/consumables.fuzz.test.ts`
+- `packages/shared/src/net/netEvents.test.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/bots/botPolicy.test.ts`
+- `packages/shared/src/zombies/carCorner.test.ts` (golden re-pinned)
+- `apps/client/src/render/molotovFx.ts` (interim radius until T6)
+- `apps/client/src/render/molotovFx.test.ts` (interim)
+- `apps/client/src/debug/stressScenario.ts`
+
+### Change Log
+
+- 2026-11-28: Phase 1 (T1–T5): the cone in the sim, balance, net, bots and shared tests.

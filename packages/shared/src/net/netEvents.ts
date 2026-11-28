@@ -3,6 +3,7 @@ import { weaponIds, type WeaponId } from "../combat/weapons";
 import { BUILDING_LOSS_CAUSES, DAMAGE_TAGS, MONEY_REASONS, type DamageTag, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
+import { coneDirX, coneDirY } from "../hazards/molotovCone";
 import { buildingTypeIds } from "../buildings/buildings";
 import { EXPLOSION_KINDS } from "../combat/explosion";
 import { EVENT_KINDS, EVENT_OUTCOMES } from "../events/eventState";
@@ -317,8 +318,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       // Story 5.12: HUD + sound only (the count comes from schema; a throw's flight is its grenade.launched).
       return [K.CONSUMABLE_USED, playerSlotOf(e.playerId), e.item & 0xff];
     case "molotov.ignited":
-      // Story 5.12: the zone (radius and lifetime from balance; no zone state on the wire).
-      return [K.MOLOTOV_IGNITED, e.zoneId & 0xffff, e.item & 0xff, cm(e.x), cm(e.y), playerSlotOf(e.playerId)];
+      // Story 5.12: the zone (shape and lifetime from balance; no zone state on the wire). Story 9.18: the
+      // throw's u8 heading (index 6) and the clip along it in cm (index 7); the sim's values are already
+      // quantised (B2), so the decoded zone is the sim's to the bit.
+      return e.dirX === undefined || e.dirY === undefined || e.clipM === undefined
+        ? [K.MOLOTOV_IGNITED, e.zoneId & 0xffff, e.item & 0xff, cm(e.x), cm(e.y), playerSlotOf(e.playerId)]
+        : [K.MOLOTOV_IGNITED, e.zoneId & 0xffff, e.item & 0xff, cm(e.x), cm(e.y), playerSlotOf(e.playerId), quantizeHeading(e.dirX, e.dirY), Math.max(0, Math.min(0xffff, Math.round(e.clipM * 100)))];
     // Story 6.5: ticks absolute (the client draws a telegraph from the server's start tick, F3).
     case "boss.warning":
       return [K.BOSS_WARNING, cm(e.x), cm(e.y), e.hitTick];
@@ -570,8 +575,17 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.CONSUMABLE_USED:
       return { type: "consumable.used", playerId: pid(t, 1), item: n(t, 2) };
-    case K.MOLOTOV_IGNITED:
-      return { type: "molotov.ignited", zoneId: n(t, 1), item: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, playerId: playerIdOfSlot(n(t, 5)) };
+    case K.MOLOTOV_IGNITED: {
+      const lit: Extract<SimEvent, { type: "molotov.ignited" }> = { type: "molotov.ignited", zoneId: n(t, 1), item: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, playerId: playerIdOfSlot(n(t, 5)) };
+      if (t.length > 7) {
+        // Story 9.18: the same formulas as the sim (hazards/molotovCone.ts), so the vectors match to the bit.
+        const h = n(t, 6) & 0xff;
+        lit.dirX = coneDirX(h);
+        lit.dirY = coneDirY(h);
+        lit.clipM = n(t, 7) / 100;
+      }
+      return lit;
+    }
     case K.EXPLOSION_HAPPENED: {
       const kind = n(t, 1);
       if (kind >= EXPLOSION_KINDS.length) return null;

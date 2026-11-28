@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { DAMAGE_TAGS, type DamageTag, type SimEvent } from "../core/simEvents";
+import { coneDirX, coneDirY } from "../hazards/molotovCone";
 import { NET_EVENT_KIND, NET_NONE, decodeNetEvent, encodeNetEvent, playerSlotOf, type NetEvent, type NetEventContext } from "./netEvents";
 
 const balance = loadBalance();
@@ -125,6 +126,8 @@ const EVENTS: SimEvent[] = [
   { type: "explosion.happened", kind: 3, x: 18.5, y: 3.25, radiusM: 2.5, sourcePlayerId: "p1", grenadeId: 7 },
   { type: "molotov.ignited", zoneId: 65535, item: 2, x: 18.5, y: 3.25, playerId: "p1" },
   { type: "molotov.ignited", zoneId: 1, item: 2, x: 0, y: 31.99, playerId: null },
+  // Story 9.18: the throw's direction (u8 heading) and the clip (cm) appended (indices 6, 7).
+  { type: "molotov.ignited", zoneId: 7, item: 2, x: 18.5, y: 3.25, playerId: "p0", dirX: coneDirX(37), dirY: coneDirY(37), clipM: 2.97 },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */
@@ -154,6 +157,26 @@ describe("netEvents", () => {
     expect((encodeNetEvent(base, enc) as NetEvent).length).toBe(9);
     expect((encodeNetEvent({ ...base, item: 2 }, enc) as NetEvent).length).toBe(10);
     expect(decodeNetEvent(encodeNetEvent(base, enc) as NetEvent, dec)).not.toHaveProperty("item");
+  });
+
+  it("Story 9.18: molotov.ignited carries the sim's quantised direction and cm clip, decoded to the bit; an older 6-field payload has none", () => {
+    for (let h = 0; h < 256; h++) {
+      for (const clipCm of [0, 1, 299, 450]) {
+        const e: SimEvent = { type: "molotov.ignited", zoneId: 3, item: 2, x: 1, y: 2, playerId: "p1", dirX: coneDirX(h), dirY: coneDirY(h), clipM: clipCm / 100 };
+        const t = encodeNetEvent(e, enc) as NetEvent;
+        expect(t.length).toBe(8);
+        expect(t[6]).toBe(h);
+        expect(t[7]).toBe(clipCm);
+        const d = decodeNetEvent(t, dec) as Extract<SimEvent, { type: "molotov.ignited" }>;
+        expect(d.dirX).toBe(e.dirX); // the same bits
+        expect(d.dirY).toBe(e.dirY);
+        expect(d.clipM).toBe(e.clipM);
+      }
+    }
+    const old = decodeNetEvent([NET_EVENT_KIND.MOLOTOV_IGNITED, 3, 2, 100, 200, 1], dec) as Extract<SimEvent, { type: "molotov.ignited" }>;
+    expect(old).toMatchObject({ type: "molotov.ignited", x: 1, y: 2 });
+    expect(old.dirX).toBeUndefined();
+    expect(old.clipM).toBeUndefined();
   });
 
   it("round-trips every forwarded kind", () => {
