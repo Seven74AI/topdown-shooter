@@ -114,6 +114,11 @@ export class MolotovFires {
     return true;
   }
 
+  /** Story 9.22: the live zones as the sim's pool (the status model runs the sim's zone test on them). */
+  get areas(): Readonly<AreaPool> {
+    return this.pool;
+  }
+
   /** Ends zones whose life is over (call every frame). */
   update(nowS: number): void {
     let changed = false;

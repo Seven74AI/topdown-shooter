@@ -1,6 +1,6 @@
 # Story 9.22: Status icons
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Written 2026-11-28 with gds-create-story from the real code (sim statuses, net state, client views) and the
      approved group-5 card ST-A (docs/art/photoreal-5/src/telegraphs-r2-status.ts, telegraphs-r2.ts › stA / stCard).
@@ -80,8 +80,8 @@ so that I see at a glance who is down, burning, slowed, trapped, stunned, protec
 
 ## Tasks / Subtasks
 
-- [ ] T1 `render/statusModel.ts` (pure; local sources) + tests. *(T1–T2 may start before 9.6 lands.)*
-- [ ] T2 Online sources + the probe (AC 3); B2 if needed.
+- [x] T1 `render/statusModel.ts` (pure; local sources) + tests. *(T1–T2 may start before 9.6 lands.)*
+- [x] T2 Online sources + the probe (AC 3); B2 if needed. **B2 not needed** (probe below): no new event, no protocol change.
 - [ ] T3 `docs/art/photoreal-5/src/atlas/status.atlas.ts` (ST-A's `stBake`); `npm run art:fx` (after 9.6).
 - [ ] T4 `StatusIconView` + caps + placement + darkness slot (AC 2, 4, 5); GameScene wiring.
 - [ ] T5 Tests, gallery, readability sheet 202–209 (one item per icon + the cap), stills `docs/art/9-22/`, perf.
@@ -161,8 +161,72 @@ same PR; 7 is reserved by Epic 11).
 
 ### Agent Model Used
 
+Claude (gds-dev-story, cloud builder session).
+
 ### Debug Log References
+
+- Probe: `STATUS_PROBE_LOG=1 npx vitest run --project unit --silent=false apps/client/src/render/statusModel.probe.test.ts`.
 
 ### Completion Notes List
 
+**Phase 1 (T1–T2), 2026-11-28.** Branch `story-9-22`, before Story 9.6.
+
+- **T1 model** (`apps/client/src/render/statusModel.ts`, pure, ticks, no per-frame allocation): `StatusModel.update(world, sources)`
+  writes per survivor and the Behemoth a `BodyStatus` (mask, ticks left and ring length per status, the revive ring) and
+  per zombie slot `zMask` / `zLeft` / `zTotal`; `orderedIcons` gives the shown row (priority order, max 3);
+  `ZOMBIE_IMPORTANCE` is B5's table. Local sources read the World (`worldStatusSources`); online the NetSimHost mirror
+  plus `ClientStatusSources` (the client's `MolotovFires` pool — a new read-only `areas` getter — and `AcidFx`
+  puddles, with the sim's own zone rule incl. the shot-blocker face tolerance).
+- **T2 probe** (`statusModel.probe.test.ts`): a server World runs scripted fights; every tick a mirror World is written
+  from what the wire carries (synced player fields as `syncState` + NetSimHost copy them, horde records in cm with the
+  burning bit through the real `mirrorZombies`, buildings' `trap` through `mirrorBuildings`, the boss record through
+  `mirrorBoss`, the server's events into `MolotovFires` / `AcidFx`, flame cones from the flamers' facing); the online
+  model on the mirror is compared with the local model on the server World. Worst disagreement per status (ticks):
+
+  | Status (bodies) | Seen | On/off | Ring |
+  |---|---|---|---|
+  | TRAPPED (zombies: Walkers + Brute, 10 bear traps) | 207 | 1 | 0 |
+  | SLOWED (zombies, 4 spike traps) | 753 | 1 | — (zone) |
+  | BURNING (zombies, 3 flamer bursts) | 1014 | 0 | 0 |
+  | DOWNED + revive | 99 | 0 | 0 |
+  | SLOWED (survivors: Crawler bite, Bloater gas) | 281 | 0 | 0 |
+  | PROTECTED (return 40 ticks; evacuation 255) | 449 | 0 | 0 |
+  | BURNING (survivor, thrown Molotov) | 74 | 0 | — |
+  | ACID (survivor, Spitter puddle) | 170 | 1 | — |
+  | HEALING (med station, incl. the last HP) | 48 | 0 | — |
+  | STUNNED (Behemoth) | 39 | 0 | 1 |
+
+  Limits: the wire's content, not a Colyseus room (latency / batching are NetSimHost's own tests); the stun is set
+  between ticks (a real crash sets it inside the boss system: the local test sees 40 ticks). `statusModel.online.test.ts`
+  checks the model on the REAL NetSimHost mirror (fake room + horde frames).
+- Probe findings fixed in the model (not on the wire): (1) the ignite ring restarted on every tick in a cone, off by up
+  to a whole ring at a burst's start (35 ticks) → B3 below; (2) HEALING ended up to 4 ticks early online on the last HP
+  (the wire rounds HP up) → B6; (3) a probe bug (one disagreement counter shared by all survivors hid (2)) fixed.
+
+**Builder decisions (phase 1):**
+- **B1** as written: the model is pure and in ticks.
+- **B2 not needed**: every status agrees within the AC's limits without a wire change (no event from 100–103 used, no
+  `NET_PROTOCOL_VERSION` bump, NR-3 not triggered).
+- **B3 (refined)**: online, the client keeps a copy of the sim's per (zombie, flamer slot) flame clock (FR-C: a pulse on
+  the first tick in a cone, then every `pulseS` of exposure; kept while outside; 0 on spawn and at a build start), so
+  the ignite ring restarts on the server's pulse; a burning bit with no pulse seen (a missed cone, a late join) starts
+  it at once. The scene must fill `ClientStatusSources.setCone` each frame from the flame cues (T4). Exact in the probe
+  with exact cones; with real latency it is as good as the drawn cones.
+- **B6 (new)**: HEALING shows while the HP the player sees (rounded up) is below full, in both modes: the sim heals
+  the last fraction for ≤ 4 ticks (0.2 s) after the bar reads full; online that is invisible, so both end on the full bar.
+- **B7 (new)**: rings of SLOWED and PROTECTED take their length from the last refresh (a bite 20 ticks, gas 5 while
+  inside + the linger, a return 40, the evacuation calm 255 = 12.75 s, which drains like the sim's counter).
+- **B8 (new)**: a downed survivor shows DOWNED only; out or aboard the helicopter: nothing; fire and acid show no icon
+  on a protected body (they hurt nothing); fire and heal only in build / wave (the sim's phases).
+- **B9 (new)**: online, a bear trap's hold is counted from the patch its synced state turned HOLDING and its zombie is
+  the lowest-slot one on the plate (the sim's catch rule; 2 cm margin for the cm rounding), locked until the trap
+  springs. A frame that never saw that patch (a hidden tab) starts the ring at first sight.
+- Online stun: counted from the patch the boss state turned STUN (a late join mid-stun: from then).
+
 ### File List
+
+- `apps/client/src/render/statusModel.ts` (new)
+- `apps/client/src/render/statusModel.test.ts` (new)
+- `apps/client/src/render/statusModel.online.test.ts` (new)
+- `apps/client/src/render/statusModel.probe.test.ts` (new)
+- `apps/client/src/render/molotovFx.ts` (read-only `areas` getter)
