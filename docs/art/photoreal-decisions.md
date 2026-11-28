@@ -213,4 +213,13 @@ and the asset review in `docs/art/asset-review.md`.
 - **AC-N good, edge blended** (designer 2026-11-28: "ACN is good but the circle is way to clean try to make it
   blend a bit more"). The wet patch now thins out unevenly from about 0.5–0.8 R to R, and some outer plates stay
   dry; the charred mark fades the same way. Only the acid in the cracks still ends at exactly R (the damage edge).
+- **AC-N picked with the recommendations** (designer 2026-11-28: "I'll follow your reco"):
+  - Q1: 0.24 m crack plates as shown;
+  - Q2: each froth bead on its own 0.4 s cycle (the per-body damage clock);
+  - Q3: the acid runs out to 1 m in 0.11 s (the glob's speed);
+  - Q4: puddles stop turning (2 lit variants) and the skid is baked in 8 headings (+260 KB); the glob may turn.
+- **Picks so far, every card:** MZ-A, SG-G, TR-G, HT-G, BL-G, BT-G, ML-A, CS-A, BF-G, EX1-G, EX2-A, GR-R, MO-R,
+  FI-R, FS-A, BX-G, AC-N, GA-M, EV-R, RD-G, PD-G, RN-G, BD-R, SD-A, TH-R, CL-A, CR-R, P1-G, GD-R. **ST (status
+  icons): the rules answered (above the head, 24 zombie icons max by importance, the Behemoth always), ST-A itself
+  not yet picked.**
 
