@@ -167,4 +167,19 @@ and the asset review in `docs/art/asset-review.md`.
       animated status icon for both player and monsters because they could be affected by same statuses." This adds
       a new card, **ST, animated status icons** (one set for survivors and zombies).
     - **GD:** "why slam cracks and craters are so different?" The answer and a matched take (GD-R) follow.
+- **Round 2 built** (2026-11-28, four cloud sessions, merged): ML-M, GR-R, MO-R, FI-R, AC-R, GA-M, EV-R, BD-R,
+  TH-R, GD-R, CR-R and the new card ST-A (status icons). Every new look is goal first, on the page next to the
+  earlier takes.
+  - **GD answer:** the slam cracks are the approved `drawGroundDamage`; the crater was Story 6.6's flat `drawCrater`
+    (a disc, a pit, 9 lines, no light), never redone. GD-R and TH-R draw the crater with `drawGroundDamage` (its
+    own look: a deeper dish, 5 cracks, heaved slabs, slab pieces) at 6 m = 2 × the 3 m reach.
+  - **MO-R (game change):** the zone is a teardrop along the throw, growing 2 → 4.5 m in 1.0 s at a 35° half-angle
+    (back 0.8 m), holding to 3.4 s, fading by 4 s; damage unchanged. Area 16.4 m² (58 % of the 3 m circle) but about
+    the same fire crossed by a zombie lane (5.3 m vs 6 m). Options measured: 2 → 4 m, 2.5 → 6 m (same area as
+    today), 45°.
+  - **ST:** statuses found in the code: boss stun; zombie ignite; bear-trap hold; survivor slow (Crawler bite, gas),
+    spike slow; downed; protected; fire / acid / heal while inside. Icons are a 0.56 m dark badge with one glyph of
+    light and a draining ring, colour by cause or meaning, stacked above the head (max 3). Possible sim gap noted:
+    the gas slow ignores `protectTicks`.
+  - **Waiting for the designer's picks** and the questions on each new look.
 
