@@ -2,6 +2,7 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { ExplodesStats } from "../config/balanceSchema";
 import { ticksFor } from "../core/time";
+import { isGodFor } from "../core/god";
 import { createExplosionSpec, explode } from "../combat/explosion";
 import { shotLineClear } from "../combat/cover";
 import { slowPlayer } from "../player/slow";
@@ -287,8 +288,8 @@ export function tickSwell(world: World, id: number): boolean {
 const gasPass = { world: null as World | null };
 
 const gasPlayer = (p: PlayerState): void => {
-  if (p.status !== "alive") return;
   const world = gasPass.world as World;
+  if (p.status !== "alive" || isGodFor(world, p) || p.protectTicks > 0) return; // like spit and the bite: god mode and Story 8.1 protection
   const g = world.gas;
   for (let i = 0; i < g.capacity; i++) {
     if (g.active[i] !== 1) continue;

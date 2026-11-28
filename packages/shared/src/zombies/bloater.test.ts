@@ -510,8 +510,7 @@ describe("Story 5.8 FR-F: gas slows, it does not hurt", () => {
 
   it("the cloud slows on exactly gasS worth of ticks", () => {
     const { world } = setup();
-    const p = addPlayer(world, "p0", 31, 20);
-    world.debug.godMode = true;
+    const p = addPlayer(world, "p0", 31, 20); // takes the 30 blast (no god mode: god mode now skips the gas too)
     shoot(world, spawnZombie(world, "bloater", 30, 20));
     let slowed = 0;
     for (let t = 0; t < GAS + 20; t++) {
@@ -520,6 +519,7 @@ describe("Story 5.8 FR-F: gas slows, it does not hurt", () => {
       if (bloaterStats.gasSlows > before) slowed++;
     }
     expect(slowed).toBe(GAS);
+    expect(p.status).toBe("alive");
     expect(p.slowPct).toBe(0);
   });
 
@@ -538,6 +538,53 @@ describe("Story 5.8 FR-F: gas slows, it does not hurt", () => {
       expect(p.slowPct).toBe(30);
     }
     expect(playerSpeed(balance.player.speedMps, p)).toBeCloseTo(balance.player.speedMps * 0.7, 9);
+  });
+
+  // Bugfix (2026-11-28): the gas skips protected (Story 8.1 `protectTicks`) and god-mode survivors, like spit and the Crawler bite.
+  const gasSpot = (prep: (world: World, p: PlayerState) => void) => {
+    const { world } = setup({ systems: STILL });
+    const p = addPlayer(world, "p0", 46, 30); // out of the blast
+    shoot(world, spawnZombie(world, "bloater", 30, 20));
+    run(world, 1);
+    expect(world.gas.count).toBe(1);
+    p.x = 31; // inside the cloud, a clear line to its centre
+    p.y = 20;
+    prep(world, p);
+    const before = bloaterStats.gasSlows;
+    run(world, 1);
+    return { p, slows: bloaterStats.gasSlows - before };
+  };
+
+  it("an unprotected survivor standing in the cloud is slowed (the control)", () => {
+    const { p, slows } = gasSpot(() => {});
+    expect(p.slowPct).toBe(EX.gasSlowPct);
+    expect(p.slowTicksLeft).toBeGreaterThan(0);
+    expect(slows).toBe(1);
+  });
+
+  it("a protected survivor (protectTicks > 0) in the cloud is not slowed and not counted", () => {
+    const { p, slows } = gasSpot((_w, pl) => {
+      pl.protectTicks = 40;
+    });
+    expect(p.protectTicks).toBeGreaterThan(0);
+    expect(p.slowTicksLeft).toBe(0);
+    expect(p.slowPct).toBe(0);
+    expect(slows).toBe(0);
+  });
+
+  it("god mode (the world switch and an admin's own survivor) is not slowed by the gas", () => {
+    const a = gasSpot((w) => {
+      w.debug.godMode = true;
+    });
+    expect(a.p.slowTicksLeft).toBe(0);
+    expect(a.p.slowPct).toBe(0);
+    expect(a.slows).toBe(0);
+    const b = gasSpot((w, pl) => {
+      w.godPlayers.add(pl.id);
+    });
+    expect(b.p.slowTicksLeft).toBe(0);
+    expect(b.p.slowPct).toBe(0);
+    expect(b.slows).toBe(0);
   });
 
   it("circleInGas follows the cloud and its line of sight", () => {
