@@ -33,14 +33,14 @@ interface Entry { key: string; value: unknown; via: string; at: string; phase: s
 const entries: Entry[] = [];
 const seen = new Set<string>();
 let phase = "init";
-function add(key: string, value: unknown, via: string): void {
-  const id = `${phase}|${key}|${JSON.stringify(value)}`;
+function add(key: string, value: unknown, via: string, n: number): void {
+  const id = `${phase}|${n}|${key}`;
   if (seen.has(id)) return;
   seen.add(id);
   const e = { key, value, via, at: stamp(), phase };
   entries.push(e);
   appendFileSync(join(OUT, "logs.ndjson"), `${JSON.stringify(e)}\n`);
-  console.log(`  [app ${e.at} ${phase}] ${key} ${JSON.stringify(value).slice(0, 600)}`);
+  console.log(`  [app ${e.at} ${phase}] ${key} ${JSON.stringify(value).slice(0, 1500)}`);
 }
 let stdoutFile = "";
 let stdoutRead = 0;
@@ -51,15 +51,15 @@ function pollStdout(): void {
   if (!text.endsWith("\n")) lines.pop();
   stdoutRead += lines.reduce((n, l) => n + l.length + 1, 0);
   for (const l of lines) {
-    const m = /SPIKE13 (\S+) (.*)$/.exec(l);
+    const m = /SPIKE13 (\S+) (\d+) (.*)$/.exec(l);
     if (!m) continue;
-    let v: unknown = m[2];
+    let v: unknown = m[3];
     try {
-      v = JSON.parse(m[2] as string);
+      v = JSON.parse(m[3] as string);
     } catch {
       // keep the raw text
     }
-    add(m[1] as string, v, "stdout");
+    add(m[1] as string, v, "stdout", Number(m[2]));
   }
 }
 const latest = (key: string): Entry | undefined => {
@@ -94,8 +94,8 @@ const ctl = createServer((req, res) => {
     req.on("data", (d: Buffer) => (body += d.toString()));
     req.on("end", () => {
       try {
-        const m = JSON.parse(body) as { key: string; value: unknown };
-        add(m.key, m.value, "ctl");
+        const m = JSON.parse(body) as { key: string; value: unknown; n: number };
+        add(m.key, m.value, "ctl", m.n);
       } catch {
         // ignore
       }
@@ -229,10 +229,11 @@ async function main(): Promise<void> {
     shot("06-other-app");
     const back = Date.now();
     simctl("launch", UDID, BUNDLE); // brings the running app back to the front (no relaunch)
-    await waitKey("F10_visibility", 20_000, (v) => (v as { hidden?: boolean }).hidden === false);
-    timings.F10_back_to_visible_s = (Date.now() - back) / 1000;
-    await sleep(5000);
+    const vis = await waitKey("F10_visibility", 45_000, (v) => (v as { hidden?: boolean }).hidden === false);
+    timings.F10_back_to_visible_s = vis ? (Date.now() - back) / 1000 : -1;
     shot("07-back-from-switch");
+    await sleep(10_000);
+    shot("07b-back-from-switch-10s");
     cmd("state");
     await sleep(3000);
     results.F6a_after_switch = { phase: S()?.phase, wave: S()?.wave, players: S()?.players?.size };

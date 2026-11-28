@@ -16,15 +16,16 @@ import { gfxStatus } from "./render/gfx/gfxStatus";
 import { textureRegistry } from "./render/gfx/textureRegistry";
 import { installHintStore } from "./install/installHint";
 import { C2S } from "@topdown/shared";
+import { createPerfSnapshot, perf } from "./debug/perfStats";
 
 const CTL = (import.meta.env.VITE_SPIKE_CTL as string | undefined) ?? "http://127.0.0.1:2668";
 const t0 = performance.now();
 let seq = 0;
 
 function out(key: string, value: unknown): void {
-  const line = `SPIKE13 ${key} ${JSON.stringify(value)}`;
-  console.log(line);
-  const body = JSON.stringify({ n: seq++, t: Math.round(performance.now() - t0), key, value });
+  const n = seq++;
+  console.log(`SPIKE13 ${key} ${n} ${JSON.stringify(value)}`);
+  const body = JSON.stringify({ n, t: Math.round(performance.now() - t0), key, value });
   void fetch(`${CTL}/log`, { method: "POST", body, headers: { "content-type": "text/plain" } }).catch((e: unknown) => console.log(`SPIKE13 ctl_log_error ${String(e)}`));
 }
 
@@ -42,6 +43,17 @@ function safeArea(): Record<string, string> {
   const r = { top: cs.paddingTop, right: cs.paddingRight, bottom: cs.paddingBottom, left: cs.paddingLeft };
   d.remove();
   return r;
+}
+
+function perfNow(game: Phaser.Game): unknown {
+  const sn = perf.snapshot(performance.now(), createPerfSnapshot(), 3000);
+  return { fps: sn.fps, minFps: (sn as unknown as { minFps?: number }).minFps ?? null, updateMs: sn.updateAvgMs, renderMs: sn.renderAvgMs, tickMs: sn.tickAvgMs, alive: perf.alive, inView: perf.inView, loopFps: Math.round(game.loop.actualFps * 10) / 10 };
+}
+
+function fontsLoaded(): string[] {
+  const outF: string[] = [];
+  document.fonts.forEach((f) => void (f.status === "loaded" && outF.push(`${f.family} ${f.weight}`)));
+  return outF;
 }
 
 function audioState(game: Phaser.Game): unknown {
@@ -66,6 +78,7 @@ async function probe(game: Phaser.Game): Promise<void> {
     oswald600: document.fonts.check("600 16px Oswald"),
     oswald700: document.fonts.check("700 16px Oswald"),
     fontsStatus: document.fonts.status,
+    fontsLoaded: fontsLoaded(),
     bootLoaderLeft: !!document.getElementById("boot-loader"),
     screen: uiStore.get().kind,
     gfx: gfxStatus.line(),
@@ -225,13 +238,33 @@ async function run(game: Phaser.Game, cmd: { op: string; arg?: string }): Promis
       room()?.send(C2S.BUILD_SET_READY, { ready: true });
       return out("F6_sent", "build_ready");
     case "shop": {
-      const gs = game.scene.getScene("Game") as unknown as { hudModel?: { shopPressed: boolean } } | null;
-      if (gs?.hudModel) gs.hudModel.shopPressed = true; // the build bar's Shop tile, without the tap
-      await sleep(1500);
-      return out("F9_shop", { open: !!document.querySelector(".shop"), safeArea: safeArea() });
+      // F9: tap the build bar's Shop chip where the HUD drew it (synthetic mouse events on the canvas); fallback: its handler
+      const hud = game.scene.getScene("Hud") as unknown as { buttons?: { get(id: string): { x: number; y: number; w: number; h: number } | undefined; handlers?: Map<string, () => void> } } | null;
+      const rect = hud?.buttons?.get("shopchip");
+      const k = devicePixelRatio;
+      let via = "none";
+      if (rect) {
+        const cx = (rect.x + rect.w / 2) / k;
+        const cy = (rect.y + rect.h / 2) / k;
+        const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0 };
+        game.canvas.dispatchEvent(new MouseEvent("mousedown", opts));
+        await sleep(80);
+        game.canvas.dispatchEvent(new MouseEvent("mouseup", opts));
+        via = "mouse";
+        await sleep(2500);
+      }
+      if (!document.querySelector(".shop")) {
+        const h = (hud?.buttons as unknown as { handlers?: Map<string, () => void> } | undefined)?.handlers?.get("shopchip");
+        if (h) {
+          h();
+          via += "+handler";
+          await sleep(2500);
+        }
+      }
+      return out("F9_shop", { open: !!document.querySelector(".shop"), via, chipCss: rect ? [rect.x / k, rect.y / k, rect.w / k, rect.h / k] : null, safeArea: safeArea(), inner: [innerWidth, innerHeight] });
     }
     case "state":
-      return out("state", { screen: uiStore.get().kind, gfx: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, textures: textureRegistry.keys().length, hidden: document.hidden, audio: audioState(game), stress: (window as { __stress?: (ms: number) => unknown }).__stress?.(3000) ?? null });
+      return out("state", { perf: perfNow(game), fonts: fontsLoaded(), screen: uiStore.get().kind, gfx: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, textures: textureRegistry.keys().length, hidden: document.hidden, audio: audioState(game), stress: (window as { __stress?: (ms: number) => unknown }).__stress?.(3000) ?? null });
     case "stress": {
       // F2: reload into `?stress=150&debug=1` (urlOptions reads location.search once, at boot)
       location.replace(`${import.meta.env.BASE_URL}?stress=${cmd.arg ?? "150"}&debug=1`);
@@ -250,15 +283,17 @@ export function runSpike13(game: Phaser.Game): void {
     out("F8_beforeinstallprompt", true);
   });
   document.addEventListener("visibilitychange", () => out("F10_visibility", { hidden: document.hidden, gfx: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, loopRunning: (game.loop as unknown as { running?: boolean }).running ?? null }));
-  window.addEventListener("error", (e) => out("pageerror", `${e.message} @ ${e.filename}:${e.lineno}`));
+  window.addEventListener("error", (e) => out("pageerror", `${e.message} @ ${e.filename}:${e.lineno}:${e.colno} | ${String((e.error as Error | undefined)?.stack ?? "").slice(0, 1500)}`));
+  game.canvas.addEventListener("webglcontextlost", () => out("F10_contextlost", { screen: uiStore.get().kind, hidden: document.hidden, textures: textureRegistry.keys().length }));
+  game.canvas.addEventListener("webglcontextrestored", () => setTimeout(() => out("F10_contextrestored", { gfx: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, textures: textureRegistry.keys().length }), 500));
   window.addEventListener("unhandledrejection", (e) => out("rejection", err(e.reason)));
   out("boot", { href: location.href, sinceNavMs: Math.round(performance.now()), ctl: CTL });
   if (location.search.includes("stress=")) {
     // F2 sampling: every 3 s, 12 samples (36 s)
     void (async () => {
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 15; i++) {
         await sleep(3000);
-        out("F2", (window as { __stress?: (ms: number) => unknown }).__stress?.(3000) ?? { noProbe: true, screen: uiStore.get().kind });
+        out("F2", { i, perf: perfNow(game), probe: (window as { __stress?: (ms: number) => unknown }).__stress?.(3000) ?? null, screen: uiStore.get().kind, gfx: gfxStatus.line() });
       }
       out("F2_done", { mem: (performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null });
     })();

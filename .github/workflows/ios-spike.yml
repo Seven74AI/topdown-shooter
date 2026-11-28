@@ -84,6 +84,22 @@ jobs:
             echo "== occurrences of the production host in the app's logs, the os log and the server log (requests would show here) =="
             grep -rn "hordes.sevend.io" spike-out/*.log spike-out/*.ndjson spike-out/oslog.txt || echo "none"
           } | tee spike-out/production-grep.txt
+      - name: Dump results into the log (the artifact store is not reachable from the builder's container)
+        if: always()
+        run: |
+          cd spike-out
+          for f in versions.txt production-grep.txt summary.json logs.ndjson server.log app-*.stdout.log; do
+            [ -f "$f" ] || continue
+            echo "=====BEGIN-FILE $f"; cat "$f"; echo; echo "=====END-FILE $f"
+          done
+          echo "=====BEGIN-FILE oslog-tail.txt"; tail -200 oslog.txt 2>/dev/null; echo "=====END-FILE oslog-tail.txt"
+          mkdir -p small
+          for p in *.png; do
+            [ -f "$p" ] || continue
+            sips -g pixelWidth -g pixelHeight "$p" | tail -2 | tr '\n' ' '; echo " $p"
+            sips -Z 1400 "$p" --out "small/$p" >/dev/null
+            echo "=====BEGIN-PNG $p"; base64 -i "small/$p" | fold -w 4000; echo "=====END-PNG $p"
+          done
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7.0.2
