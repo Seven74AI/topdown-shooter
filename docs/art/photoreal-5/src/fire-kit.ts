@@ -1,3 +1,4 @@
+import { relitSurvivor } from "./relit";
 /**
  * Fire family (group 5): shared bake helpers for the "Now" columns (the game's own atlas frames, tinted like
  * Phaser's multiply tint) and for take A (the photoreal textures every fire card shares: flames by temperature,
@@ -79,7 +80,7 @@ export const G = {
   gasClouds: (): HTMLCanvasElement[] => FX_GAS_CLOUDS.map((n) => frameCanvas(ATLAS_FX, n)),
   glow: (): HTMLCanvasElement => frameCanvas(ATLAS_FX, FX_GLOW),
   burntCar: (): HTMLCanvasElement => frameCanvas(ATLAS_DOWNTOWN, "vehicle_carburnt_a"),
-  survivor: (w: string): HTMLCanvasElement => frameCanvas(ATLAS_CHARACTERS, `survivor_${w}_a`),
+  survivor: (w: string): HTMLCanvasElement => relitSurvivor(w), // relit (9.13), as the game shows it
   survivorGun: (w: string): HTMLCanvasElement => frameCanvas(ATLAS_CHARACTERS, `survivorgun_${w}_a`),
 };
 

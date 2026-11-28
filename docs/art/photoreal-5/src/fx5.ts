@@ -32,6 +32,7 @@ const FAMILIES: readonly { id: FxCard["family"]; title: string; intro: string; c
   { id: "telegraphs", title: "The Behemoth's warnings", intro: "In group 5 on the designer's call (\"I'm curious to see how they would look like\"). Every take keeps what the warning tells you, its size and its timing: red = get out, amber = your window.", cards: telegraphs },
 ];
 
+const SHORT: Record<FxCard["family"], string> = { gunfire: "Gunfire", fire: "Fire", matter: "Acid, gas, dust", telegraphs: "Boss warnings" };
 const Q = new URLSearchParams(location.search);
 const ONLY = Q.get("only");
 const ONLY_CARD = Q.get("card");
@@ -373,7 +374,7 @@ async function main(): Promise<void> {
     if (ONLY && ONLY !== fam.id) continue;
     const cards = fam.cards.filter((c) => !ONLY_CARD || c.id === ONLY_CARD);
     if (!cards.length) continue;
-    toc.insertAdjacentHTML("beforeend", `<li><a href="#fam-${fam.id}">${fam.title}</a>: ${cards.map((c) => `<a href="#${c.id}">${c.code}</a>`).join(" ")}</li>`);
+    toc.insertAdjacentHTML("beforeend", `<li><a href="#fam-${fam.id}">${SHORT[fam.id]}</a> ${cards.map((c) => `<a href="#${c.id}">${c.code}</a>`).join(" ")}</li>`);
     const sec = document.createElement("section");
     sec.id = `fam-${fam.id}`;
     sec.innerHTML = `<h2>${fam.title}</h2><p>${fam.intro}</p>`;

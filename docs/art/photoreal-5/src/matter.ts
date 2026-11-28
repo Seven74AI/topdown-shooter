@@ -1,3 +1,4 @@
+import { relitBoss } from "./relit";
 /**
  * Group 5, family "matter": acid, gas, event smoke / vapour / dust / flare, the Ruins' dust, grit and ash, the dust of a
  * placed building, rain, and the Behemoth's dust. Under the group's idea ("every effect is light or matter, and the
@@ -819,7 +820,7 @@ const bdNow: Look = {
   async bake() {
     bakeGame();
     ensureBossTextures(fakeScene);
-    bossFrame = frameCanvas(BOSS_ATLAS, "boss_bh1_slamhit_a");
+    bossFrame = relitBoss("slamhit_a"); // the relit 9.15 Behemoth
     bdNowT.push(tinted(fxf(FX_DUST), PUFF_COLOR));
   },
   draw: (g, t, st) => bdDraw(bdNowT, false, g, t, st),

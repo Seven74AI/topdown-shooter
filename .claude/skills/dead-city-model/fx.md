@@ -101,4 +101,9 @@ Lessons:
 - **A pick covers only what the designer looked at.** "All A" covered the cards up to the car fire, where the
   designer stopped reading ("I didn't validate model after the car fire"). When a reply could cover a whole page, ask
   how far it goes before recording it for every card.
+- **Bodies under an effect are the game's current pictures** (designer 2026-11-28: "why it's showing the old
+  zombies?"). The plain `atlas_characters` / `boss_atlas` frames are only the game's first-second fallback. Pages
+  draw the relit characters (Story 9.13) and the relit Behemoth (9.15) through `docs/art/photoreal-5/src/relit.ts`:
+  the game's own bake, run on the page as the asset gallery runs it. When a story changes how a model looks in play,
+  the proposal pages that show it as context switch to the new picture.
 

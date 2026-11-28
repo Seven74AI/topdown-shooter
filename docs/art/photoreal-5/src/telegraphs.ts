@@ -1,3 +1,4 @@
+import { relitBoss, relitSurvivor } from "./relit";
 /**
  * Photoreal group 5, the Behemoth's warnings (designer 2026-11-26: "In. I'm curious to see how they would look like.
  * So add them too."). Six cards: SD slam countdown disc, TH throw, CL charge lane, CR the CRASH mark, P1 the warning
@@ -11,7 +12,7 @@
  *
  * Timings: boss.json (slam telegraph 1.2 s, recover 0.8 s; charge telegraph 1.0 s at 12 m/s, lane 4.8 m, stun 2 s;
  * throw lift 1.0 s + flight 0.8 s, ring 3 m; slam ring 4.5 m; body 2 m) and bossTelegraph.ts (fade 0.3 s after the
- * hit / stop). Poses as Story 9.15 shows them (charge / throw pose during their warnings), from today's plain atlas.
+ * hit / stop). Poses as Story 9.15 shows them (charge / throw pose during their warnings), relit as the game shows them since 9.15 (relit.ts).
  */
 import { make, idle, rng, clamp01, ramp, easeOut, sprite, countSprite, type FxCard, type Look, type Stage } from "./kit";
 import { captured, fakeScene, frameCanvas } from "./textureShim";
@@ -67,9 +68,9 @@ export function fc(key: string, name: string): HTMLCanvasElement {
 export const whole = (key: string): HTMLCanvasElement => (captured.get(key) as { canvas: HTMLCanvasElement }).canvas;
 export const X = (st: Stage, m: number): number => st.cx + m * st.pxm;
 export const Y = (st: Stage, m: number): number => st.cy + m * st.pxm;
-/** The boss (today's plain atlas frame, BH1) at (xm, ym), 7 m frame, facing +x. Context only: not counted. */
+/** The boss (the relit 9.15 picture, BH1) at (xm, ym), 7 m frame, facing +x. Context only: not counted. */
 export function boss(g: CanvasRenderingContext2D, st: Stage, pose: string, xm: number, ym = 0): void {
-  const tex = fc("boss_atlas", `boss_bh1_${pose}`);
+  const tex = relitBoss(pose); // the relit 9.15 Behemoth, as the game shows it (designer 2026-11-28)
   const s = BOSS_SIDE_M * st.pxm;
   g.drawImage(tex, X(st, xm) - s / 2, Y(st, ym) - s / 2, s, s);
 }
@@ -1284,7 +1285,7 @@ export function lockGeom(t: number): { gap: number; len: number } {
   return { gap: LOCK_R * (1.25 - 0.35 * lock), len: LOCK_R * 0.55 };
 }
 export function p1Survivor(g: CanvasRenderingContext2D, t: number, st: Stage): void {
-  const s = fc("atlas_characters", "survivor_assault_rifle_a");
+  const s = relitSurvivor("assault_rifle");
   const w = 1.5 * st.pxm;
   const h = (w * s.height) / s.width;
   g.drawImage(s, X(st, SURV[0]) - w / 2, Y(st, SURV[1]) - h / 2, w, h);

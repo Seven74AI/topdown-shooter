@@ -1,3 +1,4 @@
+import { relitChar } from "./relit";
 /**
  * Photoreal group 5, family "gunfire": muzzle flashes, the shotgun blast, rounds in flight, hits, blood, the Crawler
  * trail, melee arcs, the Chainsaw's sparks and the building feedback rings / debris.
@@ -46,8 +47,7 @@ const tx = (name: string, canvas: HTMLCanvasElement, note?: string): Tex => ({ n
 
 /** The game's plain character frames (context under the effects): captured once from spriteAtlas. */
 function charFrame(name: string): HTMLCanvasElement {
-  if (!captured.has("atlas_characters")) ensureAtlases(fakeScene);
-  return frameCanvas("atlas_characters", name);
+  return relitChar(name); // the relit 9.13 characters, as the game shows them (designer 2026-11-28)
 }
 /** Draws a context body (not counted: not an effect). sideM = the game's display size (2 r × CHAR_EXTENT_R). */
 function body(g: CanvasRenderingContext2D, pic: HTMLCanvasElement, x: number, y: number, sideM: number, pxm: number, rot: number): void {

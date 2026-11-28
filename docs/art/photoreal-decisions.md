@@ -135,4 +135,10 @@ and the asset review in `docs/art/asset-review.md`.
       2 s stun, above the body.
   - Page fixes: overlapping timeline bars now stack; the TH context shows the walk frame in flight.
   - **Waiting for the designer's codes** (A or G per card, FI-B) and the -G questions written on the cards.
+- Page fixes (designer 2026-11-28: "make the navigation link + animation / fix button accessible while scrolling",
+  "why it's showing the old zombies?"):
+  - the effect links and the animation / speed / `?fx=low` buttons sit in a bar that stays at the top while
+    scrolling;
+  - every body under an effect is now the game's current picture (relit zombies and default survivor of 9.13, the
+    relit 9.15 Behemoth) instead of the plain fallback frames.
 

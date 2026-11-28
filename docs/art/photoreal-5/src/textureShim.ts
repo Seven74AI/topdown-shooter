@@ -29,8 +29,18 @@ export function releaseCanvas(c: HTMLCanvasElement): void {
 export const fakeScene = {
   textures: {
     exists: (k: string): boolean => captured.has(k),
-    get: (): never => {
-      throw new Error("not on the page");
+    // the read the character bake makes of atlas_characters (its plain frames are the sheets' first pictures)
+    get: (k: string): unknown => {
+      const a = captured.get(k);
+      if (!a) throw new Error(`no texture ${k} on the page`);
+      return {
+        getSourceImage: () => a.canvas,
+        has: (n: string) => a.frames.has(n),
+        get: (n: string) => {
+          const f = a.frames.get(n)!;
+          return { cutX: f.x, cutY: f.y, cutWidth: f.w, cutHeight: f.h };
+        },
+      };
     },
     remove: (): void => {},
   },

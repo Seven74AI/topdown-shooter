@@ -1,3 +1,4 @@
+import { relitChar } from "./relit";
 /**
  * Photoreal group 5, gunfire family: the goal-first takes (`${card}-G`, dead-city-model fx.md › FX 4, designer
  * 2026-11-26: "picking a goal … then think of elements needed, and then how they compose with each other").
@@ -23,8 +24,7 @@ type Tex = { name: string; canvas: HTMLCanvasElement; note?: string };
 const tx = (name: string, canvas: HTMLCanvasElement | null | undefined, note?: string): Tex => ({ name, canvas: canvas ?? make(1, 1), note });
 const linFade = (t: number, ms: number): number => Math.max(0, 1 - t / (ms / 1000));
 function charFrame(name: string): HTMLCanvasElement {
-  if (!captured.has("atlas_characters")) ensureAtlases(fakeScene);
-  return frameCanvas("atlas_characters", name);
+  return relitChar(name); // the relit 9.13 characters, as the game shows them (designer 2026-11-28)
 }
 /** A sprite whose anchor (ax, ay metres from the picture's centre, before rotation) sits at (x, y). */
 function spriteAt(g: CanvasRenderingContext2D, tex: HTMLCanvasElement, x: number, y: number, ax: number, ay: number, wM: number, pxm: number, rot: number, a: number, add: boolean, hM?: number): void {
