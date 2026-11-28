@@ -18,6 +18,7 @@ import { ensureEventTextures, EVENT_ATLAS, EVENT_FRAMES, EVENT_SMOKE_RGB } from 
 import { ensureBossTextures, BOSS_ATLAS } from "../../../../apps/client/src/render/city/bossAtlas";
 import { acG, gaG, evG, rdG, pdG, rnG, bdG, AC_G_END, GA_G_END, RD_G_END } from "./matter-g";
 import { litPuff, tinted, silhouette, gritChip, ashFlake, glowTex, acidGlob, wetHighlight, acidPool, acidBubble, rainStreak, rainSplash, wetPatch, flareStick } from "./matter-tex";
+import { acR, bdR, bakeArrow, drawArrow, arrowTextures, ARROW_PARTS, STAMPEDE_WARN_S } from "./matter-r2";
 
 /* ---------------- shared ---------------- */
 let gameBaked = false;
@@ -299,6 +300,97 @@ const gaA: Look = {
   ],
 };
 
+
+/* GA-M (round 2, designer 2026-11-28: "I think id pick GAA, but try a mix of A and G, like just superpose the A fog to
+ * G"). GA-G whole (its own draw, unchanged), with GA-A's two fog layers laid over its thin inside and under its front. */
+const GA_M_END = 4.5;
+/** Scratch stage for drawing GA-G's parts (no allocation in draw). */
+const gaMSt: Stage = { pxm: 1, w: 1, h: 1, cx: 0, cy: 0, only: null, seed: 0, low: false };
+function gaGPart(g: CanvasRenderingContext2D, t: number, st: Stage, part: string): void {
+  gaMSt.pxm = st.pxm;
+  gaMSt.w = st.w;
+  gaMSt.h = st.h;
+  gaMSt.cx = st.cx;
+  gaMSt.cy = st.cy;
+  gaMSt.seed = st.seed;
+  gaMSt.low = st.low;
+  gaMSt.only = part;
+  gaG.draw(g, t, gaMSt);
+}
+/** GA-A's fog on GA-G's clock: in with G's inside (0.4 s), held, thins 3.6–4.0 s with it (A faded over the last 1 s). */
+const fogClock = (t: number): number => (t >= GAS_S ? 0 : ramp(t, 0, 0.4) * (1 - ramp(t, 3.6, 4.0)));
+const gaM: Look = {
+  code: "GA-M",
+  title: "GA-G with GA-A's fog laid over it",
+  note: "Exactly the designer's mix (\"just superpose the A fog to G\"): GA-G whole (its rolling gas front that is the 2.5 m edge, its thin inside, its break-up at 4 s), with GA-A's two turning fog layers laid on top of G's inside, at A's alphas and A's turning speeds. Tuned only where A's fog would break G's rules: (1) A's fog is drawn under G's front, so the edge stays G's rim; (2) A's layers were 1.02 R and 0.92 R wide and rolled out from 70 %: now 0.96 R and 0.9 R, at full size from the burst, so no fog passes the slow edge; (3) A's fog followed A's clock (fading over the last second): it now follows G's (in over 0.4 s, thins over 3.6–4.0 s, gone at 4 s when the slow ends). A's rim wisps and edge ring are not part of the fog and stay out (G cut them).",
+  goalFirst: {
+    goal: "GA-G's, unchanged: inside this 2.5 m circle you are slowed 30 % (your body touching it counts, plus 0.25 s after you leave) for exactly 4 s; it does not hurt (zombies.json › bloater.explodes). Plus the designer's: GA-A's denser, rolling fog look.",
+    elements: [
+      { name: "GA-G's gas front (unchanged)", job: "the edge: the rolling rim whose outside face is R." },
+      { name: "GA-G's thin inside (unchanged)", job: "it's gas, everywhere inside." },
+      { name: "GA-A's fog, two layers (added)", job: "the body of the cloud: denser, lit upper-left, the two layers turning against each other (A's +0.05 / −0.08 rad/s). Drawn between G's inside and G's front." },
+      { name: "GA-G's break-up wisps (unchanged)", job: "the end, after 4 s only." },
+      { name: "Left out: A's rim wisps and ring", job: "not part of A's fog; G cut them (the wisps spilled 0.3 m past the edge)." },
+    ],
+    composition: [
+      "Order: G's inside → A's fog → G's front → G's wisps (after 4 s). The front stays on top, so the edge is still G's.",
+      "Nothing passes R while the slow lasts: A's layers are scaled to 0.96 R / 0.9 R (litPuff's soft edge ends inside its frame).",
+      "One clock, G's: full size at the burst; A's fog in over 0.4 s with G's inside; both thin over 3.6–4.0 s while the front holds; front breaks at 4.0 s.",
+      "Brightness: G's lit rolls > A's fog's lit side > G's inside. Bodies in the cloud are less readable than in GA-G (the cost of A's density; see the question on the card).",
+    ],
+    plan: {
+      goal: "The exact edge of the slow zone (G), the body of a dense rolling cloud (A), and an end you can trust (G).",
+      timing: "gasS 4.0, slow 30 % inside, lingering 0.25 s (zombies.json, bloater.ts); radius 2.5 m; A's turning speeds (BloaterView.ts).",
+      lengthS: GA_M_END,
+      lanes: {
+        core: [
+          { t0: 0, t1: 0.1, label: "G's front at R", key: true },
+          { t0: 0.1, t1: 4, label: "G's rolling rim" },
+          { t0: 4, t1: 4.2, label: "rim breaks", key: true },
+        ],
+        smoke: [
+          { t0: 0, t1: 0.4, label: "G's inside + A's fog fill", nw: true },
+          { t0: 0.4, t1: 3.6, label: "A's two fog layers turning over G's inside", nw: true },
+          { t0: 3.6, t1: 4, label: "inside + fog thin", nw: true },
+          { t0: 4, t1: 4.5, label: "G's wisps drift out" },
+        ],
+        game: [
+          { t0: 0, t1: 0.05, label: "burst (BX)", key: true },
+          { t0: 0, t1: 4, label: "30 % slow inside" },
+        ],
+      },
+    },
+  },
+  async bake() {
+    if (!gaT.a) await gaA.bake();
+    if ((gaG.textures()[0]?.canvas.width ?? 1) <= 1) await gaG.bake();
+  },
+  draw(g, t, st) {
+    if (t >= GA_M_END) return;
+    if (on(st, "inner")) gaGPart(g, t, st, "inner");
+    const a = fogClock(t);
+    if (on(st, "fog") && a > 0) {
+      sprite(g, gaT.a!, st.cx, st.cy, 2 * GAS_R * 0.96, st.pxm, 1.7 + t * 0.05, 0.62 * a);
+      sprite(g, gaT.b!, st.cx, st.cy, 2 * GAS_R * 0.9, st.pxm, 0.9 - t * 0.08, 0.38 * a);
+    }
+    if (on(st, "front")) gaGPart(g, t, st, "front");
+    if (on(st, "wisps")) gaGPart(g, t, st, "wisps");
+  },
+  textures: () => [...gaG.textures().map((x) => ({ ...x, name: `${x.name} (GA-G's)` })), tex("gas_layer_a (GA-A's)", gaT.a ?? null), tex("gas_layer_b (GA-A's)", gaT.b ?? null)],
+  parts: [
+    { id: "front", label: "G's gas front (the edge)" },
+    { id: "fog", label: "A's fog (2 layers)" },
+    { id: "inner", label: "G's thin inside" },
+    { id: "wisps", label: "G's break-up wisps (after 4 s)" },
+  ],
+  frames: [
+    { label: "burst", t: 0.08, when: "front at R, fog filling" },
+    { label: "full", t: 1.5, when: "steady" },
+    { label: "last", t: 3.9, when: "fog and inside thinned, edge full" },
+    { label: "over", t: 4.15, when: "slow ended: front breaks" },
+  ],
+};
+
 /* =====================================================================================================
  * EV: event smoke, vapour, dust and the flare. Game: render/EventPickupsView.ts (gas leak vapour 22/s, life 2.2 s × 0.7–1.2,
  * puff 1.4 m × (0.5 + 1.3 u), alpha 0.7 (1 − u); supply flare 0.6 × 0.3 m and its green smoke 16/s, life 3 s, drift
@@ -435,6 +527,66 @@ const evA: Look = {
   frames: [
     { label: "a", t: 0.5, when: "steady emission" },
     { label: "b", t: 1.0, when: "0.5 s later" },
+  ],
+};
+
+
+/* EV-R (round 2, designer 2026-11-28: "EVA but with arrow for stampede, take inspiration of the boss warnings for the
+ * arrow"). EV-A drawn as is, plus the stampede arrow (matter-r2.ts › drawArrow) over the 3 s warning. */
+const evR: Look = {
+  code: "EV-R",
+  title: "EV-A + a stampede arrow in the boss warnings' language",
+  note: "EV-A exactly as it is (same vapour, flare, signal smoke and dust), plus what the designer asked: an arrow for the stampede (\"EVA but with arrow for stampede, take inspiration of the boss warnings for the arrow\"). It speaks the Behemoth's warning language (CL-A's lines of light on the asphalt; SD's lit edge that is also the clock), in amber because it is an event, not the boss: a bar of light across the 8 m lane at the edge the herd comes from, a stem along the lane that lights up from that bar to the head over the 3 s warning (the clock), and an arrowhead that turns full when the clock reaches it, as the herd enters. All of it flares at 3 s and fades in 0.3 s: from then the herd is the warning.",
+  goalFirst: {
+    goal: "The stampede: in 3 s a herd comes from THIS edge and runs THIS way along an 8 m lane at 5 m/s (8 damage on contact) (events.json › stampede: warningS 3, laneWidthM 8, speedMps 5, contactDamage 8). EV-A's other reads (gas, flare) unchanged.",
+    elements: [
+      { name: "EV-A, as is", job: "gas leak vapour, the flare and its signal smoke, the stampede's dust at the lane's start edge (unchanged)." },
+      { name: "Start bar (amber light across the lane)", job: "FROM: the edge the herd comes through. As wide as the lane (8 m), so it also says how wide the danger is. Brightens 55 → 100 % over the warning (CL-A's edges)." },
+      { name: "Stem = the clock", job: "WHEN: a line of light from the bar along the lane, lit up to a bright front that reaches the head at exactly 3 s. The whole stem shows faintly from the start, so the arrow reads at once." },
+      { name: "Arrowhead", job: "TO: the run's direction. Faint until the clock reaches it, full at 3 s." },
+      { name: "Release at 3 s", job: "NOW: bar, stem and head flare together for 0.15 s (the warnings' 'release together'), then fade in 0.3 s." },
+      { name: "Cut: today's drifting chevron rows (ST1)", job: "the arrow does their job (proposed: the arrow replaces them; question on the card)." },
+    ],
+    composition: [
+      "The arrow lies on the asphalt along the lane's centre line, from its start edge; the bar spans the lane's full 8 m. The dust (EV-A) is born at the same edge, so cause and pointer agree.",
+      "Brightness: the arrow's lit part > the bar > the dust > the faint unlit stem. Amber only (event); no red (boss danger), no yellow-green (gas).",
+      "One clock: the stem's front, 0 → head over the 3 s warning (events.json warningS). Nothing pulses against it.",
+      "Above the darkness like today's chevrons (markers), drawn over the dust.",
+    ],
+    plan: {
+      goal: "From this edge, this way, in 3 s.",
+      timing: "Stampede warning 3 s, then the run (12 s, 5 m/s) (events.json); EV-A's emitters unchanged (22 / 16 / 24 per s).",
+      lengthS: EV_L,
+      lanes: {
+        light: [
+          { t0: 0, t1: STAMPEDE_WARN_S, label: "start bar 55 → 100 % (from)", nw: true },
+          { t0: 0, t1: STAMPEDE_WARN_S, label: "stem lit to the clock's front", nw: true },
+          { t0: STAMPEDE_WARN_S * 0.85, t1: STAMPEDE_WARN_S, label: "head lights (to)", nw: true },
+          { t0: STAMPEDE_WARN_S, t1: STAMPEDE_WARN_S + 0.3, label: "flare, fade", key: true, nw: true },
+        ],
+        smoke: [{ t0: 0, t1: EV_L, label: "EV-A: vapour, signal smoke" }],
+        matter: [{ t0: 0, t1: EV_L, label: "EV-A: stampede dust + grit" }],
+        game: [
+          { t0: 0, t1: STAMPEDE_WARN_S, label: "stampede warning (banner)" },
+          { t0: STAMPEDE_WARN_S, t1: EV_L, label: "the herd runs", key: true },
+        ],
+      },
+    },
+  },
+  async bake() {
+    if (!evAT.flare) await evA.bake();
+    await bakeArrow();
+  },
+  draw(g, t, st) {
+    evDraw(evAT, true, g, t, st);
+    drawArrow(g, t, st);
+  },
+  textures: () => [...evA.textures().map((x) => ({ ...x, name: `${x.name} (EV-A's)` })), ...arrowTextures()],
+  parts: [...(evA.parts ?? []), ...ARROW_PARTS],
+  frames: [
+    { label: "start", t: 0.3, when: "warning starts: bar + faint arrow" },
+    { label: "half", t: 1.5, when: "the clock half-way" },
+    { label: "now", t: 3.05, when: "clock at the head: release, the herd enters" },
   ],
 };
 
@@ -860,8 +1012,11 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p><b>Acid is the one matter that glows</b> (yellow-green = acid). The glob is heavy and viscous: a drop with strings behind it, the street light on it upper-left (its own sprite, so it stays upper-left while the glob turns), its shadow on the street moving away with the lob. It lands with a splat (matter flies), then becomes <b>the mark</b>: a pool with a deep olive centre, see-through thin edges and a bright meniscus, eating into the asphalt under it, bubbling, giving off thin fumes. <b>The ring stays exactly where it is</b>: its outer edge is the damage edge (4.8 D16: touch the ring = you are in acid).</p>`,
     game: `<ul><li><code>render/AcidView.ts</code>: glob <code>fx_spit_glob_01</code> 0.45 m (× 1.7 at the top of the lob, lifted 0.35 m up the screen), shadow <code>fx_glow</code> tinted black 0.28 m at 0.35; puddle <code>fx_acid_puddle_01/02</code> 2 m (2 × puddleRadiusM 1.0), turned id × 1.3, fade in 0.12 s, alpha min(1, (3 − age) / 0.6 + 0.35).</li><li><code>acidFx.ts</code>: pools ≤ maxLiveSpits 24 / maxLivePuddles 32 (zombies.json › spitCaps); speed 9 m/s, puddle 3 s.</li><li>Blackout: a ghost copy above the darkness (hazard, 6.3 B3).</li></ul>`,
-    perf: `<p>AC-A: 13 textures, ≈ 190 KB (the two pools are 144² for 2 m: 72 px/m = 36 px/m × dpr 2). Per puddle 1 pool + 1 halo (ADD, cropped to the pool) + ≤ 6 bubbles + ≤ 4 fumes = 12 sprites (today 1), so 32 puddles = 384 sprites at the cap: <b>cap the bubbles and fumes to the 8 nearest puddles</b> (like maxSpitterDrips 8) and halve with <code>?fx=low</code> (done here: 3 bubbles, 2 fumes). AC-B drops the two additive textures (no ADD fill on the CPU rasterizer). <b>AC-G</b>: 15 textures, ≈ 620 KB as baked here (2 splats + 2 etches + the zone light at 144², the edge at 192²; in the atlas the two variants could share one etch). Peak 11 sprites per puddle (2 ADD: the zone light and the edge, both exactly the 2 m circle, so nothing outside the zone is filled), 9 with <code>?fx=low</code>; bubbles and fumes on the 8 nearest puddles as for A.</p>`,
+    perf: `<p>AC-A: 13 textures, ≈ 190 KB (the two pools are 144² for 2 m: 72 px/m = 36 px/m × dpr 2). Per puddle 1 pool + 1 halo (ADD, cropped to the pool) + ≤ 6 bubbles + ≤ 4 fumes = 12 sprites (today 1), so 32 puddles = 384 sprites at the cap: <b>cap the bubbles and fumes to the 8 nearest puddles</b> (like maxSpitterDrips 8) and halve with <code>?fx=low</code> (done here: 3 bubbles, 2 fumes). AC-B drops the two additive textures (no ADD fill on the CPU rasterizer). <b>AC-G</b>: 15 textures, ≈ 620 KB as baked here (2 splats + 2 etches + the zone light at 144², the edge at 192²; in the atlas the two variants could share one etch). Peak 11 sprites per puddle (2 ADD: the zone light and the edge, both exactly the 2 m circle, so nothing outside the zone is filled), 9 with <code>?fx=low</code>; bubbles and fumes on the 8 nearest puddles as for A. <b>AC-R</b>: 16 textures, ≈ 590 KB as baked here (2 liquids, 2 eaten-asphalt marks, the film and the light at 144², 72 px/m; glob 96 × 44; 3 bubbles at 32²). Per puddle at most 10 sprites (mark, film, light (ADD), liquid, 3 bubbles, 3 fumes; + the 0.15 s splash flash (ADD)), 8 with <code>?fx=low</code>; the 2 ADD sprites are exactly the 2 m circle. In flight 5 sprites (2 shadows, glow (ADD), glob, highlight). Bubbles and fumes on the 8 nearest puddles as for A / G. The liquid's highlight is baked for its heading: a game build bakes it for 8 headings (45° apart; one variant: 8 × 83 KB ≈ 660 KB) or keeps 2 variants and accepts a highlight that turns with the splat (see the question).</p>`,
     findings: [
+      "<b>AC-R finding:</b> AC-G's splat was a gradient fill with a bright rim and its edge a flat neon stroke: that is what read as 'not photoreal'. AC-R shades every acid picture per pixel from a thickness field (absorption, the acid's own faint light, the street light's reflection), the method of the approved slam ground damage and of the relit characters.",
+      "<b>AC-R finding:</b> a lit liquid's highlight depends on which way the splat faces. The splat turns with the flight in the game (AcidView), so baking the light once would light it from the right when spat to the left (today's glob has the same bug). Options: 8 headings of one variant (≈ 660 KB, recommended) or 2 variants with the light turning (≈ 165 KB).",
+      "<b>AC-R finding:</b> the zone's edge is still a visible circle at game size: the film's meniscus plus the acid's light ending at R. It is much quieter than AC-G's line, but it has to stay readable at 36 px/m (it is the damage edge).",
       "<b>AC-G finding:</b> there is no puddle-wide damage tick: the acid clock is per body (<code>spit.ts › acidTicks</code>, 2 HP per 0.4 s spent inside, kept while outside). A pulse on the ring (like FI-B's fire, which does tick for the zone) would show ticks that are nobody's, so AC-G's ring is steady.",
       "<b>AC-G finding:</b> today and AC-A fade the pool while it still hurts (today to 0.35, A to 0 over the last 0.6 s). AC-G keeps the zone full to 3 s and turns it off in 0.08 s; only the dark mark fades after (0.6 s).",
       "AC-A's splash drops (up to 0.95 m + their size) crossed the 1 m edge with bright acid; AC-G keeps every bright part inside.",
@@ -875,7 +1030,7 @@ export const cards: FxCard[] = [
     keyT: [AC_FLIGHT_S * 0.5, AC_FLIGHT_S + 0.08, AC_FLIGHT_S + 1.2, AC_FLIGHT_S + 2.8],
     viewM: 7,
     aspect: 0.6,
-    looks: [acNow, acTake("AC-A"), acTake("AC-B"), acG],
+    looks: [acNow, acTake("AC-A"), acTake("AC-B"), acG, acR],
     plan: {
       goal: "See it coming, then know exactly where not to stand for 3 s.",
       timing: `Flight 5 m at 9 m/s = 0.56 s here (≤ 6 m range: 0.67 s); puddle 3 s from the splash (zombies.json › spitter.spit). The Spitter's 0.6 s windup (its rear-back pose) comes before.`,
@@ -909,8 +1064,10 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Gas is <b>matter, not light</b>: heavy yellow-green fumes (gas / infection colour) that <b>roll out</b> from the burst, denser in the middle, lit on top-left and shadowed down-right, thinning into curling wisps at the rim. It does not glow. The two layers still turn against each other (today's motion, kept). <b>The edge ring stays</b>: it is the slow zone's edge (30 % slow inside).</p>`,
     game: `<ul><li><code>render/BloaterView.ts</code>: per cloud two discs <code>fx_gascloud_a/b</code> 5 m (2 × gasRadiusM 2.5), alpha 0.42 / 0.22, turning +0.05 / −0.08 rad/s; edge ring 0.045 m, cde178 at 0.45; ghosts above the darkness in a blackout.</li><li><code>bloaterFx.ts</code>: fade in 0.25 s, out over the last 1 s; gasS 4.0; maxGasClouds 24 (zombies.json › blasts).</li><li>The burst (flash, shock ring, drops, scraps, bile) is the fire family's card <b>BX</b>.</li></ul>`,
-    perf: `<p>GA-A: 3 textures, 300 KB (two 192² layers: the cloud is 5 m, 38 px/m; the game shows it at 36 px/m × dpr). Per cloud 2 layers + 8 wisps + the ring = 11 sprites (today 3); 24 clouds = 264 at the cap: wisps only on the 6 nearest clouds (maxBloaterFx 6), 4 with <code>?fx=low</code>. The layers are normal blend, large: the same fill cost as today's two discs. <b>GA-G</b>: 3 textures, ≈ 400 KB (one 256² rim and one 192² inner layer, each drawn twice at different turns; 5 m at 51 / 38 px/m). Per cloud 4 sprites during its life (2 rims + 2 inner layers, no ring Graphics; today 3); the 8 break-up wisps only in the 0.5 s after the end (peak 10; 4 wisps with <code>?fx=low</code>). Normal blend only.</p>`,
+    perf: `<p>GA-A: 3 textures, 300 KB (two 192² layers: the cloud is 5 m, 38 px/m; the game shows it at 36 px/m × dpr). Per cloud 2 layers + 8 wisps + the ring = 11 sprites (today 3); 24 clouds = 264 at the cap: wisps only on the 6 nearest clouds (maxBloaterFx 6), 4 with <code>?fx=low</code>. The layers are normal blend, large: the same fill cost as today's two discs. <b>GA-G</b>: 3 textures, ≈ 400 KB (one 256² rim and one 192² inner layer, each drawn twice at different turns; 5 m at 51 / 38 px/m). Per cloud 4 sprites during its life (2 rims + 2 inner layers, no ring Graphics; today 3); the 8 break-up wisps only in the 0.5 s after the end (peak 10; 4 wisps with <code>?fx=low</code>). Normal blend only. <b>GA-M</b>: GA-G's 3 textures + GA-A's two 192² fog layers ≈ 700 KB (A's wisp is not used). Per cloud 6 sprites during its life (G's 2 rims + 2 inside + A's 2 fog layers; today 3); peak 10 at the break-up (G's wisps, 4 with <code>?fx=low</code>). Normal blend only, large: the fog adds two discs of fill per cloud over GA-G.</p>`,
     findings: [
+      "<b>GA-M finding:</b> laid on top of everything, A's fog would soften G's edge, and A's layers (1.02 R, rolling out from 70 %) would cross the slow edge. So the fog goes under G's front and is scaled to 0.96 R / 0.9 R, on G's clock (in over 0.4 s, thins over 3.6–4.0 s). A's alphas (0.62 / 0.38) and turning speeds are kept.",
+      "<b>GA-M finding:</b> with A's density over G's thin inside, bodies standing in the gas read less well than in GA-G: the middle covers about 0.65 of the street there, against about 0.35 in GA-G.",
       "<b>GA-G finding:</b> GA-A's rim wisps (at 0.82–0.92 R, 1.1 m wide) spill ≈ 0.3 m past the slow edge, so the cloud looks bigger than the zone; today's and A's 1 s fade dims a zone that still slows. GA-G: the gas front is the edge, held to 4 s, broken after.",
       "GA-G drops the stroked ring: the blackout ghost (above the darkness) would be the rim texture instead (question for the designer).",
       "Checked and fine: alpha in / out and the turning speeds match <code>bloaterFx.ts</code> / <code>BloaterView.ts</code>.",
@@ -922,7 +1079,7 @@ export const cards: FxCard[] = [
     keyT: [0.15, 1.2, 3.5],
     viewM: 7,
     aspect: 0.8,
-    looks: [gaNow, gaA, gaG],
+    looks: [gaNow, gaA, gaG, gaM],
     plan: {
       goal: "A zone you don't want to walk through: you see its edge at once, and it hangs there for 4 s.",
       timing: "gasS 4.0, fade in 0.25 s, out over the last 1 s (bloaterFx.ts); radius 2.5 m.",
@@ -949,8 +1106,11 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>Three emitters from the events, kept at their rates and colours because each colour means something: the <b>gas leak's yellow-green vapour</b> (gas: get out of the ring), the supply drop's <b>green signal smoke</b> (SD2, approved: where the crate lands; a signal colour, not acid) and the stampede's <b>warm dust</b>. All three become lit billows (matter): the gas jet leaves fast and hangs, the smoke rises off the flare then bends with the wind, the dust kicks up grit (secondary follows). The flare is <b>light</b>: a white-hot green head on a dark stick, with a small pool of green light.</p>`,
     game: `<ul><li><code>render/EventPickupsView.ts</code>: vapour <code>event_vapour_a</code> 22/s, life 2.2 s × 0.7–1.2, 1.4 m × (0.5 + 1.3 u), alpha 0.7 (1 − u); flare <code>event_flare_a</code> 0.6 × 0.3 m; smoke <code>event_smoke_a</code> 16/s, life 3 s, 1.68 m, alpha 0.75, drift (0.35, −0.3) m/s.</li><li><code>render/EventView.ts</code>: stampede dust <code>event_dust_a–c</code> 24/s, life 1.6 s, 2.2 m × (0.6 + 0.8 u), alpha 0.7 (1 − u).</li><li>Caps: events.json › fx 48 vapour, 48 smoke, 64 dust; all above the darkness.</li></ul>`,
-    perf: `<p>EV-A: 12 textures, ≈ 160 KB (64–72 px puffs for 1.4–2.2 m). Same particle counts as today (one sprite each) plus ≤ 24 grit chips on the stampede and 3 sprites for the burning flare (2 additive, cropped). <code>?fx=low</code> halves all emitters (today it doesn't touch the event particles: see findings). <b>EV-G</b>: 14 textures, ≈ 200 KB. Peak 124 sprites for the three events at once on this page (77 with <code>?fx=low</code>); in play only one event runs at a time, under the same caps (48 / 48 / 64) + 1 jet sprite + 8 hop chips + 3 flare sprites (2 ADD, cropped: 64² pool, 32² head).</p>`,
+    perf: `<p>EV-A: 12 textures, ≈ 160 KB (64–72 px puffs for 1.4–2.2 m). Same particle counts as today (one sprite each) plus ≤ 24 grit chips on the stampede and 3 sprites for the burning flare (2 additive, cropped). <code>?fx=low</code> halves all emitters (today it doesn't touch the event particles: see findings). <b>EV-G</b>: 14 textures, ≈ 200 KB. Peak 124 sprites for the three events at once on this page (77 with <code>?fx=low</code>); in play only one event runs at a time, under the same caps (48 / 48 / 64) + 1 jet sprite + 8 hop chips + 3 flare sprites (2 ADD, cropped: 64² pool, 32² head). <b>EV-R</b>: EV-A's textures + 4 for the arrow (start bar 192 × 22, stem 90 × 17, head 46 × 77, clock front 48²) ≈ 46 KB more. + 5 ADD sprites during the 3 s warning (bar, faint stem, lit stem cropped to the clock, front, head; ≈ 12 m² of faint ADD), then nothing; the same with <code>?fx=low</code> (a marker, not a particle).</p>`,
     findings: [
+      "<b>EV-R finding:</b> the card's view is 6 m tall and the lane is 8 m wide (events.json laneWidthM), so the start bar runs off the top and bottom of the card. In play at 36 px/m the 8 m bar is 288 px: it fits on screen.",
+      "<b>EV-R finding:</b> EV-A's page dust spreads ±1.2 m across the lane, but the game's (EventView) is spread over the full 8 m width; the arrow's bar shows that width.",
+      "<b>EV-R finding:</b> the game already has the lane's start edge and direction (EventView › updateStampede: lane.dir, min / max), so the arrow needs no new data. Today's chevron rows (ST1) drift along the lane at 3 m/s with no clock; the arrow's stem is the 3 s clock.",
       "<b>EV-G finding:</b> two winds on one street: the flare smoke drifts up-right (0.35, −0.3) m/s while fire smoke and embers go down-right (fireParticles.ts WIND 0.55, 0.32). EV-G (and RD-G, AC-G's fumes) use the fire's wind.",
       "The vapour flies 0.6–1.6 m/s for up to 2.6 s today: it reaches 3–4 m from the tank, half-way to the 6 m danger ring, and reads as a smaller zone. EV-G keeps it within ≈ 2.5 m.",
       "<code>?fx=low</code> does not reduce the event vapour, flare smoke or stampede dust today (EventPickupsView / EventView ignore it). Proposed: halve them like the other particles (shown with the ?fx=low button).",
@@ -963,7 +1123,7 @@ export const cards: FxCard[] = [
     keyT: [0.6, 1.8, 3.0],
     viewM: 12,
     aspect: 0.5,
-    looks: [evNow, evA, evG],
+    looks: [evNow, evA, evG, evR],
     plan: {
       goal: "From across the map: where the gas is, where the crate lands, where the stampede comes from.",
       timing: "Continuous while the event's phase lasts (gas leak HISS, supply FLARE, stampede warning): rates 22 / 16 / 24 per second (EventPickupsView / EventView).",
@@ -1094,8 +1254,9 @@ export const cards: FxCard[] = [
     family: "matter",
     brief: `<p>The dust is <b>secondary: it follows its cause</b> (the group 4 plan's R5) and its timing is already approved and built in Story 9.15 (in review, PR #34). So <b>only the picture changes</b>: the same pooled puffs, bursts, sizes, alphas and tint, drawn with the new lit <code>fx_dust_a</code> from RD-A. Recommended: pick BD together with RD (one texture, one look for all dust).</p>`,
     game: `<ul><li>Branch story-9-15: <code>render/bossDust.ts</code> (pool 48, ?fx=low 24; slam: 9 per fist, 6 grit per shoulder; rush trail, crash 16, throw crumbs 8 + landing 12, roar 22, death 24), <code>BossView.ts</code> draws each with one <code>ATLAS_FX › FX_DUST</code> image tinted b8ada0; peak alpha 0.5, radius × (1 + 1.6 t).</li><li>Shown: the slam hit on BH1's slam-hit frame (today's game drawing, not the relit one).</li></ul>`,
-    perf: `<p>No change to counts (pool 48 / 24). Texture: the shared dust grows from one 64² to three 80² (≈ 75 KB). <b>BD-G</b>: the same pool, counts and timing (peak 28 here, 23 with <code>?fx=low</code>); textures = the shared -G dust (3 × 80², 75 KB). Its geometry (directions, speed cap) is computed once at the burst: no per-frame cost.</p>`,
+    perf: `<p>No change to counts (pool 48 / 24). Texture: the shared dust grows from one 64² to three 80² (≈ 75 KB). <b>BD-G</b>: the same pool, counts and timing (peak 28 here, 23 with <code>?fx=low</code>); textures = the shared -G dust (3 × 80², 75 KB). Its geometry (directions, speed cap) is computed once at the burst: no per-frame cost. <b>BD-R</b>: 4 textures ≈ 80 KB (3 ground billows 80² with their contact shadow baked, one 24² grit). 9.15's pool and counts (48, 24 with <code>?fx=low</code>) + 2 skirt sprites per slam (one per fist, 0.4 s). Draw order: the dust slots one depth under the body (above the decals), the grit slots above it.</p>`,
     findings: [
+      "<b>BD-R finding:</b> why the dust floated above the hands: 9.15 draws the dust above the body (<code>BossView.ts</code>: <code>setDepth(BODY_DEPTH + DUST_DZ)</code>, DUST_DZ 0.01), so the puffs sit on top of the fists; and 9.15's burst starts at the fist's centre as round, evenly lit balls. BD-R: the dust one depth under the body (BODY_DEPTH − 0.01, still above the decals), the grit kept above (it falls from the shoulders), each puff low and wide with its own contact shadow, plus a flat skirt from under each fist.",
       "<b>BD-G finding:</b> 9.15's burst throws dust in every direction from each fist (<code>bossDust.ts › burst</code>: angle = hash × 2π), so about half of it flies back over the boss's own body and its tell. BD-G: the half away from the body. Two lines in 9.15's code: the angle, and a speed cap that keeps the visible dust inside 4.2 m (9.15's fastest forward puffs reach ≈ 4.3 m from the boss while still at alpha > 0.15, next to the 4.5 m slam edge).",
       "Overlap with 9.15: <code>bossDust.ts</code> uses <code>FX_DUST</code>; when group 5's dust texture lands, the boss picks it up with no change to 9.15's code or timing. If three variants are picked, 9.15's one-image-per-slot can take the variant by slot index (one line).",
       "Checked and fine: the burst numbers here are copied from <code>BOSS_DUST</code> on story-9-15.",
@@ -1107,7 +1268,7 @@ export const cards: FxCard[] = [
     aspect: 0.75,
     origin: [0.4, 0.5],
     under: bossUnder,
-    looks: [bdNow, bdA, bdG],
+    looks: [bdNow, bdA, bdG, bdR],
     plan: {
       goal: "The slam lands with weight: the ground gives off dust from under the fists.",
       timing: "From the slam hit (boss.json slam: telegraph 1.2 s, then the hit); bursts start within 0.08 s, puffs live 0.35–0.6 s (bossDust.ts).",
