@@ -198,4 +198,8 @@ and the asset review in `docs/art/asset-review.md`.
   - Q5 asked what "protected" means. It is Story 8.1's protection: a survivor who reconnects is protected for 2 s
     (no damage, no shooting), and everyone standing is protected during the evacuation (12.75 s). Spit, zombie
     hits and damage respect it; the Bloater gas slow does not.
+  - **Gas slow bug: fix approved** (designer 2026-11-28: "Yes we should fix it"). `zombies/bloater.ts › gasPlayer`
+    lacks the guard that spit and zombie hits have (`isGodFor` / `protectTicks > 0`). A builder in its own cloud
+    session fixes it through a PR (branch `bugfix-gas-protect`): a failing repro test first, the one-line guard, a
+    check of any client mirror, gate:fast, CI.
 
